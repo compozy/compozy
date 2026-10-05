@@ -126,8 +126,8 @@ async function stopHoldingTurn(harness: AgentHarness, appPage: Page): Promise<vo
   const stopped = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      (response.url().endsWith(`${sessionBase}/prompt/cancel`) ||
-        response.url().endsWith(`${sessionBase}/stop`))
+      (new URL(response.url()).pathname === `${sessionBase}/prompt/cancel` ||
+        new URL(response.url()).pathname === `${sessionBase}/stop`)
   );
   await harness.sessionUI.stopButton.click();
   expect((await stopped).ok()).toBe(true);

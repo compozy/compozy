@@ -44,6 +44,7 @@ func (r *taskRoleRuntime) startRoleSession(
 
 func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
+		ProfileID: activation.ProfileID,
 		AgentName: activation.AgentName,
 		Provider:  activation.Provider,
 		Model:     activation.Model,
@@ -195,6 +196,7 @@ func (r *taskRoleRuntime) starvationActivation(
 	activation := taskRoleActivation{
 		TaskID:      strings.TrimSpace(taskRecord.ID),
 		RunID:       strings.TrimSpace(run.ID),
+		ProfileID:   strings.TrimSpace(taskRecord.ProfileID),
 		Scope:       taskRecord.Scope.Normalize(),
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
 		AgentName:   agentName,
@@ -239,6 +241,9 @@ func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) b
 		return false
 	}
 	if !taskRoleSessionStateReusable(info.State) {
+		return false
+	}
+	if strings.TrimSpace(info.ProfileID) != activation.ProfileID {
 		return false
 	}
 	if activation.Worktree.Mode.Normalize() == taskpkg.WorktreeModePerRun {

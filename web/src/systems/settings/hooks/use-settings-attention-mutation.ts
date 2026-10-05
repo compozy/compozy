@@ -35,6 +35,7 @@ export function useUpdateSettingsAttention() {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
+    networkMode: "always",
     mutationFn: ({ request }: StartedSettingsAttentionMutationVariables) => request,
     onSuccess: (result, variables) => {
       recordSettingsMutation(result);

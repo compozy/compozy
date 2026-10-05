@@ -10,6 +10,23 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// AllowedToolsPolicyError identifies an override rejected by the resolved Agent policy.
+type AllowedToolsPolicyError struct {
+	Tool          toolspkg.ToolID
+	DeniedByAgent bool
+}
+
+var _ error = &AllowedToolsPolicyError{}
+
+func (e *AllowedToolsPolicyError) Error() string {
+	if e.DeniedByAgent {
+		return fmt.Sprintf("%s: allowed_tools override tool %q is denied by agent profile", ErrValidation, e.Tool)
+	}
+	return fmt.Sprintf("%s: allowed_tools override tool %q widens agent profile", ErrValidation, e.Tool)
+}
+
+func (e *AllowedToolsPolicyError) Unwrap() error { return ErrValidation }
+
 // WithToolsetCatalog injects the catalog used to validate toolset-backed overrides.
 func WithToolsetCatalog(catalog toolspkg.ToolsetCatalog) Option {
 	return func(manager *Manager) {
@@ -199,7 +216,7 @@ func validateAllowedToolsOverrideSubset(
 	for _, raw := range requested {
 		id := toolspkg.ToolID(raw)
 		if matchesAllowedToolsPattern(denyPatterns, id) {
-			return fmt.Errorf("%w: allowed_tools override tool %q is denied by agent profile", ErrValidation, raw)
+			return &AllowedToolsPolicyError{Tool: id, DeniedByAgent: true}
 		}
 		toolsetMember, err := catalog.Contains(id, toolsets)
 		if err != nil {
@@ -208,7 +225,7 @@ func validateAllowedToolsOverrideSubset(
 		if !agentRestrictsTools || matchesAllowedToolsPattern(allowPatterns, id) || toolsetMember {
 			continue
 		}
-		return fmt.Errorf("%w: allowed_tools override tool %q widens agent profile", ErrValidation, raw)
+		return &AllowedToolsPolicyError{Tool: id}
 	}
 	return nil
 }

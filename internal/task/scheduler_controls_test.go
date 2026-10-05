@@ -24,6 +24,7 @@ type schedulerControlTestStore struct {
 	starvedRunCount        int
 	escalatingCountCalls   int
 	needsAttentionRunCount int
+	backlog                SchedulerBacklog
 }
 
 var _ taskPauseStore = (*schedulerControlTestStore)(nil)
@@ -173,7 +174,7 @@ func (s *schedulerControlTestStore) SchedulerBacklog(
 	if err := ctx.Err(); err != nil {
 		return SchedulerBacklog{}, err
 	}
-	return SchedulerBacklog{}, nil
+	return s.backlog, nil
 }
 
 func (s *schedulerControlTestStore) WriteEventSummary(ctx context.Context, summary storepkg.EventSummary) error {
@@ -196,6 +197,38 @@ func (s *schedulerControlTestStore) requireStatusDeadline(ctx context.Context) e
 
 func TestSchedulerControls(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retain each task owner on queued backlog runs", func(t *testing.T) {
+		t.Parallel()
+
+		store := newSchedulerControlTestStore()
+		store.backlog = SchedulerBacklog{
+			Total: 2,
+			Runs: []SchedulerBacklogRun{
+				{
+					Task: Task{ID: "task-marketing", ProfileID: "profile-marketing"},
+					Run:  Run{ID: "run-marketing", TaskID: "task-marketing"},
+				},
+				{
+					Task: Task{ID: "task-default", ProfileID: storepkg.DefaultProfileID},
+					Run:  Run{ID: "run-default", TaskID: "task-default"},
+				},
+			},
+		}
+		manager := newTaskManagerForTest(t, store)
+		backlog, err := manager.SchedulerBacklog(t.Context(), SchedulerBacklogQuery{}, validActorContext())
+		if err != nil {
+			t.Fatalf("SchedulerBacklog() error = %v", err)
+		}
+		if backlog.Total != 2 || len(backlog.Runs) != 2 {
+			t.Fatalf("SchedulerBacklog() = %#v, want both queued runs", backlog)
+		}
+		for _, item := range backlog.Runs {
+			if item.Run.ProfileID != item.Task.ProfileID {
+				t.Errorf("run %s owner = %q, want %q", item.Run.ID, item.Run.ProfileID, item.Task.ProfileID)
+			}
+		}
+	})
 
 	for _, status := range []Status{TaskStatusCompleted, TaskStatusFailed, TaskStatusCanceled} {
 		t.Run("Should reject pausing "+string(status)+" task", func(t *testing.T) {

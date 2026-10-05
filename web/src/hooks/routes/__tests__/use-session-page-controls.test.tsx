@@ -337,6 +337,8 @@ describe("useSessionPageControls", () => {
     await waitFor(() =>
       expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
         id: "sess-1",
+        workspace_id: WORKSPACE_ID,
+        profile_name: "default",
         wait: false,
       })
     );
@@ -372,6 +374,8 @@ describe("useSessionPageControls", () => {
     act(() => result.current.handleStop());
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
       id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
       wait: true,
     });
     expect(result.current.isStopRetrying).toBe(true);
@@ -423,6 +427,8 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledTimes(2);
     expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenLastCalledWith({
       id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
       wait: true,
     });
     expect(result.current.isStopRetrying).toBe(true);
@@ -452,6 +458,8 @@ describe("useSessionPageControls", () => {
     await waitFor(() =>
       expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
         id: "sess-1",
+        workspace_id: WORKSPACE_ID,
+        profile_name: "default",
         wait: false,
       })
     );
@@ -459,17 +467,24 @@ describe("useSessionPageControls", () => {
   });
 
   it("Should display the deletion failure and allow a retry without reporting success", () => {
-    const { result } = renderControls(makeSession("stopped"));
-    act(() => result.current.handleDelete());
-    const options = routeHookMocks.deleteMutation.mutate.mock.calls[0]?.[1];
-    act(() => options.onError(new Error("Could not settle the session Goal. Try again.")));
-    expect(routeHookMocks.toastError).toHaveBeenCalledWith(
-      "Could not settle the session Goal. Try again."
-    );
-    expect(routeHookMocks.toastSuccess).not.toHaveBeenCalled();
-    expect(routeHookMocks.resetThread).not.toHaveBeenCalled();
-    act(() => result.current.handleDelete());
-    expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledTimes(2);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failure = new Error("Could not settle the session Goal. Try again.");
+    try {
+      const { result } = renderControls(makeSession("stopped"));
+      act(() => result.current.handleDelete());
+      const options = routeHookMocks.deleteMutation.mutate.mock.calls[0]?.[1];
+      act(() => options.onError(failure));
+      expect(routeHookMocks.toastError).toHaveBeenCalledWith(
+        "Could not settle the session Goal. Try again."
+      );
+      expect(routeHookMocks.toastSuccess).not.toHaveBeenCalled();
+      expect(routeHookMocks.resetThread).not.toHaveBeenCalled();
+      act(() => result.current.handleDelete());
+      expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledTimes(2);
+      expect(consoleError).toHaveBeenCalledExactlyOnceWith("Failed to delete session", failure);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("Should own delete success in the mutation lifecycle before the route unmounts", () => {

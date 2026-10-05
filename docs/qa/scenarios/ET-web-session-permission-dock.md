@@ -6,13 +6,13 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: A pending permission docks above the composer (fused corners) with buttons only for the decisions the runtime offers; keys 1–4 map to allow-once / allow-always / reject-once / reject-always, key 4 firing even while the reject split menu is closed; digit shortcuts ignore focused inputs; resolving leaves a one-line receipt in the transcript for BOTH outcomes (allowed and rejected). A pending clarification docks with 30px choice rows on keys 1–9, or the free-text form when no choices ship (Enter submits, Shift+Enter breaks); the deadline hint is static, sans with tabular figures, and never ticks; submitting/retryable errors render as quiet dock status lines; multiple pending decisions queue with a sans tabular "1/N" counter, permissions first. No text in the dock family renders below 11px or in mono except the choice keycaps.
 entry_points: web session window composer zone; POST session approve; session clarifications REST
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa; docs/qa/reports/2026-08-20-ui-normies-retry.md
-last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-session-clarification-roundtrip
 ---
 
@@ -75,3 +75,7 @@ closed, digit shortcuts yielding to focused inputs, one receipt per outcome, que
 untouched by the pass and are the parts a re-walk should confirm still hold.
 
 QA 2026-09-06 — sessions-stability selected scope: PASS for the adjacent selected canary: a real controlled ACP edit permission persisted across reload, the browser Allow once choice reached the driver, and the same turn finished with its receipt. A separate native clarification rendered in the dock and Staging returned choice0/fallbackfalse with the answered receipt. The integrated report names the public evidence and inspected screenshots. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

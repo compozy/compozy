@@ -227,8 +227,9 @@ type ExtensionPayload struct {
 
 // ExtensionDeclaredProfilePayload reports one manifest-declared profile and its live setup state.
 type ExtensionDeclaredProfilePayload struct {
-	Name                   string                         `json:"name"`
-	Exists                 bool                           `json:"exists"`
+	Name   string `json:"name"`
+	Exists bool   `json:"exists"`
+	// CreatedByExtension requires confirmed creation provenance; unknown historical origin is false.
 	CreatedByExtension     bool                           `json:"created_by_extension"`
 	NeedsSetup             bool                           `json:"needs_setup"`
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`

@@ -164,6 +164,7 @@ type LoopGateVerdictPayload struct {
 type LoopGateCriterionDetailPayload struct {
 	ID             string                         `json:"id"`
 	Type           string                         `json:"type"`
+	Prompt         string                         `json:"prompt,omitempty"`
 	Outcome        LoopGateVerdictOutcome         `json:"outcome"`
 	Passed         bool                           `json:"passed"`
 	Broken         bool                           `json:"broken,omitempty"`

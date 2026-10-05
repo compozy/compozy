@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -153,19 +154,35 @@ func TestSessionMetaCreationWitness(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name        string
+		payload     []byte
 		old         string
 		replacement string
 		valid       bool
 	}{
 		{name: "Should reopen the creation witness without rewriting it", valid: true},
+		{name: "Should retain a version three creation witness", payload: legacyCreationWitnessForTest(t, 3), valid: true},
+		{name: "Should retain a version four creation witness", payload: legacyCreationWitnessForTest(t, 4), valid: true},
+		{name: "Should retain a version five creation witness", payload: legacyCreationWitnessForTest(t, 5), valid: true},
+		{
+			name: "Should reject a tampered retired sandbox witness", payload: legacyCreationWitnessForTest(t, 3),
+			old: `"sandbox_ref":"local"`, replacement: `"sandbox_ref":"changed"`,
+		},
+		{
+			name: "Should reject a tampered retired network witness", payload: legacyCreationWitnessForTest(t, 5),
+			old: `"source":"built_in_local"`, replacement: `"source":"explicit_request"`,
+		},
 		{name: "Should reject a tampered policy", old: "Preserve this runtime policy.", replacement: "Tampered policy"},
 		{name: "Should reject an unknown future version", old: `"version":6`, replacement: `"version":99`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			payload, err := json.Marshal(sessionCreationWitnessForTest(t))
-			if err != nil {
-				t.Fatal(err)
+			payload := tc.payload
+			if payload == nil {
+				var err error
+				payload, err = json.Marshal(sessionCreationWitnessForTest(t))
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			if tc.old != "" {
 				payload = bytes.ReplaceAll(payload, []byte(tc.old), []byte(tc.replacement))
@@ -206,6 +223,43 @@ func TestSessionMetaCreationWitness(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The version three payload and identities were produced by the released beta.19 CLI.
+// Later versions add only their versioned profile identity and ACP option fields here.
+func legacyCreationWitnessForTest(t *testing.T, version int) []byte {
+	t.Helper()
+	profileFields := ""
+	if version >= 5 {
+		profileFields += `"acp_options":[{"id":"thinking","bool_value":true}],`
+	}
+	if version >= 4 {
+		profileFields += `"profile_id":"00000000000000000000000000",`
+	}
+	profile := fmt.Sprintf(
+		`{"version":%d,"agent_name":"general","provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"medium","speed":"normal",%s"workspace_id":"ws_328f5cbfe158839e","cwd":"/Users/pedronauck","sandbox_mode":"ref","sandbox_ref":"local","permissions":"approve-all"}`,
+		version,
+		profileFields,
+	)
+	const options = `{"session_id":"sess-1910f4bd9212e8db","name":"Archived editorial planning","network_owner_key":"session:sess-1910f4bd9212e8db","network_participation":{"version":"network-participation/v1","mode":"local","source":"built_in_local"},"session_type":"user"}`
+	ref := "profile:sha256:" + sha256Hex([]byte(profile))
+	policy := "policy:sha256:" + sha256Hex([]byte("compozy-session-policy-v1\x00"+profile))
+	creation := "creation:sha256:" + sha256Hex([]byte(policy+"\x00"+options))
+	if version == 3 && (ref != "profile:sha256:22bcc2473f9689e8aa4f92f53ca53331765614f1bbc95afac2eeea7ba3a1d46a" ||
+		policy != "policy:sha256:5168aa73c315468c831f959f3a98a9d36830733cbb020e3a32b8c830cbe61441" ||
+		creation != "creation:sha256:d121383e7be30af98503201720760b95cdc132d1345c8a360e349b1a0a008690") {
+		t.Fatal("fixture no longer matches the released creation witness")
+	}
+	return []byte(
+		fmt.Sprintf(
+			`{"id":"sess-1910f4bd9212e8db","agent_name":"general","workspace_id":"ws_328f5cbfe158839e","state":"stopped","runtime_status":"unbound","creation_profile":%s,"creation_options":%s,"creation_profile_ref":%q,"policy_spec_digest":%q,"creation_digest":%q,"created_at":"2026-10-04T09:35:00Z","updated_at":"2026-10-04T09:35:00Z"}`,
+			profile,
+			options,
+			ref,
+			policy,
+			creation,
+		),
+	)
 }
 
 func sessionCreationWitnessForTest(t *testing.T) SessionMeta {

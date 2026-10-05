@@ -72,7 +72,7 @@ function renderMenubar({
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <CmdPaletteRegistryProvider registry={paletteRegistryFixture(commands)}>
           <DesktopMenubar
             workspaces={[]}

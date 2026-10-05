@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
 import { StrictMode, use, useEffect, useLayoutEffect, useState } from "react";
@@ -990,6 +990,7 @@ describe("SessionChatRuntimeProvider", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     resetGatewayStreamAuth();
     vi.unstubAllGlobals();
@@ -1234,6 +1235,52 @@ describe("SessionChatRuntimeProvider", () => {
         </QueryClientProvider>
       )
     ).toThrow("SessionChatRuntimeProvider requires a non-empty workspaceId");
+  });
+
+  it("Should render retained Global history without a project or writable runtime", async () => {
+    const queryClient = createQueryClient();
+    const message: TranscriptMessage = {
+      id: "global-retained-answer",
+      role: "assistant",
+      parts: [{ type: "text", text: "Retained Global work.", state: "done" }],
+    };
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (url.pathname === `/api/sessions/${primarySessionFixture.id}/transcript`) {
+        return Promise.resolve(jsonResponse(transcriptPayload([message])));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+    const eventSourceFactory = vi.fn((url: string) => new FakeSessionEventSource(url));
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SessionChatRuntimeProvider
+          sessionId={primarySessionFixture.id}
+          workspaceId=""
+          readOnly
+          eventSourceFactory={eventSourceFactory}
+        >
+          <SessionThread
+            sessionId={primarySessionFixture.id}
+            workspaceId=""
+            agentName={primarySessionFixture.agent_name}
+            readOnly
+            canPrompt={false}
+            liveDataEnabled={false}
+          />
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+    expect(await screen.findByText("Retained Global work.")).toBeInTheDocument();
+    expect(screen.queryByTestId("composer-input")).not.toBeInTheDocument();
+    expect(eventSourceFactory).not.toHaveBeenCalled();
+    expect(
+      fetchMock.mock.calls.every(
+        ([input]) =>
+          new URL(input instanceof Request ? input.url : String(input)).pathname ===
+          `/api/sessions/${primarySessionFixture.id}/transcript`
+      )
+    ).toBe(true);
   });
 
   // Invariant: only a completed operator Goal draft stages the final proposal;

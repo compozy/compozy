@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-organize-tabbed-work
 expected: Drag, context-menu, and Command-T grouping each create one ordered frame; dragging a window over a solo window's head shows the accent "Group as tabs" affordance and release folds both into one deck; the deck mounts only at two or more members as a 40px recessed strip of browser-style tabs (208px shrinking to 136px, the active tab a surface plate with concave feet fused with the head, hairlines between inactive tabs, a 28px New tab button, 20px close buttons) with the quiet window controls on the right, keeps hidden bodies mounted, supports reorder and tear-out, and survives reload with the same active member and placement.
 entry_points: web desktop window drag; tab and dock context menus; Command-T; web /new-tab
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
 evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/window-merge-preview.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/window-three-tab-deck.png
-last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-layout-gestures; ET-web-desktop-shell-lifecycle
 ---
 
@@ -77,3 +77,7 @@ merge target or duplicate frame.
 qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The deck became browser tabs on a recessed strip; the traffic lights moved to quiet trailing controls. Reset for a grouping, reorder, tear-out and reload walk in both themes.
 
 qa-impact: 2026-09-30 shell-rail polish P6 — with the new default `new_window_policy = tab`, opening an app from the rail, palette, or menubar while a window is focused adds it to that window's deck as the active tab; a deck therefore also forms without any drag or Command-T. Walk one rail-opened tab alongside the grouping, reorder, tear-out and reload checks.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

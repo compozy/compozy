@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Zooming a window whose desktop shows nothing else fills that desktop with its frame in place; opening a separate visible frame on that desktop ends zoom before showing the peer; zooming a window while another window is visible on its desktop moves the frame to a new desktop right after the current one, the pager gains one desktop, the client follows it, and the other window stays where it was; the new desktop accepts tabs and tiles like any other; opening a tab directly into the zoomed frame or dragging another window's head onto it keeps the resulting deck zoomed; tiling another window to a screen edge on the zoomed desktop shrinks the zoomed island to the free zone and ends the zoom instead of dropping it back to its old rect; zooming a window again while a tiled neighbour is visible never covers the neighbour; unzooming returns the frame to the exact slot it left and removes the desktop the zoom created when it is empty; closing the zoomed frame removes that desktop too; minimizing the zoomed window and restoring it from the dock brings it back zoomed on an unoccupied desktop and unzoom still takes it home; closing the zoomed tab of a zoomed deck keeps the deck zoomed; the traffic-light zoom control reports pressed while zoomed; compozy window zoom works without --client and compozy window list shows zoomed per window.
 entry_points: web desktop window Zoom control; zoom menu Fill; command palette Zoom window; drag to top-center; drag to bottom-center; compozy window zoom; compozy__window_zoom; compozy window list
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status: fixed
 retest_status: pass
 fix_commits: a1baedd3a
 evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/logs/review-targeted-walk.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/logs/walk-window-manager.jsonl; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/02-solo-zoomed-in-place.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/03-edge-tile-splits-solo-zoom.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/04-zoom-lifted-over-neighbor.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/05-unzoom-returned-home.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/teardown.json
-last_report: docs/qa/reports/2026-09-01-window-manager-review-fixes.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-layout-gestures; ET-window-tab-deck-lifecycle; RT-desktop-pager-overview; ET-window-manager-public-parity
 ---
 
@@ -58,3 +58,7 @@ passed in 5.1s, including exact pointer-delta geometry for the window's own tile
 Fixture teardown completed successfully. Linux and Electron were not run locally.
 
 qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The zoom control is now the quiet Maximize/Restore icon in the window controls (label "Zoom window" / "Restore window"), and `bindings.bottom_center` now defaults to `zoom` (was `reserved`; SD-013 default change; an explicit value wins). Reset to re-walk the structural zoom model from the new control and from a bottom-center drag.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

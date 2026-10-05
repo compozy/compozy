@@ -7,6 +7,7 @@ import {
   formatDateTime,
 } from "../lib/automation-formatters";
 import type { LoopTargetProjection } from "../lib/automation-target";
+import type { JobRunDigest } from "../lib/job-preview";
 import type { AutomationJob } from "../types";
 import { AutomationTargetDetails } from "./automation-target-details";
 
@@ -24,6 +25,22 @@ export function PromptSection({ prompt }: { prompt: string }) {
   return (
     <Section label="Prompt">
       <CodeBlock code={prompt} copyable={false} />
+    </Section>
+  );
+}
+
+export function JobTaskSection({ task }: { task: NonNullable<JobRunDigest["task"]> }) {
+  return (
+    <Section label="Creates a task">
+      <div className="rounded-md bg-sunken px-4 py-3" data-testid="automation-task-details">
+        <PropertyRow label="Title">{task.title}</PropertyRow>
+        <PropertyRow label="Owner" mono>
+          {task.owner}
+        </PropertyRow>
+        <p className="mt-3 text-small-body leading-relaxed whitespace-pre-wrap text-fg">
+          {task.description}
+        </p>
+      </div>
     </Section>
   );
 }

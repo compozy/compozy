@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-workspace-context
 expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before memory, automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write, and global/all scope remains operator-only for workspace-bound sessions.
 entry_points: compozy__workspace_info; compozy__memory_*; compozy__automation_*; compozy__hooks_*; compozy__task_run_claim_next
-qa_status: untested
-bug_ids: BUG-20260729-nearest-workspace-case-alias
+qa_status: pass
+bug_ids: BUG-20261003-task-catalog-replaces-authorized-workspace; BUG-20260729-nearest-workspace-case-alias; BUG-20261002-native-approval-input-mismatch; BUG-20261002-hook-tool-matcher-docs; BUG-20261002-native-workspace-identity-boundaries; BUG-20261002-native-hook-dispatch-missing; BUG-20261002-native-task-filter-error
 fix_status: fixed
-retest_status:
-fix_commits: 4e81f17
-evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+retest_status: pass
+fix_commits: 4e81f17; bef9a13b8; 65f740194; 563990440; 244020cfd; e127956a3; 7a7780ae3
+evidence: docs/qa/evidence/2026-10-02-untested/native-hook-inherited-summary.json; docs/qa/evidence/2026-10-02-untested/native-hook-fixed-summary.json; docs/qa/evidence/2026-10-02-untested/native-handoff-summary.json; docs/qa/evidence/2026-10-02-untested/task-catalog-replay-summary.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-workspace-access-mode-matrix; ET-workspace-access-prompt-outcomes; MS-workspace-resolution-chain; ET-workspace-host-api-mcp
 ---
 
@@ -53,3 +53,45 @@ automation and memory tools; operator global scope must remain available.
 
 
 2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
+
+QA 2026-10-02: the scoped operator approval mismatch is repaired and replayed through CLI, HTTP
+and UDS, including changed-input and one-shot-token refusals. Operator session selectors do not
+establish agent authority. The real hosted-agent boundary and hook-rewrite legs remain unverified;
+two hook creation attempts exposed stale `tool_name` guidance. Corrected `tool_id` authoring is
+verified through create/restart/catalog/delete, but the scoped operator invocation did not fire
+the hook. See the dated report for receipts and the explicit Pending matrix disposition.
+
+The hosted operations agent subsequently reached Studio and Editorial through actual native
+workspace, memory, automation, hook and task reads; ID and path references resolved to Editorial.
+The deny-all librarian stopped at tool discovery approval, which is not evidence of foreign-handler
+denial. Both sessions are stopped. Mutation, global/all and hook-rewrite legs remain Pending.
+
+A subsequent fresh walk saved a Studio reference memory, created a disabled weekly job, and made
+one empty task claim through omitted-workspace native calls. Independent memory read-back passed,
+but the operator could not retrieve the job. An approve-reads session was correctly denied global
+job scope, yet incorrectly prompted for access to its own project path. The installed required
+pre-call hook had no runs after native workspace-info execution. Those two failures are filed above;
+all caller sessions are stopped and the owned hook is removed. Full scenario disposition remains Pending.
+
+Identity repair `563990440` is verified: own aliases reach Studio, foreign rejected reads disclose no
+Editorial data, and native/operator automation paths retrieve the same persisted job. The separate
+task-filter error classification finding is linked above; hook and remaining mutation legs stay Pending.
+
+The native hook repair now passes a fresh hosted replay: an own-project memory mutation is refused
+when its pre-call hook tries to redirect it to Editorial, and a separate explicit Editorial mutation
+is refused after the operator rejects canonical cross-workspace access. Each hook runs exactly once
+with durable session lifecycle events. Both public memory catalogs remain unchanged; sessions are
+stopped and the hook removed. See `native-hook-fixed-*` and the dated report. Remaining allowed
+foreign-mutation and `all`-scope evidence still needs reconciliation before this full row is closed.
+
+QA 2026-10-03: allowed Editorial memory mutation by registered name persists, and a bound all-scope
+read is denied while the operator read succeeds. The agent then exposes a separate task catalog
+regression: Editorial name/path queries return Studio records. That finding keeps this row Pending.
+
+Final reconciliation 2026-10-03: Fixed. The fresh empty-input hooks_list caller returns the same five
+hook name/event pairs as the independent CLI, closing the last omitted-workspace catalog leg.
+Workspace, memory, automation and empty task-claim inheritance; own ID/name/path aliases; allowed
+and denied foreign reads/mutations; operator-only global/all; and executed hook rewrite refusal all
+have linked receipts in the dated report. Task target repair returns Editorial's correct empty page
+and preserves Studio's three tasks. All affected gates pass. The empty claim proves boundary
+invocation only, not acquisition of a nonempty queue; dedicated task-lease journeys own that invariant.

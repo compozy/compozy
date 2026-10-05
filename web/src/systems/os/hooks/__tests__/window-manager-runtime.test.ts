@@ -1720,7 +1720,11 @@ describe("WindowManagerRuntime", () => {
 
   it("Should preserve an unrelated conflict when semantic open admission is blocked", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    const originalRoute = { pathname: "/agents", search: {} };
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
+      snapshotWithAgentsRoute(originalRoute)
+    );
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
@@ -1757,7 +1761,18 @@ describe("WindowManagerRuntime", () => {
       route: { pathname: "/tasks", search: {} },
     });
 
+    // Invariant: a known conflict refuses admission before publishing an optimistic route.
+    // Owner: runtime command admission; canonical suite: WindowManagerRuntime.
+    expect(outcome.accepted).toBe(false);
+    const navigation = runtime.navigateWindow("app:agents", {
+      pathname: "/agents/reviewer",
+      search: {},
+    });
+    expect(navigation.accepted).toBe(false);
+    expect(runtime.getState().windows["app:agents"]?.route).toEqual(originalRoute);
+    await expect(navigation.completion).resolves.toBe(false);
     await expect(outcome.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).not.toHaveBeenCalled();
     expect(fetchWindowManagerSnapshot).not.toHaveBeenCalled();
     expect(windowManagerStore.getSnapshot().context.commandState).toMatchObject({
       status: "conflict",

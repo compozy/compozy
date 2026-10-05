@@ -350,7 +350,7 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const stopActionResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      stopActionPaths.some(pathname => response.url().endsWith(pathname))
+      stopActionPaths.some(pathname => new URL(response.url()).pathname === pathname)
   );
   await expect(ui.stopButton).toBeVisible();
   await ui.stopButton.click();

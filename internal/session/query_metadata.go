@@ -43,7 +43,7 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 	if _, ok := m.Get(target); ok || m.isPending(target) {
 		return meta, nil
 	}
-	if _, err := m.resolveStoredSessionOwner(ctx, target, meta.WorkspaceID); err != nil {
+	if _, err := m.resolveStoredSessionOwner(ctx, &meta); err != nil {
 		return store.SessionMeta{}, fmt.Errorf(
 			"session: prove catalog owner before classifying metadata for %q: %w",
 			target,
@@ -125,6 +125,9 @@ func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta *store.SessionMe
 		} else {
 			info.TranscriptEpoch = epoch
 		}
+	}
+	if meta.WorkspaceID == "" {
+		return info
 	}
 	workspaceRoot, err := m.resolveWorkspaceRoot(ctx, meta.WorkspaceID)
 	if err != nil {

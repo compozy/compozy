@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-refresh-agent-knowledge
 expected: An active task-role worker observes changed workspace knowledge on its next eligible wake and acts on the new signal without a second operator prompt.
 entry_points: workspace knowledge; task-role wake; hosted native task lease
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260729-agent-knowledge-refresh-missed
 fix_status: fixed
 retest_status:
 fix_commits: pending final whole-diff commit
 evidence: /home/pedronauck/dev/qa-labs/compozy-knowledge-refresh-on-wake-20260803-025914-822792-lab/qa-artifacts/qa/knowledge-refresh-evidence.json
-last_report: docs/qa/reports/2026-08-02-knowledge-refresh-on-wake.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: TA-task-role-session-activation
 ---
 
@@ -44,3 +44,7 @@ release-grade auditor remains blocked by its intentionally broader actor/channel
 and the deferred final gate; those do not change this scenario's observed behavior verdict.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

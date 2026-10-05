@@ -401,6 +401,8 @@ export abstract class WindowManagerRuntimeCore {
       this.reportClientUnavailable();
       return null;
     }
+    // Refused commands must not publish optimistic routes while recovery is pending.
+    if (windowManagerStore.getSnapshot().context.commandState.status === "conflict") return null;
     // Rapid interactions (zoom toggle, dock activations, seam arrows) queue
     // behind the in-flight command instead of being silently dropped; each
     // queued command reads a fresh snapshot revision when it runs.

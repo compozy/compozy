@@ -145,7 +145,7 @@ func (m *Manager) cleanupSessionDeleteTombstoneWithContext(
 	if strings.TrimSpace(meta.ID) != target {
 		return fmt.Errorf("session: deletion tombstone metadata id %q does not match %q", meta.ID, target)
 	}
-	owner, err := (store.SessionDBOwner{SessionID: target, WorkspaceID: meta.WorkspaceID}).Normalize()
+	owner, err := meta.DatabaseOwner()
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func (m *Manager) sessionCatalogOwnerState(
 	if m == nil || m.sessionCatalog == nil {
 		return store.SessionDBOwner{}, false, false, nil
 	}
-	owner, err := store.LookupSessionDBOwner(ctx, m.sessionCatalog, target)
+	owner, err := store.LookupSessionOwner(ctx, m.sessionCatalog, m.creationStore, target)
 	if errors.Is(err, store.ErrSessionNotFound) {
 		return store.SessionDBOwner{}, false, true, nil
 	}
@@ -315,7 +315,7 @@ func (m *Manager) sessionCatalogOwnerState(
 			err,
 		)
 	}
-	return owner, true, true, nil
+	return owner.DatabaseOwner, true, true, nil
 }
 
 func readSessionMetaFromDirectory(directory *fileutil.Directory) (store.SessionMeta, error) {

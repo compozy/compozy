@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-organize-tabbed-work
 expected: Command-K lists live tabs with disambiguating app, desktop, leaf-title, attention, and minimized context; selecting a result restores and activates that exact window without changing its route depth, and an empty or closed result group disappears without stale rows.
 entry_points: Command-K; command palette Go to tab; web desktop URL
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-03-palette-tabs.png
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-tab-multi-instance; ET-web-window-routing-lifecycle
 ---
 
@@ -37,3 +37,7 @@ Walk (task_11 plan):
 Expected evidence: screenshots of the disambiguated tab results and the restored cross-desktop
 window; the rank-signals threshold and top-score pair for the equality and below-threshold
 branches.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

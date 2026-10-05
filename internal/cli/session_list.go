@@ -258,6 +258,9 @@ func sessionListToonRow(item SessionRecord) []string {
 
 func decorateSessionListBundle(bundle outputBundle, page SessionListPage) outputBundle {
 	bundle.jsonl = func(cmd *cobra.Command) error {
+		if err := writeProfileResolutionFrame(cmd); err != nil {
+			return err
+		}
 		for index := range page.Sessions {
 			if err := writeJSONLine(cmd, &page.Sessions[index]); err != nil {
 				return err

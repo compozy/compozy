@@ -1,27 +1,18 @@
-import {
-  Suspense,
-  lazy,
-  useRef,
-  type ComponentType,
-  type KeyboardEvent,
-  type LazyExoticComponent,
-} from "react";
+import { Suspense, lazy, type ComponentType, type LazyExoticComponent } from "react";
 
-import { runViewTransition, Spinner, viewTransitionName } from "@compozy/ui";
+import { Spinner, viewTransitionName } from "@compozy/ui";
+import { shallowEqual } from "@xstate/store";
 
+import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { useDesktop } from "../../hooks/use-desktop";
-import { useOsReducedMotion } from "../../hooks/use-os-reduced-motion";
-import { useOsShell } from "../../hooks/use-os-shell";
-import type { OsWindowRoute } from "../../lib/os-types";
 import { SettingsWindowNav } from "./settings-window-nav";
-import { profileFlowFromSearch, type ProfileFlowSearch } from "@/systems/profiles";
+import { useProfileFlowIntent } from "./use-profile-flow-intent";
+import { useSettingsNavigation } from "./use-settings-navigation";
 import { SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
 export interface SettingsSectionPageProps {
   focusCommandId?: string;
-  /** Lifecycle flow a palette command navigated here to raise. */
-  profileFlow?: ProfileFlowSearch;
 }
 
 type SectionComponent = ComponentType<SettingsSectionPageProps>;
@@ -147,7 +138,6 @@ function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
  * window's WM location (not router matches) so an unfocused settings window
  * keeps showing its own section (ADR-002 rule 6).
  */
-const TYPING_TAGS = /^(INPUT|SELECT|TEXTAREA)$/;
 const DEFAULT_SETTINGS_ROUTE = { pathname: "/settings", search: {} } as const;
 
 function focusCommandFromSearch(search: Record<string, unknown>): string | undefined {
@@ -158,47 +148,38 @@ function focusCommandFromSearch(search: Record<string, unknown>): string | undef
 }
 
 export function SettingsWindow({ windowId }: { windowId: string }) {
-  const { coordinator } = useOsShell();
-  const route = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_SETTINGS_ROUTE);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { route, searchEnabled } = useDesktop(state => {
+    const win = state.windows[windowId];
+    return {
+      route: win?.route ?? DEFAULT_SETTINGS_ROUTE,
+      searchEnabled:
+        !!win &&
+        state.focusedId === windowId &&
+        win.desktopId === state.activeDesktopId &&
+        !win.minimized &&
+        win.stackActive,
+    };
+  }, shallowEqual);
+  // Neutral content clicks focus the desktop ancestor, outside this window's
+  // bubbling path. Reuse the document shortcut while this window owns focus.
+  const searchInputRef = useListingSearchShortcut(searchEnabled);
   const connection = useDaemonConnectionStatus();
-  const reducedMotion = useOsReducedMotion();
   const activeSlug = sectionSlugFromPathname(route.pathname);
+  const navigate = useSettingsNavigation(next => {
+    // Unloaded sections switch immediately to avoid snapshotting their spinner.
+    const nextSlug = sectionSlugFromPathname(next.pathname);
+    return nextSlug !== activeSlug && loadedSections.has(nextSlug);
+  });
   const SectionPage = SECTION_PAGES[activeSlug];
   const focusCommandId =
     activeSlug === "layouts" ? focusCommandFromSearch(route.search) : undefined;
-  const profileFlow = activeSlug === "profiles" ? profileFlowFromSearch(route.search) : undefined;
-
-  // Section switches cross-fade only the content pane. A chunk that has not
-  // loaded yet would snapshot the Suspense spinner, so those switch instantly.
-  const navigate = (next: OsWindowRoute) => {
-    const nextSlug = sectionSlugFromPathname(next.pathname);
-    const animate = nextSlug !== activeSlug && loadedSections.has(nextSlug);
-    if (!animate) {
-      coordinator.userNavigate(next);
-      return;
-    }
-    void runViewTransition(() => coordinator.userNavigate(next), { reduced: reducedMotion });
-  };
-
-  // Window-scoped `/` shortcut: focus the sidebar search unless the user is
-  // already typing in a field.
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "/" || event.defaultPrevented) return;
-    const target = event.target as HTMLElement | null;
-    if (target && (TYPING_TAGS.test(target.tagName) || target.isContentEditable)) return;
-    event.preventDefault();
-    searchInputRef.current?.focus();
-  };
+  useProfileFlowIntent(windowId, activeSlug === "profiles" ? route : undefined);
 
   // The container declaration lives on the outer wrapper: an element cannot
   // resolve a container query against itself, so the flex switch sits one
   // level down where the Settings takeover container query reads this wrapper's inline size.
   return (
-    <div
-      className="@container flex min-h-0 flex-1 flex-col overflow-hidden"
-      onKeyDown={handleKeyDown}
-    >
+    <div className="@container flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         className="flex min-h-0 flex-1 flex-col @min-settings-takeover:flex-row"
         data-testid="settings-shell"
@@ -222,7 +203,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
               </div>
             }
           >
-            <SectionPage focusCommandId={focusCommandId} profileFlow={profileFlow} />
+            <SectionPage focusCommandId={focusCommandId} />
           </Suspense>
         </div>
       </div>

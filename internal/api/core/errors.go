@@ -41,6 +41,9 @@ var ErrRequestBodyTooLarge = errors.New("request body too large")
 
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	if respondProfileAdmissionError(c, err) {
+		return
+	}
 	normalized := normalizeErrorStatus(status, err, maskInternalErrors)
 	c.JSON(
 		normalized.status,

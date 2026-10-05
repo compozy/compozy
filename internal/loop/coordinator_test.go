@@ -3455,13 +3455,23 @@ func TestCoordinatorRunnerShouldStartFreshGenerationForBothNextGenerationSurface
 	cases := []struct {
 		name       string
 		fixtureID  string
+		generation int
 		definition dsl.Definition
 		outputs    []GenerationOutput
 		wantOrigin GenerationOrigin
 	}{
 		{
-			name:      "in-body gate",
-			fixtureID: "in-body-gate",
+			name:      "initial in-body gate",
+			fixtureID: "initial-in-body-gate",
+			definition: dsl.Definition{Graph: dsl.Graph{
+				Nodes: []dsl.Node{testRouteGateNode("quality")},
+			}},
+			wantOrigin: OriginGateNextGeneration,
+		},
+		{
+			name:       "in-body gate",
+			fixtureID:  "in-body-gate",
+			generation: 1,
 			definition: dsl.Definition{Graph: dsl.Graph{
 				Nodes: []dsl.Node{
 					{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
@@ -3476,8 +3486,9 @@ func TestCoordinatorRunnerShouldStartFreshGenerationForBothNextGenerationSurface
 			wantOrigin: OriginGateNextGeneration,
 		},
 		{
-			name:      "definition of done",
-			fixtureID: "definition-of-done",
+			name:       "definition of done",
+			fixtureID:  "definition-of-done",
+			generation: 1,
 			definition: dsl.Definition{
 				Contract: dsl.Contract{Verification: []dsl.GateCriterion{testRouteCriterion()}},
 				Graph: dsl.Graph{Nodes: []dsl.Node{
@@ -3499,7 +3510,7 @@ func TestCoordinatorRunnerShouldStartFreshGenerationForBothNextGenerationSurface
 				WorkspaceID:  "ws-1",
 				LoopName:     "delivery",
 				Status:       StatusRunning,
-				Generation:   1,
+				Generation:   tc.generation,
 				IterationCap: 2,
 			}
 			coordinatorRun := task.Run{
@@ -4344,6 +4355,104 @@ func TestCoordinatorRunnerShouldExhaustWhenIterationCapHit(t *testing.T) {
 }
 
 func TestCoordinatorRunnerShouldStallOnRepeatedBlockingIssueSignature(t *testing.T) {
+	cases := []struct {
+		name          string
+		action        gate.RouteAction
+		previousIssue string
+		wantStalled   bool
+		wantOrigin    GenerationOrigin
+	}{
+		{
+			name:   "Should stall repeated blockers before revising",
+			action: gate.RouteRevise, previousIssue: "needs_revision", wantStalled: true,
+		},
+		{
+			name:   "Should stall repeated blockers before starting a fresh generation",
+			action: gate.RouteNextGeneration, previousIssue: "needs_revision", wantStalled: true,
+		},
+		{
+			name:   "Should revise when the blocking issue changes",
+			action: gate.RouteRevise, previousIssue: "old-blocker", wantOrigin: OriginGateRevise,
+		},
+		{
+			name:   "Should start a fresh generation when the blocking issue changes",
+			action: gate.RouteNextGeneration, previousIssue: "old-blocker", wantOrigin: OriginGateNextGeneration,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			loopRun := Run{
+				ID: "looprun-gate-stall", WorkspaceID: "ws-1", LoopName: "delivery",
+				Status: StatusRunning, Generation: 2, IterationCap: 8, ReattemptStrategy: ReattemptHalt,
+			}
+			coordinatorRun := task.Run{
+				ID: "run-coordinator-gate-stall", TaskID: "task-coordinator-gate-stall",
+				RunKind: task.RunKindCoordinator, LoopRunID: string(loopRun.ID), Status: task.TaskRunStatusClaimed,
+			}
+			priorVerdict := testRouteVerdict(tc.action)
+			priorVerdict.BlockingIssues[0].ID = tc.previousIssue
+			priorPayload, err := json.Marshal(priorVerdict)
+			if err != nil {
+				t.Fatalf("marshal prior verdict: %v", err)
+			}
+			priorRef := OutputRefForPayload(priorPayload)
+			outputStore := coordinatorRunnerOutputs{
+				outputs: map[int][]GenerationOutput{
+					1: {{Generation: 1, NodeID: "quality", Status: generationOutputFailed, OutputRef: priorRef}},
+					2: {
+						{Generation: 2, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":1}`},
+						{Generation: 2, NodeID: "quality", Status: generationOutputPending},
+					},
+				},
+				payloads: map[GenerationOutputPayloadKey]json.RawMessage{
+					{WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID, Generation: 1,
+						NodeID: "quality", OutputRef: priorRef}: priorPayload,
+				},
+			}
+			runner := newCoordinatorRunnerForTestWithDefinition(
+				t, loopRun, coordinatorRun, nil, outputStore,
+				dsl.Definition{
+					Contract: dsl.Contract{NoProgress: dsl.NoProgress{Window: 2}},
+					Graph: dsl.Graph{
+						Nodes: []dsl.Node{
+							{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+							testRouteGateNode("quality"),
+						},
+						Edges: []dsl.Edge{{From: "draft", To: "quality"}},
+					},
+				},
+				WithCoordinatorGateEvaluator(testRouteEvaluator(tc.action)),
+			)
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if got := coordinatorSnapshotPayloadForTest(t, plan).Verdicts; len(got) != 1 {
+				t.Fatalf("verdict intents = %#v, want one", got)
+			}
+			if tc.wantStalled {
+				if plan.Terminal == nil || plan.Terminal.Status != string(StatusStalled) ||
+					plan.Terminal.Cause != string(TransitionCauseNoProgress) ||
+					plan.Terminal.ReasonCode != blockingIssuesRepeatedCode {
+					t.Fatalf("terminal = %#v, want stalled on repeated blocking issues", plan.Terminal)
+				}
+				if plan.NextCoordinator != nil || plan.PostReserveSnapshot != nil || len(plan.NodeRuns) != 0 {
+					t.Fatalf("plan = %#v, want no successor after stall", plan)
+				}
+				return
+			}
+			if plan.Terminal != nil || plan.NextCoordinator == nil {
+				t.Fatalf("terminal/next = %#v/%#v, want gate successor", plan.Terminal, plan.NextCoordinator)
+			}
+			next := coordinatorPostReservePayloadForTest(t, plan)
+			if next.GenerationProvenance == nil || next.GenerationProvenance.Origin != tc.wantOrigin {
+				t.Fatalf("provenance = %#v, want %q", next.GenerationProvenance, tc.wantOrigin)
+			}
+		})
+	}
 	t.Run("Should stall on repeated blocking issue signature", func(t *testing.T) {
 		t.Parallel()
 

@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -61,6 +62,7 @@ func applyCoordinatorBudgetBoundary(
 			looppkg.BudgetGateID,
 			snapshot.Generation,
 			"Budget approval requested",
+			"",
 			[]map[string]string{
 				loopApprovalFact("Tokens used", fmt.Sprintf("%d", loopRun.TokensUsed)),
 				loopApprovalFact("Token budget", fmt.Sprintf("%d", loopRun.BudgetTokens)),
@@ -125,30 +127,7 @@ func applyCoordinatorTerminalBoundary(
 		setCoordinatorTerminalSettlement(result, transitions)
 	}
 	if terminalStatus == looppkg.StatusNeedsApproval {
-		gateID := looppkg.NodeID(strings.TrimSpace(completion.Plan.Terminal.GateID))
-		if gateID == "" {
-			return fmt.Errorf("%w: coordinator terminal gate_id is required for needs-approval", taskpkg.ErrValidation)
-		}
-		criteria, err := activeHumanCriteriaFromTerminal(completion.Plan.Terminal)
-		if err != nil {
-			return err
-		}
-		if err := activateLoopApprovalWithExecutor(ctx, exec, loopRun.ID, gateID, criteria, false); err != nil {
-			return err
-		}
-		if err := appendLoopNeedsApprovalEventWithExecutor(
-			ctx,
-			exec,
-			loopRun,
-			gateID,
-			snapshot.Generation,
-			"Human approval requested",
-			[]map[string]string{
-				loopApprovalFact("Gate", string(gateID)),
-				loopApprovalFact("Criteria", fmt.Sprintf("%d", len(criteria))),
-			},
-			completion.Now,
-		); err != nil {
+		if err := activateCoordinatorHumanApproval(ctx, exec, completion, snapshot.Generation, loopRun); err != nil {
 			return err
 		}
 	}
@@ -162,6 +141,50 @@ func applyCoordinatorTerminalBoundary(
 	}
 	result.Terminal = loopStatusIsTerminalOrApproval(terminalStatus)
 	return nil
+}
+
+func activateCoordinatorHumanApproval(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	completion *taskpkg.CoordinatorCompletion,
+	generation int,
+	loopRun looppkg.Run,
+) error {
+	gateID := looppkg.NodeID(strings.TrimSpace(completion.Plan.Terminal.GateID))
+	if gateID == "" {
+		return fmt.Errorf("%w: coordinator terminal gate_id is required for needs-approval", taskpkg.ErrValidation)
+	}
+	criteria, err := activeHumanCriteriaFromTerminal(completion.Plan.Terminal)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(criteria)
+	if err != nil {
+		return fmt.Errorf("store: marshal active human criteria: %w", err)
+	}
+	if err := activateLoopApprovalWithExecutor(ctx, exec, loopRun.ID, gateID, encoded, false); err != nil {
+		return err
+	}
+	prompts := make([]string, 0, len(criteria))
+	for _, criterion := range criteria {
+		if prompt := strings.TrimSpace(criterion.Prompt); prompt != "" {
+			prompts = append(prompts, prompt)
+		}
+	}
+	return appendLoopNeedsApprovalEventWithExecutor(
+		ctx,
+		exec,
+		loopRun,
+		gateID,
+		generation,
+		"Human approval requested",
+		strings.Join(prompts, "\n\n"),
+		[]map[string]string{
+			loopApprovalFact("Gate", string(gateID)),
+			loopApprovalFact("Criteria", fmt.Sprintf("%d", len(criteria))),
+		},
+		completion.Now,
+	)
 }
 
 func setCoordinatorTerminalSettlement(

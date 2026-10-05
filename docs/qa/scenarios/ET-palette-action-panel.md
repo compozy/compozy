@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-command-os-from-palette
 expected: Command-K on the selected palette row opens a filterable action panel anchored to that row. Command rows expose their runnable action plus Pin or Unpin, Set alias, and Set shortcut; unavailable commands expose only those meta-actions and the daemon reason. Entity rows expose only real domain actions, destructive actions are unmistakable, action chords work from anywhere inside the palette without repeating, and a row removed by refresh closes the panel without firing against the vanished target.
 entry_points: Command-K; command palette command rows; command palette entity rows
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-palette-registry-driven-root; ET-web-command-palette-shortcuts; ET-palette-personalization-lifecycle
 ---
 
@@ -42,3 +42,7 @@ Walk (task_11 plan):
 Expected evidence: screenshots of the open panel (command row, entity row, disabled row), the
 pin/alias effects visible on reopen, and the vanished-row closure; note the chord used for the
 capture-phase dispatch check.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -6,13 +6,13 @@ persona: Théo
 journey: J-organize-tabbed-work
 expected: Tab, right, others, and group close scopes remove exactly the intended unpinned members in one command and one closed entry; multi-level reopen restores ids, routes, pins, order, placement, and destination fallback after a full reload while minimize records nothing.
 entry_points: tab context menu; tab close button; window Close control; Command-Shift-T; compozy window close|reopen
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
 evidence: docs/qa/evidence/2026-08-01-window-tabs/supervisor-02-recovery-desktop.png
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-web-window-routing-lifecycle
 ---
 
@@ -22,3 +22,7 @@ scope clarity, history bounds, missing-desktop fallback, and the TechSpec invari
 qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). Tab close moved to the 20px close button on browser-style tabs and window close to the quiet Close icon control. Reset to re-walk the close scopes and multi-level reopen from the new controls.
 
 qa-impact: 2026-09-30 shell-rail polish E2E triage — after the focused tab closes, the client's focus falls back to the tab its frame now shows, never to a hidden tab from focus history, so a second Command-W closes the tab on screen (E2E-040). Walk: close two tabs of one deck in a row with Command-W and confirm each closes the visible tab.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

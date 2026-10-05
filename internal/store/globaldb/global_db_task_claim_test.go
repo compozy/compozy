@@ -5549,10 +5549,12 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 	t.Parallel()
 
 	cases := []struct {
-		name   string
-		status looppkg.Status
-		cause  looppkg.TransitionCause
-		gateID string
+		name       string
+		status     looppkg.Status
+		cause      looppkg.TransitionCause
+		gateID     string
+		details    json.RawMessage
+		wantPrompt string
 	}{
 		{name: "terminal", status: looppkg.StatusDone, cause: looppkg.TransitionCauseContract},
 		{
@@ -5560,6 +5562,16 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 			status: looppkg.StatusNeedsApproval,
 			cause:  looppkg.TransitionCauseBudget,
 			gateID: string(looppkg.BudgetGateID),
+		},
+		{
+			name:   "human approval",
+			status: looppkg.StatusNeedsApproval,
+			cause:  looppkg.TransitionCauseContract,
+			gateID: "release_review",
+			details: json.RawMessage(
+				`{"criteria":[{"id":"reviewer","type":"human","outcome":"awaiting_approval","prompt":"Review release v2.4.1"}]}`,
+			),
+			wantPrompt: "Review release v2.4.1",
 		},
 	}
 	for _, tc := range cases {
@@ -5611,9 +5623,10 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 							Generation: 1,
 						},
 						Terminal: &taskpkg.CoordinatorTerminal{
-							Status: string(tc.status),
-							Cause:  string(tc.cause),
-							GateID: tc.gateID,
+							Status:  string(tc.status),
+							Cause:   string(tc.cause),
+							GateID:  tc.gateID,
+							Details: tc.details,
 						},
 					},
 					Now: now.Add(time.Second),
@@ -5638,6 +5651,24 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 			}
 			if storedLoop.PauseRequested {
 				t.Fatal("loop pause_requested = true, want cleared by truthful verdict")
+			}
+			if tc.wantPrompt != "" {
+				events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+					ReadScope:   store.ReadScope{AllProfiles: true},
+					WorkspaceID: loopRun.WorkspaceID,
+					RunID:       loopRun.ID,
+				})
+				if err != nil {
+					t.Fatalf("ListLoopRunEvents() error = %v", err)
+				}
+				payload := loopEventPayloadForKind(t, events, loopRunEventNeedsApproval)
+				if got := payload["prompt"]; got != tc.wantPrompt {
+					t.Fatalf("needs_approval.prompt = %#v, want %q", got, tc.wantPrompt)
+				}
+				facts := payload["facts"].([]any)
+				if got := facts[1].(map[string]any)["value"]; got != "1" {
+					t.Fatalf("needs_approval Criteria count = %#v, want 1", got)
+				}
 			}
 		})
 	}

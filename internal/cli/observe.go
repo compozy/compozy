@@ -49,7 +49,7 @@ func newObserveOverviewCommand(deps commandDeps) *cobra.Command {
   # Scope aggregates to one workspace with a 7-day usage window
   compozy observe overview --workspace launch-hq --usage-window 7`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if usageWindow != 0 {
+			if cmd.Flags().Changed("usage-window") {
 				if err := observe.ValidateUsageWindowDays(usageWindow); err != nil {
 					return fmt.Errorf("--usage-window must be 7, 30, or 90")
 				}

@@ -75,12 +75,12 @@ func (m *Manager) archiveProfileWrite(
 		return err
 	}
 	*archived = profile
+	if err := ensureAvailable(ctx, exec, profile, false); err != nil {
+		return err
+	}
 	if profile.State == StateArchived {
 		*idempotent = true
 		result.PausedAutomations, err = m.pausedAutomations(ctx, exec, profile.ID)
-		return err
-	}
-	if err := ensureAvailable(ctx, exec, profile, false); err != nil {
 		return err
 	}
 	plan, err := m.archivePlan(ctx, exec, profile)
@@ -99,11 +99,15 @@ func (m *Manager) archiveProfileWrite(
 	if err := setProfileQueuedRunsPaused(ctx, exec, profile.ID, true, now); err != nil {
 		return fmt.Errorf("profile: freeze queued work for %q: %w", name, err)
 	}
-	if err := pauseProfileAutomations(ctx, exec, profile.ID, plan.AutomationsToPause); err != nil {
+	if err := pauseProfileAutomations(ctx, exec, profile.ID, plan.AutomationsToPause, now); err != nil {
 		return err
 	}
+	var steps []lifecycleStep
+	if len(plan.AutomationsToPause) > 0 {
+		steps = []lifecycleStep{{Seq: len(plan.AutomationsToPause), Action: stepReconcileAutomations}}
+	}
 	if err := m.insertOperation(
-		ctx, exec, opID, "archive", profile.ID, name, name, plan.Revision, nil,
+		ctx, exec, opID, "archive", profile.ID, name, name, plan.Revision, steps,
 	); err != nil {
 		return err
 	}
@@ -142,30 +146,6 @@ func validateArchivePlan(
 	}
 	if len(plan.ApprovalBlockers) > 0 {
 		return approvalsPendingError(plan.ApprovalBlockers)
-	}
-	return nil
-}
-
-func pauseProfileAutomations(
-	ctx context.Context,
-	exec globaldb.ProfileWriteExecutor,
-	profileID string,
-	automations []string,
-) error {
-	for _, automation := range automations {
-		kind, id, found := strings.Cut(automation, ":")
-		if !found {
-			return fmt.Errorf("profile: invalid automation identity %q", automation)
-		}
-		table := "automation_jobs"
-		if kind == "trigger" {
-			table = "automation_triggers"
-		}
-		if _, err := exec.ExecContext(
-			ctx, `UPDATE `+table+` SET enabled = 0 WHERE id = ? AND profile_id = ?`, id, profileID,
-		); err != nil {
-			return fmt.Errorf("profile: pause %s %q: %w", kind, id, err)
-		}
 	}
 	return nil
 }

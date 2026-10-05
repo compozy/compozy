@@ -36,7 +36,7 @@ func listNodeCancellationSessions(
 	exec taskSQLExecutor,
 	mutation looppkg.CancellationMutation,
 ) ([]string, error) {
-	return listAndEnqueueCancellationSessions(ctx, exec, mutation, looppkg.SessionCleanupCauseTerminal)
+	return listAndEnqueueCancellationSessions(ctx, exec, mutation, looppkg.SessionCleanupCauseStop)
 }
 
 func listAndEnqueueCancellationSessions(

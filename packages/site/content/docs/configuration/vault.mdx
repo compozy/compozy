@@ -25,6 +25,7 @@ Supported Vault namespaces are:
 | Namespace    | Typical refs                                                                               |
 | ------------ | ------------------------------------------------------------------------------------------ |
 | `providers`  | `vault:providers/openrouter/api-key`                                                       |
+| `profiles`   | `vault:profiles/studio/providers/openrouter/api-key`                                       |
 | `automation` | `vault:automation/deploy-webhook/signing-secret`                                           |
 | `mcp`        | `vault:mcp/global/github/env/GITHUB_TOKEN`, `vault:mcp/ws/acme/linear/oauth/client-secret` |
 | `hooks`      | `vault:hooks/post-task/GITHUB_TOKEN`                                                       |
@@ -33,6 +34,11 @@ Supported Vault namespaces are:
 
 Session Vault entries are normal Vault records under the `sessions` namespace. CompozyOS filters them by
 the deterministic prefix `vault:sessions/<session_id>/`; there is no separate session-secret table.
+
+Names must use a supported namespace. Each slash-separated path segment starts with a letter or
+digit and contains only letters, digits, dots, underscores, or hyphens. The first segment after the
+namespace must be lowercase. Profile refs additionally use
+`profiles/<profile>/{providers|extensions}/<owner>/<key>` with a valid profile name.
 
 ## Public Surfaces
 
@@ -149,7 +155,14 @@ surface for the same route shapes without exposing the HTTP listener.
 
 ## Web UI
 
-Use the Vault page for global metadata inspection and write-only updates. The page supports:
+Use the Vault page for global metadata inspection and write-only updates.
+
+In **New secret**, the **Name** field accepts a path such as `automation/editorial/notes-token`;
+the form adds `vault:` when omitted. The name's help explains the supported namespaces. An invalid
+name is rejected with format guidance, and the dialog keeps the name, label, and entered value so
+you can correct it without re-entering the secret.
+
+The listing supports:
 
 - namespace filtering
 - prefix filtering

@@ -2,6 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 
 import { taskRunDetailOptions } from "../lib/query-options";
 import type { FanOutTaskRunsResponse, TaskRun } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 
 type AcceptedFanOutRun = FanOutTaskRunsResponse["runs"][number];
 
@@ -16,8 +17,9 @@ export function useTaskFanOutRunResults(
   taskId: string,
   acceptedRuns: readonly AcceptedFanOutRun[]
 ): readonly TaskRun[] {
+  const { params } = useProfileReadScope();
   const queries = useQueries({
-    queries: acceptedRuns.map(run => taskRunDetailOptions(run.id, Boolean(taskId))),
+    queries: acceptedRuns.map(run => taskRunDetailOptions(run.id, params, Boolean(taskId))),
   });
 
   return queries.flatMap((query, index) => {

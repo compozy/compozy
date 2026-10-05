@@ -193,6 +193,12 @@ func loadManifestTOMLContent(path string, data []byte) (*Manifest, error) {
 	var doc manifestDocument
 	meta, err := toml.Decode(string(data), &doc)
 	if err != nil {
+		if parseErr, ok := errors.AsType[toml.ParseError](err); ok &&
+			strings.HasPrefix(parseErr.LastKey, manifestResourcesKey+".") {
+			if field, found := jsonUnknownFieldMessage(parseErr.Message); found {
+				return nil, unknownManifestFieldError(parseErr.LastKey + "." + field)
+			}
+		}
 		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
 	}
 	if err := rejectUnsupportedManifestTOML(meta.Undecoded()); err != nil {
@@ -290,8 +296,12 @@ func rejectUnknownManifestResourcesJSON(data []byte) error {
 }
 
 func jsonUnknownField(err error) (string, bool) {
+	return jsonUnknownFieldMessage(err.Error())
+}
+
+func jsonUnknownFieldMessage(message string) (string, bool) {
 	const prefix = `json: unknown field "`
-	field, found := strings.CutPrefix(err.Error(), prefix)
+	field, found := strings.CutPrefix(message, prefix)
 	if !found {
 		return "", false
 	}

@@ -6,11 +6,20 @@ A profile partitions operator work on one CompozyOS installation. `default` is p
 global identities; workspace and Global lenses only remember a selection. A session binds the resolved
 profile at creation, and later selection changes never move that session.
 
+An open Web client keeps its current view when another client changes the remembered selection.
+Entering a different project restores that project's remembered profile; reloading also resolves
+the remembered choice. All profiles is temporary and is never remembered as a selection.
+Toggling the Global breadth preserves the current viewing profile without rewriting either slot.
+
 ## Resolve And Inspect
 
 Resolution order is root `--profile`, `COMPOZY_PROFILE`, the resolved workspace's remembered choice
 (or the Global lens), then `default`. An archived remembered choice falls back to `default` with the
 `archived_remembered_fallback` note. `daemon`, `doctor`, and `update` ignore profile selection.
+
+`GET /api/profiles/selection` returns the effective `profile` for each remembered lens. When the
+remembered profile is archived, `profile` is `default` and optional `note` is
+`archived_remembered_fallback`. The stored choice remains intact and returns after unarchive.
 
 Use structured profile commands. `list` and `current` are reads; `use` persists the selected workspace or Global lens:
 
@@ -53,8 +62,13 @@ one emoji character.
 Rename, archive, and delete are plan-based. The CLI fetches the current plan and submits its
 `plan_revision`; a stale revision must be replanned, never replayed. Rename can include repository
 folders with `--repos all|none|<workspace-ids>`. Archive preserves work and freezes guarded queued work.
-Unarchive restores availability but does not re-enable paused automations. Delete succeeds only when the
-profile owns no work, and structured or non-interactive use requires `--yes`.
+Archive enumerates enabled jobs and triggers, pauses their effective state, and synchronizes the
+scheduler and trigger runtime before completing. This includes dynamic, configuration and extension
+automations; managed definitions keep their source content and receive a disabled operational override.
+Unarchive restores availability but does not re-enable paused automations, including after daemon restart. Delete succeeds only when the
+profile owns no work, and structured or non-interactive use requires `--yes`. Jobs and triggers
+count as owned work even while paused, including configuration and extension definitions. Remove
+them through their owning automation surface before deleting the profile.
 
 ```bash
 compozy profile rename <old> <new> --repos none
@@ -65,6 +79,13 @@ compozy profile delete <name> --yes
 
 Inspect durable lifecycle recovery with `compozy profile ops -o json`; retry a failed operation with
 `compozy profile ops retry <op-id> -o json` after correcting its reported cause.
+An unfinished operation reserves its profile, including identity edits, until it completes.
+If archive or a pending lifecycle operation wins a race with session creation, admission returns
+`profile_archived` or `profile_unavailable` with a recovery action. A failed automation attempt
+keeps that guidance in its history. Follow the action, then inspect the profile and job before
+triggering work again; unarchive leaves paused automations disabled.
+If Web opens under that unavailable profile, its layout status explains that recovery is needed.
+Choose an available profile to reach Settings; the status detail retains the operation and CLI remedy.
 
 ## Surfaces And Authority
 
@@ -76,6 +97,11 @@ do not weaken the Gateway tier.
 Stable palette actions are `profile.use`, `profile.create`, `profile.update`, `profile.rename`,
 `profile.archive`, `profile.unarchive`, and `profile.delete`. They delegate to the same selection and
 lifecycle surfaces and never replace the plan protocol.
+An attached `profile.use` saves the choice and returns its result before switching the client
+to the requested profile. Other lifecycle commands open the canonical
+Settings dialog: `name` suggests the create name, and `profile` plus `new_name` prefill rename.
+Review the dialog's current plan and confirm there; invoking a command alone does not confirm a
+destructive mutation. Canceling consumes the intent, so reloading does not reopen the action.
 
 ## Errors And Events
 
@@ -85,6 +111,11 @@ Profile failures carry `{error:{code,message,action}}`. Preserve all three field
 `profile.deleted`, and `profile.selection_changed`. Recovery paths use `profile.plan_stale`,
 `profile.lifecycle_op_recovered`, and `profile.lifecycle_op_failed`. Event payloads never carry secret
 references.
+Archive, delete, and lifecycle failure/recovery audit summaries use the permanent operator owner
+because their affected profile may be unavailable for new writes. Their payload retains the affected
+`profile_id` and `profile_name`; observe the all-profiles event stream when following lifecycle changes
+across profiles. Identity edits on archived profiles use that same audit owner; active-profile
+identity events retain their own profile owner.
 
 Profile-scoped Vault refs use `vault:profiles/<profile>/<name>`. Rename rewrites only the Manager's
 explicit rewrite list. Never reconstruct or bulk-edit refs outside the lifecycle surface.

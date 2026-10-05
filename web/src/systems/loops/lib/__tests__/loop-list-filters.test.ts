@@ -40,55 +40,104 @@ describe("loop-list-filters", () => {
 });
 
 describe("buildLoopFilterFields", () => {
-  it("Should expose one status select carrying the full daemon vocabulary", () => {
-    const fields = buildLoopFilterFields();
-    const [field] = fields;
-    if (!field || !("key" in field)) throw new Error("loop filters must be a flat select field");
+  // Invariant: all supported catalog filters are selectable; categories come from
+  // server facets and status options retain the full daemon vocabulary.
+  // Owner: Loop catalog chip projection, independent of query transport and page size.
+  it("Should expose kind, server categories, and the full daemon status vocabulary", () => {
+    const fields = buildLoopFilterFields(["Engineering", "Operations"], null);
+    const [kind, category, status] = fields;
+    if (
+      !kind ||
+      !("key" in kind) ||
+      !category ||
+      !("key" in category) ||
+      !status ||
+      !("key" in status)
+    ) {
+      throw new Error("loop filters must be flat select fields");
+    }
 
-    expect(fields).toHaveLength(1);
-    expect(field.key).toBe("status");
-    expect(field.type).toBe("select");
-    expect(field.options?.map(option => option.value)).toEqual([...LOOP_RUN_STATUSES]);
-    expect(field.options?.find(option => option.value === "canceled")?.label).toBe("Canceled");
+    expect(fields).toHaveLength(3);
+    expect(kind.key).toBe("kind");
+    expect(kind.options).toEqual([
+      { value: "read-only", label: "Built-in" },
+      { value: "workspace", label: "Custom" },
+    ]);
+    expect(category.key).toBe("category");
+    expect(category.options?.map(option => option.value)).toEqual(["Engineering", "Operations"]);
+    expect(status.key).toBe("status");
+    expect(status.type).toBe("select");
+    expect(status.options?.map(option => option.value)).toEqual([...LOOP_RUN_STATUSES]);
+    expect(status.options?.find(option => option.value === "canceled")?.label).toBe("Canceled");
+  });
+
+  it("Should retain the selected category when other filters exclude its facet", () => {
+    const category = buildLoopFilterFields([], "Operations")[1];
+    if (!category || !("key" in category)) throw new Error("category filter must be a select");
+    expect(category.options).toEqual([{ value: "Operations", label: "Operations" }]);
   });
 });
 
 describe("loopFiltersToChips", () => {
-  it("Should project only a concrete status filter", () => {
-    expect(loopFiltersToChips({ status: "canceled" })).toEqual([
+  it("Should project concrete filters and omit unfiltered values", () => {
+    expect(
+      loopFiltersToChips({ kind: "workspace", category: "Operations", status: "canceled" })
+    ).toEqual([
+      { field: "kind", id: "loop-filter-kind", operator: "is", values: ["workspace"] },
+      { field: "category", id: "loop-filter-category", operator: "is", values: ["Operations"] },
       { field: "status", id: "loop-filter-status", operator: "is", values: ["canceled"] },
     ]);
-    expect(loopFiltersToChips({ status: null })).toEqual([]);
+    expect(loopFiltersToChips({ kind: "all", category: null, status: null })).toEqual([]);
   });
 });
 
 describe("applyLoopFilterChips", () => {
   function createHandlers(): LoopFilterHandlers {
-    return { onStatusChange: vi.fn() };
+    return { onFiltersChange: vi.fn() };
   }
 
-  it("Should dispatch the selected status to its typed handler", () => {
+  it("Should apply all selected filters in one update", () => {
     const handlers = createHandlers();
 
     applyLoopFilterChips(
-      [{ field: "status", id: "loop-filter-status", operator: "is", values: ["canceled"] }],
+      [
+        { field: "kind", id: "kind", operator: "is", values: ["workspace"] },
+        { field: "category", id: "category", operator: "is", values: [" Operations "] },
+        { field: "status", id: "status", operator: "is", values: ["canceled"] },
+      ],
       handlers
     );
 
-    expect(handlers.onStatusChange).toHaveBeenCalledWith("canceled");
+    expect(handlers.onFiltersChange).toHaveBeenCalledExactlyOnceWith({
+      kind: "workspace",
+      category: "Operations",
+      status: "canceled",
+    });
   });
 
-  it("Should clear the status when the chip is removed or carries an unknown value", () => {
+  it("Should clear removed chips and reject invalid filter values", () => {
     const handlers = createHandlers();
 
     applyLoopFilterChips([], handlers);
-    expect(handlers.onStatusChange).toHaveBeenLastCalledWith(null);
+    expect(handlers.onFiltersChange).toHaveBeenLastCalledWith({
+      kind: "all",
+      category: null,
+      status: null,
+    });
 
     applyLoopFilterChips(
-      [{ field: "status", id: "loop-filter-status", operator: "is", values: ["stop"] }],
+      [
+        { field: "kind", id: "kind", operator: "is", values: ["builtin"] },
+        { field: "category", id: "category", operator: "is", values: [" "] },
+        { field: "status", id: "status", operator: "is", values: ["stop"] },
+      ],
       handlers
     );
-    expect(handlers.onStatusChange).toHaveBeenLastCalledWith(null);
+    expect(handlers.onFiltersChange).toHaveBeenLastCalledWith({
+      kind: "all",
+      category: null,
+      status: null,
+    });
   });
 });
 

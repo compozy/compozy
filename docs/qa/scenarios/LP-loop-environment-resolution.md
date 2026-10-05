@@ -6,13 +6,13 @@ persona: Ada
 journey: J-isolated-task-loop-execution
 expected: A Loop node resolves every agent session and workspace-relative extension action from its ready worktree, while root, directory, per-run, precedence, and invalid-environment behavior remain unchanged.
 entry_points: compozy loop create|validate --file; compozy loop configure --file|--set; compozy loop run --config-file; HTTP/UDS Loop definition, config, and run routes; compozy__loop_create|configure|run.environment; ext__spec-cycle__import_tasks
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: qa-lab pr-519-review-fixes worktree-removal-blocked.json; tool-run-completed.json; worktree-removed-after-tool.json
-last_report: docs/qa/reports/2026-09-01-pr-519-review-fixes.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps:
 ---
 
@@ -37,3 +37,7 @@ An unknown or unavailable Profile must fail before session creation, even if a s
 Agent exists. Retain the default Profile and worktree environment canaries above.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

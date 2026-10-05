@@ -126,7 +126,10 @@ function briefingAction(
     // Quiet, and it only leads: the card below owns the decision.
     return { label: "Review the request", target: "needs-you" };
   }
-  if (tone === "failed") {
+  const hasFailureTarget = blockers.some(
+    blocker => blocker.kind === "failure" && Boolean(blocker.nodeId || blocker.gateId)
+  );
+  if (tone === "failed" && hasFailureTarget) {
     // No invented control. The register is where node verbs live, and the
     // daemon decides there which of them this node will actually accept.
     return { label: "Open the failed step", target: "inspect" };

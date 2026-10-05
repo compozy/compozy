@@ -249,9 +249,21 @@ type ResultProcessor interface {
 
 // HookRunner runs typed registry hooks around dispatch.
 type HookRunner interface {
-	PreCall(ctx context.Context, call CallRequest) (CallRequest, EffectiveToolDecision, error)
-	PostCall(ctx context.Context, call CallRequest, result ToolResult) (ToolResult, error)
-	PostError(ctx context.Context, call CallRequest, err error) error
+	PreCall(
+		ctx context.Context,
+		scope Scope,
+		descriptor Descriptor,
+		call CallRequest,
+	) (CallRequest, EffectiveToolDecision, error)
+	PostCall(
+		ctx context.Context,
+		scope Scope,
+		descriptor Descriptor,
+		call CallRequest,
+		result ToolResult,
+	) (ToolResult, error)
+	// PostError returns the annotated call failure and any hook execution failure separately.
+	PostError(ctx context.Context, scope Scope, descriptor Descriptor, call CallRequest, err error) (error, error)
 }
 
 // ApprovalBridge mediates approval-required calls before provider execution.

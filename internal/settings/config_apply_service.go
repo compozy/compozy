@@ -21,6 +21,8 @@ type activeConfigState struct {
 	hash        string
 	generation  int64
 	config      compozyconfig.Config
+	// Scoped overlays are outside the global config hash and become active on daemon boot.
+	scopedRestartRequired bool
 }
 
 // ApplySection persists a section mutation through the config apply lifecycle.

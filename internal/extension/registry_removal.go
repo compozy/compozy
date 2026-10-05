@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/compozy/compozy/internal/store"
@@ -16,6 +17,7 @@ type RemovalState struct {
 
 type removalProfileMarker struct {
 	name, profileID, createdAt string
+	createdByExtension         sql.NullBool
 }
 
 // SnapshotRemovalState captures dependent profile records before uninstall.
@@ -67,7 +69,7 @@ func (r *Registry) removalEnablement(ctx context.Context, name string) (map[stri
 func (r *Registry) removalProfileMarkers(ctx context.Context, name string) ([]removalProfileMarker, error) {
 	rows, err := r.db.QueryContext(
 		ctx,
-		`SELECT profile_name, created_profile_id, created_at FROM extension_profile_markers WHERE extension_name = ? ORDER BY profile_name`,
+		`SELECT profile_name, created_profile_id, created_at, created_by_extension FROM extension_profile_markers WHERE extension_name = ? ORDER BY profile_name`,
 		name,
 	)
 	if err != nil {
@@ -77,7 +79,7 @@ func (r *Registry) removalProfileMarkers(ctx context.Context, name string) ([]re
 	var result []removalProfileMarker
 	for rows.Next() {
 		var marker removalProfileMarker
-		if err := rows.Scan(&marker.name, &marker.profileID, &marker.createdAt); err != nil {
+		if err := rows.Scan(&marker.name, &marker.profileID, &marker.createdAt, &marker.createdByExtension); err != nil {
 			return nil, err
 		}
 		result = append(result, marker)
@@ -135,11 +137,12 @@ func (r *Registry) RestoreRemovalState(ctx context.Context, name string, snapsho
 		for _, marker := range snapshot.markers {
 			if _, err := tx.ExecContext(
 				ctx,
-				`INSERT INTO extension_profile_markers(extension_name, profile_name, created_profile_id, created_at) VALUES (?, ?, ?, ?)`,
+				`INSERT INTO extension_profile_markers(extension_name, profile_name, created_profile_id, created_at, created_by_extension) VALUES (?, ?, ?, ?, ?)`,
 				name,
 				marker.name,
 				marker.profileID,
 				marker.createdAt,
+				marker.createdByExtension,
 			); err != nil {
 				return err
 			}

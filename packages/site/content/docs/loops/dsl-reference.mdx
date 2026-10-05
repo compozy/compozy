@@ -271,6 +271,10 @@ remain an array. See [Reference grammar](/docs/loops/reference-grammar#typed-dir
 permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
 canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
 rejects the node run deterministically before an ungated session can start.
+The restriction is pinned with the managed session's creation profile. Reusing a binding with
+a different explicit tool list fails with a binding mismatch; an equivalent list reuses the session.
+Policy refusals publish `allowed_tools_policy_violation` with the rejected tool and recovery
+guidance in the Loop's action failure.
 
 ### Control nodes
 
@@ -362,19 +366,16 @@ classification, and delivery guarantees.
 ### Durable wait control
 
 ```yaml
-- id: wait_for_approval
+- id: wait_for_completion
   class: control
   kind: wait
   params:
-    event: { kind: approval.received }
-    expect: { type: object, required: [approved] }
+    event: { kind: task.run.completed }
     ahead_arrival: consume_on_entry
-    expires:
-      after: 72h
-      escalate:
-        - emit: { kind: approval.overdue }
-      route: timed_out
 ```
+
+Event kinds must belong to the [hook event catalog](/docs/hooks/event-catalog). Run
+`compozy hooks events` to inspect the daemon's active catalog before authoring a subscription.
 
 Choose exactly one wait source: `for` (duration), `until` (timestamp), or `event` (subscription).
 `expect` is the JSON schema for a manual or event resume payload. `ahead_arrival` is

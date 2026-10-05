@@ -16,6 +16,7 @@ import {
   type LoopRunUsageRow,
   buildRunUsage,
   formatClockDuration,
+  runBudgetElapsedSeconds,
   runElapsedSeconds,
   usageNote,
   usageSnapshotFacts,
@@ -84,16 +85,17 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
 
   const graph = definition ? readLoopGraph(definition) : null;
   const elapsedSeconds = runElapsedSeconds(run, nowMs);
+  const budgetElapsedSeconds = runBudgetElapsedSeconds(run, nowMs);
 
   return {
     effectiveRun,
     graph,
     isLive: isLiveLoopRun(run),
     elapsedLabel: formatClockDuration(elapsedSeconds),
-    usageRows: buildRunUsage(effectiveRun, elapsedSeconds),
+    usageRows: buildRunUsage(effectiveRun, budgetElapsedSeconds),
     usageNote: usageNote(run),
-    approvalRequest: live.needsApproval,
-    approvalFallbackFacts: usageSnapshotFacts(effectiveRun, elapsedSeconds),
+    approvalRequest: projectApprovalRequest(run, generations, live.needsApproval),
+    approvalFallbackFacts: usageSnapshotFacts(effectiveRun, budgetElapsedSeconds),
     inputRows: buildInputRows(run, definition),
     startedBy: humanizeStartOrigin(run),
     nodeLifecycles,
@@ -103,4 +105,41 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
       projectLoopRequest(request, { nowMs, runStatus: run.status })
     ),
   };
+}
+
+function projectApprovalRequest(
+  run: LoopRunRecord,
+  generations: readonly LoopRunGeneration[] | undefined,
+  streamed: LoopApprovalRequest | null
+): LoopApprovalRequest | null {
+  if (run.status !== "needs-approval" || !run.active_gate_id) return null;
+
+  const generation = generations?.find(item => item.generation === run.generation);
+  const prompts: string[] = [];
+  let criterionCount = 0;
+  for (const verdict of generation?.verdicts ?? []) {
+    if (verdict.gate_id !== run.active_gate_id || verdict.outcome !== "awaiting_approval") continue;
+    for (const criterion of verdict.criteria) {
+      if (criterion.type !== "human" || criterion.outcome !== "awaiting_approval") continue;
+      criterionCount += 1;
+      const prompt = criterion.prompt?.trim();
+      if (prompt) prompts.push(prompt);
+    }
+  }
+  if (criterionCount > 0) {
+    return {
+      gateId: run.active_gate_id,
+      generation: run.generation,
+      title: "Human approval requested",
+      prompt: prompts.join("\n\n") || undefined,
+      facts: [
+        { label: "Gate", value: run.active_gate_id },
+        { label: "Criteria", value: String(criterionCount) },
+      ],
+    };
+  }
+
+  return streamed?.gateId === run.active_gate_id && streamed.generation === run.generation
+    ? streamed
+    : null;
 }

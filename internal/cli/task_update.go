@@ -73,6 +73,7 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&clearOwner, "clear-owner", false, "Remove the current owner")
 	cmd.Flags().
 		BoolVar(&autoEnqueue, taskAutoEnqueueOnReadyFlag, false, "Toggle auto-enqueue once blocking dependencies complete")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 

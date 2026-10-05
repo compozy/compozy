@@ -167,6 +167,11 @@ When the install succeeds, declared profiles are created without becoming active
 bound without changing their identity or defaults. The extension is enabled by default within its installation scope. Omitting a profile selector
 keeps all-profile availability; use `compozy --profile <name> extension disable <extension>` for a profile-specific exception.
 
+Extension detail reports `created_by_extension: true` only when saved provenance confirms that
+this extension created the current profile. `false` includes binding to an existing profile and
+older installations whose creation origin was not recorded. Upgrades preserve those profiles and
+their declarations; they do not guess authorship or reapply defaults.
+
 ## Detected package layouts
 
 CompozyOS detects the package layout after acquiring the source. You do not select a format flag.

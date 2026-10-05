@@ -250,7 +250,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List a filtered workspace agent fleet with exact session metrics */
+    /** List a filtered agent fleet with exact session metrics */
     get: operations["listAgentCatalog"];
     put?: never;
     post?: never;
@@ -2996,6 +2996,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/{session_id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List persisted session events for a Global session */
+    get: operations["listGlobalSessionEvents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List grouped session turn history for a Global session */
+    get: operations["getGlobalSessionHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}/owner": {
     parameters: {
       query?: never;
@@ -3003,8 +3037,93 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get a session workspace owner projection */
+    /** Get a session owner; Global history has an empty workspace id */
     get: operations["getSessionOwner"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read compact session status and wake eligibility for a Global session */
+    get: operations["getGlobalSessionStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream raw session events or fenced transcript changes for a Global session */
+    get: operations["streamGlobalSession"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/transcript": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a bounded materialized transcript page for a Global session */
+    get: operations["getGlobalSessionTranscript"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/transcript/outline": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the full retained operator-message trail with reply previews for a Global session */
+    get: operations["getGlobalSessionTranscriptOutline"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/transcript/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search retained transcript messages with bounded literal matches for a Global session */
+    get: operations["searchGlobalSessionTranscript"];
     put?: never;
     post?: never;
     delete?: never;
@@ -4496,6 +4615,23 @@ export interface paths {
     put?: never;
     /** Cancel one pending tool approval */
     post: operations["cancelPendingToolApproval"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools/approvals/{id}/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve or deny one pending tool approval */
+    post: operations["resolvePendingToolApproval"];
     delete?: never;
     options?: never;
     head?: never;
@@ -11891,6 +12027,7 @@ export interface operations {
                 /** @enum {string} */
                 stop_reason?:
                   | "completed"
+                  | "owner_released"
                   | "user_canceled"
                   | "max_iterations"
                   | "loop_detected"
@@ -14407,9 +14544,9 @@ export interface operations {
   };
   listAgentCatalog: {
     parameters: {
-      query: {
-        /** @description Workspace id, name, or path */
-        workspace: string;
+      query?: {
+        /** @description Workspace id, name, or path; omit for Global definitions and cross-workspace session metrics */
+        workspace?: string;
         /** @description Exact agent name */
         name?: string;
         /** @description Case-insensitive agent name or category search */
@@ -33958,17 +34095,29 @@ export interface operations {
         limit?: number;
         /** @description Replay bounded retained logs before live polling */
         replay?: boolean;
+        /** @description Composite resume cursor when Last-Event-ID cannot be set; the header takes precedence */
+        last_event_id?: string;
         /** @description Read one profile's rows by name */
         profile?: string;
         /** @description Read the owner-labeled all-profiles aggregate */
         all_profiles?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description Resume after this composite log event id */
+        "Last-Event-ID"?: string;
+      };
       path?: never;
       cookie?: never;
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Log event stream */
       200: {
         headers: {
@@ -42535,6 +42684,7 @@ export interface operations {
       content: {
         "application/json": {
           activate?: {
+            note?: string;
             profile: string;
             scope: string;
             workspace_id?: string;
@@ -42866,11 +43016,13 @@ export interface operations {
         content: {
           "application/json":
             | {
+                note?: string;
                 profile: string;
                 scope: string;
                 workspace_id?: string;
               }[]
             | {
+                note?: string;
                 profile: string;
                 scope: string;
                 workspace_id?: string;
@@ -42950,6 +43102,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          note?: string;
           profile: string;
           scope: string;
           workspace_id?: string;
@@ -42964,6 +43117,7 @@ export interface operations {
         };
         content: {
           "application/json": {
+            note?: string;
             profile: string;
             scope: string;
             workspace_id?: string;
@@ -45706,7 +45860,10 @@ export interface operations {
   };
   bulkForceFailTaskRuns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -45982,7 +46139,10 @@ export interface operations {
   };
   bulkForceReleaseTaskRuns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -46258,7 +46418,10 @@ export interface operations {
   };
   forceFailTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -46570,7 +46733,12 @@ export interface operations {
   };
   inspectRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -47016,7 +47184,10 @@ export interface operations {
   };
   recoverTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -47398,7 +47569,10 @@ export interface operations {
   };
   forceReleaseTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -47710,7 +47884,10 @@ export interface operations {
   };
   retryTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -49508,6 +49685,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -50002,6 +50180,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -50338,6 +50517,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Subscribe to the explicit all-workspaces aggregate */
         all_workspaces?: boolean;
+        /** @description Resume cursor when Last-Event-ID cannot be set; the header takes precedence */
+        last_event_id?: string;
         /** @description Read one profile's rows by name */
         profile?: string;
         /** @description Read the owner-labeled all-profiles aggregate */
@@ -50352,6 +50533,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Profile-scoped session catalog event stream for the selected workspace or explicit owner-labeled all-workspaces aggregate */
       200: {
         headers: {
@@ -50941,6 +51129,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -50997,6 +51186,427 @@ export interface operations {
               workspace_path?: string;
               worktree_id?: string;
             };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listGlobalSessionEvents: {
+    parameters: {
+      query?: {
+        /** @description Only events emitted since this timestamp */
+        since?: string;
+        /** @description Maximum number of records to return; defaults to the newest 200 and is capped at 1000 */
+        limit?: number;
+        /** @description Only return events after this sequence number */
+        after_sequence?: number;
+        /** @description Event type */
+        type?: string;
+        /** @description Agent name */
+        agent_name?: string;
+        /** @description Turn id */
+        turn_id?: string;
+        /** @description Select active, archived, or all events */
+        archive?: "active" | "archived" | "all";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            events: {
+              actor_id?: string;
+              actor_kind?: string;
+              agent_name: string;
+              claim_token_hash?: string;
+              content: unknown;
+              coordinator_session_id?: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                reason_code?: string;
+                summary?: string;
+              } | null;
+              /** Format: int64 */
+              generation?: number;
+              goal?: {
+                /** Format: int64 */
+                generation: number;
+                item_index: number;
+                /** @enum {string} */
+                kind: "goal-work" | "goal-continuation" | "goal-compaction";
+                node_id: string;
+                prompt_attempt: number;
+                prompt_id: string;
+                run_id: string;
+                turn: number | null;
+              } | null;
+              hook_event?: string;
+              hook_name?: string;
+              id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              parent_session_id?: string;
+              provider_error?: {
+                code: string;
+                /** Format: date-time */
+                first_seen_at: string;
+                guidance: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                next_action: string;
+                occurrence_count: number;
+                provider: string;
+              } | null;
+              release_reason?: string;
+              root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
+              /** Format: int64 */
+              sequence: number;
+              session_id: string;
+              spawn_depth: number;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "owner_released"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              task_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              turn_id: string;
+              type: string;
+              workflow_id?: string;
+              workspace_id?: string;
+              workspace_path?: string;
+              worktree_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getGlobalSessionHistory: {
+    parameters: {
+      query?: {
+        /** @description Only events emitted since this timestamp */
+        since?: string;
+        /** @description Maximum number of turns to return; defaults to the newest 200 and is capped at 1000 */
+        limit?: number;
+        /** @description Only return events after this sequence number */
+        after_sequence?: number;
+        /** @description Event type */
+        type?: string;
+        /** @description Agent name */
+        agent_name?: string;
+        /** @description Turn id */
+        turn_id?: string;
+        /** @description Select active, archived, or all events */
+        archive?: "active" | "archived" | "all";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            history: {
+              events: {
+                actor_id?: string;
+                actor_kind?: string;
+                agent_name: string;
+                claim_token_hash?: string;
+                content: unknown;
+                coordinator_session_id?: string;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  reason_code?: string;
+                  summary?: string;
+                } | null;
+                /** Format: int64 */
+                generation?: number;
+                goal?: {
+                  /** Format: int64 */
+                  generation: number;
+                  item_index: number;
+                  /** @enum {string} */
+                  kind: "goal-work" | "goal-continuation" | "goal-compaction";
+                  node_id: string;
+                  prompt_attempt: number;
+                  prompt_id: string;
+                  run_id: string;
+                  turn: number | null;
+                } | null;
+                hook_event?: string;
+                hook_name?: string;
+                id: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                parent_session_id?: string;
+                provider_error?: {
+                  code: string;
+                  /** Format: date-time */
+                  first_seen_at: string;
+                  guidance: string;
+                  /** Format: date-time */
+                  last_seen_at: string;
+                  next_action: string;
+                  occurrence_count: number;
+                  provider: string;
+                } | null;
+                release_reason?: string;
+                root_session_id?: string;
+                run_id?: string;
+                scheduler_reason?: string;
+                /** Format: int64 */
+                sequence: number;
+                session_id: string;
+                spawn_depth: number;
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "owner_released"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
+                task_id?: string;
+                /** Format: date-time */
+                timestamp: string;
+                turn_id: string;
+                type: string;
+                workflow_id?: string;
+                workspace_id?: string;
+                workspace_path?: string;
+                worktree_id?: string;
+              }[];
+              turn_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -51119,6 +51729,1183 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getGlobalSessionStatus: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_prompt: boolean;
+            agent_name: string;
+            attachable: boolean;
+            attention?: string;
+            badge: string;
+            derivation?: {
+              first_prompt: string;
+              /** @enum {string} */
+              kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+              native_fork_error?: string;
+              native_state?: string;
+              seed: string;
+              source_session_id: string;
+            } | null;
+            eligible_for_wake: boolean;
+            escalated?: boolean | null;
+            /** @enum {string} */
+            health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+            /** @enum {string} */
+            ineligibility_reason?:
+              | "session_prompt_active"
+              | "session_not_attachable"
+              | "session_unhealthy"
+              | "session_health_stale"
+              | "session_health_hung"
+              | "session_health_dead"
+              | "session_health_unknown";
+            /** @enum {string} */
+            lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
+            lineage?: {
+              auto_stop_on_parent: boolean;
+              /** @enum {string} */
+              kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+              notify_creator: boolean;
+              origin_agent_name?: string;
+              origin_message_id?: string;
+              parent_session_id?: string;
+              permission_policy: {
+                mcp_servers: string[];
+                skills: string[];
+                tools: string[];
+                workspace_paths: string[];
+              };
+              root_session_id?: string;
+              spawn_budget: {
+                max_active_per_workspace?: number;
+                max_children: number;
+                max_depth: number;
+                /** Format: int64 */
+                ttl_seconds: number;
+              };
+              spawn_depth: number;
+              spawn_role?: string;
+              /** Format: date-time */
+              ttl_expires_at?: string | null;
+            } | null;
+            pending_interactions: {
+              choices?: string[];
+              /** Format: date-time */
+              created_at: string;
+              decisions?: string[];
+              interaction_id: string;
+              kind: string;
+              provider_request_id: string;
+              resolution?: string;
+              /** Format: date-time */
+              resolved_at?: string | null;
+              resolved_by?: string;
+              status: string;
+              title?: string;
+              tool_id?: string;
+              turn_id?: string;
+            }[];
+            queue?: {
+              cap: number;
+              entries: number;
+            } | null;
+            session_id: string;
+            /** @enum {string} */
+            state: "idle" | "prompting" | "stopped" | "detached";
+            /** Format: date-time */
+            updated_at: string;
+            verified?: boolean | null;
+            wake_state?: {
+              agent_name?: string;
+              coalesced_count: number;
+              /** @enum {string} */
+              last_reason?:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              /** Format: date-time */
+              last_wake_at?: string | null;
+              /** Format: date-time */
+              next_allowed_at?: string | null;
+              policy_snapshot_id?: string;
+              session_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            } | null;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamGlobalSession: {
+    parameters: {
+      query?: {
+        /** @description Initial cursor when Last-Event-ID is not supplied */
+        after_sequence?: number;
+        /** @description Frame mode; transcript is the default and raw preserves persisted event frames */
+        frames?: "raw" | "transcript";
+        /** @description Expected transcript epoch for a fenced reconnect */
+        epoch?: number;
+        /** @description Expected materialized projection generation for a fenced reconnect */
+        generation?: number;
+        /** @description Maximum entries per transcript snapshot or change batch */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: {
+        /** @description Resume after the last applied SSE cursor; transcript reconnects also require epoch and generation */
+        "Last-Event-ID"?: string;
+      };
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Session event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            consumer_degraded?: {
+              /** Format: int64 */
+              after_sequence: number;
+              refresh: boolean;
+              session_id: string;
+              /** Format: int64 */
+              through_sequence: number;
+            } | null;
+            goal_snapshot_changed?: {
+              bound_session_id: string | null;
+              /** @enum {string} */
+              cause: "start" | "replace" | "status" | "clear" | "reseed";
+              /** Format: int64 */
+              revision: number;
+              run_id: string | null;
+              session_id: string;
+            } | null;
+            raw?: {
+              actor_id?: string;
+              actor_kind?: string;
+              agent_name: string;
+              claim_token_hash?: string;
+              content: unknown;
+              coordinator_session_id?: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                reason_code?: string;
+                summary?: string;
+              } | null;
+              /** Format: int64 */
+              generation?: number;
+              goal?: {
+                /** Format: int64 */
+                generation: number;
+                item_index: number;
+                /** @enum {string} */
+                kind: "goal-work" | "goal-continuation" | "goal-compaction";
+                node_id: string;
+                prompt_attempt: number;
+                prompt_id: string;
+                run_id: string;
+                turn: number | null;
+              } | null;
+              hook_event?: string;
+              hook_name?: string;
+              id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              parent_session_id?: string;
+              provider_error?: {
+                code: string;
+                /** Format: date-time */
+                first_seen_at: string;
+                guidance: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                next_action: string;
+                occurrence_count: number;
+                provider: string;
+              } | null;
+              release_reason?: string;
+              root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
+              /** Format: int64 */
+              sequence: number;
+              session_id: string;
+              spawn_depth: number;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "owner_released"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              task_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              turn_id: string;
+              type: string;
+              workflow_id?: string;
+              workspace_id?: string;
+              workspace_path?: string;
+              worktree_id?: string;
+            } | null;
+            session_commands_changed?: {
+              revision: string;
+              session_id: string;
+            } | null;
+            session_stopped?: {
+              actor_id?: string;
+              actor_kind?: string;
+              agent_name: string;
+              claim_token_hash?: string;
+              content: unknown;
+              coordinator_session_id?: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                reason_code?: string;
+                summary?: string;
+              } | null;
+              /** Format: int64 */
+              generation?: number;
+              goal?: {
+                /** Format: int64 */
+                generation: number;
+                item_index: number;
+                /** @enum {string} */
+                kind: "goal-work" | "goal-continuation" | "goal-compaction";
+                node_id: string;
+                prompt_attempt: number;
+                prompt_id: string;
+                run_id: string;
+                turn: number | null;
+              } | null;
+              hook_event?: string;
+              hook_name?: string;
+              id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              parent_session_id?: string;
+              provider_error?: {
+                code: string;
+                /** Format: date-time */
+                first_seen_at: string;
+                guidance: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                next_action: string;
+                occurrence_count: number;
+                provider: string;
+              } | null;
+              release_reason?: string;
+              root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
+              /** Format: int64 */
+              sequence: number;
+              session_id: string;
+              spawn_depth: number;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "owner_released"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              task_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              turn_id: string;
+              type: string;
+              workflow_id?: string;
+              workspace_id?: string;
+              workspace_path?: string;
+              worktree_id?: string;
+            } | null;
+            session_usage_changed?: {
+              kind: string;
+              /** Format: int64 */
+              sequence: number;
+              turn_id?: string;
+            } | null;
+            transcript_delta?: {
+              /** Format: int64 */
+              cursor: number;
+              entries: {
+                message: {
+                  id: string;
+                  metadata?: unknown;
+                  parts: {
+                    data?: unknown;
+                    errorText?: string;
+                    filename?: string;
+                    id?: string;
+                    input?: unknown;
+                    mediaType?: string;
+                    output?: unknown;
+                    preliminary?: boolean;
+                    rawInput?: unknown;
+                    state?: string;
+                    text?: string;
+                    title?: string;
+                    toolCallId?: string;
+                    toolName?: string;
+                    type: string;
+                    url?: string;
+                  }[];
+                  role: string;
+                };
+                /** Format: int64 */
+                sequence: number;
+                /** Format: int64 */
+                start_sequence: number;
+              }[];
+              /** Format: int64 */
+              epoch: number;
+              /** Format: int64 */
+              generation: number;
+              has_more: boolean;
+              /** Format: int64 */
+              max_sequence: number;
+              session_id: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            } | null;
+            transcript_snapshot?: {
+              entries: {
+                message: {
+                  id: string;
+                  metadata?: unknown;
+                  parts: {
+                    data?: unknown;
+                    errorText?: string;
+                    filename?: string;
+                    id?: string;
+                    input?: unknown;
+                    mediaType?: string;
+                    output?: unknown;
+                    preliminary?: boolean;
+                    rawInput?: unknown;
+                    state?: string;
+                    text?: string;
+                    title?: string;
+                    toolCallId?: string;
+                    toolName?: string;
+                    type: string;
+                    url?: string;
+                  }[];
+                  role: string;
+                };
+                /** Format: int64 */
+                sequence: number;
+                /** Format: int64 */
+                start_sequence: number;
+              }[];
+              /** Format: int64 */
+              epoch: number;
+              /** Format: int64 */
+              generation: number;
+              has_older: boolean;
+              /** Format: int64 */
+              max_sequence: number;
+              /** Format: int64 */
+              next_before_sequence?: number;
+              reason?: string;
+              reset: boolean;
+              session_id: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getGlobalSessionTranscript: {
+    parameters: {
+      query?: {
+        /** @description Maximum page size; defaults to the newest 200 entries and is capped at 1000 */
+        limit?: number;
+        /** @description Return entries whose stable start sequence is before this cursor */
+        before_sequence?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            entries: {
+              message: {
+                id: string;
+                metadata?: unknown;
+                parts: {
+                  data?: unknown;
+                  errorText?: string;
+                  filename?: string;
+                  id?: string;
+                  input?: unknown;
+                  mediaType?: string;
+                  output?: unknown;
+                  preliminary?: boolean;
+                  rawInput?: unknown;
+                  state?: string;
+                  text?: string;
+                  title?: string;
+                  toolCallId?: string;
+                  toolName?: string;
+                  type: string;
+                  url?: string;
+                }[];
+                role: string;
+              };
+              /** Format: int64 */
+              sequence: number;
+              /** Format: int64 */
+              start_sequence: number;
+            }[];
+            /** Format: int64 */
+            epoch: number;
+            /** Format: int64 */
+            generation: number;
+            has_older: boolean;
+            limit: number;
+            /** Format: int64 */
+            max_sequence: number;
+            /** Format: int64 */
+            next_before_sequence?: number;
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getGlobalSessionTranscriptOutline: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            entries: {
+              /** Format: date-time */
+              at: string;
+              preview: string;
+              reply_preview: string;
+              /** Format: int64 */
+              sequence: number;
+              turn_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  searchGlobalSessionTranscript: {
+    parameters: {
+      query: {
+        /** @description Literal case-insensitive text; 1 to 4096 bytes */
+        q: string;
+        /** @description Maximum matches; defaults to 200, capped at 1000; truncated reports omitted matches */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            matches: {
+              field?: string;
+              part_index?: number | null;
+              role: string;
+              /** Format: int64 */
+              sequence: number;
+              snippet: string;
+              turn_id: string;
+            }[];
+            truncated: boolean;
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -64336,7 +66123,12 @@ export interface operations {
   };
   getTaskRunReview: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Review id */
@@ -64510,7 +66302,10 @@ export interface operations {
   };
   submitTaskRunReviewVerdict: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Review id */
@@ -64833,7 +66628,12 @@ export interface operations {
   };
   getTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -65118,7 +66918,10 @@ export interface operations {
   };
   attachTaskRunSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -65369,7 +67172,10 @@ export interface operations {
   };
   cancelTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -65621,7 +67427,10 @@ export interface operations {
   };
   completeTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -65873,7 +67682,10 @@ export interface operations {
   };
   failTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -66130,6 +67942,10 @@ export interface operations {
         offset?: number;
         /** @description Page size in bytes; defaults to and is capped at 65536 */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -66323,6 +68139,10 @@ export interface operations {
         reviewer_session_id?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -66527,7 +68347,10 @@ export interface operations {
   };
   requestTaskRunReview: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -66849,7 +68672,10 @@ export interface operations {
   };
   startTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task run id */
@@ -69028,7 +70854,10 @@ export interface operations {
   };
   approveTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -70018,7 +71847,10 @@ export interface operations {
   };
   cancelTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -70303,7 +72135,10 @@ export interface operations {
   };
   createChildTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Parent task id */
@@ -70637,7 +72472,10 @@ export interface operations {
   };
   addTaskDependency: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -71442,7 +73280,10 @@ export interface operations {
   };
   removeTaskDependency: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -73585,7 +75426,10 @@ export interface operations {
   };
   pauseTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -73930,7 +75774,10 @@ export interface operations {
   };
   publishTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -74572,7 +76419,10 @@ export interface operations {
   };
   rejectTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -74849,7 +76699,10 @@ export interface operations {
   };
   resumeTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -75423,6 +77276,10 @@ export interface operations {
         session_id?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -75637,7 +77494,10 @@ export interface operations {
   };
   enqueueTaskRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -75889,7 +77749,10 @@ export interface operations {
   };
   fanOutTaskRuns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -76147,7 +78010,10 @@ export interface operations {
   };
   startTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -76505,6 +78371,10 @@ export interface operations {
       query?: {
         /** @description Replay events after the supplied task stream sequence */
         after_sequence?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -76764,6 +78634,10 @@ export interface operations {
         after_sequence?: number;
         /** @description Maximum number of timeline items to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -77015,7 +78889,12 @@ export interface operations {
   };
   getTaskTree: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -77333,7 +79212,10 @@ export interface operations {
   };
   archiveTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -77492,7 +79374,10 @@ export interface operations {
   };
   dismissTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -77651,7 +79536,10 @@ export interface operations {
   };
   markTaskRead: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -78893,7 +80781,10 @@ export interface operations {
   };
   getPendingToolApproval: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Profile that owns the approval */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Stable approval id */
@@ -78957,7 +80848,10 @@ export interface operations {
   };
   cancelPendingToolApproval: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Profile that owns the approval */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Stable approval id */
@@ -78980,6 +80874,145 @@ export interface operations {
             /** Format: date-time */
             expires_at?: string | null;
             result?: unknown;
+          };
+        };
+      };
+      /** @description Approval not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Approval already terminal */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Tool approval unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  resolvePendingToolApproval: {
+    parameters: {
+      query?: {
+        /** @description Profile that owns the approval */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Stable approval id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          decision: "approved" | "denied";
+        };
+      };
+    };
+    responses: {
+      /** @description Decision recorded; execution may still be running */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_status: string;
+            error?: unknown;
+            execution_status?: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            result?: unknown;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Local operator surface required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -88371,6 +90404,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -91236,6 +93270,7 @@ export interface operations {
                     | "invalid_output";
                   passed: boolean;
                   payload?: unknown;
+                  prompt?: string;
                   /** Format: double */
                   score?: number | null;
                   stderr?: string;
@@ -105933,6 +107968,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -106416,6 +108452,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -106996,6 +109033,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -107462,6 +109500,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -108717,6 +110756,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -109351,6 +111391,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -109685,6 +111726,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -110193,6 +112235,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -110611,6 +112654,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -110945,6 +112989,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -112722,6 +114767,7 @@ export interface operations {
                 /** @enum {string} */
                 stop_reason?:
                   | "completed"
+                  | "owner_released"
                   | "user_canceled"
                   | "max_iterations"
                   | "loop_detected"
@@ -116224,6 +118270,7 @@ export interface operations {
                 /** @enum {string} */
                 stop_reason?:
                   | "completed"
+                  | "owner_released"
                   | "user_canceled"
                   | "max_iterations"
                   | "loop_detected"
@@ -116827,6 +118874,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -117327,6 +119375,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -117780,6 +119829,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -118797,7 +120847,10 @@ export interface operations {
   };
   stopSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -119093,6 +121146,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -119172,6 +121226,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -121557,6 +123612,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -122559,6 +124615,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -134831,6 +136888,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Workspace-identified worktree catalog event stream */
       200: {
         headers: {

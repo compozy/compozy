@@ -23,11 +23,10 @@ export function useSessionWindowController(windowId: string) {
     liveTailEnabled: liveTailEnabled && !deletedByOperator,
   });
   const remotelyGone =
-    sessionId !== null &&
-    ((resolution.scopedMiss && resolution.foreign.status === "missing") ||
-      resolution.crossesWorkspace);
+    sessionId !== null && resolution.scopedMiss && resolution.foreign.status === "missing";
   const deletedLocally = deletedByOperator || remotelyGone;
-  const effectiveLiveTailEnabled = liveTailEnabled && !deletedLocally;
+  const effectiveLiveTailEnabled =
+    liveTailEnabled && !deletedLocally && !resolution.crossesWorkspace;
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
@@ -38,6 +37,8 @@ export function useSessionWindowController(windowId: string) {
   );
 
   useEffect(() => {
+    // A document's project lens cannot remove a valid shared window. Only a
+    // confirmed missing session retires it; scope mismatches render a local notice.
     if (sessionId === null || deletedByOperator || !remotelyGone) return;
     toast.error("Session not found");
     void coordinator.userRetireSession(windowId);

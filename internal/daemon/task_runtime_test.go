@@ -1031,6 +1031,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			name: "Should use the workspace identifier for workspace-scoped tasks",
 			taskRecord: taskpkg.Task{
 				ID:          "task-workspace",
+				ProfileID:   "profile-editorial",
 				Scope:       taskpkg.ScopeWorkspace,
 				WorkspaceID: "ws-123",
 				Title:       "Workspace Task",
@@ -1051,9 +1052,10 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 		{
 			name: "Should use the global workspace path for global tasks",
 			taskRecord: taskpkg.Task{
-				ID:    "task-global",
-				Scope: taskpkg.ScopeGlobal,
-				Title: "Global Task",
+				ID:        "task-global",
+				ProfileID: "profile-operations",
+				Scope:     taskpkg.ScopeGlobal,
+				Title:     "Global Task",
 			},
 			run: taskpkg.Run{
 				ID:       "run-1",
@@ -1098,7 +1100,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 
 			run := tc.run
 
-			ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			ref, err := bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 				Task: tc.taskRecord,
 				Run:  run,
 			})
@@ -1114,6 +1116,9 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			}
 
 			createCall := sessions.createCall(0)
+			if got, want := createCall.ProfileID, tc.taskRecord.ProfileID; got != want {
+				t.Fatalf("createCall.ProfileID = %q, want task owner %q", got, want)
+			}
 			if got, want := createCall.Type, session.SessionTypeSystem; got != want {
 				t.Fatalf("createCall.Type = %q, want %q", got, want)
 			}

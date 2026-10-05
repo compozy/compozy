@@ -150,6 +150,17 @@ WHERE output.loop_run_id = sqlc.arg(loop_run_id)
   AND run.workspace_id = sqlc.arg(workspace_id)
   AND output.output_ref <> '';
 
+-- name: RearmLoopApprovalGate :execrows
+UPDATE loop_generation_outputs
+SET status = 'pending', output_ref = NULL, task_run_id = NULL,
+    next_attempt_at = NULL, epoch = epoch + 1
+WHERE loop_run_id = sqlc.arg(loop_run_id)
+  AND generation = sqlc.arg(generation)
+  AND node_id = sqlc.arg(node_id)
+  AND item_index = sqlc.arg(item_index)
+  AND status = 'succeeded'
+  AND epoch = sqlc.arg(expected_epoch);
+
 -- name: RecordLoopGenerationOutputRuntime :execrows
 UPDATE loop_generation_outputs
 SET resolved_runtime_json = sqlc.arg(resolved_runtime_json)
@@ -187,7 +198,7 @@ WHERE generation.loop_run_id = sqlc.arg(loop_run_id)
   AND run.workspace_id = sqlc.arg(workspace_id)
 ORDER BY generation.generation ASC;
 
--- name: InsertLoopGateVerdict :exec
+-- name: InsertLoopGateVerdict :execrows
 INSERT INTO loop_gate_verdicts (
   loop_run_id, generation, gate_id, item_index, outcome, score, route_cause_rank,
   blocking_issues_json, criteria_json, decided_at
@@ -195,7 +206,16 @@ INSERT INTO loop_gate_verdicts (
   sqlc.arg(loop_run_id), sqlc.arg(generation), sqlc.arg(gate_id), sqlc.arg(item_index), sqlc.arg(outcome),
   sqlc.narg(score), sqlc.narg(route_cause_rank), sqlc.arg(blocking_issues_json),
   sqlc.arg(criteria_json), sqlc.arg(decided_at)
-);
+)
+ON CONFLICT(loop_run_id, generation, gate_id, item_index) DO UPDATE SET
+  outcome = excluded.outcome,
+  score = excluded.score,
+  route_cause_rank = excluded.route_cause_rank,
+  blocking_issues_json = excluded.blocking_issues_json,
+  criteria_json = excluded.criteria_json,
+  decided_at = excluded.decided_at
+WHERE loop_gate_verdicts.outcome = 'awaiting_approval'
+  AND excluded.outcome <> 'awaiting_approval';
 
 -- name: ListLoopGateVerdicts :many
 SELECT verdict.gate_id, verdict.item_index, verdict.outcome, verdict.score, verdict.route_cause_rank,

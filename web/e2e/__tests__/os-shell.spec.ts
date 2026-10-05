@@ -2872,7 +2872,7 @@ test("E2E-042 (logical E2E-009): breadcrumb back pops only the active tab naviga
   await shell.window(tasksID).locator('[data-slot="topbar-back"]').click();
   await expect
     .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID]?.route)
-    .toEqual({ pathname: `/tasks/${task.id}`, search: {} });
+    .toEqual({ pathname: `/tasks/${task.id}`, search: { tab: "overview" } });
   expect((await windowManagerSnapshot(runtime, workspace.id)).windows[agentsID]?.route).toEqual({
     pathname: "/agents",
     search: {},

@@ -123,6 +123,19 @@ and `GET /api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline
 Agents use `compozy__session_search` with `session_id`, optional `workspace`, `q` and optional
 `limit`, or `compozy__session_outline` with `session_id` and optional `workspace`.
 
+Sessions retained from the former operator-home registration appear as **Global** after upgrade.
+Their original creation identity and database ownership remain intact. Read them through
+`GET /api/sessions/{session_id}/transcript`, `/transcript/search`, or `/transcript/outline`.
+The same Global prefix exposes `/status`, `/events`, `/history`, and `/stream`; event filters,
+archive selection, paging bounds and stream resume cursors retain their project-route semantics.
+These HTTP/UDS routes accept Global-owned history only and enforce the selected profile's read
+scope. The CLI `session status`, `events` (including `--follow`), `history`, `search` and `outline`
+commands select the appropriate route automatically. Native session tools retain their
+project/caller workspace boundary.
+
+Opening a retained Global session link in Web asks to turn on Global scope, keeps the remembered
+project selection, and displays the history read-only. New execution continues to require a project.
+
 Search returns `{matches, truncated}` in chronological order. The default is 200 matching
 messages, capped at 1000; `truncated: true` means additional matches were omitted. Queries
 must contain 1–4096 bytes after trimming. A literal `%` or `_` is ordinary text. Empty

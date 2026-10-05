@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
@@ -153,28 +154,80 @@ func TestStaticRoutesServeLocalWebDistOverride(t *testing.T) {
 }
 
 func TestStaticRoutesObserveLocalWebDistRewrite(t *testing.T) {
-	t.Run("Should serve rewritten COMPOZY_WEB_DIST_DIR files without rebuilding Go", func(t *testing.T) {
-		distDir := writeLocalStaticDist(t, "local shell before", nil)
-		t.Setenv(webDistDirEnvVar, distDir)
+	// not parallel: t.Setenv selects the process-wide local Web bundle.
+	for _, tt := range []struct {
+		name        string
+		requestPath string
+		asset       string
+		before      string
+		after       string
+	}{
+		{
+			name:        "Should revalidate rewritten local index without restarting",
+			requestPath: "/",
+			asset:       "index.html",
+			before:      "local shell before",
+			after:       "<!doctype html><div>local shell after</div>",
+		},
+		{
+			name:        "Should revalidate a deep link after the local index changes",
+			requestPath: "/jobs/job-001",
+			asset:       "index.html",
+			before:      "local shell before",
+			after:       "<!doctype html><div>local shell after</div>",
+		},
+		{
+			name:        "Should revalidate rewritten local assets without restarting",
+			requestPath: "/assets/local.js",
+			asset:       "assets/local.js",
+			before:      "console.log('before');",
+			after:       "console.log('after');",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			distDir := writeLocalStaticDist(t, "local shell before", map[string]string{
+				"assets/local.js": "console.log('before');",
+			})
+			t.Setenv(webDistDirEnvVar, distDir)
+			assetPath := filepath.Join(distDir, filepath.FromSlash(tt.asset))
+			modified := time.Date(2026, time.January, 1, 12, 0, 0, 0, time.UTC)
+			if err := os.Chtimes(assetPath, modified, modified); err != nil {
+				t.Fatalf("os.Chtimes before rewrite error = %v", err)
+			}
 
-		homePaths := newTestHomePaths(t)
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+			homePaths := newTestHomePaths(t)
+			engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+			before := performRequest(t, engine, http.MethodGet, tt.requestPath, nil)
+			if got := before.Body.String(); before.Code != http.StatusOK || !strings.Contains(got, tt.before) {
+				t.Fatalf("GET %s before status = %d body = %q, want %q", tt.requestPath, before.Code, got, tt.before)
+			}
+			validator := before.Header().Get("Last-Modified")
+			if validator == "" {
+				t.Fatal("Last-Modified is empty, want conditional request validator")
+			}
+			headers := map[string]string{"If-Modified-Since": validator}
+			unchanged := performRequestWithHeaders(t, engine, http.MethodGet, tt.requestPath, nil, headers)
+			if unchanged.Code != http.StatusNotModified || unchanged.Body.Len() != 0 {
+				t.Fatalf(
+					"unchanged status = %d body = %q, want 304 with no body",
+					unchanged.Code,
+					unchanged.Body.String(),
+				)
+			}
 
-		before := performRequest(t, engine, http.MethodGet, "/", nil)
-		if got := before.Body.String(); before.Code != http.StatusOK || !strings.Contains(got, "local shell before") {
-			t.Fatalf("GET / before status = %d body = %q, want local shell before", before.Code, got)
-		}
-
-		indexPath := filepath.Join(distDir, "index.html")
-		if err := os.WriteFile(indexPath, []byte("<!doctype html><div>local shell after</div>"), 0o644); err != nil {
-			t.Fatalf("os.WriteFile(index.html rewrite) error = %v", err)
-		}
-
-		after := performRequest(t, engine, http.MethodGet, "/", nil)
-		if got := after.Body.String(); after.Code != http.StatusOK || !strings.Contains(got, "local shell after") {
-			t.Fatalf("GET / after status = %d body = %q, want local shell after", after.Code, got)
-		}
-	})
+			if err := os.WriteFile(assetPath, []byte(tt.after), 0o644); err != nil {
+				t.Fatalf("os.WriteFile rewrite error = %v", err)
+			}
+			modified = modified.Add(time.Hour)
+			if err := os.Chtimes(assetPath, modified, modified); err != nil {
+				t.Fatalf("os.Chtimes after rewrite error = %v", err)
+			}
+			after := performRequestWithHeaders(t, engine, http.MethodGet, tt.requestPath, nil, headers)
+			if got := after.Body.String(); after.Code != http.StatusOK || got != tt.after {
+				t.Fatalf("GET %s after status = %d body = %q, want %q", tt.requestPath, after.Code, got, tt.after)
+			}
+		})
+	}
 }
 
 func TestStaticRoutesRejectMissingLocalWebDistIndex(t *testing.T) {

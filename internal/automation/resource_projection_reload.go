@@ -144,3 +144,39 @@ func (m *Manager) triggerResourceReconcile(ctx context.Context, kind resources.R
 	}
 	return m.resourceTrigger(ctx, kind, resources.ReconcileReasonWrite)
 }
+
+func (m *Manager) ReconcileProfileAutomations(ctx context.Context, profileID string) error {
+	if m.resourceDefinitionsEnabled() {
+		if err := m.applyJobResourcesFromStore(ctx); err != nil {
+			return err
+		}
+		if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
+			return err
+		}
+	}
+	m.resourceOverlayMu.Lock()
+	defer m.resourceOverlayMu.Unlock()
+	jobs, err := m.Jobs(ctx)
+	if err != nil {
+		return err
+	}
+	for _, job := range jobs {
+		if job.ProfileID == profileID {
+			if err := m.applyJobToRuntime(ctx, job); err != nil {
+				return err
+			}
+		}
+	}
+	triggers, err := m.Triggers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, trigger := range triggers {
+		if trigger.ProfileID == profileID {
+			if err := m.applyTriggerToRuntime(trigger); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

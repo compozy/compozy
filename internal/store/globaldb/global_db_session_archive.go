@@ -38,8 +38,8 @@ func (g *SessionRepo) SetSessionArchived(
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	sessionID = strings.TrimSpace(sessionID)
-	if workspaceID == "" || sessionID == "" {
-		return store.SessionInfo{}, errors.New("store: session archive workspace and session ids are required")
+	if sessionID == "" {
+		return store.SessionInfo{}, errors.New("store: session archive session id is required")
 	}
 
 	current, err := g.sessionForArchive(ctx, workspaceID, sessionID)
@@ -108,8 +108,8 @@ func (g *SessionRepo) sessionForArchive(
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	sessionID = strings.TrimSpace(sessionID)
-	if workspaceID == "" || sessionID == "" {
-		return store.SessionInfo{}, errors.New("store: session archive workspace and session ids are required")
+	if sessionID == "" {
+		return store.SessionInfo{}, errors.New("store: session archive session id is required")
 	}
 	info, err := scanSessionInfo(g.db.QueryRowContext(
 		ctx,

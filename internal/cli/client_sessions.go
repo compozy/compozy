@@ -44,7 +44,7 @@ func (c *daemonClient) GetSessionHealth(ctx context.Context, id string) (Session
 
 func (c *daemonClient) GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error) {
 	var response SessionStatusRecord
-	path, err := c.sessionScopedPath(ctx, id, "/status")
+	path, err := c.sessionReadPath(ctx, id, "/status")
 	if err != nil {
 		return SessionStatusRecord{}, err
 	}
@@ -267,7 +267,7 @@ func (c *daemonClient) GetSessionTranscript(
 	id string,
 ) (SessionTranscriptRecord, error) {
 	var response SessionTranscriptRecord
-	path, err := c.sessionScopedPath(ctx, id, "/transcript")
+	path, err := c.sessionReadPath(ctx, id, "/transcript")
 	if err != nil {
 		return SessionTranscriptRecord{}, err
 	}

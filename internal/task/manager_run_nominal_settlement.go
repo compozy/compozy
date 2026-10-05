@@ -41,6 +41,7 @@ func (m *Service) commitNominalRunSettlement(
 		if err != nil {
 			return err
 		}
+		mutation.Run.ProfileID = taskRecord.ProfileID
 		event, err := m.newTaskEventAt(
 			mutation.Run.TaskID,
 			mutation.Run.ID,

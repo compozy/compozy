@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"io"
 	"io/fs"
@@ -140,10 +141,16 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 			h.Logger.Debug("httpapi: close static asset failed", "asset", cleanAsset, "error", err)
 		}
 	}()
+	info, err := file.Stat()
+	if err != nil {
+		respondNotFound(c)
+		return
+	}
+	modified := cmp.Or(info.ModTime(), h.StartedAt)
 	c.Header("Content-Security-Policy", productionContentSecurityPolicy)
 
 	if seeker, ok := file.(io.ReadSeeker); ok {
-		http.ServeContent(c.Writer, c.Request, path.Base(asset), h.StartedAt, seeker)
+		http.ServeContent(c.Writer, c.Request, path.Base(asset), modified, seeker)
 		return
 	}
 
@@ -152,7 +159,7 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 		respondNotFound(c)
 		return
 	}
-	http.ServeContent(c.Writer, c.Request, path.Base(asset), h.StartedAt, bytes.NewReader(data))
+	http.ServeContent(c.Writer, c.Request, path.Base(asset), modified, bytes.NewReader(data))
 }
 
 func normalizedRequestPath(rawPath string) string {

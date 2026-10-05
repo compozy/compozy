@@ -12,6 +12,9 @@ import type * as React from "react";
 
 import { TooltipProvider } from "@compozy/ui";
 
+import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
+import type { ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
+import { paletteRegistryFixture, resolvedPaletteCommand } from "../../mocks/cmd-palette-fixtures";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { DesktopDock } from "../desktop-dock";
@@ -194,6 +197,7 @@ function desktopState(
     presentation: "floating",
     viewportState: "ready",
     hydration: "live",
+    loadError: null,
     connectionStatus: "connected",
     desktopBounds: null,
   };
@@ -625,13 +629,19 @@ describe("OsDock", () => {
     const user = userEvent.setup();
     const onOpenSettings = vi.fn();
     renderDock(
-      <DesktopDock
-        badges={{}}
-        onNewSession={vi.fn()}
-        onOpenSettings={onOpenSettings}
-        contextMenusEnabled
-        profileSwitcher={<button type="button">Profile</button>}
-      />
+      <CmdPaletteRegistryProvider
+        registry={paletteRegistryFixture([
+          resolvedPaletteCommand({ id: "settings.general", title: "Settings" }),
+        ])}
+      >
+        <DesktopDock
+          badges={{}}
+          onNewSession={vi.fn()}
+          onOpenSettings={onOpenSettings}
+          contextMenusEnabled
+          profileSwitcher={<button type="button">Profile</button>}
+        />
+      </CmdPaletteRegistryProvider>
     );
 
     const foot = document.querySelector('[data-slot="os-rail-foot"]');
@@ -657,6 +667,55 @@ describe("OsDock", () => {
     ).not.toHaveAttribute("aria-label", before);
   });
 
+  // The rail foot owns command availability; topology readiness cannot stand in
+  // for a missing or unconfirmed palette catalog after a document reload.
+  it.each(["floating", "compact"] as const)(
+    "Should wait for the Settings command in the %s dock without blocking local theme changes",
+    async presentation => {
+      const user = userEvent.setup();
+      const onOpenSettings = vi.fn();
+      setDockState({ ...desktopState(), presentation, connectionStatus: "reconnecting" });
+      const command = resolvedPaletteCommand({ id: "settings.general", title: "Settings" });
+      const dock = (commands: readonly ResolvedPaletteCommand[]) => (
+        <TooltipProvider delay={0}>
+          <CmdPaletteRegistryProvider registry={paletteRegistryFixture(commands)}>
+            <DesktopDock
+              badges={{}}
+              onNewSession={vi.fn()}
+              onOpenSettings={onOpenSettings}
+              contextMenusEnabled
+            />
+          </CmdPaletteRegistryProvider>
+        </TooltipProvider>
+      );
+      const view = render(dock([]));
+
+      const settings = screen.getByRole("button", { name: "Settings" });
+      expect(settings).toBeDisabled();
+      await user.click(settings);
+      expect(onOpenSettings).not.toHaveBeenCalled();
+      const theme = screen.getByRole("button", { name: /^Switch to (light|dark) mode$/ });
+      const previousTheme = theme.getAttribute("aria-label");
+      await user.click(theme);
+      expect(theme).not.toHaveAttribute("aria-label", previousTheme);
+
+      view.rerender(dock([{ ...command, available: false }]));
+      expect(settings).toBeDisabled();
+      await user.click(settings);
+      expect(onOpenSettings).not.toHaveBeenCalled();
+
+      view.rerender(dock([command]));
+      expect(settings).toBeEnabled();
+      await user.click(settings);
+      expect(onOpenSettings).toHaveBeenCalledOnce();
+
+      view.rerender(dock([{ ...command, available: false }]));
+      expect(settings).toBeDisabled();
+      await user.click(settings);
+      expect(onOpenSettings).toHaveBeenCalledOnce();
+    }
+  );
+
   it("Should keep every launcher and the foot controls in the compact tab bar, with no New session", () => {
     setDockState({ ...desktopState(), presentation: "compact" });
     renderDock(
@@ -681,7 +740,7 @@ describe("OsDock", () => {
       tabBar.querySelectorAll<HTMLButtonElement>('[data-slot="os-dock-item"]')
     );
     expect(launchers.filter(button => button.tabIndex === 0)).toHaveLength(1);
-    launchers[0]?.focus();
+    act(() => launchers[0]?.focus());
     fireEvent.keyDown(launchers[0] as HTMLElement, { key: "ArrowLeft" });
     expect(launchers.at(-1)).toHaveFocus();
     fireEvent.keyDown(launchers.at(-1) as HTMLElement, { key: "ArrowRight" });
@@ -980,7 +1039,12 @@ describe("OsDock", () => {
     const keyboardMenuEvent = contextMenuEvents.mock.calls.at(-1)?.[0] as MouseEvent | undefined;
     expect(keyboardMenuEvent?.clientX).toBe(124);
     expect(keyboardMenuEvent?.clientY).toBe(64);
-    await user.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() => expect(screen.getByRole("menu")).toHaveFocus());
+    await user.keyboard("{ArrowDown}");
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "Open in new tab" })).toHaveFocus()
+    );
+    await user.keyboard("{Enter}");
 
     expect(onLaunch).toHaveBeenCalledExactlyOnceWith("tab");
   });

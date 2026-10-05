@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/skills"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 
 	"github.com/compozy/compozy/internal/toolruntime"
 
@@ -50,7 +51,8 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		}
 		return fmt.Errorf("daemon: boot session inventory recovery failed: %w", err)
 	}
-	if err := upgradeBootSessionDatabases(ctx, state.sessions, infos); err != nil {
+	infos, err = upgradeBootSessionDatabases(ctx, state, infos)
+	if err != nil {
 		return err
 	}
 	if err := recoverBootPendingInteractions(ctx, state, infos); err != nil {
@@ -106,20 +108,44 @@ type sessionDatabaseUpgrader interface {
 	UpgradeSessionDatabase(context.Context, string) error
 }
 
-func upgradeBootSessionDatabases(ctx context.Context, manager SessionManager, infos []*session.Info) error {
-	upgrader, ok := manager.(sessionDatabaseUpgrader)
+func upgradeBootSessionDatabases(
+	ctx context.Context,
+	state *bootState,
+	infos []*session.Info,
+) ([]*session.Info, error) {
+	upgrader, ok := state.sessions.(sessionDatabaseUpgrader)
 	if !ok {
-		return nil
+		return infos, nil
 	}
+	ready := make([]*session.Info, 0, len(infos))
 	for _, info := range infos {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("daemon: retained session database upgrade canceled: %w", err)
+		}
 		if info == nil || strings.TrimSpace(info.ID) == "" {
 			continue
 		}
 		if err := upgrader.UpgradeSessionDatabase(ctx, info.ID); err != nil {
-			return fmt.Errorf("daemon: upgrade retained session database %q: %w", info.ID, err)
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, fmt.Errorf("daemon: retained session database upgrade canceled: %w", ctxErr)
+			}
+			identityRefused := errors.Is(err, sessiondb.ErrSessionDBOwnerMismatch) ||
+				errors.Is(err, sessiondb.ErrSessionDBOwnerMissing) ||
+				errors.Is(err, sessiondb.ErrSessionDBFamilyChanged)
+			if identityRefused &&
+				!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				state.logger.WarnContext(ctx, "daemon: retained session database refused",
+					"session_id", info.ID,
+					"workspace_id", info.WorkspaceID,
+					"error", err,
+				)
+				continue
+			}
+			return nil, fmt.Errorf("daemon: upgrade retained session database %q: %w", info.ID, err)
 		}
+		ready = append(ready, info)
 	}
-	return nil
+	return ready, nil
 }
 
 func recoverBootPendingInteractions(ctx context.Context, state *bootState, infos []*session.Info) error {

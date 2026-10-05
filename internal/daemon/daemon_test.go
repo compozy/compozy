@@ -60,6 +60,7 @@ import (
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/subprocess"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -7473,8 +7474,8 @@ func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversat
 
 type databaseUpgradeManager struct {
 	*fakeSessionManager
-	upgraded   []string
-	upgradeErr error
+	upgraded      []string
+	upgradeErrors map[string]error
 }
 
 func (m *databaseUpgradeManager) UpgradeSessionDatabase(_ context.Context, id string) error {
@@ -7482,7 +7483,7 @@ func (m *databaseUpgradeManager) UpgradeSessionDatabase(_ context.Context, id st
 		return errors.New("database upgrade ran after read-only interaction recovery")
 	}
 	m.upgraded = append(m.upgraded, id)
-	return m.upgradeErr
+	return m.upgradeErrors[id]
 }
 
 type derivedEventReconcileManager struct {
@@ -7505,7 +7506,7 @@ func TestBootSessionRepair(t *testing.T) {
 	t.Parallel()
 
 	// Invariant: retained databases upgrade before boot reads their histories;
-	// migration refusal prevents publication. Owner: daemon boot; canonical suite: TestBootSessionRepair.
+	// migration failures stop boot and identity refusals stay isolated to their session.
 	t.Run("Should upgrade completed histories before interaction recovery and preserve refusal", func(t *testing.T) {
 		t.Parallel()
 		manager := &databaseUpgradeManager{fakeSessionManager: &fakeSessionManager{
@@ -7520,13 +7521,90 @@ func TestBootSessionRepair(t *testing.T) {
 			t.Fatalf("upgrade/recovery=%v/%v", manager.upgraded, manager.pendingRecoveryCalls)
 		}
 		manager.pendingRecoveryCalls = nil
-		manager.upgradeErr = store.ErrSchemaAhead
+		manager.upgradeErrors = map[string]error{"sess-complete": store.ErrSchemaAhead}
 		if err := d.bootSessionRepair(
 			testutil.Context(t),
 			state,
 		); !errors.Is(err, store.ErrSchemaAhead) ||
 			len(manager.pendingRecoveryCalls) != 0 {
 			t.Fatalf("migration refusal=%v, recovery=%v", err, manager.pendingRecoveryCalls)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"Should isolate a foreign session database during boot", sessiondb.ErrSessionDBOwnerMismatch},
+		{"Should isolate a session database without owner evidence during boot", sessiondb.ErrSessionDBOwnerMissing},
+		{"Should isolate a replaced database family during boot", sessiondb.ErrSessionDBFamilyChanged},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			manager := &databaseUpgradeManager{
+				fakeSessionManager: &fakeSessionManager{infos: []*session.Info{
+					{
+						ID:          "sess-refused",
+						WorkspaceID: "ws-refused",
+						State:       session.StateStopped,
+						StopReason:  store.StopError,
+					},
+					{ID: "sess-ready", State: session.StateStopped, StopReason: store.StopError},
+				}},
+				upgradeErrors: map[string]error{"sess-refused": fmt.Errorf("open retained history: %w", tc.err)},
+			}
+			var logs bytes.Buffer
+			state := &bootState{logger: slog.New(slog.NewJSONHandler(&logs, nil)), sessions: manager}
+			if err := (&Daemon{}).bootSessionRepair(t.Context(), state); err != nil {
+				t.Fatalf("bootSessionRepair() error = %v, want healthy sessions available", err)
+			}
+			if !slices.Equal(manager.upgraded, []string{"sess-refused", "sess-ready"}) {
+				t.Fatalf("upgraded = %v, want both retained stores inspected", manager.upgraded)
+			}
+			if !slices.Equal(manager.pendingRecoveryCalls, []string{"sess-ready"}) {
+				t.Fatalf("interaction recovery = %v, want only the owned session", manager.pendingRecoveryCalls)
+			}
+			if len(manager.repairCalls) != 1 || manager.repairCalls[0].SessionID != "sess-ready" {
+				t.Fatalf("history repair = %v, want only the owned session", manager.repairCalls)
+			}
+			var entry map[string]any
+			decoder := json.NewDecoder(&logs)
+			for {
+				var candidate map[string]any
+				if err := decoder.Decode(&candidate); errors.Is(err, io.EOF) {
+					break
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				if candidate["session_id"] == "sess-refused" {
+					entry = candidate
+					break
+				}
+			}
+			if entry["level"] != "WARN" || entry["session_id"] != "sess-refused" ||
+				entry["workspace_id"] != "ws-refused" {
+				t.Fatalf("refusal diagnostic = %v", entry)
+			}
+			if detail, ok := entry["error"].(string); !ok || !strings.Contains(detail, tc.err.Error()) {
+				t.Fatalf("refusal diagnostic lost its cause: %v", entry)
+			}
+		})
+	}
+
+	t.Run("Should preserve cancellation even when database identity is also refused", func(t *testing.T) {
+		t.Parallel()
+		manager := &databaseUpgradeManager{
+			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{{ID: "sess-refused"}}},
+			upgradeErrors: map[string]error{
+				"sess-refused": errors.Join(sessiondb.ErrSessionDBOwnerMismatch, context.Canceled),
+			},
+		}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		if err := (&Daemon{}).bootSessionRepair(t.Context(), state); !errors.Is(err, context.Canceled) {
+			t.Fatalf("bootSessionRepair() error = %v, want cancellation", err)
+		}
+		if len(manager.pendingRecoveryCalls) != 0 || len(manager.repairCalls) != 0 {
+			t.Fatal("boot continued after cancellation")
 		}
 	})
 

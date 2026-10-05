@@ -112,6 +112,8 @@ describe("Sheet", () => {
     const windowEl = screen.getByTestId("os-window");
     const sheet = screen.getByRole("dialog");
     expect(windowEl.contains(sheet)).toBe(true);
+    // Peer interaction starts after the sheet's asynchronous initial focus lands.
+    await waitFor(() => expect(sheet).toHaveFocus());
 
     const peerComposer = screen.getByRole("textbox", { name: "Peer composer" });
     await user.click(peerComposer);

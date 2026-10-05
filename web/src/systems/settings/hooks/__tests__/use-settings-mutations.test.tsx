@@ -1,6 +1,6 @@
 import { useMCPOverrideEditor } from "../use-mcp-override-editor";
 import type { SettingsMCPServerEntry } from "../../types";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,7 @@ vi.mock("../../adapters/settings-api", () => ({
   updateSettingsHooksExtensions: vi.fn(),
   updateSettingsMemory: vi.fn(),
   updateSettingsObservability: vi.fn(),
+  updateSettingsPersona: vi.fn(),
   updateSettingsRoles: vi.fn(),
   updateSettingsSkills: vi.fn(),
 }));
@@ -35,10 +36,14 @@ import {
   putSettingsMCPServer,
   reloadSettings,
   updateSettingsAttention,
+  updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
   updateSettingsMemory,
+  updateSettingsObservability,
+  updateSettingsPersona,
   updateSettingsRoles,
+  updateSettingsSkills,
 } from "../../adapters/settings-api";
 import {
   exchangeSettingsMCPAuth,
@@ -48,9 +53,15 @@ import { extensionKeys } from "@/systems/extensions";
 import { marketplaceKeys } from "@/systems/marketplace";
 import { settingsKeys } from "../../lib/query-keys";
 import {
+  settingsAttentionSectionFixture,
+  settingsAutomationSectionFixture,
+  settingsGeneralSectionFixture,
   settingsHooksExtensionsSectionFixture,
   settingsMemoryConfigFixture,
+  settingsObservabilitySectionFixture,
+  settingsSkillsSectionFixture,
 } from "../../mocks/fixtures";
+import { settingsPersonaSectionFixture } from "../../mocks/layered-fixtures";
 import { settingsRolesSectionFixture } from "../../mocks/roles-fixtures";
 import { settingsRestartStore } from "../../stores/settings-restart-store";
 import { resetSettingsRestartStore } from "../../stores/use-settings-restart-store";
@@ -62,10 +73,14 @@ import {
   usePutSettingsMCPServer,
   useReloadSettings,
   useUpdateSettingsAttention,
+  useUpdateSettingsAutomation,
   useUpdateSettingsGeneral,
   useUpdateSettingsHooksExtensions,
   useUpdateSettingsMemory,
+  useUpdateSettingsObservability,
+  useUpdateSettingsPersona,
   useUpdateSettingsRoles,
+  useUpdateSettingsSkills,
 } from "../use-settings-mutations";
 
 function createWrapper() {
@@ -101,6 +116,156 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("explicit Settings form saves while offline", () => {
+  it.each([
+    {
+      name: "General",
+      adapter: updateSettingsGeneral,
+      useSave: () => {
+        const mutation = useUpdateSettingsGeneral();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsGeneralSectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Memory",
+      adapter: updateSettingsMemory,
+      useSave: () => {
+        const mutation = useUpdateSettingsMemory();
+        return { mutation, save: () => mutation.mutate({ config: settingsMemoryConfigFixture }) };
+      },
+    },
+    {
+      name: "Automation",
+      adapter: updateSettingsAutomation,
+      useSave: () => {
+        const mutation = useUpdateSettingsAutomation();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsAutomationSectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Diagnostics",
+      adapter: updateSettingsObservability,
+      useSave: () => {
+        const mutation = useUpdateSettingsObservability();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsObservabilitySectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Extensions",
+      adapter: updateSettingsHooksExtensions,
+      useSave: () => {
+        const mutation = useUpdateSettingsHooksExtensions();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsHooksExtensionsSectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Roles",
+      adapter: updateSettingsRoles,
+      useSave: () => {
+        const mutation = useUpdateSettingsRoles();
+        return {
+          mutation,
+          save: () => mutation.mutate({ config: settingsRolesSectionFixture.config }),
+        };
+      },
+    },
+    {
+      name: "Persona",
+      adapter: updateSettingsPersona,
+      useSave: () => {
+        const mutation = useUpdateSettingsPersona();
+        return {
+          mutation,
+          save: () =>
+            mutation.mutate({
+              body: { config: settingsPersonaSectionFixture.config },
+              filter: { scope: "user" },
+            }),
+        };
+      },
+    },
+    {
+      name: "Skills",
+      adapter: updateSettingsSkills,
+      useSave: () => {
+        const mutation = useUpdateSettingsSkills();
+        return {
+          mutation,
+          save: () =>
+            mutation.mutate({
+              body: { config: settingsSkillsSectionFixture.config },
+              filter: { scope: "user" },
+            }),
+        };
+      },
+    },
+    {
+      name: "Notifications",
+      adapter: updateSettingsAttention,
+      useSave: () => {
+        const mutation = useUpdateSettingsAttention();
+        return {
+          mutation,
+          save: () =>
+            mutation.mutate({
+              body: { config: settingsAttentionSectionFixture.config },
+              filter: { scope: "user" },
+            }),
+        };
+      },
+    },
+  ])(
+    "$name settles failure and waits for an explicit retry after reconnect",
+    async ({ adapter, useSave }) => {
+      const { queryClient, wrapper } = createWrapper();
+      const networkError = new TypeError("Failed to fetch");
+      const request = Promise.reject(networkError);
+      // Attention starts its request in the gesture, before the mutation consumes it.
+      void request.catch(() => {});
+      vi.mocked(adapter).mockReturnValue(request);
+      onlineManager.setOnline(false);
+      const { result, unmount } = renderHook(() => useSave(), { wrapper });
+
+      try {
+        act(() => result.current.save());
+        await waitFor(() => expect(result.current.mutation.error).toBe(networkError));
+        expect(result.current.mutation.isPending).toBe(false);
+        expect(result.current.mutation.isPaused).toBe(false);
+        expect(adapter).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          onlineManager.setOnline(true);
+          await queryClient.resumePausedMutations();
+        });
+        expect(adapter).toHaveBeenCalledTimes(1);
+        expect(result.current.mutation.error).toBe(networkError);
+
+        vi.mocked(adapter).mockResolvedValue(generalMutation);
+        act(() => result.current.save());
+        await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
+        expect(adapter).toHaveBeenCalledTimes(2);
+        expect(result.current.mutation.error).toBeNull();
+      } finally {
+        unmount();
+        queryClient.clear();
+        onlineManager.setOnline(true);
+      }
+    }
+  );
 });
 
 describe("useUpdateSettingsGeneral", () => {

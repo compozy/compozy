@@ -24,10 +24,7 @@ func (o *Observer) verifyRecoveredSessionOwner(
 		return false, errors.New("observe: recovered session metadata is required")
 	}
 	entryID := strings.TrimSpace(entryName)
-	owner, err := (store.SessionDBOwner{
-		SessionID:   meta.ID,
-		WorkspaceID: meta.WorkspaceID,
-	}).Normalize()
+	owner, err := meta.DatabaseOwner()
 	if err != nil {
 		return false, err
 	}
@@ -47,17 +44,16 @@ func (o *Observer) verifyRecoveredSessionOwner(
 	defer lease.Release()
 
 	catalogAuthoritative := false
-	catalogOwner, err := store.LookupSessionDBOwner(ctx, o.registry, owner.SessionID)
+	var creations store.SessionCreationStore
+	if reader, ok := o.registry.(store.SessionCreationStore); ok {
+		creations = reader
+	}
+	catalogOwner, err := store.LookupSessionOwner(ctx, o.registry, creations, owner.SessionID)
 	switch {
 	case err == nil:
 		catalogAuthoritative = true
-		if catalogOwner != owner {
-			return false, fmt.Errorf(
-				"%w: metadata owner %+v does not match catalog owner %+v",
-				store.ErrSessionWorkspaceMismatch,
-				owner,
-				catalogOwner,
-			)
+		if err := catalogOwner.BindMetadata(meta); err != nil {
+			return false, err
 		}
 	case errors.Is(err, store.ErrSessionNotFound):
 	default:

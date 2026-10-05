@@ -193,8 +193,8 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
     const stopResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
-        (response.url().endsWith(`${sessionBase}/prompt/cancel`) ||
-          response.url().endsWith(`${sessionBase}/stop`))
+        (new URL(response.url()).pathname === `${sessionBase}/prompt/cancel` ||
+          new URL(response.url()).pathname === `${sessionBase}/stop`)
     );
     await expect(sessionUI.stopButton).toBeVisible();
     await sessionUI.stopButton.click();

@@ -49,7 +49,7 @@ export function useAgentCatalog(
   const { destination } = useProfileReadScope();
   const query = useInfiniteQuery({
     ...agentCatalogOptions(workspace, { ...filters, profile: destination }),
-    enabled: Boolean(workspace) && (options.enabled ?? true),
+    enabled: options.enabled ?? true,
   });
   const firstPage = agentCatalogPage(query.data);
   return {

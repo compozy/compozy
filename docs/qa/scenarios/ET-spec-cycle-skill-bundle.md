@@ -6,13 +6,13 @@ persona: Ada
 journey: J-offer-runnable-capabilities
 expected: A managed session lists and prompts with exactly the nine spec-cycle workflow skills, each view returns its bundled body, and a workspace-local override wins only in its owning workspace while another workspace keeps the global bundled declaration.
 entry_points: compozy extension list; compozy skill list|view; compozy__skill_list|view; managed session prompt
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
 evidence: /Users/pedronauck/dev/qa-labs/compozy-spec-unification-skill-bundle-20260814-022518-316742-lab/qa-artifacts/qa/skill-list.json; /Users/pedronauck/dev/qa-labs/compozy-spec-unification-skill-bundle-20260814-022518-316742-lab/qa-artifacts/qa/skill-view-cy-create-spec.txt; /Users/pedronauck/dev/qa-labs/compozy-spec-unification-skill-bundle-20260814-022518-316742-lab/qa-artifacts/qa/teardown.json
-last_report: docs/qa/reports/2026-08-13-spec-unification.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-003; ET-004; ET-skill-activation-gates
 ---
 
@@ -40,3 +40,7 @@ the metacharacter title above, imported through the actual `RunProvider` subproc
 RPC path and preserved its decoded title/H1. Focused importer/RPC evidence is recorded in
 `/tmp/compozy-issues-20260929/task-title-report.md`; provider-driven skill authoring
 remains a separate QA walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

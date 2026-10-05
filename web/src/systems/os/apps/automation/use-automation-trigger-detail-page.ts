@@ -3,7 +3,7 @@ import { toast } from "sonner";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
-  automationMatchesActiveWorkspace,
+  automationEditorWorkspaceId,
   automationWorkspaceAccessError,
   projectAutomationTarget,
   useAutomationTrigger,
@@ -23,30 +23,22 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
   const triggerDetailQuery = useAutomationTrigger(triggerId, {
     enabled: liveDataEnabled && Boolean(triggerId),
   });
-  const loadedTrigger = triggerDetailQuery.data;
-  const canAccessTrigger =
-    loadedTrigger !== undefined &&
-    !workspaceLoading &&
-    automationMatchesActiveWorkspace(loadedTrigger, activeWorkspaceId);
+  const { trigger, error, isLoading } = projectTriggerDetail(
+    triggerDetailQuery,
+    activeWorkspaceId,
+    workspaceLoading
+  );
   const triggerRunsQuery = useAutomationTriggerRuns(
     triggerId,
     { limit: 10 },
-    { enabled: liveDataEnabled && Boolean(triggerId) && canAccessTrigger }
+    { enabled: liveDataEnabled && Boolean(triggerId) && Boolean(trigger) }
   );
 
   const updateMutation = useUpdateAutomationTrigger();
   const deleteMutation = useDeleteAutomationTrigger();
 
-  const trigger = canAccessTrigger ? loadedTrigger : undefined;
-  const accessError = automationWorkspaceAccessError(
-    "trigger",
-    loadedTrigger,
-    activeWorkspaceId,
-    workspaceLoading
-  );
-
   const editor = useAutomationTriggerEditor({
-    activeWorkspaceId,
+    activeWorkspaceId: automationEditorWorkspaceId(trigger, activeWorkspaceId),
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
 
@@ -80,7 +72,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
 
   return {
     editorDialogProps: editor.editorDialogProps,
-    error: trigger ? null : (accessError ?? triggerDetailQuery.error),
+    error,
     handleBack: () => void navigate({ to: "/triggers" }),
     handleDelete,
     handleEdit: () => {
@@ -93,7 +85,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
       void handleToggleEnabled(enabled);
     },
     isDeleting: deleteMutation.isPending,
-    isLoading: (triggerDetailQuery.isLoading || workspaceLoading) && !trigger && !accessError,
+    isLoading,
     isTogglePending: updateMutation.isPending,
     loopWorkspaceName:
       loopTarget?.kind === "loop" ? workspaceNameById(loopTarget.workspaceId) : null,
@@ -102,5 +94,26 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
     runsLoading: trigger ? triggerRunsQuery.isLoading : false,
     trigger,
     workspaceName: workspaceNameById(trigger?.workspace_id),
+  };
+}
+
+function projectTriggerDetail(
+  triggerDetailQuery: ReturnType<typeof useAutomationTrigger>,
+  activeWorkspaceId: string | null | undefined,
+  workspaceLoading: boolean
+) {
+  const loadedTrigger = triggerDetailQuery.data;
+  const accessError = automationWorkspaceAccessError(
+    "trigger",
+    loadedTrigger,
+    activeWorkspaceId,
+    workspaceLoading
+  );
+  const trigger = workspaceLoading || accessError ? undefined : loadedTrigger;
+
+  return {
+    trigger,
+    error: trigger ? null : (accessError ?? triggerDetailQuery.error),
+    isLoading: (triggerDetailQuery.isLoading || workspaceLoading) && !trigger && !accessError,
   };
 }

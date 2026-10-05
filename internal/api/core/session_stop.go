@@ -92,6 +92,8 @@ func sessionStopCause(info *session.Info) string {
 		}
 	case store.StopUserCanceled, store.StopMaxIterations, store.StopLoopDetected, store.StopBudgetExceeded:
 		return session.CauseUserRequested.String()
+	case store.StopOwnerReleased:
+		return session.CauseOwnerReleased.String()
 	case store.StopTimeout:
 		if info.StopDetail == "inactivity" {
 			return session.CauseInactivity.String()

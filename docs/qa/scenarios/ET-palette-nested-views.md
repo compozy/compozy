@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: A root palette entry under Views pushes that view — the query clears, a breadcrumb names the path, and only the view's own results list. Backspace edits the query while it has text and pops exactly one level once it is empty. Escape closes the whole palette regardless of depth, and reopening starts at the root with no stale path. A pushed view with nothing to list says so in place instead of falling back to root results.
 entry_points: web desktop keyboard; command palette Views group; ⌘E; new-tab destination mode (new tab → ⌘K)
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_06
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-command-palette-shortcuts; ET-web-sessions-catalog-modal; ET-palette-domain-views
 ---
 
@@ -58,3 +58,13 @@ unavailable frame, the destination empty state, a generation-gap resync, and an 
 effect; note the exact pop sequence observed.
 
 QA 2026-09-10: Release integration now builds the TypeScript/React SDK dependencies before the programmable-view fixture. Its existing real daemon/CLI/HTTP isolation and extension-restart journey passed three race-enabled repetitions. This is backend evidence for view-session ownership and restart behavior; the visual keyboard/stack walk above is unchanged. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.
+
+CI follow-up 2026-10-05: The existing programmable-view runtime E2E passes with
+registered client tokens even before a command channel opens. It still rejects a
+foreign client and isolates view sessions across extension restarts. This is
+backend ownership evidence, not a new visual keyboard walkthrough. See
+[PR 691 CI remediation](../reports/2026-10-05-pr-691-ci.md).

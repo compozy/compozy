@@ -30,15 +30,7 @@ function reconcile(queryClient: QueryClient, name?: string): Promise<unknown> {
   return Promise.all(invalidations);
 }
 
-function reportFailure(fallback: string) {
-  return (error: unknown) => {
-    notifyUser({
-      message: error instanceof Error ? error.message : fallback,
-      tone: "error",
-    });
-  };
-}
-
+// Lifecycle dialogs own failure feedback through each mutation's error state.
 export function useCreateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -56,7 +48,6 @@ export function useCreateProfile() {
       }
       return reconcile(queryClient, profile.name);
     },
-    onError: reportFailure("Could not create the profile."),
   });
 }
 
@@ -66,7 +57,6 @@ export function useUpdateProfileIdentity() {
     mutationFn: ({ name, patch }: { name: string; patch: UpdateProfileParams }) =>
       updateProfileIdentity(name, patch),
     onSuccess: profile => reconcile(queryClient, profile.name),
-    onError: reportFailure("Could not update the profile."),
   });
 }
 
@@ -90,7 +80,6 @@ export function useRenameProfile() {
       sweepProfileView(input.name);
       return reconcile(queryClient, input.newName);
     },
-    onError: reportFailure("Could not rename the profile."),
   });
 }
 
@@ -103,7 +92,6 @@ export function useArchiveProfile() {
       sweepProfileView(input.name);
       return reconcile(queryClient, input.name);
     },
-    onError: reportFailure("Could not archive the profile."),
   });
 }
 
@@ -112,7 +100,6 @@ export function useUnarchiveProfile() {
   return useMutation({
     mutationFn: (name: string) => unarchiveProfile(name),
     onSuccess: (_result, name) => reconcile(queryClient, name),
-    onError: reportFailure("Could not unarchive the profile."),
   });
 }
 
@@ -127,6 +114,5 @@ export function useDeleteProfile() {
       queryClient.removeQueries({ queryKey: profileKeys.detail(input.name) });
       return reconcile(queryClient);
     },
-    onError: reportFailure("Could not delete the profile."),
   });
 }

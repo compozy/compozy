@@ -1,10 +1,12 @@
 // Suite: Automation trigger detail page hook
-// Invariant: the route-level Retry action refetches the trigger-run query for the routed trigger.
+// Invariants: Global can inspect project-owned triggers; a concrete project keeps its boundary.
+// The route-level Retry action refetches the trigger-run query for the routed trigger.
 // Owning layer: useAutomationTriggerDetailPage, which binds the panel action to TanStack Query.
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryState = vi.hoisted(() => ({
+  activeWorkspaceId: "ws_alpha" as string | null,
   refetchRuns: vi.fn(),
   trigger: {
     id: "trg_release",
@@ -33,7 +35,7 @@ vi.mock("@/systems/os/hooks/use-window-live-data-enabled", () => ({
 vi.mock("@/systems/workspace", () => ({
   toWorkspaceCommandSelectOptions: () => [],
   useActiveWorkspace: () => ({
-    activeWorkspaceId: "ws_alpha",
+    activeWorkspaceId: queryState.activeWorkspaceId,
     isLoading: false,
     workspaces: [{ id: "ws_alpha", name: "Alpha" }],
   }),
@@ -59,7 +61,28 @@ const { useAutomationTriggerDetailPage } = await import("../use-automation-trigg
 
 describe("useAutomationTriggerDetailPage", () => {
   beforeEach(() => {
+    queryState.activeWorkspaceId = "ws_alpha";
     queryState.refetchRuns.mockReset();
+  });
+
+  it("Should expose a project-owned trigger in Global", () => {
+    queryState.activeWorkspaceId = null;
+
+    const { result } = renderHook(() => useAutomationTriggerDetailPage("trg_release"));
+
+    expect(result.current.trigger).toEqual(queryState.trigger);
+    expect(result.current.error).toBeNull();
+    expect(result.current.workspaceName).toBe("Alpha");
+  });
+
+  it("Should refuse a trigger owned by another selected project", () => {
+    queryState.activeWorkspaceId = "ws_other";
+
+    const { result } = renderHook(() => useAutomationTriggerDetailPage("trg_release"));
+
+    expect(result.current.trigger).toBeUndefined();
+    expect(result.current.error?.message).toBe("This trigger belongs to another project.");
+    expect(result.current.runs).toEqual([]);
   });
 
   it("Should refetch the routed trigger runs when Retry is requested", () => {

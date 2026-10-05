@@ -34,6 +34,25 @@ Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__
 
 Other filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, title/identifier search, sort (`recent` or `priority`), cursor, and limit. All surfaces accept `worktree` to scope the catalog to tasks whose active run is bound to that worktree; the CLI flag is `--worktree`. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace`/`search`.
 
+A bound session inherits its own workspace when the native task catalog target is omitted.
+An explicit foreign workspace must pass the shared workspace-access policy and then selects that
+workspace's records; it never falls back to the caller's inventory. The acting profile still owns
+the read scope. Native `global` and `all` scope remain operator-only for bound sessions.
+
+CLI `task publish`, `task start`, `task approve`, `task reject`, pause/resume/cancel, block/unblock,
+block listing and task recovery use the selected profile. The same selection applies to task
+update/delete, dependencies, run enqueue/start/attach/complete/fail/cancel/recover, fan-out,
+release, forced failure, retry, and review request/submit,
+including `--profile`, `COMPOZY_PROFILE`, and remembered selection. Use the task owner's profile;
+a foreign profile receives not found, just as it does for the detail read.
+
+Task inspection, update, start, publish and approval responses retain the owner's profile identity, including
+the returned run. Run start preserves that identity too. Dedicated and automatically activated
+task sessions belong to the task's profile; inspect them with that same profile selection.
+Scheduler backlog JSON labels both
+the task and run with the same profile ID, name, color and icon, including queued work frozen by
+an archived profile. Use `scheduler backlog --include-paused` to inspect that frozen work.
+
 Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, and limit; filtering happens before the limit is applied.
 
 Run payloads carry either an inline `result` or an external `result_ref` plus exact `result_bytes`.
@@ -109,6 +128,12 @@ A parent task stays nonterminal while any direct child is not completed. The suc
 `compozy scheduler status -o json` reports pause state, active claims, queued runs, and paused-task pressure. `compozy scheduler pause --reason <reason>` stops new dispatch while active claims continue. `compozy scheduler resume` reopens dispatch.
 
 `compozy scheduler drain` pauses dispatch and waits for active claims to finish. Its default timeout is `60s`; `--timeout` accepts whole-second durations from `0s` through `9223372036s`, and `0s` returns immediately after pausing. `compozy scheduler backlog --last 50 -o json` lists queued runs visible to dispatch; `--include-paused` includes runs blocked by task pause.
+
+Scheduler controls are daemon-wide. The active Web Dashboard refreshes externally changed pause
+state and backlog automatically. Run detail, inspection, history and result reads retain the selected
+profile; the explicit all-profiles view remains a separate read scope.
+Opening or reloading the Web app restores the remembered profile before reading work. A failure
+to recover that selection uses the route's Retry action rather than querying the default profile.
 
 Scheduler controls affect dispatch, not task truth. They do not complete work, approve reviews, or transfer ownership.
 

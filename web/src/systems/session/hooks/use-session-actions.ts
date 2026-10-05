@@ -105,22 +105,22 @@ export function useCreateSession() {
   });
 }
 
-export interface StopSessionParams {
-  id: string;
+export interface StopSessionParams extends Pick<
+  SessionPayload,
+  "id" | "workspace_id" | "profile_name"
+> {
   /** Wait for the settled outcome instead of the 202 acceptance. */
   wait?: boolean;
 }
 
-export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
+export function useStopSession() {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation({
-    mutationFn: ({ id, wait }: StopSessionParams) =>
-      stopSession(requireWorkspace(workspaceId), id, { wait }),
-    onSettled: (_data, _error, { id }) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+    mutationFn: ({ id, workspace_id, profile_name, wait }: StopSessionParams) =>
+      stopSession(requireWorkspace(workspace_id), id, profile_name, { wait }),
+    onSettled: (_data, _error, { id, workspace_id }) => {
+      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },
   });
 }

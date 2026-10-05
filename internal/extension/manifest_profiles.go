@@ -1,5 +1,13 @@
 package extensionpkg
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+
+	"github.com/BurntSushi/toml"
+)
+
 // ManifestProfile declares one profile an extension creates at install time.
 type ManifestProfile struct {
 	Name        string                      `toml:"name"                  json:"name"`
@@ -27,6 +35,41 @@ type ManifestProfileCredential struct {
 type ManifestResourcePath struct {
 	Path    string `toml:"path"              json:"path"`
 	Profile string `toml:"profile,omitempty" json:"profile,omitempty"`
+}
+
+var (
+	_ json.Unmarshaler = (*ManifestResourcePath)(nil)
+	_ toml.Unmarshaler = (*ManifestResourcePath)(nil)
+)
+
+// UnmarshalJSON translates string paths until their removal in v0.3.0-beta.31.
+func (r *ManifestResourcePath) UnmarshalJSON(data []byte) error {
+	if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '"' {
+		var path string
+		if err := json.Unmarshal(data, &path); err != nil {
+			return err
+		}
+		*r = ManifestResourcePath{Path: path}
+		return nil
+	}
+	type resourcePath ManifestResourcePath
+	var decoded resourcePath
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	*r = ManifestResourcePath(decoded)
+	return nil
+}
+
+// UnmarshalTOML shares the JSON boundary's path and placement validation.
+func (r *ManifestResourcePath) UnmarshalTOML(value any) error {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("extension: encode TOML resource path: %w", err)
+	}
+	return r.UnmarshalJSON(encoded)
 }
 
 func manifestResourcePaths(resources []ManifestResourcePath) []string {

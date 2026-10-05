@@ -902,6 +902,32 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stage each orchestrated task with its concrete identity", func(t *testing.T) {
+		t.Parallel()
+
+		def := parseEmbeddedLoopForTest(t, "loops/implement-tasks/loop.yaml")
+		node := requireSpecCycleNode(t, def, "stage_orchestrated")
+		executor := loop.TransformActionExecutor{}
+		for _, taskID := range []string{"task_01", "task_02", "task_03"} {
+			result, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{
+				Namespace: map[string]any{"item": map[string]any{"id": taskID}},
+			})
+			if err != nil {
+				t.Fatalf("Execute(%s) error = %v", taskID, err)
+			}
+			var output struct {
+				TaskID string `json:"task_id"`
+				Status string `json:"status"`
+			}
+			if err := json.Unmarshal(result.Structured, &output); err != nil {
+				t.Fatalf("Unmarshal(%s) error = %v", taskID, err)
+			}
+			if output.TaskID != taskID || output.Status != "staged" {
+				t.Fatalf("Execute(%s) output = %#v, want matching task_id and staged status", taskID, output)
+			}
+		}
+	})
+
 	t.Run("Should load implement-tasks tasks through import_tasks action", func(t *testing.T) {
 		t.Parallel()
 

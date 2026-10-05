@@ -875,6 +875,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 
 		db := openDaemonTestGlobalDB(t)
 		installDaemonTestExtension(t, db, "other", daemonTestExtensionOptions{}, true)
+		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, true)
 		profiles, err := profilepkg.NewManager(
 			profilepkg.WithStore(db),
 			profilepkg.WithHomePaths(testHomePaths(t)),
@@ -892,6 +893,11 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("CreateDeclared() error = %v", err)
+		}
+		if _, err := profiles.CreateDeclared(t.Context(), profilepkg.DeclaredInput{
+			Extension: "kit", Name: created.Name,
+		}); err != nil {
+			t.Fatalf("CreateDeclared(binding) error = %v", err)
 		}
 		payload := contract.ExtensionPayload{}
 		manifest := &extensionpkg.Manifest{

@@ -56,7 +56,7 @@ func (r *windowManagerRegistry) ClaimClient(
 	return manager.RegisterClient(ctx, registration)
 }
 
-// ClientsInWorkspace unions the clients attached across every live profile.
+// ClientsInWorkspace unions registered client views across every live profile.
 func (r *windowManagerRegistry) ClientsInWorkspace(
 	ctx context.Context,
 	workspaceID windowmanager.WorkspaceID,
@@ -68,6 +68,21 @@ func (r *windowManagerRegistry) ClientsInWorkspace(
 			return nil, err
 		}
 		views = append(views, attached...)
+	}
+	return views, nil
+}
+
+func (r *windowManagerRegistry) CommandClientsInWorkspace(
+	ctx context.Context,
+	workspaceID windowmanager.WorkspaceID,
+) ([]windowmanager.ClientView, error) {
+	views := make([]windowmanager.ClientView, 0)
+	for _, runtime := range r.liveRuntimes() {
+		connected, err := runtime.manager.CommandClients(ctx, workspaceID)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, connected...)
 	}
 	return views, nil
 }

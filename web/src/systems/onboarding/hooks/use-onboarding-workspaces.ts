@@ -76,13 +76,12 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   const deleteWorkspace = useDeleteWorkspace();
   const registeredWorkspaces = useWorkspaces();
   const workspaceCatalog = registeredWorkspaces.data;
-  const [currentPath, setCurrentPath] = useState<string>("");
   const [resolveError, setResolveError] = useState<string | null>(null);
   const catalogSeeded = useRef(false);
 
-  const browse = useDirectoryBrowser({ path: currentPath || undefined, dirsOnly: true });
+  const browse = useDirectoryBrowser({ dirsOnly: true });
   const data = browse.data;
-  const userHomeDir = data?.home ?? undefined;
+  const userHomeDir = browse.home ?? undefined;
 
   useEffect(() => {
     if (
@@ -118,22 +117,6 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
       });
     }
   }, [registeredWorkspaces.data, userHomeDir, workspaces]);
-
-  const navigateTo = (path: string) => {
-    setCurrentPath(path);
-  };
-
-  const goToParent = () => {
-    if (data?.parent) {
-      setCurrentPath(data.parent);
-    }
-  };
-
-  const goHome = () => {
-    if (data?.home) {
-      setCurrentPath(data.home);
-    }
-  };
 
   const addWorkspace = async (path: string) => {
     const trimmed = path.trim();
@@ -187,10 +170,10 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     : null;
 
   return {
-    currentPath: data?.path ?? currentPath,
-    parent: data?.parent ?? null,
-    home: data?.home ?? null,
-    roots: data?.roots ?? [],
+    currentPath: browse.currentPath,
+    parent: browse.parent,
+    home: browse.home,
+    roots: browse.roots,
     entries: data?.entries ?? [],
     isBrowsing: browse.isLoading || browse.isFetching,
     browseError: browse.error
@@ -204,9 +187,9 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     isCatalogLoading: registeredWorkspaces.isLoading,
     catalogError,
     resolveError,
-    navigateTo,
-    goToParent,
-    goHome,
+    navigateTo: browse.navigateTo,
+    goToParent: browse.goToParent,
+    goHome: browse.goHome,
     addWorkspace,
     removeWorkspace,
     isAdded,

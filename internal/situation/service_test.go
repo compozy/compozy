@@ -131,6 +131,45 @@ func TestRenderPromptProvenanceCacheStability(t *testing.T) {
 	})
 }
 
+func TestContextForSessionRuntimeIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should prefer the bound model over agent defaults and pending selection", func(t *testing.T) {
+		t.Parallel()
+
+		service := NewService(Deps{
+			Now: fixedNow,
+			AgentResolver: agentResolverFunc(
+				func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					return compozyconfig.AgentDef{Name: "coder", Provider: "codex", Model: "default-model"}, nil
+				},
+			),
+		})
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
+			ID:        "sess-1",
+			AgentName: "coder",
+			Provider:  "codex",
+			Model:     "bound-model",
+			SelectedRuntime: &session.RuntimeSelection{
+				Provider: "claude",
+				Model:    "next-model",
+			},
+			State:     session.StateActive,
+			CreatedAt: fixedTime(),
+			UpdatedAt: fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession() error = %v", err)
+		}
+		if got, want := payload.Self.Model, "bound-model"; got != want {
+			t.Fatalf("Self.Model = %q, want %q", got, want)
+		}
+		if got, want := payload.Self.Provider, "codex"; got != want {
+			t.Fatalf("Self.Provider = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestContextForSessionBoundsListsAndIncludesTaskProvenance(t *testing.T) {
 	t.Parallel()
 

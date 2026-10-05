@@ -128,12 +128,19 @@ fan-out reports aggregate counts rather than one row per lane.
 ### Approval gates
 
 A `human` gate parks the run in `needs-approval` — a **live pause**, never a terminal outcome. The
-page shows the decision context (for a merge gate: the branch, diff, test result, and verifier) and
+page shows the gate's rendered question and its current round, including after a reload, with
 three actions:
 
 - **Approve** → the run resumes.
 - **Request changes** → the run revises and continues into the next generation.
 - **Reject** → the run halts on a `blocked` terminal outcome.
+
+Put the context the reviewer needs in the human criterion's `prompt`. New waiting verdicts retain
+the rendered question; historical verdicts recorded without a question keep their original data
+and show the available gate and usage context.
+
+The Usage rail compares active time with the wall-clock budget, excluding time parked for a
+human decision. A finished run's duration in Runs still includes the elapsed wait.
 
 ### Pause, resume, and cancel
 
@@ -202,12 +209,14 @@ the node verbs. See
 ## Runs across the workspace
 
 The **Runs** view is a first-class, workspace-wide list of every execution across every Loop. The
-window trail is Loops › Runs, so the catalog stays one click away. A KPI strip surfaces "Active now,"
-"Awaiting you" (the `needs-approval` queue), "Done today," and "Needs a look." Toolbar filter chips narrow the list by outcome — the full status vocabulary stays
+window trail is Loops › Runs, so the catalog stays one click away. Runs appear in **Needs you**,
+**Active**, and **Recent** groups, with counts for the loaded window. Toolbar filter chips narrow the list by outcome — the full status vocabulary stays
 selectable, so filtering for an absent status reaches an honest empty state — by origin (catalog or
 session), or by an exact origin session id, and a Runs/Nodes switch flips the same view to the node
-inventory. Active and Past runs list in tables with an outcome pill, the Loop and run id, the goal,
-the generation count, timing, and a budget mini-bar.
+inventory. Each table shows the Loop name, status, progress, start time, and duration. On narrow
+screens, scroll the table horizontally to reach the remaining columns.
+When no runs match the active filters, choose **Clear filter** to remove the origin, session-id,
+and outcome filters together and return to the unfiltered roster.
 
 ## Status detail versus run summaries
 
@@ -256,26 +265,26 @@ Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, 
 
 ## Every surface, not just the UI
 
-| Action          | CLI                                             | HTTP                                      | Native tool                                    |
-| --------------- | ----------------------------------------------- | ----------------------------------------- | ---------------------------------------------- |
-| Start / dry-run | `compozy loop run [--dry-run]`                  | `POST /loops/:name/run[?dry=true]`        | `compozy__loop_run`                            |
-| Run status      | `compozy loop status`                           | `GET /loop-runs/:id`                      | `compozy__loop_status`                         |
-| List runs       | `compozy loop runs`                             | `GET /loop-runs`                          | `compozy__loop_runs`                           |
-| Pause / resume  | `compozy loop pause` · `compozy loop resume`    | `POST /loop-runs/:id/pause` · `/resume`   | `compozy__loop_pause` · `compozy__loop_resume` |
-| Approve         | `compozy loop approve --gate-id … --decision …` | `POST /loop-runs/:id/approve`             | `compozy__loop_approve`                        |
-| Cancel run      | `compozy loop cancel`                           | `POST /loop-runs/:id/cancel`              | `compozy__loop_cancel`                         |
-| List node state | `compozy loop nodes --state …`                  | `GET /loop-nodes?state=…`                 | `compozy__loop_nodes`                          |
-| Pause node      | `compozy loop node pause`                       | `POST /loop-runs/:id/nodes/:node/pause`   | `compozy__loop_node_pause`                     |
-| Resume node     | `compozy loop node resume`                      | `POST /loop-runs/:id/nodes/:node/resume`  | `compozy__loop_node_resume`                    |
-| Cancel node     | `compozy loop node cancel`                      | `POST /loop-runs/:id/nodes/:node/cancel`  | `compozy__loop_node_cancel`                    |
-| Amend node      | `compozy loop node amend`                       | `POST /loop-runs/:id/nodes/:node/amend`   | `compozy__loop_node_amend`                     |
-| Requeue node    | `compozy loop node requeue`                     | `POST /loop-runs/:id/nodes/:node/requeue` | `compozy__loop_node_requeue`                   |
-| List requests   | `compozy loop requests`                         | `GET /loop-requests`                      | `compozy__loop_requests`                       |
-| Request detail  | `compozy loop request`                          | `GET /loop-runs/:id/nodes/:node/request`  | `compozy__loop_request`                        |
-| Answer request  | `compozy loop respond`                          | `POST /loop-runs/:id/nodes/:node/respond` | `compozy__loop_respond`                        |
-| Diff history    | `compozy loop diff`                             | `GET /loop-runs/:id/diff`                 | `compozy__loop_diff`                           |
-| Rerun from node | `compozy loop rerun`                            | `POST /loop-runs/:id/rerun`               | `compozy__loop_rerun`                          |
-| Fork run        | `compozy loop fork`                             | `POST /loop-runs/:id/fork`                | `compozy__loop_fork`                           |
+| Action          | CLI                                                                 | HTTP                                      | Native tool                                    |
+| --------------- | ------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------- |
+| Start / dry-run | `compozy loop run [--dry-run]`                                      | `POST /loops/:name/run[?dry=true]`        | `compozy__loop_run`                            |
+| Run status      | `compozy loop status`                                               | `GET /loop-runs/:id`                      | `compozy__loop_status`                         |
+| List runs       | `compozy loop runs`                                                 | `GET /loop-runs`                          | `compozy__loop_runs`                           |
+| Pause / resume  | `compozy loop pause` · `compozy loop resume`                        | `POST /loop-runs/:id/pause` · `/resume`   | `compozy__loop_pause` · `compozy__loop_resume` |
+| Approve         | `compozy loop approve <run-id> --workspace … --gate … --decision …` | `POST /loop-runs/:id/approve`             | `compozy__loop_approve`                        |
+| Cancel run      | `compozy loop cancel`                                               | `POST /loop-runs/:id/cancel`              | `compozy__loop_cancel`                         |
+| List node state | `compozy loop nodes --state …`                                      | `GET /loop-nodes?state=…`                 | `compozy__loop_nodes`                          |
+| Pause node      | `compozy loop node pause`                                           | `POST /loop-runs/:id/nodes/:node/pause`   | `compozy__loop_node_pause`                     |
+| Resume node     | `compozy loop node resume`                                          | `POST /loop-runs/:id/nodes/:node/resume`  | `compozy__loop_node_resume`                    |
+| Cancel node     | `compozy loop node cancel`                                          | `POST /loop-runs/:id/nodes/:node/cancel`  | `compozy__loop_node_cancel`                    |
+| Amend node      | `compozy loop node amend`                                           | `POST /loop-runs/:id/nodes/:node/amend`   | `compozy__loop_node_amend`                     |
+| Requeue node    | `compozy loop node requeue`                                         | `POST /loop-runs/:id/nodes/:node/requeue` | `compozy__loop_node_requeue`                   |
+| List requests   | `compozy loop requests`                                             | `GET /loop-requests`                      | `compozy__loop_requests`                       |
+| Request detail  | `compozy loop request`                                              | `GET /loop-runs/:id/nodes/:node/request`  | `compozy__loop_request`                        |
+| Answer request  | `compozy loop respond`                                              | `POST /loop-runs/:id/nodes/:node/respond` | `compozy__loop_respond`                        |
+| Diff history    | `compozy loop diff`                                                 | `GET /loop-runs/:id/diff`                 | `compozy__loop_diff`                           |
+| Rerun from node | `compozy loop rerun`                                                | `POST /loop-runs/:id/rerun`               | `compozy__loop_rerun`                          |
+| Fork run        | `compozy loop fork`                                                 | `POST /loop-runs/:id/fork`                | `compozy__loop_fork`                           |
 
 Pass `--item` or `item_index` to pause, resume, or cancel one fan-out cell without changing
 its siblings. Amendments apply only to a settled output while its run, node, or cell is parked.

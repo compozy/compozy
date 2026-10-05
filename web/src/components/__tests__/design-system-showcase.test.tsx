@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 
 import { UIProvider } from "@compozy/ui";
 
@@ -168,6 +168,7 @@ describe("DesignSystemShowcase", () => {
         root.setAttribute("data-theme", "light");
         await waitFor(() => expect(value()).toBe("#ffffff"));
       } finally {
+        cleanup();
         root.style.removeProperty("--color-canvas");
         root.removeAttribute("data-theme");
       }

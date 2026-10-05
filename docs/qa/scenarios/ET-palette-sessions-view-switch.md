@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘E opens the palette already inside the Sessions view, and the root Views entry pushes the same view. Sessions list attention-first with their exact state word; typing narrows by title or agent; the needs-you / working / finished / idle chips narrow by state class with truthful counts, and a chip that matches nothing names its filter and clears with one Backspace. The globe toggle widens the list through the operator's persisted session-list breadth — the sessions sidebar follows, and `compozy config get shell.sessions.scope` reports the same value. Enter focuses the session window, restoring it when it was closed and switching workspace first when the session is foreign; landing on a done session clears its finished marker.
 entry_points: web desktop keyboard; ⌘E; command palette Views group; sessions sidebar globe; compozy config get/set shell.sessions.scope
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_06
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-command-palette-shortcuts; ET-web-sessions-catalog-modal; ET-keyboard-navigation-actions
 ---
 
@@ -76,3 +76,7 @@ round-trip beside the sidebar and CLI value, and the foreign-session landing (wo
 named); the config-get transcript.
 
 2026-09-28 qa-impact (ui-normie-pass/os-shell): the breadth globe's accessible name is now "All projects" (tooltips "Showing every project" / "Showing this project"), session rows show the plain state label (e.g. "Needs your answer") with the exact token in `data-session-state`, and the cross-project confirmation reads "Switch project?" / "Switch project". Reset to untested.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

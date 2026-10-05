@@ -11,6 +11,7 @@ import type {
 } from "@/systems/session";
 
 import { formatMessageError } from "./session-thread-error";
+import { useSessionThreadReadOnly } from "./hooks/use-session-thread-read-only";
 
 const STATE_PANE_FRAME = "flex min-h-full w-full min-w-0 flex-1 items-center justify-center py-12";
 const RUNTIME_RECOVERY_FAILURE_KINDS = new Set<SessionFailurePayload["kind"]>([
@@ -78,13 +79,18 @@ function ThreadMessageSkeleton() {
 /**
  * Empty transcript pane — shown ONLY when the fetch succeeded and nothing has been said
  * yet (zero messages, or only status events that render no row). One plain line; the
- * composer below is the call to action.
+ * composer below is the call to action when this surface permits input.
  */
 function ThreadEmpty({ agentName }: { agentName: string }) {
+  const readOnly = useSessionThreadReadOnly();
   return (
     <div className={STATE_PANE_FRAME}>
       <p className="max-w-md text-center text-small-body text-muted">
-        Send {agentName} a message to get started.
+        {readOnly ? (
+          "No messages in this history."
+        ) : (
+          <>Send {agentName} a message to get started.</>
+        )}
       </p>
     </div>
   );

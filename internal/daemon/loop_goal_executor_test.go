@@ -289,6 +289,53 @@ func TestReconstructManagedGoalPromptResultShouldRequireExactOrderedTerminalWind
 }
 
 func TestReadManagedGoalPromptOutputShouldIgnoreOnlyCorrelatedAuxiliaryEvents(t *testing.T) {
+	t.Run("Should preserve streamed JSON and whitespace during read and recovery", func(t *testing.T) {
+		t.Parallel()
+
+		promptID := "goal-prompt-streamed-output"
+		chunks := []string{
+			`{"sta`,
+			`tus":"complete","summary":"Studio`,
+			" ",
+			`delivery finished","tasks":[{"id":"task_01"},{"id":"task_02"}]}`,
+		}
+		want := strings.Join(chunks, "")
+		events := make([]store.SessionEvent, 0, len(chunks)+1)
+		for index, chunk := range chunks {
+			events = append(events, managedGoalRecoveryEvent(t, int64(index+1), promptID, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, Text: chunk,
+			}))
+		}
+		endSequence := int64(len(events) + 1)
+		events = append(events, managedGoalRecoveryEvent(t, endSequence, promptID, acp.AgentEvent{
+			Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn,
+		}))
+		reader := staticLoopSessionEventReader{events: events}
+		text, structured, err := readManagedGoalPromptOutput(
+			t.Context(), reader,
+			&store.SessionInputQueueEntry{SessionID: "session-streamed", PromptID: promptID},
+			looppkg.ActionPromptResult{PromptID: promptID, EventStartSeq: 1, EventEndSeq: endSequence},
+		)
+		if err != nil {
+			t.Fatalf("readManagedGoalPromptOutput() error = %v", err)
+		}
+		if text != want || string(structured) != want {
+			t.Errorf("managed Goal output = text:%q structured:%s, want %q", text, structured, want)
+		}
+		recovered, _, found, err := reconstructManagedGoalPromptResult(
+			t.Context(),
+			reader,
+			"session-streamed",
+			promptID,
+		)
+		if err != nil {
+			t.Fatalf("reconstructManagedGoalPromptResult() error = %v", err)
+		}
+		if !found || recovered.Text != want || string(recovered.Structured) != want {
+			t.Errorf("recovered Goal output = %#v found=%t, want %q", recovered, found, want)
+		}
+	})
+
 	t.Run(
 		"Should read an ordered prompt across foreign sequence gaps and trailing transcript metadata",
 		func(t *testing.T) {

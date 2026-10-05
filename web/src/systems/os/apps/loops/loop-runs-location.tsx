@@ -27,14 +27,15 @@ type LoopRunsRoute = ReturnType<typeof useLoopRunsRoute>;
 
 export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const route = useLoopRunsRoute(search);
-  const { runsQuery, workspaceId, inventoryState } = route;
+  const { workspaceId, inventoryState } = route;
   const navigate = useNavigate();
   const openLoops = () => {
     void navigate({ to: "/loops" });
   };
   // Inventory ages and roster durations tick on one clock.
   const nowMs = useNowTick(true);
-  const showToolbar = workspaceId !== "" && !runsQuery.isLoading && !runsQuery.error;
+  // Query transitions must preserve the focused control and any empty text-chip draft.
+  const showToolbar = workspaceId !== "";
 
   useTopbarSlot({
     ...loopRunsTrail({ level: "runs", onBack: openLoops, openLoops }),
@@ -58,7 +59,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
       <LoopRunsInventoryPane nowMs={nowMs} route={route} search={search} state={inventoryState} />
     );
   }
-  return <LoopRunsRosterPane nowMs={nowMs} openLoops={openLoops} route={route} />;
+  return <LoopRunsRosterPane nowMs={nowMs} openLoops={openLoops} route={route} search={search} />;
 }
 
 function LoopRunsToolbar({ route, search }: { route: LoopRunsRoute; search: LoopRunsRouteSearch }) {
@@ -152,12 +153,19 @@ function LoopRunsRosterPane({
   route,
   nowMs,
   openLoops,
+  search,
 }: {
   route: LoopRunsRoute;
   nowMs: number;
   openLoops: () => void;
+  search: LoopRunsRouteSearch;
 }) {
-  const { runsQuery, outcome, setOutcome, profile } = route;
+  const { runsQuery, outcome, setOutcome, setOriginFilter, profile } = route;
+  const hasActiveFilters = outcome !== "all" || Boolean(search.origin || search.origin_session);
+  const clearFilters = () => {
+    setOutcome("all");
+    setOriginFilter({});
+  };
   if (runsQuery.isLoading) {
     return (
       <div className="min-h-0 flex-1 overflow-hidden p-5" data-testid="loop-runs-loading">
@@ -181,6 +189,7 @@ function LoopRunsRosterPane({
   return (
     <ListingPage data-testid="loop-runs">
       <LoopRunsView
+        hasActiveFilters={hasActiveFilters}
         isError={isReadFailed}
         isReconnecting={isRetrying}
         // The cache's own last-success stamp, so the age the notice prints is
@@ -189,7 +198,7 @@ function LoopRunsRosterPane({
           runsQuery.dataUpdatedAt > 0 ? new Date(runsQuery.dataUpdatedAt).toISOString() : undefined
         }
         nowMs={nowMs}
-        onEmptyAction={outcome === "all" ? openLoops : () => setOutcome("all")}
+        onEmptyAction={hasActiveFilters ? clearFilters : openLoops}
         onRetry={() => void runsQuery.refetch()}
         outcome={outcome}
         profileScope={profile}

@@ -256,7 +256,7 @@ func (m *SessionMeta) Validate() error {
 	if err := requireField(m.AgentName, "session agent name"); err != nil {
 		return err
 	}
-	if err := requireField(m.WorkspaceID, "session workspace id"); err != nil {
+	if _, err := m.DatabaseOwner(); err != nil {
 		return err
 	}
 	if err := requireField(m.State, "session state"); err != nil {

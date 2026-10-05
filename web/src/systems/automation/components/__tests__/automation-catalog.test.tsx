@@ -227,6 +227,20 @@ describe("AutomationCatalogShell", () => {
     expect(loadMore).toHaveAttribute("aria-busy", "true");
   });
 
+  it("Should retain rows and explain why a paused page request cannot load more", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    renderShell({
+      pagination: { hasNextPage: true, isFetchingNextPage: false, isPaused: true, onLoadMore },
+    });
+
+    expect(screen.getByTestId("catalog-child")).toBeInTheDocument();
+    const loadMore = screen.getByRole("button", { name: /connection/i });
+    expect(loadMore).toBeDisabled();
+    await user.click(loadMore);
+    expect(onLoadMore).not.toHaveBeenCalled();
+  });
+
   it("Should stretch a filtered empty envelope and connect its recovery action", async () => {
     const user = userEvent.setup();
     const onClearFilters = vi.fn();

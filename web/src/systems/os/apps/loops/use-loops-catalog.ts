@@ -5,12 +5,8 @@ import type { ListingViewMode } from "@compozy/ui";
 import type { LoopsRouteSearch } from "@/systems/loops";
 
 import { normalizeListingSearchValue } from "@/lib/listing-search";
-import {
-  type LoopCatalogEntry,
-  type LoopCatalogFilter,
-  type LoopStatusFilter,
-  useLoops,
-} from "@/systems/loops";
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
+import { type LoopCatalogEntry, type LoopCatalogFilter, useLoops } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 /** View-model for the Loops catalog route: URL state, data, bindings, and Run launch. */
@@ -49,12 +45,11 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
     });
   };
 
-  const setSearchQuery = (nextQuery: string) => {
-    updateSearch(current => ({
-      ...current,
-      q: normalizeListingSearchValue(nextQuery),
-    }));
-  };
+  const queryInput = useDebouncedInput({
+    externalValue: searchQuery,
+    onCommit: nextQuery =>
+      updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) })),
+  });
 
   const setView = (nextView: ListingViewMode) => {
     updateSearch(current => ({
@@ -63,14 +58,17 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
     }));
   };
 
-  const setStatusFilter = (next: LoopStatusFilter | null) => {
+  const setFilters = (next: LoopCatalogFilter) => {
     updateSearch(current => ({
       ...current,
-      status: next ?? undefined,
+      kind: next.kind === "all" ? undefined : next.kind,
+      category: next.category ?? undefined,
+      status: next.status ?? undefined,
     }));
   };
 
   const clearFilters = () => {
+    queryInput.reset("");
     updateSearch(current => ({
       ...current,
       q: undefined,
@@ -93,12 +91,13 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
       filter.status !== null,
     clearFilters,
     filter,
+    categoryOptions: Object.keys(loopsQuery.facets?.categories ?? {}).sort(),
     facets: loopsQuery.facets,
     handleRun,
     loopsQuery,
-    searchQuery,
-    setSearchQuery,
-    setStatusFilter,
+    searchQuery: queryInput.draftValue,
+    setSearchQuery: queryInput.setDraftValue,
+    setFilters,
     setView,
     view,
     workspaceId,

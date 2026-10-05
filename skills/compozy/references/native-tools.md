@@ -47,8 +47,20 @@ Optional `source` filters one provider and optional `client` resolves client-con
 
 Use `compozy__cmd_palette_invoke` with `id`, optional `args`, and optional `client`. The command's own
 availability, targeting, single-flight, and approval rules still apply. An `approval_pending` result
-returns `approval_id`; operators inspect or cancel it with `compozy approvals show|cancel <id>`.
+returns `approval_id`. Operators inspect it with `compozy approvals show <id>`, decide with
+`compozy approvals resolve <id> --decision approved|denied`, or cancel with
+`compozy approvals cancel <id>`. These commands use the selected profile (flag, environment, then
+remembered selection). Pass `--profile <owner>` after switching away from the approval's owner.
+Approval admits asynchronous execution; inspect `execution_status` before claiming completion.
+The Web palette presents Approve/Deny for its pending invocation and reads the terminal result.
+HTTP/UDS clients use `POST /api/tools/approvals/{id}/resolve?profile=<owner>` with an explicit
+`decision`. The request rechecks profile availability and session binding; HTTP decisions require
+a loopback listener. Foreign-profile and already-terminal approvals remain refused.
 CLI catalog fallback is `compozy cmd-palette list|inspect|invoke|clients`.
+The clients list contains only currently connected command channels. Closing a tab removes it
+from targeting; reconnecting the tab restores eligibility. Refresh this list before choosing an
+explicit client. With one connected client, UI commands can select it automatically; with none,
+they return no_attached_shell.
 
 Manage workspace command bindings with `compozy cmd-palette bind|unbind|bindings` and aliases with
 `compozy cmd-palette alias set|clear`. Conflicts name the current owner; `--overwrite` transfers the
@@ -209,7 +221,7 @@ optional). A route `command` selects the account with the same grammar as `provi
 route provider or a command without an executable is rejected as invalid input. The returned agent
 payload carries `fallback_chain` with `command_fingerprint` (`sha256:`) on routes that set `command`.
 
-Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `compozy__workspace_list` should return at least that workspace on a clean install.
+Fresh daemon boot does not register a workspace automatically, so `compozy__workspace_list` may return an empty catalog on a clean install. Register the intended project explicitly before starting workspace-bound work.
 
 A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
 
@@ -264,6 +276,10 @@ HTTP/UDS `/api/profiles` routes, the desktop, or the stable `profile.*` command-
 profile-state writes are forbidden. Read `references/profiles.md` before changing profile state.
 
 ## Workspace Boundary
+
+Registered IDs, durable workspace IDs, names and paths resolve to the same registered project before
+policy and dispatch. Naming the current project does not require cross-workspace approval, and
+native automation operations use the same project registration as CLI and HTTP/UDS reads.
 
 A call that names a workspace other than the bound session's is a cross-workspace request. The session's effective permission mode decides it, and there is no separate toggle, grant, or config key:
 
@@ -359,6 +375,13 @@ binding semantics.
 
 Config tools live under `compozy__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `compozy__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
+Native `tool.pre_call` hooks run before the handler and may deny or amend input, but cannot change
+the tool identity, read-only classification or bound workspace. Patched input still passes schema,
+policy and approval checks. Native `tool.post_call` receives the canonical tool-result envelope
+(`content`, `structured`, `preview`, and result metadata) in `tool_result`; a replacement uses that
+same shape. `tool.post_error` may annotate the error while retaining its classification. Hosted
+native calls record hook runs and lifecycle events in the owning session.
+
 Background-role inspection has no `compozy__roles_*` native tool. Use `compozy roles list|show -o json` or
 the HTTP/UDS `GET /api/roles` reads. Scalar `roles.<role>.*` routing and role-policy keys are exposed
 through the live `compozy__config_set`/`compozy__config_unset` descriptors, including coordinator limits and
@@ -369,7 +392,8 @@ later invocations.
 
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
 Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, search, and event;
-run history stays uncounted and must be bounded. Other `compozy__automation_*` tools cover detail,
+run history stays uncounted and must be bounded. Continue with the returned opaque cursor under
+unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
 deleted; dynamic definitions are fully mutable.
 

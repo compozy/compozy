@@ -6,13 +6,13 @@ persona: Dora
 journey: J-layer-profile-resources
 expected: User, personal-profile, and workspace writes reach only their selected files; effective reads follow user → profile → workspace → workspace-profile precedence; a lower-layer save names the winning layer instead of claiming it applied; and machine-only profile writes fail without residue.
 entry_points: compozy config path|get|set|unset --scope user|profile|workspace -o json; Settings Persona, Hooks, and Command palette; GET/PATCH /api/settings; compozy__config_get|set|unset
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-background-role-routing; MS-worktree-config-bootstrap
 ---
 
@@ -32,3 +32,7 @@ contract; no reset needed (already `untested` and minted for this behavior). Two
 the walk: `[cmd_palette]` keys participate in these layers and their palette-side effects are owned
 by `ET-agent-palette-config-parity`, and the retired `--scope global` value must be rejected rather
 than accepted anywhere — `user` is its replacement.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

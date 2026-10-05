@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
 import {
+  parsePositiveDurationMilliseconds,
   SettingActionRow,
   SettingRow,
   SettingValue,
@@ -76,14 +77,7 @@ function followUpModeFromConfig(config: {
 }
 
 function parseSessionTimeoutSeconds(raw: string): number {
-  if (!raw) return 0;
-  const match = /^(\d+)(s|m|h)?$/i.exec(raw.trim());
-  if (!match) return 0;
-  const value = Number.parseInt(match[1] ?? "0", 10);
-  const unit = (match[2] ?? "s").toLowerCase();
-  if (unit === "h") return value * 3600;
-  if (unit === "m") return value * 60;
-  return value;
+  return (parsePositiveDurationMilliseconds(raw.trim()) ?? 0) / 1000;
 }
 
 function formatSessionTimeout(seconds: number): string {

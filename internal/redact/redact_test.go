@@ -11,6 +11,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -642,6 +643,47 @@ func TestEngineComposesExactAndHeuristicRedaction(t *testing.T) {
 
 func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
 	t.Parallel()
+
+	for _, testCase := range []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "Should preserve credential requirements while redacting nested secrets",
+			raw: `{"credential_requirements":[{"provider":"openai","slot":"api_key",` +
+				`"missing":true,"api_key":"nested-secret"}]}`,
+			want: `{"credential_requirements":[{"provider":"openai","slot":"api_key",` +
+				`"missing":true,"api_key":"[REDACTED]"}]}`,
+		},
+		{
+			name: "Should preserve the public credential requirements discovery schema",
+			raw: `{"output_schema":{"properties":{"credential_requirements":{"type":"array",` +
+				`"items":{"type":"object","required":["provider","slot","missing"],` +
+				`"properties":{"provider":{"type":"string"},"slot":{"type":"string"},` +
+				`"missing":{"type":"boolean"}},"additionalProperties":false}}}}}`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			want := testCase.want
+			if want == "" {
+				want = testCase.raw
+			}
+			redacted := New(Options{}).RedactJSON(json.RawMessage(testCase.raw), []string{""})
+			var gotValue, wantValue any
+			if err := json.Unmarshal(redacted, &gotValue); err != nil {
+				t.Fatalf("json.Unmarshal(redacted) error = %v", err)
+			}
+			if err := json.Unmarshal([]byte(want), &wantValue); err != nil {
+				t.Fatalf("json.Unmarshal(want) error = %v", err)
+			}
+			if !reflect.DeepEqual(gotValue, wantValue) {
+				t.Fatalf("RedactJSON() = %s, want %s", redacted, want)
+			}
+		})
+	}
 
 	t.Run("Should preserve protected structured envelope fields", func(t *testing.T) {
 		t.Parallel()

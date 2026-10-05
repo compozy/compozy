@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-14
 expected: Both the session window sidebar and Sessions modal support a transient selection in workspace scope. Eligible actions run sequentially through existing session mutations. Selection follows current catalog membership; successful Stop keeps rows selected, Archive and Unarchive prune rows that leave the view, and failed rows remain selected. Delete confirms the set, reports progress, and retries only failed sessions.
 entry_points: SessionSidebar; Sessions modal in workspace scope; row checkboxes and modifier clicks; Selected sessions toolbar
-qa_status: untested
+qa_status: skipped
 overlaps: ET-web-session-sidebar-threads
 ---
 
@@ -95,3 +95,7 @@ DELETE still returns 404 without removing the target.
 With catalog SSE disconnected, delete a session and verify global attention rows
 and counts refresh alongside its workspace catalog. Preserve each profile’s
 before/confirmation/after captures under distinct names.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

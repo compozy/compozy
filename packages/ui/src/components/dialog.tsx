@@ -29,8 +29,22 @@ function Dialog({
   const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
+  const openTooltipCount = React.useRef(0);
+  const registerOpenTooltip = () => {
+    openTooltipCount.current += 1;
+    return () => {
+      openTooltipCount.current -= 1;
+    };
+  };
 
   const handleOpenChange: NonNullable<DialogRootProps["onOpenChange"]> = (next, details) => {
+    if (!next && details.reason === "escape-key" && openTooltipCount.current > 0) {
+      // A hovered tooltip may leave focus in a sibling field. Let its document
+      // listener handle Escape before this dialog can discard the form.
+      details.cancel();
+      details.allowPropagation();
+      return;
+    }
     if (!isControlled) setUncontrolledOpen(next);
     onOpenChange?.(next, details);
   };
@@ -45,7 +59,9 @@ function Dialog({
       onOpenChange={handleOpenChange}
       {...props}
     >
-      <DialogContext value={{ open }}>{children as React.ReactNode}</DialogContext>
+      <DialogContext value={{ open, registerOpenTooltip }}>
+        {children as React.ReactNode}
+      </DialogContext>
     </DialogPrimitive.Root>
   );
 }

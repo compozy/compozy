@@ -15,7 +15,7 @@ func (c *daemonClient) SessionEvents(
 	var response struct {
 		Events []SessionEventRecord `json:"events"`
 	}
-	path, err := c.sessionScopedPath(ctx, id, "/events")
+	path, err := c.sessionReadPath(ctx, id, "/events")
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (c *daemonClient) StreamSessionEvents(
 	lastEventID string,
 	handler SSEHandler,
 ) error {
-	path, err := c.sessionScopedPath(ctx, id, "/stream")
+	path, err := c.sessionReadPath(ctx, id, "/stream")
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (c *daemonClient) SessionHistory(
 	var response struct {
 		History []TurnHistoryRecord `json:"history"`
 	}
-	path, err := c.sessionScopedPath(ctx, id, "/history")
+	path, err := c.sessionReadPath(ctx, id, "/history")
 	if err != nil {
 		return nil, err
 	}

@@ -38,6 +38,9 @@ function SkipToContentLink() {
   );
 }
 
+const remoteHTTPAPIBlockedMessage =
+  "remote HTTP API access is disabled unless the daemon is bound to a loopback host";
+
 export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
   const router = useRouter();
   const handleRetry = () => {
@@ -50,7 +53,11 @@ export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
         <Empty
           className="max-w-xl"
           cause={routeErrorCause(error)}
-          description="This screen didn't load. Reload to try again."
+          description={
+            error instanceof Error && error.message === remoteHTTPAPIBlockedMessage
+              ? remoteHTTPAPIBlockedMessage
+              : "This screen didn't load. Reload to try again."
+          }
           icon={AlertTriangle}
           title="Something went wrong"
           titleAs="h1"

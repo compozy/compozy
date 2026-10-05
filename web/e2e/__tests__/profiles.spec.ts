@@ -1,5 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,7 @@ import {
 } from "../fixtures/os-navigation";
 import { profilesOperatorSelectors } from "../fixtures/selectors";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
+import { createWorktreeRepo } from "../fixtures/worktree-repo";
 import type { BrowserRuntime } from "../fixtures/runtime";
 
 /**
@@ -238,10 +240,128 @@ async function createDefaultProfileSession(
 }
 
 test.describe("Profiles", () => {
+  // Invariant: cold entry exposes the reserved owner's remedy without silently switching it.
+  // Owner: Web profile recovery; canonical suite: Profiles E2E-031.
+  test("E2E-031: unavailable profile entry explains recovery and permits an explicit switch", async ({
+    appPage,
+    runtime,
+  }) => {
+    const homeDir = runtime.paths?.homeDir;
+    if (!homeDir) throw new Error("Profile recovery requires the managed runtime home.");
+    await ensureProjectWorkspace(appPage, runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "recovery-notes", "#527b67", "notebook-pen");
+    const ui = profilesOperatorSelectors(appPage);
+    await ui.switcher.click();
+    await ui.switcherOption("recovery-notes").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: recovery-notes");
+
+    const destination = path.join(homeDir, "profiles", "recovery-guides");
+    await mkdir(destination, { recursive: true });
+    const plan = await runtime.requestJSON<{ revision: string }>(
+      "/api/profiles/recovery-notes/rename-plan?new_name=recovery-guides"
+    );
+    const refused = await fetch(runtime.url("/api/profiles/recovery-notes/rename"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        new_name: "recovery-guides",
+        plan_revision: plan.revision,
+        repos: [],
+      }),
+    });
+    expect(refused.ok).toBe(false);
+    const operations =
+      await runtime.requestJSON<Array<{ id: string; status: string; profile: string }>>(
+        "/api/profiles/ops"
+      );
+    const failed = operations.find(
+      op => op.profile === "recovery-guides" && op.status === "failed"
+    );
+    expect(failed).toBeDefined();
+
+    await appPage.goto(runtime.url("/settings/profiles"));
+    await expect(ui.switcher).toHaveAccessibleName("Profile: recovery-guides");
+    const status = appPage.getByTestId("os-window-manager-status");
+    await expect(status).toContainText(/profile needs recovery/i);
+    await status.hover();
+    const detail = appPage.locator('[data-slot="tooltip-content"]');
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText(failed!.id);
+    await expect(detail).toContainText("profile ops");
+    const selections =
+      await runtime.requestJSON<Array<{ profile: string }>>("/api/profiles/selection");
+    expect(selections.some(selection => selection.profile === "recovery-guides")).toBe(true);
+
+    await ui.switcher.click();
+    await ui.switcherOption("default").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await expect(
+      (await openProfilesSettings(appPage)).getByRole("button", { name: "Create profile" })
+    ).toBeVisible();
+
+    await rename(destination, path.join(homeDir, "preserved-import"));
+    await runtime.requestJSON(`/api/profiles/ops/${encodeURIComponent(failed!.id)}/retry`, {
+      method: "POST",
+      body: "{}",
+    });
+    await ui.switcher.click();
+    await ui.switcherOption("recovery-guides").click();
+    await appPage.reload();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: recovery-guides");
+    await expect(
+      (await openProfilesSettings(appPage)).getByRole("button", { name: "Create profile" })
+    ).toBeVisible();
+    await expect(status).toHaveCount(0);
+  });
+
+  // The global lifecycle feed must survive the removed desktop's authority loss.
+  test("E2E-030: external deletion recovers the viewed profile without reloading", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureProjectWorkspace(appPage, runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "retained", "#4cb782", "briefcase");
+    await createProfile(runtime, "release-drafts", "#4ea7fc", "notebook-pen");
+    const ui = profilesOperatorSelectors(appPage);
+    await ui.switcher.click();
+    await ui.switcherOption("release-drafts").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: release-drafts");
+    await openAppWindow(appPage, "Home", "dashboard");
+
+    const plan = await runtime.requestJSON<{ revision: string }>(
+      "/api/profiles/release-drafts/delete-plan"
+    );
+    const deleted = await runtime.requestJSON<{ deleted: boolean }>(
+      `/api/profiles/release-drafts?plan_revision=${encodeURIComponent(plan.revision)}`,
+      { method: "DELETE" }
+    );
+    expect(deleted.deleted).toBe(true);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await ui.switcher.click();
+    await expect(ui.switcherOption("release-drafts")).toHaveCount(0);
+    await expect(ui.switcherOption("retained")).toBeVisible();
+    expect((await listProfiles(runtime)).map(profile => profile.name)).not.toContain(
+      "release-drafts"
+    );
+  });
+
+  // Invariant: project entry restores its remembered profile, including after aggregate viewing.
+  // Owner: Web profile selection; canonical suite: Profiles E2E-013.
   test("E2E-013: switcher stays quiet, then carries identity, switch, and per-project memory", async ({
     appPage,
     runtime,
   }) => {
+    const originalId = await activeWorkspaceId(runtime);
+    const { workspaces } = await runtime.requestJSON<{
+      workspaces: Array<{ id: string; name: string }>;
+    }>("/api/workspaces");
+    const originalWorkspace = workspaces.find(workspace => workspace.id === originalId);
+    if (!originalWorkspace) throw new Error("the profile journey requires its initial project");
+    const secondRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-profile-switch-"));
+    const secondWorkspace = await runtime.resolveWorkspace(secondRoot);
+
     // Bundled extensions can create profiles; arrange the single-profile state.
     for (const profile of await listProfiles(runtime)) {
       if (profile.name !== "default" && profile.state === "active") {
@@ -304,9 +424,37 @@ test.describe("Profiles", () => {
       await runtime.requestJSON<Array<{ profile: string }>>("/api/profiles/selection");
     expect(remembered.some(entry => entry.profile === "marketing")).toBe(true);
 
-    // Returning to the project restores it rather than resetting to default.
+    // A different project starts from its own slot, and returning restores this one.
+    await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+
+    // Aggregate is an ephemeral view; re-entry uses the remembered real identity.
+    await ui.switcher.click();
+    await ui.switcherAll.click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
+    await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+
+    // A fresh client resolves the same remembered choice.
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+
+    // An external choice for an inactive project applies on entry, even with cached data.
+    await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
+    await runtime.requestJSON("/api/profiles/selection", {
+      method: "PUT",
+      body: JSON.stringify({
+        scope: "workspace",
+        workspace_id: originalWorkspace.id,
+        profile: "default",
+      }),
+    });
+    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
   });
 
   test("E2E-014: settings lists, creates, and edits identity behind disclosure", async ({
@@ -337,15 +485,32 @@ test.describe("Profiles", () => {
 
     await color.fill("4CB782");
     await ui.identityPicker.getByRole("button", { name: "Emojis" }).click();
-    await ui.identityPicker.getByRole("searchbox", { name: "Search emojis" }).fill("seedling");
-    await ui.identityPicker.getByRole("gridcell", { name: "Seedling" }).click();
+    // The composed picker must navigate results and commit identity from the keyboard.
+    const emojiSearch = ui.identityPicker.getByRole("searchbox", { name: "Search emojis" });
+    await emojiSearch.fill("book");
+    await expect(
+      ui.identityPicker.getByRole("gridcell", { name: "Notebook with decorative cover" })
+    ).toHaveAttribute("aria-selected", "true");
+    await emojiSearch.press("ArrowRight");
+    await expect(ui.identityPicker.getByRole("gridcell", { name: "Closed book" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await emojiSearch.press("ArrowRight");
+    await expect(ui.identityPicker.getByRole("gridcell", { name: "Open book" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await emojiSearch.press("Enter");
     const updated = appPage.waitForResponse(
       response =>
         response.request().method() === "PATCH" &&
         response.url().endsWith("/api/profiles/consulting")
     );
     await ui.identityConfirm.click();
-    expect((await updated).ok()).toBe(true);
+    const identityResponse = await updated;
+    expect(identityResponse.ok()).toBe(true);
+    expect(await identityResponse.json()).toMatchObject({ emoji: "📖", icon: null });
     await expect(ui.identityDialog).not.toBeVisible();
 
     await ui.createOpen.click();
@@ -356,6 +521,23 @@ test.describe("Profiles", () => {
     // An empty name is refused inline rather than at the daemon.
     await ui.createConfirm.click();
     await expect(ui.createDialog).toContainText("Give the profile a name.");
+
+    // Server refusals stay in the dialog, without a second error notification.
+    for (const name of ["default", "consulting"]) {
+      const refused = appPage.waitForResponse(
+        response =>
+          response.request().method() === "POST" && response.url().endsWith("/api/profiles")
+      );
+      await ui.createName.fill(name);
+      await ui.createConfirm.click();
+      expect((await refused).ok()).toBe(false);
+      await expect(ui.createName).toHaveAttribute("aria-invalid", "true");
+      await expect(ui.createDialog.getByRole("alert")).toBeVisible();
+      // Check while the inline refusal is visible, before any toast can expire.
+      expect(await appPage.getByRole("button", { name: "Close toast", exact: true }).count()).toBe(
+        0
+      );
+    }
 
     const created = appPage.waitForResponse(
       response => response.request().method() === "POST" && response.url().endsWith("/api/profiles")
@@ -383,43 +565,100 @@ test.describe("Profiles", () => {
     await expect(after.archivedList).toContainText("research");
   });
 
-  test("E2E-016: rename shows the tiered plan and reports dormant placements", async ({
+  // Invariant: rename offers start selected, preserve explicit declines across
+  // name edits, and move only accepted repository folders.
+  // Owner: profile lifecycle browser composition; canonical suite: E2E-016.
+  test("E2E-016: rename selects repository offers and preserves declined folders", async ({
     appPage,
     runtime,
   }) => {
-    await ensureProjectWorkspace(appPage, runtime);
-    await completeOnboardingIfPrompted(appPage);
-    await createProfile(runtime, "dev", "#4cb782", "wrench");
+    const repos = [await createWorktreeRepo(), await createWorktreeRepo()];
+    try {
+      for (const repo of repos) {
+        const folder = path.join(repo.rootDir, ".compozy", "profiles", "dev");
+        await mkdir(folder, { recursive: true });
+        await writeFile(path.join(folder, "README.md"), "Development notes\n", "utf8");
+        const options = {
+          cwd: repo.rootDir,
+          env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" },
+        };
+        execFileSync("git", ["add", ".compozy/profiles/dev/README.md"], options);
+        execFileSync("git", ["commit", "-m", "add development profile notes"], options);
+      }
+      const workspaces = await Promise.all(
+        repos.map(repo => runtime.resolveWorkspace(repo.rootDir))
+      );
+      await ensureProjectWorkspace(appPage, runtime);
+      await completeOnboardingIfPrompted(appPage);
+      await createProfile(runtime, "dev", "#4cb782", "wrench");
 
-    const settings = await openProfilesSettings(appPage);
-    const ui = profilesOperatorSelectors(appPage, settings);
+      const settings = await openProfilesSettings(appPage);
+      const ui = profilesOperatorSelectors(appPage, settings);
+      await ui.renameRow("dev").click();
+      await expect(ui.renameDialog).toBeVisible();
+      await ui.renameName.fill("eng");
 
-    await ui.renameRow("dev").click();
-    await expect(ui.renameDialog).toBeVisible();
-    await ui.renameName.fill("eng");
+      const plan = await runtime.requestJSON<{
+        machine_folders: string[];
+        repo_candidates: Array<{ workspace_id: string }>;
+        revision: string;
+      }>("/api/profiles/dev/rename-plan?new_name=eng");
+      expect(plan.revision).not.toBe("");
+      expect(plan.repo_candidates.map(candidate => candidate.workspace_id).sort()).toEqual(
+        workspaces.map(workspace => workspace.id).sort()
+      );
+      await expect(ui.renamePlan).toBeVisible();
+      if (plan.machine_folders.length > 0) {
+        await expect(ui.renamePlan).toContainText("Machine folders");
+      }
 
-    // The plan comes from the daemon; the dialog never recomputes it.
-    const plan = await runtime.requestJSON<{
-      machine_folders: string[];
-      revision: string;
-    }>("/api/profiles/dev/rename-plan?new_name=eng");
-    expect(plan.revision).not.toBe("");
-    await expect(ui.renamePlan).toBeVisible();
-    if (plan.machine_folders.length > 0) {
-      await expect(ui.renamePlan).toContainText("Machine folders");
+      const accepted = ui.renameRepo(workspaces[0]!.id).getByRole("checkbox");
+      const declined = ui.renameRepo(workspaces[1]!.id).getByRole("checkbox");
+      await expect(accepted).toBeChecked();
+      await expect(declined).toBeChecked();
+      await declined.uncheck();
+      await ui.renameName.fill("engineering");
+      await expect(ui.renameConfirm).toBeEnabled();
+      await expect(accepted).toBeChecked();
+      await expect(declined).not.toBeChecked();
+      const currentPlan = await runtime.requestJSON<{ revision: string }>(
+        "/api/profiles/dev/rename-plan?new_name=engineering"
+      );
+
+      const renamed = appPage.waitForResponse(
+        response =>
+          response.request().method() === "POST" &&
+          response.url().endsWith("/api/profiles/dev/rename")
+      );
+      await ui.renameConfirm.click();
+      const response = await renamed;
+      expect(response.ok()).toBe(true);
+      expect(response.request().postDataJSON()).toMatchObject({
+        new_name: "engineering",
+        plan_revision: currentPlan.revision,
+        repos: [workspaces[0]!.id],
+      });
+      const profiles = await listProfiles(runtime);
+      expect(profiles.map(profile => profile.name)).toContain("engineering");
+      expect(profiles.map(profile => profile.name)).not.toContain("dev");
+      await expect(
+        readFile(path.join(repos[0]!.rootDir, ".compozy/profiles/engineering/README.md"), "utf8")
+      ).resolves.toBe("Development notes\n");
+      await expect(
+        access(path.join(repos[0]!.rootDir, ".compozy/profiles/dev"))
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        readFile(path.join(repos[1]!.rootDir, ".compozy/profiles/dev/README.md"), "utf8")
+      ).resolves.toBe("Development notes\n");
+      await expect(
+        access(path.join(repos[1]!.rootDir, ".compozy/profiles/engineering"))
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      const reopened = await openProfilesSettings(appPage);
+      await expect(profilesOperatorSelectors(appPage, reopened).row("engineering")).toBeVisible();
+    } finally {
+      for (const repo of repos) await repo.cleanup();
     }
-
-    const renamed = appPage.waitForResponse(
-      response =>
-        response.request().method() === "POST" &&
-        response.url().endsWith("/api/profiles/dev/rename")
-    );
-    await ui.renameConfirm.click();
-    expect((await renamed).ok()).toBe(true);
-
-    const profiles = await listProfiles(runtime);
-    expect(profiles.map(profile => profile.name)).toContain("eng");
-    expect(profiles.map(profile => profile.name)).not.toContain("dev");
   });
 
   test("E2E-017: archive names what pauses, blocks on running work, and unarchive lists reactivation", async ({
@@ -437,6 +676,22 @@ test.describe("Profiles", () => {
     await expect(ui.archiveDialog).toBeVisible();
     // Archive destroys nothing, so it reads calm rather than dangerous.
     await expect(ui.archiveDialog).toContainText("Nothing is deleted.");
+
+    // Invariant: browser history dismisses a lifecycle flow without mutating its owner.
+    // Owner: shell/dialog browser composition; canonical suite: E2E-017.
+    await appPage.goBack();
+    await expect(appPage).toHaveURL(/\/settings\/general$/);
+    await expect(ui.archiveDialog).not.toBeVisible();
+    expect((await listProfiles(runtime)).find(profile => profile.name === "finance")).toMatchObject(
+      {
+        state: "active",
+      }
+    );
+    await appPage.goForward();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await expect(ui.archiveDialog).not.toBeVisible();
+    await ui.archiveRow("finance").click();
+    await expect(ui.archiveDialog).toBeVisible();
 
     const archived = appPage.waitForResponse(
       response =>
@@ -462,6 +717,18 @@ test.describe("Profiles", () => {
     await ui.unarchiveConfirm.click();
     expect((await unarchived).ok()).toBe(true);
     await expect(ui.unarchiveDialog).toContainText("finance is back");
+
+    await appPage.goBack();
+    await expect(appPage).toHaveURL(/\/settings\/general$/);
+    await expect(ui.unarchiveDialog).not.toBeVisible();
+    expect((await listProfiles(runtime)).find(profile => profile.name === "finance")).toMatchObject(
+      {
+        state: "active",
+      }
+    );
+    await appPage.goForward();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await expect(ui.unarchiveDialog).not.toBeVisible();
   });
 
   test("E2E-027: the palette Profiles view switches and hands lifecycle to the canonical dialogs", async ({
@@ -504,6 +771,100 @@ test.describe("Profiles", () => {
     await profileArgument.press("Enter");
     await expect(ui.archiveDialog).toBeVisible();
     await expect(ui.archiveDialog).toContainText("marketing");
+
+    // Invariant: a consumed palette flow cannot reopen after cancellation and reload.
+    // Owner: window-route/dialog composition; canonical suite: E2E-027.
+    await ui.archiveDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(ui.archiveDialog).toBeHidden();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(appPage.getByTestId("settings-page-profiles-content")).toBeVisible();
+    await expect(ui.archiveDialog).toBeHidden();
+    expect(
+      (await listProfiles(runtime)).find(profile => profile.name === "marketing")
+    ).toMatchObject({ state: "active" });
+
+    // Invariant: consuming a profile intent keeps both attached clients responsive.
+    // Owner: window-route/dialog composition; canonical suite: E2E-027.
+    const workspace = await activeWorkspaceId(runtime);
+    const observer = await appPage.context().newPage();
+    await observer.goto(appPage.url(), { waitUntil: "domcontentloaded" });
+    await expect(profilesOperatorSelectors(observer).switcher).toHaveAccessibleName(
+      "Profile: marketing"
+    );
+    await expect(observer.getByTestId("settings-page-profiles-content")).toBeVisible();
+    await expect
+      .poll(async () => {
+        const clients = await runtime.requestJSON<Array<{ client_id: string }>>(
+          `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}`
+        );
+        return clients.length;
+      })
+      .toBe(2);
+
+    // Invariant: supplied lifecycle names reach the canonical form and are consumed on cancel.
+    // Owner: palette/window/dialog composition; canonical suite: E2E-027.
+    const createPalette = await openCommandPalette(appPage);
+    await createPalette.getByRole("combobox").fill("Create profile");
+    await createPalette.getByTestId("os-palette-command-profile.create").click();
+    const nameArgument = appPage.getByTestId("os-palette-arg-name");
+    await nameArgument.fill("dispatch-notes");
+    await nameArgument.press("Enter");
+    await expect(ui.createDialog).toBeVisible();
+    await expect(ui.createName).toHaveValue("dispatch-notes");
+    await ui.createDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await expect(ui.createDialog).toBeHidden();
+    await expect(observer).toHaveURL(/\/settings\/profiles$/);
+    await expect(observer.getByTestId("settings-page-profiles-content")).toBeVisible();
+    await observer.close();
+
+    const renamePalette = await openCommandPalette(appPage);
+    await renamePalette.getByRole("combobox").fill("Rename profile");
+    await renamePalette.getByTestId("os-palette-command-profile.rename").click();
+    await appPage.getByTestId("os-palette-arg-profile").fill("marketing");
+    const newNameArgument = appPage.getByTestId("os-palette-arg-new_name");
+    await newNameArgument.fill("dispatch-team");
+    await newNameArgument.press("Enter");
+    await expect(ui.renameDialog).toBeVisible();
+    await expect(ui.renameName).toHaveValue("dispatch-team");
+    await expect(ui.renameConfirm).toBeEnabled();
+    await ui.renameName.fill("");
+    await expect(ui.renameName).toHaveValue("");
+    await expect(ui.renameConfirm).toBeDisabled();
+    await ui.renameDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(appPage).toHaveURL(/\/settings\/profiles$/);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(appPage.getByTestId("settings-page-profiles-content")).toBeVisible();
+    await expect(ui.createDialog).toBeHidden();
+    await expect(ui.renameDialog).toBeHidden();
+    expect((await listProfiles(runtime)).some(profile => profile.name === "dispatch-notes")).toBe(
+      false
+    );
+
+    // Invariant: delegated profile selection returns its result before rebinding the client.
+    // Owner: real client-command/selection composition; canonical suite: E2E-027.
+    await createProfile(runtime, "dispatch-client", "#22c55e", "folder");
+    const attached = await runtime.requestJSON<Array<{ client_id: string }>>(
+      `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}`
+    );
+    expect(attached).toHaveLength(1);
+    if (!runtime.requestOperatorJSON) throw new Error("delegated selection requires operator UDS");
+    const invoked = await runtime.requestOperatorJSON<{ status: string }>(
+      "/api/cmd-palette/commands/profile.use/invoke?profile=marketing",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          workspace,
+          client: attached[0]!.client_id,
+          args: { profile: "dispatch-client" },
+        }),
+      }
+    );
+    expect(invoked.status).toBe("ok");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: dispatch-client");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(ui.switcher).toHaveAccessibleName("Profile: dispatch-client");
   });
 
   test("E2E-015: All profiles labels every row, states the destination, and names the owner", async ({

@@ -97,7 +97,8 @@ export function parseProfileEvent(event: Event): ProfileEvent | null {
 
 export function openProfileEventStream(
   handlers: ProfileStreamHandlers,
-  eventSourceFactory: ProfileEventSourceFactory = createStreamEventSource
+  eventSourceFactory: ProfileEventSourceFactory = url =>
+    createStreamEventSource(url, { transport: "websocket", resumeWithLastEventId: true })
 ): () => void {
   const handleOpen: EventListener = () => {
     handlers.onStatusChange("live");

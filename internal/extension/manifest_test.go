@@ -380,6 +380,67 @@ func TestLoadManifest_ParsesTOMLAndJSONEquivalently(t *testing.T) {
 	})
 }
 
+func TestLoadManifestResourcePathCompatibility(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name     string
+		fileName string
+		content  string
+	}{
+		{
+			name:     "Should normalize TOML string paths while preserving explicit placements",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "passive-kit"
+version = "0.1.0"
+min_compozy_version = "0.3.0-beta.13"
+[resources]
+skills = [" skills/shared ", {path = "skills/studio", profile = "studio"}]
+agents = ["agents"]
+loops = ["loops"]
+automation = ["automation"]
+layouts = ["layouts"]
+`,
+		},
+		{
+			name:     "Should normalize JSON string paths while preserving explicit placements",
+			fileName: manifestJSONFileName,
+			content:  `{"extension":{"name":"passive-kit","version":"0.1.0","min_compozy_version":"0.3.0-beta.13"},"resources":{"skills":[" skills/shared ",{"path":"skills/studio","profile":"studio"}],"agents":["agents"],"loops":["loops"],"automation":["automation"],"layouts":["layouts"]}}`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, test.fileName), test.content)
+			manifest, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatalf("LoadManifest() error = %v", err)
+			}
+			want := ResourcesConfig{
+				Skills:     []ManifestResourcePath{{Path: "skills/shared"}, {Path: "skills/studio", Profile: "studio"}},
+				Agents:     []ManifestResourcePath{{Path: "agents"}},
+				Loops:      []ManifestResourcePath{{Path: "loops"}},
+				Automation: []ManifestResourcePath{{Path: "automation"}},
+				Layouts:    []ManifestResourcePath{{Path: "layouts"}},
+			}
+			if !reflect.DeepEqual(manifest.Resources, want) {
+				t.Fatalf("Resources = %#v, want %#v", manifest.Resources, want)
+			}
+			encoded, err := encodeManifestTOML(manifest)
+			if err != nil {
+				t.Fatalf("encodeManifestTOML() error = %v", err)
+			}
+			roundTrip, err := loadManifestTOMLContent(manifestTOMLFileName, encoded)
+			if err != nil {
+				t.Fatalf("loadManifestTOMLContent() error = %v", err)
+			}
+			if !reflect.DeepEqual(roundTrip.Resources, want) {
+				t.Fatalf("round-trip resources = %#v, want %#v", roundTrip.Resources, want)
+			}
+		})
+	}
+}
+
 func TestLoadManifestV2RejectsUnknownAndLegacyContracts(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
@@ -390,6 +451,27 @@ func TestLoadManifestV2RejectsUnknownAndLegacyContracts(t *testing.T) {
 		wantField     string
 		wantFragments []string
 	}{
+		{
+			name:     "Should reject unknown fields in a TOML resource path",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "unknown-placement"
+version = "0.1.0"
+min_compozy_version = "0.3.0-beta.13"
+[[resources.agents]]
+path = "agents"
+profiel = "studio"
+`,
+			wantField:     "resources.agents.profiel",
+			wantFragments: []string{"unknown manifest field"},
+		},
+		{
+			name:          "Should reject unknown fields in a JSON resource path",
+			fileName:      manifestJSONFileName,
+			content:       `{"extension":{"name":"unknown-placement","version":"0.1.0","min_compozy_version":"0.3.0-beta.13"},"resources":{"agents":[{"path":"agents","profiel":"studio"}]}}`,
+			wantField:     "resources.profiel",
+			wantFragments: []string{"unknown manifest field"},
+		},
 		{
 			name:     "Should reject retired Network participation in TOML with Gateway guidance",
 			fileName: manifestTOMLFileName,

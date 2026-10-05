@@ -57,38 +57,60 @@ function joinRoute(left: string, right: string): string {
   return `${left.replace(/\/$/, "")}/${right.replace(/^\//, "")}`;
 }
 
-function extractRegisteredRoutes(sourcePath: string): APIRoute[] {
+function extractRegisteredRoutes(
+  sourcePath: string,
+  source = readRepoFile(sourcePath)
+): APIRoute[] {
   const routes: APIRoute[] = [];
-  const source = readRepoFile(sourcePath);
-  const groups = new Map<string, string>([["api", "/api"]]);
+  const helpers = new Map<string, { router: string; body: string }>();
+  for (const match of source.matchAll(
+    /^func (\w+)\((\w+) gin\.IRouter[^)]*\) \{\n([\s\S]*?)^\}/gm
+  )) {
+    const [, name, router, body] = match;
+    if (name && router && body !== undefined) helpers.set(name, { router, body });
+  }
   const assignmentMatcher = /^\s*(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"/;
   const methodMatcher = /^\s*(\w+)\.(GET|POST|PATCH|PUT|DELETE)\("([^"]*)"/;
+  const helperMatcher = /^\s*(\w+)\((\w+),/;
 
-  for (const line of source.split("\n")) {
-    const assignment = line.match(assignmentMatcher);
-    if (assignment) {
-      const [, target, parent, suffix] = assignment;
-      const parentPath = groups.get(parent ?? "");
-      if (target && parentPath !== undefined) {
-        groups.set(target, joinRoute(parentPath, suffix ?? ""));
+  function visit(body: string, groups: Map<string, string>) {
+    for (const line of body.split("\n")) {
+      const assignment = line.match(assignmentMatcher);
+      if (assignment) {
+        const [, target, parent, suffix] = assignment;
+        const parentPath = groups.get(parent ?? "");
+        if (target && parentPath !== undefined) {
+          groups.set(target, joinRoute(parentPath, suffix ?? ""));
+        }
+        continue;
       }
-      continue;
-    }
 
-    const method = line.match(methodMatcher);
-    if (method) {
-      const [, group, verb, suffix] = method;
-      const prefix = groups.get(group ?? "");
-      if (prefix !== undefined && verb) {
-        routes.push({
-          method: verb,
-          path: joinRoute(prefix, suffix ?? ""),
-          source: sourcePath,
-        });
+      const method = line.match(methodMatcher);
+      if (method) {
+        const [, group, verb, suffix] = method;
+        const prefix = groups.get(group ?? "");
+        if (prefix !== undefined && verb) {
+          routes.push({
+            method: verb,
+            path: joinRoute(prefix, suffix ?? ""),
+            source: sourcePath,
+          });
+        }
+        continue;
+      }
+
+      const call = line.match(helperMatcher);
+      if (call) {
+        const helper = helpers.get(call[1] ?? "");
+        const prefix = groups.get(call[2] ?? "");
+        if (helper && prefix !== undefined) {
+          visit(helper.body, new Map([[helper.router, prefix]]));
+        }
       }
     }
   }
 
+  visit(source, new Map([["api", "/api"]]));
   return routes;
 }
 
@@ -158,6 +180,30 @@ function isCoveredByRegisteredRoute(
 }
 
 describe("manual API route references", () => {
+  // Invariant: route registration delegates preserve each caller's Gin prefix.
+  // Owner: this manual-doc contract scanner; live HTTP/UDS tests own runtime routing.
+  it("resolves shared route helpers at both Global and workspace prefixes", () => {
+    const routes = extractRegisteredRoutes(
+      "session_routes.go",
+      `
+func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
+  sessions := api.Group("/sessions")
+  registerSessionReadRoutes(sessions, handlers)
+  workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
+  registerSessionReadRoutes(workspaceSessions, handlers)
+}
+func registerSessionReadRoutes(reads gin.IRouter, handlers *Handlers) {
+  reads.GET("/:session_id/status", handlers.GetSessionStatus)
+}
+`
+    );
+    expect(routes.map(route => route.path)).toEqual([
+      "/api/sessions/:session_id/status",
+      "/api/workspaces/:workspace_id/sessions/:session_id/status",
+    ]);
+    expect(isCoveredByRegisteredRoute("/api/sessions/sess_1/missing", routes)).toBe(false);
+  });
+
   it("distinguishes external API citations from local daemon routes", () => {
     const routes = extractDocumentedAPIRoutes(`
       [Stripe](https://docs.stripe.com/api/idempotent_requests)

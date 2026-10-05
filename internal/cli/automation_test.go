@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
@@ -1246,6 +1247,8 @@ func sampleAutomationSuggestionRecord() SuggestionRecord {
 func automationJobCursorForTest(t *testing.T, query AutomationJobQuery) string {
 	t.Helper()
 
+	query.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+
 	source := query.Source
 	if source == "" {
 		source = automationpkg.JobSourceDynamic
@@ -1255,6 +1258,7 @@ func automationJobCursorForTest(t *testing.T, query AutomationJobQuery) string {
 	for index, name := range []string{"digest-alpha", "digest-bravo"} {
 		jobs = append(jobs, automationpkg.Job{
 			ID:          fmt.Sprintf("job-cursor-%d", index),
+			ProfileID:   store.DefaultProfileID,
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        name,
 			WorkspaceID: "ws-alpha",
@@ -1278,6 +1282,8 @@ func automationJobCursorForTest(t *testing.T, query AutomationJobQuery) string {
 func automationTriggerCursorForTest(t *testing.T, query AutomationTriggerQuery) string {
 	t.Helper()
 
+	query.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+
 	source := query.Source
 	if source == "" {
 		source = automationpkg.JobSourceDynamic
@@ -1287,6 +1293,7 @@ func automationTriggerCursorForTest(t *testing.T, query AutomationTriggerQuery) 
 	for index, name := range []string{"review-alpha", "review-bravo"} {
 		triggers = append(triggers, automationpkg.Trigger{
 			ID:          fmt.Sprintf("trigger-cursor-%d", index),
+			ProfileID:   store.DefaultProfileID,
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        name,
 			WorkspaceID: "ws-alpha",

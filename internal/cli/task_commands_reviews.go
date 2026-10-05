@@ -86,6 +86,7 @@ func newTaskReviewRequestCommand(deps commandDeps) *cobra.Command {
 		StringVar(&parentID, "parent-review", "", "Parent review ID for continuation rounds")
 	cmd.Flags().
 		BoolVar(&asAgent, "as-agent", false, "Request review using the current CompozyOS-managed agent session identity")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -214,6 +215,7 @@ func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {
 	mustMarkFlagRequired(cmd, "confidence")
 	mustMarkFlagRequired(cmd, "reason")
 	mustMarkFlagRequired(cmd, "delivery-id")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 

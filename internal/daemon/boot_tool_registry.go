@@ -59,6 +59,11 @@ func (d *Daemon) bootToolRegistry(
 			state.toolArtifacts,
 		)),
 	}
+	if state.hooks != nil {
+		registryOptions = append(registryOptions, toolspkg.WithHookRunner(&nativeToolHookRunner{
+			hooks: state.hooks, binder: workspaceBinder, now: d.now,
+		}))
+	}
 	if state.toolProjectionEpoch != nil {
 		registryOptions = append(
 			registryOptions,
@@ -79,10 +84,10 @@ func (d *Daemon) bootToolRegistry(
 	}
 	state.toolRegistry = registry
 	state.toolsets = registry
-	state.toolApprovals = approvalTokens
+	state.toolApprovals = &boundToolApprovalIssuer{tokens: approvalTokens, registry: registry, binder: workspaceBinder}
 	state.deps.ToolRegistry = registry
 	state.deps.Toolsets = registry
-	state.deps.ToolApprovals = approvalTokens
+	state.deps.ToolApprovals = state.toolApprovals
 	return nil
 }
 

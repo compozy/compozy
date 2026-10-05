@@ -11,6 +11,7 @@ import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 export interface AutomationCatalogPagination {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
+  isPaused?: boolean;
   onLoadMore?: () => void;
 }
 
@@ -214,20 +215,24 @@ function AutomationCatalogLoadMore({
   noun: string;
   pagination: AutomationCatalogPagination;
 }) {
-  const { hasNextPage, isFetchingNextPage, onLoadMore } = pagination;
+  const { hasNextPage, isFetchingNextPage, isPaused, onLoadMore } = pagination;
   if (!hasNextPage || !onLoadMore) return null;
   return (
     <div className="flex justify-center">
       <Button
         aria-busy={isFetchingNextPage}
         data-testid={`${noun}-list-load-more`}
-        disabled={isFetchingNextPage}
+        disabled={isFetchingNextPage || isPaused}
         onClick={onLoadMore}
         size="sm"
         type="button"
         variant="ghost"
       >
-        {isFetchingNextPage ? `Loading more ${noun}…` : `Load more ${noun}`}
+        {isPaused
+          ? "Waiting for connection…"
+          : isFetchingNextPage
+            ? `Loading more ${noun}…`
+            : `Load more ${noun}`}
       </Button>
     </div>
   );

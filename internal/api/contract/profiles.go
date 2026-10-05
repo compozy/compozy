@@ -38,6 +38,7 @@ type ProfileSelection struct {
 	Scope       ProfileSelectionScope `json:"scope"`
 	WorkspaceID string                `json:"workspace_id,omitempty"`
 	Profile     string                `json:"profile"`
+	Note        string                `json:"note,omitempty"`
 }
 
 // CreateProfileRequest creates one profile and may activate it immediately.

@@ -3,7 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func registryTaskStateOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		startTaskRunOperationSpec(),
 		attachTaskRunSessionOperationSpec(),
 		completeTaskRunOperationSpec(),
@@ -21,7 +21,15 @@ func registryTaskStateOperations() []OperationSpec {
 		getTaskInboxOperationSpec(),
 		getObserveOverviewOperationSpec(),
 	}
+	for index := range operations {
+		operations[index].Parameters = ensureProfileParameters(
+			operations[index].Parameters,
+			operations[index].Method == httpMethodGet,
+		)
+	}
+	return operations
 }
+
 func startTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,

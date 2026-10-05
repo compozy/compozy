@@ -52,7 +52,7 @@ export const CreateInvalidName: Story = {
       lens={{ scope: "global" }}
       isPending={false}
       initialName="all"
-      nameError="Profile name is reserved."
+      nameError={{ name: "all", message: "Profile name is reserved." }}
       onCreate={fn()}
     />
   ),

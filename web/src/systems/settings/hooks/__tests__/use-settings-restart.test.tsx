@@ -9,15 +9,27 @@ vi.mock("../../adapters/settings-api", async importOriginal => {
   return {
     ...actual,
     getSettingsRestartStatus: vi.fn(),
+    listSettingsApplyRecords: vi.fn(),
     triggerSettingsRestart: vi.fn(),
   };
 });
 
+vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/status/adapters/daemon-api")>();
+  return { ...actual, fetchStatus: vi.fn() };
+});
+
+import { fetchStatus, statusKeys } from "@/systems/status";
+import { statusFixture } from "@/systems/status/mocks";
+
 import {
   getSettingsRestartStatus,
+  listSettingsApplyRecords,
   SettingsApiError,
   triggerSettingsRestart,
 } from "../../adapters/settings-api";
+import { settingsKeys } from "../../lib/query-keys";
+import { settingsApplyRecordsFixture } from "../../mocks/fixtures";
 import { resetSettingsRestartStore } from "../../stores/use-settings-restart-store";
 import {
   settingsRestartStorageKey,
@@ -39,6 +51,8 @@ function createWrapper() {
 beforeEach(() => {
   vi.clearAllMocks();
   resetSettingsRestartStore();
+  vi.mocked(fetchStatus).mockRejectedValue(new Error("Runtime status unavailable"));
+  vi.mocked(listSettingsApplyRecords).mockResolvedValue({ entries: [] });
 });
 
 afterEach(() => {
@@ -46,6 +60,57 @@ afterEach(() => {
 });
 
 describe("useSettingsRestart", () => {
+  it("Should discover external restart requirements and snooze only the observed candidate", async () => {
+    vi.mocked(fetchStatus).mockResolvedValue(statusFixture);
+    vi.mocked(getSettingsRestartStatus).mockResolvedValue({
+      operation_id: "op_previous",
+      status: "ready",
+      old_pid: 1000,
+      old_socket_path: "/tmp/compozy.sock",
+      old_started_at: "2026-04-17T10:00:00Z",
+      active_session_count: 0,
+      started_at: "2026-04-17T10:05:00Z",
+      updated_at: "2026-04-17T10:05:05Z",
+    });
+    settingsRestartStore.trigger.restartOperationStarted({ operationId: "op_previous" });
+    const { wrapper, queryClient } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.isRestartRequired).toBe(false);
+
+    vi.mocked(fetchStatus).mockResolvedValue({
+      ...statusFixture,
+      config: { ...statusFixture.config, restart_required: true, apply_state: "pending_restart" },
+    });
+    vi.mocked(listSettingsApplyRecords).mockResolvedValue({
+      entries: [{ ...settingsApplyRecordsFixture.entries[0], id: "external-candidate-one" }],
+    });
+    await act(async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: statusKeys.current() }),
+        queryClient.invalidateQueries({ queryKey: settingsKeys.applyRoot() }),
+      ]);
+    });
+    await waitFor(() => expect(result.current.isRestartRequired).toBe(true));
+    act(() => result.current.dismiss());
+    expect(result.current.isNoticeSnoozed).toBe(true);
+
+    vi.mocked(listSettingsApplyRecords).mockResolvedValue({
+      entries: [{ ...settingsApplyRecordsFixture.entries[0], id: "external-candidate-two" }],
+    });
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: settingsKeys.applyRoot() });
+    });
+    await waitFor(() => expect(result.current.isNoticeSnoozed).toBe(false));
+    expect(result.current.isRestartRequired).toBe(true);
+
+    vi.mocked(fetchStatus).mockResolvedValue(statusFixture);
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: statusKeys.current() });
+    });
+    await waitFor(() => expect(result.current.isRestartRequired).toBe(false));
+  });
+
   it("starts the restart operation and exposes polling state", async () => {
     vi.mocked(triggerSettingsRestart).mockResolvedValue({
       operation_id: "op_001",
@@ -224,6 +289,13 @@ describe("useSettingsRestart", () => {
 
     expect(result.current.isRestartRequired).toBe(true);
     expect(result.current.activeSessionCount).toBe(2);
+    expect(settingsRestartStore.getSnapshot().context).toMatchObject({
+      operationId: "op_refresh",
+      mutationGeneration: 1,
+      snoozedMutationGeneration: null,
+      snoozedApplyRecordId: null,
+      lastMutation: { section: "general", restartRequired: true },
+    });
   });
 
   it("Should expose a dismissible restart-required fallback when a persisted operation is gone", async () => {
@@ -267,6 +339,7 @@ describe("useSettingsRestart", () => {
       lastMutation: null,
       mutationGeneration: 0,
       snoozedMutationGeneration: null,
+      snoozedApplyRecordId: null,
     });
   });
 

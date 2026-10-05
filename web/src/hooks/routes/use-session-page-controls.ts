@@ -63,7 +63,7 @@ export function useSessionPageControls(
       onDeleteSuccess?.();
     },
   });
-  const stopMutation = useStopSession({ workspaceId });
+  const stopMutation = useStopSession();
   const resumeMutation = useResumeSession({ workspaceId });
   const unarchiveMutation = useUnarchiveSession({ workspaceId });
   const renameMutation = useRenameSession({ workspaceId });
@@ -150,7 +150,13 @@ export function useSessionPageControls(
 
     const retry = stopAttention !== null;
     store.trigger.stopRequested({
-      execute: () => stopMutation.mutateAsync({ id: sessionId, wait: retry }),
+      execute: () =>
+        stopMutation.mutateAsync({
+          id: sessionId,
+          workspace_id: session.workspace_id,
+          profile_name: session.profile_name,
+          wait: retry,
+        }),
       failureMessage: null,
       retry,
       scope: "session",

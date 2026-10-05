@@ -56,7 +56,7 @@ export function SettingsChoiceGroup<V extends string>({
   return (
     <div
       aria-label={ariaLabel}
-      className="grid gap-2 p-3 sm:grid-cols-3"
+      className="grid gap-2 p-3 @min-settings-takeover:grid-cols-3"
       data-testid={testId}
       role="radiogroup"
     >

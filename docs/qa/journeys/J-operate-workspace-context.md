@@ -6,6 +6,11 @@ output explains the winning tier, and every stateful surface stays inside that w
 
 ```mermaid
 flowchart TD
+    REG[Entry: register or update a project through HTTP or UDS] --> VALID{Valid absolute paths and unique identity?}
+    VALID -->|yes| READ[Read the saved workspace through the other transport]
+    VALID -->|no| REJECT[Actionable refusal with existing registration unchanged]
+    REJECT -.->|correct input later| REG
+    READ --> E1
     E1[Entry: shell in a nested project directory] --> C[Run a workspace-scoped CLI command without --workspace]
     E2[Entry: workspace-bound agent session] --> C
     C --> R{Which context tier resolves?}
@@ -41,6 +46,8 @@ journey:
   value_statement: "People and agents can run workspace-scoped operations from project context while retaining observable, leak-free workspace ownership."
   personas: [Ada, Bruno]
   entry_points:
+    - url: "HTTP/UDS: POST /api/workspaces; PATCH /api/workspaces/:id; GET /api/workspaces"
+      origin: direct
     - url: "CLI from a registered project or subdirectory"
       origin: direct
     - url: "Compozy-native tool from a workspace-bound session"
@@ -48,6 +55,9 @@ journey:
     - url: "HTTP or UDS workspace path reference"
       origin: direct
   actions:
+    - step: 0
+      verb: "Register or update a project, then read its saved identity through another transport"
+      expected_observable: "Valid absolute paths persist; invalid or conflicting inputs leave the existing registration unchanged."
     - step: 1
       verb: "Run a workspace-scoped command without repeating a workspace argument"
       expected_observable: "The command selects the intended workspace through the documented precedence chain"

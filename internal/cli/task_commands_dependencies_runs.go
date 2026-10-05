@@ -119,11 +119,12 @@ func newTaskDependencyAddCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&dependsOnID, "depends-on", "", "Dependency task ID")
 	cmd.Flags().StringVar(&kindRaw, taskKindKey, "", "Dependency kind")
 	mustMarkFlagRequired(cmd, "depends-on")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
 func newTaskDependencyRemoveCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "remove <task-id> <depends-on-id>",
 		Short: "Remove a dependency edge from a task",
 		Args:  cobra.ExactArgs(2),
@@ -139,6 +140,8 @@ func newTaskDependencyRemoveCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskDetailBundle(&updated))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }
 
 func newTaskRunCommand(deps commandDeps) *cobra.Command {
@@ -249,6 +252,7 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional run metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -273,6 +277,7 @@ func newTaskRunStartCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -305,6 +310,7 @@ func newTaskRunAttachSessionCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&sessionID, "session", "", "Existing session ID to attach")
 	mustMarkFlagRequired(cmd, "session")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -334,6 +340,7 @@ func newTaskRunCompleteCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&resultRaw, "result", "", "Optional result JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -371,6 +378,7 @@ func newTaskRunFailCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&errorMessage, taskErrorKey, "", "Failure message")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional failure metadata JSON")
 	mustMarkFlagRequired(cmd, taskErrorKey)
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -404,6 +412,7 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional cancellation reason")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional cancellation metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 

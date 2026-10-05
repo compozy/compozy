@@ -3,11 +3,13 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -49,6 +51,11 @@ func operatorSafeActionFailure(cause error) looppkg.ActionFailure {
 	message := "The action failed before producing an output."
 	recovery := "Review the action input and required services, then retry the run."
 
+	if policyErr, ok := errors.AsType[*session.AllowedToolsPolicyError](cause); ok {
+		return looppkg.NewActionFailure("allowed_tools_policy_violation",
+			fmt.Sprintf("The Loop worker requested tool %q outside the Agent's allowed tools.", policyErr.Tool),
+			"Remove the disallowed tool from allowed_tools or select an Agent that permits it, then retry the run.")
+	}
 	if diagnostic, ok := errors.AsType[*diagnosticspkg.StructuredError](cause); ok &&
 		diagnostic.Item.Code == diagcontract.CodeProviderCredentialUnresolved {
 		return looppkg.NewActionFailure("credential_missing",

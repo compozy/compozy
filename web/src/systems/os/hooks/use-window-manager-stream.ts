@@ -6,7 +6,11 @@ import {
   buildWindowManagerStreamUrl,
   fetchWindowManagerSnapshot,
 } from "../adapters/window-manager-api";
-import { writeWindowManagerClientCommandFrame } from "../lib/window-manager-client-command-frames";
+import {
+  dispatchWindowManagerClientCommand,
+  writeWindowManagerClientCommandFrame,
+  type WindowManagerClientCommandExecutor,
+} from "../lib/window-manager-client-command-frames";
 import { parseWindowManagerStreamFrame } from "../lib/window-manager-stream-schema";
 import {
   browserWindowManagerSocket,
@@ -18,7 +22,6 @@ import type {
   LayoutRevision,
   WindowManagerAttachedClientView,
   WindowManagerClientView,
-  WindowManagerClientCommand,
   WindowManagerConnectionStatus,
   WindowManagerErrorPayload,
   WindowManagerSnapshot,
@@ -62,7 +65,7 @@ export interface UseWindowManagerStreamOptions {
   onStatusChange: (status: WindowManagerConnectionStatus) => void;
   onSnapshot: (snapshot: WindowManagerSnapshot) => void;
   onClient: (client: WindowManagerAttachedClientView) => void;
-  onClientCommand?: (command: WindowManagerClientCommand) => unknown | Promise<unknown>;
+  onClientCommand?: WindowManagerClientCommandExecutor;
   onClientInvalidated: () => void;
   onError: (error: Error | WindowManagerErrorPayload) => void;
 }
@@ -397,27 +400,12 @@ export function useWindowManagerStream({
               );
             }
           };
-          sendFrame({ type: "client_command_ack", command_id: frame.command.commandId });
-          void Promise.resolve()
-            .then(() => executeClientCommand(frame.command))
-            .then(result => {
-              if (stopped) return;
-              sendFrame({
-                type: "client_command_result",
-                command_id: frame.command.commandId,
-                ...(result === undefined ? {} : { result }),
-              });
-            })
-            .catch(cause => {
-              if (stopped) return;
-              const error =
-                cause instanceof Error ? cause : new Error("The client operation failed.");
-              sendFrame({
-                type: "client_command_result",
-                command_id: frame.command.commandId,
-                error: error.message,
-              });
-            });
+          dispatchWindowManagerClientCommand(
+            frame.command,
+            executeClientCommand,
+            sendFrame,
+            () => !stopped
+          );
           return;
         }
         if (frame.type === "snapshot") {

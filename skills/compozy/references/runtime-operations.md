@@ -56,6 +56,9 @@ object from `session status -o json` (or any session read), rather than inferrin
 the top-level session state: it reports `status`, `transition`, redacted `failure`, `selected`,
 `selection_revision`, `effective`, ACP session ID, and advertised ACP capabilities. `selected` is
 durable next-prompt intent; `effective` is the runtime already bound to the current process.
+Authenticated `/agent/context.self.model` and the fresh situation supplied with each prompt use
+the session's effective model when present, ahead of the configured agent default. A pending
+next-prompt selection does not replace that identity before it is applied.
 `runtime.acp_caps` (absent while unbound) includes `supports_load_session`, `supports_fork_session`,
 and `supports_resume_session`; each is `true` only when the bound agent advertised it.
 
@@ -111,6 +114,26 @@ The event store and materialized transcript are the durable source of truth for 
 Each `events.db` is bound to one exact session and workspace. Session reads and writes through CLI,
 HTTP/UDS, or native tools must match that persisted owner. A missing or mismatched owner refuses the
 open before migration or data mutation; CompozyOS does not adopt, rebind, or repair the database.
+
+History migrated from the former operator-home registration appears in the catalog as Global
+(`workspace_id` is empty). Its database still belongs to the original workspace recorded in the
+immutable creation witness. CompozyOS validates that witness and the physical owner together;
+the empty catalog scope is not permission to adopt another database. Retained version 3–5
+creation profiles preserve their original hashes without enabling retired runtime policies.
+
+Read Global history through `GET /api/sessions/{session_id}/transcript`, with the same paging
+parameters and profile read scope as project history. The same Global prefix exposes `/status`,
+`/events`, `/history` and `/stream`, preserving event filters, archive selection, bounds and
+resume cursors. CLI `session status`, `events` (including `--follow`) and `history` resolve that
+owner automatically. Project mutation routes and native-tool workspace requirements remain unchanged.
+The corresponding owner lookup reports
+an empty workspace ID and the name `Global`. Web links enable Global after confirmation while
+preserving the remembered project; the recovered transcript is read-only.
+
+At startup, a missing or mismatched owner, or a changed physical database identity, produces a
+warning with the session and workspace IDs. That store is excluded from boot history processing;
+healthy sessions remain available and public reads of the refused store still fail. Migration and
+schema failures remain fatal to startup.
 
 If an owner check fails, stop the daemon and preserve the complete containing `COMPOZY_HOME`, including
 the database and every SQLite sidecar. Restore a matching complete backup, or create a new session when
@@ -323,6 +346,11 @@ clarification answer reports `answered`. Resolving an orphaned request reports
 winning decision or answer. `queue-full` leaves the interaction untouched and is safe to retry.
 `compozy session status <session-id> -o json` returns both the canonical badge and this same bounded
 pending-interaction projection.
+
+When a permission's caller cancels or its provider connection closes, the runtime cancels that
+interaction and clears its pending attention without a daemon restart. A hosted native tool whose
+approval deadline expires reports `approval_timed_out`; its canceled permission cannot be approved
+later. Read interactions again before answering a request retained in an older client view.
 
 Operator clients acquire a per-client visibility lease with
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence`. A first request with
@@ -560,6 +588,9 @@ delivery ownership and freshness. `--turns -o toon` emits separate `session_usag
 archive fields stay structured rather than being embedded in display text.
 
 `compozy session stop <id>` requests asynchronous termination and returns the updated session resource.
+For a named profile, pass the session owner's `--profile <name>`; HTTP/UDS callers pass
+`?profile=<name>` on the stop route. Web stop controls retain the selected session's workspace and
+profile, including mixed-owner bulk selections.
 Use `--wait -o json` for the stop outcome (`state`, `verified`, `escalated`, `stop_cause`, `phase`,
 `stopped_after`). Session resources retain the unverified-stop diagnostic as `attention: "stop_verification_failed"` and badge `needs-attention` across reconnects. `session status` adds `lifecycle_state` alongside its existing health `state`, plus `verified`, `escalated`, and `attention`. A verified stop retry clears the diagnostic. `verified:false` with `attention:"stop_verification_failed"` means exit remains
 unproven; the state stays `stopping`. Inspect diagnostics and retry instead of assuming the process died.
@@ -630,6 +661,13 @@ session ID, transcript, archive state, and lineage.
 
 The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
+For document-wide subscriptions, the session catalog, worktree catalog, and `/api/logs/stream`
+also accept WebSocket upgrades. Each text message is one complete SSE frame, preserving named
+events and redaction while leaving HTTP/1.1 connections free for commands across browser tabs.
+Resume session catalog/log streams with the exact prior event id in `last_event_id`; the
+`Last-Event-ID` header takes precedence. Preserve the original scope and filters, and mint a fresh
+stream ticket on every remote gateway reconnect. Worktree catalog wakes require refetch on reconnect.
+
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically.
 
 Governed children without an explicit agent command inherit the creator's resolved command only
@@ -689,7 +727,7 @@ First-run onboarding completion is a global instance flag (stored in the `app_me
     compozy onboarding complete    # mark first-run onboarding as done
     compozy onboarding reset       # clear the flag so the web wizard runs again
 
-The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot registers the operator `$HOME` as the default workspace before the wizard starts, so the workspace step should not require manual project registration on a clean machine.
+The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot does not register a workspace automatically. Project folders are optional: finishing or choosing Skip without a project opens the desktop in Global scope without registering the operator `$HOME`.
 
 Native session tools include scoped wait, governed spawn, stop, approval, clarification answer, and
 prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS management surfaces unless
@@ -988,6 +1026,10 @@ operator trail: `entries: [{sequence, turn_id, preview, reply_preview, at}]`, wi
 previews. HTTP/UDS routes are `/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search`
 and `/transcript/outline`; CLI twins are `compozy session search <id> <query> --limit 50 -o json`
 and `compozy session outline <id> -o json`.
+For retained Global history, CLI selects `/api/sessions/{session_id}/transcript/search` or
+`/transcript/outline` automatically. These HTTP/UDS routes accept only Global-owned sessions
+and enforce profile read scope. Native session tools retain their project/caller workspace
+boundary; use the operator CLI or HTTP/UDS Global routes to inspect migrated home history.
 After compaction/rewind/clear, re-read navigation against the current transcript fences.
 
 Session resource reads include `stop_cause` with the existing `stop_reason`,

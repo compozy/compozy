@@ -53,7 +53,7 @@ func (n *daemonNativeTools) taskList(
 	}
 	page, err := n.deps.Tasks.ListTaskCatalog(ctx, query, actor)
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
 	}
 	response := core.TaskCatalogResponseFromPage(page)
 	return structuredResult(response, fmt.Sprintf("%d of %d tasks", len(response.Tasks), response.Page.Total))

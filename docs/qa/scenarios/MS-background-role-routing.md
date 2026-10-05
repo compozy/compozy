@@ -6,13 +6,13 @@ persona: Dora
 journey: J-route-background-work
 expected: New coordinator, dream, extractor, auto-title, checkpoint-summary, and memory-controller work resolves the most-specific configured identity and model across user, personal-profile, workspace, and workspace-profile layers without changing role policy or leaking across workspaces; each shadowed read exposes its winning source.
 entry_points: config.toml; active `--profile <name>` config context; compozy config set roles.<role>.<key> <value>; compozy config set roles '<table-json>'; compozy config set --scope profile roles '<table-json>'; compozy config set --scope workspace --workspace <root> roles '<table-json>'; workspace named-profile config layer; compozy__config_list|get|set|unset over exact roles.* leaves or the structured roles table (compozy__config_path proves the selected scope target only); docs runtime/core/configuration/config-toml [roles]
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260724-coordinator-config-list-path;BUG-20260724-inherited-role-provider-resolution
 fix_status: fixed
 retest_status: pass
 fix_commits: 69b2099f3cada66395ced4c8ae862b21b5ebc996;a9a8fcad63f4354505e4c9a0701a6d0f559cc991
 evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/config-list-coordinator-after-fix.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/config-get-coordinator-enabled-after-fix.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/native-tools-session-2-history.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/inherit-provider-fix-auto-title-child.json;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-026; RT-033; RT-session-auto-title; MS-workspace-checkpoint-continuity
 ---
 
@@ -45,3 +45,7 @@ QA impact 2026-07-25 (deep-review remediation): disabled roles now return a disa
 decision before catalog or provider resolution, structured JSON config writes preserve integer
 values, and direct ACP roles accept an empty model. Flag only; the next QA cycle owns live
 global/workspace and CLI/native-tool parity retesting.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

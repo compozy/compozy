@@ -73,12 +73,16 @@ export interface JobPreviewModel {
 }
 
 type Draft = CreateAutomationJobRequest;
+type JobRunSource = Pick<
+  Draft,
+  "name" | "agent_name" | "prompt" | "target_kind" | "loop_target" | "task"
+>;
 type JobOwner = NonNullable<NonNullable<Draft["task"]>["owner"]>;
 
 const NEXT_RUNS_COUNT = 5;
 
 /** Loop discrimination wins; task mode remains derived from the durable task body. */
-function deriveOutput(draft: Draft): "agent" | "loop" | "task" {
+function deriveOutput(draft: JobRunSource): "agent" | "loop" | "task" {
   if (projectAutomationTarget(draft).kind === "loop") return "loop";
   return draft.task ? "task" : "agent";
 }
@@ -237,7 +241,7 @@ function buildNextRuns(draft: Draft, now: number): NextRunsResult {
  * Run-body digest: agent mode renders its prompt, Loop mode renders its typed
  * target, and task mode renders the materialized task with `delegated` status.
  */
-function buildRunDigest(draft: Draft): JobRunDigest {
+export function buildJobRunDigest(draft: JobRunSource): JobRunDigest {
   const output = deriveOutput(draft);
   const target = projectAutomationTarget(draft);
   if (output === "task" && draft.task) {
@@ -287,7 +291,7 @@ export function buildJobPreview(
     scheduleReadout: readout.text,
     nextRuns: nextRuns.runs,
     nextRunsEmptyReason: nextRuns.emptyReason,
-    runDigest: buildRunDigest(draft),
+    runDigest: buildJobRunDigest(draft),
     request: projectAutomationJobRequest(draft, mode),
     targetIssue,
   };

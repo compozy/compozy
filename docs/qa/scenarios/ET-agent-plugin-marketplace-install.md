@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: A catalog entry marked `format: agent-plugin` shows a neutral Agent Plugin badge on the card and detail view, follows the normal trust and install flow, lands on extension management with format and skipped diagnostics visible, and still relies on acquired-package detection when catalog metadata is absent or stale.
 entry_points: Web /marketplace and entry detail; Web extension trust/install dialog and /settings/extensions; compozy marketplace search; GET /api/marketplace over HTTP and UDS; POST /api/extensions; curated catalog feed
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: pending
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-agent-plugins.md#marketplace-and-browser; /Users/pedronauck/.config/browser-harness/agent-workspace/recordings/agent-plugin-marketplace; /Users/pedronauck/dev/qa-labs/compozy-agent-plugins-20260816-20260816-061032-351590-lab/qa-artifacts/browser-screenshots/installed-agent-plugin.png; /Users/pedronauck/dev/qa-labs/compozy-agent-plugins-20260816-20260816-061032-351590-lab/qa-artifacts/browser-screenshots/agent-plugin-inventory.png
-last_report: docs/qa/reports/2026-08-16-agent-plugins.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-catalog-navigation; ET-web-marketplace-detail-redesign; ET-web-marketplace-installed-management
 ---
 
@@ -55,3 +55,7 @@ bytes with an unchanged version and verify new provenance plus preserved inputs/
 Focused daemon integration and controller tests are receipts, not completion of this live browser row.
 
 CI repair impact 2026-09-13: the browser suite installs both standard and .claude-plugin packages through trust and install-summary confirmation. Read the resulting instance using its returned workspace/profile; an unscoped 404 must not be treated as installation failure. The current layout value is claude-plugin. Unsupported component diagnostics remain visible on the standard package.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

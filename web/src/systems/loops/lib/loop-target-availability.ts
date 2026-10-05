@@ -82,12 +82,18 @@ export function loopTargetAvailabilityMessage(
     return `Checking whether ${catalog.selectedName} declares the ${catalog.requiredStartKind} start kind.`;
   }
   if (catalog.status === "incompatible") {
-    const retained = mode === "edit" ? " The saved selection remains visible." : "";
-    return `${catalog.selectedName} does not declare the ${catalog.requiredStartKind} start kind.${retained} Choose a compatible Loop before saving.`;
+    const recovery =
+      mode === "edit"
+        ? `Update this Loop to allow ${catalog.requiredStartKind} starts before saving.`
+        : "Choose a compatible Loop before saving.";
+    return `${catalog.selectedName} does not declare the ${catalog.requiredStartKind} start kind. ${recovery}`;
   }
   if (catalog.status === "unavailable") {
-    const retained = mode === "edit" ? " The saved selection remains visible." : "";
-    return `${catalog.selectedName} could not be loaded from this workspace.${retained} Choose an available Loop before saving.`;
+    const recovery =
+      mode === "edit"
+        ? "Restore access to this Loop before saving."
+        : "Choose an available Loop before saving.";
+    return `${catalog.selectedName} could not be loaded from this workspace. ${recovery}`;
   }
   return null;
 }

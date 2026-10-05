@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -20,11 +21,11 @@ func (n *daemonNativeTools) automationJobsList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query, err := input.query(req.ToolID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query.ReadScope, err = n.nativeProfileReadScope(ctx, scope)
+	query, err := input.query(req.ToolID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -57,11 +58,11 @@ func (n *daemonNativeTools) automationTriggersList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query, err := input.query(req.ToolID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query.ReadScope, err = n.nativeProfileReadScope(ctx, scope)
+	query, err := input.query(req.ToolID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -93,8 +94,12 @@ type automationJobsListInput struct {
 	Limit       int    `json:"limit,omitempty"`
 }
 
-func (i automationJobsListInput) query(id toolspkg.ToolID) (automationpkg.JobListQuery, error) {
+func (i automationJobsListInput) query(
+	id toolspkg.ToolID,
+	readScope store.ReadScope,
+) (automationpkg.JobListQuery, error) {
 	query := automationpkg.JobListQuery{
+		ReadScope:   readScope,
 		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
 		LoopName:    strings.TrimSpace(i.LoopName),
 		Enabled:     i.Enabled,
@@ -129,8 +134,12 @@ type automationTriggersListInput struct {
 	Limit       int    `json:"limit,omitempty"`
 }
 
-func (i automationTriggersListInput) query(id toolspkg.ToolID) (automationpkg.TriggerListQuery, error) {
+func (i automationTriggersListInput) query(
+	id toolspkg.ToolID,
+	readScope store.ReadScope,
+) (automationpkg.TriggerListQuery, error) {
 	query := automationpkg.TriggerListQuery{
+		ReadScope:   readScope,
 		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
 		Event:       strings.TrimSpace(i.Event),
 		LoopName:    strings.TrimSpace(i.LoopName),

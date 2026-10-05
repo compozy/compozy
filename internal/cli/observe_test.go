@@ -50,6 +50,25 @@ func overviewTestPayload() contract.ObserveOverviewPayload {
 func TestObserveOverviewCommand(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject an explicit zero usage window before reading the overview", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		client := &stubClient{
+			observeOverviewFn: func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error) {
+				called = true
+				return contract.ObserveOverviewResponse{Overview: overviewTestPayload()}, nil
+			},
+		}
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client),
+			"observe", "overview", "--usage-window=0", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), "--usage-window must be 7, 30, or 90") {
+			t.Fatalf("explicit zero error = %v, output = %q", err, stdout)
+		}
+		if called {
+			t.Fatal("invalid usage window reached the overview client")
+		}
+	})
+
 	t.Run("Should return the raw overview payload for json output", func(t *testing.T) {
 		t.Parallel()
 

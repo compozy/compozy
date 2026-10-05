@@ -37,12 +37,11 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	query, err := ParseAutomationJobListQuery(c)
+	query, err := ParseAutomationJobListQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
-	query.ReadScope = readScope
 
 	page, err := manager.ListJobs(c.Request.Context(), query)
 	if err != nil {

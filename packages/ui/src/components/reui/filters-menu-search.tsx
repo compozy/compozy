@@ -21,7 +21,6 @@ interface FiltersMenuSearchInputProps<T = unknown> {
   openSubMenu: string | null;
   rootHighlightedIndex: number;
   rootId: string;
-  rootInputRef: React.RefObject<HTMLInputElement | null>;
   setMenuState: React.Dispatch<FiltersMenuAction>;
   shortcutLabel?: string;
 }
@@ -39,7 +38,6 @@ function FiltersMenuSearchInput<T = unknown>({
   openSubMenu,
   rootHighlightedIndex,
   rootId,
-  rootInputRef,
   setMenuState,
   shortcutLabel,
 }: FiltersMenuSearchInputProps<T>) {
@@ -63,7 +61,6 @@ function FiltersMenuSearchInput<T = unknown>({
           value={menuSearchInput}
           onFocus={() => setMenuState({ activeMenu: "root" })}
           onMouseEnter={() => setMenuState({ activeMenu: "root" })}
-          onBlur={() => activeMenu === "root" && rootInputRef.current?.focus()}
           onChange={event =>
             setMenuState({
               menuSearchInput: event.target.value,

@@ -186,8 +186,8 @@ describe("TriggerDetailPanel", () => {
     expect(screen.queryByTestId("trigger-detail-sentence")).not.toBeInTheDocument();
   });
 
-  it("Should surface the daemon's own reason when the trigger cannot be read", () => {
-    renderPanel({
+  it("Should surface the daemon's reason and offer catalog navigation when a trigger cannot be read", () => {
+    const { onBack } = renderPanel({
       error: new Error("This trigger belongs to another project."),
       trigger: undefined,
     });
@@ -195,6 +195,8 @@ describe("TriggerDetailPanel", () => {
     expect(screen.getByTestId("automation-detail-error")).toHaveTextContent(
       "This trigger belongs to another project."
     );
+    fireEvent.click(screen.getByRole("button", { name: "Back to Triggers" }));
+    expect(onBack).toHaveBeenCalledOnce();
   });
 
   it("Should offer a way back when the trigger no longer exists", () => {

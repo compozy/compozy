@@ -162,7 +162,7 @@ function LoopRunDetail({
         isReconnecting={page.isReconnecting}
         usageRows={page.usageRows}
         usageNote={page.usageNote}
-        approvalRequest={page.live.needsApproval}
+        approvalRequest={page.approvalRequest}
         approvalFallbackFacts={page.approvalFallbackFacts}
         generations={page.generations}
         inputRows={page.inputRows}

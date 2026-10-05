@@ -140,9 +140,9 @@ function SessionRuntimeExtensions({
   );
 }
 
-function requireWorkspaceId(workspaceId: string): string {
+function requireWorkspaceId(workspaceId: string, readOnly: boolean): string {
   const trimmed = workspaceId.trim();
-  if (!trimmed) {
+  if (!trimmed && !readOnly) {
     throw new Error("SessionChatRuntimeProvider requires a non-empty workspaceId");
   }
   return trimmed;
@@ -153,6 +153,8 @@ export interface SessionChatRuntimeProviderProps {
   workspaceId: string;
   eventSourceFactory?: SessionStreamEventSourceFactory;
   liveTailEnabled?: boolean;
+  /** Retained history can render without a project; prompting remains unavailable. */
+  readOnly?: boolean;
   children: ReactNode;
 }
 
@@ -163,17 +165,19 @@ function SessionChatRuntimeBinding({
   promptRecovery,
   eventSourceFactory,
   liveTailEnabled = true,
+  readOnly = false,
   children,
 }: SessionChatRuntimeProviderProps & {
   promptDispatch: SessionPromptDispatchStore;
   promptRecovery: SessionPromptRecovery;
 }) {
-  const resolvedWorkspaceId = requireWorkspaceId(workspaceId);
+  const resolvedWorkspaceId = requireWorkspaceId(workspaceId, readOnly);
   const runtime = useSessionChatRuntime({
     sessionId,
     workspaceId: resolvedWorkspaceId,
     promptDispatch,
     promptRecovery,
+    readOnly,
   });
   const aui = useAui({
     tools: Tools({ toolkit: sessionToolkit }),
@@ -193,7 +197,7 @@ function SessionChatRuntimeBinding({
           workspaceId={resolvedWorkspaceId}
           promptDispatch={promptDispatch}
           eventSourceFactory={eventSourceFactory}
-          liveTailEnabled={liveTailEnabled}
+          liveTailEnabled={liveTailEnabled && resolvedWorkspaceId !== ""}
         >
           {children}
         </SessionRuntimeExtensions>

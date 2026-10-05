@@ -36,7 +36,8 @@ export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   });
   const resolvedDesktopWorkspaceId = resolution.desktopWorkspaceId;
   useEffect(() => {
-    if (resolvedDesktopWorkspaceId === null) return;
+    if (resolvedDesktopWorkspaceId === null || resolvedDesktopWorkspaceId === desktopWorkspaceId)
+      return;
     activeWorkspaceStore.trigger.desktopWorkspaceObserved({
       workspaceId: resolvedDesktopWorkspaceId,
       selectedWorkspaceId,

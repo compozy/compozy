@@ -4,7 +4,18 @@ import { loopsKeys } from "../query-keys";
 
 describe("loopsKeys", () => {
   it("Should scope every read key by workspace so a workspace switch never serves another cache", () => {
-    expect(loopsKeys.catalog("ws_a")).toEqual(["loops", "catalog", "ws_a", "", "", "", "", "", ""]);
+    expect(loopsKeys.catalog("ws_a")).toEqual([
+      "loops",
+      "catalog",
+      "ws_a",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
     expect(loopsKeys.detail("ws_a", "delivery")).toEqual(["loops", "detail", "ws_a", "delivery"]);
     expect(loopsKeys.config("ws_a", "delivery")).toEqual(["loops", "config", "ws_a", "delivery"]);
     expect(loopsKeys.annotations("ws_a", "delivery")).toEqual([
@@ -38,6 +49,7 @@ describe("loopsKeys", () => {
       "running",
       "name",
       "25",
+      "",
     ]);
   });
 

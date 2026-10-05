@@ -3767,8 +3767,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			descriptor,
 			json.RawMessage(`{"workspace":"target-alias"}`),
 		)
-		if err != nil || string(stableInput) != `{"workspace":"ws-target"}` {
-			t.Fatalf("stable workspace input = %s, %v, want durable target id", stableInput, err)
+		if err != nil || string(stableInput) != `{"workspace":"registry-target"}` {
+			t.Fatalf("stable workspace input = %s, %v, want registered target id", stableInput, err)
 		}
 
 		cache := newWorkspaceAccessConsentCache()
@@ -5774,6 +5774,29 @@ func TestDaemonNativeTools(t *testing.T) {
 		if bindings.syncCalls != 0 {
 			t.Fatalf("HookBindings.Sync calls = %d, want 0 before approval", bindings.syncCalls)
 		}
+	})
+
+	t.Run("Should classify task catalog validation failures as invalid input", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeTestSessionManager("ws-1"),
+			Tasks: &apitest.StubTaskManager{
+				ListTaskCatalogFn: func(
+					_ context.Context, query taskpkg.CatalogQuery, _ taskpkg.ActorContext,
+				) (taskpkg.CatalogPage, error) {
+					_, err := taskpkg.NormalizeCatalogQuery(query)
+					return taskpkg.CatalogPage{}, err
+				},
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-actor", WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDTaskList, Input: json.RawMessage(`{"status":"queued"}`)},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
 	t.Run("Should route bounded task tools through task service boundaries", func(t *testing.T) {
@@ -10329,6 +10352,349 @@ func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtif
 
 func TestDaemonBootToolRegistry(t *testing.T) {
 	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		patch       hookspkg.ToolCallPatch
+		input       json.RawMessage
+		postPreview string
+		postResult  json.RawMessage
+		postError   string
+		wantErr     error
+		wantReason  toolspkg.ReasonCode
+		wantCalls   int
+		wantEvents  []string
+	}{
+		{
+			name:    "Should enforce configured hooks before executing native tools",
+			patch:   hookspkg.ToolCallPatch{ControlPatch: hookspkg.ControlPatch{Deny: true}},
+			wantErr: toolspkg.ErrToolDenied, wantReason: toolspkg.ReasonHookDenied,
+			wantEvents: []string{"pre"},
+		},
+		{
+			name:    "Should prevent a hook from switching the bound native workspace",
+			patch:   hookspkg.ToolCallPatch{ToolInput: json.RawMessage(`{"workspace":"ws-editorial"}`)},
+			wantErr: toolspkg.ErrToolDenied, wantReason: toolspkg.ReasonHookDenied,
+			wantEvents: []string{"pre"},
+		},
+		{
+			name:      "Should allow a hook to retain the same workspace through its alias",
+			patch:     hookspkg.ToolCallPatch{ToolInput: json.RawMessage(`{"workspace":"Studio"}`)},
+			wantCalls: 1, wantEvents: []string{"pre", "post"},
+		},
+		{
+			name:    "Should prevent a hook from widening a bound workspace to global scope",
+			patch:   hookspkg.ToolCallPatch{ToolInput: json.RawMessage(`{"workspace":"ws-studio","scope":"global"}`)},
+			wantErr: toolspkg.ErrToolDenied, wantReason: toolspkg.ReasonHookDenied,
+			wantEvents: []string{"pre"},
+		},
+		{
+			name:    "Should validate hook input patches before calling the task service",
+			patch:   hookspkg.ToolCallPatch{ToolInput: json.RawMessage(`{"priority":123}`)},
+			wantErr: toolspkg.ErrToolInvalidInput, wantReason: toolspkg.ReasonSchemaInvalid,
+			wantEvents: []string{"pre"},
+		},
+		{
+			name:    "Should reject hook changes to native read-only metadata",
+			patch:   hookspkg.ToolCallPatch{ReadOnly: new(false)},
+			wantErr: toolspkg.ErrToolDenied, wantReason: toolspkg.ReasonHookDenied,
+			wantEvents: []string{"pre"},
+		},
+		{
+			name:    "Should reject hook changes to native tool identity",
+			patch:   hookspkg.ToolCallPatch{ToolID: new("compozy__workspace_info")},
+			wantErr: toolspkg.ErrToolDenied, wantReason: toolspkg.ReasonHookDenied,
+			wantEvents: []string{"pre"},
+		},
+		{
+			name:        "Should apply native post-call output annotations",
+			postPreview: "Studio task catalog reviewed", wantCalls: 1,
+			wantEvents: []string{"pre", "post"},
+		},
+		{
+			name:       "Should apply a canonical native result replacement",
+			postResult: json.RawMessage(`{"structured":{"reviewed":true}}`),
+			wantCalls:  1, wantEvents: []string{"pre", "post"},
+		},
+		{
+			name:       "Should reject a malformed canonical native result replacement",
+			postResult: json.RawMessage(`"invalid envelope"`),
+			wantErr:    toolspkg.ErrToolDenied, wantReason: toolspkg.ReasonHookDenied,
+			wantCalls: 1, wantEvents: []string{"pre", "post"},
+		},
+		{
+			name:  "Should dispatch native post-error hooks without losing the error code",
+			input: json.RawMessage(`{"status":"queued"}`), postError: "Select a task status",
+			wantErr: toolspkg.ErrToolInvalidInput, wantReason: toolspkg.ReasonSchemaInvalid,
+			wantCalls: 1, wantEvents: []string{"pre", "error"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := testHomePaths(t)
+			cfg := testConfig(t, homePaths)
+			cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+			registry := openDaemonTestGlobalDB(t)
+			workspace := workspacepkg.Workspace{ID: "ws-studio", Name: "Studio", RootDir: t.TempDir()}
+			root, err := filepath.EvalSymlinks(workspace.RootDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace.RootDir = root
+			for _, entry := range []workspacepkg.Workspace{
+				workspace, {ID: "ws-editorial", Name: "Editorial", RootDir: t.TempDir()},
+			} {
+				if err := registry.InsertWorkspace(t.Context(), entry); err != nil {
+					t.Fatal(err)
+				}
+			}
+			resolver, err := workspacepkg.NewResolver(registry, workspacepkg.WithHomePaths(homePaths))
+			if err != nil {
+				t.Fatal(err)
+			}
+			profiles, err := profilepkg.NewManager(profilepkg.WithStore(registry), profilepkg.WithHomePaths(homePaths))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var events []string
+			executors := map[string]hookspkg.Executor{
+				"pre": hookspkg.NewTypedNativeExecutor(func(
+					_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ToolPreCallPayload,
+				) (hookspkg.ToolCallPatch, error) {
+					events = append(events, "pre")
+					if payload.ToolID != toolspkg.ToolIDTaskList.String() || !payload.ReadOnly ||
+						payload.WorkspaceID != workspace.ID || payload.Workspace != workspace.RootDir ||
+						payload.ProfileID != store.DefaultProfileID || payload.ToolCallID != "call-hook" {
+						t.Errorf("pre-call metadata = %#v, want scoped native descriptor", payload)
+					}
+					return tc.patch, nil
+				}),
+				"post": hookspkg.NewTypedNativeExecutor(func(
+					_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ToolPostCallPayload,
+				) (hookspkg.ToolResultPatch, error) {
+					events = append(events, "post")
+					var result toolspkg.ToolResult
+					if err := json.Unmarshal(payload.ToolResult, &result); err != nil || len(result.Structured) == 0 {
+						t.Errorf("post-call result = %s, %v, want canonical tool result", payload.ToolResult, err)
+					}
+					if tc.postPreview != "" {
+						return hookspkg.ToolResultPatch{Title: new(tc.postPreview)}, nil
+					}
+					return hookspkg.ToolResultPatch{ToolResult: tc.postResult}, nil
+				}),
+				"error": hookspkg.NewTypedNativeExecutor(func(
+					_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ToolPostErrorPayload,
+				) (hookspkg.ToolPostErrorPatch, error) {
+					events = append(events, "error")
+					if payload.Error == "" {
+						t.Error("post-error payload lost the task validation failure")
+					}
+					return hookspkg.ToolPostErrorPatch{Error: new(tc.postError)}, nil
+				}),
+			}
+			var declarations []hookspkg.HookDecl
+			for name, event := range map[string]hookspkg.HookEvent{
+				"pre": hookspkg.HookToolPreCall, "post": hookspkg.HookToolPostCall, "error": hookspkg.HookToolPostError,
+			} {
+				declarations = append(declarations, hookspkg.HookDecl{
+					Name: name, Event: event, Mode: hookspkg.HookModeSync, ExecutorKind: hookspkg.HookExecutorNative,
+					Matcher: hookspkg.HookMatcher{ToolID: toolspkg.ToolIDTaskList.String(), WorkspaceID: workspace.ID},
+				})
+			}
+			hooks := hookspkg.NewHooks(hookspkg.WithNativeDeclarations(declarations), hookspkg.WithExecutorResolver(
+				func(declaration hookspkg.HookDecl) (hookspkg.Executor, error) {
+					return executors[declaration.Name], nil
+				},
+			))
+			t.Cleanup(hooks.Close)
+			if err := hooks.Rebuild(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			state := &bootState{
+				cfg:               cfg,
+				registry:          registry,
+				workspaceResolver: resolver,
+				hooks:             hooks,
+				profiles:          profiles,
+				deps: RuntimeDeps{Tasks: &apitest.StubTaskManager{ListTaskCatalogFn: func(
+					_ context.Context, query taskpkg.CatalogQuery, _ taskpkg.ActorContext,
+				) (taskpkg.CatalogPage, error) {
+					calls++
+					if query.WorkspaceID != workspace.ID {
+						t.Errorf("handler workspace = %q, want %q", query.WorkspaceID, workspace.ID)
+					}
+					_, err := taskpkg.NormalizeCatalogQuery(query)
+					return taskpkg.CatalogPage{}, err
+				}}},
+			}
+			cleanup := &bootCleanup{}
+			t.Cleanup(func() {
+				var cleanupErr error
+				cleanup.run(t.Context(), &cleanupErr)
+				if cleanupErr != nil {
+					t.Errorf("boot cleanup error = %v", cleanupErr)
+				}
+			})
+			daemon := &Daemon{homePaths: homePaths}
+			if err := daemon.bootToolRegistry(t.Context(), state, cleanup); err != nil {
+				t.Fatal(err)
+			}
+			input := tc.input
+			if len(input) == 0 {
+				input = json.RawMessage(`{}`)
+			}
+			result, err := state.toolRegistry.Call(t.Context(), toolspkg.Scope{
+				Operator: true, WorkspaceID: workspace.ID, ProfileID: store.DefaultProfileID,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTaskList, ToolCallID: "call-hook", Input: input})
+			if tc.wantErr != nil {
+				requireToolReason(t, err, tc.wantErr, tc.wantReason)
+			} else if err != nil {
+				t.Fatalf("Call() error = %v", err)
+			}
+			if tc.postPreview != "" && result.Preview != tc.postPreview {
+				t.Errorf("result preview = %q, want %q", result.Preview, tc.postPreview)
+			}
+			if tc.wantErr == nil && len(tc.postResult) > 0 {
+				requireNativeStructuredContains(t, result, []byte(`"reviewed":true`))
+			}
+			if tc.postError != "" && !strings.Contains(err.Error(), tc.postError) {
+				t.Errorf("post-error message = %q, want %q", err, tc.postError)
+			}
+			if calls != tc.wantCalls || !slices.Equal(events, tc.wantEvents) {
+				t.Errorf("handler calls/events = %d/%v, want %d/%v", calls, events, tc.wantCalls, tc.wantEvents)
+			}
+		})
+	}
+
+	t.Run("Should bind approvals to the native input dispatched by the booted registry", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
+		workspace := workspacepkg.Workspace{ID: "ws-approval", Name: "Editorial", RootDir: t.TempDir()}
+		registry := openDaemonTestGlobalDB(t)
+		if err := registry.InsertWorkspace(t.Context(), workspace); err != nil {
+			t.Fatal(err)
+		}
+		profiles, err := profilepkg.NewManager(profilepkg.WithStore(registry), profilepkg.WithHomePaths(homePaths))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(
+			registry,
+			workspacepkg.WithHomePaths(homePaths),
+			workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+			workspacepkg.WithProfileConfigLoader(
+				func(string, string) (compozyconfig.Config, error) { return cfg, nil },
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state := &bootState{cfg: cfg, registry: registry, workspaceResolver: resolver, profiles: profiles}
+		state.sessions = &fakeSessionManager{infos: []*session.Info{{
+			ID: "sess-approval", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
+			State: session.StateActive,
+		}}}
+		daemon := &Daemon{homePaths: homePaths}
+		cleanup := &bootCleanup{}
+		t.Cleanup(func() {
+			var cleanupErr error
+			cleanup.run(t.Context(), &cleanupErr)
+			if cleanupErr != nil {
+				t.Errorf("boot cleanup error = %v", cleanupErr)
+			}
+		})
+		if err := daemon.bootToolRegistry(t.Context(), state, cleanup); err != nil {
+			t.Fatalf("bootToolRegistry() error = %v", err)
+		}
+		resolved, err := resolver.Resolve(t.Context(), workspace.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		canonical, err := json.Marshal(map[string]string{"workspace": resolved.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := toolspkg.ApprovalInputDigest(canonical, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		alias := json.RawMessage(`{"workspace":"Editorial"}`)
+		aliasDigest, err := toolspkg.ApprovalInputDigest(alias, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		pathInput, err := json.Marshal(map[string]string{"workspace": workspace.RootDir})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name        string
+			input       json.RawMessage
+			inputDigest string
+			invalid     bool
+			agent       bool
+		}{
+			{name: "Should approve a workspace name", input: json.RawMessage(`{"workspace":"Editorial"}`)},
+			{name: "Should approve a workspace path", input: pathInput},
+			{name: "Should approve an omitted workspace", input: json.RawMessage(`{}`)},
+			{name: "Should approve an absent input"},
+			{name: "Should retain digest-only approval", inputDigest: digest},
+			{name: "Should approve input with its matching digest", input: canonical, inputDigest: digest},
+			{name: "Should validate a submitted alias digest before binding", input: alias, inputDigest: aliasDigest},
+			{name: "Should preserve agent access through its workspace name", input: alias, agent: true},
+			{name: "Should preserve agent access through its workspace path", input: pathInput, agent: true},
+			{name: "Should preserve agent access through its workspace id", input: json.RawMessage(`{"workspace":"ws-approval"}`), agent: true},
+			{name: "Should preserve agent access through its inherited workspace", input: json.RawMessage(`{}`), agent: true},
+			{
+				name:  "Should reject a supplied digest that differs from the submitted input",
+				input: json.RawMessage(`{"workspace":"Editorial"}`), inputDigest: digest, invalid: true,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				scope := toolspkg.Scope{Operator: !tc.agent, WorkspaceID: workspace.ID, SessionID: "sess-approval"}
+				grant, err := state.deps.ToolApprovals.CreateToolApproval(
+					t.Context(),
+					scope,
+					toolspkg.ApprovalTokenRequest{
+						ToolID: toolspkg.ToolIDWorkspaceInfo, Input: tc.input, InputDigest: tc.inputDigest,
+					},
+				)
+				if tc.invalid {
+					if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+						t.Fatalf("CreateToolApproval() error = %v, want ErrToolInvalidInput", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("CreateToolApproval() error = %v", err)
+				}
+				result, err := state.deps.ToolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDWorkspaceInfo, Input: tc.input, ApprovalToken: grant.ApprovalToken,
+				})
+				if err != nil {
+					t.Fatalf("Call(approved workspace) error = %v, cause = %v", err, errors.Unwrap(err))
+				}
+				var payload struct {
+					Workspace struct {
+						ID string `json:"id"`
+					} `json:"workspace"`
+				}
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Workspace.ID != workspace.ID {
+					t.Fatalf("workspace ID = %q, want %q", payload.Workspace.ID, workspace.ID)
+				}
+			})
+		}
+	})
 
 	t.Run("Should wire the native registry during daemon boot", func(t *testing.T) {
 		t.Parallel()

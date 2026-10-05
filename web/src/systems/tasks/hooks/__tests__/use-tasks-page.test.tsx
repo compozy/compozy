@@ -130,6 +130,10 @@ import {
 } from "@/systems/tasks/adapters/tasks-api";
 import { getScheduler, getSchedulerBacklog } from "@/systems/scheduler/adapters/scheduler-api";
 import {
+  schedulerBacklogFixture,
+  schedulerPausedStatusFixture,
+} from "@/systems/scheduler/mocks/fixtures";
+import {
   buildInboxFixture,
   buildTaskFixture,
   taskDashboardFixture,
@@ -260,10 +264,41 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe("useTasksPage", () => {
+  it("Should refresh external scheduler changes only while the dashboard is active", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const queryClient = createQueryClient();
+    const { result, rerender, unmount } = renderHook(
+      ({ liveDataEnabled }) => useTasksPage({ search: { mode: "dashboard" }, liveDataEnabled }),
+      { initialProps: { liveDataEnabled: true }, wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => expect(result.current.schedulerStatus?.paused).toBe(false));
+    expect(result.current.schedulerBacklog?.total).toBe(0);
+
+    vi.mocked(getScheduler).mockResolvedValue(schedulerPausedStatusFixture);
+    vi.mocked(getSchedulerBacklog).mockResolvedValue(schedulerBacklogFixture);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_001);
+    });
+    expect(result.current.schedulerStatus?.paused).toBe(true);
+    expect(result.current.schedulerBacklog?.runs).toEqual(schedulerBacklogFixture.runs);
+
+    rerender({ liveDataEnabled: false });
+    const statusReads = vi.mocked(getScheduler).mock.calls.length;
+    const backlogReads = vi.mocked(getSchedulerBacklog).mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(getScheduler).toHaveBeenCalledTimes(statusReads);
+    expect(getSchedulerBacklog).toHaveBeenCalledTimes(backlogReads);
+    unmount();
+    queryClient.clear();
+  });
+
   it("disables scope-source observers while its window is inactive", () => {
     const { result } = renderHook(() => useTasksPage({ liveDataEnabled: false }), {
       wrapper: createWrapper(),

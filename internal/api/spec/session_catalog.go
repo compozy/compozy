@@ -217,8 +217,14 @@ func sessionCatalogStreamOperation() OperationSpec {
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Subscribe to the explicit all-workspaces aggregate"),
 			optionalLastEventIDHeaderParam("Resume after this catalog sequence"),
+			queryParam(
+				"last_event_id",
+				"Resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+				false,
+			),
 		),
 		Responses: []ResponseSpec{
+			{Status: 101, Description: specEventStreamUpgrade},
 			{
 				Status: 200,
 				Description: "Profile-scoped session catalog event stream for the selected workspace " +

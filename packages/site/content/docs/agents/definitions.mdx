@@ -107,26 +107,31 @@ deletes target the effective winner. Deleting the workspace winner can therefore
 definition immediately; the delete response reports that transition in `unshadowed_origin`. CompozyOS
 does not merge either definition before or after the delete.
 
-## Browse a workspace fleet
+## Browse an agent fleet
 
-Use the workspace catalog when a client needs a bounded fleet view instead of the complete
+Use the catalog when a client needs a bounded fleet view instead of the complete
 definition list:
 
 ```http
 GET /api/agents/catalog?workspace=ws_alpha&q=release&category=Engineering%20%2F%20Release&status=active&limit=50
 ```
 
+Omit `workspace` for Global: the catalog resolves the acting profile's shared definitions and
+aggregates visible sessions with the same agent name across all projects, including no-workspace
+sessions. It does not merge project-local definitions into the Global definition list. Selecting
+a project retains that project's effective definitions and narrows session metrics to that project.
+
 The daemon applies exact `name`, substring `q`, `category`, and `status` filters before the cursor
 page is cut. Each result combines
 the effective agent definition with exact metrics over every visible retained session for that
-workspace and agent. The `sessions` object reports `total`, currently `active`, terminal `failed`,
+scope and agent name. The `sessions` object reports `total`, currently `active`, terminal `failed`,
 summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for an
 active session and creation to the last persisted update for a stopped session. Failed includes
 stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason.
 
 `last_activity_at` follows the session catalog's canonical activity timestamp. `facets.total` and
-`facets.categories` describe the complete workspace fleet; `facets.active` and `facets.idle` are
-exact when `sessions_available` is true. Follow the opaque `page.next_cursor` with the same filters
+`facets.categories` describe the complete selected fleet; `facets.active` and `facets.idle` are
+exact when `sessions_available` is true. Follow the opaque `page.next_cursor` with the same workspace, profile and filters
 to load another page.
 
 If the session authority is unavailable, the endpoint still returns definitions with

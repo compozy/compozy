@@ -71,7 +71,7 @@ func (m *Manager) discardMaterializedSessionLedgerForResume(
 	if meta == nil {
 		return errors.New("session: resume ledger metadata is required")
 	}
-	owner, err := m.resolveStoredSessionOwner(ctx, meta.ID, meta.WorkspaceID)
+	owner, err := m.resolveStoredSessionOwner(ctx, meta)
 	if err != nil {
 		return fmt.Errorf("session: resolve ledger owner before resume %q: %w", meta.ID, err)
 	}
@@ -87,7 +87,7 @@ func (m *Manager) rematerializeStoppedSessionLedger(ctx context.Context, session
 	if err != nil {
 		return fmt.Errorf("session: read metadata to restore ledger for %q: %w", sessionID, err)
 	}
-	owner, err := m.resolveStoredSessionOwner(ctx, meta.ID, meta.WorkspaceID)
+	owner, err := m.resolveStoredSessionOwner(ctx, &meta)
 	if err != nil {
 		return fmt.Errorf("session: resolve ledger owner after failed resume %q: %w", sessionID, err)
 	}

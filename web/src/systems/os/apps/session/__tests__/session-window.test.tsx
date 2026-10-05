@@ -2,6 +2,7 @@
 // Invariant: every visible session window on the active desktop owns a live tail, while operator
 // presence additionally requires the shell window and browser document to hold focus; and the
 // window resolves a session through the profile-enforced read before deciding it is gone.
+// A document's project lens hides out-of-scope history without retiring the shared window.
 // Owning layer: the OS session-window controller.
 import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -264,6 +265,24 @@ describe("SessionWindow", () => {
     expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
   });
 
+  it("Should keep Global history in the shared layout while this document views a project", async () => {
+    queryState.data = { ...session, workspace_id: "" };
+    documentActivity.active = false;
+    const view = render(<SessionWindow windowId="session:sess-1" />);
+
+    await waitFor(() => expect(sessionWindowNoticeSpy).toHaveBeenCalled());
+    expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("", "sess-1", false);
+    expect(sessionWindowViewSpy).not.toHaveBeenCalled();
+    expect(userRetireSession).not.toHaveBeenCalled();
+
+    workspace.runtimeWorkspaceId = null;
+    view.rerender(<SessionWindow windowId="session:sess-1" />);
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ session: queryState.data, workspaceId: "" })
+    );
+    expect(userRetireSession).not.toHaveBeenCalled();
+  });
+
   it("Should retire a restored missing session onto the empty session route (UT-087)", async () => {
     queryState.data = undefined;
     queryState.error = new SessionNotFoundError("sess-1");
@@ -353,7 +372,7 @@ describe("SessionWindow", () => {
     expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
   });
 
-  it("Should reject a foreign session from another workspace before acquiring presence", async () => {
+  it("Should hide a foreign session from another workspace without retiring the shared window", async () => {
     queryState.data = undefined;
     queryState.error = new SessionNotFoundError("sess-1");
     queryState.isError = true;
@@ -367,13 +386,10 @@ describe("SessionWindow", () => {
 
     expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-2", "sess-1", false);
     expect(ownerViewSpy).not.toHaveBeenCalled();
-    await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
-    );
+    await waitFor(() => expect(sessionWindowNoticeSpy).toHaveBeenCalled());
+    expect(userRetireSession).not.toHaveBeenCalled();
     expect(userClose).not.toHaveBeenCalled();
-    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ windowId: "session:sess-1" })
-    );
+    expect(sessionWindowViewSpy).not.toHaveBeenCalled();
   });
 
   it("Should surface a failed owner lookup instead of claiming the session is gone", async () => {

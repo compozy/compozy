@@ -237,7 +237,7 @@ func collectLoopJudgeResult(
 			}
 			return looppkg.ActionPromptResult{}, activityErr
 		}
-		if event.Type == acp.EventTypeAgentMessage && strings.TrimSpace(event.Text) != "" {
+		if event.Type == acp.EventTypeAgentMessage {
 			text.WriteString(event.Text)
 		}
 		if tokens, ok := loopPromptTokensUsed(event.Usage); ok {

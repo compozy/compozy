@@ -1,5 +1,563 @@
 # Compozy Change Impact
 
+## Untested QA sweep — 2026-10-02
+
+Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
+
+- **PR 691 CI remediation:** Failed extension removal preserves nullable Profile creation
+  attribution with the rest of its rollback snapshot. Token-only programmable view opening
+  resolves registered attachments independently of command-channel readiness, retaining
+  foreign-client rejection. Web shows the fixed safe non-loopback refusal while keeping
+  arbitrary runtime errors hidden; Storybook co-ships catalog WebSocket fixtures.
+  No public DTO, route, native-tool ID, hook/config key, migration, SDK or workspace/Profile
+  ownership changes. Site and official skills/compozy contracts remain accurate.
+  [CI remediation evidence](../qa/reports/2026-10-05-pr-691-ci.md) records owning suites;
+  broad deferred QA remains deferred.
+
+
+- **Durable wait example:** not applicable — editorial only. The site's DSL example
+  replaces an unknown event with catalog-backed task.run.completed and links the hook
+  catalog. The exact YAML validates through the public CLI. Native tools, CLI/HTTP/UDS,
+  Web runtime behavior, extension/hook/config contracts, workspace/profile isolation,
+  persisted data and the official skills/compozy/ contract are unchanged. No migration
+  or new test file is needed. LP-live-run-survives-extension-disable and
+  BUG-20261005-loop-wait-example-unknown-event own the current-cycle evidence.
+
+- **Orchestrated task results:** The bundled staging transform uses the existing namespace
+  reference form for task IDs. Managed Goal normal/recovery readers concatenate ACP message
+  fragments verbatim, so completed outputs retain the final summary and task identities.
+  Action and verdict-only judge collectors also retain whitespace-only message chunks;
+  the existing adapter suites own their separate answer/verdict boundaries.
+  CLI/HTTP/UDS/native loop status and Web output inspection keep their existing schemas.
+  Hook/config/extension SDK contracts and workspace/profile isolation are unchanged; no
+  migration or historical output rewrite occurs. The site's copyable implement-tasks YAML
+  co-ships the same mapping; the official skill's traceability contract stays accurate.
+  LP-implement-tasks-orchestrated-mode and TA-080
+  own the fresh replay; the embedded runtime suite and daemon Goal reader suite own the
+  regressions. Bugs: BUG-20261005-loop-staged-task-id-literal and
+  BUG-20261005-goal-result-loses-fields; BUG-20261005-loop-result-drops-whitespace.
+
+- **Loop catalog profile scope:** Web passes the existing selected-profile or explicit
+  aggregate params through the catalog hook, route preloads, filter normalization and
+  adapter. The canonical cache key includes that scope; continuation keeps it. The
+  cross-workspace command palette preserves its existing acting profile on every page.
+  HTTP/UDS, CLI and native loop_list contracts and server filtering remain unchanged.
+  Extension enablement, hooks/config and workspace data keep their existing owners;
+  no schema migration or official skills/compozy/ contract change is needed. ET-052 and
+  BUG-20261005-loop-catalog-ignores-profile own the real leave/return replay. The existing
+  query-options suite owns paginated population isolation; route-preloading owns
+  loader/hook cache reuse and the adapter suite owns query serialization.
+
+- **Runs filter recovery:** Web carries origin/session filter presence into the existing
+  empty-state model and clears all roster filters through their current setters. Server
+  filtering, CLI/HTTP/UDS/native tools, extensions/hooks/config, workspace/profile isolation,
+  storage and the official skill remain unchanged. LP-008 and the route-composition suite
+  own recovery proof; the site Runs guide describes the clear-filter action. Bug:
+  `BUG-20261005-loop-filter-hides-existing-runs`.
+  Keep the toolbar mounted through query loading/failure so the session-id draft remains
+  editable. The existing real-daemon Loops Web E2E owns this distinct lifetime invariant
+  for `BUG-20261005-loop-session-filter-disappears`. The existing shared filter search stops
+  forcing focus back on blur, allowing its input and menu focus lifecycle to complete.
+  No new focus context, exported component prop or visual token changes; the same real-daemon
+  E2E covers initial input focus, continuous typing, reload and Escape-to-trigger.
+  The Runs view computes its optional filter fallback in the component body so React
+  Compiler can compile it; its existing default/explicit-filter behavior is unchanged.
+
+- **Breadcrumb destination:** The Web routing coordinator consumes a navigation-stack entry
+  only when it matches the selected parent. A deep link can leave a different entry behind;
+  that case uses the existing explicit navigation command. Matching history still pops once.
+  Native `compozy__window_*` tools, CLI/HTTP/UDS `window.navigate` semantics, persisted stacks,
+  layout migrations, hooks/extensions/config and workspace/profile ownership are unchanged.
+  The official window-management reference remains accurate for explicit pop commands; the
+  site Runs trail description remains valid. The coordinator suite owns the bridge invariant
+  and LP-web-runs-breadcrumb owns the real deep-link/Back/crumb replay. Bug:
+  `BUG-20261005-loop-breadcrumb-history-overrides-parent`.
+
+- **Human gate decisions and context:** Accepted approval/request-changes decisions rearm only
+  the matching wait epoch inside the existing decision transaction. Reevaluation settles the
+  awaiting verdict projection once; the append-only event ledger retains both observations and
+  final verdicts cannot be overwritten. HTTP/UDS, CLI and `compozy__loop_approve` keep their
+  authorization, routes, flags and decision contract. Pending criteria add an optional rendered
+  `prompt` to existing JSON diagnostics and detail DTOs; OpenAPI and generated TypeScript co-ship.
+  Existing history remains readable and is not rewritten. The approval event carries the question
+  and actual criterion count. Web projects the current generation/gate from durable detail and
+  fences its live fallback by the same identity. No SQLite table shape, migration, hooks,
+  extension/config changes, or workspace/profile ownership changes. The official skill's approval
+  semantics remain correct; the site guide describes durable questions and correct CLI flags.
+  The existing gate evaluator, store wait/history/coordinator, and Web run-page suites own the
+  distinct boundaries. LP-009/010/011 own the real decision replay. Bugs:
+  `BUG-20261005-loop-request-changes-finishes-done`, `BUG-20261005-loop-human-prompt-missing`.
+  The Runs table also reserves readable name width inside the shared scrolling Table primitive;
+  LP-008 owns mobile/desktop visual proof. No new component, token or public contract is introduced
+  for `BUG-20261005-loop-mobile-run-names-truncated`.
+  Usage and approval fallback facts now use the daemon's adjusted `started_at` budget clock;
+  the elapsed duration shown in Runs keeps its existing semantics. No new wire field is needed.
+  The existing usage projection suite and finished review replay own
+  `BUG-20261005-loop-usage-counts-human-wait`; the site approval guide explains the distinction.
+
+- **Managed Loop tool policy:** Carry the authored node's allowed_tools through managed
+  session creation and reject explicit restrictions that differ from an active pinned
+  profile. The existing Manager owns subset validation against the Agent ceiling.
+  CLI/HTTP/UDS/native Loop calls retain their routes, fields and deterministic validation
+  errors; Web consumes the existing node failure payload. No hook, extension, config key,
+  workspace/profile ownership, storage shape or migration changes. Official Loop guidance
+  and the DSL reference describe the enforced restriction and immutable reuse policy.
+  The existing managed runtime integration suite owns this boundary; LP-046 owns the real
+  provider-backed subset/refusal replay. Bug: BUG-20261005-loop-managed-allowed-tools-ignored.
+  Session subset failures also retain a typed policy cause through the existing error chain.
+  The Loop action_failure shape adds the specific allowed_tools_policy_violation code,
+  rejected tool and safe recovery guidance. Existing ErrValidation matching and raw CLI
+  error text remain stable; arbitrary errors still receive the safe generic projection.
+  This extends the existing failure taxonomy without a new DTO or migration. The same
+  integration case owns end-to-end refusal projection; existing session subset and daemon
+  safe-failure suites remain canaries. Reopened bug: BUG-20260713-loop-failure-hidden.
+
+- **Loop runtime field names:** Run and automation input wrappers pass their visible caption
+  IDs through the existing typed control to RuntimeSelector's caption-plus-value accessible
+  name. No shared selector behavior changes. CLI/HTTP/UDS/native tools, extension/hook/config
+  contracts, workspace/profile isolation, storage and official skill commands are unchanged.
+  LP-002 records the Web impact; no site contract changes. The existing LoopRunInputField
+  runtime case owns field distinction and value selection; fresh run/automation form walks
+  own real UI proof. Bug: `BUG-20261005-loop-runtime-labels-generic`.
+
+- **Vault name correction:** the existing validator keeps the namespace/path grammar and
+  `ErrUnsupportedSecretRef` identity, but reports a usable format correction without echoing the
+  rejected ref. CLI/HTTP/UDS/native callers retain their current status and DTO contracts. Web
+  New secret composes the existing field HelpTip; rejected writes retain their draft. No hook,
+  extension, config, storage, workspace/profile isolation, migration, or generated shape changes.
+  Official `skills/compozy/` commands remain valid; the site Vault guide explains supported names.
+  `TestVaultHandlersRejectInvalidRequests` owns rejection before storage and safe diagnostics;
+  Dora's real Vault recovery/overwrite walk owns UI evidence. Bug:
+  `BUG-20261004-vault-name-recovery-missing`.
+  The same editor now places its overwrite confirmation in the existing wrapping `AlertActions`
+  row instead of the absolutely positioned compact-action slot, keeping the consequence readable.
+  No shared primitive or consent behavior changes; browser layout replay owns
+  `BUG-20261004-vault-warning-covered`.
+  Settings rows also accept an explicit accessible help label for decorated field labels; Vault
+  supplies About name without changing input names or the shared HelpTip interaction lifetime.
+  The existing settings-field-row suite owns that association. Bug:
+  `BUG-20261004-vault-help-name-generic`.
+
+- **Attention policy after workspace deletion:** Channel-only Web writes omit the optional
+  profile mute replacement, preserving the server's current list. The canonical policy query
+  rereads after workspace-catalog removal; it never filters or rewrites daemon-owned mute rows.
+  SQLite replacement retains its transaction and rollback while reporting the existing typed
+  missing-workspace error, consumed by the shared HTTP/UDS 404 mapping. CLI/native config controls,
+  route/DTO/tool IDs, hooks, config keys, storage shape and profile/workspace ownership are unchanged.
+  Official configuration guidance and MS-attention-settings-roundtrip co-ship. The existing Web
+  page and SQLite repository suites own their separate write/reconciliation and atomic-error
+  invariants; the same public scenario owns the real replay.
+- **Task session and start-response ownership:** Dedicated and automatic task workers carry
+  the task's stable profile into session admission, and role reuse refuses a different profile.
+  Nominal run transitions and task execution retries retain inherited profile identity; shared
+  start/publish/approve handlers decorate the existing task/run fields. Task and run inspection
+  label their existing task summary through the same owner map. CLI, HTTP/UDS, Web and
+  hosted agent start consume that identity without changing routes, DTOs, tool IDs, hooks,
+  extension methods, configuration, workspace placement or stored schema. Existing sessions are
+  preserved; no history is reassigned. The official task guidance and TA-048 own public replay;
+  daemon bridge/role, task service and handler suites own their separate boundary invariants.
+- **Scheduler and run-page reads:** Active Dashboard scheduler status/backlog queries refresh at
+  the existing dashboard cadence and stop while its window is inactive. The scheduler remains
+  daemon-wide. Task/run detail, inspection, history, review lists, result pages and streams carry
+  the current profile read scope; route preloads share the same scoped cache identities.
+  Application entry hydrates the workspace lens and resolves its remembered profile before
+  parallel loaders and shell consumers start; an explicit local view retains precedence.
+  A failed identity read reaches the existing route retry boundary without default-profile work.
+  Missing OpenAPI selectors are restored from the existing task actor contract, including
+  single-profile writes and explicit aggregate reads; generated JSON/TypeScript co-ship.
+  This is additive public documentation of accepted parameters, with no renamed surface,
+  storage migration, config/hook change or native-tool ID change. Workspace authorization
+  remains server-owned. Official task guidance and TA-048 record the visible behavior;
+  handler, public-schema, query-controller, adapter and route suites own their distinct invariants.
+- **Attached command client lifetime:** HTTP/UDS and CLI client discovery, plus native
+  command invocation targeting, use the WindowManager's active command channels. Closed tabs no
+  longer cause multiple_clients or remain targetable. Registered presentation/context and attachment
+  authorization survive disconnection for reconnect; workspace scope and profile ownership remain
+  unchanged. No DTO, route, native-tool ID, hook, extension API, configuration or storage change.
+  The official native-tools reference explains live targeting. Existing daemon integration IT-031
+  owns disconnect/reconnect behavior; Web E2E-027 and the structured targeting scenario own real replay.
+- **Multi-client profile navigation:** the Web runtime refuses admission during a known conflict
+  before publishing an optimistic route. Completion of an accepted open uses the window's current
+  route, preserving an already consumed dialog intent. Existing conflict recovery and newer-intent
+  fences remain authoritative. No public surface, persisted state, native tool, hook, extension,
+  configuration or workspace/profile boundary change. Runtime/routing suites own the two races;
+  the profile palette and remote-write scenarios retain original-flow and adjacent Back evidence.
+
+- **Delegated profile selection result:** Web persists the canonical selection, returns the
+  client-command result over its original connection, then activates the new profile. Direct
+  UI selection keeps its optimistic behavior. The internal reply continuation is carried through
+  every consumer together; public CLI/HTTP/UDS/native command shapes, WebSocket frames, extension
+  contracts, hooks, configuration, storage and workspace/profile authority are unchanged. The
+  existing channel/stream suites and E2E-027 own verification; official profile guidance describes
+  the persisted result, and the same palette/remote-write scenarios own public replay.
+- **Profile palette argument handoff:** Attached CLI/HTTP/UDS/native command invocations retain
+  their existing action/args envelope; Web now reads the supplied profile and preserves scalar
+  navigation arguments through the same route builder as direct palette dispatch. Settings
+  carries create/rename suggestions into the canonical dialogs and consumes their route intent.
+  The existing profile selection, lifecycle plan revisions, destructive confirmation and local
+  authority remain unchanged. No native-tool ID, extension, hook, config, storage shape, migration
+  or workspace boundary changes. Official profile guidance explains the handoff. Existing
+  client-op, route and profile E2E suites own validation; the palette and remote-write scenarios
+  retain the public replay and the separate unresolved navigation stall.
+- **Profile owner response completeness:** Scheduler backlog runs inherit the owning task's
+  stable profile ID, and shared handlers decorate backlog task/run owners and task-update owners.
+  Existing HTTP/UDS fields now contain their promised identity; CLI and Web consume those same
+  fields. No route, DTO, native-tool ID, Host API method, hook, configuration, workspace boundary
+  or storage shape changes. Existing task-service and handler suites own the regressions;
+  official task guidance and the profile lifecycle scenario carry the public replay.
+- **Profile admission race diagnostics:** Session insertion translates only the two known SQLite
+  profile availability guards into a typed store refusal, including identity-bound registration.
+  Shared HTTP/UDS error handling returns the existing profile conflict payload and recovery action;
+  failed automation history retains that guidance. Native session/automation tool IDs and extension
+  methods are unchanged; their session admission guard remains authoritative. No new hook, config,
+  DTO, schema, migration or workspace/profile ownership rule. Web uses the existing error/history
+  fields. Store registration, transport error and automation history suites own their respective
+  invariants; official profile guidance and the lifecycle race scenario own operational recovery.
+- **Task run and operator action profile selection:** Run lifecycle and recovery, single/bulk
+  force controls, fan-out, task update/delete, dependencies and review request/submit now use the
+  existing CLI mutation selection boundary. HTTP/UDS routes and DTOs, native task tool IDs,
+  extension methods, hooks, configuration and workspace storage are unchanged; no migration.
+  Session-bound branches retain their authenticated identity. The existing CLI profile suite
+  owns request selection; the profile lifecycle and task-control journeys own real replay.
+  Official task guidance documents the affected commands. Web already sends the correct profile.
+- **Empty task block lists:** The shared mapper returns an allocated empty array to honor the
+  existing non-nullable response schema. HTTP/UDS and native `compozy__task_blocks` share this
+  boundary; CLI reads preserve it. No new route, tool ID, schema, hooks, configuration or workspace
+  ownership change. The existing HTTP task-block response suite owns regression coverage.
+- **Task CLI control profile selection:** Pause/resume/cancel, block/unblock/recover and block reads
+  use the existing single-profile boundary before transport. Task routes, native tools, extension
+  methods, hooks, configuration, workspace storage and Web behavior do not change; no migration
+  is needed. The existing CLI profile suite and the adjacent TA-010 walk own verification. The
+  original overview approval repair remains verified. Approval-pending CLI copy is made neutral
+  because source policy can require approval for read-only commands too.
+- **Extension task response state:** Host API task payloads derive draft from the canonical status
+  and copy the persisted creator notification flag, cursor, current run, pause inheritance, block
+  reasons and attention metadata, including detail summaries. Free-text state stays redacted. Existing task
+  methods, SDK/OpenAPI shapes, native-tool IDs, hooks, configuration, workspace/profile ownership
+  and storage remain unchanged; no migration or generated-contract change is required. The task
+  serialization suite and TA-001's adjacent extension-command replay own verification. Official
+  extension guidance documents the fields; Web already displays the correctly persisted state.
+- **Extension Host API workspace/profile binding:** The shared boundary recognizes the existing
+  workspace_profile process scope and retains its workspace for domain calls and actor derivation.
+  Own-workspace task creation keeps the bound profile; global and foreign workspace requests remain
+  refused. Resource methods retain their full compound scope for kernel authorization. Host API
+  method names, SDK shapes, native-tool IDs, hooks, configuration, database and workspace placements
+  do not change. Existing resource and task handler suites own coverage; the profile approval
+  scenario owns the real command replay. Official extension guidance and site permissions docs
+  explain the binding. Web consumes the existing execution result without a new contract.
+- **Pending palette decisions:** Add `approvals resolve <id> --decision approved|denied` and
+  `POST /api/tools/approvals/{id}/resolve` on HTTP/UDS. Existing show/cancel behavior remains;
+  OpenAPI now documents their existing profile selector as well. The shared profile resolver
+  rechecks availability and session immutability before the coordinator enforces recorded ownership,
+  expiry and the single-decision fence. HTTP uses the existing privileged loopback mutation guard.
+  Deferred tools retain current policy checks and single-use authorization under the original
+  workspace/profile. Web keeps a pending invocation open, exposes an explicit decision, and reads
+  asynchronous execution state through a profile-keyed canonical query. Public contracts, generated
+  Web types, CLI/site documentation and official native-tool guidance co-ship. No new native-tool
+  ID, hook, extension contract, configuration key, database shape or workspace placement; existing
+  `compozy__cmd_palette_invoke` callers receive the same approval ticket. No migration is required.
+- **Settings restart truth:** Web reads the daemon's existing configuration status for current
+  restart requirements, including writes from CLI/HTTP/UDS and other documents. The settings apply
+  owner retains restart-required scoped writes outside the global hash until the next daemon boot;
+  unrelated live writes cannot erase that requirement. Existing status payloads carry this truth
+  across CLI/HTTP/UDS without a shape change or persistence migration. The latest apply
+  record identifies the notice dismissed by the operator; it does not decide whether a restart is
+  required. A previous successful operation cannot hide a later requirement. Settings mutations
+  and terminal restart observations invalidate the canonical status/apply queries. The existing
+  session-storage envelope upgrades losslessly from version 0 to 1, retaining operation identity
+  and pending mutation while adding the dismissed apply-record ID. No daemon schema, public route,
+  native-tool ID, hook, extension, configuration key or workspace/profile ownership changes.
+  Official configuration guidance, MS-037 and its existing hook/presentation suites own verification.
+- **Native permission cancellation:** ACP emits a terminal system cancellation when its caller or
+  connection closes; session persistence marks the interaction canceled and clears derived pending
+  attention. The existing native approval deadline reports `approval_timed_out` even when ACP
+  returns its normal canceled outcome. Operator allow/reject choices, tool IDs, HTTP/UDS routes,
+  authorization, hooks, configuration and workspace/profile ownership stay unchanged. The existing
+  interaction status accepts cancellation, so no schema migration is needed. Web consumes the
+  canonical projection; official runtime guidance and the profile/attention scenarios co-ship.
+  Existing ACP, session transition and daemon bridge suites own the regressions.
+- **Extension-declared profile provenance:** Global migration 00127 preserves every declaration
+  marker and adds nullable creation provenance: existing rows remain unknown; new profile creation
+  records true and binding records false. Creation claims also require the current profile ID, so
+  deleting/recreating a name cannot transfer authorship. Existing create-once markers still prevent
+  reseeding. Install/apply results consult persisted provenance before emitting the existing
+  `extension.profile_created` event when creation races with the operator. CLI, HTTP/UDS and native
+  extension detail retain the boolean `created_by_extension`; true confirms authorship, while false
+  includes binding and unknown historical origin. No verb, route, native-tool ID, configuration,
+  resource placement or authorization changes; workspace/profile ownership remains enforced by the
+  existing extension and profile boundaries. Web already reads the shared payload and needs no new
+  control. Official extension guidance and site installation docs explain the historical limit.
+- **Retained Global history upgrades:** Catalog and health readers accept the workspace-free
+  scope written by the existing home-to-Global migration. Creation profile versions 3–5 retain
+  their original sandbox/Network fields solely as hash-bound provenance; current creation still
+  writes version 6. The catalog's logical scope and the immutable events.db owner are resolved
+  separately, with the original creation witness proving Global ownership. Metadata, database
+  owner rows and historical hashes are not rewritten; no new schema or migration is introduced.
+  HTTP/UDS add read-only `/api/sessions/{session_id}/transcript`, `/transcript/search`,
+  `/transcript/outline`, `/status`, `/events`, `/history` and `/stream` routes for Global history,
+  enforcing both Global ownership and profile read scope. Existing project routes and mutation
+  boundaries stay intact. CLI transcript, search, outline, status, events (including follow) and
+  history reads select the owning route; filters, archive selection, bounds and SSE cursors
+  retain their existing semantics. Global status omits project-only Heartbeat wake enrichment;
+  project Heartbeat failures still propagate. Native session tools keep their existing
+  project/caller scope and IDs. No hook, extension SDK or configuration changes. Web links ask
+  to enable Global without replacing the remembered project and render retained history read-only.
+  Out-of-scope documents hide a session locally without retiring its shared window; only
+  confirmed deletion or an explicit delete retires it. Existing presence and content guards remain.
+  Generated OpenAPI/Web types, official runtime guidance and session control-plane docs co-ship.
+  The retained-history bug and Global scope scenarios own the released-binary upgrade replay.
+- **Native tools / CLI / HTTP / UDS:** Generic CLI tool invocation preserves public
+  `credential_requirements` metadata and its discovery schema, matching the existing daemon
+  contract. Validation patterns retain their exact syntax only inside discovery schemas; descriptions,
+  defaults, and unrelated data keep normal secret redaction. Scoped session-list JSONL restores its documented leading `profile_resolution`
+  frame for both empty and populated pages; aggregate frames and trailing page metadata remain.
+  Profile selection reads retain the effective `profile` and add optional `note` for archived
+  remembered fallback; CLI resolution preserves that provenance. No route, tool ID, or command changes.
+- **Document-wide streams:** `/api/sessions/catalog-stream`, `/api/worktrees/catalog-stream`,
+  and `/api/logs/stream` add WebSocket upgrades with one existing SSE frame per text message.
+  HTTP/UDS SSE remains supported. Session/log upgrades resume through `last_event_id`, preserving
+  header precedence and leaving existing numeric log query filters unchanged. Stream scopes,
+  redaction, event names, payloads, and gateway tickets retain their owners. Upgraded connections
+  join transport shutdown through the existing stream lifecycle primitive. Three Web consumers
+  opt in so background notifications and profile lifecycle sweeps stay live across documents.
+  Official runtime guidance, generated OpenAPI/Web types, and session/worktree docs co-ship.
+- **Extensibility / hooks / config:** The shared redactor recognizes the public metadata field;
+  nested secret fields and secret-shaped free text retain their existing protection. No new
+  configuration, hook, or extension capability.
+- **Overview CLI validation:** An explicitly supplied `--usage-window=0` now receives the same
+  accepted-value validation as other invalid numbers. Omission retains the 30-day default; HTTP,
+  UDS, native tools, and generated contracts already express 7, 30, or 90. No migration is needed.
+- **Task execution CLI:** Publish, start, approve, and reject now resolve the selected profile
+  through the existing command wrapper before transport. The daemon retains its existing
+  ownership checks, including not-found responses for a foreign profile. No wire, native-tool,
+  Web, hook, configuration, or persistence change; official task guidance co-ships.
+- **Approval CLI ownership:** `approvals show` and `approvals cancel` resolve the selected profile
+  through the existing command wrapper before transport, including flag, environment and remembered
+  selection. The daemon's ownership checks remain authoritative. No command, wire, native-tool,
+  Web, hook, configuration, extension or stored-state shape changes; no migration is required.
+  Official native-tool guidance and the existing palette command suite co-ship; the QA report
+  records the real pending-approval replay and profile lifecycle plan readback.
+- **Automation cursor scope:** CLI transports opaque job/trigger cursors to the daemon. Shared
+  HTTP/UDS and native-tool parsers receive the resolved profile scope before fingerprint validation.
+  Canonical filter/order/count/cursor validation remains authoritative, including refusal after
+  profile or filter changes. Extension Host already binds scope first and is unchanged. Web
+  continuation consumes the repaired HTTP boundary. No DTO, cursor version, route, tool ID,
+  hook, config, workspace storage or migration changes. Existing CLI cursor fixtures now carry
+  real profile identity; public replays cover TA-052/TA-056. Official native-tool guidance co-ships.
+- **Global automation details:** The Web detail boundary recognizes the resolved Global lens
+  and retains refusal for a different concrete project. Project-owned edit forms resolve agent
+  and Loop catalogs from the returned definition's workspace. Server profile authorization,
+  mutation ownership and managed-source restrictions remain authoritative. No native-tool, CLI,
+  HTTP/UDS, extension, hook, config or stored-state contract changes; no migration is needed.
+  Official skill commands and site API guidance remain current. TA-052/TA-056 and the existing
+  detail-hook suite own the repair evidence; fresh Chrome/CLI/UDS replay covers saved behavior.
+- **Global scope persistence:** Daemon-derived window-scope cleanup no longer persists a stale
+  document's navigation snapshot. Workspace readers skip observations for an already retained
+  desktop. Explicit selection and first desktop resolution still persist with the same v4 key,
+  version 1 envelope and lossless version 0 migration. Open documents retain their own view;
+  reload uses the saved selection. No native tools, CLI/HTTP/UDS, hooks, configuration, extension,
+  workspace-file or daemon-storage change. Official skill and site commands remain current.
+  The workspace persistence suite and MS-web-menubar-global-scope-toggle own the repair evidence.
+- **Task-backed job detail:** The Web job read surface reuses the form preview's pure run digest
+  to display the persisted task title, description and owner, including the existing job-default
+  fallback. Agent and Loop destinations retain their presentation. No native-tool, CLI/HTTP/UDS,
+  extension, hook, configuration, profile/workspace isolation or stored-state contract changes;
+  no migration is needed. Official skill and site interfaces remain current. TA-052 and the
+  existing job detail/form suites own the regression and fresh browser replay.
+- **Retained Loop window scope:** A foreground scoped Loop route adopts its known project;
+  retained background windows and later shell scope choices no longer trigger that adoption.
+  Route ownership validation and persisted scope formats stay unchanged. No native-tool,
+  CLI/HTTP/UDS, extension, hook, config or workspace-storage contract changes; no migration.
+  Official skill and site commands remain current. The existing Loops E2E suite owns the
+  regression, with fresh Bruno replay shared by the Global toggle and automation catalog scenarios.
+- **Offline automation pagination:** Jobs and Triggers carry Query's paused state to their
+  shared pagination control. Loaded rows remain usable while the disabled control explains that
+  continuation is waiting for connectivity. Existing reconnect, focus and invalidation policies
+  remain authoritative. No native-tool, CLI/HTTP/UDS, extension, hook, config, profile/workspace
+  isolation or stored-state changes; no migration. Official skill and site contracts remain
+  current. The existing catalog component suite and both live catalogs own verification.
+- **Trigger submission feedback:** The Web trigger editor keeps server submission errors beside
+  its persistent actions in both form and preview views. Existing request validation, mutation
+  ownership and draft recovery remain authoritative. No native-tool, CLI/HTTP/UDS, extension,
+  hook, configuration, workspace isolation or stored-state contract changes; no migration.
+  Official skill and site interfaces remain current. ET-web-jobs-triggers-catalog and the
+  existing trigger form suite own the hidden-error regression and fresh recovery replay.
+- **Automation preview directions:** Job schedule recovery and Trigger webhook/template guidance
+  name the existing form/preview footer actions after the permanent preview rail was removed.
+  This is a presentation-only correction; draft, validation and submission behavior are unchanged.
+  No native tools, CLI/HTTP/UDS, extension, hook, config, workspace isolation or stored-state changes;
+  no migration. Official skill and site interfaces remain current. TA-web-automation-preview-toggle
+  owns the before/after real replay; existing form/editor suites retain behavior coverage.
+- **Saved Loop target recovery copy:** Incompatible and unavailable automation targets give
+  edit-mode remedies that preserve the immutable target; creation keeps its picker remedy.
+  The existing mode and availability projection remain authoritative. No native-tool,
+  CLI/HTTP/UDS, extension, hook, config, isolation, stored-state or migration changes. Official
+  skill/site interfaces remain current; both real editors and existing form suites own proof.
+- **Local Web bundle revalidation:** Static HTTP responses use the opened file's modification
+  time, so COMPOZY_WEB_DIST_DIR rewrites invalidate prior HTML and asset validators without a
+  daemon restart. Embedded zero-time assets retain the existing start-time fallback. Routes,
+  CSP, range handling, native tools, CLI/UDS contracts, extensions, hooks, configuration keys,
+  workspace data and persisted shapes stay unchanged; no migration. Official skill/site
+  contracts remain current. The existing HTTP static suite and real entry/rewrite replay in
+  TA-web-automation-preview-toggle own regression evidence.
+- **Trigger authoring and error recovery:** The Loop mapping example follows the existing
+  accepted template grammar; the preview serializes strings as valid sample JSON. Failed
+  Trigger detail reads expose the existing catalog-return action alongside the daemon error.
+  No native-tool, CLI/HTTP/UDS, extension, hook, configuration, workspace isolation or stored-state
+  contract changes; no migration. Official skill and site contracts remain current. The existing
+  trigger form/detail suites and fresh Bruno replays own verification, including mapping save
+  and independent readback. The mapping copy uses replay evidence rather than a prose assertion.
+- **Profile archive audit:** The daemon records `profile.archived` under the permanent operator
+  owner, matching the existing delete audit convention. The payload retains the affected profile
+  and operation identity. CLI, HTTP/UDS and palette lifecycle calls share the repair; Web receives
+  the existing named event and sweeps the unavailable view. Ordinary writes under archived owners
+  remain refused. No schema, wire, native-tool, hook, config or extension change, and no migration.
+  The existing daemon recorder suite uses real SQLite; official profile guidance and QA replay
+  document the event's ownership and restored live projection.
+- **Profile operation recovery audit and reservation:** Failure/recovery audits use the same
+  permanent operator owner as archive/delete, retaining the affected profile and operation in
+  their existing payload. Archived identity audits follow the same rule using an internal subject
+  state snapshot; active identity event ownership is unchanged. Pending operations block edits inside the
+  canonical manager transaction. CLI, HTTP/UDS and delegated actions share this guard; ordinary
+  unavailable-owner writes remain refused. No wire, tool ID, hook, config, extension or storage
+  shape changes; no migration is needed. Web observes the existing event stream and refusal.
+  Official profile guidance and the recovery QA scenario co-ship. Existing daemon-recorder and
+  profile-availability suites own regression coverage.
+- **Unavailable profile Web entry:** The window-manager HTTP adapter retains typed profile
+  refusals emitted before its handler. The existing desktop projection carries its load error
+  to the menubar, which exposes profile recovery and the server's remedy instead of a generic
+  layout retry. An explicit profile switch provides access to Settings; remembered ownership
+  and the unavailable-owner guard stay intact. No CLI, HTTP/UDS, native-tool, hook, config,
+  extension or workspace-storage shape changes; no migration. The Profiles E2E suite and the
+  existing recovery scenario cover cold entry and subsequent recovery. Official profile guidance
+  names this Web recovery path; site documentation has no separate affected contract.
+- **Profile view recovery:** The Web shell keeps its global profile lifecycle feed alive while
+  desktop authority reconnects, so externally deleting the viewed profile can sweep the client
+  to default. Other stream budgets remain unchanged. Public CLI, HTTP/UDS, native tools, hooks,
+  configuration, extensions and persisted state retain their contracts; no migration is needed.
+  The official profile workflow remains current. The existing profile E2E suite and fresh
+  browser/CLI/UDS replay cover recovery, refresh persistence and retained neighboring profiles.
+- **Profile dialog feedback:** Lifecycle mutations retain their failed state for their sole dialog
+  consumer instead of also emitting a raw error toast. Inline validation and plan-retry callbacks
+  remain active; existing success notices are preserved. Name refusals bind to the submitted value,
+  while operation failures remain visible at form level and pending mutations retain their lifetime.
+  This changes only Web feedback ownership and the internal create-dialog props/story.
+  CLI, HTTP/UDS, native tools, hooks, configuration, extensions, workspace isolation and persisted
+  shapes are unchanged; no migration or official skill command update is needed. The owning
+  Settings E2E flow covers reserved/duplicate refusals and recovery with a valid name; the existing
+  create-dialog suite covers current-value validity, operation errors and pending submissions.
+- **Profile emoji keyboard navigation:** Create and edit-identity dialogs let arrow keys reach
+  Frimousse's existing navigation listener through Base UI's event customization API. Escape,
+  focus containment and all other modal consumers keep their existing behavior. The shared picker
+  and dependencies are unchanged. CLI, HTTP/UDS, native tools, hooks, config, extensions, workspace
+  isolation and persisted shapes retain their contracts; no migration or official skill change.
+  E2E-014 covers keyboard identity selection and the saved public response; fresh keyboard replay
+  covers both dialogs, canceled creation, focus return and reload persistence.
+- **Profile archive automation pause:** CLI, HTTP/UDS, Web and native profile actions share a
+  resource-aware archive plan and atomic pause transaction. Dynamic definitions retain their resource
+  identity with a new version; configuration/extension definitions retain their content and receive
+  existing enabled overrides. A journaled runtime synchronization finishes before success; failed
+  synchronization remains unavailable until explicit operation retry. Other profiles remain unchanged.
+  No wire, tool ID, hook, config key or schema shape changes. Official profile guidance co-ships.
+  Web renders the same existing paused-list fields; both Web and CLI lifecycle scenarios track replay.
+- **Profile deletion ownership:** Public counts and the transactional delete guard include canonical
+  job/trigger resource owners and unshadowed legacy definitions, regardless of enabled state.
+  Web uses the corrected count to withhold deletion of nonempty profiles. CLI, HTTP/UDS and native
+  lifecycle actions share the existing profile_owns_work refusal. No tool ID, wire, hook, config,
+  extension or persisted shape changes; no migration is required. Other owners and resource content
+  remain unchanged. Official profile guidance and the two lifecycle scenarios co-ship.
+- **Profile lifecycle navigation:** Browser Back/Forward uses the existing dialog close operation,
+  including its transient drafts and success state. Palette route intents are consumed by the owning
+  Settings window after raising a canonical dialog, so cancellation cannot be replayed on reload.
+  The existing window-manager route replacement persists the consumed state. Public lifecycle
+  commands, HTTP/UDS/native tool IDs, hooks, extensions, config, workspace content and storage shapes
+  retain their contracts; no migration or official skill command change is needed. Web lifecycle
+  QA and the existing profile E2E suite own the changed behavior.
+- **Profile project restoration:** Web transfers the active view only when changing between
+  workspace and Global breadth. Leaving a distinct project releases its ephemeral view; re-entry
+  waits for the remembered selection query to settle before pinning the client view. External
+  updates still leave an already-open client's profile unchanged. CLI, HTTP/UDS, native tools,
+  hooks, extensions, config, workspace files and persisted shapes retain their contracts; no
+  migration is needed. The official profile guidance and switcher QA scenario co-ship with the
+  existing E2E-013, while aggregate breadth and two-client E2Es retain their separate invariants.
+- **Profile rename repository offers:** Web derives accepted repository ids from the current
+  daemon plan and retains only explicit declines in transient dialog state. Offers start selected,
+  name edits preserve declines, and absent candidates cannot enter the request. E2E-016 uses real
+  repositories to verify accepted-only movement and unchanged declined content. Public CLI,
+  HTTP/UDS, native tools, hooks, configuration, extensions, workspace isolation and persisted
+  shapes retain their contracts; no migration or official skill command change is needed.
+- **Session stop ownership:** Web single, retry, and batch stops carry the selected session's
+  workspace/profile through mutation and cache invalidation. OpenAPI now declares the profile
+  selector already enforced by the shared HTTP/UDS handler; generated Web types co-ship. The
+  existing native tool, CLI, hooks, config, and persistence contracts stay intact. Session lifecycle
+  docs and the official runtime skill explain explicit owner selection. No migration is required.
+- **Retained history isolation:** Boot logs typed session-database identity refusals and excludes
+  those stores from subsequent boot history processing, allowing healthy sessions to remain
+  available. CLI, HTTP/UDS, Web, and native history reads retain the existing ownership refusal;
+  no store is adopted or rewritten. Migration failures and cancellation still stop boot. No wire,
+  schema, config, hook, or extension change. The daemon operations guide and official runtime skill
+  document complete-directory recovery; the existing boot suite and isolated runtime own evidence.
+- **Extension manifest compatibility:** TOML and JSON static-resource string paths normalize into
+  the current path/profile objects at decode. Current placements, strict unknown-field rejection,
+  and canonical build output remain. This SD-013 regime-2 adapter is removed in v0.3.0-beta.31;
+  authoring/manifest guides, official extension guidance, and a migration release note co-ship.
+  CLI, HTTP/UDS, and native extension build/dev/install callers share the loader; there are no new
+  routes, tools, hooks, config keys, Web controls, or stored-state changes.
+- **Workspace data isolation:** No persistent state or workspace selection changes.
+- **Native invocation approval:** HTTP/UDS approval issuance shares the native input binder with
+  dispatch, so workspace names, paths and inherited operator workspace selection produce matching
+  approval digests. Supplied input digests are checked before binding; digest-only approvals retain
+  their existing bound-input contract. Final post-hook input, profile/session/workspace/agent scope,
+  expiry and single-use enforcement remain at the approval store. No tool ID, schema, route, CLI
+  flag, Web control, config key or stored-state change; no migration is required. Official tool
+  guidance and the owning boot suite co-ship, with real operator replay in the QA report.
+- **Native workspace identity:** the shared input binder emits the registration key used by
+  session authority and automation/task persistence. Registered IDs, durable IDs, names and paths
+  remain accepted selectors. CLI/HTTP/UDS and hosted native tools now address the same project;
+  aliases for the caller's project no longer trigger foreign-access approval. Persisted memory
+  and configuration identities retain their own resolver paths. This changes no stored shape,
+  public field, permission mode, hook contract or Web control and requires no migration. Official
+  native-tool guidance and the boot/automation owning suites co-ship; the dated report owns replay.
+- **Task catalog workspace selection:** the task service preserves an explicit authorized target
+  through the existing task-resource workspace policy instead of replacing it with the caller.
+  Omitted targets retain caller defaults and the acting profile still fences the catalog. Native
+  dispatch continues to canonicalize aliases and refuse agent global/all scope. CLI/HTTP/UDS
+  operator behavior, Web reads, hooks/config, extensions, stored data and public shapes are
+  unchanged; no migration is required. The existing task integration suite and official task
+  reference co-ship, with a real hosted replay in the owning QA report.
+- **Hook authoring reference:** not applicable — editorial only. Tool-event examples and the
+  official extension skill use the existing `tool_id` matcher/payload field; permission-event
+  `tool_name` remains documented separately. No runtime, wire, config, hook or workspace-state
+  contract changes. Public create/restart/catalog/delete replay confirms authoring recovery.
+- **Agent context runtime identity:** The shared situation projection prefers the session's
+  effective model over its configured agent default. Authenticated HTTP/UDS context reads and
+  the fresh prompt context share this correction; pending runtime selection remains intent.
+  There is no DTO, tool ID, CLI, Web, hook/config, or persistence change. Existing startup
+  snapshots remain historical. The owning situation suite, real provider replay, RT-031 and
+  official runtime guidance cover the change; no migration or compatibility adapter is needed.
+- **Directory-browser recovery:** The shared Web browser retains known parent/home/root
+  destinations when a directory read fails. Both Add project and first-run onboarding consume
+  that navigation state; the failed path and error remain visible, and no stale directory entries
+  are substituted. Filesystem HTTP/UDS responses, CLI/native tools, hooks/config, stored workspace
+  state, and official skill commands are unchanged. The directory-browser suite and the existing
+  Add project scenario own regression/replay evidence; no compatibility migration is needed.
+- **Onboarding Skip scope:** Explicit Skip enables the existing persisted Global scope only after
+  completion succeeds, retaining the remembered project. Normal Finish and failed completion retain
+  their previous scope. The change is internal Web orchestration: no API/CLI/native-tool, hook,
+  configuration, workspace data, or schema changes. Official structured-surface commands remain
+  unchanged; the owning Add project scenario records the populated-catalog handoff and its replay.
+- **Official skill / Web / Docs:** Profile guidance documents the optional fallback note. Web
+  consumers continue using the existing effective profile field; generated DTOs co-ship. Onboarding
+  references now match the observed empty workspace catalog and optional Skip-to-Global flow.
+  Onboarding grid sections allow long paths to truncate within their columns; existing controls,
+  tokens, and state remain unchanged. Four-width browser replay confirms visible controls.
+- **Compatibility:** The profile-selection note is additive under SD-013's public-surface regime.
+  Existing profile values and persistence remain unchanged; no migration or deprecation is needed.
+- **Verification:** Both regression cases failed before the change. The full redactor race suite
+  passes (80.1% coverage); a rebuilt CLI reproduces complete structured HTTP/UDS parity. The two
+  session-list regressions also failed before repair; the complete CLI race suite passes, and
+  rebuilt scoped/aggregate JSONL output retains one leading frame and a usable trailing page.
+
 ## Release PR 680 — CI and generated extension packaging
 
 - **Native tools / CLI / HTTP / UDS:** existing extension init, build, install, update,
@@ -1317,3 +1875,239 @@ remain unchanged.
   remain valid. Acceptance and verification are recorded in
   `docs/qa/reports/2026-10-03-issue-689-sqlite-contention.md` and the affected terminal-settlement
   and automation scenarios. Related issue 678 is addressed only for shared contention paths.
+
+## Native task filter error classification (2026-10-02 QA)
+
+- Native `compozy__task_list` now preserves task-domain validation as `tool_invalid_input` / `schema_invalid` through its existing error mapper. HTTP/UDS native invocation and the CLI share this dispatch.
+- Extensibility, hooks, configuration and workspace isolation are unchanged; no persisted shape or migration. The accepted task filters and official skill contract remain unchanged.
+- Web task catalogs are unaffected. QA owner: `ET-native-workspace-scope-isolation`, bug `BUG-20261002-native-task-filter-error`; the dated report retains the hosted observation and fresh public replay.
+
+## Native hook dispatch repair (2026-10-02 QA)
+
+- Native tools now execute configured typed pre-call, post-call and post-error hooks at registry dispatch. Public CLI/HTTP/UDS invocation and hosted MCP share the repair; configuration keys and DTOs stay unchanged.
+- Hook input patches retain the canonical workspace and immutable tool metadata, then pass the existing schema, workspace policy and approval gates. ACP observations do not repeat native lifecycle dispatch.
+- Active session hook runs and lifecycle events use the existing session-owned recorder. No storage migration, workspace data movement, new worker or process owner is introduced.
+- The internal HookRunner contract and its consumers change together. External MCP/extension registry backends retain their existing behavior; this adapter handles native tools only.
+- Official skill impact is documented in `skills/compozy/references/native-tools.md`. Web hook/session views consume the same existing audit records. QA owner: `ET-native-workspace-scope-isolation`; bug `BUG-20261002-native-hook-dispatch-missing` and the dated report retain replay evidence.
+
+## Settings search focus repair (2026-10-04 QA)
+
+- Web Settings connects its advertised `/` search shortcut to the existing document keyboard
+  boundary, scoped to the active visible Settings window. Fields, dialogs, modified chords and
+  already-handled keys retain ownership. Shared listing-search consumers are adjacent canaries.
+- Native tools, HTTP/UDS/CLI contracts, hooks, extensibility, config and workspace data isolation
+  are unchanged. No persisted shape or migration; the official `skills/compozy/` contract is
+  unaffected. Product wording and shortcut labels remain unchanged.
+- QA/docs owner: `MS-web-settings-takeover-redesign`, bug
+  `BUG-20261004-settings-search-shortcut-inactive`, and the 2026-10-02 untested report. Owning
+  navigation-suite regression proof and fresh Chrome replay are required before verification.
+
+## Help-tip dismissal preserves editor drafts (2026-10-04 QA)
+
+- Shared Web UI Tooltip/Dialog composition gives an open descendant tooltip the first Escape,
+  including hover while a sibling field retains focus. The nearest dialog defers its dismissal
+  through Base UI's public event API; the tooltip keeps its existing dismissal lifecycle.
+  Peer dialogs remain independent, and a subsequent Escape can close the enclosing dialog.
+- HelpTip opts out of the trigger's click-to-close policy because its existing click handler opens
+  explanatory content for touch. Touch activation retains the open lifetime across compatibility
+  mouseleave events; outside press, blur and Escape still dismiss it. Generic Tooltip triggers
+  retain their current click policy.
+- Native tools, HTTP/UDS/CLI contracts, hooks, extensibility, config and workspace data isolation
+  are unchanged. No persisted shape, migration or official `skills/compozy/` change is needed.
+- QA/docs owners: `MS-web-modal-help-tips` and `MS-web-entity-modal-shell`, bug
+  `BUG-20261004-help-tip-discards-draft` and `BUG-20261004-help-tip-vanishes-on-tap`.
+  The existing shared HelpTip suite owns stable pointer activation, draft/focus and
+  dialog-isolation coverage; real task and adjacent editor replays verify the production bundle.
+
+## Compact Settings choice layout (2026-10-04 QA)
+
+- SettingsChoiceGroup reuses the owning Settings window container breakpoint for its columns,
+  so permission cards stack with compact navigation. No new token, primitive or selection state.
+- Native tools, CLI/HTTP/UDS, hooks, extensions, config keys, workspace/profile data and official
+  `skills/compozy/` contracts are unaffected. No persisted shape or migration.
+- QA/docs owner: MS-web-settings-takeover-redesign and
+  BUG-20261004-settings-choices-ignore-window. Matched reference/browser captures own reflow
+  evidence; the existing choice-group suite owns keyboard and RTL selection.
+
+## General idle-timeout save and display (2026-10-04 QA)
+
+- Web General Settings parses canonical compound Go durations through the existing Settings
+  duration helper. A successful save releases only its acknowledged draft after the mutation's
+  canonical refetch; newer or differently scoped drafts survive. The save bar can settle cleanly
+  without erasing a pending user edit, and reload reflects the persisted cutoff.
+- Native tools, CLI/HTTP/UDS DTOs, hook and extension contracts, config keys, restart behavior and
+  timeout enforcement are unchanged. User state, workspace/profile data and official
+  skills/compozy/ contracts need no migration or update.
+- QA/docs owners are MS-web-settings-takeover-redesign and adjacent MS-025, with
+  BUG-20261004-settings-idle-timeout-display. The existing General route suite owns display;
+  the existing General page-model suite owns save reconciliation and pending-edit preservation.
+  A fresh real-browser save/reload/restore walk confirms the production bundle.
+
+## Settings launcher availability (2026-10-04 QA)
+
+- The shared Web rail foot reads settings.general through the existing palette projection,
+  so floating and compact Settings controls reflect the same availability as their dispatch.
+  Local theme changes remain independent. No timer, command bypass or second readiness owner.
+- Native tools, CLI/HTTP/UDS contracts, hooks, extensibility, config, workspace/profile data,
+  persisted layouts and official skills/compozy/ behavior are unchanged; no migration is needed.
+- QA/docs owner: MS-web-settings-takeover-redesign and
+  BUG-20261004-settings-startup-false-offline. The canonical os-dock component suite owns
+  missing/unavailable/available command transitions; fresh Chrome entry verifies the actual
+  startup ordering and neighboring theme/launcher behavior.
+
+
+## Settings explicit saves without a connection (2026-10-04 QA)
+
+- Web Settings form mutations attempt transport immediately and settle through the existing error
+  path, preserving draft/discard/retry control. General, Memory, Automation, Diagnostics,
+  Extensions, Roles, Persona, Skills and Notifications share this explicit-save policy.
+  Attention retains its gesture-owned request. Global QueryClient and other domain mutation
+  admission/retry policies remain unchanged; there is no new queue, timer or retry layer.
+  Rejected fetches at these Settings write adapters become the existing SettingsApiError with
+  status zero, actionable save guidance and the original error as cause. Cancellation and HTTP
+  validation diagnostics retain their identity; no shared API-client behavior changes.
+- Native tools, CLI/HTTP/UDS DTOs, hooks, extensibility and config keys are unchanged. Public
+  writes retain their validation and scope ownership. No stored config/schema migration,
+  workspace/profile data movement or official skills/compozy/ change is needed.
+- QA/docs owner: MS-web-settings-takeover-redesign and BUG-20261004-settings-offline-save-stuck.
+  The existing Settings mutation suite owns offline settlement and explicit retry after
+  reconnect; fresh browser error/discard/retry/reload walks verify draft recovery and restoration.
+
+## Relative CLI workspace registration (2026-10-04 QA)
+
+- The workspace add positional root is resolved against the invoking CLI directory before the
+  existing create request. Absolute roots retain their behavior. The daemon still owns symlink
+  canonicalization, home refusal and registration; the CLI adds no lookup or home-policy copy.
+- Native tools, HTTP/UDS DTOs and validation, Web registration, hooks, extensibility and config
+  are unchanged. No migration, workspace/profile data movement or permission change is needed.
+  The official skills/compozy/ native registration contract is unchanged; site resolver guidance
+  documents the CLI-relative versus transport-absolute input boundary.
+- QA owner: RT-home-workspace-not-registrable and BUG-20261004-workspace-add-relative-path.
+  TestWorkspaceAddBuildsRequest owns relative-root conversion and directory-resolution failure;
+  fresh CLI/HTTP/UDS replay owns canonical refusal, project persistence and baseline restoration.
+
+
+## Task execution switch labels (2026-10-04 QA)
+
+- Web task creation connects the existing execution switches to their visible labels. The shared
+  Switch and FieldTitle primitives, copy, draft values and task execution policy are unchanged.
+- Native tools, CLI/HTTP/UDS routes/DTOs, hooks, extensibility, config, profile/workspace isolation,
+  persisted data and official skills/compozy/ behavior are unchanged; no migration is needed.
+- QA owner: MS-global-scope-no-workspace-work and BUG-20261004-task-execution-switches-unnamed.
+  The existing task editor component suite owns name-based operation; a fresh browser walk
+  confirms the real accessible tree, saved Global draft and adjacent project draft behavior.
+
+
+## Global agent fleet visibility (2026-10-04 QA)
+
+- HTTP/UDS GET /api/agents/catalog accepts an omitted workspace for the existing Global
+  definition population. Profile resolution remains authoritative; server filters, facets,
+  ordering and cursor pagination apply before the page cut. Existing workspace requests and
+  cursor fingerprints retain their shape and behavior; Web cache keys retain profile identity.
+- Session Manager and the durable aggregate accept Global breadth with an explicit profile
+  read scope. Exact metrics count visible sessions by agent name across projects and no-workspace
+  work, preserving live overlays and existing internal/archive exclusions. No schema migration.
+- Web catalog, route preload, detail metrics and session rows accept resolved Global scope;
+  unresolved scope still gates reads. No fabricated workspace, client filtering or totals.
+  Existing project-required session mutations retain their admission rules.
+- Native tools, CLI agent list/info, extension contracts, hooks and config keys are unchanged.
+  No workspace/profile data movement occurs. The owning OpenAPI source, generated types, site
+  agent guide and official skills/compozy/references/agent-definitions.md co-ship the additive read.
+- QA owner: MS-global-scope-no-workspace-work and BUG-20261004-global-agents-project-gate.
+  Existing core fleet, Session Manager, SQLite aggregate and route preload suites own the
+  changed boundaries. The global-agents-* receipts record the completed Global/project replay,
+  independent HTTP/UDS counts and cursor boundaries, reload persistence and owned-object cleanup.
+
+## QA delivery diagnostics (2026-10-04)
+
+- The bounded SWR 2.5.1 package patch preserves deferred focus/reconnect revalidation while
+  preventing a DOM event from becoming the timer delay. It changes no API, native tool,
+  extension/hook/config contract or persisted workspace data. Its removal condition and owning
+  visibility/focus checks are recorded in the 2026-10-02 untested QA report.
+- Component fixtures preserve their behavioral checks while settling asynchronous work and
+  unmounting before shared state resets. UIProvider still verifies both OS motion preferences.
+  Official skill and site content need no additional behavior change for these test repairs.
+- Dependency patch edits now select all JS workspace validation in make gate, with full PR CI
+  still required. The existing gate integration classification suite owns this delivery contract.
+- The React SDK test configuration uses an explicit .mjs extension and both invocation
+  paths follow it. This fixes the ESM-as-CommonJS loader diagnostic while preserving the
+  SDK's published dual-module package. The existing renderer suite validates the runner.
+
+
+## Loop catalog controls (2026-10-05 QA)
+
+- Web keeps the existing search toolbar mounted during catalog loading and exposes the
+  existing kind/category filters through shared filter chips. One route update commits
+  all selected facets; the daemon continues to filter, sort, count and page results.
+- Search uses the existing debounced draft/commit owner so pending navigation cannot
+  replace new keystrokes. A selected category remains labeled when other facets exclude
+  it; the UI does not fabricate a count for that selection.
+- Native tools, CLI/HTTP/UDS DTOs, hooks, extensions and config are unchanged. Query
+  workspace/profile isolation and persisted data retain their existing owners. No
+  migration or official skills/compozy/ behavior change is needed.
+- QA/docs owner: LP-001, BUG-20261005-loop-catalog-filters-missing and
+  BUG-20261005-loop-search-loses-focus. The existing chip projection suite owns filter
+  values; the existing Loop E2E suite owns focus across real daemon responses. The
+  persona replay verifies counted Rows/Cards continuation and filters from server facets.
+
+## Loop prompt cancellation (2026-10-05 QA)
+
+- The daemon action adapter preserves the ACP canceled outcome as the existing safe cancellation
+  failure. Run-agent output validation cannot restart a canceled turn as a schema-repair prompt.
+  Measured usage survives the error. The real Manager stop and binding owners remain unchanged.
+- Native loop_cancel and loop_node_cancel, CLI/HTTP/UDS cancellation, Goal command judges and Web
+  Cancel run retain their current contracts. No tool ID, DTO, extension/hook/config key, persisted
+  enum or schema changes. Workspace/profile authorization and owned-session isolation are unchanged.
+- The official skills/compozy/references/loops.md cancellation contract already requires fencing
+  new work and stopping owned sessions; this repair restores that promise. Site cancellation
+  guidance remains accurate. QA owner: LP-003 and BUG-20261005-loop-cancel-leaves-worker-running.
+  The canonical prompt-adapter suite covers the canceled outcome; existing run-agent and judge
+  suites are adjacent canaries. A fresh Bruno Web cancellation replay supplies real provider proof.
+
+## Loop worker stop attribution (2026-10-05 QA)
+
+- **Native tools and public surfaces:** Session status/history through CLI, HTTP, UDS and native
+  tools gain the additive stop reason `owner_released`. The cleanup relay uses it for automatic
+  terminal, reseed and revoked-binding retirement; explicit stop/cancel remains user-requested.
+  Existing IDs, routes, request shapes and historical classifications remain valid. OpenAPI and
+  generated Web types co-ship from the enum source.
+- **Extensibility, hooks and configuration:** No hook, SDK or configuration shape changes. Task
+  and Loop outcomes retain their authority; retiring a worker does not assert success. Actual
+  provider/process failures continue to take precedence over neutral retirement.
+- **Workspace data isolation:** Existing cleanup identities and scoped ownership determine the
+  session to stop. Retry/acknowledgement and first-writer cleanup metadata remain unchanged.
+  The existing unconstrained persisted stop-reason text needs no schema migration or history rewrite.
+- **Web and documentation:** The session status fold attributes the new reason to automatic
+  retirement from either the resource or durable transcript, without an operator marker or false
+  failure. The lifecycle stop-reason table and official `skills/compozy/references/loops.md`
+  explain the distinction. QA owner: LP-003 and BUG-20261005-loop-worker-cleanup-user-canceled;
+  canonical relay, lifecycle, node-cancel and Web status suites own focused coverage, followed by
+  real successful/exhausted owner replays and an explicit-cancel canary.
+
+## Loop terminal failure navigation (2026-10-05 QA)
+
+- Web offers failed-step navigation only for an actual failure blocker with a node or gate
+  reference. Budget exhaustion and stalling retain generic Inspect without inventing a failure.
+- Native tools, CLI/HTTP/UDS contracts, extensions, hooks, configuration and persisted data are
+  unchanged. Existing scoped run reads remain authoritative; no migration or isolation change.
+- No official skill or site contract changes are needed. QA owner: LP-003 and
+  BUG-20261005-loop-budget-phantom-failure-action. The existing LoopRunBriefing component suite
+  owns action availability/navigation; a real exhausted/failed pair supplies the persona replay.
+
+## Loop gate succession and progress bounds (2026-10-05 QA)
+
+- The coordinator's initial rejected control plan uses the existing idle-generation
+  finisher, preserving gate verdicts and explicit routes before terminal/successor
+  admission. Successful control-only completion keeps its existing behavior.
+  Gate-driven revise/next_generation checks the established
+  repeated-blocker and failure terminal guard before creating another generation.
+- Native loop_run/status/why and their CLI/HTTP/UDS/Web consumers retain the same tool IDs,
+  routes, DTOs, terminal enums and configuration keys. This restores authored behavior;
+  no compatibility shim, schema migration or historical run rewrite is required.
+- Existing generation/gate hook dispatch and scoped workspace/profile readers remain the
+  owners. No extension SDK or config shape changes. Stored output payloads continue through
+  the existing hydration path; no new persistence or cross-workspace lookup is introduced.
+- Site guardrail guidance and official skills/compozy/references/loops.md retain the same
+  contract. Clarify initial in-body routing and repeated-blocker precedence there. QA owner:
+  LP-003, LP-revise-repair-context and the two gate-routing bug records in the owning report.
+  Existing coordinator suites own the invariants; real command-gate runs own replay evidence.

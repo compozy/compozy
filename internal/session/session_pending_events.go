@@ -69,9 +69,13 @@ func (m *Manager) applyAttentionAgentEvent(
 	if resolvedBy == "" {
 		resolvedBy = "provider"
 	}
+	status := store.PendingInteractionStatusResolved
+	if event.Decision == string(acp.PermissionDecisionCanceled) {
+		status = store.PendingInteractionStatusCanceled
+	}
 	_, err := m.transitionPendingInteraction(ctx, store.PendingInteractionTransition{
 		InteractionID: interaction.InteractionID,
-		Status:        store.PendingInteractionStatusResolved,
+		Status:        status,
 		Resolution:    event.Decision,
 		ResolvedBy:    resolvedBy,
 		At:            event.Timestamp,

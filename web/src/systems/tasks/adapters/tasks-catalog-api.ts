@@ -66,9 +66,13 @@ export async function getTask(
   return requireResponseData(data, response, `Failed to fetch task "${id}"`).task;
 }
 
-export async function inspectTask(id: string, signal?: AbortSignal): Promise<TaskInspectView> {
+export async function inspectTask(
+  id: string,
+  scope: ProfileScopeParams,
+  signal?: AbortSignal
+): Promise<TaskInspectView> {
   const { data, error, response } = await apiClient.GET("/api/tasks/{id}/inspect", {
-    params: { path: { id } },
+    params: { path: { id }, query: scope },
     signal,
   });
 

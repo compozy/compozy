@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -150,6 +151,168 @@ func TestSessionCommandUsesTheDaemonSessionOwnerProfile(t *testing.T) {
 	})
 }
 
+func TestTaskExecutionCommandProfileSelection(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{
+		{"publish"}, {"start"}, {"approve"}, {"reject"},
+		{"pause", "--reason", "Operator review"}, {"resume"}, {"cancel"},
+		{"block", "--kind", "needs_input", "--reason", "Operator review"},
+		{"unblock", "--block", "block-review"}, {"blocks"}, {"recover"},
+	} {
+		action := args[0]
+		t.Run("Should keep the selected profile when executing task "+action, func(t *testing.T) {
+			t.Parallel()
+			called := false
+			checkSelection := func(ctx context.Context, id string) {
+				t.Helper()
+				called = true
+				if id != "task-marketing" {
+					t.Fatalf("task ID = %q, want task-marketing", id)
+				}
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "marketing" {
+					t.Fatalf("task %s profile = %q, want marketing", action, got)
+				}
+			}
+			execute := func(ctx context.Context, id string, _ TaskExecutionRequest) (TaskExecutionRecord, error) {
+				checkSelection(ctx, id)
+				return sampleTaskExecutionRecord(), nil
+			}
+			client := &profileTestDaemonClient{
+				DaemonClient: withWorkspaceResolution(&stubClient{
+					publishTaskFn: execute,
+					startTaskFn:   execute,
+					approveTaskFn: execute,
+					rejectTaskFn: func(ctx context.Context, id string) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+					pauseTaskFn: func(ctx context.Context, id string, _ PauseTaskRequest) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+					resumeTaskFn: func(ctx context.Context, id string, _ ResumeTaskRequest) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+					cancelTaskFn: func(ctx context.Context, id string, _ CancelTaskRequest) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+					blockTaskFn: func(ctx context.Context, id string, _ CreateTaskBlockRequest) (TaskBlockRecord, error) {
+						checkSelection(ctx, id)
+						return TaskBlockRecord{TaskID: id}, nil
+					},
+					clearTaskBlockFn: func(ctx context.Context, id, _ string, _ ClearTaskBlockRequest) (TaskBlockRecord, error) {
+						checkSelection(ctx, id)
+						return TaskBlockRecord{TaskID: id}, nil
+					},
+					listTaskBlocksFn: func(ctx context.Context, id string, _ bool) ([]TaskBlockRecord, error) {
+						checkSelection(ctx, id)
+						return []TaskBlockRecord{}, nil
+					},
+					recoverTaskFn: func(ctx context.Context, id string, _ RecoverTaskRequest) (TaskRecord, error) {
+						checkSelection(ctx, id)
+						return TaskRecord{ID: id}, nil
+					},
+				}),
+				profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+					{ID: store.DefaultProfileID, Name: configDefaultKey, State: "active"},
+					{ID: "profile-marketing", Name: "marketing", State: "active"},
+				}},
+			}
+			commandArgs := append(
+				[]string{"task", action, "task-marketing", "--profile", "marketing", "-o", "json"},
+				args[1:]...)
+			_, _, err := executeRootCommand(t, newTestDeps(t, client), commandArgs...)
+			if err != nil {
+				t.Fatalf("task %s error = %v", action, err)
+			}
+			if !called {
+				t.Fatal("task action did not reach the client")
+			}
+		})
+	}
+}
+
+func TestTaskOperatorCommandProfileSelection(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		args   []string
+		method string
+		path   string
+	}{
+		{"Should scope task updates", []string{"update", "task-marketing", "--title", "Editorial plan"}, http.MethodPatch, "/api/tasks/task-marketing"},
+		{"Should scope task deletion", []string{"delete", "task-marketing"}, http.MethodDelete, "/api/tasks/task-marketing"},
+		{"Should scope dependency creation", []string{"dependency", "add", "task-marketing", "--depends-on", "task-notes"}, http.MethodPost, "/api/tasks/task-marketing/dependencies"},
+		{"Should scope dependency removal", []string{"dependency", "remove", "task-marketing", "task-notes"}, http.MethodDelete, "/api/tasks/task-marketing/dependencies/task-notes"},
+		{"Should scope run enqueue", []string{"run", "enqueue", "task-marketing"}, http.MethodPost, "/api/tasks/task-marketing/runs"},
+		{"Should scope run start", []string{"run", "start", "run-marketing"}, http.MethodPost, "/api/task-runs/run-marketing/start"},
+		{"Should scope session attachment", []string{"run", "attach-session", "run-marketing", "--session", "sess-editor"}, http.MethodPost, "/api/task-runs/run-marketing/attach-session"},
+		{"Should scope run completion", []string{"run", "complete", "run-marketing"}, http.MethodPost, "/api/task-runs/run-marketing/complete"},
+		{"Should scope run failure", []string{"run", "fail", "run-marketing", "--error", "Publication deferred"}, http.MethodPost, "/api/task-runs/run-marketing/fail"},
+		{"Should scope run cancellation", []string{"run", "cancel", "run-marketing"}, http.MethodPost, "/api/task-runs/run-marketing/cancel"},
+		{"Should scope run recovery", []string{"run", "recover", "run-marketing"}, http.MethodPost, "/api/runs/run-marketing/recover"},
+		{"Should scope run fan out", []string{"fan-out", "task-marketing", "--designation", "Review copy", "--idempotency-key", "copy-review"}, http.MethodPost, "/api/tasks/task-marketing/runs/fan-out"},
+		{"Should scope forced release", []string{"release", "run-marketing"}, http.MethodPost, "/api/runs/run-marketing/release"},
+		{"Should scope bulk release", []string{"release", "run-marketing", "run-notes"}, http.MethodPost, "/api/runs/bulk/release"},
+		{"Should scope forced failure", []string{"fail", "run-marketing", "--reason", "Publication deferred"}, http.MethodPost, "/api/runs/run-marketing/fail"},
+		{"Should scope bulk failure", []string{"fail", "run-marketing", "run-notes", "--reason", "Publication deferred"}, http.MethodPost, "/api/runs/bulk/fail"},
+		{"Should scope run retry", []string{"retry", "run-marketing"}, http.MethodPost, "/api/runs/run-marketing/retry"},
+		{"Should scope review requests", []string{"review", "request", "run-marketing"}, http.MethodPost, "/api/task-runs/run-marketing/reviews"},
+		{"Should scope review verdicts", []string{"review", "submit", "review-marketing", "--run", "run-marketing", "--outcome", "approved", "--confidence", "0.9", "--reason", "Ready for publication", "--delivery-id", "editorial-review"}, http.MethodPost, "/api/task-reviews/review-marketing/verdict"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			reached := errors.New("task action reached transport")
+			calls := 0
+			transport := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{
+					Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+						if request.Method == http.MethodGet && request.URL.Path == "/api/workspaces" {
+							return newHTTPResponse(http.StatusOK, `{"workspaces":[]}`), nil
+						}
+						if strings.HasPrefix(request.URL.Path, "/api/workspaces/") {
+							return newHTTPResponse(http.StatusNotFound, `{"error":"workspace not registered"}`), nil
+						}
+						calls++
+						if request.Method != test.method || request.URL.Path != test.path {
+							t.Fatalf(
+								"request = %s %s, want %s %s",
+								request.Method,
+								request.URL.Path,
+								test.method,
+								test.path,
+							)
+						}
+						if got := request.URL.Query().Get(profileFlagName); got != "marketing" {
+							t.Errorf("request profile = %q, want marketing", got)
+						}
+						return nil, reached
+					}),
+				},
+			}
+			client := &profileTestDaemonClient{
+				DaemonClient: transport,
+				profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+					{ID: store.DefaultProfileID, Name: configDefaultKey, State: "active"},
+					{ID: "profile-marketing", Name: "marketing", State: "active"},
+				}},
+			}
+			args := append([]string{"task"}, test.args...)
+			args = append(args, "--profile", "marketing", "-o", "json")
+			deps := newTestDeps(t, client)
+			workspace := t.TempDir()
+			deps.getwd = func() (string, error) { return workspace, nil }
+			_, _, err := executeRootCommand(t, deps, args...)
+			if !errors.Is(err, reached) || calls != 1 {
+				t.Fatalf("action error = %v, calls = %d, want one transport call", err, calls)
+			}
+		})
+	}
+}
+
 // Invariant: a remote gateway defers implicit profile selection to the remote
 // daemon, while explicit operator selection is transported without requiring
 // the gateway to expose profile-management routes. The canonical profile scope
@@ -205,6 +368,29 @@ func TestRemoteGatewayProfileSelection(t *testing.T) {
 
 func TestProfileCommandOutputContract(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should report an archived remembered selection as a default fallback", func(t *testing.T) {
+		t.Parallel()
+		deps := profileTestDeps(t, contract.ProfileSelection{
+			Scope: contract.ProfileSelectionScopeWorkspace, WorkspaceID: "ws-1",
+			Profile: "default", Note: "archived_remembered_fallback",
+		})
+
+		output, _, err := executeRootCommand(t, deps, "profile", "current", "-o", "json")
+		if err != nil {
+			t.Fatalf("profile current error = %v", err)
+		}
+		var current profileCurrentRecord
+		if err := json.Unmarshal([]byte(output), &current); err != nil {
+			t.Fatalf("json.Unmarshal(profile current) error = %v", err)
+		}
+		want := profileCurrentRecord{
+			Profile: "default", Source: "default", Workspace: "my-saas", Note: "archived_remembered_fallback",
+		}
+		if current != want {
+			t.Fatalf("profile current = %#v, want %#v", current, want)
+		}
+	})
 
 	t.Run("Should render list and current JSON exactly [UT-076]", func(t *testing.T) {
 		t.Parallel()
@@ -388,7 +574,7 @@ func TestProfileStructuredErrorsCoverPublicCodes(t *testing.T) {
 	}
 }
 
-func profileTestDeps(t *testing.T) commandDeps {
+func profileTestDeps(t *testing.T, selections ...contract.ProfileSelection) commandDeps {
 	t.Helper()
 	workspaceClient := &stubClient{getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
 		return WorkspaceDetailRecord{
@@ -396,6 +582,7 @@ func profileTestDeps(t *testing.T) commandDeps {
 		}, nil
 	}}
 	profiles := &profileClientStub{
+		selections: selections,
 		profiles: []contract.Profile{
 			{Name: "default", Color: "#8E8EB5", Icon: new("circle"), State: "active", WorkItems: 12},
 			{Name: "marketing", Color: "#FF7F3A", Icon: new("megaphone"), State: "active", WorkItems: 3},

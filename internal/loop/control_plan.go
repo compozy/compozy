@@ -14,19 +14,14 @@ import (
 
 const subLoopEnteredOutputRef = "sub_loop_entered"
 
-func buildInitialControlAwareCoordinatorPlan(
+func (r *CoordinatorRunner) buildInitialControlAwareCoordinatorPlan(
 	ctx context.Context,
+	taskRun task.Run,
 	run Run,
 	generation int,
 	resolved *ResolvedDefinition,
 	effective EffectiveConfig,
-	gateEvaluator gate.GateEvaluator,
-	gateDecisions GateDecisionReader,
-	nodeControls NodeControlReader,
-	runtimeCatalog WorkspaceRuntimeCatalog,
 	fanOutWidth int,
-	watchRuntime coordinatorWatchRuntime,
-	watchEventsRuntime coordinatorWatchEventsRuntime,
 	history GenerationHistory,
 	scheduledAt time.Time,
 ) (task.CoordinatorCompletionPlan, error) {
@@ -38,7 +33,7 @@ func buildInitialControlAwareCoordinatorPlan(
 		generation,
 		graph,
 		topology,
-		gateEvaluator != nil,
+		r.gateEvaluator != nil,
 		outputs,
 	)
 	if err != nil {
@@ -48,8 +43,8 @@ func buildInitialControlAwareCoordinatorPlan(
 	gateEvaluations := &gateEvaluationCollector{}
 	terminal, err := advanceControlNodes(
 		newInitialControlEvalContext(
-			ctx, run, generation, resolved, topology, effective, gateEvaluator, gateDecisions,
-			nodeControls, runtimeCatalog, fanOutWidth, watchRuntime, watchEventsRuntime,
+			ctx, run, generation, resolved, topology, effective, r.gateEvaluator, r.store,
+			r.controls, r.runtimeCatalog, fanOutWidth, r.watchRuntime(), r.watchEventsRuntime(),
 			gateEvaluations, history, scheduledAt,
 		),
 		&plan,
@@ -73,15 +68,19 @@ func buildInitialControlAwareCoordinatorPlan(
 	if terminal != nil || plan.Yield {
 		return plan, nil
 	}
-	return finishInitialControlPlan(
+	return r.finishInitialControlPlan(
+		ctx,
+		taskRun,
 		&plan,
 		run,
 		generation,
 		resolved,
+		effective,
 		topology,
-		gateEvaluator,
 		outputs,
 		outputBlobs,
+		gateEvaluations,
+		history,
 		scheduledAt,
 	)
 }

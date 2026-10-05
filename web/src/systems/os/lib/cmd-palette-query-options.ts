@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  getPendingToolApproval,
   getCmdPaletteRankSignals,
   getCmdPaletteView,
   listCmdPaletteCommands,
@@ -13,6 +14,20 @@ import { cmdPaletteKeys } from "./cmd-palette-query-keys";
  * projection, and the stream already converges the revision.
  */
 const CATALOG_STALE_TIME = 60_000;
+
+export const cmdPaletteApprovalOptions = (profile: string, approvalId: string) =>
+  queryOptions({
+    queryKey: cmdPaletteKeys.approval(profile, approvalId),
+    queryFn: ({ signal }) => getPendingToolApproval(profile, approvalId, signal),
+    refetchInterval: query => {
+      const status = query.state.data;
+      return !status ||
+        status.approval_status === "pending" ||
+        (status.approval_status === "approved" && status.execution_status === "dispatching")
+        ? 1_000
+        : false;
+    },
+  });
 
 export const cmdPaletteCatalogOptions = (
   workspaceId: string | null,

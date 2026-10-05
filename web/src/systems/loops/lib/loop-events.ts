@@ -26,6 +26,7 @@ export interface LoopApprovalFact {
 
 export interface LoopApprovalRequest {
   gateId: string;
+  generation?: number;
   title: string;
   prompt?: string;
   facts: LoopApprovalFact[];
@@ -232,6 +233,7 @@ function parseApproval(payload: Record<string, unknown>): LoopApprovalRequest {
   const rawFacts = Array.isArray(payload.facts) ? payload.facts : [];
   return {
     gateId: str(payload.gate_id, "approve"),
+    generation: num(payload.generation),
     title: str(payload.title, "Approve to resume"),
     prompt: str(payload.prompt) || undefined,
     facts: rawFacts.map(item => {

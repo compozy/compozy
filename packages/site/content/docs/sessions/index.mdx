@@ -115,6 +115,16 @@ authoritative `workspace_id`. The event is a wake signal, not a row delta: recon
 catalog page after every event. `Last-Event-ID` resumes from a non-negative stream sequence within
 the selected scope.
 
+The catalog route also accepts a WebSocket upgrade. Each text message contains one complete SSE
+frame with the same event name, JSON data, and event id. Browser clients use this transport for the
+session catalog, `/api/worktrees/catalog-stream`, and `/api/logs/stream` so multiple tabs leave
+HTTP/1.1 connections available for navigation and commands. The original SSE routes remain available.
+Use `last_event_id=<id>` on an upgrade to resume; `Last-Event-ID` takes precedence when present.
+Session catalog ids are sequences; log ids are the complete composite values from their frames.
+Keep the same filters and profile/workspace scope when reconnecting, and obtain a fresh single-use
+stream ticket for every upgrade through a remote gateway. Worktree catalog reconnects require a
+catalog refetch because those wake events have no retained cursor.
+
 The same stream emits `session_attention_changed` after a committed badge edge. Its payload carries
 the old and new badge, the new attention class, `workspace_id`, and the canonical transition time.
 Extensions can observe the matching async-only `session.attention.changed` hook; observer failure

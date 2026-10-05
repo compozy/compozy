@@ -7,9 +7,7 @@ import {
   PROFILE_SEPARATION_LINE,
   ProfileSelectionMap,
   ProfileSettingsList,
-  useProfileFlowIntent,
   useProfilesSettingsPage,
-  type ProfileFlowSearch,
 } from "@/systems/profiles";
 import {
   SettingsAdvancedFold,
@@ -27,15 +25,9 @@ const TEST_PREFIX = "settings-page-profiles";
  * operator asks less often — the archived list, and where each profile is
  * currently active — sits one disclosure deeper.
  */
-export interface ProfilesSettingsPageProps {
-  /** Lifecycle flow a palette command navigated here to raise. */
-  profileFlow?: ProfileFlowSearch;
-}
-
-export function ProfilesSettingsPage({ profileFlow }: ProfilesSettingsPageProps) {
+export function ProfilesSettingsPage() {
   const page = useProfilesSettingsPage();
   useSettingsTopbar();
-  useProfileFlowIntent(profileFlow);
   const lifecycleActions = {
     onEditIdentity: (name: string) => page.open({ flow: "update", profile: name }),
     onRename: (name: string) => page.open({ flow: "rename", profile: name }),

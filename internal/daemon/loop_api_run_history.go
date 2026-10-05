@@ -165,6 +165,7 @@ func loopGateCriteriaPayload(raw json.RawMessage) ([]contract.LoopGateCriterionD
 		payloads = append(payloads, contract.LoopGateCriterionDetailPayload{
 			ID:             criterion.ID,
 			Type:           string(criterion.Type),
+			Prompt:         criterion.Prompt,
 			Outcome:        contract.LoopGateVerdictOutcome(criterion.Outcome),
 			Passed:         criterion.Passed,
 			Broken:         criterion.Broken,

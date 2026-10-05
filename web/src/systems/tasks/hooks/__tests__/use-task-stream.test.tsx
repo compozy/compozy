@@ -305,7 +305,9 @@ describe("useTaskStream", () => {
     );
 
     expect(factory).toHaveBeenCalledTimes(1);
-    expect(factory).toHaveBeenCalledWith("/api/tasks/task_001/stream?after_sequence=14");
+    expect(factory).toHaveBeenCalledWith(
+      "/api/tasks/task_001/stream?after_sequence=14&profile=default"
+    );
 
     const payload = buildStreamPayload();
 

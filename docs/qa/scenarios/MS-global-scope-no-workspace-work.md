@@ -6,13 +6,13 @@ persona: Lea
 journey: J-scope-global-across-workspaces
 expected: Global reads as a view across the registered project folders rather than a workspace; work created while it is on has no workspace, is owned by the acting profile, and reads back that way on every surface; the session catalog and its live stream apply the workspace boundary on the server and send nothing when scope is indeterminate; user-layer resources stay visible in every workspace and in Global alike.
 entry_points: web first run with zero folders; menubar globe toggle; shared creation surfaces while Global is on; compozy session list; GET /api/sessions and /api/sessions/catalog-stream over HTTP and UDS
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20261004-task-execution-switches-unnamed; BUG-20261004-global-agents-project-gate
+fix_status: fixed
+retest_status: pass
+fix_commits: 60ddd98e12e10731a7f98d8dedca20ff88f2e459
+evidence: docs/qa/evidence/2026-10-02-untested/global-work-fixed-lea-ended.json;docs/qa/evidence/2026-10-02-untested/global-work-stream-boundary-verified.json;docs/qa/evidence/2026-10-02-untested/global-agents-fixed-lea-ended.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-menubar-global-scope-toggle; RT-home-workspace-not-registrable; RT-web-session-all-workspaces; ET-profile-stream-isolation
 ---
 
@@ -43,3 +43,8 @@ Walk:
 Expected evidence: first-run capture, the created item's stored representation on all four surfaces,
 request-level proof of server-side filtering, the indeterminate-scope response, paired reconnect and
 replay frames, and the user-layer resolution in two workspaces.
+
+
+QA closure 2026-10-05: all planned legs above pass. Fix 60ddd98e12e10731a7f98d8dedca20ff88f2e459
+passes the warning-free affected gate and matches its recorded tree. This scenario is
+Fixed for the current cycle; earlier pending notes record the progression of the walk.

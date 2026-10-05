@@ -1,6 +1,8 @@
 import { apiClient, apiErrorMessage, apiRequestFailed } from "@/lib/api-client";
 
 import type {
+  CmdPaletteApprovalDecision,
+  CmdPaletteApprovalStatus,
   CmdPaletteAttachedClient,
   CmdPaletteCatalogResponse,
   CmdPaletteInvokeResult,
@@ -13,6 +15,34 @@ import type {
 import { CMD_PALETTE_AGGREGATE_LENS_KEY } from "../lib/cmd-palette-query-keys";
 
 export type CmdPaletteApiErrorKind = "daemon" | "malformed_response" | "transport";
+
+export async function getPendingToolApproval(
+  profile: string,
+  approvalId: string,
+  signal?: AbortSignal
+): Promise<CmdPaletteApprovalStatus> {
+  const { data, error, response } = await apiClient.GET("/api/tools/approvals/{id}", {
+    params: { path: { id: approvalId }, query: { profile } },
+    signal,
+  });
+  const fallback = "Failed to load approval";
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  return responseData(data, response, fallback);
+}
+
+export async function resolvePendingToolApproval(
+  profile: string,
+  approvalId: string,
+  decision: CmdPaletteApprovalDecision
+): Promise<CmdPaletteApprovalStatus> {
+  const { data, error, response } = await apiClient.POST("/api/tools/approvals/{id}/resolve", {
+    params: { path: { id: approvalId }, query: { profile } },
+    body: { decision },
+  });
+  const fallback = "Failed to record approval decision";
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  return responseData(data, response, fallback);
+}
 
 export interface CmdPaletteApiErrorMetadata {
   /** Daemon error code, e.g. `no_attached_shell`, `multiple_clients`, `already_running`. */

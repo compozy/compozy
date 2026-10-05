@@ -377,6 +377,11 @@ run or addressed node. A missing managed session is already stopped. Failed stop
 and retry after transient failures or daemon restart; origin-borrowed sessions are excluded. A
 canceled run cannot resume; use rerun to start a new generation.
 
+Automatic retirement of an owned session records `stop_reason: owner_released`, without an
+operator-cancellation marker or cancellation failure. This does not assert that the task or Loop
+succeeded: read their independent outcomes. Explicit Run/node cancel or stop still records the
+operator's request; actual provider failures remain visible.
+
 The Loop silence window raises attention and never auto-kills or auto-pauses. Separately, configured
 session supervision can stop a session after all work evidence expires and `stop_grace` elapses.
 A verified supervised stop recovers its authoritative task work within `max_attempts`; an owned
@@ -415,6 +420,10 @@ ordered gate IDs in `previous.route_causes`. `revise` is targeted repair; `next_
 fresh pass. Bounds still apply. For evidence-sensitive work, put the acceptance rule in a typed gate
 and route a weak verdict through `revise`, `next_generation`, or `halt`; do not hide the transition
 inside prompt prose.
+
+In-body routes also apply when the gate runs before the first action. Repeated in-body
+blocking issues reaching `no_progress_window` end the run `stalled` before a `revise` or
+`next_generation` successor, even when the iteration cap has room for another generation.
 
 `halt` is terminal automatic policy, not a ban on operator recovery. An explicit rerun remains
 available after the failure.
@@ -522,6 +531,12 @@ Each managed `run-agent` cell owns a system session. A session-started Loop reco
 origin session as informational parent lineage without borrowing it. Terminal cell settlement
 closes the binding and queues a durable stop. A failure scheduled for retry keeps the binding active
 until the cell reaches a terminal boundary.
+`allowed_tools` restricts that worker to a subset of the resolved Agent's tools; a request
+outside the Agent's allowance fails binding before the provider starts. The restriction is
+part of the pinned creation profile: equivalent lists reuse the session, while a different
+explicit restriction fails with a binding mismatch.
+Inspect the failed node's `allowed_tools_policy_violation` cause to find the rejected tool;
+remove it from the node list or select an Agent that permits it before retrying.
 A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout

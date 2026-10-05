@@ -6,13 +6,13 @@ persona: Sol
 journey: J-command-os-from-palette
 expected: Every list-bearing domain opens as a palette view with domain-appropriate chips carrying truthful counts, single-select semantics, and one-keystroke clear on zero matches; state badges come from the shared status-tone dictionary and are never color-only. A selected row's detail pane previews metadata and sanitized text without stealing list focus and clears when the row disappears. Form views traverse typed fields in declared order, block invalid submits on the first failing field, and discard values on pop. Grid views navigate in two dimensions with placeholder tiles on failed media. Overflowing lists either scroll everything or state the exact "showing N of M"; a cold-cache open shows loading, never a false empty; vault rows render names and metadata only.
 entry_points: Command-K Views group; command palette domain commands (Sessions, Tasks, Loops, Jobs, Agents, Extensions, Marketplace, Vault and peers); marketplace Grid view; vault view
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-palette-nested-views; ET-palette-sessions-view-switch; ET-palette-registry-driven-root
 ---
 
@@ -68,3 +68,7 @@ its previous heading sizes, cell padding, and indents, and gains accent-strong u
 emphasis, and a framed table with a tinted, non-wrapping header. Verified in the web Storybook story
 `systems-session-components-messagemarkdown--compact` only, which renders the same compact recipe. Not walked: a palette detail containing a table or links
 in a live runtime; confirm the framed table scrolls inside the detail pane rather than widening it.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

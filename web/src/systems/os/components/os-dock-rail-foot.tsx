@@ -4,6 +4,7 @@ import { Icon, ThemeToggle, Tooltip, TooltipContent, TooltipTrigger } from "@com
 
 import { useThemePreference } from "@/systems/theme";
 
+import { usePaletteCommand } from "../hooks/use-palette-registry";
 import { OsRailButton } from "./os-dock";
 
 export interface OsRailFootProps {
@@ -25,6 +26,7 @@ export function OsRailFoot({
   tipSide = "right",
 }: OsRailFootProps) {
   const theme = useThemePreference();
+  const settingsCommand = usePaletteCommand("settings.general");
   return (
     <>
       {profileSwitcher}
@@ -42,6 +44,7 @@ export function OsRailFoot({
         data-slot="os-rail-settings"
         label="Settings"
         tipSide={tipSide}
+        disabled={settingsCommand?.available !== true}
         onClick={onOpenSettings}
       >
         <Icon as={Settings} className="size-4" />

@@ -73,7 +73,7 @@ export function NextRunsCard({ nextRuns, emptyReason }: NextRunsCardProps) {
     >
       {nextRuns === null ? (
         <div className="rounded-md border border-dashed border-line-soft bg-sunken px-3 py-2.5 text-form-hint leading-snug text-subtle">
-          Fix the schedule above to preview fire times.
+          Choose Back to form to fix the schedule.
         </div>
       ) : nextRuns.length === 0 ? (
         <NextRunsEmpty reason={emptyReason ?? ""} />

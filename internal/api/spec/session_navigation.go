@@ -3,7 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func sessionNavigationOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search",
@@ -41,6 +41,10 @@ func sessionNavigationOperations() []OperationSpec {
 			Responses: sessionNavigationResponses(contract.SessionTranscriptOutlineResponse{}),
 		},
 	}
+	for _, operation := range operations {
+		operations = append(operations, globalSessionHistoryOperation(operation))
+	}
+	return operations
 }
 
 func sessionNavigationResponses(body any) []ResponseSpec {

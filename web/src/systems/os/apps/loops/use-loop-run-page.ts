@@ -99,20 +99,15 @@ export function useLoopRunPage(
     loopRunPageLogic.createStore({ workspaceId, runId })
   );
   const live = useSelector(runPageStore, state => state.context.live);
-  const enabled = workspaceId !== "" && runId !== "";
-  const queryEnabled = enabled && liveDataEnabled;
-  const runQuery = useLoopRun(workspaceId, runId, queryEnabled);
-  const run = runQuery.data?.run;
-  const generations = runQuery.data?.generations;
-  const executedDefinition = runQuery.data?.executed_definition;
-  const materializedContract = runQuery.data?.materialized_contract;
-  const loopName = run?.loop_name ?? "";
-  const loopQuery = useLoop(
-    workspaceId,
-    loopName,
-    queryEnabled && loopName !== "" && !executedDefinition
-  );
-  const definition = executedDefinition ?? loopQuery.data?.definition;
+  const {
+    runQuery,
+    run,
+    generations,
+    executedDefinition,
+    materializedContract,
+    loopQuery,
+    definition,
+  } = useRunDefinition(workspaceId, runId, liveDataEnabled);
 
   // The three run reads (ADR-005). They are the source for both registers; the
   // stream only tells them when to re-read.
@@ -142,19 +137,7 @@ export function useLoopRunPage(
   // the selection: the roster hands over an id, and only the session store knows
   // whether retention has since taken it. One node, one read — never a walk of
   // the roster to answer a question about the row somebody actually opened.
-  const [nodeSelection, setNodeSelection] = useState<LoopNodeSelection | null>(null);
-  const selectedSessionId =
-    selectedRosterNode(rosterRead.nodes, nodeSelection)?.session_id?.trim() || null;
-  const sessionAvailability = useLoopNodeSessionAvailability(
-    workspaceId,
-    selectedSessionId,
-    liveDataEnabled
-  );
-
-  const pauseMutation = usePauseLoopRun();
-  const resumeMutation = useResumeLoopRun();
-  const cancelMutation = useCancelLoopRun();
-  const approveMutation = useApproveLoopRun();
+  const nodeSelection = useRunNodeSelection(workspaceId, rosterRead.nodes, liveDataEnabled);
 
   const nowMs = useNowTick(isLive && liveDataEnabled);
   const view = run
@@ -174,6 +157,131 @@ export function useLoopRunPage(
   const nodesById = new Map<string, LoopNodeLifecycle>(
     nodeLifecycles.map(node => [node.nodeId, node])
   );
+
+  const versionLabel = runVersionLabel(
+    run?.definition_version ?? loopQuery.data?.version,
+    Boolean(executedDefinition)
+  );
+  const controls = useRunControls(workspaceId, runId);
+
+  return {
+    ...runDisplayFields(view),
+    runQuery,
+    // `run` is the polled projection (existence/status/chrome). `effectiveRun`
+    // overlays the fresher streamed token count and owns Usage + body reads —
+    // the two differ only in `tokens_used`.
+    run,
+    effectiveRun,
+    definition,
+    materializedContract,
+    generations: generations ?? [],
+    watchEvents: runQuery.data?.watch_events ?? null,
+
+    amendments: runQuery.data?.amendments ?? [],
+
+    inputSchema: definition?.inputs,
+    isGenerationBusy: isGenerationBusy(run, generations),
+    versionLabel,
+    live,
+    registers: projectLoopRunRegisters({
+      briefing: briefingRead.briefing,
+      nodes: rosterRead.nodes,
+      rollups: rosterRead.rollups,
+      timeline: timelineRead.entries,
+      // The fork point in the story links the related run, and the run record is
+      // the only place that branch is recorded (US-009.EC-3).
+      lineage: runLineage(effectiveRun),
+      graph: view?.graph ?? null,
+      rosterIsComplete: rosterRead.isComplete,
+      rosterIsTruncated: rosterRead.isTruncated,
+    }),
+    rosterNodes: rosterRead.nodes,
+    rosterRollups: rosterRead.rollups,
+    onLoadMoreRoster: rosterRead.loadMore,
+    isLoadingMoreRoster: rosterRead.isLoadingMore,
+    // Whether the roster read has answered at all. The Inspect lanes need this
+    // to tell "this run reached no step" from "we have not read its steps yet";
+    // without it a pending or failed read renders as `No steps ran`.
+    rosterRead: { isLoading: rosterRead.isLoading, isError: rosterRead.isError },
+    ...nodeSelection,
+    storyPaging: {
+      hasOlder: timelineRead.hasOlder,
+      isLoading: timelineRead.isLoading,
+      // Folding this only into `isReconnecting` told the reader the transport is
+      // degraded but still let the story print "Nothing has happened in this run
+      // yet." The story owns that sentence, so it needs the flag itself.
+      isError: timelineRead.isError,
+      isLoadingOlder: timelineRead.isLoadingOlder,
+      onLoadOlder: timelineRead.loadOlder,
+    },
+    // A read that errored means the page is showing the last thing it
+    // successfully reconciled, and it has to say so. All three durable reads
+    // count — a failed timeline read is degraded transport, not evidence that
+    // nothing happened — and a settled run says it too: an unreadable terminal
+    // run is still unread, however finished it is.
+    isReconnecting: briefingRead.isError || rosterRead.isError || timelineRead.isError,
+    isLive,
+    // The same clock the page's own derivations run on, so the roster's elapsed
+    // readings and the Usage rail never disagree by a tick.
+    nowMs,
+    nodeLifecycles,
+    nodesById,
+    ...controls,
+  };
+}
+
+function useRunDefinition(workspaceId: string, runId: string, liveDataEnabled: boolean) {
+  const enabled = workspaceId !== "" && runId !== "";
+  const queryEnabled = enabled && liveDataEnabled;
+  const runQuery = useLoopRun(workspaceId, runId, queryEnabled);
+  const run = runQuery.data?.run;
+  const generations = runQuery.data?.generations;
+  const executedDefinition = runQuery.data?.executed_definition;
+  const materializedContract = runQuery.data?.materialized_contract;
+  const loopName = run?.loop_name ?? "";
+  const loopQuery = useLoop(
+    workspaceId,
+    loopName,
+    queryEnabled && loopName !== "" && !executedDefinition
+  );
+  const definition = executedDefinition ?? loopQuery.data?.definition;
+
+  return {
+    runQuery,
+    run,
+    generations,
+    executedDefinition,
+    materializedContract,
+    loopQuery,
+    definition,
+  };
+}
+
+function runVersionLabel(version: number | undefined, pinned: boolean) {
+  if (version === undefined) return undefined;
+  return pinned ? `v${version} · pinned` : `v${version}`;
+}
+
+function runDisplayFields(view: ReturnType<typeof projectLoopRunPageView> | null) {
+  return {
+    graph: view?.graph ?? null,
+    usageRows: view?.usageRows ?? [],
+    usageNote: view?.usageNote ?? null,
+    approvalRequest: view?.approvalRequest ?? null,
+    approvalFallbackFacts: view?.approvalFallbackFacts ?? [],
+    inputRows: view?.inputRows ?? [],
+    startedBy: view?.startedBy ?? "",
+    elapsedLabel: view?.elapsedLabel ?? "",
+    waitingNodes: view?.waitingNodes ?? [],
+    requests: view?.requests ?? [],
+  };
+}
+
+function useRunControls(workspaceId: string, runId: string) {
+  const pauseMutation = usePauseLoopRun();
+  const resumeMutation = useResumeLoopRun();
+  const cancelMutation = useCancelLoopRun();
+  const approveMutation = useApproveLoopRun();
 
   const handlePause = () => {
     pauseMutation.mutate(
@@ -228,90 +336,8 @@ export function useLoopRunPage(
     );
   };
 
-  const version = run?.definition_version ?? loopQuery.data?.version;
-  const versionLabel =
-    version !== undefined
-      ? executedDefinition
-        ? `v${version} · pinned`
-        : `v${version}`
-      : undefined;
   const pendingAction = approveMutation.isPending ? ("approve" as const) : undefined;
-
   return {
-    runQuery,
-    // `run` is the polled projection (existence/status/chrome). `effectiveRun`
-    // overlays the fresher streamed token count and owns Usage + body reads —
-    // the two differ only in `tokens_used`.
-    run,
-    effectiveRun,
-    definition,
-    materializedContract,
-    generations: generations ?? [],
-    watchEvents: runQuery.data?.watch_events ?? null,
-
-    amendments: runQuery.data?.amendments ?? [],
-
-    inputSchema: definition?.inputs,
-    isGenerationBusy: isGenerationBusy(run, generations),
-    graph: view?.graph ?? null,
-    versionLabel,
-    live,
-    registers: projectLoopRunRegisters({
-      briefing: briefingRead.briefing,
-      nodes: rosterRead.nodes,
-      rollups: rosterRead.rollups,
-      timeline: timelineRead.entries,
-      // The fork point in the story links the related run, and the run record is
-      // the only place that branch is recorded (US-009.EC-3).
-      lineage: {
-        forkedFrom: effectiveRun?.forked_from ?? null,
-        forks: effectiveRun?.forks ?? [],
-      },
-      graph: view?.graph ?? null,
-      rosterIsComplete: rosterRead.isComplete,
-      rosterIsTruncated: rosterRead.isTruncated,
-    }),
-    rosterNodes: rosterRead.nodes,
-    rosterRollups: rosterRead.rollups,
-    onLoadMoreRoster: rosterRead.loadMore,
-    isLoadingMoreRoster: rosterRead.isLoadingMore,
-    // Whether the roster read has answered at all. The Inspect lanes need this
-    // to tell "this run reached no step" from "we have not read its steps yet";
-    // without it a pending or failed read renders as `No steps ran`.
-    rosterRead: { isLoading: rosterRead.isLoading, isError: rosterRead.isError },
-    nodeSelection,
-    onNodeSelectionChange: setNodeSelection,
-    prunedSessionIds: loopPrunedSessionIds(selectedSessionId, sessionAvailability),
-    storyPaging: {
-      hasOlder: timelineRead.hasOlder,
-      isLoading: timelineRead.isLoading,
-      // Folding this only into `isReconnecting` told the reader the transport is
-      // degraded but still let the story print "Nothing has happened in this run
-      // yet." The story owns that sentence, so it needs the flag itself.
-      isError: timelineRead.isError,
-      isLoadingOlder: timelineRead.isLoadingOlder,
-      onLoadOlder: timelineRead.loadOlder,
-    },
-    // A read that errored means the page is showing the last thing it
-    // successfully reconciled, and it has to say so. All three durable reads
-    // count — a failed timeline read is degraded transport, not evidence that
-    // nothing happened — and a settled run says it too: an unreadable terminal
-    // run is still unread, however finished it is.
-    isReconnecting: briefingRead.isError || rosterRead.isError || timelineRead.isError,
-    isLive,
-    // The same clock the page's own derivations run on, so the roster's elapsed
-    // readings and the Usage rail never disagree by a tick.
-    nowMs,
-    usageRows: view?.usageRows ?? [],
-    usageNote: view?.usageNote ?? null,
-    approvalFallbackFacts: view?.approvalFallbackFacts ?? [],
-    inputRows: view?.inputRows ?? [],
-    startedBy: view?.startedBy ?? "",
-    elapsedLabel: view?.elapsedLabel ?? "",
-    nodeLifecycles,
-    nodesById,
-    waitingNodes: view?.waitingNodes ?? [],
-    requests: view?.requests ?? [],
     handlePause,
     handleResume,
     handleCancel,
@@ -333,4 +359,28 @@ export function useLoopRunPage(
           ? ("cancel" as const)
           : undefined,
   };
+}
+
+function useRunNodeSelection(
+  workspaceId: string,
+  nodes: Parameters<typeof selectedRosterNode>[0],
+  liveDataEnabled: boolean
+) {
+  const [nodeSelection, setNodeSelection] = useState<LoopNodeSelection | null>(null);
+  const selectedSessionId = selectedRosterNode(nodes, nodeSelection)?.session_id?.trim() || null;
+  const sessionAvailability = useLoopNodeSessionAvailability(
+    workspaceId,
+    selectedSessionId,
+    liveDataEnabled
+  );
+
+  return {
+    nodeSelection,
+    onNodeSelectionChange: setNodeSelection,
+    prunedSessionIds: loopPrunedSessionIds(selectedSessionId, sessionAvailability),
+  };
+}
+
+function runLineage(run: LoopRunRecord | undefined) {
+  return { forkedFrom: run?.forked_from ?? null, forks: run?.forks ?? [] };
 }

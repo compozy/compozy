@@ -2,7 +2,7 @@ import { ListFilter } from "lucide-react";
 
 import { Button, FiltersWithSearch, type Filter } from "@compozy/ui";
 
-import type { LoopStatusFilter } from "../../lib/loop-catalog";
+import type { LoopCatalogFilter } from "../../lib/loop-catalog";
 import {
   applyLoopFilterChips,
   buildLoopFilterFields,
@@ -10,24 +10,25 @@ import {
 } from "../../lib/loop-list-filters";
 
 export interface LoopCatalogFiltersProps {
-  statusFilter: LoopStatusFilter | null;
-  onStatusFilterChange: (next: LoopStatusFilter | null) => void;
+  filter: LoopCatalogFilter;
+  categoryOptions: readonly string[];
+  onFiltersChange: (next: LoopCatalogFilter) => void;
 }
 
 /**
  * Loop catalog filter chip bar for composition inside ListingToolbar.Filters.
- * Drives the server-side `status` query param (one chip, AND-combined with the search).
+ * Drives the server-side kind, category and status params, AND-combined with search.
  *
  * The option list is the daemon's full status vocabulary rather than the statuses
  * present on the loaded page, so `canceled` stays selectable on a roster that has
  * none — the answer is the truthful empty state, not a missing option.
  */
-function LoopCatalogFilters({ statusFilter, onStatusFilterChange }: LoopCatalogFiltersProps) {
-  const fields = buildLoopFilterFields();
-  const chips = loopFiltersToChips({ status: statusFilter });
+function LoopCatalogFilters({ filter, categoryOptions, onFiltersChange }: LoopCatalogFiltersProps) {
+  const fields = buildLoopFilterFields(categoryOptions, filter.category);
+  const chips = loopFiltersToChips(filter);
 
   const handleFiltersChange = (next: Filter<string>[]) => {
-    applyLoopFilterChips(next, { onStatusChange: onStatusFilterChange });
+    applyLoopFilterChips(next, { onFiltersChange });
   };
 
   return (

@@ -404,13 +404,13 @@ describe("stopSession", () => {
     const controller = new AbortController();
 
     await expect(
-      stopSession(WORKSPACE_ID, "sess-001", { signal: controller.signal })
+      stopSession(WORKSPACE_ID, "sess-001", "studio", { signal: controller.signal })
     ).resolves.toEqual(accepted);
 
     await expectFetchRequest({
       body: { wait: false },
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop?profile=studio",
       signal: controller.signal,
     });
   });
@@ -431,14 +431,14 @@ describe("stopSession", () => {
     };
     mockJsonResponse(unverified);
 
-    await expect(stopSession(WORKSPACE_ID, "sess-001", { wait: true })).resolves.toEqual(
+    await expect(stopSession(WORKSPACE_ID, "sess-001", "studio", { wait: true })).resolves.toEqual(
       unverified
     );
 
     await expectFetchRequest({
       body: { wait: true },
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop?profile=studio",
     });
   });
 
@@ -452,19 +452,19 @@ describe("stopSession", () => {
     };
     mockJsonResponse(alreadyStopped);
 
-    await expect(stopSession(WORKSPACE_ID, "sess-001")).resolves.toEqual(alreadyStopped);
+    await expect(stopSession(WORKSPACE_ID, "sess-001", "studio")).resolves.toEqual(alreadyStopped);
 
     await expectFetchRequest({
       body: { wait: false },
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop?profile=studio",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(stopSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
+    await expect(stopSession(WORKSPACE_ID, "unknown", "studio")).rejects.toThrow(
       "Session not found: unknown"
     );
   });
@@ -472,7 +472,7 @@ describe("stopSession", () => {
   it("throws generic error for other failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(stopSession(WORKSPACE_ID, "sess-001")).rejects.toThrow(
+    await expect(stopSession(WORKSPACE_ID, "sess-001", "studio")).rejects.toThrow(
       'Failed to stop session "sess-001": 500'
     );
   });

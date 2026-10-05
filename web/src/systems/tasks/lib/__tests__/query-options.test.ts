@@ -99,8 +99,8 @@ describe("tasks detail and run options", () => {
     expect(taskRunsOptions("task_1").refetchInterval).toBe(15_000);
     expect(taskTimelineOptions("task_1").refetchInterval).toBe(15_000);
     expect(taskTimelineOptions("task_1").staleTime).toBe(5_000);
-    expect(taskTreeOptions("task_1").refetchInterval).toBe(15_000);
-    const runInterval = taskRunDetailOptions("run_1").refetchInterval;
+    expect(taskTreeOptions("task_1", { profile: "default" }).refetchInterval).toBe(15_000);
+    const runInterval = taskRunDetailOptions("run_1", { profile: "default" }).refetchInterval;
     expect(typeof runInterval).toBe("function");
     if (typeof runInterval === "function") {
       expect(
@@ -119,14 +119,14 @@ describe("tasks detail and run options", () => {
   it("disables live queries when ids are missing", () => {
     expect(taskRunsOptions("").enabled).toBe(false);
     expect(taskTimelineOptions("").enabled).toBe(false);
-    expect(taskTreeOptions("").enabled).toBe(false);
-    expect(taskRunDetailOptions("").enabled).toBe(false);
+    expect(taskTreeOptions("", { profile: "default" }).enabled).toBe(false);
+    expect(taskRunDetailOptions("", { profile: "default" }).enabled).toBe(false);
   });
 
   it("carries timeline filters into the query key", () => {
     const options = taskTimelineOptions("task_1", { after_sequence: 12, limit: 30 });
 
-    expect(options.queryKey).toEqual(["tasks", "timeline", "task_1", "12", "30"]);
+    expect(options.queryKey).toEqual(["tasks", "timeline", "task_1", "12", "30", ""]);
   });
 });
 
@@ -197,6 +197,7 @@ describe("orchestration options", () => {
       "in_review",
       "sess_a",
       "25",
+      "",
     ]);
   });
 

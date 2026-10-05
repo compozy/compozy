@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"path/filepath"
 
 	"strings"
 
@@ -60,13 +61,22 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
   compozy workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			rootDir := strings.TrimSpace(args[0])
+			if !filepath.IsAbs(rootDir) {
+				cwd, err := currentWorkingDirectory(deps)
+				if err != nil {
+					return err
+				}
+				rootDir = filepath.Join(cwd, rootDir)
+			}
+
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 
 			workspace, err := client.CreateWorkspace(cmd.Context(), WorkspaceCreateRequest{
-				RootDir:      strings.TrimSpace(args[0]),
+				RootDir:      rootDir,
 				Name:         strings.TrimSpace(name),
 				AddDirs:      trimmedUniqueStrings(addDirs),
 				DefaultAgent: strings.TrimSpace(defaultAgent),

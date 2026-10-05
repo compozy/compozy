@@ -152,6 +152,12 @@ tools.
 Static assets the daemon loads while the extension is enabled. Paths resolve inside the extension
 root and may not escape it.
 
+Use tables with `path` and an optional `profile` for skills, agents, Loops, automation, and layouts.
+The previous string-array form, such as `agents = ["agents"]`, is accepted through
+v0.3.0-beta.30 and normalized to unplaced paths when loaded. Builds emit the table form. Update
+handwritten sources before v0.3.0-beta.31, when string-array support is removed; replace each string
+with a table containing the same `path`, leaving `profile` omitted to preserve its visibility.
+
 | Field                      | Loaded as                                                               |
 | -------------------------- | ----------------------------------------------------------------------- |
 | `resources.skills`         | Markdown skill files parsed like normal `SKILL.md` files.               |
@@ -332,11 +338,17 @@ version = "0.1.0"
 description = "Review skills, agents, automation, and layouts"
 min_compozy_version = "0.3.0-beta.1"
 
-[resources]
-skills = ["skills"]
-agents = ["agents"]
-automation = ["automation"]
-layouts = ["layouts"]
+[[resources.skills]]
+path = "skills"
+
+[[resources.agents]]
+path = "agents"
+
+[[resources.automation]]
+path = "automation"
+
+[[resources.layouts]]
+path = "layouts"
 ```
 
 Installation is inert. These resources become live only after the extension is enabled, and disable

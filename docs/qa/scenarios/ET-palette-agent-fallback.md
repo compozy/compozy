@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-command-os-from-palette
 expected: A non-empty query with no matching result shows only the visually distinct Ask agent row, while a weak result at the served threshold keeps both the result and fallback visible. Nothing sends the query before Enter. Enter creates one new session with the workspace default agent and the query as its opening prompt, closes the palette, and opens that session; a missing default opens the agent picker, a failed spawn preserves the query and names the failure, and a rapid repeated Enter cannot create duplicate sessions. Turning Agent fallback off in Settings > Palette removes the row immediately and `fallback_targets = []` reports the same desired state.
 entry_points: Command-K; Ask agent result row; Settings > Palette; `compozy config get cmd_palette.fallback_targets`; GET|PATCH /api/settings/cmd-palette
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-palette-registry-driven-root; ET-agent-command-invoke; ET-web-command-palette-shortcuts; ET-palette-sessions-view-switch
 ---
 
@@ -43,3 +43,7 @@ Expected evidence: screenshots of the zero-match and weak-match states, the crea
 the query as first prompt, the picker path, and the Settings toggle; the rank-signals threshold
 and top-score pair for the equality and below-threshold branches; a network capture (or devtools
 note) proving no pre-send; the config-get transcript.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

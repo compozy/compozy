@@ -20,17 +20,18 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
+		cwd     string
 		request WorkspaceCreateRequest
 	}{
 		{
-			name: "minimal",
+			name: "Should build a minimal absolute request",
 			args: []string{"workspace", "add", "/workspace/project", "-o", "json"},
 			request: WorkspaceCreateRequest{
 				RootDir: "/workspace/project",
 			},
 		},
 		{
-			name: "with optional flags",
+			name: "Should preserve optional flags",
 			args: []string{
 				"workspace", "add", "/workspace/project",
 				"--name", "alpha",
@@ -45,6 +46,22 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 				Name:         "alpha",
 				AddDirs:      []string{"/workspace/shared-a", "/workspace/shared-b"},
 				DefaultAgent: "coder",
+			},
+		},
+		{
+			name: "Should resolve the current directory before registration",
+			args: []string{"workspace", "add", ".", "-o", "json"},
+			cwd:  "/workspace/project",
+			request: WorkspaceCreateRequest{
+				RootDir: "/workspace/project",
+			},
+		},
+		{
+			name: "Should resolve a relative folder against the invoking directory",
+			args: []string{"workspace", "add", "../project", "-o", "json"},
+			cwd:  "/workspace/sibling",
+			request: WorkspaceCreateRequest{
+				RootDir: "/workspace/project",
 			},
 		},
 	}
@@ -74,6 +91,9 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 					}, nil
 				},
 			})
+			if tt.cwd != "" {
+				deps.getwd = func() (string, error) { return tt.cwd, nil }
+			}
 
 			stdout, _, err := executeRootCommand(t, deps, tt.args...)
 			if err != nil {
@@ -89,6 +109,28 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should refuse registration when the invoking directory cannot be resolved", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{
+			createWorkspaceFn: func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error) {
+				called = true
+				return WorkspaceRecord{}, nil
+			},
+		})
+		wantErr := errors.New("working directory unavailable")
+		deps.getwd = func() (string, error) { return "", wantErr }
+
+		_, _, err := executeRootCommand(t, deps, "workspace", "add", ".", "--json")
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("workspace add error = %v, want %v", err, wantErr)
+		}
+		if called {
+			t.Fatal("CreateWorkspace called without a resolved invoking directory")
+		}
+	})
 }
 
 func TestWorkspaceEditBuildsRequest(t *testing.T) {

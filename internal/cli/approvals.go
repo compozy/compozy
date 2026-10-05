@@ -3,26 +3,29 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/spf13/cobra"
 )
 
 func newApprovalsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   observeApprovalsLabel,
-		Short: "Inspect or cancel pending tool approvals",
+		Short: "Inspect, decide, or cancel pending tool approvals",
 	}
 	cmd.AddCommand(
 		newApprovalShowCommand(deps),
+		newApprovalResolveCommand(deps),
 		newApprovalCancelCommand(deps),
 	)
 	return cmd
 }
 
 func newApprovalShowCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "show <id>",
 		Short: "Show one tool approval lifecycle",
 		Args:  cobra.ExactArgs(1),
@@ -42,10 +45,12 @@ func newApprovalShowCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, approvalStatusOutput(status))
 		},
 	}
+	configureSingleProfileCommand(cmd, deps)
+	return cmd
 }
 
 func newApprovalCancelCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "cancel <id>",
 		Short: "Cancel one pending tool approval",
 		Args:  cobra.ExactArgs(1),
@@ -65,6 +70,39 @@ func newApprovalCancelCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, approvalStatusOutput(status))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
+}
+
+func newApprovalResolveCommand(deps commandDeps) *cobra.Command {
+	var decision string
+	cmd := &cobra.Command{
+		Use: "resolve <id>", Short: "Approve or deny one pending tool approval", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			approvalID, err := requiredCmdPaletteID(args[0], "approval ID")
+			if err != nil {
+				return err
+			}
+			outcome := toolspkg.ApprovalOutcome(strings.TrimSpace(decision))
+			if outcome != toolspkg.ApprovalApproved && outcome != toolspkg.ApprovalDenied {
+				return withCommandExitCode(2, fmt.Errorf("cli: decision must be approved or denied"))
+			}
+			client, err := cmdPaletteClientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			status, err := client.ResolvePendingToolApproval(cmd.Context(), approvalID,
+				contract.ResolveToolApprovalRequest{Decision: outcome})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, approvalStatusOutput(status))
+		},
+	}
+	cmd.Flags().StringVar(&decision, "decision", "", "Decision: approved or denied")
+	mustMarkFlagRequired(cmd, "decision")
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }
 
 func cmdPaletteClientFromDeps(deps commandDeps) (CmdPaletteClient, error) {

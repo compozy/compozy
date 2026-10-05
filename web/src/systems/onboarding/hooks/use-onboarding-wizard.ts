@@ -2,6 +2,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSelector } from "@xstate/store-react";
 
+import { enableGlobalScope } from "@/systems/workspace";
+
 import { onboardingDraftStore } from "../stores/use-onboarding-draft-store";
 import { useCompleteOnboarding } from "./use-complete-onboarding";
 import {
@@ -51,6 +53,7 @@ export interface OnboardingWizardApi {
   goToStep: (step: number) => void;
   back: () => void;
   next: () => Promise<void>;
+  skipToGlobal: () => Promise<void>;
 }
 
 export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi {
@@ -76,10 +79,11 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     }
   };
 
-  const finish = async () => {
+  const finish = async (scope: "current" | "global") => {
     setCommitError(null);
     try {
       await complete.mutateAsync();
+      if (scope === "global") enableGlobalScope();
       onboardingDraftStore.trigger.draftCleared();
       onComplete();
     } catch (error) {
@@ -106,9 +110,14 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
       return;
     }
     if (step === 2) {
-      await finish();
+      await finish("current");
       return;
     }
+  };
+
+  const skipToGlobal = async () => {
+    if (step !== 2 || workspaceBusy || complete.isPending) return;
+    await finish("global");
   };
 
   return {
@@ -124,5 +133,6 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     goToStep,
     back,
     next,
+    skipToGlobal,
   };
 }

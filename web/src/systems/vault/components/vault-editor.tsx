@@ -2,7 +2,7 @@ import { AlertCircle, KeyRound } from "lucide-react";
 
 import {
   Alert,
-  AlertAction,
+  AlertActions,
   AlertDescription,
   Disclosure,
   Input,
@@ -71,6 +71,8 @@ export function VaultEditor({
               <RequiredMark />
             </>
           }
+          help="Start with providers/, profiles/, automation/, mcp/, hooks/, extensions/, or sessions/, followed by a path. For example: automation/editorial/notes-token. Keep the first path part lowercase."
+          helpLabel="About name"
           description={
             savedAs ? (
               <span data-testid="settings-vault-editor-ref-preview">
@@ -96,7 +98,7 @@ export function VaultEditor({
               A secret with this name already exists. Saving replaces its value everywhere it's
               used.
             </AlertDescription>
-            <AlertAction>
+            <AlertActions>
               <label className="flex items-center gap-2 text-form-label text-muted">
                 <Switch
                   checked={draft.overwriteConfirmed}
@@ -107,7 +109,7 @@ export function VaultEditor({
                 />
                 Replace it
               </label>
-            </AlertAction>
+            </AlertActions>
           </Alert>
         ) : null}
         <SecretField

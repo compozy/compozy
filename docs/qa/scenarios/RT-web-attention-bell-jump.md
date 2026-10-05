@@ -6,13 +6,13 @@ persona: Cora
 journey: J-respond-to-agent-attention
 expected: The bell separates Needs you from Finished, counts exact unread needs-you occurrences across all workspaces and source profiles, preserves task-approval rows and honest quiet or disconnected states, and activation opens the named task or focuses the named session after any required workspace switch.
 entry_points: web OS shell attention bell; pending task approval row; session needs-you or finished row
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pending
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-session-attention-catalog; ET-web-session-cross-workspace-confirm
 ---
 
@@ -32,3 +32,7 @@ profile receipt isolation, cross-workspace landing, failed writes, and events ar
 snapshot. Source sessions/tasks/Loops/terminal requests must remain unchanged and reachable.
 The canonical attention browser suite adds durable acknowledgement and clear/title reconciliation.
 Local rendered QA is deferred by explicit user instruction; CI owns the new browser evidence.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

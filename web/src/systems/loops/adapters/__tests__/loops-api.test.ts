@@ -135,10 +135,11 @@ describe("loops-api (request construction + error mapping)", () => {
       sort: "name",
       status: "running",
       cursor: " cursor-2 ",
+      profile: " marketing ",
     });
     expect(result.page).toEqual({ has_more: false, limit: 25, total: 0 });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loops?q=release&kind=read_only&category=delivery&status=running&sort=name&cursor=cursor-2&limit=25",
+      path: "/api/workspaces/ws_1/loops?q=release&kind=read_only&category=delivery&status=running&sort=name&cursor=cursor-2&limit=25&profile=marketing",
       method: "GET",
     });
   });

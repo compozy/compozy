@@ -35,6 +35,10 @@ Settings changes surface lifecycle status, not just file writes. The public cont
 
 Use `compozy config reload -o json` to reconcile edited desired state with the active generation. Use `compozy config apply-history -o json` or `GET /api/settings/apply` to inspect persisted apply records. A settings write is incomplete until you can see whether it applied live, requires a daemon restart, affects only new sessions, or failed with retryable diagnostics.
 
+`compozy status --json` reports the current `config.restart_required` flag. The Web Settings banner
+uses that runtime truth, including changes saved from CLI or API after a previous restart.
+Choosing **Not now** dismisses the observed change; a later apply record can show the notice again.
+
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
 
@@ -327,8 +331,16 @@ profile's mute set with `GET/PATCH /api/settings/attention?scope=user`; use
 event, but its attention rows and counts remain unchanged. Workspace removal deletes every profile's
 mute row through the workspace foreign key.
 
-Use `compozy config get|set attention.toasts|sound|system` for global delivery controls, or the typed
-Settings route above for the complete view. The title count is always on and is not a config key.
+Omit `config.muted_workspaces` when changing only delivery channels; this preserves the selected
+profile's current mute set. An explicit array replaces that set, and an empty array clears it.
+A replacement referencing a removed or unknown workspace is refused with 404 and preserves the
+previous complete policy. The open Web policy rereads after the workspace catalog observes deletion.
+
+Use `compozy config get attention.toasts|sound|system --profile default` to read global delivery
+controls and `compozy config set attention.toasts|sound|system <value> --scope user` to change them.
+An omitted write scope selects the active owner, which can be a profile overlay rather than the
+global policy. The typed Settings route above provides the complete view. The title count is always
+on and is not a config key.
 
 ## Terminal
 

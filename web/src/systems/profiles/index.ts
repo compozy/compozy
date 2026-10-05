@@ -161,7 +161,6 @@ export {
   useProfileReadScope,
   type ProfileReadScope,
 } from "./hooks/use-profile-read-scope";
-export { useProfileFlowIntent } from "./hooks/use-profile-flow-intent";
 export {
   profileFlowFromSearch,
   validateProfilesSettingsSearch,

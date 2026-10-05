@@ -21,7 +21,8 @@ charter:
   visual_contract: "docs/design/opendesign/herdr-parity/: task_03 VC-21..VC-23"
   guidance:
     must_try:
-      - "Write toasts, sound, system, and muted_workspaces through Web, config CLI, HTTP, and UDS in sequence; fresh-read each value from every other surface."
+      - "Write global toasts, sound and system through Web, config CLI, HTTP and UDS in sequence; fresh-read each value from every other global surface."
+      - "Replace muted_workspaces through Web and the profile-scoped HTTP/UDS Settings route; preserve foreign-profile rows. The config CLI and config.toml no longer own workspace mutes."
       - "Keep Settings open in two tabs, race complete-section writes, reload both, and prove a whole valid config wins without field loss."
       - "Mute two workspaces, delete one, and confirm pruning removes only that id while the active runtime keeps the other policy."
       - "Exercise Armed, Denied, and Unavailable system-channel states against real browser capability and permission."

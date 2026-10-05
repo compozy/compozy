@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-24
 expected: "`/triggers/$triggerId` renders the redesigned rule page: page-head sentence (When … if … run/start …) with a labeled Enable switch opposite it — PATCH `{enabled}` works for all sources, pending keeps the previous track state with an Enabling… label, disabled reveals the pause line; subhead = event pill · workspace · updated; main = RULE section with a When/If/Then card (webhook adds the local POST path with copy + curl; loop Then shows the loop link + mapping rows `←` from event / `=` static, no prompt) and RECENT RUNS as a single-open accordion (status pill + icon + meta + duration, drawer copy per status; Open session / Open loop run rendered only when the id exists — never disabled placeholders); rail = Properties / Public delivery (webhook only, gateway reachability copy) / Reliability / Identity collapsible cards + Inspect button + CLI hint; Inspect opens a right sheet with Diagnostics tiles and a Sample envelope JSON pane reconstructed from the trigger definition — signing secret reads presence only, never the value; config/package sources show the dashed lockbar + config.toml quiet note, hide Edit/Delete entirely, and keep the enable switch working; no Run now, no schedule/next-run anywhere."
 entry_points: web `/triggers/$triggerId` (catalog row click or deep link)
-qa_status: untested
-bug_ids: BUG-20260815-trigger-detail-duplicate-key
+qa_status: pass
+bug_ids: BUG-20260815-trigger-detail-duplicate-key; BUG-20261003-trigger-error-hides-return
 fix_status: fixed
-retest_status:
-fix_commits: self (the commit that records this fixed verdict)
-evidence: docs/qa/evidence/2026-08-15-triggers-ui/webhook-detail.png; docs/qa/evidence/2026-08-15-triggers-ui/inspect-sample-envelope.png; docs/qa/evidence/2026-08-15-triggers-ui/webhook-disabled-after-reload.png; docs/qa/evidence/2026-08-15-triggers-ui/compact-320x800.png; docs/qa/evidence/2026-08-15-triggers-ui/port-4177-retest.png; docs/qa/evidence/2026-08-15-triggers-ui/post-rebase-4177.png
-last_report: docs/qa/reports/2026-08-15-triggers-ui.md
+retest_status: pass
+fix_commits: 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0
+evidence: docs/qa/evidence/2026-10-02-untested/trigger-preview-error-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-catalog-return-ready.json; docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-managed-disabled-readback.json; docs/qa/evidence/2026-10-02-untested/trigger-rule-runs.png; docs/qa/evidence/2026-10-02-untested/trigger-rule-webhook-inspect.png; docs/qa/evidence/2026-10-02-untested/trigger-rule-compact-inspect.png; docs/qa/evidence/2026-10-02-untested/trigger-recovery-back-action.png; docs/qa/evidence/2026-10-02-untested/trigger-native-zoom-bruno.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-jobs-triggers-catalog; TA-automation-crud-loop-target
 ---
 
@@ -43,3 +43,5 @@ catalog → detail → Inspect path on Web port 4177. The final browser console 
 no application errors.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+QA 2026-10-03: Bruno completes rule, actual webhook runs, persisted dynamic/package toggles, Inspect, keyboard, history, compact viewport and native Chrome 200% zoom. The failed-detail return action was repaired and re-walked. Unchanged config-source evidence is reused as documented in the current report; authoring/catalog hardening remains owned by the overlapping catalog scenario.

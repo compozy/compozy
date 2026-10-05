@@ -196,6 +196,7 @@ type BaseHandlers struct {
 	httpPort                  atomic.Int64
 	activeSessionStreams      atomic.Int64
 	windowManagerStreams      *windowManagerStreamLifecycle
+	eventStreams              *streamLifecycle
 	windowManagerPingInterval time.Duration
 	terminalStreams           *terminalStreamLifecycle
 	terminalCatalog           *terminalCatalog
@@ -211,6 +212,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
+	handlers.eventStreams = newStreamLifecycle("event")
 	handlers.windowManagerPingInterval = cfg.WindowManagerPingInterval
 	handlers.terminalStreams = newTerminalStreamLifecycle()
 	if cfg.Terminal != nil {
@@ -383,6 +385,9 @@ func (h *BaseHandlers) SetStreamDone(done <-chan struct{}) {
 	h.settingsMu.Unlock()
 	if h.windowManagerStreams != nil {
 		h.windowManagerStreams.reset()
+	}
+	if h.eventStreams != nil {
+		h.eventStreams.reset()
 	}
 	if h.terminalStreams != nil {
 		h.terminalStreams.reset()

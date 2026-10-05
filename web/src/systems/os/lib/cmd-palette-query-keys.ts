@@ -25,6 +25,8 @@ export function cmdPaletteProfileKey(profileKey: string): string {
 
 export const cmdPaletteKeys = {
   all: ["cmd-palette"] as const,
+  approval: (profile: string, approvalId: string) =>
+    [...cmdPaletteKeys.all, "approval", profile, approvalId] as const,
   catalogs: () => [...cmdPaletteKeys.all, "catalog"] as const,
   workspaceCatalogs: (workspaceId: string) =>
     [...cmdPaletteKeys.catalogs(), workspaceId.trim()] as const,

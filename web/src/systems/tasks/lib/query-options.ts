@@ -98,10 +98,10 @@ export function taskDetailOptions(id: string, scope: ProfileScopeParams, enabled
   });
 }
 
-export function taskInspectOptions(id: string, enabled = true) {
+export function taskInspectOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.inspectTask(id),
-    queryFn: ({ signal }) => inspectTask(id, signal),
+    queryKey: tasksKeys.inspectTask(id, scope),
+    queryFn: ({ signal }) => inspectTask(id, scope, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,
@@ -128,20 +128,20 @@ export function taskTimelineOptions(id: string, filters: TaskTimelineFilter = {}
   });
 }
 
-export function taskTreeOptions(id: string, enabled = true) {
+export function taskTreeOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.tree(id),
-    queryFn: ({ signal }) => getTaskTree(id, signal),
+    queryKey: tasksKeys.tree(id, scope),
+    queryFn: ({ signal }) => getTaskTree(id, scope, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,
   });
 }
 
-export function taskRunDetailOptions(runId: string, enabled = true) {
+export function taskRunDetailOptions(runId: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.runDetail(runId),
-    queryFn: ({ signal }) => getTaskRun(runId, signal),
+    queryKey: tasksKeys.runDetail(runId, scope),
+    queryFn: ({ signal }) => getTaskRun(runId, scope, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: query => taskRunDetailRefetchInterval(query.state.data),
     enabled: Boolean(runId) && enabled,
@@ -154,21 +154,22 @@ export function taskRunResultPageOptions(
   resultRef: string,
   offset: number,
   limit: number,
+  scope: ProfileScopeParams,
   enabled = true
 ) {
   return queryOptions({
-    queryKey: tasksKeys.runResult(workspaceId, runId, resultRef, offset, limit),
-    queryFn: ({ signal }) => readTaskRunResult(runId, offset, limit, signal),
+    queryKey: tasksKeys.runResult(workspaceId, runId, resultRef, offset, limit, scope),
+    queryFn: ({ signal }) => readTaskRunResult(runId, offset, limit, scope, signal),
     staleTime: Infinity,
     gcTime: 2 * 60 * 1000,
     enabled: Boolean(workspaceId && runId && resultRef) && enabled,
   });
 }
 
-export function taskRunInspectOptions(runId: string, enabled = true) {
+export function taskRunInspectOptions(runId: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.inspectRun(runId),
-    queryFn: ({ signal }) => inspectRun(runId, signal),
+    queryKey: tasksKeys.inspectRun(runId, scope),
+    queryFn: ({ signal }) => inspectRun(runId, scope, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(runId) && enabled,

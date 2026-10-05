@@ -463,10 +463,11 @@ type ExtensionProfileEnablement struct {
 }
 
 type ExtensionProfileMarker struct {
-	ExtensionName    string `json:"extension_name"`
-	ProfileName      string `json:"profile_name"`
-	CreatedProfileID string `json:"created_profile_id"`
-	CreatedAt        string `json:"created_at"`
+	ExtensionName      string        `json:"extension_name"`
+	ProfileName        string        `json:"profile_name"`
+	CreatedProfileID   string        `json:"created_profile_id"`
+	CreatedAt          string        `json:"created_at"`
+	CreatedByExtension sql.NullInt64 `json:"created_by_extension"`
 }
 
 type GatewayDeviceSession struct {

@@ -26,7 +26,7 @@ function JsonRowLine({ row }: { row: JsonRow }) {
         {indentOf(row.indent)}
         {row.label ? (
           <>
-            <span className="text-info">{`"${row.label}"`}</span>
+            <span className="text-info">{JSON.stringify(row.label)}</span>
             <span className="text-muted">: </span>
           </>
         ) : null}
@@ -53,10 +53,10 @@ function JsonRowLine({ row }: { row: JsonRow }) {
           row.highlighted && "rounded-[3px] bg-accent-tint px-0.5 ring-1 ring-accent-dim ring-inset"
         )}
       >
-        <span className="text-info">{`"${row.keyName}"`}</span>
+        <span className="text-info">{JSON.stringify(row.keyName)}</span>
         <span className="text-muted">: </span>
         <span className={row.highlighted ? "text-accent-strong" : "text-success"}>
-          {`"${row.value}"`}
+          {JSON.stringify(row.value)}
         </span>
       </span>
       {row.comma ? "," : ""}

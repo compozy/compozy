@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-24
 expected: `/jobs` and `/triggers` render as ListingPage catalogs (PageHead + ListingToolbar search/filters/view + rows/cards) instead of SplitPane master-detail; row click opens `/jobs/$jobId` or `/triggers/$triggerId` with breadcrumb parent link; Create CTA stays in topbar actions; `?create=loop&loop=` from Loop detail still opens the create editor seeded at that Loop; dynamic Edit/Delete remain source-gated detail actions, and Run now is available only for Jobs.
 entry_points: web `/jobs`; web `/triggers`; Loop detail Add schedule/trigger CTAs
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: docs/qa/evidence/2026-08-15-triggers-ui/catalog.png; docs/qa/evidence/2026-08-15-triggers-ui/jobs-canary.png; docs/qa/evidence/2026-08-15-triggers-ui/managed-disabled-after-reload.png
-last_report: docs/qa/reports/2026-08-15-triggers-ui.md
+qa_status: pass
+bug_ids: BUG-20261004-automation-offline-pagination-silent; BUG-20261003-background-windows-forget-global; BUG-20260713-workspace-trigger-loop-submit-inert; BUG-20261003-loop-mapping-example-rejected; BUG-20261003-webhook-sample-invalid-json
+fix_status: fixed
+retest_status: pass
+fix_commits: 78133b4f0f2c477f7fbc48b9abe1678463c0c5d0; 3f53932aa35300c32e92bb6a84d469e1d89f367c
+evidence: docs/qa/evidence/2026-10-02-untested/trigger-recovery-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-bruno-ended.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-global-failed-history.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-jobs-offline-observed.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-triggers-offline.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-pending-route-node.json; docs/qa/evidence/2026-10-02-untested/catalog-recovery-replay-trigger-route-back.json
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: TA-052; TA-056; TA-automation-crud-loop-target; LP-033
 ---
 
@@ -62,3 +62,18 @@ trigger controls, and the Jobs canary. Run now appeared only on the Job detail.
 
 QA impact 2026-08-20: catalog ListingToolbar search height now uses `--height-search`
 (28px) to match RouteNav / Filter / view pills. Reset the listing chrome walk.
+
+QA 2026-10-03: catalog search/Cards and Loop detail entry pass, but submitting a webhook from the live preview hides a server validation error. The existing silent-submit issue is reopened; repair and fresh replay are pending. Evidence: trigger-rule-bruno-ended.json and trigger-rule-retry-bruno-ended.json in this cycle.
+
+QA 2026-10-03: hidden preview submission errors, rejected mapping examples and invalid sample JSON are repaired and re-walked. The full catalog verdict remains untested/Pending until its separately listed concurrency, refetch-failure and runtime-disable obligations are walked. Trigger detail closure lives in ET-web-trigger-detail-rule-page.
+
+QA 2026-10-04: a retained scoped Loop run immediately reverses an explicit Global choice. The background-window bug is reopened for the route-adoption path. Catalog concurrency and runtime-off controls have current live evidence, but this scenario remains Pending for repair and the remaining charter legs.
+
+QA 2026-10-04 final replay: Global survives retained scoped Loop windows, a failed global Job
+and reload. Both catalogs retain rows with explicit offline waiting state and resume continuation.
+Real service failures preserve cached definitions and show runtime/history errors; ordinary reload
+restores controls. Two different Loop seeds are consumed once in both editors, cancelled drafts
+do not return, and unseeded creation retains its default target. Route/project changes clear old
+editor data; a pending Job does not disable another Job detail. Prior unchanged CRUD, managed
+source, row/card and concurrency evidence is reused from this cycle. The scenario is Fixed;
+the required gate passes and commit 3f53932aa contains the checked source tree.

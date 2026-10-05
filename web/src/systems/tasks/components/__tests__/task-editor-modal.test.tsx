@@ -273,18 +273,23 @@ describe("TaskEditorModal", () => {
     );
   });
 
-  it("Should toggle Save as draft and flip the submit label to Save draft", () => {
+  it("Should identify the execution switches and update their draft values", () => {
     const { onDraftChange } = renderModal();
 
     fireEvent.click(screen.getByTestId("task-mode-advanced"));
     // Execution panel is collapsed until expanded.
-    expect(screen.queryByTestId("task-save-draft-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Save as draft" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("task-execution-toggle"));
-    fireEvent.click(screen.getByTestId("task-save-draft-toggle"));
+    fireEvent.click(screen.getByRole("switch", { name: "Save as draft" }));
 
     expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ saveAsDraft: true }));
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save draft");
+
+    fireEvent.click(screen.getByRole("switch", { name: "Start automatically when ready" }));
+    expect(onDraftChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ saveAsDraft: true, autoEnqueueOnReady: true })
+    );
   });
 
   it("Should call onSubmit when the form is submitted", () => {

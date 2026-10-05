@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import type { WindowManagerClientCommandReply } from "../lib/window-manager-client-command-frames";
 
 import { notifyUser } from "@/lib/user-feedback";
 
@@ -26,6 +27,7 @@ import { cmdPaletteKeys } from "../lib/cmd-palette-query-keys";
 import type { OsAppId, OsWindowRoute } from "../lib/os-types";
 import {
   cmdPaletteExecutionStore,
+  requestPaletteApproval,
   requestPaletteArgs,
   requestPaletteConfirmation,
 } from "../stores/cmd-palette-execution-store";
@@ -191,7 +193,17 @@ export function useCmdPaletteDispatch({
           }),
         onPendingSettle: target =>
           cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: target.id }),
-        onCompleted: (target, result) => announce(invokeCompletedFeedback(target, result)),
+        onCompleted: (target, result) => {
+          if (result.status === "approval_pending" && result.approval_id) {
+            shell.openPaletteExecution();
+            requestPaletteApproval(target, {
+              id: result.approval_id,
+              profile: result.profile_lens.profile_name ?? destination,
+            });
+            return;
+          }
+          announce(invokeCompletedFeedback(target, result));
+        },
       },
     });
   };
@@ -210,10 +222,14 @@ export function useCmdPaletteDispatch({
     return await runCommand(command, options);
   };
 
-  const executeClientOp = async (op: string, payload: unknown) => {
+  const executeClientOp = async (
+    op: string,
+    payload: unknown,
+    reply: WindowManagerClientCommandReply
+  ) => {
     const handler = paletteClientOp(op);
     if (handler === null) throw new Error(`Unsupported client operation: ${op}`);
-    return await handler(clientOps, payload);
+    return await handler({ ...clientOps, reply }, payload);
   };
 
   const setPinned = async (command: ResolvedPaletteCommand, pinned: boolean) => {

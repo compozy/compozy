@@ -36,7 +36,8 @@ export function PromptTemplateField({ value, variables, onChange }: PromptTempla
         <FieldLabel htmlFor="trigger-prompt">Prompt template</FieldLabel>
         <HelpTip label="About prompt template">
           Go <code className="font-mono text-mono-id text-muted">text/template</code> syntax.
-          Variables resolve against the matched event; see the rendered result on the right.
+          Variables resolve against the matched event. Choose Show live preview to see the rendered
+          result.
         </HelpTip>
       </FieldHeader>
       <VariableBar onInsert={insertVariable} variables={variables} />

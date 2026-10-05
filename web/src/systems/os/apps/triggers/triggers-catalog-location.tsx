@@ -118,6 +118,7 @@ export function TriggersCatalogLocation({ search }: { search: AutomationRouteSea
           pagination={{
             hasNextPage: page.hasNextPage,
             isFetchingNextPage: page.isFetchingNextPage,
+            isPaused: page.isPaused,
             onLoadMore: page.loadMore,
           }}
           triggers={page.triggers}

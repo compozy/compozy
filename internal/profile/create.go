@@ -54,8 +54,7 @@ type declaredCreation struct {
 	seed      DeclaredSeed
 }
 
-// HasDeclaredMarker reports whether one installed extension has already bound
-// or created the named profile during its current installation lifetime.
+// HasDeclaredMarker reports a prior binding or creation during this installation lifetime.
 func (m *Manager) HasDeclaredMarker(ctx context.Context, extension, name string) (bool, error) {
 	if ctx == nil {
 		return false, errors.New("profile: declared marker context is required")
@@ -69,6 +68,29 @@ func (m *Manager) HasDeclaredMarker(ctx context.Context, extension, name string)
 		)`,
 		strings.TrimSpace(extension),
 		strings.TrimSpace(name),
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("profile: inspect declared profile marker: %w", err)
+	}
+	return exists, nil
+}
+
+// HasDeclaredCreation requires confirmed provenance for the current profile identity.
+func (m *Manager) HasDeclaredCreation(ctx context.Context, extension, name, profileID string) (bool, error) {
+	if ctx == nil {
+		return false, errors.New("profile: declared marker context is required")
+	}
+	var exists bool
+	err := m.store.DB().QueryRowContext(
+		ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM extension_profile_markers
+			WHERE extension_name = ? AND profile_name = ?
+			AND created_profile_id = ? AND created_by_extension = 1
+		)`,
+		strings.TrimSpace(extension),
+		strings.TrimSpace(name),
+		strings.TrimSpace(profileID),
 	).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("profile: inspect declared profile marker: %w", err)
@@ -289,7 +311,8 @@ func (m *Manager) persistDeclaredSeed(
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO extension_profile_markers
-		 (extension_name, profile_name, created_profile_id, created_at) VALUES (?, ?, ?, ?)`,
+		 (extension_name, profile_name, created_profile_id, created_at, created_by_extension)
+		 VALUES (?, ?, ?, ?, 1)`,
 		declared.extension, name, profileID, formatTimestamp(m.now()),
 	); err != nil {
 		return fmt.Errorf("profile: persist declared profile marker: %w", err)
@@ -302,8 +325,8 @@ func (m *Manager) markDeclaredBinding(ctx context.Context, extension, name, prof
 		_, err := exec.ExecContext(
 			ctx,
 			`INSERT INTO extension_profile_markers
-			 (extension_name, profile_name, created_profile_id, created_at)
-			 VALUES (?, ?, ?, ?)
+			 (extension_name, profile_name, created_profile_id, created_at, created_by_extension)
+			 VALUES (?, ?, ?, ?, 0)
 			 ON CONFLICT(extension_name, profile_name) DO NOTHING`,
 			extension, name, profileID, formatTimestamp(m.now()),
 		)

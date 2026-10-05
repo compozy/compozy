@@ -85,6 +85,7 @@ describe("selectPaletteDestinationRoute", () => {
       presentation: "floating",
       viewportState: "ready",
       hydration: "live",
+      loadError: null,
       connectionStatus: "connected",
       desktopBounds: null,
     };

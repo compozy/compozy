@@ -38,6 +38,47 @@ describe("thread status derivation", () => {
     });
   });
 
+  it("Should attribute owner release without claiming operator cancellation or successful work", () => {
+    const pendingCall = {
+      type: "tool-call",
+      toolCallId: "t1",
+      toolName: "Write",
+      args: {},
+      timestamp: START,
+    };
+    const stopped = event({ type: "session_stopped", stop_reason: "owner_released" });
+    const facts = {
+      state: "stopped" as const,
+      stop_cause: "owner_released",
+      stop_reason: "owner_released",
+    };
+    for (const [messages, resource] of [
+      [[assistant([text, pendingCall, stopped])], {}],
+      [[assistant([text, pendingCall])], facts],
+      [[assistant([text, stopped])], { ...facts, escalated: true, verified: true }],
+    ] as const) {
+      expect(lastSettledTurn(messages, resource)).toMatchObject({
+        cause: "stopped",
+        failureCause: null,
+        stop: { kind: "other" },
+      });
+    }
+    // A prior release cannot settle work in a resumed, active session.
+    expect(
+      lastSettledTurn([assistant([text, pendingCall, stopped])], { state: "active" })
+    ).toBeNull();
+    // Actual provider failure remains authoritative even if the owner later releases the worker.
+    expect(
+      lastSettledTurn([
+        assistant([
+          text,
+          event({ type: "error", failure: { kind: "provider_exit", summary: "exit 137" } }),
+          stopped,
+        ]),
+      ])
+    ).toMatchObject({ cause: "failed", failureCause: "provider exit" });
+  });
+
   it("Should read an inactivity stop with the episode's actual quiet span, never as by you", () => {
     const quietSince = "2026-07-07T11:20:00Z";
     const turn = lastSettledTurn(

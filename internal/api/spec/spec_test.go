@@ -501,7 +501,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				profileMutations := []struct {
 					path   string
 					method string
-				}{}
+				}{
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/stop", method: http.MethodPost},
+				}
 				for _, endpoint := range profileMutations {
 					operation := operationFor(t, doc, endpoint.path, endpoint.method)
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
@@ -689,6 +691,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				assertEnumValues(t, propertySchema(t, sessionSchema, "stop_reason"),
 					"completed",
+					"owner_released",
 					"user_canceled",
 					"max_iterations",
 					"loop_detected",
@@ -2145,6 +2148,22 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"active_run",
 					"last_activity_at",
 				)
+
+				for _, path := range []string{
+					"/api/task-runs/{id}", "/api/runs/{id}/inspect", "/api/task-runs/{id}/result",
+					"/api/tasks/{id}/runs", "/api/tasks/{id}/timeline", "/api/tasks/{id}/stream",
+					"/api/tasks/{id}/tree", "/api/task-runs/{id}/reviews",
+				} {
+					read := operationFor(t, doc, path, http.MethodGet)
+					assertParameter(t, read, "profile", openapi3.ParameterInQuery, false)
+					assertParameter(t, read, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+				cancelRun := operationFor(t, doc, "/api/task-runs/{id}/cancel", http.MethodPost)
+				assertParameter(t, cancelRun, "profile", openapi3.ParameterInQuery, false)
+				assertParameterAbsent(t, cancelRun, "all_profiles", openapi3.ParameterInQuery)
+				scheduler := operationFor(t, doc, "/api/scheduler", http.MethodGet)
+				assertParameterAbsent(t, scheduler, "profile", openapi3.ParameterInQuery)
+				assertParameterAbsent(t, scheduler, "all_profiles", openapi3.ParameterInQuery)
 
 				listTaskRuns := operationFor(t, doc, "/api/tasks/{id}/runs", "GET")
 				assertParameter(t, listTaskRuns, "status", openapi3.ParameterInQuery, false)

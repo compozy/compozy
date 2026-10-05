@@ -22,6 +22,7 @@ type StopReason string
 
 const (
 	StopCompleted      StopReason = "completed"
+	StopOwnerReleased  StopReason = "owner_released"
 	StopUserCanceled   StopReason = "user_canceled"
 	StopMaxIterations  StopReason = "max_iterations"
 	StopLoopDetected   StopReason = "loop_detected"
@@ -37,6 +38,7 @@ const (
 func ValidStopReason(r StopReason) bool {
 	switch r {
 	case StopCompleted,
+		StopOwnerReleased,
 		StopUserCanceled,
 		StopMaxIterations,
 		StopLoopDetected,
@@ -122,7 +124,7 @@ func (f SessionArchiveFilter) Validate() error {
 	}
 }
 
-// Validate ensures the session record contains the required fields.
+// Validate accepts persisted Global sessions without a workspace and validates their remaining identity.
 func (s SessionInfo) Validate() error {
 	if err := requireField(s.ID, "session id"); err != nil {
 		return err
@@ -131,9 +133,6 @@ func (s SessionInfo) Validate() error {
 		return err
 	}
 	if err := requireField(s.AgentName, "session agent name"); err != nil {
-		return err
-	}
-	if err := requireField(s.WorkspaceID, "session workspace id"); err != nil {
 		return err
 	}
 	if err := requireField(s.State, "session state"); err != nil {

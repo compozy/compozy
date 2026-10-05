@@ -29,7 +29,7 @@ type AgentCatalogFacetsPayload struct {
 	Idle       int      `json:"idle"`
 }
 
-// AgentCatalogResponse is one bounded workspace-scoped agent fleet page.
+// AgentCatalogResponse is one bounded Global or workspace agent fleet page.
 type AgentCatalogResponse struct {
 	Agents            []AgentCatalogItemPayload `json:"agents"`
 	Page              CountedCursorPagePayload  `json:"page"`

@@ -85,7 +85,7 @@ changed_files() {
 is_ci_full_trigger() {
   case "$1" in
     go.mod | go.sum | bun.lock* | Makefile | turbo.json | mise.toml | .tool-versions | DESIGN.md | config.toml | .goreleaser.yml) return 0 ;;
-    package.json | */package.json) return 0 ;;
+    package.json | */package.json | patches/*.patch) return 0 ;;
     magefiles/* | scripts/*) return 0 ;;
     tsconfig*.json | vitest.config.* | knip.json | electron-builder.yml | .bun-version | .golangci* | .oxlintrc* | .oxfmt* | oxfmt*) return 0 ;;
     *.sql | */atlas.sum | atlas* | sqlc*) return 0 ;;
@@ -114,7 +114,7 @@ classify() {
 		CI_FULL_REASONS="${CI_FULL_REASONS}${path}"$'\n'
 		case "$path" in
 			go.mod | go.sum | config.toml | .golangci* | .goreleaser.yml) GO_SCOPES="${GO_SCOPES}./..."$'\n' ;;
-			bun.lock* | turbo.json | tsconfig*.json | vitest.config.* | knip.json | electron-builder.yml | .bun-version | .oxlintrc* | .oxfmt* | oxfmt* | package.json | */package.json)
+			bun.lock* | turbo.json | tsconfig*.json | vitest.config.* | knip.json | electron-builder.yml | .bun-version | .oxlintrc* | .oxfmt* | oxfmt* | package.json | */package.json | patches/*.patch)
 				JS_ALL=1
 				;;
 			Makefile | mise.toml | .tool-versions | magefiles/* | scripts/*) TOOLING_TEST=1 ;;

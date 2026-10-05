@@ -239,6 +239,13 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/usage/turns",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript",
+		"GET /api/sessions/:session_id/transcript",
+		"GET /api/sessions/:session_id/status",
+		"GET /api/sessions/:session_id/events",
+		"GET /api/sessions/:session_id/history",
+		"GET /api/sessions/:session_id/stream",
+		"GET /api/sessions/:session_id/transcript/search",
+		"GET /api/sessions/:session_id/transcript/outline",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript/search",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript/outline",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/stream",
@@ -486,6 +493,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/cmd-palette/views/:id/open",
 		"POST /api/cmd-palette/usage",
 		"POST /api/tools/approvals/:id/cancel",
+		"POST /api/tools/approvals/:id/resolve",
 		"PUT /api/cmd-palette/pins/:id",
 		"POST /api/tools/:id/approvals",
 		"POST /api/tools/:id/invoke",
@@ -803,6 +811,32 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 			t.Fatalf("list response = %#v, want block-1", response.Blocks)
 		}
 	})
+
+	for _, tc := range []struct {
+		name   string
+		blocks []taskpkg.TaskBlock
+	}{
+		{name: "Should serialize a nil block inventory as an empty array"},
+		{name: "Should preserve an empty block inventory as an array", blocks: []taskpkg.TaskBlock{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			engine := newEngine(t, &apitestutil.StubTaskManager{
+				ListTaskBlocksFn: func(context.Context, string, bool, taskpkg.ActorContext) ([]taskpkg.TaskBlock, error) {
+					return tc.blocks, nil
+				},
+			})
+			recorder := performRequest(t, engine, http.MethodGet, "/api/tasks/task-1/blocks", nil)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("list status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+			}
+			var response contract.TaskBlocksResponse
+			decodeJSONResponse(t, recorder, &response)
+			if response.Blocks == nil || len(response.Blocks) != 0 {
+				t.Fatalf("list response = %s, want an empty blocks array", recorder.Body.String())
+			}
+		})
+	}
 
 	t.Run("Should get blocked task details without leaking raw claim tokens", func(t *testing.T) {
 		t.Parallel()

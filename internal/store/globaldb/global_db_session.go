@@ -345,7 +345,7 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 	queries := sqlcgen.New(exec)
 	affected, err := queries.UpsertSession(ctx, params)
 	if err != nil {
-		return mapSessionArchivedConstraint(session.ID, err)
+		return mapProfileAdmissionConstraint(session.ProfileID, mapSessionArchivedConstraint(session.ID, err))
 	}
 	if affected == 0 {
 		if availabilityErr := sessionWorktreeAvailabilityError(ctx, queries, session); availabilityErr != nil {

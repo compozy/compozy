@@ -62,7 +62,7 @@ func (m *Manager) readSessionMetaReadOnly(ctx context.Context, id string) (store
 	if m.isPending(target) {
 		return meta, nil
 	}
-	if _, err := m.resolveStoredSessionOwner(ctx, target, meta.WorkspaceID); err != nil {
+	if _, err := m.resolveStoredSessionOwner(ctx, &meta); err != nil {
 		return store.SessionMeta{}, fmt.Errorf("session: prove catalog owner for %q: %w", target, err)
 	}
 	return meta, nil
@@ -296,7 +296,7 @@ func (m *Manager) openDeriveQueryRecorder(
 	if m.openQueryStore == nil {
 		return nil, nil, errors.New("session: query recorder opener is required")
 	}
-	owner, err := m.resolveStoredSessionOwner(ctx, snapshot.meta.ID, snapshot.meta.WorkspaceID)
+	owner, err := m.resolveStoredSessionOwner(ctx, &snapshot.meta)
 	if err != nil {
 		return nil, nil, fmt.Errorf("session: resolve catalog owner for %q: %w", snapshot.meta.ID, err)
 	}

@@ -101,6 +101,7 @@ describe("tasksKeys", () => {
       "running",
       "",
       "5",
+      "",
     ]);
     expect(tasksKeys.timeline("task_1", { after_sequence: 12, limit: 50 })).toEqual([
       "tasks",
@@ -108,20 +109,22 @@ describe("tasksKeys", () => {
       "task_1",
       "12",
       "50",
+      "",
     ]);
-    expect(tasksKeys.tree("task_1")).toEqual(["tasks", "tree", "task_1"]);
-    expect(tasksKeys.runDetail("run_1")).toEqual(["tasks", "run-detail", "run_1"]);
-    expect(tasksKeys.runResult("ws_1", "run_1", "sha256:a", 16_384, 16_384)).toEqual([
+    expect(tasksKeys.tree("task_1", { profile: "default" })).toEqual([
       "tasks",
-      "run-result",
-      "ws_1",
-      "run_1",
-      "sha256:a",
-      16_384,
-      16_384,
+      "tree",
+      "task_1",
+      "default",
     ]);
-    expect(tasksKeys.runResult("ws_1", "run_1", "sha256:a", 0, 16_384)).not.toEqual(
-      tasksKeys.runResult("ws_2", "run_1", "sha256:a", 0, 16_384)
+    expect(tasksKeys.runDetail("run_1")).toEqual(["tasks", "run-detail", "run_1"]);
+    expect(
+      tasksKeys.runResult("ws_1", "run_1", "sha256:a", 16_384, 16_384, { profile: "default" })
+    ).toEqual(["tasks", "run-result", "ws_1", "run_1", "sha256:a", 16_384, 16_384, "default"]);
+    expect(
+      tasksKeys.runResult("ws_1", "run_1", "sha256:a", 0, 16_384, { profile: "default" })
+    ).not.toEqual(
+      tasksKeys.runResult("ws_2", "run_1", "sha256:a", 0, 16_384, { profile: "default" })
     );
   });
 
@@ -211,7 +214,7 @@ describe("tasksKeys", () => {
         reviewer_session_id: "sess_a",
         limit: 5,
       })
-    ).toEqual(["tasks", "reviews", "run", "run_1", "in_review", "sess_a", "5"]);
+    ).toEqual(["tasks", "reviews", "run", "run_1", "in_review", "sess_a", "5", ""]);
 
     expect(tasksKeys.reviewsByTask("task_1", { status: "recorded" })).toEqual([
       "tasks",
@@ -219,6 +222,7 @@ describe("tasksKeys", () => {
       "task",
       "task_1",
       "recorded",
+      "",
       "",
       "",
     ]);
@@ -232,7 +236,8 @@ describe("tasksKeys", () => {
       "stream",
       "task_1",
       "12",
+      "",
     ]);
-    expect(tasksKeys.stream("task_1")).toEqual(["tasks", "stream", "task_1", ""]);
+    expect(tasksKeys.stream("task_1")).toEqual(["tasks", "stream", "task_1", "", ""]);
   });
 });

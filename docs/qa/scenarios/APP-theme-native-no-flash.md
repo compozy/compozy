@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: The desktop app opens its boot window and product window already painted in the stored theme (dark by default, light after the user chose light) with no frame of the other theme, including while resizing; the boot page follows the same theme; flipping the theme in the product repaints the native window background and, on Linux, the window controls; with System the app follows the OS live; the choice survives quitting and relaunching.
 entry_points: packaged desktop app launch; rail-foot theme toggle; Settings > Appearance > Theme; OS appearance setting; app quit and relaunch
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-theme-toggle-persists; ET-web-theme-system-follows-os; APP-native-window-controls; APP-window-geometry-recovery
 ---
 
@@ -32,3 +32,7 @@ frame `#fafafa`); one toggle moved `nativeTheme.themeSource` to `light`, the nat
 `#FAFAFA` and wrote `desktop-theme.json`. Artifacts: `.compozy/tasks/shell-rail/reports/theme-B3/`.
 Linux overlay recolor unwalked.
 
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

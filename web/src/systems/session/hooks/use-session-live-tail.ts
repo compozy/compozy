@@ -36,17 +36,20 @@ export function useSessionLiveTail({
 }: UseSessionLiveTailOptions) {
   const queryClient = useQueryClient();
   const store = useStore(sessionLiveTailLogic);
-  const queryEnabled = workspaceId.trim() !== "" && sessionId.trim() !== "";
+  const queryEnabled = sessionId.trim() !== "";
+  const projectLiveEnabled = enabled && workspaceId.trim() !== "";
   const sessionState = useQuery({
     ...sessionDetailOptions(workspaceId, sessionId),
-    enabled: queryEnabled && enabled,
+    enabled: queryEnabled && projectLiveEnabled,
   }).data?.state;
   const transcriptQuery = useInfiniteQuery({
     ...sessionTranscriptOptions(workspaceId, sessionId),
     enabled: queryEnabled,
   });
   const streamShouldOpen =
-    enabled && queryEnabled && (sessionState == null || isLiveSessionState(sessionState));
+    projectLiveEnabled &&
+    queryEnabled &&
+    (sessionState == null || isLiveSessionState(sessionState));
   const canOpenStream =
     streamShouldOpen &&
     typeof window !== "undefined" &&
@@ -101,7 +104,10 @@ export function useSessionLiveTail({
     loadOlder: () => {
       void transcriptQuery.fetchNextPage();
     },
-    retry: () => store.trigger.manualRecoveryRequested(),
+    retry: () => {
+      if (workspaceId.trim() === "") void transcriptQuery.refetch();
+      else store.trigger.manualRecoveryRequested();
+    },
     transport,
   };
 }

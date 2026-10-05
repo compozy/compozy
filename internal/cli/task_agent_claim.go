@@ -227,6 +227,7 @@ func newTaskFailCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.reason, "reason", "", "Forced-failure reason")
 	cmd.Flags().StringVar(&flags.errorMessage, taskErrorKey, "", "Session-bound failure message")
 	cmd.Flags().StringVar(&flags.metadataRaw, "metadata", "", "Optional failure metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -390,6 +391,7 @@ func newTaskReleaseCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional release reason")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional release metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -426,5 +428,6 @@ func newTaskRetryCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional retry metadata JSON")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }

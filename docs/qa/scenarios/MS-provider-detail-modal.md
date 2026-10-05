@@ -6,13 +6,13 @@ persona: Dora
 journey: J-22
 expected: In Settings → Providers, opening a provider presents a centered modal (width 720px token) on the shared entity-dialog shell — gear icon well, "Provider" eyebrow, the provider display name as title with its status and Default pills under it, Overview | Configure lane tabs mapping to inspect/edit, and a ruled footer with one primary action (Edit settings on inspect, Save provider / Create provider while editing). Overview opens on a status summary (state, sign-in, default model, and the next step when the provider is not ready) with the raw configuration in a closed "Technical details" fold. The inspect footer offers "Delete provider" / "Reset to default" only for providers that can be removed. Editing adds a Simple/Advanced toolbar (the config-source badge shows only in Advanced): Simple carries provider basics and auth ownership, Advanced appends runtime and models (harness, runtime provider, transport, base URL, default model, curated models, env and home policy). The provider name renders as locked identity on edit, never a disabled input. Clicking the overlay or pressing Esc dismisses it; Configure seeds the edit draft and Overview returns to inspect without saving.
 entry_points: web Settings window → Providers → row/card click
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: web/src/systems/settings/components/provider-detail-dialog.tsx;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps:
 ---
 
@@ -26,3 +26,7 @@ overlaps:
 6. Reopen, press Esc — it closes.
 
 2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Status remains untested.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

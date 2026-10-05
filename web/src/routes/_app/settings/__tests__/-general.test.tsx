@@ -344,6 +344,23 @@ describe("GeneralSettingsPage", () => {
     expect(nextDraft.session_timeout).toBe("0s");
   });
 
+  it.each([
+    ["0s", "Never"],
+    ["15m0s", "15 minutes"],
+    ["1h0m0s", "1 hour"],
+    ["4h0m0s", "4 hours"],
+    ["24h0m0s", "1 day"],
+    ["1h30m0s", "90 minutes"],
+    ["1.5s", "1.5 seconds"],
+  ])("Should display the saved duration %s as %s", (duration, label) => {
+    pageState.draft = { ...envelope.config, session_timeout: duration };
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByRole("combobox", { name: "End idle sessions after" })).toHaveDisplayValue(
+      label
+    );
+  });
+
   it("composes the remembered-decisions section after the permissions policy", () => {
     render(<GeneralSettingsPage />);
 

@@ -140,10 +140,57 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 				cleanupStore.completed,
 			)
 		}
-		if stopper.cause != session.CauseUserRequested {
-			t.Fatalf("cleanup stop cause = %v, want user requested", stopper.cause)
+		if stopper.cause != session.CauseOwnerReleased {
+			t.Fatalf("cleanup stop cause = %v, want automatic owner release", stopper.cause)
 		}
 	})
+
+	for _, tc := range []struct {
+		name  string
+		cause looppkg.SessionCleanupCause
+		want  session.StopCause
+	}{
+		{
+			"Should attribute terminal cleanup to the owner",
+			looppkg.SessionCleanupCauseTerminal,
+			session.CauseOwnerReleased,
+		},
+		{
+			"Should attribute revoked binding cleanup to the owner",
+			looppkg.SessionCleanupCauseControlRevoked,
+			session.CauseOwnerReleased,
+		},
+		{
+			"Should preserve explicit stop attribution",
+			looppkg.SessionCleanupCauseStop,
+			session.CauseUserRequested,
+		},
+		{
+			"Should preserve operator cancellation attribution",
+			looppkg.SessionCleanupCauseOperatorCancel,
+			session.CauseUserRequested,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cleanupStore := &goalSessionCleanupStoreStub{obligation: looppkg.SessionCleanupObligation{
+				CleanupID: "cleanup-attribution", SessionID: "session-owned", Cause: tc.cause,
+				CreatedAt: time.Now().UTC(),
+			}}
+			stopper := &goalSessionCleanupStopperStub{}
+			relay := &goalSessionOutboxRelay{
+				store: &goalSessionOutboxStoreStub{delivered: true}, appender: &goalSessionEventAppenderStub{},
+				cleanupStore: cleanupStore, stopper: stopper,
+			}
+			if err := relay.DeliverPending(t.Context()); err != nil {
+				t.Fatalf("DeliverPending() error = %v", err)
+			}
+			if stopper.cause != tc.want || stopper.calls != 1 || cleanupStore.ackCalls != 1 {
+				t.Fatalf("cleanup = cause %v, stops %d, acknowledgements %d; want %v/1/1",
+					stopper.cause, stopper.calls, cleanupStore.ackCalls, tc.want)
+			}
+		})
+	}
 
 	t.Run("Should deliver cleanup even when projection delivery is poisoned", func(t *testing.T) {
 		t.Parallel()

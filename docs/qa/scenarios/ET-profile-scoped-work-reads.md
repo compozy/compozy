@@ -6,13 +6,13 @@ persona: Ada
 journey: J-scope-work-by-profile
 expected: CLI, HTTP, UDS, and native reads only return work owned by the resolved or session-bound profile, and a foreign-profile detail read returns not found.
 entry_points: root --profile; compozy session|task|automation; HTTP/UDS work routes; compozy__session_list
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-aggregate-owner-labels; ET-profile-deep-link-owner; ET-profile-stream-isolation
 ---
 
@@ -42,3 +42,7 @@ The paired CLI journey `TestDaemonE2ELoopRunReadCLIJourneys` also passes with ra
 This verifies the Loop regression; the broader non-Loop scenario above retains its own QA status.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -36,6 +36,10 @@ export type CmdPaletteSourceStatus = CommandsResponse["sources"][number];
 export type CmdPaletteCatalogResponse = CommandsResponse;
 export type CmdPaletteAttachedClient = ClientsResponse[number];
 export type CmdPaletteInvokeResult = InvokeResponse;
+export type CmdPaletteApprovalStatus =
+  operations["getPendingToolApproval"]["responses"][200]["content"]["application/json"];
+export type CmdPaletteApprovalDecision =
+  operations["resolvePendingToolApproval"]["requestBody"]["content"]["application/json"]["decision"];
 export type CmdPaletteRankSignals = RankSignalsResponse;
 export type CmdPalettePersonalization = PersonalizationResponse;
 export type CmdPaletteViewEnvelope = ViewResponse;

@@ -34,7 +34,7 @@ export interface HelpTipProps extends Omit<React.ComponentProps<"button">, "chil
  *
  * Click *opens* in addition to hover and focus — without it the prose is
  * unreachable on touch, and the shell owes a complete mobile path. Dismissal
- * stays with Escape, outside press, and pointer-leave (WCAG 1.4.13); a
+ * stays with Escape, outside press, and mouse pointer-leave (WCAG 1.4.13); a
  * click-toggle would fight the hover machinery, closing on press and reopening
  * on the pointer that is still inside the trigger.
  *
@@ -42,12 +42,36 @@ export interface HelpTipProps extends Omit<React.ComponentProps<"button">, "chil
  * nesting a button inside a label folds this trigger's accessible name into the
  * label's own name-from-content computation.
  */
-function HelpTip({ label, children, side = "top", className, onClick, ...props }: HelpTipProps) {
+function HelpTip({
+  label,
+  children,
+  side = "top",
+  className,
+  onClick,
+  onPointerDown,
+  ...props
+}: HelpTipProps) {
   const [open, setOpen] = React.useState(false);
+  const openedByTouch = React.useRef(false);
+
+  const handleOpenChange: NonNullable<React.ComponentProps<typeof Tooltip>["onOpenChange"]> = (
+    next,
+    details
+  ) => {
+    // A touch tap can emit a compatibility mouseleave. Its guidance remains
+    // owned by the tap until an outside press, blur, or Escape dismisses it.
+    if (!next && openedByTouch.current && details.reason === "trigger-hover") {
+      details.cancel();
+      return;
+    }
+    if (!next) openedByTouch.current = false;
+    setOpen(next);
+  };
 
   return (
-    <Tooltip open={open} onOpenChange={setOpen}>
+    <Tooltip open={open} onOpenChange={handleOpenChange}>
       <TooltipTrigger
+        closeOnClick={false}
         render={
           <button
             aria-label={label}
@@ -61,6 +85,10 @@ function HelpTip({ label, children, side = "top", className, onClick, ...props }
               className
             )}
             data-slot="help-tip"
+            onPointerDown={event => {
+              openedByTouch.current = event.pointerType === "touch";
+              onPointerDown?.(event);
+            }}
             onClick={event => {
               setOpen(true);
               onClick?.(event);

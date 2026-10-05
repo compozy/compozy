@@ -2665,6 +2665,91 @@ func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testin
 	})
 }
 
+func TestTaskManagerCatalogWorkspaceAccessIntegration(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name     string
+		scope    taskpkg.CatalogScope
+		foreign  bool
+		allow    bool
+		wantDeny bool
+	}{
+		{name: "Should preserve an authorized workspace catalog", scope: taskpkg.CatalogScopeWorkspace, foreign: true, allow: true},
+		{name: "Should preserve an authorized all catalog workspace filter", scope: taskpkg.CatalogScopeAll, foreign: true, allow: true},
+		{name: "Should preserve an authorized workspace with omitted catalog scope", foreign: true, allow: true},
+		{name: "Should deny a foreign workspace catalog without policy", scope: taskpkg.CatalogScopeWorkspace, foreign: true, wantDeny: true},
+		{name: "Should deny a foreign all catalog workspace filter without policy", scope: taskpkg.CatalogScopeAll, foreign: true, wantDeny: true},
+		{name: "Should inherit the caller for an omitted workspace", scope: taskpkg.CatalogScopeWorkspace},
+		{name: "Should keep the default catalog within the caller workspace"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			db := openTaskManagerGlobalDB(t)
+			sourceID := registerTaskManagerWorkspace(t, db, "catalog-source", t.TempDir())
+			targetID := registerTaskManagerWorkspace(t, db, "catalog-target", t.TempDir())
+			policy := &workspaceAccessIntegrationPolicy{}
+			var options []taskpkg.Option
+			if test.allow {
+				options = append(options, taskpkg.WithWorkspaceAccessPolicy(policy))
+			}
+			manager := newTaskManagerIntegration(t, db, options...)
+			operator, err := taskpkg.DeriveHumanActorContext("catalog-operator", taskpkg.OriginKindCLI, "task.list")
+			if err != nil {
+				t.Fatalf("DeriveHumanActorContext() error = %v", err)
+			}
+			for _, workspaceID := range []string{sourceID, targetID} {
+				if _, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+					ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeWorkspace,
+					WorkspaceID: workspaceID, Title: "Work owned by " + workspaceID,
+				}, operator); err != nil {
+					t.Fatalf("CreateTask(%s) error = %v", workspaceID, err)
+				}
+			}
+			agent, err := taskpkg.DeriveAgentSessionActorContext("sess-catalog", sourceID)
+			if err != nil {
+				t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+			}
+			agent.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+			query := taskpkg.CatalogQuery{Scope: test.scope, IncludeDrafts: true}
+			wantWorkspace := sourceID
+			if test.foreign {
+				query.WorkspaceID = targetID
+				wantWorkspace = targetID
+			}
+			page, err := manager.ListTaskCatalog(ctx, query, agent)
+			if test.wantDeny {
+				if !errors.Is(err, taskpkg.ErrPermissionDenied) || len(page.Tasks) != 0 || page.Total != 0 {
+					t.Fatalf("ListTaskCatalog() = %#v, %v, want permission denial without records", page, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ListTaskCatalog() error = %v", err)
+			}
+			if len(page.Tasks) != 1 || page.Total != 1 || page.Tasks[0].WorkspaceID != wantWorkspace ||
+				page.Tasks[0].ProfileID != store.DefaultProfileID {
+				t.Fatalf(
+					"ListTaskCatalog() = %#v, want one task owned by %s in the acting profile",
+					page,
+					wantWorkspace,
+				)
+			}
+			if test.allow {
+				if len(policy.requests) != 1 || policy.requests[0].Actor.WorkspaceID != sourceID ||
+					policy.requests[0].TargetWorkspaceID != targetID || policy.requests[0].Seam != workspaceaccess.SeamTask {
+					t.Fatalf(
+						"workspace policy requests = %#v, want caller-to-target task authorization",
+						policy.requests,
+					)
+				}
+			}
+		})
+	}
+}
+
 func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T) {
 	t.Parallel()
 

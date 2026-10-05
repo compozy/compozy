@@ -87,6 +87,8 @@ type PermissionDecision string
 const (
 	// PermissionDecisionPending asks an operator or client to decide.
 	PermissionDecisionPending PermissionDecision = "pending"
+	// PermissionDecisionCanceled closes a request without an operator decision.
+	PermissionDecisionCanceled PermissionDecision = "canceled"
 	// PermissionDecisionAllowOnce permits one operation.
 	PermissionDecisionAllowOnce PermissionDecision = "allow-once"
 	// PermissionDecisionAllowAlways permits this class of operation persistently.

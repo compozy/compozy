@@ -177,6 +177,7 @@ func (o VerdictOutcome) Valid() bool {
 type CriterionResult struct {
 	ID                  string              `json:"id"`
 	Type                dsl.CriterionType   `json:"type"`
+	Prompt              string              `json:"prompt,omitempty"`
 	Outcome             VerdictOutcome      `json:"outcome"`
 	Passed              bool                `json:"passed"`
 	Broken              bool                `json:"broken,omitempty"`

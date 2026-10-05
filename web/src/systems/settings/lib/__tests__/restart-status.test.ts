@@ -96,6 +96,16 @@ describe("settingsRestartPresentation", () => {
       },
     },
     {
+      name: "new restart requirement after an earlier success",
+      state: { isRestartRequired: true, operationId: "op_previous", status: "ready" },
+      expected: {
+        phase: "required",
+        tone: "warning",
+        triggerLabel: "Restart CompozyOS",
+        triggerPending: false,
+      },
+    },
+    {
       name: "failed",
       state: { operationId: "op_failed", status: "failed", failureReason: "helper spawn failed" },
       expected: {

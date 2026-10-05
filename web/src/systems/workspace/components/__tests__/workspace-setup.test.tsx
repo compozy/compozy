@@ -37,7 +37,16 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/systems/onboarding/hooks/use-directory-browser", () => ({
-  useDirectoryBrowser: () => mockBrowseState,
+  useDirectoryBrowser: () => ({
+    ...mockBrowseState,
+    currentPath: (mockBrowseState.data as { path?: string })?.path ?? "",
+    parent: (mockBrowseState.data as { parent?: string })?.parent ?? null,
+    home: (mockBrowseState.data as { home?: string })?.home ?? null,
+    roots: (mockBrowseState.data as { roots?: string[] })?.roots ?? [],
+    navigateTo: vi.fn(),
+    goToParent: vi.fn(),
+    goHome: vi.fn(),
+  }),
 }));
 
 vi.mock("../../hooks/use-workspaces", () => ({
@@ -88,7 +97,7 @@ function renderDialog(
   const open = props.open ?? true;
 
   const utils = render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <WorkspaceSetupDialogHarness
         defaults={props.defaults ?? mockDefaults}
         open={open}

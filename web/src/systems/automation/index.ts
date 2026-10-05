@@ -130,6 +130,7 @@ export {
   type AutomationRouteSearch,
 } from "./lib/automation-route-search";
 export {
+  automationEditorWorkspaceId,
   automationMatchesActiveWorkspace,
   automationWorkspaceAccessError,
 } from "./lib/workspace-access";

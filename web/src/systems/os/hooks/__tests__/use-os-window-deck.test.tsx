@@ -108,6 +108,7 @@ function runtimeFixture(windows: Record<string, OsWindow>): OsDesktopRuntimeStor
     presentation: "floating",
     viewportState: "ready",
     hydration: "live",
+    loadError: null,
     connectionStatus: "connected",
     desktopBounds: { width: 1280, height: 800, origin: { x: 0, y: 0 } },
   };

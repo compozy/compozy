@@ -2,7 +2,7 @@
 // Invariant: the primary action and its alternatives remain independently keyboard-operable.
 // Boundary IN: SplitButton plus the real dropdown primitive.
 // Boundary OUT: domain action routing, owned by each consuming system.
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -54,7 +54,9 @@ describe("SplitButton", () => {
     await user.click(trigger);
     expect(await screen.findByRole("menuitem", { name: "Push" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("menuitem", { name: "Push" })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: "Push" })).not.toBeInTheDocument()
+    );
 
     action.focus();
     await user.keyboard("{ArrowDown}");

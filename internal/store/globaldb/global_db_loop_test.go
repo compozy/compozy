@@ -2418,6 +2418,9 @@ func TestGlobalDBLoopNodeCancellationShouldCommitTerminalCellAtomically(t *testi
 			if cleanup.SessionID == "session-other" {
 				t.Fatal("unrelated node session was scheduled for cleanup")
 			}
+			if cleanup.Cause != looppkg.SessionCleanupCauseStop {
+				t.Fatalf("node cancellation cleanup cause = %q, want explicit stop", cleanup.Cause)
+			}
 		}
 	})
 
@@ -4532,6 +4535,64 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should settle a pending gate verdict without overwriting a settled verdict", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.October, 5, 12, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-human-verdict", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		verdict := gate.VerdictIntent{
+			GateID: "approval", Outcome: gate.VerdictOutcomeAwaitingApproval,
+			BlockingIssues: json.RawMessage(`[{"id":"human_decision_pending","note":"waiting"}]`),
+			Criteria:       json.RawMessage(`[{"id":"reviewer","type":"human","outcome":"awaiting_approval"}]`),
+		}
+		if err := insertLoopGateVerdictWithExecutor(ctx, globalDB.db, run.ID, 1, verdict, now); err != nil {
+			t.Fatalf("insert pending gate verdict error = %v", err)
+		}
+		verdict.Outcome = gate.VerdictOutcomeRejected
+		verdict.BlockingIssues = json.RawMessage(`[{"id":"human_requested_changes","note":"repair"}]`)
+		verdict.Criteria = json.RawMessage(`[{"id":"reviewer","type":"human","outcome":"rejected"}]`)
+		if err := insertLoopGateVerdictWithExecutor(
+			ctx,
+			globalDB.db,
+			run.ID,
+			1,
+			verdict,
+			now.Add(time.Minute),
+		); err != nil {
+			t.Fatalf("settle pending gate verdict error = %v", err)
+		}
+		verdict.Outcome = gate.VerdictOutcomeApproved
+		if err := insertLoopGateVerdictWithExecutor(
+			ctx,
+			globalDB.db,
+			run.ID,
+			1,
+			verdict,
+			now.Add(2*time.Minute),
+		); !errors.Is(
+			err,
+			looppkg.ErrTransitionConflict,
+		) {
+			t.Fatalf("overwrite settled gate verdict error = %v, want ErrTransitionConflict", err)
+		}
+		stored, err := globalDB.ListGateVerdicts(ctx, string(run.WorkspaceID), string(run.ID), 1)
+		if err != nil {
+			t.Fatalf("ListGateVerdicts() error = %v", err)
+		}
+		if len(stored) != 1 || stored[0].Outcome != gate.VerdictOutcomeRejected ||
+			!strings.Contains(string(stored[0].BlockingIssues), "human_requested_changes") ||
+			!stored[0].DecidedAt.Equal(now.Add(time.Minute)) {
+			t.Fatalf("stored gate verdict = %#v, want preserved settled rejection", stored)
+		}
+	})
+
 	t.Run("Should import immutable history and refuse to delete runtime state", func(t *testing.T) {
 		t.Parallel()
 
@@ -6644,72 +6705,122 @@ func TestGlobalDBLoopWaitEscalationShouldUseRelayAndHonorDecision(t *testing.T) 
 		}
 	})
 
-	t.Run("Should let an approval decision atomically stop its escalation ladder", func(t *testing.T) {
-		t.Parallel()
+	approvalCases := []struct {
+		name       string
+		decision   looppkg.GateDecision
+		staleEpoch bool
+	}{
+		{
+			name:     "Should rearm the gate after approval and stop its escalation ladder",
+			decision: looppkg.GateDecisionApprove,
+		},
+		{
+			name:     "Should rearm the gate after requesting changes and stop its escalation ladder",
+			decision: looppkg.GateDecisionRequestChanges,
+		},
+		{
+			name:       "Should reject a decision for a stale gate epoch",
+			decision:   looppkg.GateDecisionRequestChanges,
+			staleEpoch: true,
+		},
+	}
+	for _, tt := range approvalCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		globalDB := openLoopTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		now := time.Date(2026, time.August, 4, 14, 30, 0, 0, time.UTC)
-		globalDB.now = func() time.Time { return now }
-		created, err := globalDB.CreateLoopRunForStart(
-			ctx,
-			approvalEscalationTestLoopRun("looprun-approval-ladder-decision", now),
-			dsl.ConcurrencyAllow,
-		)
-		if err != nil {
-			t.Fatalf("CreateLoopRunForStart() error = %v", err)
-		}
-		seedApprovalEscalationFixture(t, globalDB, created, now)
-		created.Status = looppkg.StatusNeedsApproval
-		created.ActiveGateID = "approval"
-		if _, err := globalDB.EscalateDueLoopWaitsPage(
-			ctx, now.Add(time.Minute), looppkg.WaitEscalationCursor{}, 100,
-		); err != nil {
-			t.Fatalf("EscalateDueLoopWaitsPage(first approval step) error = %v", err)
-		}
-		decidedAt := now.Add(90 * time.Second)
-		actor := operatorActorContextForTest("approver-1")
-		result, err := globalDB.ReactivateLoopCoordinator(ctx, &looppkg.CoordinatorReactivationRequest{
-			Run: created, Cause: looppkg.TransitionCauseApproval, Actor: actor,
-			Decisions: []looppkg.GateDecisionRecord{{
-				WorkspaceID: created.WorkspaceID, RunID: created.ID, Generation: 1,
-				GateID: "approval", CriterionID: "operator", Decision: looppkg.GateDecisionApprove,
-				Actor: actor, DecidedAt: decidedAt,
-			}},
-			ReactivatedAt: decidedAt,
+			globalDB := openLoopTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			now := time.Date(2026, time.August, 4, 14, 30, 0, 0, time.UTC)
+			globalDB.now = func() time.Time { return now }
+			created, err := globalDB.CreateLoopRunForStart(
+				ctx,
+				approvalEscalationTestLoopRun("looprun-approval-ladder-"+string(tt.decision), now),
+				dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart() error = %v", err)
+			}
+			seedApprovalEscalationFixture(t, globalDB, created, now)
+			created.Status = looppkg.StatusNeedsApproval
+			created.ActiveGateID = "approval"
+			if tt.staleEpoch {
+				if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_generation_outputs
+					SET epoch = epoch + 1 WHERE loop_run_id = ? AND node_id = 'approval'`, created.ID); err != nil {
+					t.Fatalf("advance approval output epoch error = %v", err)
+				}
+			}
+			if _, err := globalDB.EscalateDueLoopWaitsPage(
+				ctx, now.Add(time.Minute), looppkg.WaitEscalationCursor{}, 100,
+			); err != nil {
+				t.Fatalf("EscalateDueLoopWaitsPage(first approval step) error = %v", err)
+			}
+			decidedAt := now.Add(90 * time.Second)
+			actor := operatorActorContextForTest("approver-1")
+			result, err := globalDB.ReactivateLoopCoordinator(ctx, &looppkg.CoordinatorReactivationRequest{
+				Run: created, Cause: looppkg.TransitionCauseApproval, Actor: actor,
+				Decisions: []looppkg.GateDecisionRecord{{
+					WorkspaceID: created.WorkspaceID, RunID: created.ID, Generation: 1,
+					GateID: "approval", CriterionID: "operator", Decision: tt.decision,
+					Actor: actor, DecidedAt: decidedAt,
+				}},
+				ReactivatedAt: decidedAt,
+			})
+			if tt.staleEpoch {
+				if !errors.Is(err, looppkg.ErrTransitionConflict) {
+					t.Fatalf("ReactivateLoopCoordinator(stale epoch) error = %v, want ErrTransitionConflict", err)
+				}
+				var decisions, waiting int
+				if err := globalDB.db.QueryRowContext(ctx, `SELECT
+					(SELECT COUNT(*) FROM loop_gate_decisions WHERE loop_run_id = ?),
+					(SELECT COUNT(*) FROM loop_node_waits WHERE loop_run_id = ? AND claim_state = 'waiting')`,
+					created.ID, created.ID).Scan(&decisions, &waiting); err != nil {
+					t.Fatalf("read stale approval rollback error = %v", err)
+				}
+				if decisions != 0 || waiting != 1 {
+					t.Fatalf("stale approval truth = %d decisions/%d waits, want 0/1", decisions, waiting)
+				}
+				return
+			}
+			if err != nil || result.Run.ID == "" {
+				t.Fatalf("ReactivateLoopCoordinator() = %#v, %v, want committed approval wake", result, err)
+			}
+			if _, err := globalDB.EscalateDueLoopWaitsPage(
+				ctx, now.Add(3*time.Minute), looppkg.WaitEscalationCursor{}, 100,
+			); err != nil {
+				t.Fatalf("EscalateDueLoopWaitsPage(after approval) error = %v", err)
+			}
+			entries, err := globalDB.ListEffectOutbox(ctx, created.WorkspaceID, created.ID)
+			if err != nil {
+				t.Fatalf("ListEffectOutbox() error = %v", err)
+			}
+			if len(entries) != 1 {
+				t.Fatalf("approval ladder outbox = %#v, want no step after decision", entries)
+			}
+			stored, err := globalDB.GetLoopRun(ctx, created.WorkspaceID, created.ID)
+			if err != nil {
+				t.Fatalf("GetLoopRun() error = %v", err)
+			}
+			var state, claimedBy, outputStatus string
+			var epoch int
+			if err := globalDB.db.QueryRowContext(ctx, `SELECT wait.claim_state, wait.claimed_by_id,
+				output.status, output.epoch FROM loop_node_waits AS wait
+				JOIN loop_generation_outputs AS output ON output.loop_run_id = wait.loop_run_id
+				AND output.generation = wait.generation AND output.node_id = wait.node_id
+				AND output.item_index = wait.item_index WHERE wait.loop_run_id = ? AND wait.node_id = 'approval'`, created.ID).
+				Scan(&state, &claimedBy, &outputStatus, &epoch); err != nil {
+				t.Fatalf("read approval wait decision error = %v", err)
+			}
+			if stored.Status != looppkg.StatusRunning || stored.ActiveGateID != "" ||
+				state != string(looppkg.WaitClaimResumed) || claimedBy != "approver-1" ||
+				!stored.StartedAt.Equal(now.Add(90*time.Second)) {
+				t.Fatalf("approved wait = status:%s gate:%s state:%s actor:%s started:%s",
+					stored.Status, stored.ActiveGateID, state, claimedBy, stored.StartedAt)
+			}
+			if outputStatus != "pending" || epoch != 4 {
+				t.Fatalf("decided gate output = %s at epoch %d, want pending at epoch 4", outputStatus, epoch)
+			}
 		})
-		if err != nil || result.Run.ID == "" {
-			t.Fatalf("ReactivateLoopCoordinator() = %#v, %v, want committed approval wake", result, err)
-		}
-		if _, err := globalDB.EscalateDueLoopWaitsPage(
-			ctx, now.Add(3*time.Minute), looppkg.WaitEscalationCursor{}, 100,
-		); err != nil {
-			t.Fatalf("EscalateDueLoopWaitsPage(after approval) error = %v", err)
-		}
-		entries, err := globalDB.ListEffectOutbox(ctx, created.WorkspaceID, created.ID)
-		if err != nil {
-			t.Fatalf("ListEffectOutbox() error = %v", err)
-		}
-		if len(entries) != 1 {
-			t.Fatalf("approval ladder outbox = %#v, want no step after decision", entries)
-		}
-		stored, err := globalDB.GetLoopRun(ctx, created.WorkspaceID, created.ID)
-		if err != nil {
-			t.Fatalf("GetLoopRun() error = %v", err)
-		}
-		var state, claimedBy string
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_state, claimed_by_id
-			FROM loop_node_waits WHERE loop_run_id = ? AND node_id = 'approval'`, created.ID).
-			Scan(&state, &claimedBy); err != nil {
-			t.Fatalf("read approval wait decision error = %v", err)
-		}
-		if stored.Status != looppkg.StatusRunning || stored.ActiveGateID != "" ||
-			state != string(looppkg.WaitClaimResumed) || claimedBy != "approver-1" ||
-			!stored.StartedAt.Equal(now.Add(90*time.Second)) {
-			t.Fatalf("approved wait = status:%s gate:%s state:%s actor:%s started:%s",
-				stored.Status, stored.ActiveGateID, state, claimedBy, stored.StartedAt)
-		}
-	})
+	}
 
 	t.Run("Should reject an approval decision without exact fanout item identity", func(t *testing.T) {
 		t.Parallel()

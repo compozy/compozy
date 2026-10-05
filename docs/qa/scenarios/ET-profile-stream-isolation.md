@@ -6,13 +6,13 @@ persona: Ada
 journey: J-scope-work-by-profile
 expected: Scoped session catalog initial state, replay, and live updates only contain sessions for the resolved profile; aggregate streams include profile_name on every session.
 entry_points: session catalog SSE; HTTP/UDS session catalog stream; session create|rename|archive
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-scoped-work-reads; ET-profile-aggregate-owner-labels
 ---
 
@@ -27,3 +27,7 @@ Walk:
 
 Expected evidence: timestamped initial, live, and replay frames from scoped and aggregate streams with
 the corresponding session records.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

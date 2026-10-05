@@ -34,7 +34,7 @@ export function LoopRunRow({ row, owner, nowMs }: LoopRunRowProps) {
       data-status={run.status}
       data-testid="loop-run-row"
     >
-      <TableCell className="w-full max-w-0 py-2.5">
+      <TableCell className="w-full min-w-64 max-w-0 py-2.5">
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-2">
             <Link

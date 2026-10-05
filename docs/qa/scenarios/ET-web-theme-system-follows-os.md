@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: With Appearance > Theme set to System, the desktop paints the OS scheme at load and repaints live when the OS switches, with no reload; open toasts, the loop editor canvas, native form controls and a running terminal repaint with it; pressing the rail-foot toggle while on System stores the explicit opposite of what is painted and stops following the OS.
 entry_points: Settings > Appearance > Theme (System); OS appearance setting; rail-foot theme toggle
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-theme-toggle-persists; APP-theme-native-no-flash
 ---
 
@@ -26,3 +26,7 @@ Then press the rail toggle and flip the OS again: nothing changes (the choice is
 Development evidence (not a QA run): on the shell-rail lab, toasts (`data-sonner-theme`), the loop editor
 (`.react-flow` `dark` → `light`) and a live zsh terminal repainted on a flip; the cron builder time input's
 `color-scheme` follows the theme in Storybook.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

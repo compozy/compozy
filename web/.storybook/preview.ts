@@ -1,3 +1,4 @@
+import { sessionCatalogStreamHandler } from "@/systems/session/mocks";
 import type { Preview } from "@storybook/react-vite";
 import { withThemeByClassName, withThemeByDataAttribute } from "@storybook/addon-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -81,7 +82,7 @@ export const storybookUnhandledRequest: UnhandledRequestCallback = (request, pri
 };
 
 export async function createStorybookMswWorker() {
-  const worker = setupWorker(windowManagerStreamHandler);
+  const worker = setupWorker(windowManagerStreamHandler, sessionCatalogStreamHandler);
   await worker.start({ onUnhandledRequest: storybookUnhandledRequest });
   return worker;
 }

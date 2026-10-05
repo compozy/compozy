@@ -36,7 +36,6 @@ export function useDesktopChromeController() {
 
   return {
     chrome,
-    continuityStreamsEnabled,
     model,
     workspaceSetupDefaults,
     worktreeDialogs,

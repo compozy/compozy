@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-validate-compozy-hard-cut
 expected: A fresh daemon boot creates the canonical .compozy home and workspace overlay, status and doctor report only those paths, and no retired home directory or fallback is created or read.
 entry_points: compozy daemon start; compozy status -o json; compozy doctor -o json; fresh isolated home and workspace
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260727-dirty-build-release-track
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/bootstrap-manifest.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/daemon-start.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/browser/compozy-home.png
-last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-refuse-legacy-database
 ---
 
@@ -26,3 +26,7 @@ from `$COMPOZY_HOME/memory/` to `$COMPOZY_HOME/profiles/default/memory/` with th
 target rather than a fallback read. Re-walk the fresh-boot layout assertion against the new tree,
 and confirm status and doctor report only the new paths. The move's own crash-safety and
 fail-closed guard are owned by `MS-profile-memory-tier-scope`.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

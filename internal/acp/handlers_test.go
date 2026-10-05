@@ -503,7 +503,57 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 		if proc.HasPendingPermission() {
 			t.Fatal("connection death left pending permissions")
 		}
+		for _, event := range collectEventsUntilCount(t, active.events, 8) {
+			if event.Type != EventTypePermission || event.Decision != "canceled" ||
+				event.ResolvedByValue() != "system" || event.RequestIDValue() == "" {
+				t.Fatalf("connection death event = %#v, want attributed terminal cancellation", event)
+			}
+		}
 	})
+	for _, test := range []struct {
+		name  string
+		cause error
+	}{
+		{name: "Should close the permission event when the caller cancels", cause: context.Canceled},
+		{name: "Should close the permission event when the caller deadline expires", cause: context.DeadlineExceeded},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			active, err := proc.beginPrompt("turn-canceled", 2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			ctx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(context.Canceled)
+			result := make(chan error, 1)
+			go func() {
+				response, err := proc.handleRequestPermission(ctx, request)
+				if err == nil &&
+					response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
+					err = errors.New("permission did not return a canceled outcome")
+				}
+				result <- err
+			}()
+			pending := collectEventsUntilCount(t, active.events, 1)[0]
+			if pending.Decision != "" {
+				t.Fatalf("initial permission = %#v, want pending", pending)
+			}
+			cancel(test.cause)
+			if err := <-result; err != nil {
+				t.Fatal(err)
+			}
+			terminal := collectEventsUntilCount(t, active.events, 1)[0]
+			if terminal.Decision != "canceled" || terminal.ResolvedByValue() != "system" ||
+				terminal.RequestIDValue() != pending.RequestIDValue() {
+				t.Fatalf("terminal permission = %#v, want cancellation of %q", terminal, pending.RequestIDValue())
+			}
+			if proc.HasPendingPermission() {
+				t.Fatal("caller cancellation left an actionable permission")
+			}
+		})
+	}
 }
 
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {

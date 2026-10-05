@@ -1,4 +1,4 @@
-import { lazy, useLayoutEffect } from "react";
+import { lazy, useEffectEvent, useLayoutEffect } from "react";
 
 import { useDesktop } from "../../hooks/use-desktop";
 import { sameOsWindowRoute } from "../../lib/window-manager-route";
@@ -32,6 +32,7 @@ function decodePathSegment(value: string): string {
 
 /** Loops and Loop runs controller driven exclusively by the logical WM location. */
 export function LoopsWindow({ windowId }: { windowId: string }) {
+  const focused = useDesktop(state => state.focusedId === windowId);
   const location = useDesktop(
     (state): OsWindowRoute => state.windows[windowId]?.route ?? DEFAULT_LOOPS_ROUTE,
     (left, right) => left !== undefined && sameOsWindowRoute(left, right)
@@ -45,12 +46,27 @@ export function LoopsWindow({ windowId }: { windowId: string }) {
     routeWorkspaceId !== undefined &&
     workspaces.some(workspace => workspace.id === routeWorkspaceId);
 
-  useLayoutEffect(() => {
-    if (canAdoptRouteWorkspace && routeWorkspaceId !== activeWorkspaceId) {
-      setActiveWorkspaceId(routeWorkspaceId);
+  const adoptRouteWorkspace = useEffectEvent((workspaceId: string) => {
+    if (workspaceId !== activeWorkspaceId) {
+      setActiveWorkspaceId(workspaceId);
     }
-  }, [activeWorkspaceId, canAdoptRouteWorkspace, routeWorkspaceId]);
+  });
+  // A foreground navigation adopts its owner; later shell scope choices are
+  // not another navigation, and retained background windows cannot own them.
+  useLayoutEffect(() => {
+    if (focused && canAdoptRouteWorkspace) adoptRouteWorkspace(routeWorkspaceId);
+  }, [canAdoptRouteWorkspace, focused, routeWorkspaceId]);
 
+  return <LoopLocation location={location} routeWorkspaceId={routeWorkspaceId} />;
+}
+
+function LoopLocation({
+  location,
+  routeWorkspaceId,
+}: {
+  location: OsWindowRoute;
+  routeWorkspaceId: string | undefined;
+}) {
   const runDiff = /^\/loop-runs\/([^/]+)\/diff$/.exec(location.pathname);
   if (runDiff) {
     return (
@@ -64,18 +80,11 @@ export function LoopsWindow({ windowId }: { windowId: string }) {
 
   const runDetail = /^\/loop-runs\/([^/]+)$/.exec(location.pathname);
   if (runDetail) {
-    const requestNode =
-      typeof location.search.request_node === "string" ? location.search.request_node.trim() : "";
-    const requestItem = Number(location.search.request_item);
     return (
       <LoopRunDetailLocation
         routeWorkspaceId={routeWorkspaceId}
         runId={decodePathSegment(runDetail[1])}
-        requestFocus={
-          requestNode !== "" && Number.isInteger(requestItem) && requestItem >= 0
-            ? { nodeId: requestNode, itemIndex: requestItem }
-            : undefined
-        }
+        requestFocus={loopRequestFocus(location.search)}
       />
     );
   }
@@ -98,4 +107,12 @@ export function LoopsWindow({ windowId }: { windowId: string }) {
     );
   }
   return <LoopsCatalogLocation search={validateLoopsSearch(location.search)} />;
+}
+
+function loopRequestFocus(search: OsWindowRoute["search"]) {
+  const nodeId = typeof search.request_node === "string" ? search.request_node.trim() : "";
+  const itemIndex = Number(search.request_item);
+  return nodeId !== "" && Number.isInteger(itemIndex) && itemIndex >= 0
+    ? { nodeId, itemIndex }
+    : undefined;
 }

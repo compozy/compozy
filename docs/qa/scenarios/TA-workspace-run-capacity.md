@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-bounded-task-capacity
 expected: A full workspace returns typed capacity deferral while preserving queued work, other workspaces and global work remain claimable, and the deferred run claims when capacity opens.
 entry_points: `compozy config set task.orchestration.max_active_runs_per_workspace`; `compozy task next --wait -o json`; `POST /api/agent/tasks/claim-next`; `compozy__task_run_claim_next`
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: TA-049; TA-044; TA-024
 ---
 
@@ -31,3 +31,7 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - The one-slot concurrency race admitting exactly one claim, and the workspace-B isolation probe.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

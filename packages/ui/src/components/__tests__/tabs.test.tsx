@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -38,7 +38,7 @@ describe("Tabs", () => {
     const user = userEvent.setup();
     render(<TabsExample />);
     await user.click(screen.getByRole("tab", { name: "Two" }));
-    expect(screen.getByRole("tabpanel")).toHaveTextContent("Panel two");
+    await waitFor(() => expect(screen.getByRole("tabpanel")).toHaveTextContent("Panel two"));
   });
 
   it("Should render count and live label slots inside a trigger", () => {

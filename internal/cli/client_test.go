@@ -20,6 +20,7 @@ import (
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/transcript"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -236,6 +237,17 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 				wantMethod = http.MethodPost
 				wantPath += "/cancel"
 			}
+			if calls == 3 {
+				wantMethod = http.MethodPost
+				wantPath += "/resolve"
+				var body contract.ResolveToolApprovalRequest
+				if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+					t.Fatalf("decode resolution request: %v", err)
+				}
+				if body.Decision != "approved" {
+					t.Fatalf("approval decision = %q, want approved", body.Decision)
+				}
+			}
 			if request.Method != wantMethod || request.URL.Path != wantPath {
 				t.Fatalf(
 					"request %d = %s %s, want %s %s",
@@ -256,6 +268,10 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 		}
 		if _, err := client.CancelPendingToolApproval(t.Context(), "approval-1"); err != nil {
 			t.Fatalf("CancelPendingToolApproval() error = %v", err)
+		}
+		if _, err := client.ResolvePendingToolApproval(t.Context(), "approval-1",
+			contract.ResolveToolApprovalRequest{Decision: "approved"}); err != nil {
+			t.Fatalf("ResolvePendingToolApproval() error = %v", err)
 		}
 	})
 }
@@ -3356,6 +3372,85 @@ func TestUnixSocketClientMethods(t *testing.T) {
 
 func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
 	t.Parallel()
+
+	for _, workspaceID := range []string{"ws-target", ""} {
+		t.Run("Should read retained history for owner "+workspaceID, func(t *testing.T) {
+			t.Parallel()
+			for _, method := range []string{
+				"transcript", "transcript/search", "transcript/outline", "status", "events", "history", "stream",
+			} {
+				t.Run("Should load "+method, func(t *testing.T) {
+					t.Parallel()
+					base := "/api/sessions/sess-target"
+					if workspaceID != "" {
+						base = "/api/workspaces/" + workspaceID + "/sessions/sess-target"
+					}
+					var paths []string
+					client := &daemonClient{
+						target: LocalClientTarget("/tmp/compozy.sock"),
+						httpClient: &http.Client{
+							Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+								paths = append(paths, req.URL.Path)
+								if req.Method != http.MethodGet {
+									t.Fatalf("history request method = %s, want GET", req.Method)
+								}
+								if req.URL.Path == "/api/sessions/sess-target" {
+									return newHTTPResponse(http.StatusOK, fmt.Sprintf(
+										`{"session":{"id":"sess-target","workspace_id":%q,"state":"stopped"}}`,
+										workspaceID,
+									)), nil
+								}
+								if req.URL.Path != base+"/"+method {
+									t.Fatalf("history path = %s, want %s/%s", req.URL.Path, base, method)
+								}
+								if method == "transcript/search" {
+									if req.URL.Query().Get("q") != "retained" || req.URL.Query().Get("limit") != "50" {
+										t.Fatalf("search query = %s", req.URL.RawQuery)
+									}
+								}
+								return newHTTPResponse(
+									http.StatusOK,
+									`{"entries":[],"matches":[],"truncated":false}`,
+								), nil
+							}),
+						},
+					}
+					var err error
+					switch method {
+					case "transcript":
+						_, err = client.GetSessionTranscript(t.Context(), "sess-target")
+					case "transcript/search":
+						_, err = client.SearchSessionTranscript(
+							t.Context(),
+							"sess-target",
+							transcript.SearchQuery{Query: "retained", Limit: 50},
+						)
+					case "transcript/outline":
+						_, err = client.GetSessionOutline(t.Context(), "sess-target")
+					case "status":
+						_, err = client.GetSessionStatus(t.Context(), "sess-target")
+					case "events":
+						_, err = client.SessionEvents(t.Context(), "sess-target", SessionEventQuery{})
+					case "history":
+						_, err = client.SessionHistory(t.Context(), "sess-target", SessionEventQuery{})
+					case "stream":
+						err = client.StreamSessionEvents(
+							t.Context(),
+							"sess-target",
+							SessionEventQuery{},
+							"",
+							func(SSEEvent) error {
+								return nil
+							},
+						)
+					}
+					if err != nil || len(paths) != 2 {
+						t.Fatalf("read %s: paths=%v error=%v", method, paths, err)
+					}
+				})
+			}
+		})
+	}
 
 	t.Run("Should never scan the paged session catalog", func(t *testing.T) {
 		t.Parallel()

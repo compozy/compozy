@@ -24,6 +24,7 @@ export interface SettingsRestartState {
   lastMutation: PendingSettingsMutation | null;
   mutationGeneration: number;
   snoozedMutationGeneration: number | null;
+  snoozedApplyRecordId: string | null;
 }
 
 const initialSettingsRestartState: SettingsRestartState = {
@@ -31,6 +32,7 @@ const initialSettingsRestartState: SettingsRestartState = {
   lastMutation: null,
   mutationGeneration: 0,
   snoozedMutationGeneration: null,
+  snoozedApplyRecordId: null,
 };
 
 export const settingsRestartStorageKey = "compozy:settings:restart:v3";
@@ -45,6 +47,7 @@ export const settingsRestartStore = createStore({
       lastMutation: event.mutation,
       mutationGeneration: context.mutationGeneration + 1,
       snoozedMutationGeneration: null,
+      snoozedApplyRecordId: null,
     }),
     restartOperationStarted: (context, event: { operationId: string }) => ({
       ...context,
@@ -55,17 +58,23 @@ export const settingsRestartStore = createStore({
       operationId: null,
     }),
     restartStateReset: () => initialSettingsRestartState,
-    restartNoticeDismissed: context => ({
+    restartNoticeDismissed: (context, event: { applyRecordId?: string }) => ({
       ...context,
       operationId: null,
       snoozedMutationGeneration: context.lastMutation?.restartRequired
         ? context.mutationGeneration
         : null,
+      snoozedApplyRecordId: event.applyRecordId ?? null,
     }),
   },
 }).with(
   persist({
     name: settingsRestartStorageKey,
     storage: settingsRestartStorage,
+    version: 1,
+    migrate: (persisted: Omit<SettingsRestartState, "snoozedApplyRecordId">) => ({
+      ...persisted,
+      snoozedApplyRecordId: null,
+    }),
   })
 );

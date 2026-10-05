@@ -3,7 +3,6 @@ import { useState, type SetStateAction } from "react";
 import { useSettingsPage } from "./use-settings-page";
 
 import {
-  SettingsApiError,
   type SettingsGeneralSection,
   type SettingsUpdateGeneralRequest,
   type SettingsUpdateTargetSet,
@@ -18,6 +17,18 @@ import {
 import { useActiveWorkspace } from "@/systems/workspace";
 
 type GeneralConfig = SettingsGeneralSection["config"];
+type GeneralDraftState = { draft: GeneralConfig | null; workspaceKey: string };
+
+function releaseSavedDraft(
+  current: GeneralDraftState,
+  submitted: GeneralConfig,
+  workspaceKey: string
+): GeneralDraftState {
+  // Newer edits and drafts from another workspace still belong to the user.
+  return current.workspaceKey === workspaceKey && current.draft === submitted
+    ? { ...current, draft: null }
+    : current;
+}
 
 function applyResultLabel(result: {
   active_generation: number;
@@ -59,10 +70,10 @@ export function useSettingsGeneralPage() {
   const envelope = query.data ?? null;
   const workspaceContextKey = activeWorkspaceId ?? "__none__";
 
-  const [draftState, setDraftState] = useState<{
-    draft: GeneralConfig | null;
-    workspaceKey: string;
-  }>({ draft: null, workspaceKey: workspaceContextKey });
+  const [draftState, setDraftState] = useState<GeneralDraftState>({
+    draft: null,
+    workspaceKey: workspaceContextKey,
+  });
   const draft =
     draftState.workspaceKey === workspaceContextKey
       ? (draftState.draft ?? envelope?.config ?? null)
@@ -103,6 +114,8 @@ export function useSettingsGeneralPage() {
     const body: SettingsUpdateGeneralRequest = { config: draft };
     mutation.mutate(body, {
       onSuccess: result => {
+        // The mutation awaits the canonical refetch before releasing its submitted draft.
+        setDraftState(current => releaseSavedDraft(current, draft, workspaceContextKey));
         setLastAppliedLabel(applyResultLabel(result));
       },
     });
@@ -116,12 +129,7 @@ export function useSettingsGeneralPage() {
     });
   };
 
-  const saveError =
-    mutation.error instanceof SettingsApiError
-      ? mutation.error.message
-      : mutation.error instanceof Error
-        ? mutation.error.message
-        : null;
+  const saveError = updateActionError(mutation.error);
 
   const handleRetry = () => {
     void query.refetch();
@@ -158,12 +166,7 @@ export function useSettingsGeneralPage() {
     applyRecords,
     handleReload,
     isReloading: reload.isPending,
-    reloadError:
-      reload.error instanceof SettingsApiError
-        ? reload.error.message
-        : reload.error instanceof Error
-          ? reload.error.message
-          : null,
+    reloadError: updateActionError(reload.error),
     reloadResult: reload.data ?? null,
   };
 }

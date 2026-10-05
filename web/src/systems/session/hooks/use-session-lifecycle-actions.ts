@@ -95,7 +95,7 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
 export function useSessionLifecycleActions(
   options: UseSessionLifecycleActionsOptions = {}
 ): UseSessionLifecycleActionsResult {
-  const stop = useStopSession(options);
+  const stop = useStopSession();
   const archive = useArchiveSession(options);
   const unarchive = useUnarchiveSession(options);
   const remove = useDeleteSession();
@@ -153,7 +153,10 @@ export function useSessionLifecycleActions(
         else if (action === "archive") await archive.mutateAsync(id);
         else if (action === "unarchive") await unarchive.mutateAsync(id);
         else {
-          const outcome = await stop.mutateAsync({ id, wait: true });
+          const outcome = await stop.mutateAsync({
+            ...sessions.find(session => session.id === id)!,
+            wait: true,
+          });
           if (!outcome.verified || outcome.state !== "stopped") {
             throw new Error(outcome.attention || "Session stop could not be verified.");
           }
@@ -242,7 +245,7 @@ export function useSessionLifecycleActions(
         if (pendingAction === null && !batchRunning.current) setRenameTarget(session);
       },
       onStop: session =>
-        stop.mutate({ id: session.id }, { onError: error => reportActionError("stop", error) }),
+        stop.mutate(session, { onError: error => reportActionError("stop", error) }),
       onArchive: session =>
         archive.mutate(session.id, { onError: error => reportActionError("archive", error) }),
       onUnarchive: session =>

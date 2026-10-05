@@ -6,13 +6,13 @@ persona: Ada
 journey: J-29
 expected: An authenticated agent sets, replaces, reads, pauses, resumes, and clears a target session Goal through native, HTTP, UDS, and CLI surfaces with matching structured results, while an unrelated session is rejected and the Goal keeps its immutable origin and workspace scope.
 entry_points: compozy__goal_control; POST /api/workspaces/{workspace_id}/sessions/{session_id}/goal; UDS equivalent; compozy session goal
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-eng-148-agent-session-control-20260825-014009-304323-lab/qa-artifacts/qa/journey-log.jsonl; internal/daemon goal lifecycle and eight-child isolation race suite; final CLI/HTTP/UDS/native focused checks
-last_report: docs/qa/reports/2026-08-24-eng-148-agent-session-control.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: GL-025; GL-026; GL-034
 ---
 
@@ -40,3 +40,7 @@ and time-travel integration suites passed with the race detector. This verifies 
 not a new full cross-surface scenario sweep.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

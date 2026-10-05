@@ -9,7 +9,7 @@ import type {
   LoopRunGenerationOutput,
   RunLoopResult,
 } from "@/systems/loops";
-import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { openAppWindow, setGlobalScope, switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktree-repo";
@@ -587,6 +587,117 @@ function rosterRow(appPage: Page, nodeId: string) {
 function editorNode(appPage: Page, nodeId: string) {
   return appPage.locator(`[data-testid="loop-editor-node"][data-node-id="${nodeId}"]`);
 }
+
+// Invariant: a new server search keeps the input focused so typing can continue.
+// Owner: Loops catalog route/toolbar lifetime across the real query boundary.
+test.describe("Loop catalog", () => {
+  test.use({ runtimeOptions: {} });
+  test("Loop catalog search retains focus across daemon responses", async ({
+    appPage,
+    runtime,
+  }) => {
+    if (!runtime.paths) throw new Error("Loop search test requires launch-mode runtime paths");
+    await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+    await openAppWindow(appPage, "Loops", "loops");
+    const search = appPage.getByRole("searchbox", { name: "Search loops" });
+    await search.click();
+
+    for (const [text, query] of [
+      ["l", "l"],
+      ["oop", "loop"],
+    ]) {
+      const response = appPage.waitForResponse(candidate => {
+        const url = new URL(candidate.url());
+        return url.pathname.endsWith("/loops") && url.searchParams.get("q") === query;
+      });
+      await appPage.keyboard.type(text);
+      expect((await response).ok()).toBe(true);
+      await expect(appPage.getByTestId("loops-loading")).toHaveCount(0);
+      await expect(search).toHaveValue(query);
+      await expect(search).toBeFocused();
+    }
+  });
+});
+
+// Invariant: a session-id filter remains editable through real query transitions.
+// Owner: Runs route/toolbar and filter-draft lifetime.
+test("Loop Runs session filter retains its draft across daemon responses", async ({
+  appPage,
+  runtime,
+}) => {
+  if (!runtime.paths) throw new Error("Loop filter test requires launch-mode runtime paths");
+  await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+  await openAppWindow(appPage, "Loops", "loops");
+  await appPage.getByRole("link", { name: "Runs", exact: true }).click();
+  await appPage.getByRole("button", { name: "Add filter", exact: true }).click();
+  await appPage.getByRole("option", { name: "Session id", exact: true }).click();
+  const sessionId = appPage.getByRole("textbox", { name: "Session id value" });
+  await expect(sessionId).toBeVisible();
+  await expect(sessionId).toBeFocused();
+
+  const query = "session-review";
+  const response = appPage.waitForResponse(candidate => {
+    const url = new URL(candidate.url());
+    return url.pathname.endsWith("/loop-runs") && url.searchParams.get("origin_session") === query;
+  });
+  await appPage.keyboard.type(query);
+  expect((await response).ok()).toBe(true);
+  await expect(sessionId).toHaveValue(query);
+  await expect(sessionId).toBeFocused();
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(sessionId).toHaveValue(query);
+  const addFilter = appPage.getByRole("button", { name: "Add filter", exact: true });
+  await addFilter.click();
+  await expect(appPage.getByRole("option", { name: "Origin", exact: true })).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(addFilter).toBeFocused();
+});
+
+// Invariant: a scoped Loop navigation may select its project, but retained Loop
+// windows cannot overwrite later shell choices. Owner: LoopsWindow route adoption.
+test("scoped Loop windows preserve later Global scope choices", async ({ appPage, runtime }) => {
+  if (!runtime.paths) throw new Error("Loop scope test requires launch-mode runtime paths");
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopWatchCursorSeedDefinition }),
+  });
+  const started = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopWatchCursorSeedName)}/run`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  if (!started.run) throw new Error("Loop scope test did not create a run");
+
+  await setGlobalScope(appPage, true);
+  await appPage.goto(
+    runtime.url(
+      `/loop-runs/${encodeURIComponent(started.run.id)}?workspace=${encodeURIComponent(workspace.id)}`
+    ),
+    { waitUntil: "domcontentloaded" }
+  );
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+
+  await setGlobalScope(appPage, true);
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await openAppWindow(appPage, "Home", "dashboard");
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await openAppWindow(appPage, "Jobs", "jobs");
+  await expect(appPage).toHaveURL(runtime.url("/jobs"));
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await expect(appPage.getByRole("searchbox", { name: "Search jobs" })).toBeVisible();
+});
 
 test("CompozyOS migration E2E-015: run page lifecycle controls and node inventories", async ({
   appPage,

@@ -59,7 +59,7 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	if err != nil {
 		return nil, err
 	}
-	owner, err := m.resolveStoredSessionOwner(ctx, target, meta.WorkspaceID)
+	owner, err := m.resolveStoredSessionOwner(ctx, &meta)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve catalog owner for clear %q: %w", target, err)
 	}

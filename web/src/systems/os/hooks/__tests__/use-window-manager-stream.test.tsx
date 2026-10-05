@@ -20,6 +20,7 @@ import type { WorkspacePayload } from "@/systems/workspace/types";
 
 import { fetchWindowManagerSnapshot } from "../../adapters/window-manager-api";
 import { windowManagerKeys } from "../../lib/window-manager-query";
+import type { WindowManagerClientCommandExecutor } from "../../lib/window-manager-client-command-frames";
 import type {
   WindowManagerClientView,
   WindowManagerSnapshot,
@@ -610,61 +611,72 @@ describe("useWindowManagerStream", () => {
     expect(signal?.aborted).toBe(true);
   });
 
-  it("Should acknowledge client commands before returning their terminal result", async () => {
-    const queryClient = new QueryClient();
-    const { factory, sockets } = createSocketFactory();
-    const onClientCommand = vi.fn().mockResolvedValue({ opened: true });
+  it.each([false, true])(
+    "Should return one client result before disconnect: %s",
+    async disconnect => {
+      // Invariant: a completed scope-changing command replies once before its stream is closed.
+      // Owner: stream protocol; canonical suite: this existing terminal-result case.
+      const queryClient = new QueryClient();
+      const { factory, sockets } = createSocketFactory();
+      const onClientCommand = vi.fn<WindowManagerClientCommandExecutor>(async (_command, reply) => {
+        if (disconnect) {
+          reply({ opened: true });
+          unmount();
+        }
+        return { opened: true };
+      });
 
-    renderHook(
-      () =>
-        useWindowManagerStream({
-          workspaceId: "workspace:test",
-          profileId: "marketing",
-          clientId: "client:web",
-          registrationEpoch: 0,
-          currentClient: client(1),
-          enabled: true,
-          afterRevision: 1,
-          socketFactory: factory,
-          onStatusChange: vi.fn(),
-          onSnapshot: vi.fn(),
-          onClient: vi.fn(),
-          onClientCommand,
-          onClientInvalidated: vi.fn(),
-          onError: vi.fn(),
-        }),
-      { wrapper: wrapper(queryClient) }
-    );
+      const { unmount } = renderHook(
+        () =>
+          useWindowManagerStream({
+            workspaceId: "workspace:test",
+            profileId: "marketing",
+            clientId: "client:web",
+            registrationEpoch: 0,
+            currentClient: client(1),
+            enabled: true,
+            afterRevision: 1,
+            socketFactory: factory,
+            onStatusChange: vi.fn(),
+            onSnapshot: vi.fn(),
+            onClient: vi.fn(),
+            onClientCommand,
+            onClientInvalidated: vi.fn(),
+            onError: vi.fn(),
+          }),
+        { wrapper: wrapper(queryClient) }
+      );
 
-    act(() =>
-      sockets[0]?.message({
-        type: "client_command",
-        workspace_id: "workspace:test",
-        command_id: "invocation-a",
-        op: "palette.open",
-        payload: { args: {} },
-      })
-    );
+      act(() =>
+        sockets[0]?.message({
+          type: "client_command",
+          workspace_id: "workspace:test",
+          command_id: "invocation-a",
+          op: "palette.open",
+          payload: { args: {} },
+        })
+      );
 
-    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
-      1,
-      JSON.stringify({ type: "client_command_ack", command_id: "invocation-a" })
-    );
-    await waitFor(() => expect(sockets[0]?.send).toHaveBeenCalledTimes(2));
-    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
-      2,
-      JSON.stringify({
-        type: "client_command_result",
-        command_id: "invocation-a",
-        result: { opened: true },
-      })
-    );
-    expect(onClientCommand).toHaveBeenCalledWith({
-      commandId: "invocation-a",
-      op: "palette.open",
-      payload: { args: {} },
-    });
-  });
+      expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+        1,
+        JSON.stringify({ type: "client_command_ack", command_id: "invocation-a" })
+      );
+      await waitFor(() => expect(sockets[0]?.send).toHaveBeenCalledTimes(2));
+      expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+        2,
+        JSON.stringify({
+          type: "client_command_result",
+          command_id: "invocation-a",
+          result: { opened: true },
+        })
+      );
+      expect(onClientCommand).toHaveBeenCalledWith(
+        { commandId: "invocation-a", op: "palette.open", payload: { args: {} } },
+        expect.any(Function)
+      );
+      if (disconnect) expect(sockets[0]?.close).toHaveBeenCalledOnce();
+    }
+  );
 
   it("Should acknowledge a rejected client command and write its error result", async () => {
     const queryClient = new QueryClient();

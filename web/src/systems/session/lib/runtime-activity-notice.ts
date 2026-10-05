@@ -39,6 +39,7 @@ const NON_FAILURE_STOP_REASONS = new Set([
   "aborted",
   "stopped",
   "user_canceled",
+  "owner_released",
   "shutdown",
 ]);
 

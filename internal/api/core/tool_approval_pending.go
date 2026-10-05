@@ -14,6 +14,37 @@ func (h *BaseHandlers) GetPendingToolApproval(c *gin.Context) {
 	h.writePendingToolApprovalStatus(c, strings.TrimSpace(c.Param("id")))
 }
 
+func (h *BaseHandlers) ResolvePendingToolApproval(c *gin.Context) {
+	var request contract.ResolveToolApprovalRequest
+	if err := decodeStrictJSONBody(c, &request); err != nil {
+		c.JSON(http.StatusBadRequest, contract.CmdPaletteError{
+			Error: cmdPaletteInvalidRequestError, Message: err.Error(),
+		})
+		return
+	}
+	if request.Decision != toolspkg.ApprovalApproved && request.Decision != toolspkg.ApprovalDenied {
+		c.JSON(http.StatusBadRequest, contract.CmdPaletteError{
+			Error: cmdPaletteInvalidRequestError, Message: "decision must be approved or denied",
+		})
+		return
+	}
+	if h.ApprovalCoordinator == nil {
+		h.respondPendingToolApprovalError(c, errors.New("tool approval coordinator is unavailable"))
+		return
+	}
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, true)
+	if !ok {
+		return
+	}
+	id := strings.TrimSpace(c.Param("id"))
+	ctx := toolspkg.WithApprovalProfile(c.Request.Context(), string(profileLens.ID))
+	if err := h.ApprovalCoordinator.Resolve(ctx, id, request.Decision); err != nil {
+		h.respondPendingToolApprovalError(c, err)
+		return
+	}
+	h.writePendingToolApprovalStatusForProfile(c, id, string(profileLens.ID))
+}
+
 func (h *BaseHandlers) CancelPendingToolApproval(c *gin.Context) {
 	if h.ApprovalCoordinator == nil {
 		h.respondPendingToolApprovalError(c, errors.New("tool approval coordinator is unavailable"))

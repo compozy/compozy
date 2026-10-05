@@ -119,7 +119,12 @@ func EnvNameFromRef(ref string) (string, error) {
 func ValidateSecretRef(ref string) error {
 	normalized := NormalizeRef(ref)
 	if !vaultRefPattern.MatchString(normalized) {
-		return fmt.Errorf("%w: %s", ErrUnsupportedSecretRef, normalized)
+		return fmt.Errorf(
+			"%w: use vault:<namespace>/<path> with providers, profiles, automation, mcp, hooks, extensions, or sessions. "+
+				"Path segments must start with a letter or digit and contain only letters, digits, dots, underscores, or hyphens; "+
+				"keep the first path segment lowercase",
+			ErrUnsupportedSecretRef,
+		)
 	}
 	if strings.HasPrefix(normalized, ProfileSecretRefPrefix) {
 		if _, err := ParseProfileSecretRef(normalized); err != nil {

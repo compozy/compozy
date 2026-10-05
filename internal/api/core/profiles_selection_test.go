@@ -32,15 +32,18 @@ func TestGetProfileSelectionsReturnsOneStableShape(t *testing.T) {
 			path        string
 			wantScope   contract.ProfileSelectionScope
 			wantProfile string
+			wantNote    string
 		}{
 			{
 				name: "full selection map", path: "/profiles/selection",
 				wantScope: contract.ProfileSelectionScopeWorkspace, wantProfile: "default",
+				wantNote: "archived_remembered_fallback",
 			},
 			{
 				name:      "archived remembered workspace lens",
 				path:      "/profiles/selection?scope=workspace&workspace_id=ws-marketing",
 				wantScope: contract.ProfileSelectionScopeWorkspace, wantProfile: "default",
+				wantNote: "archived_remembered_fallback",
 			},
 			{
 				name: "unstored global lens", path: "/profiles/selection?scope=global",
@@ -69,6 +72,9 @@ func TestGetProfileSelectionsReturnsOneStableShape(t *testing.T) {
 						test.wantScope,
 						test.wantProfile,
 					)
+				}
+				if payload[0].Note != test.wantNote {
+					t.Fatalf("GET %s note = %q, want %q", test.path, payload[0].Note, test.wantNote)
 				}
 			})
 		}

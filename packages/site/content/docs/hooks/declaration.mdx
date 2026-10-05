@@ -109,7 +109,7 @@ Each event family accepts only its own matcher fields:
 | `automation`  | `agent_name`, `workspace_id`                                                                                                                                                                                                                                                        |
 | `agent`       | `agent_name`, `workspace_id`, `workspace_root`                                                                                                                                                                                                                                      |
 | `turn`        | `agent_name`, `workspace_id`, `workspace_root`, `input_class`                                                                                                                                                                                                                       |
-| `tool`        | `tool_name`, `tool_namespace`, `tool_read_only`                                                                                                                                                                                                                                     |
+| `tool`        | `agent_name`, `workspace_id`, `workspace_root`, `worktree_id`, `tool_id`, `tool_read_only`                                                                                                                                                                                          |
 | `permission`  | `tool_name`, `decision_class`                                                                                                                                                                                                                                                       |
 | `message`     | `message_role`, `message_delta_type`                                                                                                                                                                                                                                                |
 | `context`     | `compaction_reason`, `compaction_strategy`                                                                                                                                                                                                                                          |
@@ -171,7 +171,7 @@ priority = 700
 timeout = "3s"
 
 [hooks.declarations.matcher]
-tool_namespace = "fs"
+tool_id = "*"
 tool_read_only = false
 
 [hooks.declarations.executor]
@@ -272,6 +272,9 @@ env = { LOG_LEVEL = "info" }
 The command still follows the hook executor contract: read payload JSON from stdin and write a patch
 JSON object to stdout. A separate long-running extension subprocess is optional and is documented in
 [Develop Extensions](/docs/extensions/develop).
+
+Tool-event matchers use the canonical `tool_id`, such as `compozy__workspace_info`, or an ID pattern.
+`tool_name` belongs to permission-event matchers. `tool_namespace` is not a supported matcher field.
 
 ## HTTP and agent runtimes
 

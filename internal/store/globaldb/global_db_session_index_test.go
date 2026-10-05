@@ -795,6 +795,20 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				coderStopped.UpdatedAt,
 			)
 		}
+		globalMetrics, err := globalDB.AggregateSessionsByAgent(ctx, store.SessionAgentMetricsQuery{
+			ReadScope:           store.ReadScope{ProfileID: store.DefaultProfileID},
+			ExcludeIDs:          []string{reviewer.ID},
+			ExcludeSessionTypes: []string{"dream"},
+			ExcludeSpawnRoles:   []string{"memory-extractor"},
+		})
+		if err != nil {
+			t.Fatalf("AggregateSessionsByAgent(Global) error = %v", err)
+		}
+		if len(globalMetrics) != 1 || globalMetrics[0].Total != 3 ||
+			globalMetrics[0].Active != 2 || globalMetrics[0].Failed != 1 ||
+			globalMetrics[0].RuntimeSeconds != wantRuntime+int64(now.Sub(foreign.CreatedAt).Seconds()) {
+			t.Fatalf("Global agent metrics = %#v, want both project populations with exclusions", globalMetrics)
+		}
 	})
 }
 

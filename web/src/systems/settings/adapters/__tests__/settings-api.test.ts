@@ -28,7 +28,11 @@ import {
   SettingsApiError,
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
+  updateSettingsAttention,
   updateSettingsAutomation,
+  updateSettingsHooksExtensions,
+  updateSettingsMemory,
+  updateSettingsObservability,
   updateSettingsCmdPalette,
   updateSettingsGeneral,
   updateSettingsPersona,
@@ -40,6 +44,17 @@ import {
   settingsRolesConfigWithFallbackFixture,
   settingsRolesSectionFixture,
 } from "../../mocks/roles-fixtures";
+
+import {
+  settingsAttentionSectionFixture,
+  settingsAutomationSectionFixture,
+  settingsGeneralSectionFixture,
+  settingsHooksExtensionsSectionFixture,
+  settingsMemoryConfigFixture,
+  settingsObservabilitySectionFixture,
+  settingsSkillsSectionFixture,
+} from "../../mocks/fixtures";
+import { settingsPersonaSectionFixture } from "../../mocks/layered-fixtures";
 
 const generalSectionFixture = {
   section: "general" as const,
@@ -108,6 +123,64 @@ describe("SettingsApiError", () => {
 });
 
 describe("section reads and updates", () => {
+  // Invariant: failed fetches retain their cause as typed Settings failures; cancellation stays cancellation.
+  // Owner: Settings HTTP adapter; canonical settings-api suite.
+  it.each([
+    {
+      name: "General",
+      save: () => updateSettingsGeneral({ config: settingsGeneralSectionFixture.config }),
+    },
+    { name: "Memory", save: () => updateSettingsMemory({ config: settingsMemoryConfigFixture }) },
+    {
+      name: "Automation",
+      save: () => updateSettingsAutomation({ config: settingsAutomationSectionFixture.config }),
+    },
+    {
+      name: "Diagnostics",
+      save: () =>
+        updateSettingsObservability({ config: settingsObservabilitySectionFixture.config }),
+    },
+    {
+      name: "Extensions",
+      save: () =>
+        updateSettingsHooksExtensions({ config: settingsHooksExtensionsSectionFixture.config }),
+    },
+    {
+      name: "Roles",
+      save: () => updateSettingsRoles({ config: settingsRolesSectionFixture.config }),
+    },
+    {
+      name: "Persona",
+      save: () =>
+        updateSettingsPersona({ config: settingsPersonaSectionFixture.config }, { scope: "user" }),
+    },
+    {
+      name: "Skills",
+      save: () =>
+        updateSettingsSkills({ config: settingsSkillsSectionFixture.config }, { scope: "user" }),
+    },
+    {
+      name: "Notifications",
+      save: () =>
+        updateSettingsAttention(
+          { config: settingsAttentionSectionFixture.config },
+          { scope: "user" }
+        ),
+    },
+  ])("$name classifies transport failure without changing cancellation", async ({ save }) => {
+    const cause = new TypeError("Failed to fetch");
+    vi.mocked(fetch).mockRejectedValueOnce(cause);
+    await expect(save()).rejects.toMatchObject({
+      name: "SettingsApiError",
+      status: 0,
+      cause,
+    });
+
+    const cancelled = new DOMException("Request aborted", "AbortError");
+    vi.mocked(fetch).mockRejectedValueOnce(cancelled);
+    await expect(save()).rejects.toBe(cancelled);
+  });
+
   // Invariant: catalog settings requests preserve the global payload and cancellation.
   // Owner: settings adapter; canonical settings API suite.
   it("reads and updates marketplace catalog settings", async () => {

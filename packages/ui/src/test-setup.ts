@@ -4,7 +4,7 @@ if (typeof window !== "undefined") {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: (query: string) => ({
-      matches: query.includes("prefers-reduced-motion"),
+      matches: false,
       media: query,
       onchange: null,
       addListener: () => {},
@@ -22,6 +22,12 @@ if (typeof window !== "undefined") {
   }
 
   window.ResizeObserver = ResizeObserverMock;
+
+  if (typeof Element !== "undefined" && !Element.prototype.getAnimations) {
+    Element.prototype.getAnimations = function getAnimations() {
+      return [];
+    };
+  }
 
   if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = function scrollIntoView() {};

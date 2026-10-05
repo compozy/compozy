@@ -31,6 +31,7 @@ interface RenderTriggerFormOptions {
   draft?: CreateAutomationTriggerRequest;
   isPending?: boolean;
   mode?: "create" | "edit";
+  submitError?: string | null;
   workspaces?: Array<{ id: string; name: string }>;
 }
 
@@ -44,6 +45,7 @@ function renderTriggerForm({
   draft = createAutomationTriggerDraft(activeWorkspaceId),
   isPending = false,
   mode = "create" as "create" | "edit",
+  submitError,
   workspaces = WORKSPACES,
 }: RenderTriggerFormOptions = {}) {
   const onCancel = vi.fn();
@@ -66,6 +68,7 @@ function renderTriggerForm({
           setCurrentDraft(nextDraft);
         }}
         onSubmit={onSubmit}
+        submitError={submitError}
         workspaces={workspaces}
       />
     );
@@ -533,6 +536,39 @@ describe("AutomationTriggerForm", () => {
     showForm();
     fireEvent.submit(screen.getByTestId("automation-trigger-form"));
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Should render a parseable webhook sample while preserving its JSON payload string", () => {
+    renderTriggerForm({
+      draft: { ...createAutomationTriggerDraft(null), event: "webhook" },
+    });
+    showPreview();
+
+    const sample = within(screen.getByTestId("trigger-preview"))
+      .getByText('"payload"')
+      .closest("pre");
+    expect(sample).not.toBeNull();
+    const envelope = JSON.parse(sample?.textContent ?? "");
+    expect(envelope.kind).toBe("webhook");
+    expect(JSON.parse(envelope.data.payload)).toEqual({
+      action: "deploy_started",
+      version: "1.4.0",
+    });
+  });
+
+  it("Should retain the submission error while switching between form and preview", () => {
+    const submitError = "Webhook id must start with wbh_. Review the target and try again.";
+    renderTriggerForm({ submitError });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(submitError);
+
+    showPreview();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(submitError);
+
+    showForm();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(submitError);
   });
 
   it("Should preview a Loop target with static inputs, event mappings, and its request union", () => {

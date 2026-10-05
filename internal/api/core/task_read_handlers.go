@@ -393,7 +393,12 @@ func (h *BaseHandlers) ApproveTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, TaskExecutionResponseFromExecution(execution))
+	payload := TaskExecutionResponseFromExecution(execution)
+	if err := h.decorateTaskExecutionOwners(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusCreated, payload)
 }
 
 // RejectTask records one rejection decision for an approval-gated task.

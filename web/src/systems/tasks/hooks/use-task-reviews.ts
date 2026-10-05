@@ -5,6 +5,7 @@ import {
   taskReviewsOptions,
   taskRunReviewDetailOptions,
   taskRunReviewsOptions,
+  withTaskProfileScope,
 } from "../lib/query-options";
 import { tasksKeys } from "../lib/query-keys";
 import { acknowledgeTaskMutationSettlement } from "../lib/task-mutation";
@@ -15,6 +16,7 @@ import type {
   TaskRunReviewsFilter,
 } from "../types";
 import { type TaskQueryHookOptions, withTaskQueryHookOptions } from "./task-query-hook-options";
+import { useProfileReadScope } from "@/systems/profiles";
 
 interface RequestReviewParams {
   runId: string;
@@ -67,9 +69,10 @@ export function useTaskRunReviews(
   filters: TaskRunReviewsFilter = {},
   options: TaskQueryHookOptions = {}
 ) {
+  const { params } = useProfileReadScope();
   return useQuery(
     withTaskQueryHookOptions(
-      taskRunReviewsOptions(runId, filters, options.enabled ?? true),
+      taskRunReviewsOptions(runId, withTaskProfileScope(filters, params), options.enabled ?? true),
       options
     )
   );
@@ -80,8 +83,12 @@ export function useTaskReviews(
   filters: TaskReviewsFilter = {},
   options: TaskQueryHookOptions = {}
 ) {
+  const { params } = useProfileReadScope();
   return useQuery(
-    withTaskQueryHookOptions(taskReviewsOptions(taskId, filters, options.enabled ?? true), options)
+    withTaskQueryHookOptions(
+      taskReviewsOptions(taskId, withTaskProfileScope(filters, params), options.enabled ?? true),
+      options
+    )
   );
 }
 

@@ -874,17 +874,18 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should concatenate streamed verdict chunks without inventing separators", func(t *testing.T) {
+	t.Run("Should preserve streamed verdict chunks including whitespace", func(t *testing.T) {
 		t.Parallel()
 
-		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN","exact_match":true}}`
-		split := len(verdict) / 2
+		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN LIGHT","exact_match":true}}`
+		split := strings.IndexByte(verdict, ' ')
 		sessions := &loopActionBinderSessionManager{
 			sessionID: "sess-loop-judge-chunked-verdict",
 			events: []acp.AgentEvent{
 				{Type: acp.EventTypeThought, Text: "The candidate satisfies the contract."},
 				{Type: acp.EventTypeAgentMessage, Text: verdict[:split]},
-				{Type: acp.EventTypeAgentMessage, Text: verdict[split:]},
+				{Type: acp.EventTypeAgentMessage, Text: " "},
+				{Type: acp.EventTypeAgentMessage, Text: verdict[split+1:]},
 			},
 		}
 		response, err := loopJudgeRunnerForTest(t, sessions).Judge(
@@ -1270,6 +1271,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 
 		manager := loopPromptResultSessionManager{events: []acp.AgentEvent{
 			{Type: acp.EventTypeAgentMessage, Text: `{"status":"completed","summary":"root scripts (dev:`},
+			{Type: acp.EventTypeAgentMessage, Text: " "},
 			{Type: acp.EventTypeAgentMessage, Text: `server, test) pass",`},
 			{Type: acp.EventTypeAgentMessage, Text: `"files_changed":["server/index.ts"]}`},
 		}}
@@ -1289,7 +1291,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 		if err := json.Unmarshal([]byte(result.Text), &decoded); err != nil {
 			t.Fatalf("unmarshal joined deltas error = %v", err)
 		}
-		if decoded["summary"] != "root scripts (dev:server, test) pass" {
+		if decoded["summary"] != "root scripts (dev: server, test) pass" {
 			t.Fatalf("joined summary = %v, want delta boundary inside the string preserved", decoded["summary"])
 		}
 	})
@@ -1797,6 +1799,42 @@ func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.
 }
 func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 	t.Parallel()
+
+	for _, response := range []struct {
+		name string
+		text string
+	}{
+		{name: "Should reject a canceled prompt with no output"},
+		{name: "Should reject a canceled prompt with partial output", text: `{"status":`},
+		{name: "Should reject a canceled prompt with complete output", text: `{"status":"ok"}`},
+	} {
+		t.Run(response.name, func(t *testing.T) {
+			t.Parallel()
+
+			sessions := &loopActionBinderSessionManager{
+				events: []acp.AgentEvent{
+					{Type: acp.EventTypeAgentMessage, Text: response.text},
+					{
+						Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonCancelled,
+						Usage: &acp.TokenUsage{TotalTokens: new(int64(27))},
+					},
+				},
+			}
+			result, err := collectLoopPromptResult(
+				t.Context(), sessions, "sess-canceled", looppkg.ActionPromptRequest{Message: "Write the handoff"},
+			)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled prompt error = %v, want context.Canceled", err)
+			}
+			if result.Text != "" || result.TokensUsed != 27 || !result.TokensReported {
+				t.Fatalf("canceled result = %#v, want retained usage without an action answer", result)
+			}
+			safe, ok := errors.AsType[looppkg.SafeActionFailureProvider](err)
+			if !ok || safe.SafeActionFailure().Code != string(store.FailureCanceled) {
+				t.Fatalf("canceled prompt error = %v, want safe cancellation failure", err)
+			}
+		})
+	}
 
 	t.Run("Should return normal text without error on successful model output", func(t *testing.T) {
 		t.Parallel()

@@ -34,6 +34,8 @@ func registrySessionOperations() []OperationSpec {
 		repairSessionOperationSpec(),
 		listSessionEventsOperationSpec(),
 		getSessionHistoryOperationSpec(),
+		globalSessionHistoryOperation(listSessionEventsOperationSpec()),
+		globalSessionHistoryOperation(getSessionHistoryOperationSpec()),
 		approveSessionOperationSpec(),
 	}
 }
@@ -113,7 +115,7 @@ func getSessionOwnerOperationSpec() OperationSpec {
 		Method:      httpMethodGet,
 		Path:        "/api/sessions/{session_id}/owner",
 		OperationID: "getSessionOwner",
-		Summary:     "Get a session workspace owner projection",
+		Summary:     "Get a session owner; Global history has an empty workspace id",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
@@ -192,10 +194,10 @@ func stopSessionOperationSpec() OperationSpec {
 		Summary:     "Stop a session without deleting persisted history",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-		},
+		),
 		RequestBody:         contract.StopSessionRequest{},
 		RequestBodyOptional: true,
 		Responses: []ResponseSpec{

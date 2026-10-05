@@ -277,7 +277,7 @@ func (q *Queries) GetLoopRunPauseState(ctx context.Context, arg GetLoopRunPauseS
 	return i, err
 }
 
-const insertLoopGateVerdict = `-- name: InsertLoopGateVerdict :exec
+const insertLoopGateVerdict = `-- name: InsertLoopGateVerdict :execrows
 INSERT INTO loop_gate_verdicts (
   loop_run_id, generation, gate_id, item_index, outcome, score, route_cause_rank,
   blocking_issues_json, criteria_json, decided_at
@@ -286,6 +286,15 @@ INSERT INTO loop_gate_verdicts (
   ?6, ?7, ?8,
   ?9, ?10
 )
+ON CONFLICT(loop_run_id, generation, gate_id, item_index) DO UPDATE SET
+  outcome = excluded.outcome,
+  score = excluded.score,
+  route_cause_rank = excluded.route_cause_rank,
+  blocking_issues_json = excluded.blocking_issues_json,
+  criteria_json = excluded.criteria_json,
+  decided_at = excluded.decided_at
+WHERE loop_gate_verdicts.outcome = 'awaiting_approval'
+  AND excluded.outcome <> 'awaiting_approval'
 `
 
 type InsertLoopGateVerdictParams struct {
@@ -301,8 +310,8 @@ type InsertLoopGateVerdictParams struct {
 	DecidedAt          time.Time       `json:"decided_at"`
 }
 
-func (q *Queries) InsertLoopGateVerdict(ctx context.Context, arg InsertLoopGateVerdictParams) error {
-	_, err := q.db.ExecContext(ctx, insertLoopGateVerdict,
+func (q *Queries) InsertLoopGateVerdict(ctx context.Context, arg InsertLoopGateVerdictParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertLoopGateVerdict,
 		arg.LoopRunID,
 		arg.Generation,
 		arg.GateID,
@@ -314,7 +323,10 @@ func (q *Queries) InsertLoopGateVerdict(ctx context.Context, arg InsertLoopGateV
 		arg.CriteriaJson,
 		arg.DecidedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const insertLoopGeneration = `-- name: InsertLoopGeneration :exec
@@ -1104,6 +1116,40 @@ func (q *Queries) ProjectLoopPauseToGoalCheckpoints(ctx context.Context, arg Pro
 		arg.LoopRunID,
 	)
 	return err
+}
+
+const rearmLoopApprovalGate = `-- name: RearmLoopApprovalGate :execrows
+UPDATE loop_generation_outputs
+SET status = 'pending', output_ref = NULL, task_run_id = NULL,
+    next_attempt_at = NULL, epoch = epoch + 1
+WHERE loop_run_id = ?1
+  AND generation = ?2
+  AND node_id = ?3
+  AND item_index = ?4
+  AND status = 'succeeded'
+  AND epoch = ?5
+`
+
+type RearmLoopApprovalGateParams struct {
+	LoopRunID     string `json:"loop_run_id"`
+	Generation    int64  `json:"generation"`
+	NodeID        string `json:"node_id"`
+	ItemIndex     int64  `json:"item_index"`
+	ExpectedEpoch int64  `json:"expected_epoch"`
+}
+
+func (q *Queries) RearmLoopApprovalGate(ctx context.Context, arg RearmLoopApprovalGateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, rearmLoopApprovalGate,
+		arg.LoopRunID,
+		arg.Generation,
+		arg.NodeID,
+		arg.ItemIndex,
+		arg.ExpectedEpoch,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const recordLoopGenerationOutputRuntime = `-- name: RecordLoopGenerationOutputRuntime :execrows

@@ -152,6 +152,9 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 		if trusted == "" {
 			return nil
 		}
+		if hasOperatorAuthority {
+			return b.resolveNativeWorkspaceInput(ctx, id, payload, trusted)
+		}
 		return setNativeWorkspaceInput(payload, trusted)
 	}
 	if hasOperatorAuthority {
@@ -163,21 +166,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	if requested == trusted {
 		return setNativeWorkspaceInput(payload, trusted)
 	}
-	if b == nil || b.workspaces == nil {
-		return nativeInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
-	}
-	requestedWorkspace, err := b.workspaces.Resolve(ctx, requested)
-	if err != nil {
-		return nativeInputError(id, err)
-	}
-	trustedWorkspace, err := b.workspaces.Resolve(ctx, trusted)
-	if err != nil {
-		return nativeInputError(id, err)
-	}
-	if strings.TrimSpace(requestedWorkspace.WorkspaceID) == strings.TrimSpace(trustedWorkspace.WorkspaceID) {
-		return setNativeWorkspaceInput(payload, trustedWorkspace.WorkspaceID)
-	}
-	return setNativeWorkspaceInput(payload, requestedWorkspace.WorkspaceID)
+	return b.resolveNativeWorkspaceInput(ctx, id, payload, requested)
 }
 
 func nativeInputHasGlobalScope(payload map[string]json.RawMessage) bool {
@@ -210,7 +199,11 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	if err != nil {
 		return nativeInputError(id, err)
 	}
-	return setNativeWorkspaceInput(payload, resolved.WorkspaceID)
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return nativeInputError(id, err)
+	}
+	return setNativeWorkspaceInput(payload, workspaceID)
 }
 
 func nativeWorkspaceInputSchema(

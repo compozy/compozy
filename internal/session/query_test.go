@@ -621,6 +621,10 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 				catalog.lastAgentMetricsQuery,
 			)
 		}
+		globalMetrics, err := h.manager.AggregateSessionsByAgent(t.Context(), store.ReadScope{AllProfiles: true}, "")
+		if err != nil || globalMetrics["coder"] != coder || catalog.lastAgentMetricsQuery.WorkspaceID != "" {
+			t.Fatalf("Global live overlay = %#v, error %v, want the same exact aggregate", globalMetrics, err)
+		}
 	})
 }
 
@@ -2007,6 +2011,119 @@ func TestManagerEventsRejectTraversalSessionID(t *testing.T) {
 
 func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 	t.Parallel()
+
+	// The manager resolves migrated Global scope from the catalog while retaining
+	// the creation witness's immutable events.db owner, including substitution refusal.
+	for _, foreignOwner := range []bool{false, true} {
+		name := "Should read migrated Global history through its original database owner"
+		if foreignOwner {
+			name = "Should refuse substituted metadata and database owners for Global history"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			catalog := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionCatalog(catalog))
+			const sessionID = "sess-retained-global"
+			const originalWorkspaceID = "ws-retired-home"
+			const profileJSON = `{"version":3,"agent_name":"coder","provider":"claude","speed":"normal","workspace_id":"ws-retired-home","cwd":"/retained-home","sandbox_mode":"none","permissions":"approve-all"}`
+			const optionsJSON = `{"session_id":"sess-retained-global","network_owner_key":"session:sess-retained-global","network_participation":{"version":"network-participation/v1","mode":"local","source":"built_in_local"},"session_type":"user"}`
+			var profile store.SessionCreationProfile
+			var options store.SessionCreationOptions
+			if err := json.Unmarshal([]byte(profileJSON), &profile); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(optionsJSON), &options); err != nil {
+				t.Fatal(err)
+			}
+			ref, err := catalog.PutSessionCreationProfile(t.Context(), profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy, err := profile.PolicySpecDigest()
+			if err != nil {
+				t.Fatal(err)
+			}
+			creation, err := profile.CreationDigest(options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 10, 4, 9, 35, 0, 0, time.UTC)
+			_, err = catalog.RegisterSessionWithCreationIdentity(t.Context(), store.SessionInfo{
+				ID: sessionID, ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude",
+				State: string(StateStopped), RuntimeStatus: store.SessionRuntimeReady, CreatedAt: now, UpdatedAt: now,
+			}, store.SessionCreationIdentity{CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: creation})
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspaceID := originalWorkspaceID
+			if foreignOwner {
+				workspaceID = "ws-substituted"
+			}
+			sessionDir := filepath.Join(h.homePaths.SessionsDir, sessionID)
+			metaPath := store.SessionMetaFile(sessionDir)
+			if err := os.MkdirAll(sessionDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
+				ID: sessionID, AgentName: "coder", Provider: "claude", WorkspaceID: workspaceID,
+				State: string(StateStopped), RuntimeStatus: store.SessionRuntimeReady,
+				CreationProfile: &profile, CreationOptions: &options, CreationProfileRef: ref,
+				PolicySpecDigest: policy, CreationDigest: creation, CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			database, err := sessiondb.OpenSessionDB(
+				t.Context(),
+				testSessionDBOwner(sessionID, workspaceID),
+				store.SessionDBFile(sessionDir),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := database.Record(t.Context(), store.SessionEvent{
+				TurnID: "turn-retained", Type: acp.EventTypeAgentMessage, AgentName: "coder",
+				Content: `{"type":"agent_message","text":"Retained work"}`, Timestamp: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := database.Close(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.ReadFile(metaPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			owner, ownerErr := h.manager.SessionOwner(t.Context(), sessionID)
+			if foreignOwner {
+				if !errors.Is(ownerErr, store.ErrSessionWorkspaceMismatch) {
+					t.Fatalf("SessionOwner(substituted) = %v, want catalog refusal", ownerErr)
+				}
+			} else {
+				if ownerErr != nil || owner.WorkspaceID != "" {
+					t.Fatalf("SessionOwner(global) = %+v, %v", owner, ownerErr)
+				}
+				info, err := h.manager.Status(t.Context(), sessionID)
+				if err != nil || info.WorkspaceID != "" || info.ProfileID != store.DefaultProfileID {
+					t.Fatalf("Status(global) = %+v, %v", info, err)
+				}
+				if err := h.manager.UpgradeSessionDatabase(t.Context(), sessionID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			entries, readErr := h.manager.Events(t.Context(), sessionID, store.EventQuery{})
+			if foreignOwner {
+				if !errors.Is(readErr, store.ErrSessionWorkspaceMismatch) {
+					t.Fatalf("Events(substituted) = %v, want catalog refusal", readErr)
+				}
+			} else if readErr != nil || len(entries) != 1 || !strings.Contains(entries[0].Content, "Retained work") {
+				t.Fatalf("Events(global) = %+v, %v", entries, readErr)
+			}
+			after, err := os.ReadFile(metaPath)
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatalf("read changed retained metadata: %v", err)
+			}
+		})
+	}
 
 	// Invariant: startup upgrades only older owned databases through the writer,
 	// allows an owned pre-bind session without history, and refuses missing bound

@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,6 +25,17 @@ func respondProfileBindingError(c *gin.Context, err error) {
 func respondProfileError(c *gin.Context, err error) {
 	status, payload := profileErrorResponse(err)
 	c.AbortWithStatusJSON(status, payload)
+}
+
+func respondProfileAdmissionError(c *gin.Context, err error) bool {
+	refusal, ok := errors.AsType[*store.ProfileAdmissionError](err)
+	if !ok {
+		return false
+	}
+	c.AbortWithStatusJSON(http.StatusConflict, contract.ProfileErrorPayload{Error: contract.ProfileError{
+		Code: refusal.Code(), Message: refusal.Message(), Action: refusal.Action(),
+	}})
+	return true
 }
 
 func profileErrorResponse(err error) (int, contract.ProfileErrorPayload) {

@@ -1334,57 +1334,120 @@ func TestSessionListResolvesOptionalWorkspaceOverride(t *testing.T) {
 func TestSessionListJSONLIncludesContinuationRecord(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		listSessionPageFn: func(_ context.Context, _ SessionListQuery) (SessionListPage, error) {
-			return SessionListPage{
-				Sessions: []SessionRecord{{
-					ID:    "sess-1",
-					State: session.StateActive,
-					Health: &contract.SessionHealthPayload{
-						State:  contract.SessionHealthStateIdle,
-						Health: contract.SessionHealthHealthy,
+	t.Run("Should retain session health and continuation after profile resolution", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionPageFn: func(_ context.Context, _ SessionListQuery) (SessionListPage, error) {
+				return SessionListPage{
+					Sessions: []SessionRecord{{
+						ID:    "sess-1",
+						State: session.StateActive,
+						Health: &contract.SessionHealthPayload{
+							State:  contract.SessionHealthStateIdle,
+							Health: contract.SessionHealthHealthy,
+						},
+					}},
+					Page: contract.CountedCursorPagePayload{
+						NextCursor: "cursor-next",
+						HasMore:    true,
+						Total:      3,
+						Limit:      1,
 					},
-				}},
-				Page: contract.CountedCursorPagePayload{
-					NextCursor: "cursor-next",
-					HasMore:    true,
-					Total:      3,
-					Limit:      1,
-				},
-			}, nil
-		},
+				}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "list", "-o", "jsonl")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session list jsonl) error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("session list jsonl lines = %d, want resolution + session + page; output=%q", len(lines), stdout)
+		}
+		var item SessionRecord
+		if err := json.Unmarshal([]byte(lines[1]), &item); err != nil {
+			t.Fatalf("json.Unmarshal(session jsonl item) error = %v", err)
+		}
+		if item.Health == nil || item.Health.State != contract.SessionHealthStateIdle ||
+			item.Health.Health != contract.SessionHealthHealthy {
+			t.Fatalf("session jsonl item = %#v, want nested health", item)
+		}
+		var continuation struct {
+			Type string                            `json:"type"`
+			Page contract.CountedCursorPagePayload `json:"page"`
+		}
+		if err := json.Unmarshal([]byte(lines[2]), &continuation); err != nil {
+			t.Fatalf("json.Unmarshal(page continuation) error = %v", err)
+		}
+		if continuation.Type != "page" || continuation.Page.NextCursor != "cursor-next" ||
+			!continuation.Page.HasMore || continuation.Page.Total != 3 || continuation.Page.Limit != 1 {
+			t.Fatalf("continuation = %#v, want usable page metadata", continuation)
+		}
 	})
-	stdout, _, err := executeRootCommand(t, deps, "session", "list", "-o", "jsonl")
-	if err != nil {
-		t.Fatalf("executeRootCommand(session list jsonl) error = %v", err)
-	}
-	lines := strings.Split(strings.TrimSpace(stdout), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("session list jsonl lines = %d, want session + page; output=%q", len(lines), stdout)
-	}
-	var item SessionRecord
-	if err := json.Unmarshal([]byte(lines[0]), &item); err != nil {
-		t.Fatalf("json.Unmarshal(session jsonl item) error = %v", err)
-	}
-	if item.Health == nil || item.Health.State != contract.SessionHealthStateIdle ||
-		item.Health.Health != contract.SessionHealthHealthy {
-		t.Fatalf("session jsonl item = %#v, want nested health", item)
-	}
-	var continuation struct {
-		Type string                            `json:"type"`
-		Page contract.CountedCursorPagePayload `json:"page"`
-	}
-	if err := json.Unmarshal([]byte(lines[1]), &continuation); err != nil {
-		t.Fatalf("json.Unmarshal(page continuation) error = %v", err)
-	}
-	if continuation.Type != "page" || continuation.Page.NextCursor != "cursor-next" ||
-		!continuation.Page.HasMore || continuation.Page.Total != 3 || continuation.Page.Limit != 1 {
-		t.Fatalf("continuation = %#v, want usable page metadata", continuation)
-	}
 }
 
 func TestSessionListProfileReadScope(t *testing.T) {
 	t.Parallel()
+
+	for _, testCase := range []struct {
+		name     string
+		sessions []SessionRecord
+	}{
+		{name: "Should emit the selected profile before an empty page"},
+		{
+			name: "Should emit the selected profile before session rows and pagination",
+			sessions: []SessionRecord{{
+				ID: "sess-marketing", ProfileName: "marketing", State: session.StateActive,
+			}},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			page := SessionListPage{
+				Sessions: testCase.sessions,
+				Page:     contract.CountedCursorPagePayload{Total: len(testCase.sessions), Limit: 50},
+			}
+			client := &profileTestDaemonClient{
+				DaemonClient: &stubClient{
+					listSessionPageFn: func(context.Context, SessionListQuery) (SessionListPage, error) {
+						return page, nil
+					},
+				},
+				profileClientAPI: &profileClientStub{profiles: []contract.Profile{{
+					Name: "marketing", State: "active",
+				}}},
+			}
+			deps := newTestDeps(t, client)
+			deps.getenv = func(string) string { return "" }
+			stdout, _, err := executeRootCommand(
+				t, deps, "session", "list", "--profile", "marketing", "--all-workspaces", "-o", "jsonl",
+			)
+			if err != nil {
+				t.Fatalf("executeRootCommand(session list) error = %v", err)
+			}
+			lines := strings.Split(strings.TrimSpace(stdout), "\n")
+			if len(lines) != len(testCase.sessions)+2 {
+				t.Fatalf("JSONL records = %d, want resolution, sessions, and page; output=%q", len(lines), stdout)
+			}
+			var resolution profileResolutionFrame
+			decodeJSONOutput(t, lines[0], &resolution)
+			if resolution != (profileResolutionFrame{
+				Kind: "profile_resolution", Profile: "marketing", Source: profileResolutionFlag,
+			}) {
+				t.Fatalf("resolution = %#v, want the explicit marketing profile", resolution)
+			}
+			var continuation struct {
+				Type string                            `json:"type"`
+				Page contract.CountedCursorPagePayload `json:"page"`
+			}
+			decodeJSONOutput(t, lines[len(lines)-1], &continuation)
+			if continuation.Type != listPageRecordType || continuation.Page != page.Page {
+				t.Fatalf("continuation = %#v, want page %#v", continuation, page.Page)
+			}
+		})
+	}
 
 	t.Run("Should emit aggregate resolution before owner-labeled rows [UT-077]", func(t *testing.T) {
 		t.Parallel()

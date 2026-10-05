@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-12
 expected: In an open Session window, the message transcript rail and the composer textbox share only horizontal inset padding (px-4/px-8) and span the full window content width; neither surface is capped by a centered max-width reading column; resizing the window wider keeps both surfaces edge-to-edge with the window body (minus inset).
 entry_points: web desktop Session window; ThreadContentRail; session composer
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-session-sidebar-parent-20260806-212647-734931-lab/qa-artifacts/qa/journey-log.jsonl
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-dock-default-window-size; RT-session-lifecycle-affordances
 ---
 
@@ -24,3 +24,7 @@ qa-impact: Removed ThreadContentRail max-width/centering so session chat is full
 2026-08-06 re-walked live: session window opens with the sessions rail closed (width 0) and the transcript+composer full-bleed; closing the rail after use restores full width. Evidence: lab journey-log.jsonl. Verdict: pass.
 
 2026-09-30 shell-rail polish impact (P5): the shell-rail branch had capped the transcript and composer at a centered `max-w-transcript` column; that cap is removed and both surfaces are full-bleed again (inset padding only). The sessions rail now opens by default, so the full-bleed check runs beside the open rail and again after closing it. Reset for a live re-walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

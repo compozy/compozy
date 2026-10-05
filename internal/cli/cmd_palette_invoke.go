@@ -60,7 +60,7 @@ func newCmdPaletteInvokeCommand(deps commandDeps) *cobra.Command {
 				ApprovalID: result.ApprovalID, InvocationID: result.InvocationID,
 			}
 			if result.Status == cmdpalette.InvokeStatusApprovalPending {
-				output.Message = "destructive command requires approval"
+				output.Message = "command requires approval"
 			}
 			return writeCommandOutput(cmd, cmdPaletteInvokeOutput(output))
 		},

@@ -138,5 +138,6 @@ export function onboardingWizardFixture(
     goToStep: overrides.wizard?.goToStep ?? noop,
     back: overrides.wizard?.back ?? noop,
     next: overrides.wizard?.next ?? (async () => {}),
+    skipToGlobal: overrides.wizard?.skipToGlobal ?? (async () => {}),
   };
 }

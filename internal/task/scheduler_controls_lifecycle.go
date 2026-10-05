@@ -150,5 +150,12 @@ func (m *Service) SchedulerBacklog(
 	if err != nil {
 		return SchedulerBacklog{}, err
 	}
-	return controlStore.SchedulerBacklog(ctx, query)
+	backlog, err := controlStore.SchedulerBacklog(ctx, query)
+	if err != nil {
+		return SchedulerBacklog{}, err
+	}
+	for index := range backlog.Runs {
+		backlog.Runs[index].Run.ProfileID = backlog.Runs[index].Task.ProfileID
+	}
+	return backlog, nil
 }

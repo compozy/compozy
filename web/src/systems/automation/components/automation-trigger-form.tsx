@@ -92,11 +92,7 @@ export function AutomationTriggerForm({
           <TriggerPreview preview={form.preview} />
         ) : (
           <>
-            <TriggerFormNotices
-              isWebhook={form.isWebhook}
-              submitError={submitError}
-              targetIssue={form.preview.targetIssue}
-            />
+            <TriggerFormNotices isWebhook={form.isWebhook} targetIssue={form.preview.targetIssue} />
             <Field>
               <FieldLabel htmlFor="trigger-name">Trigger name</FieldLabel>
               <Input
@@ -182,6 +178,14 @@ export function AutomationTriggerForm({
         )}
       </EntityDialogBody>
 
+      {submitError ? (
+        <div className="shrink-0 px-5 pb-4">
+          <Alert role="alert" variant="danger">
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
+
       <EntityDialogFooter
         hint={
           <CreateDestinationStatement
@@ -224,20 +228,13 @@ function submitLabel(isPending: boolean, mode: AutomationTriggerFormProps["mode"
 
 function TriggerFormNotices({
   isWebhook,
-  submitError,
   targetIssue,
 }: {
   isWebhook: boolean;
-  submitError?: string | null;
   targetIssue?: string | null;
 }) {
   return (
     <>
-      {submitError ? (
-        <Alert className="mb-4" role="alert" variant="danger">
-          <AlertDescription>{submitError}</AlertDescription>
-        </Alert>
-      ) : null}
       {isWebhook ? (
         <Alert className="mb-4" data-testid="trigger-webhook-scope-note" variant="neutral">
           <Webhook aria-hidden="true" className="size-4" />

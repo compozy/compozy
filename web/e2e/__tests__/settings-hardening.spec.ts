@@ -187,73 +187,109 @@ test("operator applies Memory, Automation, and Observability settings with confi
   await assertNoSettingsSensitiveLeak(appPage, runtime, []);
 });
 
-test("operator sees restart failure and active-session warning without losing recovery controls", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-  await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("settings-page-general-session-timeout-input")).toBeVisible();
-
-  await appPage.route("**/api/settings/actions/restart/op-settings-failed", async route => {
-    const now = new Date().toISOString();
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        operation_id: "op-settings-failed",
-        status: "failed",
-        status_url: "/api/settings/actions/restart/op-settings-failed",
-        active_session_count: 2,
-        failure_reason: "browser restart fault injection",
-        started_at: now,
-        updated_at: now,
-        completed_at: now,
-      }),
-    });
-  });
-  await appPage.route("**/api/settings/actions/restart", async route => {
-    const now = new Date().toISOString();
-    await route.fulfill({
-      status: 202,
-      contentType: "application/json",
-      body: JSON.stringify({
-        operation_id: "op-settings-failed",
-        status: "stopping",
-        status_url: "/api/settings/actions/restart/op-settings-failed",
-        active_session_count: 2,
-        started_at: now,
-        updated_at: now,
-      }),
-    });
+test.describe("restart recovery with live sessions", () => {
+  test.use({
+    runtimeOptions: {
+      seed: {
+        mockAgents: [
+          {
+            fixturePath: path.resolve(
+              import.meta.dirname,
+              "../../../internal/testutil/acpmock/testdata/driver_fault_fixture.json"
+            ),
+            fixtureAgent: "faulty",
+          },
+        ],
+      },
+    },
   });
 
-  const currentTimeout = await appPage
-    .getByTestId("settings-page-general-session-timeout-input")
-    .inputValue();
-  await appPage
-    .getByTestId("settings-page-general-session-timeout-input")
-    .selectOption(currentTimeout === "900" ? "3600" : "900");
-  await expect(appPage.getByTestId("settings-page-general-save")).toBeEnabled();
-  await appPage.getByTestId("settings-page-general-save").click();
-  const restartNotice = appPage.getByTestId("settings-page-general-restart-notice");
-  await expect(restartNotice).toBeVisible();
+  test("operator sees restart failure and active-session warning without losing recovery controls", async ({
+    appPage,
+    browserArtifacts,
+    runtime,
+  }) => {
+    assertLaunchRuntime(runtime, "restart recovery");
+    await ensureProjectWorkspace(appPage, runtime);
+    const workspace =
+      runtime.seeded.workspace ?? (await runtime.resolveWorkspace(runtime.paths.workspaceDir));
+    for (let index = 0; index < 2; index += 1) {
+      const result = await runtime.requestJSON<{ session: { id: string } }>("/api/sessions", {
+        method: "POST",
+        body: JSON.stringify({ agent_name: "faulty", workspace: workspace.id }),
+      });
+      expect(result.session.id).not.toBe("");
+    }
+    await expect
+      .poll(async () => {
+        const status = await runtime.requestJSON<{ daemon: { active_sessions: number } }>(
+          "/api/status"
+        );
+        return status.daemon.active_sessions;
+      })
+      .toBe(2);
+    await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
+    await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
+    await expect(appPage.getByTestId("settings-page-general-session-timeout-input")).toBeVisible();
 
-  await restartNoticeTrigger(appPage, "general").click();
-  await expect(restartNotice).toContainText("Restart failed");
-  await expect(restartNotice).toContainText("browser restart fault injection");
-  await expect(restartNotice).toContainText("2 active sessions");
-  await expect(restartNoticeTrigger(appPage, "general")).toBeEnabled();
+    await appPage.route("**/api/settings/actions/restart/op-settings-failed", async route => {
+      const now = new Date().toISOString();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          operation_id: "op-settings-failed",
+          status: "failed",
+          status_url: "/api/settings/actions/restart/op-settings-failed",
+          active_session_count: 2,
+          failure_reason: "browser restart fault injection",
+          started_at: now,
+          updated_at: now,
+          completed_at: now,
+        }),
+      });
+    });
+    await appPage.route("**/api/settings/actions/restart", async route => {
+      const now = new Date().toISOString();
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({
+          operation_id: "op-settings-failed",
+          status: "stopping",
+          status_url: "/api/settings/actions/restart/op-settings-failed",
+          active_session_count: 2,
+          started_at: now,
+          updated_at: now,
+        }),
+      });
+    });
 
-  const snapshot = {
-    restart_notice: await restartNotice.textContent(),
-  };
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
-  await browserArtifacts.captureScreenshot("settings-restart-failure-active-sessions", appPage);
-  await browserArtifacts.persist(appPage);
-  await assertNoSettingsSensitiveLeak(appPage, runtime, []);
+    const currentTimeout = await appPage
+      .getByTestId("settings-page-general-session-timeout-input")
+      .inputValue();
+    await appPage
+      .getByTestId("settings-page-general-session-timeout-input")
+      .selectOption(currentTimeout === "900" ? "3600" : "900");
+    await expect(appPage.getByTestId("settings-page-general-save")).toBeEnabled();
+    await appPage.getByTestId("settings-page-general-save").click();
+    const restartNotice = appPage.getByTestId("settings-page-general-restart-notice");
+    await expect(restartNotice).toBeVisible();
+
+    await restartNoticeTrigger(appPage, "general").click();
+    await expect(restartNotice).toContainText("Restart failed");
+    await expect(restartNotice).toContainText("browser restart fault injection");
+    await expect(restartNotice).toContainText("2 active sessions");
+    await expect(restartNoticeTrigger(appPage, "general")).toBeEnabled();
+
+    const snapshot = {
+      restart_notice: await restartNotice.textContent(),
+    };
+    await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
+    await browserArtifacts.captureScreenshot("settings-restart-failure-active-sessions", appPage);
+    await browserArtifacts.persist(appPage);
+    await assertNoSettingsSensitiveLeak(appPage, runtime, []);
+  });
 });
 
 function assertLaunchRuntime(

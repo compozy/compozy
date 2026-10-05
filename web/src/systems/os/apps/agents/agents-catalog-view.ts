@@ -11,8 +11,7 @@ export function isAgentsErrorEmpty(page: AgentsFleetPage): boolean {
 
 /** Topbar count is shown only once a real, non-empty fleet total is known. */
 export function agentsFleetHeadCount(page: AgentsFleetPage): number | undefined {
-  const countUnknown =
-    page.isLoading || isAgentsErrorEmpty(page) || page.isFirstRunEmpty || page.workspaceId === "";
+  const countUnknown = page.isLoading || isAgentsErrorEmpty(page) || page.isFirstRunEmpty;
   return countUnknown ? undefined : page.fleetTotal;
 }
 

@@ -130,6 +130,13 @@ func (h *HostAPIHandler) bindWorkspaceScopedParams(
 	if binding == HostAPIWorkspaceBindingNone || binding == HostAPIWorkspaceBindingActor {
 		return raw, nil
 	}
+	if binding == HostAPIWorkspaceBindingResource {
+		session, ok := hostAPIResourceSessionFromContext(ctx)
+		if ok && session.Actor.MaxScope.Kind.Normalize() == resources.ResourceScopeKindWorkspaceProfile {
+			// The resource kernel authorizes the complete workspace-profile scope.
+			return raw, nil
+		}
+	}
 	if h.workspaces == nil {
 		return nil, unavailableRPCError(errors.New("workspace resolver is not configured"))
 	}
@@ -158,11 +165,15 @@ func hostAPIBoundWorkspaceID(ctx context.Context) (string, bool, error) {
 		return "", false, nil
 	}
 	scope := resourceSession.Actor.MaxScope.Normalize()
-	if scope.Kind != resources.ResourceScopeKindWorkspace {
+	if scope.Kind != resources.ResourceScopeKindWorkspace && scope.Kind != resources.ResourceScopeKindWorkspaceProfile {
 		return "", false, nil
 	}
 	if err := scope.Validate("extension.max_scope"); err != nil {
 		return "", false, invalidParamsRPCError(err)
+	}
+	if scope.Kind == resources.ResourceScopeKindWorkspaceProfile {
+		workspaceID, _, _ := strings.Cut(scope.ID, "@pf:")
+		return strings.TrimSpace(workspaceID), true, nil
 	}
 	return scope.ID, true, nil
 }

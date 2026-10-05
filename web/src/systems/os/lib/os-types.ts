@@ -164,6 +164,7 @@ export interface OsDesktopRuntimeStore {
   presentation: OsPresentation;
   viewportState: OsViewportState;
   hydration: OsHydration;
+  loadError: Error | null;
   connectionStatus: WindowManagerConnectionStatus;
   desktopBounds: OsDesktopBounds | null;
 }

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: The CompozyOS mark is one `role="menubar"`. The Global scope globe sits between the mark and the workspace chip, outside `role="menubar"`. The workspace chip is a second `role="menubar"`. The static Session · Go · Window · Help set is a third `role="menubar"`; ←/→ traverse each menubar, Home/End jump to the ends, ↓ enters a menu, → opens a submenu, Esc closes, and hovering a sibling switches the open menu. Compact viewports (<960px) hide the app menus but keep mark · globe · chip leading. CompozyOS opens About/Settings/Appearance/Layouts, Session creates a session or agent and opens the catalog, Go mirrors the dock groups plus the palette and Workspaces, Window carries the everyday window actions in the shell-rail order — an Arrange group (Main and stack, Columns, Grid, Balance sizes), a Move window to submenu naming every other desktop, Zoom, Minimize, Floating, Move & resize, All desktops, Close — with real chords while directional focus, tab merge/detach, layout undo/redo, and desktop stepping stay palette/keyboard commands, and Help reaches the shortcut reference, docs, protocol, changelog, issues, and support; every item is disabled — never hidden — when its runtime predicate fails, and no chord glyph renders unless the registry actually binds it.
 entry_points: web desktop menubar; keyboard traversal from the menubar; <960px compact viewport
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-web-command-palette-shortcuts; ET-web-window-routing-lifecycle
 ---
 
@@ -44,3 +44,7 @@ untested; the next browser QA cycle owns live retesting.
 2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
 
 2026-09-28 qa-impact (ui-normie-pass/os-shell): the Window menu dropped its Focus submenu, Merge all/Detach tab, Undo/Redo layout, and Previous/Next desktop items (still reachable through ⌘K and their chords). The trailing cluster is calmer: the update offer is a ghost icon with an accent dot, ⌘K and Settings use styled tooltips, and a worktree fallback shows as a warning dot on the project chip with its sentence atop the project menu. "Add workspace…" reads "Add project…". Reset to untested.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

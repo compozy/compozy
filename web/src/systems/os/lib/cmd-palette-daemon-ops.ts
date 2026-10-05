@@ -1,4 +1,5 @@
 import type { PaletteClientOpHandler } from "./cmd-palette-client-op-context";
+import { paletteNavigationTarget } from "./cmd-palette-navigation";
 
 /** Daemon `nativeActionKey` — the action descriptor rides this field. */
 const DAEMON_ACTION_KEY = "action";
@@ -26,10 +27,6 @@ function refuse(op: string): never {
   throw new Error(`malformed ${op} payload`);
 }
 
-function pathnameFrom(args: Readonly<Record<string, unknown>>): string | null {
-  return requiredString(args.pathname);
-}
-
 /**
  * Host handlers for daemon-emitted client ops. The strings stay aligned with
  * `cmdPaletteClientOp` in the daemon (`view.open`, `navigate`, `url.open`).
@@ -53,7 +50,8 @@ export const CMD_PALETTE_DAEMON_OPS: ReadonlyMap<string, PaletteClientOpHandler>
       const action = daemonAction(payload);
       const app = action?.kind === "navigate" ? requiredString(action.app) : null;
       if (app === null) refuse("navigate");
-      context.navigate(app, pathnameFrom(daemonArgs(payload)));
+      const route = paletteNavigationTarget(daemonArgs(payload));
+      context.navigate(app, route.pathname, route.search);
     },
   ],
   [

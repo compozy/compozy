@@ -6,13 +6,13 @@ persona: Dora
 journey: J-layer-profile-resources
 expected: A repository named-profile config, MCP, agent, and skill layer stays dormant while its profile name is absent, reports an actionable diagnostic, activates when that profile is created or selected, and becomes dormant again after rename without mutating repository files.
 entry_points: <workspace>/.compozy/profiles/<name>/; compozy profile create|rename|use; compozy config show; compozy agent list; compozy skill list; Settings source badges; status diagnostics
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-cli-lifecycle; MS-layered-config-write-truth; MS-profile-memory-tier-scope
 ---
 
@@ -27,3 +27,7 @@ registered workspace are rejected.
 
 Expected evidence: file hashes, diagnostics, profile events, config/MCP effective projections, agent
 and skill shadow output, and Settings provenance captures.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

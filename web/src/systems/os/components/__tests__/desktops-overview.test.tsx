@@ -6,7 +6,7 @@
 // Boundary IN: DesktopsOverview state rendering, local forms, accessibility, keyboard, callback payloads, and
 // DesktopLayoutThumbnail tiles.
 // Boundary OUT: TanStack Query snapshots, window-manager coordination, mutations, revisions, and persistence.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -120,7 +120,8 @@ describe("DesktopsOverview", () => {
 
     await user.click(screen.getByRole("button", { name: "Actions for Build" }));
     // Keyboard through the nested submenus: window, then destination.
-    (await screen.findByRole("menuitem", { name: "Move a window" })).focus();
+    const moveWindow = await screen.findByRole("menuitem", { name: "Move a window" });
+    act(() => moveWindow.focus());
     await user.keyboard("{ArrowRight}");
     await waitFor(() => expect(screen.getByRole("menuitem", { name: "Agents" })).toHaveFocus());
     await user.keyboard("{ArrowRight}");

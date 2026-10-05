@@ -268,6 +268,27 @@ function createCoordinator(initialWindows: readonly OsWindow[] = []) {
 }
 
 describe("RoutingCoordinator", () => {
+  it.each(["/loops", "/loop-runs", "/loops/studio-onboarding-review"])(
+    "Should honor the breadcrumb destination when the history parent is %s",
+    async parent => {
+      const loop = windowFixture("loops", "/loop-runs");
+      loop.navStack = [route(parent)];
+      const { coordinator, router, store } = createCoordinator([loop]);
+      coordinator.reportRouteMatch(loop.route);
+      coordinator.completeHydration();
+
+      coordinator.noteNavigateMode("pop");
+      coordinator.reportRouteMatch(route("/loops"));
+      await Promise.resolve();
+
+      const settled = store.getState().windows[loop.id];
+      expect(settled.route).toEqual(route("/loops"));
+      expect(settled.navStack).toEqual(parent === "/loops" ? [] : [route(parent)]);
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    }
+  );
+
   it("Should hold a deep link until hydration then reconcile it without writing history", () => {
     const { coordinator, router, store } = createCoordinator();
 
@@ -571,6 +592,25 @@ describe("RoutingCoordinator", () => {
       route: profiles,
     });
     expect(store.getState().windows[settings.id]?.route).toEqual(profiles);
+  });
+
+  it("Should preserve a consumed window route when its opening command completes", async () => {
+    // Invariant: an accepted open reflects the current window route, including consumed intents.
+    // Owner: the URL/window-manager bridge; canonical suite: RoutingCoordinator.
+    const settings = windowFixture("settings", "/settings/profiles");
+    const { coordinator, router, store } = createCoordinator([settings]);
+    coordinator.completeHydration();
+    const consumed = route("/settings/profiles");
+
+    const pending = coordinator.userOpen({
+      app: "settings",
+      route: route("/settings/profiles", { flow: "create", name: "dispatch-notes" }),
+    });
+    store.setAuthoritativeFocus(settings.id, consumed);
+    await expect(pending).resolves.toBe(settings.id);
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(consumed);
   });
 
   it("Should let a newer user navigation supersede a pending open's history write", async () => {

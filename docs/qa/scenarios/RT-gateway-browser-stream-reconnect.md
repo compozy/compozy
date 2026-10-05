@@ -6,13 +6,13 @@ persona: Iris
 journey: J-expose-and-pair-gateway
 expected: Every remote SSE and WebSocket connection or reconnect mints and consumes a fresh single-use ticket, ordinary network or server failures remain recoverable, and device revocation alone produces the terminal access-ended state with no cached data.
 entry_points: Paired private or public Gateway UI; session, task, loop, extension, dashboard, and window-manager live views
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/screenshots/08-revoked-browser-device.png
-last_report: docs/qa/reports/2026-08-07-remote-gateway.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-gateway-paired-device; RT-gateway-public-ui-consent; RT-gateway-remote-cli-profile
 ---
 
@@ -26,3 +26,7 @@ device. A real remote stream and ticket reconnect remain blocked because no auth
 address was available; no local transport was substituted for that leg.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

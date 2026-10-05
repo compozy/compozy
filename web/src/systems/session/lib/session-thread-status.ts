@@ -173,14 +173,22 @@ function sessionStopAttribution(
   recordedCause: string | undefined
 ): SessionStopAttribution | null {
   const stoppedState = facts.state === "stopped" || facts.state === "stopping";
-  // The transcript's own `session.supervision_stopped` names the cause; the
-  // resource may lag behind it or omit it. An active session never reads a stop.
-  if (recordedCause === "inactivity" && (stoppedState || facts.state === undefined)) {
+  // The transcript can name the stop before the resource catches up. An active
+  // session never reads a previous session stop as the end of its current work.
+  if (!stoppedState && facts.state !== undefined) return null;
+  if (recordedCause === "inactivity") {
     return { kind: "inactivity", noWorkMs };
   }
-  if (!stoppedState) return null;
   const cause = facts.stop_cause?.trim() ?? "";
   const reason = facts.stop_reason?.trim() ?? "";
+  if (
+    recordedCause === "owner_released" ||
+    cause === "owner_released" ||
+    reason === "owner_released"
+  ) {
+    return { kind: "other", detail: "no longer needed" };
+  }
+  if (!stoppedState) return null;
   if (cause === "inactivity") return { kind: "inactivity", noWorkMs };
   if (facts.escalated === true && facts.verified === true) return { kind: "escalated" };
   if (cause === "user_requested" || reason === "user_canceled") return { kind: "user" };
@@ -276,6 +284,9 @@ export function lastSettledTurn(
     const stopReason = stringField(data, "stop_reason")?.toLowerCase();
     if (stopReason && INTERRUPT_STOP_REASONS.has(stopReason)) stopped = true;
     const type = stringField(data, "type");
+    if (stopReason === "owner_released" && (type === SESSION_STOPPED_EVENT || type === "error")) {
+      recordedCause = stopReason;
+    }
     if (type === SUPERVISION_WARNING_EVENT) {
       latestQuietSinceMs = quietSinceMs(data) ?? latestQuietSinceMs;
     }
@@ -317,13 +328,13 @@ export function lastSettledTurn(
   // A call still awaiting its result is live work — unless the daemon already
   // recorded the turn's end (its receipt, an interrupting stop): then the call
   // was cut short and the turn is settled.
-  if (awaitingResult && turnReceipt === null && !stopped) return null;
+  const sessionStop = sessionStopAttribution(facts, noWorkMs, recordedCause);
+  if (awaitingResult && turnReceipt === null && !stopped && sessionStop === null) return null;
   if (startedAtMs === null) {
     const created = instantMs(message.createdAt);
     startedAtMs = created;
     endedAtMs = endedAtMs ?? created;
   }
-  const sessionStop = sessionStopAttribution(facts, noWorkMs, recordedCause);
   if (failedByEvidence) {
     return { startedAtMs, endedAtMs, cause: "failed", failureCause };
   }

@@ -6,13 +6,13 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: /docs/examples appears in the sidebar under Guides & examples between Guides and Use cases with a FlaskConical icon, and lists five wave-one pages. Every example page follows the same anatomy — What you build, The artifact, Run it, How it works, Next steps — and carries a maturity chip in its masthead. The two Loop pages fence the exact `extensions/spec-cycle/loops/<name>/loop.yaml` shipped in the repository, copyable as one block. Every command shown is one the runtime accepts, and no page documents a mechanism that does not ship (no file-watch triggers, no invented config keys).
 entry_points: compozy.com /docs/examples; /docs/examples/review-and-fix-loop; /docs/examples/implement-tasks-loop; /docs/examples/morning-briefing-job; /docs/examples/webhook-to-agent-run; /docs/examples/react-to-session-end
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-08-14-review-handoff-spec-cycle/site-examples-index.png;docs/qa/evidence/2026-08-14-review-handoff-spec-cycle/site-orchestrate-example.png
-last_report: docs/qa/reports/2026-08-14-review-handoff-spec-cycle.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-site-docs-single-tree-ia; ET-site-docs-sidebar-opendesign; ET-spec-cycle-skill-bundle
 ---
 
@@ -41,3 +41,7 @@ artifact exposed the strict frontmatter parser plus starting/active/stopping wor
 
 QA impact 2026-08-26: reset because the standalone orchestration walkthrough was removed and the
 `implement-tasks` example now documents both modes and nine inputs in one byte-exact artifact.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

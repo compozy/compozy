@@ -6,13 +6,13 @@ persona: Dora
 journey: J-25
 expected: Editing a knowledge entry shows its name, kind (plain label such as "About you"), and filename as a readable locked summary — not as disabled inputs — with the hint "Name and kind can't change. Create a new entry to use different ones." Only description and content are editable, and the save enables on a change to either one (a description-only edit is savable). The request sent to `PATCH /api/memory/{filename}` carries `content`, `description`, and the scope keys, and never `name` or `type`. Knowledge create keeps its four-card type picker with the runtime memory types shown as "About you", "Feedback", "Project decision", and "Reference", and both dialogs render on the compact modal host with the shared ruled header, a single close control, and one primary action.
 entry_points: web knowledge window → entry detail → Edit; web knowledge window → Create entry
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-04; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-05;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-entity-modal-shell
 ---
 
@@ -27,3 +27,7 @@ inventory: Needs QA
 QA impact 2026-08-20: helper copy on knowledge create/edit moved into HelpTip or was deleted. Reset to untested.
 
 QA impact 2026-09-28 (ui-normie-pass): edit identity row "Type" → "Kind" with plain labels, eyebrow "Catalog · Knowledge" → "Knowledge", edit description now "Update the summary or the content.", content FormSection help removed. Reset to untested.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -2,12 +2,14 @@ import { AlertTriangle, CloudOff, RefreshCw } from "lucide-react";
 
 import { Icon, Pill, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
+import { WindowManagerApiError } from "../adapters/window-manager-api";
 import type { OsHydration } from "../lib/os-types";
 import type { WindowManagerConnectionStatus } from "../lib/window-manager-types";
 import type { WindowManagerDiagnostic } from "../stores/window-manager-store-types";
 
 export interface OsHydrationStatusProps {
   hydration: OsHydration;
+  loadError?: Error | null;
   connectionStatus?: WindowManagerConnectionStatus;
   /** Latest refused-command notice or stream diagnostic, if any. */
   diagnostic?: WindowManagerDiagnostic | null;
@@ -25,11 +27,23 @@ interface StatusView {
 
 function statusView({
   hydration,
+  loadError = null,
   connectionStatus = "connected",
   diagnostic = null,
   unbound = false,
 }: OsHydrationStatusProps): StatusView | null {
   if (unbound || hydration === "pending") return null;
+  if (
+    loadError instanceof WindowManagerApiError &&
+    loadError.payload?.code === "profile_unavailable"
+  ) {
+    return {
+      tone: "warning",
+      icon: AlertTriangle,
+      label: "Profile needs recovery — choose another profile",
+      detail: loadError.payload.diagnostics[0]?.message ?? loadError.message,
+    };
+  }
   if (hydration === "degraded" || connectionStatus === "disconnected") {
     return {
       tone: "warning",

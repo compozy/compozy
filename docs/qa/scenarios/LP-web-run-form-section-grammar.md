@@ -6,16 +6,20 @@ persona: Dora
 journey: J-05
 expected: All four run-form blocks (Already running, Inputs, Environment, Limits) share the `LoopRailSection` collapse anatomy — icon, eyebrow, one-line gist, chevron. Defaults — active notice + Inputs open; Environment and Limits closed with gists `Loop default`/`worktree · <ref>`/`directory · <path>`, and the limits summary. Inputs render plain sans labels (the input key on hover) with `RequiredMark` and no type marker; the lede is the Loop goal. Limits render as hairline label/control rows with plain labels and the "When a budget runs out" select last, under one sentence: "These limits apply to this run only." The action bar is one row: an idle Info sentence about dry run, the missing-input message after an invalid attempt (naming the field when only one is missing), or "Plan rendered"; Dry run (flask icon) stays clickable while invalid and paints the inline field error without creating a run; Start run stays disabled until valid; the pressed button shows a spinner while its request is in flight.
 entry_points: web /loops/:name/run
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits: eb43da0f
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: LP-loop-input-defaults; LP-loop-environment-resolution
 ---
 
 Added by the loops visual-contract parity pass (2026-08-14). The dry-run gating change is the behavioral core: pointer users can now reach the required-input error state. Walk needs a loop with required + optional inputs and an active concurrent run; deferred to the next seeded QA cycle — `loop-run-form.test.tsx` (invalid dry run paints the error and fires no request; blank submit creates nothing) is green at 9a694ff2.
 
 2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

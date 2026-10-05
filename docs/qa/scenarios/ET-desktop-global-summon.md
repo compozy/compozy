@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-command-os-from-palette
 expected: A confirmed desktop-global chord restores and focuses CompozyOS, opens the palette or the command's argument step, and does not execute through an existing modal. A captured replacement keeps the previous confirmed chord active and names the conflict; relaunch registers and reports fresh truth. Plain browsers explain that the feature requires the desktop shell while the in-app palette chord remains available.
 entry_points: desktop-global hotkey (default meta+shift+Space); Settings > Layouts > Shortcuts global section; compozy cmd-palette bind <id> <chord> --global / unbind <id> --global; [window_manager.global_shortcuts] in config.toml
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-palette-inline-args-confirmation; ET-web-command-palette-shortcuts; ET-live-shortcut-cheatsheet
 ---
 
@@ -38,3 +38,7 @@ Walk (task_11 plan):
 Expected evidence: screen captures of the summon from another app, the argument-step summon, the
 in-use failure state with the previous chord still live, and the browser-mode reason; the
 bind/unbind --global transcripts and the config section before/after.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

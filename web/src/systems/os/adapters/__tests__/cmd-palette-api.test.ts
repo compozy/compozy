@@ -12,6 +12,8 @@ import {
   CmdPaletteApiError,
   cmdPaletteViewSessionStreamURL,
   getCmdPaletteView,
+  getPendingToolApproval,
+  resolvePendingToolApproval,
   invokeCmdPaletteCommand,
   listCmdPaletteCommands,
   openCmdPaletteViewSession,
@@ -35,6 +37,34 @@ describe("command palette API adapter", () => {
   beforeEach(() => {
     vi.mocked(apiClient.GET).mockReset();
     vi.mocked(apiClient.POST).mockReset();
+  });
+
+  it("Should scope approval reads and decisions to the recorded profile", async () => {
+    const data = {
+      approval_status: "pending",
+      expires_at: "2026-10-04T15:00:00Z",
+    };
+    vi.mocked(apiClient.GET).mockResolvedValue({
+      data,
+      response: new Response(null, { status: 200 }),
+    } as never);
+    vi.mocked(apiClient.POST).mockResolvedValue({
+      data,
+      response: new Response(null, { status: 200 }),
+    } as never);
+    const signal = new AbortController().signal;
+
+    await getPendingToolApproval("editorial", "apr_owner", signal);
+    await resolvePendingToolApproval("editorial", "apr_owner", "approved");
+
+    expect(apiClient.GET).toHaveBeenCalledWith("/api/tools/approvals/{id}", {
+      params: { path: { id: "apr_owner" }, query: { profile: "editorial" } },
+      signal,
+    });
+    expect(apiClient.POST).toHaveBeenCalledWith("/api/tools/approvals/{id}/resolve", {
+      params: { path: { id: "apr_owner" }, query: { profile: "editorial" } },
+      body: { decision: "approved" },
+    });
   });
 
   it("Should reject an incomplete view-session open envelope [RD0068]", async () => {

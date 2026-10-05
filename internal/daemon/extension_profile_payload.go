@@ -35,8 +35,8 @@ func (s *daemonExtensionService) enrichExtensionProfilePayload(
 		name := strings.TrimSpace(declaration.Name)
 		profile, exists := byName[name]
 		createdByExtension := false
-		if s.profiles != nil {
-			createdByExtension, err = s.profiles.HasDeclaredMarker(ctx, manifest.Name, name)
+		if s.profiles != nil && exists {
+			createdByExtension, err = s.profiles.HasDeclaredCreation(ctx, manifest.Name, name, profile.ID)
 			if err != nil {
 				return fmt.Errorf("daemon: inspect declared profile marker %q: %w", name, err)
 			}
