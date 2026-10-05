@@ -1,6 +1,6 @@
 # BUG-20261005-loop-mobile-run-names-truncated: Mobile Runs rows hide their identifying names
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Marina
@@ -27,10 +27,12 @@ loops-review-marina recording is closed. No provider workers or mocked services 
 
 The name cell uses w-full max-w-0 without a readable minimum, while sibling columns consume the narrow viewport.
 
-Fix commit: pending delivery gate.
+Fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
 Reserve the existing table's name cell at 256px minimum width and retain its shared
 horizontal overflow. Marina's touch replay reads both studio-onboarding-review and
 studio-release-repair-readiness in full; a real gesture scrolls the remaining columns
 225px without widening the page. At 1512px the table fits without horizontal overflow.
 Evidence: loops-human-review-runs-mobile.json, loops-human-review-mobile-columns.png,
 loops-human-review-runs-desktop.json, and loops-runs-restored-marina-verified.png.
+
+Delivery closure: make gate passed on the frozen tree (loops-human-review-delivery-gate-v6.json). The commit hook changed no file content; loops-human-review-committed-head.json records the checked hashes and commit.

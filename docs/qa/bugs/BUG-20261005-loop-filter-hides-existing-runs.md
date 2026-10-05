@@ -1,6 +1,6 @@
 # BUG-20261005-loop-filter-hides-existing-runs: A filtered Runs list claims the profile has no runs
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Marina
@@ -38,10 +38,12 @@ The twenty-frame `loops-human-review-fixed` recording is closed before repair.
   roster filters through their existing setters. No API, storage, or shared primitive change.
 - **Regression test:** The existing `loop-runs-location.test.tsx` route-composition suite
   owns filtered-empty recovery for origin, session id, and combined outcome filtering.
-- **Fix commit:** pending.
+- **Fix commit:** acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
 - **Retest:** passed in Marina's 430x932 touch / 4G walk. Clear filter restores all 35
   rows after either origin-only or exact-session empty results and survives reload.
   Independent UDS returns 35 unfiltered runs and zero exact-session matches. Evidence:
   loops-filter-origin-replay-complete.json, loops-filter-clear-reload.json,
   loops-session-filter-marina-verified.json and loops-session-filter-final-*-uds.json.
-  Delivery gate and fix commit remain pending.
+  Required make gate passed; fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
+
+Delivery closure: make gate passed on the frozen tree (loops-human-review-delivery-gate-v6.json). The commit hook changed no file content; loops-human-review-committed-head.json records the checked hashes and commit.

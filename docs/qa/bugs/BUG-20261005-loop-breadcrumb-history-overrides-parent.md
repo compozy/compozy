@@ -1,6 +1,6 @@
 # BUG-20261005-loop-breadcrumb-history-overrides-parent: An old navigation entry overrides the selected breadcrumb
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Marina
@@ -32,7 +32,7 @@ performs the requested pop. Compare the intended parent with the stack top befor
 pop; otherwise navigate to the selected parent through the existing controller.
 
 The existing `routing-coordinator.test.ts` suite owns URL/window reconciliation, including
-matching and mismatched history. Fix commit: pending delivery gate.
+matching and mismatched history. Fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
 
 Fresh Marina touch replay on 430x932 / 4G confirms Runs Back reaches the catalog despite
 old history, Compare Back and its explicit run parent reach the same run, hidden Runs
@@ -43,3 +43,5 @@ loops-trail-marina-verified-detail.json, loops-trail-marina-verified-parent-chai
 loops-trail-marina-verified-deep-links.json and loops-trail-final-window-uds.json.
 The exact nine-frame loops-filter-trail-marina-verified recording is closed.
 
+
+Delivery closure: make gate passed on the frozen tree (loops-human-review-delivery-gate-v6.json). The commit hook changed no file content; loops-human-review-committed-head.json records the checked hashes and commit.

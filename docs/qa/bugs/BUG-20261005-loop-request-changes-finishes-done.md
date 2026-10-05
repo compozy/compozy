@@ -1,6 +1,6 @@
 # BUG-20261005-loop-request-changes-finishes-done: Request changes finishes the run without applying the decision
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Marina
@@ -27,7 +27,7 @@ loops-review-marina recording is closed. No provider workers or mocked services 
 
 claimActiveApprovalWait claims the durable wait and reactivates the coordinator, but leaves the gate output succeeded. Control evaluation only runs pending outputs, so the finisher skips the recorded decision.
 
-Fix commit: pending delivery gate.
+Fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
 The approval transaction rearms the matching gate epoch; reevaluation settles the awaiting
 projection once while retaining append-only observations. The existing global store
 wait/history suite covers epoch fencing, settlement and final-verdict conflicts.
@@ -35,3 +35,5 @@ Fresh run looprun-b6d9838c4fb9f0b9 routes request_changes to generation 2, then 
 after a single approve. Independent UDS and durable events confirm both accepted decisions:
 loops-human-review-revision-uds.json, loops-human-review-done-uds.json and
 loops-human-review-final-events.json. Reject remains Blocked in looprun-b5fe6bf9d8bf8b7c.
+
+Delivery closure: make gate passed on the frozen tree (loops-human-review-delivery-gate-v6.json). The commit hook changed no file content; loops-human-review-committed-head.json records the checked hashes and commit.

@@ -1,6 +1,6 @@
 # BUG-20261005-loop-usage-counts-human-wait: Usage counts parked review time against the wall budget
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Marina
@@ -27,8 +27,10 @@ The daemon shifts `started_at` to exclude parked intervals. Preserve the roster'
 duration and use the budget clock for Usage and its approval fallback facts.
 The existing `loop-run-usage.test.ts` suite owns the projection invariant.
 
-Fix commit: pending delivery gate.
+Fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
 The five non-running budget-clock cases pass in the existing usage suite. On the fresh
 finished review page, Usage is 0m00s / 10m, matching the independent 0.103545-second
 active span; the roster's elapsed duration retains its separate meaning. Evidence:
 loops-human-review-usage-fixed.png and loops-human-review-done-uds.json.
+
+Delivery closure: make gate passed on the frozen tree (loops-human-review-delivery-gate-v6.json). The commit hook changed no file content; loops-human-review-committed-head.json records the checked hashes and commit.

@@ -1,6 +1,6 @@
 # BUG-20261005-loop-session-filter-disappears: The session-id filter disappears before the operator can type
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Marina
@@ -36,8 +36,8 @@ origin, but loses the uncommitted text chip during that query transition.
   the catalog's established lifetime. The existing shared filter search also stops forcing focus back on blur; public APIs are unchanged.
 - **Regression test:** Existing `web/e2e/__tests__/loops.spec.ts`, real-daemon Runs filtering
   and continued session-id input across responses and reload.
-- **Fix commit:** pending.
-- **Retest:** pending.
+- **Fix commit:** acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
+- **Retest:** passed; see the final persona replay below.
 
 ## Second cause isolated
 
@@ -70,4 +70,6 @@ Escape and Clear filter successfully on index-Ba1DLFXm.js. Independent UDS confi
 35 unfiltered rows and zero for the selected session. Evidence:
 loops-session-filter-marina-verified.json/png and loops-session-filter-final-*-uds.json.
 The nine-frame loops-filter-trail-marina-verified recording is closed.
-The final delivery gate and fix commit remain pending.
+Required make gate passed; fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
+
+Delivery closure: make gate passed on the frozen tree (loops-human-review-delivery-gate-v6.json). The commit hook changed no file content; loops-human-review-committed-head.json records the checked hashes and commit.

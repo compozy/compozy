@@ -6,12 +6,12 @@ persona: Marina
 journey: J-03
 expected: The Loops window head on `/loop-runs` is a drill-in trail `Loops › Runs` (back and the Loops crumb open `/loops`). Opening a run keeps `Runs` in the trail (`Loops › Runs › {loop} › Run from {age}`); Compare inserts the run id as a parent and leaves `Compare` as the leaf. A deep link to `/loop-runs` still shows the trail. The catalog itself stays inventory chrome with no breadcrumb.
 entry_points: web /loop-runs; web /loop-runs/$runId; web /loop-runs/$runId/diff; web /loops
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20261005-loop-breadcrumb-history-overrides-parent
-fix_status: pending
-retest_status: pending
-fix_commits:
-evidence:
+fix_status: fixed
+retest_status: pass
+fix_commits: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70
+evidence: docs/qa/evidence/2026-10-02-untested/loops-trail-marina-verified-parent-chain.json;docs/qa/evidence/2026-10-02-untested/loops-trail-marina-verified-deep-links.json;docs/qa/evidence/2026-10-02-untested/loops-trail-final-window-uds.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: LP-008; ET-web-route-chrome-topbar
 ---
@@ -31,4 +31,4 @@ Navigation ownership/target diagnosis is pending, so no pass or fixed verdict is
 The nine-frame loops-trail-marina recording is closed; receipts and screenshots are in
 docs/qa/evidence/2026-10-02-untested/loops-trail-marina-*.
 
-2026-10-05 functional replay: Marina's fresh touch replay confirms Compare/run/hidden Runs/catalog parents and direct-link Back navigation, followed by reload and independent window-manager revision 398. Evidence: loops-trail-marina-verified-parent-chain.json, loops-trail-marina-verified-deep-links.json and loops-trail-final-window-uds.json. Delivery gate and fix commit are pending.
+2026-10-05 functional replay: Marina's fresh touch replay confirms Compare/run/hidden Runs/catalog parents and direct-link Back navigation, followed by reload and independent window-manager revision 398. Evidence: loops-trail-marina-verified-parent-chain.json, loops-trail-marina-verified-deep-links.json and loops-trail-final-window-uds.json. Delivery gate passed; fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.

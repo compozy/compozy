@@ -6,12 +6,12 @@ persona: Lea
 journey: J-supervise-loop-steady-state
 expected: The run page's default read is exactly four elements in order — briefing strip (served verdict tone, plain headline, detail), needs-you cards, "step N of M" progress with fan-out rollups and attempts as metadata, and the narrated durable story — plus the Usage rail (tokens · cost · budget · rounds · duration) and About. Failure and needs-you never collapse. The briefing strip carries no decision buttons: the needs-you card owns Approve/Reject as the page's only primary, and the strip's quiet "Review the request" only leads to it. No `loop.` or `looprun-` id appears anywhere in the main column; the run id renders only as the About rail's labelled Run row. A terminal run leads with its outcome and produced artifacts, a pruned artifact keeps its name with a "Content no longer stored" note, and a no-op run says plainly that it produced nothing.
 entry_points: web /loop-runs/:id; GET /loop-runs/:id/briefing; GET /loop-runs/:id/nodes; GET /loop-runs/:id/timeline
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20260719-autonomous-progress-unobservable;BUG-20261005-loop-usage-counts-human-wait
-fix_status: pending
-retest_status: pending
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-01; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-16
+fix_status: fixed
+retest_status: pass
+fix_commits: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-01; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-16;docs/qa/evidence/2026-10-02-untested/loops-human-review-usage-fixed.png;docs/qa/evidence/2026-10-02-untested/loops-human-review-done-uds.json
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: LP-run-detail-story-redesign; LP-web-run-page-section-grammar; LP-fanout-progress-naming; LP-web-runs-roster-rerank; LP-web-strategy-progress
 ---
@@ -55,4 +55,4 @@ foot says the run has ended. Live runs keep the requeue instruction and both ver
 orchestrated), and `looprun-c494117598fe2188` (failed, quarantined `orchestrate`). VC-20
 (`RegisterRoutedGraph`) recaptured at 1440×900 through the eng-ui-screenshot helper.
 
-2026-10-05 functional replay: Targeted Usage regression replay on the completed human review displays 0m00s / 10m, matching the daemon's adjusted active span. Evidence: loops-human-review-usage-fixed.png and loops-human-review-done-uds.json. This is a focused retest; unchanged briefing contracts retain their prior provenance. Delivery gate and fix commit are pending.
+2026-10-05 functional replay: Targeted Usage regression replay on the completed human review displays 0m00s / 10m, matching the daemon's adjusted active span. Evidence: loops-human-review-usage-fixed.png and loops-human-review-done-uds.json. This is a focused retest; unchanged briefing contracts retain their prior provenance. Delivery gate passed; fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
