@@ -4,6 +4,14 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Durable wait example:** not applicable — editorial only. The site's DSL example
+  replaces an unknown event with catalog-backed task.run.completed and links the hook
+  catalog. The exact YAML validates through the public CLI. Native tools, CLI/HTTP/UDS,
+  Web runtime behavior, extension/hook/config contracts, workspace/profile isolation,
+  persisted data and the official skills/compozy/ contract are unchanged. No migration
+  or new test file is needed. LP-live-run-survives-extension-disable and
+  BUG-20261005-loop-wait-example-unknown-event own the current-cycle evidence.
+
 - **Orchestrated task results:** The bundled staging transform uses the existing namespace
   reference form for task IDs. Managed Goal normal/recovery readers concatenate ACP message
   fragments verbatim, so completed outputs retain the final summary and task identities.

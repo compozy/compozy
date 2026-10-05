@@ -366,19 +366,16 @@ classification, and delivery guarantees.
 ### Durable wait control
 
 ```yaml
-- id: wait_for_approval
+- id: wait_for_completion
   class: control
   kind: wait
   params:
-    event: { kind: approval.received }
-    expect: { type: object, required: [approved] }
+    event: { kind: task.run.completed }
     ahead_arrival: consume_on_entry
-    expires:
-      after: 72h
-      escalate:
-        - emit: { kind: approval.overdue }
-      route: timed_out
 ```
+
+Event kinds must belong to the [hook event catalog](/docs/hooks/event-catalog). Run
+`compozy hooks events` to inspect the daemon's active catalog before authoring a subscription.
 
 Choose exactly one wait source: `for` (duration), `until` (timestamp), or `event` (subscription).
 `expect` is the JSON schema for a manual or event resume payload. `ahead_arrival` is
