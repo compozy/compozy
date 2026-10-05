@@ -6,7 +6,7 @@ persona: Ada
 journey: J-15
 expected: CLI, HTTP, and UDS return the same workspace-scoped attention catalog, exact badge filters, stable attention ordering, and operator-wide summary totals across all profiles; operator-only cross-workspace catalog reads succeed while agent identity is confined to same-workspace interaction discovery.
 entry_points: compozy session list --attention/--badge/--all-workspaces/--summary; compozy session interactions <session-id>; GET /api/sessions/attention-summary (all profiles) over HTTP and UDS; GET /api/workspaces/{workspace_id}/sessions/{session_id}/interactions over HTTP and UDS
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20261004-native-approval-timeout-pending
 fix_status: fixed
 retest_status: pending
@@ -54,3 +54,7 @@ clear after the real 120-second native deadline without a daemon restart; a late
 already-resolved/canceled and does not stop the target. A separate timely approval executes and
 preserves the original owner. The full multi-workspace/catalog scenario remains untested; evidence:
 docs/qa/evidence/2026-10-02-untested/native-cancel-replay-ended.json.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

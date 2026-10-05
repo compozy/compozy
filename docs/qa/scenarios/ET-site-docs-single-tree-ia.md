@@ -6,13 +6,13 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: The top nav reads Home · Docs · Marketplace · Blog · Changelog. /docs renders one sidebar with seven groups: Start here, Guides & examples, Core concepts, Automation, Extensibility, Operations, Reference. Canonical pages resolve directly without a sub-tab bar. Retired /runtime and /protocol URLs return 404.
 entry_points: compozy.com /docs; /docs/loops; /docs/extensions; legacy /runtime/* and /protocol/*
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260730-docs-index-invalid-hydration
 fix_status: fixed
 retest_status:
 fix_commits: working-tree
 evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc01-docs-landing; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/raw/implementation/protocol-envelope.png
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-site-docs-sidebar-opendesign; ET-site-docs-first-session; ET-site-docs-search-context
 ---
 
@@ -32,3 +32,7 @@ groups, the landing's own links, and the legacy 404 set; reset to `untested` bec
 root sidebar row both changed.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

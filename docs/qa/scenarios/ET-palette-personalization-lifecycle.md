@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-command-os-from-palette
 expected: Repeated use raises a command in ranking and in the Recents group, a learned query resolves to what was picked for it before, pins hold the top of the rest state in pin order, and identical input with identical history always yields identical order. All of it is workspace-scoped daemon state — another workspace and a second tab see their own truth, never argument or password values — and it is correctable: reset from Settings or CLI returns the root to curated defaults, and the personalization master switch stops recording while keeping existing data until reset.
 entry_points: Command-K; command palette action panel Pin/Unpin; Settings > Palette; compozy cmd-palette personalization show|reset; compozy cmd-palette pin|unpin; compozy config get|set cmd_palette.personalization; GET|DELETE /api/cmd-palette/personalization; PUT|DELETE /api/cmd-palette/pins/{id}; GET /api/cmd-palette/rank-signals; POST /api/cmd-palette/usage
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-palette-registry-driven-root; ET-palette-action-panel; ET-agent-palette-config-parity
 ---
 
@@ -44,3 +44,7 @@ Walk (task_11 plan):
 Expected evidence: before/after screenshots of the rest state (learning, pins, post-reset curated
 defaults), `personalization show` transcripts for both workspaces and around the master-switch
 toggle, and the rank-signals/usage excerpts proving no argument values are stored.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

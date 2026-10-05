@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-command-profiles-from-palette
 expected: The Profiles view opens from the Views group and from root search, lists every profile with glyph, name, and state — current, archived, needs-setup — disables an unavailable row with the runtime's own reason instead of hiding it, switches through the canonical selection route, and hands every lifecycle action to the existing Profiles dialog carrying its plan revision rather than mutating through a palette-only path.
 entry_points: Command-K root search; Views group; palette.view.profiles; profile.use|create|update|rename|archive|unarchive|delete actions; compozy cmd-palette list|inspect; GET /api/cmd-palette/catalog and views routes over HTTP and UDS
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20261004-profile-palette-drops-arguments; BUG-20261004-profile-palette-navigation-stall; BUG-20261004-profile-switch-loses-command-result
 fix_status: fixed
 retest_status: pass
@@ -58,3 +58,7 @@ the separate navigation stall or those remaining legs.
 The linked argument, result and navigation defects are verified in the local handoff replay.
 The complete Profiles-view charter remains untested for its remaining state/native-discovery
 legs; those successful shared repairs do not settle the entire scenario.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Search filters the single catalog across its sources. Source diagnostics distinguish unavailable data from an empty match; clearing search restores the catalog. Pagination restarts after a content-revision change without mixing old and new pages.
 entry_points: /marketplace?q=<query>; Marketplace search field
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
 retest_status: untested
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-skill-stale-served.png;/Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-08-02-bundles-removal.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-landing-browse
 ---
 
@@ -51,3 +51,7 @@ pagination, keyboard focus, and recovery across the surviving three kinds.
 
 QA impact 2026-08-20: Marketplace kind ListingToolbar search height now uses `--height-search`
 (28px) to match RouteNav and scope pills. Reset the kind-search chrome walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

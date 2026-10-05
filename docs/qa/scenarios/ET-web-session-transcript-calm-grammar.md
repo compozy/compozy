@@ -6,13 +6,13 @@ persona: Théo
 journey: J-14
 expected: One or multiple live tool rows appear above a calm completed-tools summary. Settled turns fold once; interrupted turns remain open with a truthful stop cause. Absorbed failures keep the group neutral and expose the individual failed row. Find searches the full retained projection, opens the exact field/fold, preserves focus through live updates and archive invalidation, and downloads complete payloads; the message trail supports previews and deliberate jumps.
 entry_points: web session window transcript; session transcript REST + SSE
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260906-injected-guidance-missing-history
 fix_status: pending
 retest_status: pass
 fix_commits:
 evidence: docs/qa/reports/2026-09-06-sessions-stability.md
-last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-session-message-reload, ET-tool-result-artifact-recovery, ET-web-session-thread-full-bleed
 ---
 
@@ -123,3 +123,7 @@ QA 2026-09-17 (issue #653), Storybook only: `systems-session-components-messagem
 352 px column the table scrolled inside its frame (453 px of content) with no page overflow, and
 `message_bodies` stayed on one line. Not walked: a live-runtime transcript in the web session window. The
 frontmatter status is left as recorded because the last real-runtime walk predates this change.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

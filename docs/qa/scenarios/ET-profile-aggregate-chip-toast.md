@@ -6,13 +6,13 @@ persona: Ada
 journey: J-scope-work-by-profile
 expected: While All profiles is on, every shared creation surface shows a fixed "→ default" destination chip in its default read with no picker attached, the created item is filed in default, the success toast names that owner, and the item then appears owner-labeled in the aggregate listing. Scoped views show neither chip nor toast.
 entry_points: new-session composer; Tasks new task; Automation job and trigger forms; worktree creation; Loop run; command palette session.new
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-profile-web-aggregate-owner-surfaces; ET-profile-aggregate-owner-labels
 ---
 
@@ -38,3 +38,7 @@ exceptions, per-surface request/response and toast captures, the owner-labeled a
 the command-palette session request showing the selected profile.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

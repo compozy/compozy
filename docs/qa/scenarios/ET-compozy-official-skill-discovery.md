@@ -6,13 +6,13 @@ persona: Ada
 journey: J-validate-compozy-hard-cut
 expected: A fresh runtime discovers the bundled skill only as `compozy`; every read plane agrees, the router serves the desktop reference and teaches app commands, ownership, updates, diagnostics, and recovery without a duplicate catalog entry.
 entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill list|inspect|view -o json; compozy__skill_list|view; Web /skills
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260825-skill-source-agent-write-doc-mismatch
 fix_status: fixed
 retest_status:
 fix_commits: 2643f4aba
 evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/qa/live-evidence.md; docs/qa/reports/2026-09-04-terminal-shared-control.md
-last_report: docs/qa/reports/2026-09-04-terminal-shared-control.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-001; ET-002; ET-003; ET-skill-activation-gates; SITE-terminal-docs-truth
 ---
 
@@ -77,3 +77,7 @@ typing grant. The public docs and live runtime catalogs agreed with that referen
 
 
 2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

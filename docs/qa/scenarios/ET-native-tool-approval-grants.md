@@ -6,13 +6,13 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: Allow-always and reject-always decisions survive daemon restart only for the exact workspace, agent, tool, and input digest; explicit agent-wide and tool-wide decisions set through Web, CLI, HTTP, UDS, and native tools survive restart without an input digest; every surface lists the same rows; revocation removes each decision everywhere and wider allows never exceed the configured tool-policy ceiling.
 entry_points: Native-tool permission prompt; Web Settings / General; compozy tool approvals set/list/revoke; PUT/GET/DELETE /api/tool-approval-grants; compozy__tool_approvals_set/list/revoke
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-037; ET-038
 ---
 
@@ -60,3 +60,7 @@ QA impact 2026-09-28: the Web rows read plain words (session normie pass). Tool 
 scope reads "Only this exact request", "Every request from this agent", or "Every request, any agent";
 the set action and dialog read "Add rule" / "Add a rule". The approval dock asks "Allow {agent} to …?"
 with "Don't allow" / "Never allow". Contracts, test ids, and persisted data are unchanged.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

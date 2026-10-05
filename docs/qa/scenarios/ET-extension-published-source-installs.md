@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-distribution
 expected: A GitHub release shorthand or public HTTPS git URL installs the requested immutable extension in one command with at most one unverified-source consent; matching GitHub sidecars record digest integrity without elevating trust, mismatches leave no installed state, unsafe destinations are rejected before clone, and missing or outdated Git failures identify the required dependency deterministically.
 entry_points: `compozy extension install github:owner/repo[@ref]`; `compozy extension install git:<url>[@ref]`; `POST /api/extensions`; `compozy__extensions_install`
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: untested
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-closeout-20260804-121411-946266-lab/qa-artifacts/qa/evidence/extensions-closeout.json;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-closeout-20260804-121411-946266-lab/qa-artifacts/qa/evidence/external-extension-blocker.md;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-targeted-f5-f8-20260804-134807-481811-lab/qa-artifacts/qa/evidence/extension-distribution.json
-last_report: docs/qa/reports/2026-08-04-go-modernization-closeout.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-017; ET-018; ET-023
 ---
 
@@ -110,3 +110,7 @@ registration. Logout of that extension removes only its token, registration and 
 the manual credentials remain byte-identical. An expired or changed client registration requires
 login again and must not trigger replacement registration during refresh. The focused daemon
 integration owns deterministic expiry injection and exact SQLite/vault comparisons.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Every open desktop window owns one 48px unified head — identity (a 26px identity well + title for root windows, a window-local drill-in trail, or a document self-title with a state glyph), then status + ≤2 actions, then a hairline and the quiet Minimize · Zoom · Close icon controls (in the deck row instead when the window has ≥2 tabs) — with an optional 44px toolbar for peer views and listing tools; route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); blurred windows dim identity and trail without a border change; focusing a window makes its head and URL authoritative without creating a second shell-level title.
 entry_points: web desktop windows; any windowed catalog or detail route
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-catalog-navigation; ET-web-tasks-mode-url; ET-web-jobs-triggers-catalog
 ---
 
@@ -33,3 +33,7 @@ tools strip into `TopbarSlotValue.nav` (after identity in the 44px head). Strip 
 Reset to `untested` for the next QA cycle.
 
 qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). Head 44 → 48px with the identity well, traffic-light squares → quiet trailing icon controls, the 38px strip → the 44px window toolbar (views lead it; peer RouteNav no longer sits in the head). Verify against `docs/design/opendesign/design-system/os-shell.html` §04 and the shell-rail prototype.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

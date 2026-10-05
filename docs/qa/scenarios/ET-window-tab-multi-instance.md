@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-organize-tabbed-work
 expected: Opening multiple Tasks and Session instances assigns opaque identities, dock and context-menu destinations enumerate every live instance, repeated dock activation cycles in MRU order across desktops, minimized instances restore, and closing one instance never redirects or mutates another.
 entry_points: web dock (click, ⌥-click, ⇧-click); dock app menu (Open in new tab / split / new window / new desktop, Go to tab); command palette Go to tab; task and session deep links
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-02-command-t-deck.png; docs/qa/evidence/2026-08-01-window-tabs/keyboard-03-palette-tabs.png
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-window-routing-lifecycle; ET-web-dock-default-window-size; ET-window-manager-multi-client
 ---
 
@@ -28,3 +28,7 @@ Tasks window; right-click shows Open in new tab (joins the focused frame as a ta
 (⇧ click hint), a separator, and Go to tab; Enter or Space on a focused rail icon acts like a plain
 click even with Shift or Option held. Every new instance is independent: closing one never
 redirects another, and reload keeps each placement.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

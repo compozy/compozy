@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The single extension detail route shows the large entry logo and the existing extension body with contents, lifecycle state, diagnostics and provenance. Installed selection uses source and installed_name; controls report daemon truth. Task 04 adds the extension-owned Server section.
 entry_points: /marketplace/{entry_id}?source=<source>; /marketplace/{entry_id}?installed_name=<local-name>
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: untested
 fix_commits:
 evidence: .compozy/tasks/marketplace-detail-redesign/evidence/visual/VC-01; .compozy/tasks/marketplace-detail-redesign/evidence/visual/VC-02; .compozy/tasks/marketplace-detail-redesign/evidence/visual/VC-03
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-marketplace-installed-management; ET-web-mcp-authorize-manual
 ---
 
@@ -57,3 +57,7 @@ The refused update must leave the installed version and values intact and return
 candidate declarations in input_definitions. The configuration step uses those declarations without
 another preview acquisition; a retry keeps the original profile/workspace selector. Secret values
 and refs must not appear in error metadata. UI recovery remains pending until UT039 is complete.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

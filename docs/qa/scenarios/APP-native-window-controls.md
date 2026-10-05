@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: The packaged product window shows operating-system window controls within the 52px CompozyOS topbar without covering product controls; macOS traffic lights sit inside the 84px leading reserve before the CompozyOS mark, vertically centred in the bar; Linux follows the desktop environment's native side and button set, painted on the topbar color with symbols that follow the light or dark theme; the whole topbar drags the window while every control in it stays clickable; in-product windows keep their own quiet trailing minimize, zoom and close icon buttons, distinct from the native controls; the browser renders the topbar without the reserve or desktop controls.
 entry_points: packaged macOS product window; packaged Linux product window; web desktop in a browser
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-native-window-chrome-20260817-190228-135313-lab/qa-artifacts/qa; docs/qa/reports/2026-08-17-native-window-chrome.md
-last_report: docs/qa/reports/2026-08-17-native-window-chrome.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: APP-window-geometry-recovery; APP-quit-contract; ET-web-menubar-menu-set; APP-theme-native-no-flash
 ---
 
@@ -34,3 +34,7 @@ Development evidence (not a QA run, 2026-09-30, macOS dev Electron): traffic lig
 `app-region: drag` and every control in it is `no-drag` itself or under a `no-drag` group (menus, tray,
 globe). Real OS clicks and drags were not exercised (the machine was in live use).
 
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

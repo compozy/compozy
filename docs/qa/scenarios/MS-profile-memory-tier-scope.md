@@ -6,13 +6,13 @@ persona: Ada
 journey: J-layer-profile-resources
 expected: The home-level memory tier is named profile and is owned per profile — catalog, search, recall, and full-text results never return another profile's entries and an aggregate memory read is refused; repository workspace memory stays shared across profiles and agent-tier memory follows its owning agent's layer; profile-tier reads fail closed while the directory move is still pending; pre-profile entries read back under default from the new location and the old path is never used as a fallback.
 entry_points: compozy memory list|show|write|search; GET /api/memory routes over HTTP and UDS; native memory projections inside a session; $COMPOZY_HOME/profiles/<name>/memory/; Web Settings → Memory
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-repo-profile-layer-adoption; RT-migrate-memory-stream-when-disabled; ET-profile-scoped-work-reads
 ---
 
@@ -62,3 +62,7 @@ Profile candidate is accepted and persists only under the source Profile; the de
 not return it. Keep `agent_tier: global` valid only for Agent scope, and keep `scope: global` rejected.
 A Workspace fact should still persist into shared Workspace memory. Separate provider-startup
 failures from prompt/parser failures when recording the result.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

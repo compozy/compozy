@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-31
 expected: Overview Setup panel lists Model (live selector) and Permissions in plain language (no Command row, no At a glance rail); Instructions AGENT.md renders markdown prose without a meta strip and SOUL/HEARTBEAT tabs carry no missing-file warning pills; Configuration Runtime shows "Defined in" with layer/override provenance, Access lists Allowed/Blocked tools and Tool groups as neutral pills, and MCP uses hairline rows; Sessions empty New session opens the launch dialog and, after creation, navigates through the created session owner workspace to its composer.
 entry_points: web /agents/$name?tab=overview|instructions|configuration|sessions
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-narrow.png;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-desktop.png
-last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: RT-agent-overview-canonical-metrics; RT-076
 ---
 
@@ -47,3 +47,7 @@ values render through one plain vocabulary ("Ask before every action" / "Ask onl
 "Never ask" / "Use the provider's setting"), the Sessions tab drops its duplicate stats grid in favour of
 filter counts and loses the Iterations column, and a failed session list offers Retry. Status reset to
 untested; not walked.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -6,7 +6,7 @@ persona: Ada
 journey: J-operate-command-palette
 expected: CLI, HTTP/UDS, and native-tool discovery, inspection, client targeting, invocation, and approval status return one workspace-bound terminal result without duplicate execution; every refusal (unknown id, invalid arguments, unavailable context, no attached shell, multiple clients, already running) is a structured error carrying the same reason text the UI shows.
 entry_points: compozy cmd-palette list|inspect|invoke|clients; compozy approvals show|resolve|cancel; compozy__cmd_palette_list|invoke; GET /api/cmd-palette/commands|clients (HTTP + UDS); POST /api/cmd-palette/commands/{id}/invoke (HTTP + UDS); GET /api/tools/approvals/{id} (HTTP + UDS); POST /api/tools/approvals/{id}/resolve|cancel (HTTP + UDS); GET /api/cmd-palette/stream (HTTP + UDS)
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20261004-palette-lists-closed-clients
 fix_status: fixed
 retest_status: pass
@@ -51,3 +51,7 @@ The attached-client defect is verified in 259d7142c: closing a tab removes its d
 the survivor receives automatic invocation, reload reconnects with the same identity, and zero
 clients return no_attached_shell. The full native, approval and other refusal matrix remains
 Pending in the cycle; qa_status is untested for those remaining legs.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

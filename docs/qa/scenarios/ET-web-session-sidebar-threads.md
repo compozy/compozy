@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-14
 expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts open as a 264px left rail on the recessed `sunken` surface (a persisted close wins over the default) hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root behind a hairline connector; the parent row carries a count toggle that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row shares the selected-row tint and carries no accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1).
 entry_points: web session window topbar (session-sidebar-toggle, List icon); SessionSidebar; sessions modal (shared threads); localStorage key compozy:session:sidebar:v1
-qa_status: untested
+qa_status: skipped
 bug_ids: compozy/compozy#416
 fix_status: fixed
 retest_status: pass
 fix_commits: ea021855; 49601716
 evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b2/sidebar-threads.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl
-last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-sessions-catalog-modal; ET-web-session-thread-full-bleed; ET-web-session-inspector-toggle
 ---
 
@@ -49,3 +49,7 @@ sequential actions, confirmation, and retry; prior thread evidence above is reta
 QA walk 2026-09-28 (task_08 part B2): continued and forked children nest under their source in the window rail (count toggle "7" on the alpha source, "1" on the fork source) and in the catalog modal. Selecting the unopened continued child `sess-3540e32ceffb49f3` switched this window in place (URL followed, window count unchanged) and showed "Continued from alpha". Selecting a child that already has its own window focused it instead. Verdict: pass. Report: `docs/qa/reports/2026-09-28-session-continue-fork-exec-b2.md`.
 
 2026-09-30 shell-rail polish impact (P5): the sessions rail now opens by default in every session window; an operator's persisted toggle (`compozy:session:sidebar:v1`) still wins across reloads. The rail sits on the `sunken` surface with 13.5px row titles and 12px meta, and the pressed topbar toggle reads as the `surface-2` plate (no ring). Pinned by `use-session-sidebar-state.test.ts`. Reset for a live re-walk: open a fresh session window (rail open), close it, reload (rail stays closed).
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

@@ -6,13 +6,13 @@ persona: Dora
 journey: J-31
 expected: Agent, session, task, job, trigger, MCP install, and knowledge create surfaces show a `workspace-scope-statement` footer note derived from the menubar Global switch. There are no destination pills, RadioCards, or `config_scope` search params. Global create omits `workspace` (sessions bind the hidden home id or `workspace_path` without flipping the menubar). Workspace create sends the project id. Knowledge list tabs stay filters; create follows the menubar unless the Agent tab is selected. Settings → Skills Global|Agent is a different axis and stays local.
 entry_points: web New agent; New session; New task; New job/trigger; Marketplace MCP install; Knowledge create
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/knowledge-global-clean.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/mcp-global-install-clean.png
-last_report: docs/qa/reports/2026-08-13-pr-368-coderabbit.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-web-agent-create-simple-advanced; MS-web-entity-modal-shell; ET-web-marketplace-mcp-authorize-installed
 ---
 
@@ -29,3 +29,7 @@ src: web/src/systems/workspace/components/workspace-scope-statement.tsx; web/src
 2026-08-20 qa-impact: job, trigger, and task destination chips left the body toolbar; every create/install surface now states destination in the footer hint. Reset to untested.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

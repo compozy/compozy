@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-cross-workspace-access
 expected: An approve-reads session hitting the native-tool boundary raises one pending permission offering allow_once, allow_session, reject_once, and reject_session; once answers apply to that call only, session answers apply to every seam for the rest of the session, and stopping the session clears the answer so the next crossing prompts again.
 entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260730-tool-invoke-202-empty-success
 fix_status: fixed
 retest_status:
 fix_commits: 7285bf3c
 evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-workspace-access-mode-matrix; ET-native-tool-approval-grants
 ---
 
@@ -61,3 +61,7 @@ an unanswered request timed out without storing consent. CLI, HTTP, native logs,
 agreed on the attributable audit trail.
 
 2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

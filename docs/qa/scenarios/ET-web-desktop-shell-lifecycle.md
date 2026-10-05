@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk whose empty-desktop card names the desktop and offers ⌘K and New session; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pass
 fix_commits: c3c50b6; 531b9f5; 538777e; a1baedd3a
 evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-window-manager-stream-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-parity-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/08-daemon-restart-reconnected.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/23-v3-migrated-live.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/teardown.json
-last_report: docs/qa/reports/2026-09-01-window-manager-hardening.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
@@ -100,3 +100,7 @@ durable and active rows. Search remains case-insensitive using the desktop Unico
 semantics; no accent stripping or locale-specific alternate search is introduced.
 
 qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless tiling, browser-tab deck, light/dark theme). The shell grid is now topbar (full width) + rail (left) + desk; the dock band, glass menubar and wallpaper hint are gone and the default desk is flat. Reset for a boot, workspace-switch and reconnect walk in both themes.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

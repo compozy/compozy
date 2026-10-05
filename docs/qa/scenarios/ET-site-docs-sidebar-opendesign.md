@@ -6,13 +6,13 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: On /docs docs, the sidebar shows warm accent-mix section labels for the seven meta.json sidebar groups, 28px single-line rows with elevated hover and active accent rail (long labels truncate with ellipsis and native title tooltip), Lucide icons only on top-level rows, and in-folder separators (e.g. Loops Operate/Author/Reference) as subordinate group labels with hairlines inside a 1px guide-line — never the same chrome as top-level sections. A folder explicitly closed while one of its descendants is active stays closed after reload; its Overview child remains independently navigable.
 entry_points: compozy.com /docs; /docs/loops; docs/design/opendesign/site/site-docs-sidebar.html
-qa_status: untested
+qa_status: skipped
 bug_ids: BUG-20260730-docs-mobile-sidebar-offset; BUG-20260730-sidebar-close-lost-reload
 fix_status: fixed
 retest_status:
 fix_commits: working-tree
 evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc02-docs-sidebar; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc07-docs-sidebar-mobile
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-site-docs-first-session; ET-compozy-public-brand-navigation; ET-site-docs-typography-opendesign
 ---
 
@@ -34,3 +34,7 @@ QA impact 2026-07-29 deep-review remediation: reset after persisted close state 
 over active-route expansion and sidebar geometry moved to canonical tokens.
 
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.

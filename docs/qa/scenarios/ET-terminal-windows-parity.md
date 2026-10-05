@@ -6,13 +6,13 @@ persona: Dora
 journey: J-operate-terminal-windows
 expected: A local Windows workspace exposes the same interactive terminal controls and lifecycle as macOS and Linux.
 entry_points: Terminal app; terminal CLI; local Windows workspace
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-09-10-qa-execution-unblock/platform-prerequisites.json
-last_report: docs/qa/reports/2026-09-10-qa-execution-unblock.md
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-terminal-limits-capabilities
 ---
 
@@ -30,3 +30,7 @@ Current assigned lab is Darwin arm64/macOS26.6.2. A real Windows runtime remains
 
 
 2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
+
+2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
+Coverage remains outstanding; this skip is not a passing result. Resume from the dated
+report's session matrix in a future QA cycle.
