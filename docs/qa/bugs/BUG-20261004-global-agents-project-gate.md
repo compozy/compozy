@@ -1,6 +1,6 @@
 # BUG-20261004-global-agents-project-gate: Global Agents requires a project to show shared definitions
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Lea
@@ -45,7 +45,7 @@ Under docs/qa/evidence/2026-10-02-untested/:
   workspace selectors still narrow definitions and metrics. Web distinguishes pending scope from
   resolved Global, and detail/list reads share the same scoped query factories. Existing workspace
   request and cursor shapes remain compatible.
-- Fix commit: pending.
+- Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459.
 - Regression test: owning fleet catalog suite and query boundary, followed by a fresh Lea replay.
 
 ## Verification
@@ -57,3 +57,11 @@ global-agents-fixed-lea recording is closed. The existing core, Session Manager 
 fail before repair and pass afterward; 88 focused Web tests and root lint/typecheck/build pass.
 Commit and broader delivery gate remain pending. Separate shell-transition observations are
 retained in the report for dedicated reproduction, without changing this catalog verdict.
+
+
+## Verified delivery — 2026-10-05
+
+Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459. Original-persona replay and the owning checks pass.
+The warning-free affected gate passes, and the commit tree exactly matches
+f1493b4c0a97be585cc4fe2e60b941df61a20ba4. Receipts: qa-catalog-delivery-gate-6.json
+and qa-catalog-repairs-commit-identity.json in docs/qa/evidence/2026-10-02-untested/.

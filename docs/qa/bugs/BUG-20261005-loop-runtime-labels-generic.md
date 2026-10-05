@@ -1,6 +1,6 @@
 # BUG-20261005-loop-runtime-labels-generic: Loop runtime selectors hide their field names
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Lea; people navigating by accessible control name
@@ -40,7 +40,7 @@ are superseded by the selector's generic aria-label.
 - **Scope:** Wire caption IDs through the existing typed-control composition for both run
   and automation forms. Reuse RuntimeSelector's existing caption-plus-value behavior.
   No migration, public API change or product trade-off is involved.
-- **Fix commit:** pending
+- **Fix commit:** 60ddd98e12e10731a7f98d8dedca20ff88f2e459
 - **Regression test:** Existing loop-run-input-field.test.tsx runtime case distinguishes
   two fields with the same selected model by their captions and still changes runtime speed.
 
@@ -61,3 +61,11 @@ The full LP-002 older-session continuation also passes on the final catalog bund
 The original label fix is unchanged; all four named controls remain visible in the
 copied run form. The 22-frame loops-picker-lea recording is closed, its dry run creates
 no run, and every temporary definition/session is removed with baseline equality.
+
+
+## Verified delivery — 2026-10-05
+
+Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459. Original-persona replay and the owning checks pass.
+The warning-free affected gate passes, and the commit tree exactly matches
+f1493b4c0a97be585cc4fe2e60b941df61a20ba4. Receipts: qa-catalog-delivery-gate-6.json
+and qa-catalog-repairs-commit-identity.json in docs/qa/evidence/2026-10-02-untested/.

@@ -1,6 +1,6 @@
 # BUG-20261004-task-execution-switches-unnamed: Task execution switches have no accessible name
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Lea (discovery); keyboard and assistive-technology users
@@ -43,7 +43,7 @@ No spoken screen-reader result is claimed.
   labeling relationship.
 - Repair: connect each existing visible FieldTitle through a unique aria-labelledby target.
   No new primitive, copy, timer, persistence, or execution policy.
-- Fix commit: pending.
+- Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459.
 - Regression test: the existing task-editor-modal.test.tsx execution-options case now locates both
   switches by role and accessible name and verifies each corresponding draft mutation. The first
   run fails on the missing Save as draft name; all 19 owning tests pass after the production fix.
@@ -64,3 +64,11 @@ original workspace catalog, profile selections and four profile sessions remain 
 Delivery commit remains pending. A separate Global Agents catalog finding keeps the broader
 scenario open; it does not invalidate this control-label replay. No spoken screen-reader result
 is claimed.
+
+
+## Verified delivery — 2026-10-05
+
+Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459. Original-persona replay and the owning checks pass.
+The warning-free affected gate passes, and the commit tree exactly matches
+f1493b4c0a97be585cc4fe2e60b941df61a20ba4. Receipts: qa-catalog-delivery-gate-6.json
+and qa-catalog-repairs-commit-identity.json in docs/qa/evidence/2026-10-02-untested/.

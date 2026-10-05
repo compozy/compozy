@@ -1,6 +1,6 @@
 # BUG-20261005-loop-catalog-filters-missing: Loop catalog omits kind and category filters
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Lea
@@ -38,14 +38,14 @@ both filters and returns authoritative facets across the counted catalog.
 - **Scope:** Compose the existing filter primitive with both kind options and category
   values from server facets. Commit all chip changes in one route update, preserving
   search and view. No migration or public contract change.
-- **Fix commit:** pending
+- **Fix commit:** 60ddd98e12e10731a7f98d8dedca20ff88f2e459
 - **Regression test:** Existing loop-list-filters.test.ts owns offered options and the
   typed chip/filter projection, including clearing and invalid values. The real catalog
   replay owns server filtering and counted pagination.
 
 ## Verification
 
-- **Retested:** pending
+- **Retested:** 2026-10-05, original-persona replay passed; see completed replay below.
 
 ## First repair replay
 
@@ -68,8 +68,16 @@ reloads, then removes only Status and pages all 51 matching copies. Built-in + E
 + Done returns exactly implement-tasks in Cards and Rows after reload. Independent HTTP/UDS
 reads agree on names, exact totals/facets and the completed run's 1/1 30-day aggregate.
 The 35-frame loops-catalog-complete-lea recording is closed. Selected-category, catalog and
-draft-owner suites pass 34 tests; root Turbo lint/typecheck/build pass. Fix commit is pending.
+draft-owner suites pass 34 tests; root Turbo lint/typecheck/build pass. Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459.
 
 Evidence: loops-catalog-complete-lea-{filters,done}.json, labeled-empty/labeled-reload/
 done-rows-reloaded PNGs, and loops-catalog-complete-{custom,done}-readback.json under
 docs/qa/evidence/2026-10-02-untested/. The labeled-empty screenshot was visually inspected.
+
+
+## Verified delivery — 2026-10-05
+
+Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459. Original-persona replay and the owning checks pass.
+The warning-free affected gate passes, and the commit tree exactly matches
+f1493b4c0a97be585cc4fe2e60b941df61a20ba4. Receipts: qa-catalog-delivery-gate-6.json
+and qa-catalog-repairs-commit-identity.json in docs/qa/evidence/2026-10-02-untested/.

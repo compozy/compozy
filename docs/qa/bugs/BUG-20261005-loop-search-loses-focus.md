@@ -1,6 +1,6 @@
 # BUG-20261005-loop-search-loses-focus: Loop search loses focus while loading results
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Lea; keyboard users
@@ -37,13 +37,13 @@ click it again to continue typing whenever a new server query loads.
   query isLoading, including on every uncached search, unmounting the focused input.
 - **Scope:** Keep the toolbar mounted whenever a project is selected. The body retains
   its existing loading state. No focus restoration workaround or cache change.
-- **Fix commit:** pending
+- **Fix commit:** 60ddd98e12e10731a7f98d8dedca20ff88f2e459
 - **Regression test:** Existing web/e2e/__tests__/loops.spec.ts owns focus continuity
   across actual daemon search responses and continued keyboard input.
 
 ## Verification
 
-- **Retested:** pending
+- **Retested:** 2026-10-05, original-persona replay passed; see completed replay below.
 
 ## First repair replay
 
@@ -67,7 +67,15 @@ The unchanged real-daemon E2E passes (loop-search-focus-e2e-complete.json). In L
 Chrome session, all sixteen per-character insertions accumulate exactly studio-intake-51
 with focus remaining in INPUT; the server receives one complete query and returns the
 off-page definition. Reload preserves its query and result, confirmed by independent HTTP.
-The 35-frame loops-catalog-complete-lea recording is closed. Fix commit is pending.
+The 35-frame loops-catalog-complete-lea recording is closed. Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459.
 
 Evidence: loops-catalog-complete-lea-search.json, search/search-reloaded PNGs and
 loops-catalog-complete-search-readback.json under docs/qa/evidence/2026-10-02-untested/.
+
+
+## Verified delivery — 2026-10-05
+
+Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459. Original-persona replay and the owning checks pass.
+The warning-free affected gate passes, and the commit tree exactly matches
+f1493b4c0a97be585cc4fe2e60b941df61a20ba4. Receipts: qa-catalog-delivery-gate-6.json
+and qa-catalog-repairs-commit-identity.json in docs/qa/evidence/2026-10-02-untested/.

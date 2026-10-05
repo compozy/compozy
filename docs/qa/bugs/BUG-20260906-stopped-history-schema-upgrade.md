@@ -1,6 +1,6 @@
 # BUG-20260906-stopped-history-schema-upgrade: Upgraded daemon cannot read retained stopped histories
 
-- **Status:** fixed — original-persona CLI replay passed; delivery/audit pending
+- **Status:** verified
 - **Impact (user-side):** Data-Loss
 - **Severity:** High · **Priority:** P1
 - **Persona:** Théo · **Journey:** J-14 read a finished transcript
@@ -158,3 +158,13 @@ two ordinary restarts and a project canary with opposite-scope refusals. Origina
 and all three raw event contents remain intact. Evidence: home-migration-final-lea-ended.json
 and home-migration-final-{initial-complete,restart-one,restart-two,restored}-verified.json.
 Owning red/green checks pass; delivery gate, commit and targeted audit remain pending.
+
+
+## Verified delivery — 2026-10-05
+
+Fix commit: 60ddd98e12e10731a7f98d8dedca20ff88f2e459. Original-persona replay and the owning checks pass.
+The warning-free affected gate passes, and the commit tree exactly matches
+f1493b4c0a97be585cc4fe2e60b941df61a20ba4. Receipts: qa-catalog-delivery-gate-6.json
+and qa-catalog-repairs-commit-identity.json in docs/qa/evidence/2026-10-02-untested/.
+The targeted migration audit passes and exact-manifest teardown reports all clean
+(home-migration-final-strict-audit.json and home-migration-final-teardown.json).
