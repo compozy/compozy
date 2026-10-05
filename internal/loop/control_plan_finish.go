@@ -1,21 +1,25 @@
 package loop
 
 import (
+	"context"
 	"time"
 
-	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/task"
 )
 
-func finishInitialControlPlan(
+func (r *CoordinatorRunner) finishInitialControlPlan(
+	ctx context.Context,
+	taskRun task.Run,
 	plan *task.CoordinatorCompletionPlan,
 	run Run,
 	generation int,
 	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
 	topology controlTopology,
-	gateEvaluator gate.GateEvaluator,
 	outputs []GenerationOutput,
 	outputBlobs []GenerationOutputBlob,
+	gateEvaluations *gateEvaluationCollector,
+	history GenerationHistory,
 	scheduledAt time.Time,
 ) (task.CoordinatorCompletionPlan, error) {
 	graph := resolved.Definition.Graph
@@ -26,7 +30,7 @@ func finishInitialControlPlan(
 		generation,
 		resolved,
 		topology,
-		gateEvaluator != nil,
+		r.gateEvaluator != nil,
 		postReserveOutputs,
 		scheduledAt,
 	); err != nil {
@@ -38,7 +42,7 @@ func finishInitialControlPlan(
 		generation,
 		graph,
 		topology,
-		gateEvaluator != nil,
+		r.gateEvaluator != nil,
 		postReserveOutputs,
 	); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
@@ -65,8 +69,10 @@ func finishInitialControlPlan(
 		plan.GenerationInFlight = true
 		return *plan, nil
 	}
-	plan.Terminal = noReadyNodesTerminal()
-	return *plan, nil
+	return r.finishIdleGenerationPlan(
+		ctx, taskRun, run, generation, resolved, effective, topology, r.gateEvaluator,
+		*plan, outputs, gateEvaluations, history,
+	)
 }
 
 func generationOutputsWaiting(outputs []GenerationOutput) bool {

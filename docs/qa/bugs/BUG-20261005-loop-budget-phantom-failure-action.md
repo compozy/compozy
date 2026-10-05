@@ -1,6 +1,6 @@
 # BUG-20261005-loop-budget-phantom-failure-action: An exhausted Loop sends the operator looking for a failed step that does not exist
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -53,7 +53,7 @@ exhausted/stalled outcomes without that reference omit the action, while concret
 failures retain Inspect navigation. The focused red run fails the two missing-target cases;
 the repaired suite passes all 172 cases. No wire, copy, or primitive changes are needed.
 
-Fix commit: pending final delivery gate.
+Fix commit: be93b40ea67fae3bc325a410160c87005f507eb3.
 
 ## Verification
 
@@ -66,5 +66,8 @@ with each outcome. Terminal screenshots were visually inspected. The exact recor
 is closed with nine frames; loops-budget-action-fixed-bruno.json records the interaction.
 
 Root Turbo Web typecheck/build passes (4/4 tasks); React Doctor reports 100/100 across seven
-changed files. Existing bundle advisories are retained. Final gate and commit remain pending;
-this focused repair does not close LP-003's separate stalled-outcome leg.
+changed files. Existing bundle advisories are retained. The final gate passes on tree
+03072f40b3394d850ff33a2adb4d6a9e2cb46f5e, identical to the committed tree: required lanes are
+CURRENT-PASS, Go lint reports zero issues, and all 26 Turbo tasks pass, including 6,991 Web
+tests. Receipts use the loops-terminal- prefix. This repair does not close LP-003's stalled leg
+or the broader QA/PR delivery scope.

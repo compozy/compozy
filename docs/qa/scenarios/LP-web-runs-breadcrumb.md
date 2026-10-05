@@ -12,10 +12,17 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: LP-008; ET-web-route-chrome-topbar
 ---
 
 story: As an operator I can always see where I am in Loops and click back to the catalog or the workspace-wide Runs list without relying on the dock.
 
 src: web/src/systems/os/apps/loops/loop-window-crumbs.ts; web/src/systems/os/apps/loops/loop-runs-location.tsx; web/src/systems/os/apps/loops/loop-run-detail-location.tsx; web/src/systems/os/apps/loops/loop-run-diff-location.tsx
+
+2026-10-05 partial Marina walk: deep-link trail, hidden Runs parent, Compare generation
+selection and explicit run-id parent navigation pass on the 430x932 touch persona.
+Back from Compare lands on Runs; Back and Loops from Runs do not navigate under touch.
+Navigation ownership/target diagnosis is pending, so no pass or fixed verdict is assigned.
+The nine-frame loops-trail-marina recording is closed; receipts and screenshots are in
+docs/qa/evidence/2026-10-02-untested/loops-trail-marina-*.

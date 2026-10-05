@@ -164,7 +164,13 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 	if deferTargetUnavailableFailure(&plan, failed, live) {
 		return plan, nil
 	}
-	if !live {
+	terminal, terminalErr := r.terminalForFailedGeneration(
+		ctx, run, generation, effective.NoProgressWindow, def.Graph, normalized, failed,
+	)
+	if terminalErr != nil {
+		return task.CoordinatorCompletionPlan{}, terminalErr
+	}
+	if !live && terminal.Status != string(StatusStalled) {
 		if evaluations == nil || len(evaluations.routeCauses()) == 0 {
 			loaded, err := r.loadPersistedRouteCauses(ctx, run, generation, def.Graph, normalized)
 			if err != nil {
@@ -178,12 +184,6 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 				plan, normalized, causes,
 			)
 		}
-	}
-	terminal, terminalErr := r.terminalForFailedGeneration(
-		ctx, run, generation, effective.NoProgressWindow, def.Graph, normalized, failed,
-	)
-	if terminalErr != nil {
-		return task.CoordinatorCompletionPlan{}, terminalErr
 	}
 	if shouldTerminalizeFailedGeneration(run, failed, terminal.Status, live) {
 		plan.Terminal = terminal

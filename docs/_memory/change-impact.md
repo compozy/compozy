@@ -2002,3 +2002,21 @@ remain unchanged.
 - No official skill or site contract changes are needed. QA owner: LP-003 and
   BUG-20261005-loop-budget-phantom-failure-action. The existing LoopRunBriefing component suite
   owns action availability/navigation; a real exhausted/failed pair supplies the persona replay.
+
+## Loop gate succession and progress bounds (2026-10-05 QA)
+
+- The coordinator's initial rejected control plan uses the existing idle-generation
+  finisher, preserving gate verdicts and explicit routes before terminal/successor
+  admission. Successful control-only completion keeps its existing behavior.
+  Gate-driven revise/next_generation checks the established
+  repeated-blocker and failure terminal guard before creating another generation.
+- Native loop_run/status/why and their CLI/HTTP/UDS/Web consumers retain the same tool IDs,
+  routes, DTOs, terminal enums and configuration keys. This restores authored behavior;
+  no compatibility shim, schema migration or historical run rewrite is required.
+- Existing generation/gate hook dispatch and scoped workspace/profile readers remain the
+  owners. No extension SDK or config shape changes. Stored output payloads continue through
+  the existing hydration path; no new persistence or cross-workspace lookup is introduced.
+- Site guardrail guidance and official skills/compozy/references/loops.md retain the same
+  contract. Clarify initial in-body routing and repeated-blocker precedence there. QA owner:
+  LP-003, LP-revise-repair-context and the two gate-routing bug records in the owning report.
+  Existing coordinator suites own the invariants; real command-gate runs own replay evidence.

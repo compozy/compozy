@@ -421,6 +421,10 @@ fresh pass. Bounds still apply. For evidence-sensitive work, put the acceptance 
 and route a weak verdict through `revise`, `next_generation`, or `halt`; do not hide the transition
 inside prompt prose.
 
+In-body routes also apply when the gate runs before the first action. Repeated in-body
+blocking issues reaching `no_progress_window` end the run `stalled` before a `revise` or
+`next_generation` successor, even when the iteration cap has room for another generation.
+
 `halt` is terminal automatic policy, not a ban on operator recovery. An explicit rerun remains
 available after the failure.
 

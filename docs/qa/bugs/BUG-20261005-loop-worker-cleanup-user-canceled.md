@@ -1,6 +1,6 @@
 # BUG-20261005-loop-worker-cleanup-user-canceled: Automatic Loop cleanup claims operator cancellation
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno
@@ -50,7 +50,7 @@ and the transcript marker. Cleanup CauseTerminal alone does not prove work succe
 failed, interrupted and successful owners share it. The correction must preserve this
 distinction instead of mapping every terminal cleanup to completed.
 
-Fix commit: pending. The relay now distinguishes automatic terminal/reseed/revoked-binding
+Fix commit: be93b40ea67fae3bc325a410160c87005f507eb3. The relay now distinguishes automatic terminal/reseed/revoked-binding
 retirement from explicit stop/cancel. The former uses the additive owner_released stop reason;
 the latter retains user-requested cancellation. Node cancellation enqueues the explicit stop
 cause. Existing durable text storage needs no migration. The API restart projection, generated
@@ -96,7 +96,12 @@ Inspect graph; the canceled worker was checked through its public session URL.
 Receipts: loops-cleanup-bruno-{success,budget,node-cancel}-*.json,
 loops-cleanup-durable-*.json, loops-cleanup-{success,budget,node-cancel}-owned.json,
 loops-cleanup-*-regression-{red,green}.json and loops-cleanup-web-site-build.json, under
-docs/qa/evidence/2026-10-02-untested/. Delivery gate and commit remain pending.
+docs/qa/evidence/2026-10-02-untested/. The final delivery gate passes on frozen tree
+03072f40b3394d850ff33a2adb4d6a9e2cb46f5e, which matches the committed tree. Required lanes
+are CURRENT-PASS; Go lint has zero issues, the full selected Go lane passes, and all 26 Turbo
+tasks pass, including 6,991 Web tests. The final classifier-extraction binary's real explicit
+cancel canary is loops-cleanup-final-canary-owned.json. Gate/status/tree receipts use the
+loops-terminal- prefix. PR delivery and the broader QA cycle remain in progress.
 
 ## Re-found — 2026-10-05, exhausted owner
 
