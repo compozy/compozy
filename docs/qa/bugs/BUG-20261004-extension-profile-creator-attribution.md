@@ -43,7 +43,7 @@ does not establish released-version compatibility; the separate versioned legacy
 
 The public projection regression fails against marker existence and passes when it requires
 confirmed creator provenance for the current profile ID. New creation and binding persist distinct
-values; appended Global migration 00126 preserves prior marker rows with unknown origin. Current
+values; appended Global migration 00127 preserves prior marker rows with unknown origin. Current
 profile identity checks prevent an old marker from claiming a manually recreated name. Create-once
 planning continues to use marker existence independently.
 
@@ -72,3 +72,7 @@ tests (1,736 seconds), and the unchanged cached Web lane. Receipt:
 extension-creator-delivery-gate.json. Fix commit: `831436907`. The full
 profile race scenario remains untested for its independent claim, trigger, spawn, reservation and
 delivery legs; this finding is verified without promoting the entire charter.
+
+Delivery rebase 2026-10-05: main already owns reconciliation-index migration 00126.
+The owning generator appends this unpublished provenance change as 00127; historical
+receipts retain their original numbering. See the dated rebase map for current SHAs.

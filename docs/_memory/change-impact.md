@@ -265,7 +265,7 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   interaction status accepts cancellation, so no schema migration is needed. Web consumes the
   canonical projection; official runtime guidance and the profile/attention scenarios co-ship.
   Existing ACP, session transition and daemon bridge suites own the regressions.
-- **Extension-declared profile provenance:** Global migration 00126 preserves every declaration
+- **Extension-declared profile provenance:** Global migration 00127 preserves every declaration
   marker and adds nullable creation provenance: existing rows remain unknown; new profile creation
   records true and binding records false. Creation claims also require the current profile ID, so
   deleting/recreating a name cannot transfer authorship. Existing create-once markers still prevent
