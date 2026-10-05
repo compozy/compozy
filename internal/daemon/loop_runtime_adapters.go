@@ -361,15 +361,11 @@ func collectLoopPromptResult(
 		if event.PromptStopReason != "" && stopReason == "" {
 			stopReason = event.PromptStopReason
 		}
-		// Chunks are streaming deltas of one turn, not lines: any injected
-		// separator lands inside JSON string literals and corrupts the answer.
-		// The transcript projector concatenates the same way.
-		if strings.TrimSpace(event.Text) != "" {
-			if event.Type == acp.EventTypeAgentMessage {
-				agentText.WriteString(event.Text)
-			}
-			allText.WriteString(event.Text)
+		// Streaming deltas must retain every byte inside JSON strings.
+		if event.Type == acp.EventTypeAgentMessage {
+			agentText.WriteString(event.Text)
 		}
+		allText.WriteString(event.Text)
 		if tokens, ok := loopPromptTokensUsed(event.Usage); ok {
 			tokensUsed = tokens
 			tokensReported = true

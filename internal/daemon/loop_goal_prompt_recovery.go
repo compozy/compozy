@@ -213,11 +213,8 @@ func (a *recoveredManagedGoalPromptAccumulator) accept(event store.SessionEvent)
 }
 
 func (a *recoveredManagedGoalPromptAccumulator) appendText(event acp.AgentEvent) {
-	if event.Type != acp.EventTypeAgentMessage || strings.TrimSpace(event.Text) == "" {
+	if event.Type != acp.EventTypeAgentMessage {
 		return
-	}
-	if a.text.Len() > 0 {
-		a.text.WriteByte('\n')
 	}
 	a.text.WriteString(event.Text)
 }

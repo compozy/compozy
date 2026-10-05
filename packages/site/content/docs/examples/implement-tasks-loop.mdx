@@ -122,7 +122,7 @@ graph:
       params:
         map:
           task_id:
-            value: "{{ .item.id }}"
+            from: item.id
           status:
             value: staged
       produces:

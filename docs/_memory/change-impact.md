@@ -4,6 +4,20 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Orchestrated task results:** The bundled staging transform uses the existing namespace
+  reference form for task IDs. Managed Goal normal/recovery readers concatenate ACP message
+  fragments verbatim, so completed outputs retain the final summary and task identities.
+  Action and verdict-only judge collectors also retain whitespace-only message chunks;
+  the existing adapter suites own their separate answer/verdict boundaries.
+  CLI/HTTP/UDS/native loop status and Web output inspection keep their existing schemas.
+  Hook/config/extension SDK contracts and workspace/profile isolation are unchanged; no
+  migration or historical output rewrite occurs. The site's copyable implement-tasks YAML
+  co-ships the same mapping; the official skill's traceability contract stays accurate.
+  LP-implement-tasks-orchestrated-mode and TA-080
+  own the fresh replay; the embedded runtime suite and daemon Goal reader suite own the
+  regressions. Bugs: BUG-20261005-loop-staged-task-id-literal and
+  BUG-20261005-goal-result-loses-fields; BUG-20261005-loop-result-drops-whitespace.
+
 - **Loop catalog profile scope:** Web passes the existing selected-profile or explicit
   aggregate params through the catalog hook, route preloads, filter normalization and
   adapter. The canonical cache key includes that scope; continuation keeps it. The

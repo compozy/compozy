@@ -874,17 +874,18 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should concatenate streamed verdict chunks without inventing separators", func(t *testing.T) {
+	t.Run("Should preserve streamed verdict chunks including whitespace", func(t *testing.T) {
 		t.Parallel()
 
-		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN","exact_match":true}}`
-		split := len(verdict) / 2
+		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN LIGHT","exact_match":true}}`
+		split := strings.IndexByte(verdict, ' ')
 		sessions := &loopActionBinderSessionManager{
 			sessionID: "sess-loop-judge-chunked-verdict",
 			events: []acp.AgentEvent{
 				{Type: acp.EventTypeThought, Text: "The candidate satisfies the contract."},
 				{Type: acp.EventTypeAgentMessage, Text: verdict[:split]},
-				{Type: acp.EventTypeAgentMessage, Text: verdict[split:]},
+				{Type: acp.EventTypeAgentMessage, Text: " "},
+				{Type: acp.EventTypeAgentMessage, Text: verdict[split+1:]},
 			},
 		}
 		response, err := loopJudgeRunnerForTest(t, sessions).Judge(
@@ -1270,6 +1271,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 
 		manager := loopPromptResultSessionManager{events: []acp.AgentEvent{
 			{Type: acp.EventTypeAgentMessage, Text: `{"status":"completed","summary":"root scripts (dev:`},
+			{Type: acp.EventTypeAgentMessage, Text: " "},
 			{Type: acp.EventTypeAgentMessage, Text: `server, test) pass",`},
 			{Type: acp.EventTypeAgentMessage, Text: `"files_changed":["server/index.ts"]}`},
 		}}
@@ -1289,7 +1291,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 		if err := json.Unmarshal([]byte(result.Text), &decoded); err != nil {
 			t.Fatalf("unmarshal joined deltas error = %v", err)
 		}
-		if decoded["summary"] != "root scripts (dev:server, test) pass" {
+		if decoded["summary"] != "root scripts (dev: server, test) pass" {
 			t.Fatalf("joined summary = %v, want delta boundary inside the string preserved", decoded["summary"])
 		}
 	})

@@ -53,10 +53,7 @@ func readManagedGoalPromptOutput(
 		if firstSequence == 0 {
 			firstSequence = event.Sequence
 		}
-		if agentEvent.Type == acp.EventTypeAgentMessage && strings.TrimSpace(agentEvent.Text) != "" {
-			if text.Len() > 0 {
-				text.WriteByte('\n')
-			}
+		if agentEvent.Type == acp.EventTypeAgentMessage {
 			text.WriteString(agentEvent.Text)
 		}
 		if isManagedGoalTerminalEvent(agentEvent.Type) {
