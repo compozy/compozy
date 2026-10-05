@@ -7,7 +7,7 @@ journey: J-administer-runtime-settings
 expected: Settings → Notifications, config.toml, and compozy config get/set agree on the global toasts, sound, and system values; HTTP, UDS, and Web read and replace muted_workspaces for the selected profile without changing another profile; valid changes apply live without a daemon restart, concurrent writes preserve a complete candidate, and deleting a workspace removes every profile-owned mute row.
 entry_points: web Settings → Notifications; config.toml [attention]; compozy config get/set attention.toasts|sound|system; GET/PATCH /api/settings/attention?scope=user or ?scope=profile&profile=<name> over HTTP and UDS; workspace deletion
 qa_status: untested
-bug_ids: BUG-20261004-attention-default-profile-refused; BUG-20261004-attention-deleted-workspace-stale
+bug_ids: BUG-20261004-attention-default-profile-refused; BUG-20261004-attention-deleted-workspace-stale; BUG-20261004-settings-offline-save-stuck
 fix_status: fixed
 retest_status: pass
 fix_commits: 84f02d6b2
@@ -92,3 +92,12 @@ original policy, and the owned session is verified stopped. Evidence: attention-
 Commit 84f02d6b2 closes the deletion defect after real replay and the current-tree delivery gate.
 The tracker remains untested for the full charter's simultaneous-writer and platform-delivery legs;
 fix/retest fields describe the linked repaired defect only.
+
+
+2026-10-04 adjacent Settings recovery: Sound now settles offline refusal with actionable guidance,
+retains its saved value and stays interactive. Reconnection does not write; an explicit toggle
+succeeds and matches independent public GET. Restoring the full policy and reloading leaves the
+default browser permission, no restart and no active sessions. Evidence:
+docs/qa/evidence/2026-10-02-untested/settings-offline-guidance-dora-ended.json and
+settings-offline-guidance-restored-attention.json. The linked offline-save repair awaits its
+gate/commit; simultaneous-writer and platform-delivery legs remain pending.

@@ -20,6 +20,17 @@ export class SettingsApiError extends Error {
   }
 }
 
+/** A rejected fetch has no HTTP status; retain its cause and leave cancellation intact. */
+export function throwSettingsSaveTransportError(error: unknown): never {
+  if (!(error instanceof TypeError)) throw error;
+  const failure = new SettingsApiError(
+    "Couldn't save settings. Check the connection to CompozyOS and try again.",
+    0
+  );
+  failure.cause = error;
+  throw failure;
+}
+
 /**
  * Reads the `{error: {code, message, …}}` body the source-validation failures
  * use. The generic `{error: "text"}` branch has no source code and returns

@@ -11,7 +11,7 @@ import type {
   SettingsRolesSection,
   SettingsUpdateRolesRequest,
 } from "../types";
-import { SettingsApiError } from "./settings-api-error";
+import { SettingsApiError, throwSettingsSaveTransportError } from "./settings-api-error";
 
 /**
  * Read-only effective role projection (`GET /api/roles`), resolved at global
@@ -46,10 +46,12 @@ export async function updateSettingsRoles(
   body: SettingsUpdateRolesRequest,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/roles", {
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/roles", {
+      body,
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to update roles settings", response, error),

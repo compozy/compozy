@@ -1,6 +1,6 @@
 # BUG-20261004-settings-startup-false-offline: Settings reports an offline runtime during startup
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -59,16 +59,15 @@ concerns superseded section navigation, not this startup command availability mi
 - **Correction:** Read the existing settings.general projection through usePaletteCommand and
   disable only that command button until it is available. Keep local theme controls usable.
   Reuse the existing command resolver; do not bypass dispatch or add timed retries.
-- **Fix commit:** pending.
+- **Fix commit:** 4ce6fd811355affdd6a89bb1782b8bf2d3b4aaba.
 - **Regression test:** existing OS dock component suite, os-dock.test.tsx, owns the rail foot
   and compact presentation. Cover missing, unavailable, available and lost availability, while
   local theme changes remain reachable.
 
 ## Verification
 
-Pending red/green proof and a fresh original-persona reload/entry/close walk in both dock
-presentations. The small repair has a known component owner, no state migration, no API change,
-no dependency and no product trade-off.
+Original-persona reload/entry/close replay passes in both dock presentations, followed by the
+required exact-tree gate and fix commit. No state migration, API change or dependency.
 
 ### Repair replay — 2026-10-04
 
@@ -102,4 +101,8 @@ UT-086 failure), settings-startup-dock-keyboard-focus-diagnostic.json,
 settings-startup-availability-final-focused.json, web-build.json, react-doctor.json and
 build-identity.json; settings-startup-final-dora-completed.json (successful startup entries),
 complete-closed.json and settings-startup-final-general-unchanged.json.
-Required gate and fix commit are the remaining delivery steps for this defect.
+All affected gate lanes pass, including 693 Web files / 6,964 tests. Fix commit
+4ce6fd811355affdd6a89bb1782b8bf2d3b4aaba matches the frozen passing tree
+24458491fe986a8187da5aa76d8a67746384805e. Receipts:
+settings-startup-availability-delivery-gate.json and commit-identity.json. The broader Settings
+scenario retains its separate page/error findings; this defect is verified.

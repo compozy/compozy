@@ -33,7 +33,12 @@ import type {
   SettingsUpdateSkillsRequest,
   SettingsUpdateStatus,
 } from "../types";
-import { normalizeOptionalText, SettingsApiError, settingsErrorDetail } from "./settings-api-error";
+import {
+  normalizeOptionalText,
+  SettingsApiError,
+  settingsErrorDetail,
+  throwSettingsSaveTransportError,
+} from "./settings-api-error";
 import { normalizeSettingsLayerFilter } from "./settings-layer-filter";
 
 export { getSettingsCmdPalette, updateSettingsCmdPalette } from "./settings-cmd-palette-api";
@@ -65,10 +70,12 @@ export async function updateSettingsGeneral(
   body: SettingsUpdateGeneralRequest,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/general", {
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/general", {
+      body,
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to update general settings", response, error),
@@ -151,10 +158,12 @@ export async function updateSettingsMemory(
   body: SettingsUpdateMemoryRequest,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/memory", {
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/memory", {
+      body,
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to update memory settings", response, error),
@@ -186,11 +195,13 @@ export async function updateSettingsSkills(
   filter: SettingsUpdateSkillsFilter = {},
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/skills", {
-    body,
-    params: { query: normalizeSettingsSkillsFilter(filter) },
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/skills", {
+      body,
+      params: { query: normalizeSettingsSkillsFilter(filter) },
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     // Source validation answers with a coded body; keep it so the section can
     // render the daemon's own sentence and code instead of a status number.
@@ -222,10 +233,12 @@ export async function updateSettingsAutomation(
   body: SettingsUpdateAutomationRequest,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/automation", {
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/automation", {
+      body,
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to update automation settings", response, error),
@@ -258,12 +271,14 @@ export async function updateSettingsAttention(
   filter: SettingsUpdateAttentionFilter,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/attention", {
-    body,
-    keepalive: true,
-    params: { query: normalizeSettingsLayerFilter(filter) },
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/attention", {
+      body,
+      keepalive: true,
+      params: { query: normalizeSettingsLayerFilter(filter) },
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to update attention settings", response, error),
@@ -318,10 +333,12 @@ export async function updateSettingsObservability(
   body: SettingsUpdateObservabilityRequest,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/observability", {
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/observability", {
+      body,
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to update observability settings", response, error),
@@ -350,10 +367,12 @@ export async function updateSettingsHooksExtensions(
   body: SettingsUpdateHooksExtensionsRequest,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PATCH("/api/settings/hooks-extensions", {
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClient
+    .PATCH("/api/settings/hooks-extensions", {
+      body,
+      signal,
+    })
+    .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to update hooks and extensions settings", response, error),

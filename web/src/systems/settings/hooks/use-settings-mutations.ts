@@ -129,6 +129,7 @@ export function useUpdateSettingsGeneral() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateGeneralRequest) => updateSettingsGeneral(body),
     onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "general"),
@@ -139,6 +140,7 @@ export function useUpdateSettingsPersona() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: ({
       body,
       filter,
@@ -161,6 +163,7 @@ export function useUpdateSettingsMemory() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateMemoryRequest) => updateSettingsMemory(body),
     onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "memory"),
@@ -171,6 +174,7 @@ export function useUpdateSettingsRoles() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateRolesRequest) => updateSettingsRoles(body),
     onSuccess: (result, variables) => {
       recordSettingsMutation(result);
@@ -188,6 +192,7 @@ export function useUpdateSettingsSkills() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: ({
       body,
       filter,
@@ -204,6 +209,7 @@ export function useUpdateSettingsAutomation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateAutomationRequest) => updateSettingsAutomation(body),
     onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "automation"),
@@ -229,6 +235,7 @@ export function useUpdateSettingsObservability() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateObservabilityRequest) => updateSettingsObservability(body),
     onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "observability"),
@@ -239,6 +246,7 @@ export function useUpdateSettingsHooksExtensions() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    networkMode: "always",
     mutationFn: (body: SettingsUpdateHooksExtensionsRequest) => updateSettingsHooksExtensions(body),
     onSuccess: recordSettingsMutation,
     onSettled: () =>

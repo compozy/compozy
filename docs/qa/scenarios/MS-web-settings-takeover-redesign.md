@@ -7,10 +7,10 @@ journey: J-administer-runtime-settings
 expected: The settings window renders the 264px takeover sidebar (the host's Close Settings action closes the window; search with `/` shortcut filters sections; Basics/Personal/Agents/Advanced groups; runtime foot naming CompozyOS, never "daemon") collapsing to a chip strip under 56rem. Section labels read Remote access, Notifications, and Diagnostics, while their slugs stay `gateway`, `attention`, and `observability`, and searching the retired word still finds the renamed section. Pages use one-decision srows with consequence sentences, at most one Advanced fold per page, and choice cards with neutral selection. Draft pages show the floating save bar only when dirty/saving/error and flash "Saved" after a clean save; restart-needed changes surface the typed restart notice.
 entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
 qa_status: fail
-bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window; BUG-20261004-settings-idle-timeout-display; BUG-20261004-settings-startup-false-offline
+bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window; BUG-20261004-settings-idle-timeout-display; BUG-20261004-settings-startup-false-offline; BUG-20261004-settings-offline-save-stuck
 fix_status: pending
 retest_status:
-fix_commits: b4166a6c2; baec8d019; 3268b7477
+fix_commits: b4166a6c2; baec8d019; 3268b7477; 4ce6fd811
 evidence: docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-reload-observed.json; docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-save.json; docs/qa/reports/2026-10-02-untested.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-026; MS-037; ET-012; ET-044; ET-045
@@ -81,3 +81,21 @@ after the exact-tree gate passes. Fresh entry also reveals an enabled Settings b
 command is available; clicking it reports a reachable CompozyOS as unreachable and requires a
 later click. BUG-20261004-settings-startup-false-offline owns that defect. The broad row remains
 Fail until this repair and the remaining page/error legs are completed.
+
+
+2026-10-04 remaining-page walk: startup availability is verified at 4ce6fd811. Memory and
+Diagnostics save/reload/restore, negative retention validation, truthful empty Hooks and local-only
+Remote access audit pass. Extensions persists, but an offline Save stays on Saving with both
+actions disabled, then auto-submits on reconnect. BUG-20261004-settings-offline-save-stuck owns
+that error-recovery failure. The closed 41-frame session, 15 inspected PNGs and independent
+public reads are recorded in the report. All complete config baselines and current runtime
+state are restored, with no restart or active sessions. The broad scenario remains Fail.
+
+
+2026-10-04 final offline repair replay: Extensions now explains the failed save, keeps its draft
+editable and permits Discard while offline. Reconnection alone does not write; explicit retry
+shows Saved, persists through reload and can be restored. Memory and Notifications recovery
+canaries pass. Eight final PNGs are inspected and the 26-frame recording is closed. Full config
+baselines and current runtime state are restored. The broader page/navigation/visual legs have
+current-cycle proof; required gate and commit bookkeeping remain before promotion. Evidence:
+settings-offline-guidance-dora-ended.json and related receipts in the report evidence directory.

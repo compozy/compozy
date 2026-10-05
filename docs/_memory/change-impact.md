@@ -1835,3 +1835,21 @@ remain unchanged.
   BUG-20261004-settings-startup-false-offline. The canonical os-dock component suite owns
   missing/unavailable/available command transitions; fresh Chrome entry verifies the actual
   startup ordering and neighboring theme/launcher behavior.
+
+
+## Settings explicit saves without a connection (2026-10-04 QA)
+
+- Web Settings form mutations attempt transport immediately and settle through the existing error
+  path, preserving draft/discard/retry control. General, Memory, Automation, Diagnostics,
+  Extensions, Roles, Persona, Skills and Notifications share this explicit-save policy.
+  Attention retains its gesture-owned request. Global QueryClient and other domain mutation
+  admission/retry policies remain unchanged; there is no new queue, timer or retry layer.
+  Rejected fetches at these Settings write adapters become the existing SettingsApiError with
+  status zero, actionable save guidance and the original error as cause. Cancellation and HTTP
+  validation diagnostics retain their identity; no shared API-client behavior changes.
+- Native tools, CLI/HTTP/UDS DTOs, hooks, extensibility and config keys are unchanged. Public
+  writes retain their validation and scope ownership. No stored config/schema migration,
+  workspace/profile data movement or official skills/compozy/ change is needed.
+- QA/docs owner: MS-web-settings-takeover-redesign and BUG-20261004-settings-offline-save-stuck.
+  The existing Settings mutation suite owns offline settlement and explicit retry after
+  reconnect; fresh browser error/discard/retry/reload walks verify draft recovery and restoration.
