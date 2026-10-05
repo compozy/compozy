@@ -522,6 +522,12 @@ Each managed `run-agent` cell owns a system session. A session-started Loop reco
 origin session as informational parent lineage without borrowing it. Terminal cell settlement
 closes the binding and queues a durable stop. A failure scheduled for retry keeps the binding active
 until the cell reaches a terminal boundary.
+`allowed_tools` restricts that worker to a subset of the resolved Agent's tools; a request
+outside the Agent's allowance fails binding before the provider starts. The restriction is
+part of the pinned creation profile: equivalent lists reuse the session, while a different
+explicit restriction fails with a binding mismatch.
+Inspect the failed node's `allowed_tools_policy_violation` cause to find the rejected tool;
+remove it from the node list or select an Agent that permits it before retrying.
 A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout

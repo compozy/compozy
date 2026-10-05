@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -61,6 +62,9 @@ func (b *loopActionSessionBinder) resolvePinnedCreationProfile(
 		}
 	}
 	opts := createOptionsFromProfile(req, profile)
+	if len(req.AllowedTools) > 0 {
+		opts.AllowedToolsOverride = slices.Clone(req.AllowedTools)
+	}
 	if !applyManagedDenials {
 		opts.DeniedToolsOverride = append([]string(nil), profile.DeniedTools...)
 	}
@@ -133,10 +137,11 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 		ACPOptions:      loopACPOptionsForSession(runtime.ACPOptions),
 		Name:            loopRuntimeSessionName(kind, agent, req.Handle),
 
-		PromptOverlay:       strings.TrimSpace(req.ContractBlock),
-		ContractOverlay:     strings.TrimSpace(req.ContractBlock),
-		Type:                session.SessionTypeSystem,
-		DeniedToolsOverride: loopActionTerminalTools(),
+		PromptOverlay:        strings.TrimSpace(req.ContractBlock),
+		ContractOverlay:      strings.TrimSpace(req.ContractBlock),
+		Type:                 session.SessionTypeSystem,
+		AllowedToolsOverride: slices.Clone(req.AllowedTools),
+		DeniedToolsOverride:  loopActionTerminalTools(),
 	}
 	applyLoopDirectoryBeforePolicy(&opts, req.EnvironmentValue())
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {

@@ -4,6 +4,23 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Managed Loop tool policy:** Carry the authored node's allowed_tools through managed
+  session creation and reject explicit restrictions that differ from an active pinned
+  profile. The existing Manager owns subset validation against the Agent ceiling.
+  CLI/HTTP/UDS/native Loop calls retain their routes, fields and deterministic validation
+  errors; Web consumes the existing node failure payload. No hook, extension, config key,
+  workspace/profile ownership, storage shape or migration changes. Official Loop guidance
+  and the DSL reference describe the enforced restriction and immutable reuse policy.
+  The existing managed runtime integration suite owns this boundary; LP-046 owns the real
+  provider-backed subset/refusal replay. Bug: BUG-20261005-loop-managed-allowed-tools-ignored.
+  Session subset failures also retain a typed policy cause through the existing error chain.
+  The Loop action_failure shape adds the specific allowed_tools_policy_violation code,
+  rejected tool and safe recovery guidance. Existing ErrValidation matching and raw CLI
+  error text remain stable; arbitrary errors still receive the safe generic projection.
+  This extends the existing failure taxonomy without a new DTO or migration. The same
+  integration case owns end-to-end refusal projection; existing session subset and daemon
+  safe-failure suites remain canaries. Reopened bug: BUG-20260713-loop-failure-hidden.
+
 - **Loop runtime field names:** Run and automation input wrappers pass their visible caption
   IDs through the existing typed control to RuntimeSelector's caption-plus-value accessible
   name. No shared selector behavior changes. CLI/HTTP/UDS/native tools, extension/hook/config

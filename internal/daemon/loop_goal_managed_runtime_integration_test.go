@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -500,6 +502,96 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			}
 		})
 		assertSessionProvenanceParent(t, fixture.manager, retryBinding.SessionID, parentID)
+	})
+
+	t.Run("Should persist and enforce managed tool narrowing across binding reuse", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "tool-subset", nil,
+			withoutInitialGoalBinding(),
+			withGoalRuntimeAgentTools("compozy__session_list", "compozy__workspace_list"),
+		)
+		ctx := t.Context()
+		request := fixture.bindingRequest("tool-subset")
+		request.AllowedTools = []string{" compozy__workspace_list ", "compozy__workspace_list"}
+		binding, err := fixture.runtime.BindActionSession(ctx, request)
+		if err != nil {
+			t.Fatalf("BindActionSession(subset) error = %v", err)
+		}
+		wantTools := []string{"compozy__workspace_list"}
+		profile, err := fixture.goalStore.GetSessionCreationProfile(ctx, binding.CreationProfileRef)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(profile.AllowedTools, wantTools) || !slices.Equal(profile.AgentTools, wantTools) {
+			t.Fatalf("creation profile tools = %v / %v, want %v", profile.AllowedTools, profile.AgentTools, wantTools)
+		}
+		info, err := fixture.manager.Status(ctx, binding.SessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Lineage == nil || !slices.Equal(info.Lineage.PermissionPolicy.Tools, wantTools) {
+			t.Fatalf("session lineage = %#v, want narrowed tools %v", info.Lineage, wantTools)
+		}
+		request.AllowedTools = wantTools
+		reused, err := fixture.runtime.BindActionSession(ctx, request)
+		if err != nil || reused.SessionID != binding.SessionID {
+			t.Fatalf("BindActionSession(normalized retry) = %#v, %v, want original session", reused, err)
+		}
+	})
+
+	t.Run("Should reject managed tool widening before creating a session", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "tool-widening", nil,
+			withoutInitialGoalBinding(),
+			withGoalRuntimeAgentTools("compozy__session_list", "compozy__workspace_list"),
+		)
+		ctx := t.Context()
+		request := fixture.bindingRequest("tool-widening")
+		request.AllowedTools = []string{"compozy__config_get"}
+		_, err := fixture.runtime.BindActionSession(ctx, request)
+		if !errors.Is(err, session.ErrValidation) || !strings.Contains(err.Error(), "widens agent profile") {
+			t.Fatalf("BindActionSession(widening) error = %v, want deterministic validation failure", err)
+		}
+		metadata, marshalErr := marshalLoopActionFailureMetadata("loop_action", err)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		var envelope loopActionFailureMetadata
+		if err := json.Unmarshal(metadata, &envelope); err != nil {
+			t.Fatal(err)
+		}
+		if envelope.Failure.Code != "allowed_tools_policy_violation" ||
+			!strings.Contains(envelope.Failure.Cause, "compozy__config_get") ||
+			strings.Contains(envelope.Failure.Cause, "session:") || envelope.Failure.Recovery == "" {
+			t.Fatalf("Loop failure = %#v, want safe tool-policy cause and recovery", envelope.Failure)
+		}
+		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
+			t.Fatalf("rejected session %q was materialized", request.DesiredSessionID)
+		}
+		_, statusErr := fixture.manager.Status(ctx, request.DesiredSessionID)
+		if !errors.Is(statusErr, session.ErrSessionNotFound) {
+			t.Fatalf("Status(rejected session) error = %v, want ErrSessionNotFound", statusErr)
+		}
+	})
+
+	t.Run("Should reject a tool restriction that diverges from the active pinned profile", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "tool-profile", nil,
+			withGoalRuntimeAgentTools("compozy__session_list", "compozy__workspace_list"),
+		)
+		request := fixture.bindingRequest("tool-profile")
+		request.BindingAttemptID = "binding-attempt-goal-managed-tool-profile-divergent"
+		request.DesiredSessionID = "sess-goal-managed-tool-profile-divergent"
+		request.AllowedTools = []string{"compozy__workspace_list"}
+		_, err := fixture.runtime.BindActionSession(t.Context(), request)
+		reason, matched := errors.AsType[*looppkg.ReasonError](err)
+		if !matched || reason.Code != looppkg.ReasonCodeContinuousBindingMismatch ||
+			!errors.Is(err, looppkg.ErrTransitionConflict) {
+			t.Fatalf("BindActionSession(divergent tools) error = %v, want bindingMismatch", err)
+		}
+		if _, active := fixture.manager.Get(fixture.binding.SessionID); !active {
+			t.Fatalf("original session %q is no longer active", fixture.binding.SessionID)
+		}
+		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
+			t.Fatalf("divergent session %q was materialized", request.DesiredSessionID)
+		}
 	})
 
 	t.Run("Should reject a runtime triple that diverges from the active pinned profile", func(t *testing.T) {
@@ -1335,12 +1427,17 @@ type loopGoalManagedRuntimeFixture struct {
 type loopGoalManagedRuntimeFixtureConfig struct {
 	bindInitial bool
 	decorate    func(*session.Manager) SessionManager
+	agentTools  []string
 }
 
 type loopGoalManagedRuntimeFixtureOption func(*loopGoalManagedRuntimeFixtureConfig)
 
 func withoutInitialGoalBinding() loopGoalManagedRuntimeFixtureOption {
 	return func(config *loopGoalManagedRuntimeFixtureConfig) { config.bindInitial = false }
+}
+
+func withGoalRuntimeAgentTools(tools ...string) loopGoalManagedRuntimeFixtureOption {
+	return func(config *loopGoalManagedRuntimeFixtureConfig) { config.agentTools = slices.Clone(tools) }
 }
 
 func withGoalRuntimeSessionManager(
@@ -1409,6 +1506,7 @@ func newLoopGoalManagedRuntimeFixture(
 	cfg := testConfig(t, homePaths)
 	workspaceRoot := homePaths.HomeDir + "/workspace"
 	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
+	resolvedWorkspace.Agents[0].Tools = slices.Clone(config.agentTools)
 	daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
@@ -1445,6 +1543,7 @@ func newLoopGoalManagedRuntimeFixture(
 		deps,
 		resolvedWorkspace,
 		driver,
+		session.WithHostedMCPLauncher(deps.HostedMCP),
 		session.WithSessionCatalog(daemonInstance.registry),
 		session.WithSessionCreationStore(goalStore),
 		session.WithSessionInputQueueStore(queueStore),

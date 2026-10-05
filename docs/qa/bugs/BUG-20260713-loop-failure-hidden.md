@@ -1,11 +1,11 @@
 # BUG-20260713-loop-failure-hidden: A stalled Loop hides the action failure that the operator must fix
 
-- **Status:** verified
+- **Status:** open
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Lea
 - **Journey Step:** J-01 arrive and use run, step 6
-- **Scenarios:** LP-action-failure-detail
+- **Scenarios:** LP-action-failure-detail;LP-046
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
 - **Origin:** n/a
 
@@ -48,3 +48,46 @@ Lea started the bundled `software-delivery` Loop with a slug that had no matchin
 - **Public evidence:** Browser-created run `looprun-b165c15b174e3d40` rendered `No task set matched .compozy/tasks/helix-v1-launch/task_*.md.` and `Create the matching task set or correct the Loop input, then retry the run.` beneath both failed `load_tasks` nodes. The public run API persisted the same typed `action_failure` payload.
 - **Evidence:** `/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-loop-failure-detail-fixed.dom.txt`.
 - **Result:** Verified. The terminal state remains truthful while the operator now receives the missing prerequisite and recovery path.
+
+## Regressed — 2026-10-05, managed worker policy refusal
+
+Bruno's CH-026 replay now correctly refuses a node tool outside its Agent allowance.
+Run looprun-764eae115b4ac19d ends Exhausted at its one-round cap with no worker session,
+but CLI Loop status/why and HTTP/UDS output_ref contain only loop_action_failed and
+The action failed before producing an output. The failed node supplies no policy reason.
+Following Open record or reading task run show reveals the deterministic underlying
+allowed_tools override tool compozy__config_get widens agent profile error.
+This is the same lost-action-cause symptom at a newly reached boundary; the earlier
+extension failure repair remains intact.
+
+Evidence: docs/qa/evidence/2026-10-02-untested/loops-policy-replay-bruno-
+widening-{read,terminal,why-correct,task-run,reloaded}.json,
+failed-{node,record}.json and widening-record.png. The 16-frame recording at
+/Users/pedronauck/.config/browser-harness/agent-workspace/recordings/loops-policy-replay-bruno
+is closed, and the failure-record screenshot was inspected.
+
+Root cause: the session subset validator returns only formatted ErrValidation, so the
+operator-safe Loop failure mapper cannot distinguish this known policy refusal from an
+arbitrary unsafe runtime error. Add a typed policy violation at the validator and translate
+only that type into bounded cause/recovery, preserving the existing raw CLI error and
+ErrValidation identity. Never expose arbitrary underlying error strings.
+
+The managed runtime integration suite already owns real widening rejection. Extend that
+case to require the policy refusal's safe Loop projection, and reuse the existing session
+subset and daemon failure-metadata suites as canaries. No new test file, schema or wire shape.
+Repair and original-persona replay remain pending.
+
+### Policy-boundary repair replay — 2026-10-05
+
+The extended managed-runtime integration assertion failed with generic loop_action_failed,
+then passed after the session validator retained a typed policy error and the daemon mapped
+that exact type to allowed_tools_policy_violation. The raw validation error and ErrValidation
+identity remain intact; arbitrary error text is not exposed.
+
+Fresh Bruno run looprun-4e3ef95a3c021763 publishes the refused config_get tool and recovery
+guidance through Loop status and both transports. Web Details renders those same values
+after reload; the screenshot loops-policy-safe-bruno-reloaded-failure.png was inspected.
+Its adjacent valid run looprun-5e8b200a211f5041 completes with the one-tool policy. Receipts:
+docs/qa/evidence/2026-10-02-untested/loops-policy-safe-bruno-*.
+The exact recording loops-policy-safe-bruno is closed (11 frames). The owning integration
+and unchanged safe-failure/session subset suites pass. Gate/commit provenance remains pending.

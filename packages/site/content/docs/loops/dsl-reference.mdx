@@ -271,6 +271,10 @@ remain an array. See [Reference grammar](/docs/loops/reference-grammar#typed-dir
 permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
 canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
 rejects the node run deterministically before an ungated session can start.
+The restriction is pinned with the managed session's creation profile. Reusing a binding with
+a different explicit tool list fails with a binding mismatch; an equivalent list reuses the session.
+Policy refusals publish `allowed_tools_policy_violation` with the rejected tool and recovery
+guidance in the Loop's action failure.
 
 ### Control nodes
 
