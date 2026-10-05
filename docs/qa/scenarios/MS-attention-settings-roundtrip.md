@@ -6,11 +6,11 @@ persona: Dora
 journey: J-administer-runtime-settings
 expected: Settings → Notifications, config.toml, and compozy config get/set agree on the global toasts, sound, and system values; HTTP, UDS, and Web read and replace muted_workspaces for the selected profile without changing another profile; valid changes apply live without a daemon restart, concurrent writes preserve a complete candidate, and deleting a workspace removes every profile-owned mute row.
 entry_points: web Settings → Notifications; config.toml [attention]; compozy config get/set attention.toasts|sound|system; GET/PATCH /api/settings/attention?scope=user or ?scope=profile&profile=<name> over HTTP and UDS; workspace deletion
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20261004-attention-default-profile-refused; BUG-20261004-attention-deleted-workspace-stale; BUG-20261004-settings-offline-save-stuck
 fix_status: fixed
 retest_status: pass
-fix_commits: 84f02d6b2
+fix_commits: 84f02d6b2; 23dddb441
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json; docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png; .compozy/tasks/herdr-parity/evidence/visual/task_03
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps:
@@ -99,5 +99,38 @@ retains its saved value and stays interactive. Reconnection does not write; an e
 succeeds and matches independent public GET. Restoring the full policy and reloading leaves the
 default browser permission, no restart and no active sessions. Evidence:
 docs/qa/evidence/2026-10-02-untested/settings-offline-guidance-dora-ended.json and
-settings-offline-guidance-restored-attention.json. The linked offline-save repair awaits its
-gate/commit; simultaneous-writer and platform-delivery legs remain pending.
+settings-offline-guidance-restored-attention.json. The linked offline-save repair is verified at
+23dddb441 with its exact-tree gate; simultaneous-writer and platform-delivery legs remain pending.
+
+
+2026-10-04 concurrent continuation: CH-attention-complete-writers starts one bounded HTTP/UDS
+pair with 103.774 ms of overlapping transport intervals. Both whole three-field candidates
+return 200 and live apply receipts. The HTTP candidate wins unchanged (false/true/false), with
+no mixed fields. Both real Settings tabs converge before reload; each reload preserves it.
+Fresh HTTP, UDS, config CLI, and config.toml agree. Both profile mute lists stay empty.
+Restore the complete baseline, reload both tabs, close the owned second tab and Settings.
+Permission stays default; the same PID remains current with no restart and zero active sessions.
+All four PNGs are inspected and the 16-frame recording is closed. Evidence:
+docs/qa/evidence/2026-10-02-untested/attention-concurrent-round-1-result.json,
+attention-concurrent-dora-live-and-reload.json, and attention-concurrent-dora-ended.json.
+Concurrent writers are now covered; unsupported capability and actual audible/OS delivery
+remain unverified, so this full charter retains its pending verdict.
+
+
+2026-10-04 platform prerequisite inspection: the native macOS System Settings UI is reachable.
+Both Google Chrome and Chrome for Testing entries read Off; the Chrome detail confirms
+allow-notifications=off and disabled delivery/sound controls. No host permission was changed.
+The direct Notification Center binding timed out, but that is not generalized to all native UI.
+System Settings returns to General and its owned window closes (inventory: isRunning=false).
+Evidence: docs/qa/evidence/2026-10-02-untested/attention-platform-native-precondition.json.
+
+Set the full charter to blocked-verify: every currently viable application/configuration leg is
+walked, including concurrency and suppression, but actual audible/OS delivery and a real
+unsupported browser remain unverified. Human completion: permit notifications for the chosen
+Chrome installation in macOS, use the lab origin's System notifications gesture to grant site
+permission, keep the app in the background, and complete a real session with sound and system
+delivery enabled. Hear the sound and capture the native notification; verify its target opens
+the correct session, then restore both host/site permissions and the full application policy.
+On a real browser/platform without Notification support, open the same page and verify the
+Unavailable state without patching browser globals. Existing fixed/retest fields describe the
+two verified product repairs, not those external delivery observations.

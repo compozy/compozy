@@ -6,11 +6,11 @@ persona: Dora
 journey: J-administer-runtime-settings
 expected: The settings window renders the 264px takeover sidebar (the host's Close Settings action closes the window; search with `/` shortcut filters sections; Basics/Personal/Agents/Advanced groups; runtime foot naming CompozyOS, never "daemon") collapsing to a chip strip under 56rem. Section labels read Remote access, Notifications, and Diagnostics, while their slugs stay `gateway`, `attention`, and `observability`, and searching the retired word still finds the renamed section. Pages use one-decision srows with consequence sentences, at most one Advanced fold per page, and choice cards with neutral selection. Draft pages show the floating save bar only when dirty/saving/error and flash "Saved" after a clean save; restart-needed changes surface the typed restart notice.
 entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window; BUG-20261004-settings-idle-timeout-display; BUG-20261004-settings-startup-false-offline; BUG-20261004-settings-offline-save-stuck
-fix_status: pending
-retest_status:
-fix_commits: b4166a6c2; baec8d019; 3268b7477; 4ce6fd811
+fix_status: fixed
+retest_status: pass
+fix_commits: b4166a6c2; baec8d019; 3268b7477; 4ce6fd811; 23dddb441
 evidence: docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-reload-observed.json; docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-save.json; docs/qa/reports/2026-10-02-untested.md
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: MS-026; MS-037; ET-012; ET-044; ET-045
@@ -99,3 +99,8 @@ canaries pass. Eight final PNGs are inspected and the 26-frame recording is clos
 baselines and current runtime state are restored. The broader page/navigation/visual legs have
 current-cycle proof; required gate and commit bookkeeping remain before promotion. Evidence:
 settings-offline-guidance-dora-ended.json and related receipts in the report evidence directory.
+
+2026-10-04 closure: offline recovery is verified at 23dddb441 after the exact-tree gate passes
+(693 Web files / 6,982 tests). All named page, navigation, visual, draft/save/error and typed
+restart legs have current-cycle proof. Set the complete scenario to pass/fixed; all five
+linked defects are verified. The separate Notifications delivery charter retains its own gaps.

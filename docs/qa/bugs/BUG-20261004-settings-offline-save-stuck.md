@@ -1,6 +1,6 @@
 # BUG-20261004-settings-offline-save-stuck: Settings stays on Saving while offline
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -64,7 +64,7 @@ The registry search found no existing owner for this Settings offline-save sympt
   SettingsApiError with actionable guidance and the original cause, preserving cancellation
   and server validation errors. Keep global query and other
   domain mutation policies intact; preserve the direct Attention gesture-owned request.
-- **Fix commit:** pending.
+- **Fix commit:** 23dddb441a73fef816723f9feb3bfb2d2e3ceaeb.
 - **Regression test:** web/src/systems/settings/hooks/__tests__/use-settings-mutations.test.tsx.
   Invariant: an offline explicit form save reaches a settled error, remains unsubmitted after
   reconnection and succeeds only on an explicit retry. The Settings mutation hook layer owns
@@ -76,8 +76,8 @@ already owns retry and discard; no new offline queue or product choice is introd
 
 ## Verification
 
-Pending owning-suite red/green proof and a fresh original-persona offline/discard/retry/reload
-walk, with adjacent Settings saves and full baseline restoration.
+Verified by the final original-persona replay below, owning-suite red/green proof, full baseline
+restoration and the exact-tree delivery gate.
 
 
 ### First repaired replay — 2026-10-04
@@ -123,4 +123,8 @@ The exact closed 26-frame recording is
 /Users/pedronauck/.config/browser-harness/agent-workspace/recordings/settings-offline-guidance-dora.
 All eight final PNGs were opened and inspected. Receipts use settings-offline-guidance-;
 settings-offline-save-final-focused.json and final-build.json own engineering checks.
-The required gate and fix commit remain before delivery bookkeeping promotes this defect.
+The required gate passes for the exact committed tree 39e3d98ca6393be501e3c42ec9a08bfac565d7f1.
+Commit 23dddb441a73fef816723f9feb3bfb2d2e3ceaeb closes the defect. The gate passes
+693 Web files / 6,982 tests and 146 UI files / 929 tests, plus affected Go race tests, lint,
+typecheck and codegen checks. Receipts: settings-offline-save-delivery-gate.json and
+settings-offline-save-commit-identity.json.
