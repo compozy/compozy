@@ -1,6 +1,6 @@
 # BUG-20261005-loop-managed-allowed-tools-ignored: Loop workers ignore the node tool restriction
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -75,3 +75,12 @@ looprun-4e3ef95a3c021763, preserves the specific policy violation in Loop output
 HTTP/UDS and refreshed Web agree. Receipt families: loops-policy-replay-bruno-* and
 loops-policy-safe-bruno-*. The recordings are closed (16 and 11 frames).
 Commit provenance and the delivery gate remain pending before registry closure.
+
+### Policy repair closure — 2026-10-05
+
+Fix commit: 547027459508f5e2d550dcd80d5378e6ea077db3. The fourth make gate passes for frozen tree
+5c7114683a5f2f718625c34e6b1bfec04c6c0f96; all required gate-status records are CURRENT-PASS.
+The ordinary commit and its formatting hooks preserve that exact tree. Original Bruno
+replays, independent transports and refresh proof above verify the policy boundary.
+Receipts: loops-policy-delivery-gate-4.json, loops-policy-frozen-gate-status.json,
+and loops-policy-fix-commit.json. Historical provider quota/OAuth legs remain unverified.

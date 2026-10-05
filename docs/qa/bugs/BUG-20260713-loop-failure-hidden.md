@@ -1,6 +1,6 @@
 # BUG-20260713-loop-failure-hidden: A stalled Loop hides the action failure that the operator must fix
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Lea
@@ -91,3 +91,12 @@ Its adjacent valid run looprun-5e8b200a211f5041 completes with the one-tool poli
 docs/qa/evidence/2026-10-02-untested/loops-policy-safe-bruno-*.
 The exact recording loops-policy-safe-bruno is closed (11 frames). The owning integration
 and unchanged safe-failure/session subset suites pass. Gate/commit provenance remains pending.
+
+### Policy repair closure — 2026-10-05
+
+Fix commit: 547027459508f5e2d550dcd80d5378e6ea077db3. The fourth make gate passes for frozen tree
+5c7114683a5f2f718625c34e6b1bfec04c6c0f96; all required gate-status records are CURRENT-PASS.
+The ordinary commit and its formatting hooks preserve that exact tree. Original Bruno
+replays, independent transports and refresh proof above verify the policy boundary.
+Receipts: loops-policy-delivery-gate-4.json, loops-policy-frozen-gate-status.json,
+and loops-policy-fix-commit.json. Historical provider quota/OAuth legs remain unverified.

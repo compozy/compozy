@@ -6,11 +6,11 @@ persona: Lea
 journey: J-01
 expected: A failed action node preserves and renders the actionable backend cause, and a terminal stalled run tells the operator what to correct before retrying.
 entry_points: web Loop run detail; GET /api/workspaces/:workspace_id/loop-runs/:run_id
-qa_status: fail
+qa_status: blocked-verify
 bug_ids: BUG-20260713-loop-failure-hidden; BUG-20260713-loop-watch-poll-error-stuck
-fix_status: pending
-retest_status: pending
-fix_commits: 8eeb8a38
+fix_status: fixed
+retest_status: pass
+fix_commits: 8eeb8a38;547027459508f5e2d550dcd80d5378e6ea077db3
 evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-software-delivery-stalled-missing-taskset.png; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-loop-failure-detail-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-lp-public-interface-20260730-060347-933555-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps:
@@ -35,3 +35,8 @@ Loop status/why and HTTP/UDS preserve only a generic action_failure; the linked 
 record contains the exact widening error. The historical bug is reopened for this boundary.
 Evidence: docs/qa/evidence/2026-10-02-untested/loops-policy-replay-bruno-*. This supplementary
 finding does not claim the older external quota/OAuth prerequisites have been exercised.
+
+2026-10-05 policy-boundary retest: fixed at 547027459508f5e2d550dcd80d5378e6ea077db3 and verified with Bruno
+through CLI/HTTP/UDS and reloaded Web Details. This retest closes the reproduced policy
+projection regression. The overall scenario remains blocked-verify for the previously
+recorded real provider quota/OAuth prerequisites; those failures were not induced here.
