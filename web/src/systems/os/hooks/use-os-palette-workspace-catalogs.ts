@@ -69,13 +69,13 @@ function queryState(
   };
 }
 
-async function fetchAllWorkspaceLoops(workspaceId: string, signal: AbortSignal) {
+async function fetchAllWorkspaceLoops(profile: string, workspaceId: string, signal: AbortSignal) {
   const loops: LoopCatalogEntry[] = [];
   const seenCursors = new Set<string>();
   let cursor: string | undefined;
   let total = 0;
   for (;;) {
-    const page = await listLoops(workspaceId, { cursor }, signal);
+    const page = await listLoops(workspaceId, { cursor, profile }, signal);
     loops.push(...page.loops);
     total = page.page.total;
     if (!page.page.has_more) return { loops, total };
@@ -130,11 +130,11 @@ export function useOsPaletteWorkspaceCatalogs({
   const ids = workspaceIds.filter(id => id.trim() !== "");
   const loopQueries = useQueries({
     queries: ids.map(workspaceId => {
-      const base = loopsCatalogOptions(workspaceId, {});
+      const base = loopsCatalogOptions(workspaceId, { profile });
       const queryKey: readonly unknown[] = [...base.queryKey, "palette-all-pages"];
       return queryOptions({
         queryKey,
-        queryFn: ({ signal }) => fetchAllWorkspaceLoops(workspaceId, signal),
+        queryFn: ({ signal }) => fetchAllWorkspaceLoops(profile, workspaceId, signal),
         enabled: loopsEnabled,
         staleTime: 15_000,
       });

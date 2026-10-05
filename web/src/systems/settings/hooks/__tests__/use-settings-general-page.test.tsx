@@ -2,6 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { statusFixture } from "@/systems/status/mocks";
+
+vi.mock("@/systems/status/adapters/daemon-api", () => ({
+  fetchStatus: vi.fn(async () => statusFixture),
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,

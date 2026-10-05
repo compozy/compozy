@@ -121,7 +121,7 @@ function DegradedNotice({
 export function LoopRunsView({
   runs,
   outcome,
-  hasActiveFilters = outcome !== "all",
+  hasActiveFilters: suppliedHasActiveFilters,
   profileScope,
   isError = false,
   isReconnecting = false,
@@ -132,6 +132,7 @@ export function LoopRunsView({
   className,
   ...props
 }: LoopRunsViewProps) {
+  const hasActiveFilters = suppliedHasActiveFilters ?? outcome !== "all";
   const roster = buildRunsRoster(runs, outcome, hasActiveFilters);
   const ownerOf = profileScope.aggregate ? profileScope.ownerOf : undefined;
   // A failed read outranks a reconnect: it is the more specific fact, and it is

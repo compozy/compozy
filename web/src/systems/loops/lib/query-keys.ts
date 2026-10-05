@@ -61,6 +61,7 @@ export const loopsKeys = {
       normalizeText(normalized.status),
       normalizeText(normalized.sort),
       normalizeNumber(normalized.limit),
+      profileLens(normalized.profile, normalized.all_profiles),
     ] as const;
   },
 

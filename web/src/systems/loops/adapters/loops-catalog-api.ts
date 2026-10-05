@@ -25,6 +25,8 @@ function normalizeLoopCatalogFilter(filters: LoopCatalogFilter = {}): LoopCatalo
     sort: filters.sort,
     cursor: normalizeOptionalText(filters.cursor),
     limit: filters.limit,
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 

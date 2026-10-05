@@ -880,6 +880,35 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
+  it.each(["marketing", "@all"])(
+    "Should reuse Loop catalog preloads under the %s profile view",
+    async profile => {
+      const queryClient = createQueryClient();
+      setProfileView(
+        readProfileLens(),
+        profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile }
+      );
+      const scope = profile === "@all" ? { all_profiles: true } : { profile };
+      await invokeLoader(LoopsRoute, {
+        ...context(queryClient),
+        deps: { limit: 50, sort: "name" as const },
+        location: { pathname: "/loops" },
+      });
+      expect(adapterMocks.listLoops).toHaveBeenCalledExactlyOnceWith(
+        workspace.id,
+        expect.objectContaining({ limit: 50, sort: "name", ...scope }),
+        expect.any(AbortSignal)
+      );
+      const unmount = mountQueries(queryClient, () => {
+        useLoops(workspace.id, { limit: 50, sort: "name" });
+      });
+      await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+      expect(adapterMocks.listLoops).toHaveBeenCalledTimes(1);
+      unmount();
+      queryClient.clear();
+    }
+  );
+
   it("Should preload loop destinations in the workspace carried by a trigger link", async () => {
     const queryClient = createQueryClient();
     const targetWorkspaceId = "ws_target";

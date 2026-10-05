@@ -4,6 +4,17 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Loop catalog profile scope:** Web passes the existing selected-profile or explicit
+  aggregate params through the catalog hook, route preloads, filter normalization and
+  adapter. The canonical cache key includes that scope; continuation keeps it. The
+  cross-workspace command palette preserves its existing acting profile on every page.
+  HTTP/UDS, CLI and native loop_list contracts and server filtering remain unchanged.
+  Extension enablement, hooks/config and workspace data keep their existing owners;
+  no schema migration or official skills/compozy/ contract change is needed. ET-052 and
+  BUG-20261005-loop-catalog-ignores-profile own the real leave/return replay. The existing
+  query-options suite owns paginated population isolation; route-preloading owns
+  loader/hook cache reuse and the adapter suite owns query serialization.
+
 - **Runs filter recovery:** Web carries origin/session filter presence into the existing
   empty-state model and clears all roster filters through their current setters. Server
   filtering, CLI/HTTP/UDS/native tools, extensions/hooks/config, workspace/profile isolation,
@@ -16,6 +27,8 @@ Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further re
   forcing focus back on blur, allowing its input and menu focus lifecycle to complete.
   No new focus context, exported component prop or visual token changes; the same real-daemon
   E2E covers initial input focus, continuous typing, reload and Escape-to-trigger.
+  The Runs view computes its optional filter fallback in the component body so React
+  Compiler can compile it; its existing default/explicit-filter behavior is unchanged.
 
 - **Breadcrumb destination:** The Web routing coordinator consumes a navigation-stack entry
   only when it matches the selected parent. A deep link can leave a different entry behind;
