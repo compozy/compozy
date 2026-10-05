@@ -1,6 +1,6 @@
 # BUG-20261005-loop-initial-gate-route-lost: A gate at the start of a Loop loses its continuation route
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -44,7 +44,7 @@ finishInitialControlPlan selects noReadyNodesTerminal instead of the existing id
 finisher that owns gate succession. The canonical coordinator suite must cover a gate evaluated
 before any task dispatch, with its verdict retained and a bounded successor admitted.
 
-Fix commit: pending. Production repair and focused/race checks pass; required delivery gate remains. Repair the owning initial planning path and re-walk
+Fix commit: 20cbc5693d5e44d8157f994b9a71b11cf65b08f2. The owning race suites and required make gate pass. Repair the owning initial planning path and re-walk
 both root-gate and producer-present definitions without changing the authored gate requirement.
 
 ## Functional replay
@@ -59,4 +59,10 @@ CLI/HTTP/UDS agree; fresh production Web and inspected screenshots display the s
 terminal state and round count. The loops-gate-routing-fixed-bruno recording closes with
 eleven frames. All internal/loop/... race packages pass after preserving successful
 control-only completion. See loops-gate-routing-replay-summary.json and the current report.
-Status remains open until the enclosing delivery gate and commit.
+Verified after the final-binary replay and passing gate; the committed tree matches the frozen gate evidence.
+
+Final binary SHA-256 a847d1b3535c9141a16ac98e65381f63efc2a5a7a4403d16d04593bb6b5262db
+replays the same results in initial looprun-1e00fc00e4c911ff, producer
+looprun-c1311289bab321a4 and revise looprun-fc6beb85bf8c0654. See
+loops-gate-routing-final-*-uds.json, loops-gate-routing-delivery-gate-v2.json,
+loops-gate-routing-gate-status.json and loops-gate-routing-committed-head.json.

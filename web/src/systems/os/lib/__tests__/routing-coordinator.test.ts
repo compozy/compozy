@@ -268,6 +268,27 @@ function createCoordinator(initialWindows: readonly OsWindow[] = []) {
 }
 
 describe("RoutingCoordinator", () => {
+  it.each(["/loops", "/loop-runs", "/loops/studio-onboarding-review"])(
+    "Should honor the breadcrumb destination when the history parent is %s",
+    async parent => {
+      const loop = windowFixture("loops", "/loop-runs");
+      loop.navStack = [route(parent)];
+      const { coordinator, router, store } = createCoordinator([loop]);
+      coordinator.reportRouteMatch(loop.route);
+      coordinator.completeHydration();
+
+      coordinator.noteNavigateMode("pop");
+      coordinator.reportRouteMatch(route("/loops"));
+      await Promise.resolve();
+
+      const settled = store.getState().windows[loop.id];
+      expect(settled.route).toEqual(route("/loops"));
+      expect(settled.navStack).toEqual(parent === "/loops" ? [] : [route(parent)]);
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    }
+  );
+
   it("Should hold a deep link until hydration then reconcile it without writing history", () => {
     const { coordinator, router, store } = createCoordinator();
 

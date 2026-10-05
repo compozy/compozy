@@ -81,8 +81,12 @@ func insertLoopGateVerdictWithExecutor(
 		}
 		params.RouteCauseRank = sql.NullInt64{Int64: int64(*intent.RouteCauseRank), Valid: true}
 	}
-	if err := sqlcgen.New(exec).InsertLoopGateVerdict(ctx, params); err != nil {
+	affected, err := sqlcgen.New(exec).InsertLoopGateVerdict(ctx, params)
+	if err != nil {
 		return fmt.Errorf("store: insert loop gate verdict for run %q generation %d: %w", runID, generation, err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("%w: gate %q already has a settled verdict", looppkg.ErrTransitionConflict, intent.GateID)
 	}
 	return nil
 }

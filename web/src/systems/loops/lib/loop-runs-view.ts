@@ -146,7 +146,8 @@ function buildRow(run: LoopRun): LoopRunRow {
 
 export function buildRunsRoster(
   runs: readonly LoopRun[],
-  outcome: LoopOutcomeValue = "all"
+  outcome: LoopOutcomeValue = "all",
+  hasActiveFilters = outcome !== "all"
 ): LoopRunsRosterModel {
   const filtered = outcome === "all" ? runs : runs.filter(run => run.status === outcome);
   const buckets = new Map<LoopRunGroupId, LoopRunRow[]>();
@@ -169,12 +170,11 @@ export function buildRunsRoster(
     emptyState:
       filtered.length === 0
         ? {
-            title: outcome === "all" ? "No runs yet" : "No runs match this filter",
-            body:
-              outcome === "all"
-                ? "Start a loop from the catalog and its runs will collect here."
-                : "Clear the filter to see the rest of this workspace's runs.",
-            actionLabel: outcome === "all" ? "Browse loops" : "Clear filter",
+            title: hasActiveFilters ? "No runs match this filter" : "No runs yet",
+            body: hasActiveFilters
+              ? "Clear the filter to see the rest of this workspace's runs."
+              : "Start a loop from the catalog and its runs will collect here.",
+            actionLabel: hasActiveFilters ? "Clear filter" : "Browse loops",
           }
         : null,
   };

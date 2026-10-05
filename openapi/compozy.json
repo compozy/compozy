@@ -227621,6 +227621,9 @@
                                         "type": "boolean"
                                       },
                                       "payload": {},
+                                      "prompt": {
+                                        "type": "string"
+                                      },
                                       "score": {
                                         "format": "double",
                                         "nullable": true,

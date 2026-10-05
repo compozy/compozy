@@ -654,13 +654,18 @@ func TestEvaluatorHumanDecisionRoutes(t *testing.T) {
 	t.Run("Should route pending human decision to approval escalation", func(t *testing.T) {
 		t.Parallel()
 
-		verdict, err := NewEvaluator().Evaluate(context.Background(), humanGate(), GateInput{
+		gate := humanGate()
+		gate.Criteria[0].Prompt = "Review release v2.4.1"
+		verdict, err := NewEvaluator().Evaluate(context.Background(), gate, GateInput{
 			Placement: PlacementDefinitionOfDone,
 		})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
 		requireOutcome(t, verdict, VerdictOutcomeAwaitingApproval)
+		if got, want := verdict.Criteria[0].Prompt, gate.Criteria[0].Prompt; got != want {
+			t.Fatalf("pending human prompt = %q, want %q", got, want)
+		}
 		requireIssueID(t, verdict.BlockingIssues, blockerHumanPending)
 		if verdict.Route.Action != RouteEscalate {
 			t.Fatalf("Route.Action = %q, want %q", verdict.Route.Action, RouteEscalate)

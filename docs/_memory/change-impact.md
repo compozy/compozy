@@ -4,6 +4,51 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Runs filter recovery:** Web carries origin/session filter presence into the existing
+  empty-state model and clears all roster filters through their current setters. Server
+  filtering, CLI/HTTP/UDS/native tools, extensions/hooks/config, workspace/profile isolation,
+  storage and the official skill remain unchanged. LP-008 and the route-composition suite
+  own recovery proof; the site Runs guide describes the clear-filter action. Bug:
+  `BUG-20261005-loop-filter-hides-existing-runs`.
+  Keep the toolbar mounted through query loading/failure so the session-id draft remains
+  editable. The existing real-daemon Loops Web E2E owns this distinct lifetime invariant
+  for `BUG-20261005-loop-session-filter-disappears`. The existing shared filter search stops
+  forcing focus back on blur, allowing its input and menu focus lifecycle to complete.
+  No new focus context, exported component prop or visual token changes; the same real-daemon
+  E2E covers initial input focus, continuous typing, reload and Escape-to-trigger.
+
+- **Breadcrumb destination:** The Web routing coordinator consumes a navigation-stack entry
+  only when it matches the selected parent. A deep link can leave a different entry behind;
+  that case uses the existing explicit navigation command. Matching history still pops once.
+  Native `compozy__window_*` tools, CLI/HTTP/UDS `window.navigate` semantics, persisted stacks,
+  layout migrations, hooks/extensions/config and workspace/profile ownership are unchanged.
+  The official window-management reference remains accurate for explicit pop commands; the
+  site Runs trail description remains valid. The coordinator suite owns the bridge invariant
+  and LP-web-runs-breadcrumb owns the real deep-link/Back/crumb replay. Bug:
+  `BUG-20261005-loop-breadcrumb-history-overrides-parent`.
+
+- **Human gate decisions and context:** Accepted approval/request-changes decisions rearm only
+  the matching wait epoch inside the existing decision transaction. Reevaluation settles the
+  awaiting verdict projection once; the append-only event ledger retains both observations and
+  final verdicts cannot be overwritten. HTTP/UDS, CLI and `compozy__loop_approve` keep their
+  authorization, routes, flags and decision contract. Pending criteria add an optional rendered
+  `prompt` to existing JSON diagnostics and detail DTOs; OpenAPI and generated TypeScript co-ship.
+  Existing history remains readable and is not rewritten. The approval event carries the question
+  and actual criterion count. Web projects the current generation/gate from durable detail and
+  fences its live fallback by the same identity. No SQLite table shape, migration, hooks,
+  extension/config changes, or workspace/profile ownership changes. The official skill's approval
+  semantics remain correct; the site guide describes durable questions and correct CLI flags.
+  The existing gate evaluator, store wait/history/coordinator, and Web run-page suites own the
+  distinct boundaries. LP-009/010/011 own the real decision replay. Bugs:
+  `BUG-20261005-loop-request-changes-finishes-done`, `BUG-20261005-loop-human-prompt-missing`.
+  The Runs table also reserves readable name width inside the shared scrolling Table primitive;
+  LP-008 owns mobile/desktop visual proof. No new component, token or public contract is introduced
+  for `BUG-20261005-loop-mobile-run-names-truncated`.
+  Usage and approval fallback facts now use the daemon's adjusted `started_at` budget clock;
+  the elapsed duration shown in Runs keeps its existing semantics. No new wire field is needed.
+  The existing usage projection suite and finished review replay own
+  `BUG-20261005-loop-usage-counts-human-wait`; the site approval guide explains the distinction.
+
 - **Managed Loop tool policy:** Carry the authored node's allowed_tools through managed
   session creation and reject explicit restrictions that differ from an active pinned
   profile. The existing Manager owns subset validation against the Agent ceiling.

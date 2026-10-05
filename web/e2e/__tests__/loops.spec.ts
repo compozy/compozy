@@ -619,6 +619,40 @@ test.describe("Loop catalog", () => {
   });
 });
 
+// Invariant: a session-id filter remains editable through real query transitions.
+// Owner: Runs route/toolbar and filter-draft lifetime.
+test("Loop Runs session filter retains its draft across daemon responses", async ({
+  appPage,
+  runtime,
+}) => {
+  if (!runtime.paths) throw new Error("Loop filter test requires launch-mode runtime paths");
+  await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
+  await openAppWindow(appPage, "Loops", "loops");
+  await appPage.getByRole("link", { name: "Runs", exact: true }).click();
+  await appPage.getByRole("button", { name: "Add filter", exact: true }).click();
+  await appPage.getByRole("option", { name: "Session id", exact: true }).click();
+  const sessionId = appPage.getByRole("textbox", { name: "Session id value" });
+  await expect(sessionId).toBeVisible();
+  await expect(sessionId).toBeFocused();
+
+  const query = "session-review";
+  const response = appPage.waitForResponse(candidate => {
+    const url = new URL(candidate.url());
+    return url.pathname.endsWith("/loop-runs") && url.searchParams.get("origin_session") === query;
+  });
+  await appPage.keyboard.type(query);
+  expect((await response).ok()).toBe(true);
+  await expect(sessionId).toHaveValue(query);
+  await expect(sessionId).toBeFocused();
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(sessionId).toHaveValue(query);
+  const addFilter = appPage.getByRole("button", { name: "Add filter", exact: true });
+  await addFilter.click();
+  await expect(appPage.getByRole("option", { name: "Origin", exact: true })).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(addFilter).toBeFocused();
+});
+
 // Invariant: a scoped Loop navigation may select its project, but retained Loop
 // windows cannot overwrite later shell choices. Owner: LoopsWindow route adoption.
 test("scoped Loop windows preserve later Global scope choices", async ({ appPage, runtime }) => {

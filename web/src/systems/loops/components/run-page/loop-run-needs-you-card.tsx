@@ -22,7 +22,7 @@ import {
 
 interface LoopRunNeedsYouCardProps {
   run: LoopRunRecord;
-  /** The `needs_approval` payload; null before the frame replays. */
+  /** Current approval context from durable detail or a matching live frame. */
   request: LoopApprovalRequest | null;
 
   fallbackFacts: LoopApprovalFact[];

@@ -93270,6 +93270,7 @@ export interface operations {
                     | "invalid_output";
                   passed: boolean;
                   payload?: unknown;
+                  prompt?: string;
                   /** Format: double */
                   score?: number | null;
                   stderr?: string;

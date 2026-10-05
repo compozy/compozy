@@ -450,9 +450,10 @@ export class RoutingCoordinator {
       this.routeReconciliation = null;
       return;
     }
-    // Breadcrumb back: the durable nav stack owns the destination — the
-    // reported route is the app's own rendering of the same pop.
-    if (mode === "pop" && existing && !existing.minimized && existing.navStack.length > 0) {
+    // A deep link can leave a different parent in history. Consume the stack
+    // only when it matches the breadcrumb's selected destination.
+    const canPop = sameOsWindowRoute(existing?.navStack.at(-1) ?? null, route);
+    if (mode === "pop" && existing && !existing.minimized && canPop) {
       const outcome = this.manager.popWindowRoute(existing.id, route);
       this.startRouteReconciliation(pending, { windowId: existing.id, ...outcome });
       return;

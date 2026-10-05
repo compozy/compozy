@@ -47,6 +47,8 @@ const { LOOP_NEEDS_YOU_ANCHOR_ID } = await import("../run-page/loop-run-briefing
 const { LoopRunBriefing } = await import("../run-page/loop-run-briefing");
 const { buildBriefingView } = await import("../../lib/loop-run-briefing-view");
 const { projectLoopRequest } = await import("../../lib/loop-request-model");
+const { projectLoopRunPageView } = await import("../../lib/loop-run-page-view");
+const { emptyLoopRunLiveState } = await import("../../lib/loop-events");
 const { answeredAskRequest, pendingEntityAskRequest, pendingReviewRequest } =
   await import("../../mocks/fixture-graph-eng-requests");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
@@ -94,6 +96,89 @@ describe("LoopNodeStateChip", () => {
 });
 
 describe("LoopRunNeedsYouCard", () => {
+  it.each(["fresh load", "stale approval frame"])(
+    "Should display the current durable human prompt on %s",
+    source => {
+      const currentRun = run({
+        status: "needs-approval",
+        generation: 2,
+        active_gate_id: "release_review",
+      });
+      const live = emptyLoopRunLiveState();
+      if (source === "stale approval frame") {
+        live.needsApproval = {
+          gateId: "release_review",
+          generation: 1,
+          title: "Old review",
+          prompt: "Approve the previous release?",
+          facts: [],
+        };
+      }
+      const view = projectLoopRunPageView({
+        run: currentRun,
+        generations: [
+          makeGeneration(1, {
+            verdicts: [
+              {
+                gate_id: "release_review",
+                item_index: 0,
+                outcome: "awaiting_approval",
+                blocking_issues: [],
+                criteria: [
+                  {
+                    id: "reviewer",
+                    type: "human",
+                    outcome: "awaiting_approval",
+                    passed: false,
+                    prompt: "Approve the previous release?",
+                  },
+                ],
+              },
+            ],
+          }),
+          makeGeneration(2, {
+            verdicts: [
+              {
+                gate_id: "release_review",
+                item_index: 0,
+                outcome: "awaiting_approval",
+                blocking_issues: [],
+                criteria: [
+                  {
+                    id: "reviewer",
+                    type: "human",
+                    outcome: "awaiting_approval",
+                    passed: false,
+                    prompt: "Approve onboarding/source-index.md for the Studio handoff?",
+                  },
+                ],
+              },
+            ],
+          }),
+        ],
+        definition: undefined,
+        live,
+        nowMs: Date.parse("2026-10-05T12:00:00Z"),
+      });
+      render(
+        <LoopRunNeedsYouCard
+          run={currentRun}
+          request={view.approvalRequest}
+          fallbackFacts={view.approvalFallbackFacts}
+          onDecision={vi.fn()}
+        />
+      );
+
+      expect(
+        screen.getByText("Approve onboarding/source-index.md for the Studio handoff?")
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Approve the previous release?")).not.toBeInTheDocument();
+      expect(screen.getByTestId("loop-run-needs-approval-origin")).toHaveTextContent(
+        "release review · round 2"
+      );
+    }
+  );
+
   it("Should keep same-node requests from different generations distinct and retry context", () => {
     const onRequestFullContext = vi.fn();
     const view = projectLoopRequest(pendingReviewRequest, {

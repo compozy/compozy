@@ -26,7 +26,6 @@ type FiltersMenuSearchSlotProps<T> = {
   openSubMenu: ReturnType<typeof useFilters<T>>["openSubMenu"];
   rootHighlightedIndex: ReturnType<typeof useFilters<T>>["rootHighlightedIndex"];
   rootId: ReturnType<typeof useFilters<T>>["rootId"];
-  rootInputRef: ReturnType<typeof useFilters<T>>["rootInputRef"];
   setMenuState: ReturnType<typeof useFilters<T>>["setMenuState"];
   shortcutLabel: string;
 };
@@ -95,7 +94,6 @@ function FiltersFrame<T = unknown>({
                 openSubMenu: state.openSubMenu,
                 rootHighlightedIndex: state.rootHighlightedIndex,
                 rootId: state.rootId,
-                rootInputRef: state.rootInputRef,
                 setMenuState: state.setMenuState,
                 shortcutLabel,
               })}

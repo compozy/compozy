@@ -57,9 +57,15 @@ function LoopRunsFilters({
   const committedFromProps: LoopRunFilterState = { origin, originSession, outcome };
   const [chips, setChips] = useState(() => loopRunFiltersToChips(committedFromProps));
   const [committed, setCommitted] = useState(committedFromProps);
-  if (!sameRunFilterState(committed, committedFromProps)) {
-    setCommitted(committedFromProps);
-    setChips(loopRunFiltersToChips(committedFromProps));
+  const [observed, setObserved] = useState(committedFromProps);
+  // Local edits render before asynchronous route props catch up. Only an actual
+  // prop change can acknowledge that edit or replace it with external navigation.
+  if (!sameRunFilterState(observed, committedFromProps)) {
+    setObserved(committedFromProps);
+    if (!sameRunFilterState(committed, committedFromProps)) {
+      setCommitted(committedFromProps);
+      setChips(loopRunFiltersToChips(committedFromProps));
+    }
   }
 
   const handleFiltersChange = (next: Filter<string>[]) => {

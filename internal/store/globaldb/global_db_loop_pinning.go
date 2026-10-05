@@ -20,6 +20,7 @@ type activeGateCriterionPayload struct {
 	ID      string `json:"id"`
 	Type    string `json:"type,omitempty"`
 	Outcome string `json:"outcome,omitempty"`
+	Prompt  string `json:"prompt,omitempty"`
 }
 
 func upsertLoopDefinitionSnapshot(
@@ -136,9 +137,9 @@ func activateLoopApprovalWithExecutor(
 	return nil
 }
 
-func activeHumanCriteriaFromTerminal(terminal *taskpkg.CoordinatorTerminal) (json.RawMessage, error) {
+func activeHumanCriteriaFromTerminal(terminal *taskpkg.CoordinatorTerminal) ([]activeGateCriterionPayload, error) {
 	if terminal == nil || len(terminal.Details) == 0 {
-		return json.RawMessage(`[]`), nil
+		return []activeGateCriterionPayload{}, nil
 	}
 	var verdict struct {
 		Criteria []activeGateCriterionPayload `json:"criteria"`
@@ -158,13 +159,10 @@ func activeHumanCriteriaFromTerminal(terminal *taskpkg.CoordinatorTerminal) (jso
 			ID:      strings.TrimSpace(criterion.ID),
 			Type:    criterion.Type,
 			Outcome: criterion.Outcome,
+			Prompt:  criterion.Prompt,
 		})
 	}
-	data, err := json.Marshal(out)
-	if err != nil {
-		return nil, fmt.Errorf("store: marshal active human criteria: %w", err)
-	}
-	return json.RawMessage(data), nil
+	return out, nil
 }
 
 func (g *LoopRepo) RecordLoopGateDecisions(

@@ -304,6 +304,7 @@ export function useLoopRunPage(
     nowMs,
     usageRows: view?.usageRows ?? [],
     usageNote: view?.usageNote ?? null,
+    approvalRequest: view?.approvalRequest ?? null,
     approvalFallbackFacts: view?.approvalFallbackFacts ?? [],
     inputRows: view?.inputRows ?? [],
     startedBy: view?.startedBy ?? "",

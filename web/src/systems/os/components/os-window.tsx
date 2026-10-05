@@ -242,8 +242,8 @@ function OsWindowMember({
   const compact = presentation === "compact";
 
   // Navigation intent is classified at the click, not inferred from paths
-  // (ADR-011): a link inside the body drills in (`push`); the breadcrumb back
-  // pops the tab's own stack.
+  // (ADR-011): a link inside the body drills in (`push`); a breadcrumb selects
+  // a parent, and the coordinator checks whether it matches the tab's stack.
   const classifyNavigation = (event: React.MouseEvent<HTMLElement>) => {
     const element = event.target instanceof Element ? event.target : null;
     if (!element) return;

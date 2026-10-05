@@ -24,6 +24,8 @@ export interface LoopRunsViewProps extends Omit<ComponentProps<"div">, "children
   profileScope: ProfileListingScope;
   /** Outcome filter driven by the toolbar chip bar. */
   outcome: LoopOutcomeValue;
+  /** Includes server-side origin/session filters as well as the outcome filter. */
+  hasActiveFilters?: boolean;
   /** The list read failed. Any rows below are the last good read, not fresh truth. */
   isError?: boolean;
   /** The run stream dropped and is retrying. Same rule: what shows is the last read. */
@@ -119,6 +121,7 @@ function DegradedNotice({
 export function LoopRunsView({
   runs,
   outcome,
+  hasActiveFilters = outcome !== "all",
   profileScope,
   isError = false,
   isReconnecting = false,
@@ -129,7 +132,7 @@ export function LoopRunsView({
   className,
   ...props
 }: LoopRunsViewProps) {
-  const roster = buildRunsRoster(runs, outcome);
+  const roster = buildRunsRoster(runs, outcome, hasActiveFilters);
   const ownerOf = profileScope.aggregate ? profileScope.ownerOf : undefined;
   // A failed read outranks a reconnect: it is the more specific fact, and it is
   // the one the reader can act on.
@@ -153,10 +156,10 @@ export function LoopRunsView({
       ) : null}
       <RosterBody
         degraded={degraded}
+        hasActiveFilters={hasActiveFilters}
         hasRows={hasRows}
         nowMs={nowMs}
         onEmptyAction={onEmptyAction}
-        outcome={outcome}
         ownerOf={ownerOf}
         profileScope={profileScope}
         roster={roster}
@@ -171,7 +174,7 @@ interface RosterBodyProps {
   degraded: boolean;
   nowMs: number;
   onEmptyAction?: () => void;
-  outcome: LoopOutcomeValue;
+  hasActiveFilters: boolean;
   ownerOf?: ProfileListingScope["ownerOf"];
   profileScope: ProfileListingScope;
 }
@@ -182,7 +185,7 @@ function RosterBody({
   degraded,
   nowMs,
   onEmptyAction,
-  outcome,
+  hasActiveFilters,
   ownerOf,
   profileScope,
 }: RosterBodyProps): ReactNode {
@@ -229,7 +232,7 @@ function RosterBody({
       description={roster.emptyState.body}
       icon={GitBranch}
       title={
-        outcome === "all" ? emptyForScope("runs", profileScope.scopeLabel) : roster.emptyState.title
+        hasActiveFilters ? roster.emptyState.title : emptyForScope("runs", profileScope.scopeLabel)
       }
     />
   );

@@ -130,6 +130,7 @@ func (e *Evaluator) evaluateHuman(gate Gate, criterion dsl.GateCriterion, in Gat
 			ID:      criterion.ID,
 			Type:    criterion.Type,
 			Outcome: VerdictOutcomeAwaitingApproval,
+			Prompt:  criterion.Prompt,
 			BlockingIssues: []BlockingIssue{{
 				ID:   blockerHumanPending,
 				Note: "human decision is pending",

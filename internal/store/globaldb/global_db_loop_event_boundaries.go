@@ -165,12 +165,14 @@ func appendLoopNeedsApprovalEventWithExecutor(
 	gateID looppkg.NodeID,
 	generation int,
 	title string,
+	prompt string,
 	facts []map[string]string,
 	at time.Time,
 ) error {
 	return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID, loopRunEventNeedsApproval, map[string]any{
 		loopRunEventPayloadKeyGateID:     strings.TrimSpace(string(gateID)),
 		loopRunEventPayloadKeyTitle:      firstNonEmptyString(title, "Approve to resume"),
+		"prompt":                         prompt,
 		loopRunEventPayloadKeyGeneration: generation,
 		"facts":                          facts,
 	}, at)

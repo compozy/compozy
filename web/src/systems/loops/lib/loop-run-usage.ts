@@ -50,6 +50,17 @@ export function runElapsedSeconds(
   return Math.round((last - created) / 1000);
 }
 
+/** The daemon advances started_at to exclude parked time from the wall budget. */
+export function runBudgetElapsedSeconds(run: LoopRunRecord, nowMs: number): number {
+  const started = Date.parse(run.started_at);
+  const ended =
+    run.status === "running" && !run.historical
+      ? nowMs
+      : Date.parse(run.completed_at ?? run.last_progress_at);
+  if (Number.isNaN(started) || Number.isNaN(ended)) return 0;
+  return Math.max(0, Math.round((ended - started) / 1000));
+}
+
 /**
  * Uses the terminal status event because the status CAS does not refresh
  * `last_progress_at`; malformed or missing events fall back to the durable span.
