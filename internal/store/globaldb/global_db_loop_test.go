@@ -2418,6 +2418,9 @@ func TestGlobalDBLoopNodeCancellationShouldCommitTerminalCellAtomically(t *testi
 			if cleanup.SessionID == "session-other" {
 				t.Fatal("unrelated node session was scheduled for cleanup")
 			}
+			if cleanup.Cause != looppkg.SessionCleanupCauseStop {
+				t.Fatalf("node cancellation cleanup cause = %q, want explicit stop", cleanup.Cause)
+			}
 		}
 	})
 

@@ -377,6 +377,11 @@ run or addressed node. A missing managed session is already stopped. Failed stop
 and retry after transient failures or daemon restart; origin-borrowed sessions are excluded. A
 canceled run cannot resume; use rerun to start a new generation.
 
+Automatic retirement of an owned session records `stop_reason: owner_released`, without an
+operator-cancellation marker or cancellation failure. This does not assert that the task or Loop
+succeeded: read their independent outcomes. Explicit Run/node cancel or stop still records the
+operator's request; actual provider failures remain visible.
+
 The Loop silence window raises attention and never auto-kills or auto-pauses. Separately, configured
 session supervision can stop a session after all work evidence expires and `stop_grace` elapses.
 A verified supervised stop recovers its authoritative task work within `max_attempts`; an owned

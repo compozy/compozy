@@ -33,39 +33,68 @@ import (
 
 func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 	t.Parallel()
-
-	h := newHarness(t)
-	session := createSession(t, h)
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	if _, ok := h.manager.Get(session.ID); ok {
-		t.Fatalf("Get(%q) after Stop() = found, want missing", session.ID)
-	}
-	if got := h.notifier.stoppedCount(); got != 1 {
-		t.Fatalf("stopped notifications = %d, want 1", got)
-	}
-	meta := readMeta(t, session.MetaPath())
-	if meta.State != string(StateStopped) {
-		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
-	}
-	if meta.StopReason == nil {
-		t.Fatal("meta.StopReason = nil, want non-nil")
-	}
-	if *meta.StopReason != store.StopUserCanceled {
-		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
-	}
-	if got := session.Info().StopReason; got != store.StopUserCanceled {
-		t.Fatalf("session.Info().StopReason = %q, want %q", got, store.StopUserCanceled)
-	}
-
-	events := readStoredEvents(t, session)
-	stopEvent := storedEventByType(t, events, EventTypeSessionStopped)
-	stopPayload := decodeStoredEventPayload(t, stopEvent)
-	if got, want := stopPayload["stop_reason"], string(store.StopUserCanceled); got != want {
-		t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
+	for _, tc := range []struct {
+		name        string
+		cause       StopCause
+		wantReason  store.StopReason
+		wantFailure store.FailureKind
+	}{
+		{
+			name: "Should retain operator cancellation", cause: CauseUserRequested,
+			wantReason: store.StopUserCanceled, wantFailure: store.FailureCanceled,
+		},
+		{
+			name:  "Should retain automatic owner release without inventing success or cancellation",
+			cause: CauseOwnerReleased, wantReason: store.StopOwnerReleased,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			sess := createSession(t, h)
+			var err error
+			if tc.cause == CauseUserRequested {
+				err = h.manager.Stop(t.Context(), sess.ID)
+			} else {
+				err = h.manager.StopWithCause(t.Context(), sess.ID, tc.cause, "Loop session cleanup: terminal")
+			}
+			if err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			if _, ok := h.manager.Get(sess.ID); ok {
+				t.Fatalf("Get(%q) after Stop() = found, want missing", sess.ID)
+			}
+			if got := h.notifier.stoppedCount(); got != 1 {
+				t.Fatalf("stopped notifications = %d, want 1", got)
+			}
+			meta := readMeta(t, sess.MetaPath())
+			if meta.State != string(StateStopped) {
+				t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
+			}
+			if meta.StopReason == nil || *meta.StopReason != tc.wantReason {
+				t.Fatalf("meta.StopReason = %v, want %q", meta.StopReason, tc.wantReason)
+			}
+			if got := sess.Info().StopReason; got != tc.wantReason {
+				t.Fatalf("session.Info().StopReason = %q, want %q", got, tc.wantReason)
+			}
+			var failureKind store.FailureKind
+			if meta.Failure != nil {
+				failureKind = meta.Failure.Kind
+			}
+			if failureKind != tc.wantFailure {
+				t.Fatalf("session failure = %#v, want kind %q", meta.Failure, tc.wantFailure)
+			}
+			stopEvent := storedEventByType(t, readStoredEvents(t, sess), EventTypeSessionStopped)
+			stopPayload := decodeStoredEventPayload(t, stopEvent)
+			if got, want := stopPayload["stop_reason"], string(tc.wantReason); got != want {
+				t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
+			}
+			if tc.cause == CauseOwnerReleased {
+				if got := countTranscriptMarkers(t, h.manager, sess.ID, transcript.MarkerPromptInterrupted); got != 0 {
+					t.Fatalf("operator interruption markers = %d, want 0 for automatic cleanup", got)
+				}
+			}
+		})
 	}
 }
 

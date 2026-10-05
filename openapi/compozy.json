@@ -16899,6 +16899,7 @@
                             "stop_reason": {
                               "enum": [
                                 "completed",
+                                "owner_released",
                                 "user_canceled",
                                 "max_iterations",
                                 "loop_detected",
@@ -119278,6 +119279,7 @@
                           "stop_reason": {
                             "enum": [
                               "completed",
+                              "owner_released",
                               "user_canceled",
                               "max_iterations",
                               "loop_detected",
@@ -120758,6 +120760,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -123445,6 +123448,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -124053,6 +124057,7 @@
                           "stop_reason": {
                             "enum": [
                               "completed",
+                              "owner_released",
                               "user_canceled",
                               "max_iterations",
                               "loop_detected",
@@ -124634,6 +124639,7 @@
                                 "stop_reason": {
                                   "enum": [
                                     "completed",
+                                    "owner_released",
                                     "user_canceled",
                                     "max_iterations",
                                     "loop_detected",
@@ -126154,6 +126160,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -126397,6 +126404,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -219754,6 +219762,7 @@
                           "stop_reason": {
                             "enum": [
                               "completed",
+                              "owner_released",
                               "user_canceled",
                               "max_iterations",
                               "loop_detected",
@@ -269179,6 +269188,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -270411,6 +270421,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -272100,6 +272111,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -273511,6 +273523,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -276877,6 +276890,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -278766,6 +278780,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -279869,6 +279884,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -281224,6 +281240,7 @@
                           "stop_reason": {
                             "enum": [
                               "completed",
+                              "owner_released",
                               "user_canceled",
                               "max_iterations",
                               "loop_detected",
@@ -282524,6 +282541,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -283627,6 +283645,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -287555,6 +287574,7 @@
                                 "stop_reason": {
                                   "enum": [
                                     "completed",
+                                    "owner_released",
                                     "user_canceled",
                                     "max_iterations",
                                     "loop_detected",
@@ -296269,6 +296289,7 @@
                             "stop_reason": {
                               "enum": [
                                 "completed",
+                                "owner_released",
                                 "user_canceled",
                                 "max_iterations",
                                 "loop_detected",
@@ -298061,6 +298082,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -299515,6 +299537,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -300947,6 +300970,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -304410,6 +304434,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -304653,6 +304678,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -309732,6 +309758,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",
@@ -312541,6 +312568,7 @@
                         "stop_reason": {
                           "enum": [
                             "completed",
+                            "owner_released",
                             "user_canceled",
                             "max_iterations",
                             "loop_detected",

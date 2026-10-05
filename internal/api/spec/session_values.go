@@ -27,6 +27,7 @@ func sessionTypeValues() []string {
 func stopReasonValues() []string {
 	return []string{
 		string(store.StopCompleted),
+		string(store.StopOwnerReleased),
 		string(store.StopUserCanceled),
 		string(store.StopMaxIterations),
 		string(store.StopLoopDetected),

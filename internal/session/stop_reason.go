@@ -22,17 +22,7 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 	case CauseHookDenied:
 		return store.StopHookStopped, trimmedDetail
 	case CauseUserRequested:
-		lowerDetail := strings.ToLower(trimmedDetail)
-		switch {
-		case strings.Contains(lowerDetail, "max_iterations"):
-			return store.StopMaxIterations, trimmedDetail
-		case strings.Contains(lowerDetail, "loop_detected"):
-			return store.StopLoopDetected, trimmedDetail
-		case strings.Contains(lowerDetail, "budget_exceeded"):
-			return store.StopBudgetExceeded, trimmedDetail
-		default:
-			return store.StopUserCanceled, trimmedDetail
-		}
+		return classifyUserRequestedStopReason(trimmedDetail), trimmedDetail
 	case CauseProcessExited:
 		if waitErr != nil {
 			return store.StopAgentCrashed, waitErr.Error()
@@ -57,6 +47,8 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 		return store.StopCompleted, trimmedDetail
 	case CauseCompleted:
 		return store.StopCompleted, trimmedDetail
+	case CauseOwnerReleased:
+		return store.StopOwnerReleased, trimmedDetail
 	case CauseFailed:
 		return store.StopError, trimmedDetail
 	default:
@@ -64,6 +56,20 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 			return store.StopError, waitErr.Error()
 		}
 		return store.StopCompleted, ""
+	}
+}
+
+func classifyUserRequestedStopReason(detail string) store.StopReason {
+	lowerDetail := strings.ToLower(detail)
+	switch {
+	case strings.Contains(lowerDetail, "max_iterations"):
+		return store.StopMaxIterations
+	case strings.Contains(lowerDetail, "loop_detected"):
+		return store.StopLoopDetected
+	case strings.Contains(lowerDetail, "budget_exceeded"):
+		return store.StopBudgetExceeded
+	default:
+		return store.StopUserCanceled
 	}
 }
 

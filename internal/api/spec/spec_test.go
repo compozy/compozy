@@ -691,6 +691,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				assertEnumValues(t, propertySchema(t, sessionSchema, "stop_reason"),
 					"completed",
+					"owner_released",
 					"user_canceled",
 					"max_iterations",
 					"loop_detected",

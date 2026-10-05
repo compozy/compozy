@@ -688,6 +688,7 @@ The session manager currently emits these persisted stop classifications:
 | Stop reason       | When CompozyOS uses it                                                                                                                                           |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `completed`       | The agent finished normally.                                                                                                                                     |
+| `owner_released`  | A managed owner, such as a Loop, no longer needs the session. This records automatic retirement; the task and Loop keep their independent outcomes.              |
 | `user_canceled`   | A normal user stop request.                                                                                                                                      |
 | `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                                                             |
 | `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                                                              |

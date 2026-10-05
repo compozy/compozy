@@ -1177,6 +1177,55 @@ describe("LoopRunBriefing needs-you action", () => {
   });
 });
 
+// Failure navigation requires an actual failed target, not just the briefing's
+// danger tone: budget exhaustion and stalling can leave every executed step healthy.
+describe("LoopRunBriefing failure action", () => {
+  it.each(["exhausted", "stalled"] as const)(
+    "Should omit failed-step navigation for %s without a failure reference",
+    status => {
+      render(
+        <LoopRunBriefing
+          briefing={buildBriefingView(makeBriefing({ status, tone: "failed", blockers: [] }))}
+          onOpenInspect={vi.fn()}
+          outcome={null}
+        />
+      );
+
+      expect(screen.queryByTestId("loop-run-briefing-action")).not.toBeInTheDocument();
+    }
+  );
+
+  it.each([{ node_id: "collect" }, { gate_id: "review" }])(
+    "Should retain Inspect navigation for the concrete failure reference %o",
+    async reference => {
+      const onOpenInspect = vi.fn();
+      render(
+        <LoopRunBriefing
+          briefing={buildBriefingView(
+            makeBriefing({
+              status: "failed",
+              tone: "failed",
+              blockers: [
+                {
+                  kind: "failure",
+                  ...reference,
+                  waiting_since: "2026-10-05T10:57:50Z",
+                  unblocker: "",
+                },
+              ],
+            })
+          )}
+          onOpenInspect={onOpenInspect}
+          outcome={null}
+        />
+      );
+
+      await userEvent.click(screen.getByTestId("loop-run-briefing-action"));
+      expect(onOpenInspect).toHaveBeenCalledOnce();
+    }
+  );
+});
+
 // The lib knows how to degrade a pruned session; what this owns is whether the
 // register ever hands it the truth to degrade on. Wiring is exactly where this
 // went wrong before: the projection took a pruned set the page never passed, so

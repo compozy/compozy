@@ -140,7 +140,7 @@ func (r *goalSessionOutboxRelay) deliverPendingCleanups(ctx context.Context) err
 			err := r.stopper.StopWithCause(
 				stopCtx,
 				obligation.SessionID,
-				session.CauseUserRequested,
+				loopSessionCleanupStopCause(obligation.Cause),
 				"Loop session cleanup: "+string(obligation.Cause),
 			)
 			if err != nil && !errors.Is(err, session.ErrSessionNotFound) &&
@@ -176,6 +176,15 @@ func (r *goalSessionOutboxRelay) deliverPendingCleanups(ctx context.Context) err
 		deliveryErrs = append(deliveryErrs, err)
 	}
 	return errors.Join(deliveryErrs...)
+}
+
+func loopSessionCleanupStopCause(cause looppkg.SessionCleanupCause) session.StopCause {
+	switch cause {
+	case looppkg.SessionCleanupCauseStop, looppkg.SessionCleanupCauseOperatorCancel:
+		return session.CauseUserRequested
+	default:
+		return session.CauseOwnerReleased
+	}
 }
 
 func (r *goalSessionOutboxRelay) claimBatchSize() int {

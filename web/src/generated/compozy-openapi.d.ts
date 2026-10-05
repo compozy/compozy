@@ -12027,6 +12027,7 @@ export interface operations {
                 /** @enum {string} */
                 stop_reason?:
                   | "completed"
+                  | "owner_released"
                   | "user_canceled"
                   | "max_iterations"
                   | "loop_detected"
@@ -49684,6 +49685,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -50178,6 +50180,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -51126,6 +51129,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -51341,6 +51345,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -51550,6 +51555,7 @@ export interface operations {
                 /** @enum {string} */
                 stop_reason?:
                   | "completed"
+                  | "owner_released"
                   | "user_canceled"
                   | "max_iterations"
                   | "loop_detected"
@@ -52098,6 +52104,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -52177,6 +52184,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -90396,6 +90404,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -107958,6 +107967,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -108441,6 +108451,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -109021,6 +109032,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -109487,6 +109499,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -110742,6 +110755,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -111376,6 +111390,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -111710,6 +111725,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -112218,6 +112234,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -112636,6 +112653,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -112970,6 +112988,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -114747,6 +114766,7 @@ export interface operations {
                 /** @enum {string} */
                 stop_reason?:
                   | "completed"
+                  | "owner_released"
                   | "user_canceled"
                   | "max_iterations"
                   | "loop_detected"
@@ -118249,6 +118269,7 @@ export interface operations {
                 /** @enum {string} */
                 stop_reason?:
                   | "completed"
+                  | "owner_released"
                   | "user_canceled"
                   | "max_iterations"
                   | "loop_detected"
@@ -118852,6 +118873,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -119352,6 +119374,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -119805,6 +119828,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -121121,6 +121145,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -121200,6 +121225,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -123585,6 +123611,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"
@@ -124587,6 +124614,7 @@ export interface operations {
               /** @enum {string} */
               stop_reason?:
                 | "completed"
+                | "owner_released"
                 | "user_canceled"
                 | "max_iterations"
                 | "loop_detected"

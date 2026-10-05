@@ -1,6 +1,6 @@
 # BUG-20261005-loop-wall-limit-ignored: Loop keeps working beyond the configured time limit
 
-- **Status:** open
+- **Status:** invalid
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -45,10 +45,29 @@ cancels the run at 09:44:55Z; this is not an observed exhausted outcome.
 
 ## Fix
 
-Root cause investigation pending. The persona session ended before implementation inspection.
-Repair is within the authorized bug-fix scope; add regression coverage in the existing owning
-suite after locating the boundary, then repeat the original public journey.
+No runtime repair is required for the reported overrun. The original expected result assumed
+an in-turn timer, but the established budget contract checks before dispatch and at generation
+boundaries (LOOPS-DESIGN-SPEC section 5.4). The owning
+TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenerationInFlight suite
+explicitly drains active work while preventing further reservations. The first walk canceled
+before that boundary, so it could not establish a missing budget transition.
 
 ## Verification
 
-Original failure confirmed through public surfaces. Repair and fresh-persona replay remain pending.
+Fresh CH-012 Bruno replay looprun-4f2b4617dbd32be1 uses the same 20-second wall budget,
+120K token budget and pending weekly-handoff task, with the live-catalog GPT-6.1-Sol runtime.
+The active worker settles at 10:18:51.734358Z; the run becomes exhausted/budget at
+10:18:51.756209Z, before per_task_done is dispatched. That next action remains pending
+without a task_run_id. Usage is 87,512 tokens, below the token cap, so this is the wall
+budget boundary. Final duration is 2m25s. No operator cancellation or separate session stop
+was issued. Web reload, CLI why, HTTP and UDS retain Exhausted; completed task work is kept.
+The original immediate-stop expectation is invalid, and the finding is retained for audit.
+
+Evidence: loops-budget-boundary-bruno-{working,observe-2,terminal-view,terminal-why,
+terminal-http,worker-final,worker-history-final,task-run}.json and the visually inspected
+loops-budget-boundary-bruno-exhausted.png. Recording
+/Users/pedronauck/.config/browser-harness/agent-workspace/recordings/loops-budget-boundary-bruno
+is closed with five frames. Ownership is recorded in loops-budget-boundary-owned.json.
+
+The worker's automatic stop still has the separately tracked false operator attribution.
+This classification does not close that finding or the remaining stalled leg of LP-003.

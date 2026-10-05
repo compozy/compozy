@@ -22,6 +22,7 @@ type StopReason string
 
 const (
 	StopCompleted      StopReason = "completed"
+	StopOwnerReleased  StopReason = "owner_released"
 	StopUserCanceled   StopReason = "user_canceled"
 	StopMaxIterations  StopReason = "max_iterations"
 	StopLoopDetected   StopReason = "loop_detected"
@@ -37,6 +38,7 @@ const (
 func ValidStopReason(r StopReason) bool {
 	switch r {
 	case StopCompleted,
+		StopOwnerReleased,
 		StopUserCanceled,
 		StopMaxIterations,
 		StopLoopDetected,

@@ -1972,3 +1972,33 @@ remain unchanged.
   guidance remains accurate. QA owner: LP-003 and BUG-20261005-loop-cancel-leaves-worker-running.
   The canonical prompt-adapter suite covers the canceled outcome; existing run-agent and judge
   suites are adjacent canaries. A fresh Bruno Web cancellation replay supplies real provider proof.
+
+## Loop worker stop attribution (2026-10-05 QA)
+
+- **Native tools and public surfaces:** Session status/history through CLI, HTTP, UDS and native
+  tools gain the additive stop reason `owner_released`. The cleanup relay uses it for automatic
+  terminal, reseed and revoked-binding retirement; explicit stop/cancel remains user-requested.
+  Existing IDs, routes, request shapes and historical classifications remain valid. OpenAPI and
+  generated Web types co-ship from the enum source.
+- **Extensibility, hooks and configuration:** No hook, SDK or configuration shape changes. Task
+  and Loop outcomes retain their authority; retiring a worker does not assert success. Actual
+  provider/process failures continue to take precedence over neutral retirement.
+- **Workspace data isolation:** Existing cleanup identities and scoped ownership determine the
+  session to stop. Retry/acknowledgement and first-writer cleanup metadata remain unchanged.
+  The existing unconstrained persisted stop-reason text needs no schema migration or history rewrite.
+- **Web and documentation:** The session status fold attributes the new reason to automatic
+  retirement from either the resource or durable transcript, without an operator marker or false
+  failure. The lifecycle stop-reason table and official `skills/compozy/references/loops.md`
+  explain the distinction. QA owner: LP-003 and BUG-20261005-loop-worker-cleanup-user-canceled;
+  canonical relay, lifecycle, node-cancel and Web status suites own focused coverage, followed by
+  real successful/exhausted owner replays and an explicit-cancel canary.
+
+## Loop terminal failure navigation (2026-10-05 QA)
+
+- Web offers failed-step navigation only for an actual failure blocker with a node or gate
+  reference. Budget exhaustion and stalling retain generic Inspect without inventing a failure.
+- Native tools, CLI/HTTP/UDS contracts, extensions, hooks, configuration and persisted data are
+  unchanged. Existing scoped run reads remain authoritative; no migration or isolation change.
+- No official skill or site contract changes are needed. QA owner: LP-003 and
+  BUG-20261005-loop-budget-phantom-failure-action. The existing LoopRunBriefing component suite
+  owns action availability/navigation; a real exhausted/failed pair supplies the persona replay.
