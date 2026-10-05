@@ -7,9 +7,9 @@ journey: J-administer-runtime-settings
 expected: Every migrated entity editor renders the shared ruled chrome — the 26px mint identity well (`KindIcon` well; a semantic warning/danger tint only for a dialog whose tone is warning or danger) beside a muted eyebrow, the dialog title, and an optional description; the body is the sole scroll owner; the footer has a 52px minimum with an optional consequence hint on the leading edge, Cancel, and exactly one verb+object primary action that shows a spinner and blocks duplicate submit while saving. Host width comes from `--width-modal-{sm,md,lg,xl}` via `dialogShellClass`, never an ad-hoc `max-w-*`. Simple/Advanced is one disclosure tier that never hides a required field, and leaving Advanced snaps unsupported advanced-only selections back to a Simple-valid default. Secret controls are write-only: create shows a single password input, edit shows presence plus an explicit Replace, and cancelling a rotation preserves the existing binding without exposing plaintext. Fields an update contract cannot mutate render as readable summary rows, never as disabled inputs. The body grammar is shared too: one 20px gutter across header, mode toolbar, body, feedback strip, and footer (`modal-system.css:170,194,218,395`); one monotonic type ladder (dialog title 14/500, section title 13/600, field label 13/500, hint 12/425) so a label never outranks the value it names; sections are hairline-ruled `FormSection` blocks flush with the body gutter, with no card surface and no competing row rules; explanatory prose sits behind a `HelpTip` `(?)` beside its label, reachable by pointer, keyboard, and touch, while runtime truth, errors, and warnings stay visible; and the footer may carry one ghost `leading` command (reset, view toggle) without gaining a second primary.
 entry_points: web task editor modal; web automation job/trigger editor; web vault create via SettingsEditorDialog; web marketplace MCP install secret fields; web agent create; web provider detail; web loop configure modal
 qa_status: untested
-bug_ids: BUG-20261004-help-tip-discards-draft; BUG-20261004-help-tip-vanishes-on-tap
-fix_status: fixed
-retest_status: pass
+bug_ids: BUG-20261004-help-tip-discards-draft; BUG-20261004-help-tip-vanishes-on-tap; BUG-20261004-vault-name-recovery-missing; BUG-20261004-vault-warning-covered; BUG-20261004-vault-help-name-generic
+fix_status: pending
+retest_status:
 fix_commits: 6aec02734
 evidence: docs/qa/evidence/2026-10-02-untested/help-tip-touch-dora-task-paths.json; docs/qa/evidence/2026-10-02-untested/help-tip-touch-dora-job-ended.json; docs/qa/evidence/2026-10-02-untested/help-tip-preserve-guidance-commit-proof.json
 last_report: docs/qa/reports/2026-10-02-untested.md
@@ -68,3 +68,12 @@ docs/qa/evidence/2026-10-02-untested/help-tip-touch-dora-job-ended.json.
 
 Both linked bugs are verified at 6aec02734. The scenario returns to untested for the remaining
 entry points after this behavior change; it is not yet a full-scenario pass.
+
+2026-10-04 shared-editor continuation: Task, Trigger, Agent and Provider disclosure/help/immutable
+legs pass with abandoned drafts confirmed by CLI where applicable. Vault's invalid-name recovery
+and unobstructed overwrite warning are repaired and replayed; write-only presence, cancel, rotation
+and deletion pass with independent metadata and reload evidence. The broad scenario remains pending
+for other named entry points and visual-reference comparison. See the dated report's shared-editor
+and Vault debriefs rather than inferring a full pass from the two repaired findings.
+
+2026-10-04 continuation: Vault help needs an explicit field-specific accessible name for its decorated Name label. The remaining Loop configure and Marketplace secret-control abandonment legs pass; the dated report carries their receipts and precise scope.

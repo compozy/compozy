@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { PillGroup, TooltipProvider } from "@compozy/ui";
+import { PillGroup, RequiredMark, TooltipProvider } from "@compozy/ui";
 
 import { SettingRow } from "../setting-row";
 import { ModalSettingsFieldRow, SettingsFieldRow } from "../settings-field-row";
@@ -39,6 +39,30 @@ describe("SettingsFieldRow", () => {
     expect(row).toHaveTextContent("Default provider");
     expect(row).not.toHaveTextContent("How much of your file system");
     expect(screen.getByRole("button", { name: "About default provider" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["SettingsFieldRow", SettingsFieldRow],
+    ["ModalSettingsFieldRow", ModalSettingsFieldRow],
+  ])("names help for a decorated label without changing the field name in %s", (_, Row) => {
+    render(
+      <TooltipProvider delay={0}>
+        <Row
+          label={
+            <>
+              Name <RequiredMark />
+            </>
+          }
+          help="Choose a supported namespace and path."
+          helpLabel="About name"
+          control={<input />}
+        />
+      </TooltipProvider>
+    );
+
+    const help = screen.getByRole("button", { name: "About name" });
+    expect(help.closest("label")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Name required" })).toBeInTheDocument();
   });
 
   it("forwards the error message when provided", () => {

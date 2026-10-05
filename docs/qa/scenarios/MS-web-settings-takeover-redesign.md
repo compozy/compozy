@@ -7,9 +7,9 @@ journey: J-administer-runtime-settings
 expected: The settings window renders the 264px takeover sidebar (the host's Close Settings action closes the window; search with `/` shortcut filters sections; Basics/Personal/Agents/Advanced groups; runtime foot naming CompozyOS, never "daemon") collapsing to a chip strip under 56rem. Section labels read Remote access, Notifications, and Diagnostics, while their slugs stay `gateway`, `attention`, and `observability`, and searching the retired word still finds the renamed section. Pages use one-decision srows with consequence sentences, at most one Advanced fold per page, and choice cards with neutral selection. Draft pages show the floating save bar only when dirty/saving/error and flash "Saved" after a clean save; restart-needed changes surface the typed restart notice.
 entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
 qa_status: untested
-bug_ids: BUG-20261004-settings-search-shortcut-inactive
-fix_status: fixed
-retest_status: pass
+bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window
+fix_status: pending
+retest_status:
 fix_commits: b4166a6c2
 evidence: docs/qa/evidence/2026-10-02-untested/settings-shortcut-final-dora-ended.json; docs/qa/reports/2026-10-02-untested.md
 last_report: docs/qa/reports/2026-10-02-untested.md
@@ -54,3 +54,12 @@ in its Git history. The historical VC-S1 bundle is absent in both this worktree 
 checkout, so it supplies no current evidence. COPY.md's UI aliases own Basics/Personal/Agents/
 Advanced; live OS host chrome owns Close Settings. These explicit owners replace the obsolete
 group/exit wording above without changing search, navigation, save or restart requirements.
+
+2026-10-04 continuation: The clean 864px visual pair reveals permission choices that ignore the compact Settings layout. BUG-20261004-settings-choices-ignore-window owns the mismatch; use the existing window container token and re-walk. Save/error/restart coverage remains separate.
+
+2026-10-04 final General replay: permission choices stack at 864px and retain three columns at
+1440px. Both final visual-contract bundles pass after individual image inspection. Follow-up
+behavior walks Unsaved, Discard, Saving and Saved; independent API reads and reload confirm both
+the changed value and restoration of the complete baseline. The native timeout-select attempt
+did not change its value and remains unverified. Other Settings pages and error/restart legs
+remain pending; clean General parity and its successful save do not settle the full scenario.

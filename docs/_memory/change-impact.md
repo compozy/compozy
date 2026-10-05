@@ -4,6 +4,24 @@
 
 Owner: `docs/qa/reports/2026-10-02-untested.md`; update this audit as further repairs land.
 
+- **Vault name correction:** the existing validator keeps the namespace/path grammar and
+  `ErrUnsupportedSecretRef` identity, but reports a usable format correction without echoing the
+  rejected ref. CLI/HTTP/UDS/native callers retain their current status and DTO contracts. Web
+  New secret composes the existing field HelpTip; rejected writes retain their draft. No hook,
+  extension, config, storage, workspace/profile isolation, migration, or generated shape changes.
+  Official `skills/compozy/` commands remain valid; the site Vault guide explains supported names.
+  `TestVaultHandlersRejectInvalidRequests` owns rejection before storage and safe diagnostics;
+  Dora's real Vault recovery/overwrite walk owns UI evidence. Bug:
+  `BUG-20261004-vault-name-recovery-missing`.
+  The same editor now places its overwrite confirmation in the existing wrapping `AlertActions`
+  row instead of the absolutely positioned compact-action slot, keeping the consequence readable.
+  No shared primitive or consent behavior changes; browser layout replay owns
+  `BUG-20261004-vault-warning-covered`.
+  Settings rows also accept an explicit accessible help label for decorated field labels; Vault
+  supplies About name without changing input names or the shared HelpTip interaction lifetime.
+  The existing settings-field-row suite owns that association. Bug:
+  `BUG-20261004-vault-help-name-generic`.
+
 - **Attention policy after workspace deletion:** Channel-only Web writes omit the optional
   profile mute replacement, preserving the server's current list. The canonical policy query
   rereads after workspace-catalog removal; it never filters or rewrites daemon-owned mute rows.
@@ -1781,3 +1799,13 @@ remain unchanged.
   `BUG-20261004-help-tip-discards-draft` and `BUG-20261004-help-tip-vanishes-on-tap`.
   The existing shared HelpTip suite owns stable pointer activation, draft/focus and
   dialog-isolation coverage; real task and adjacent editor replays verify the production bundle.
+
+## Compact Settings choice layout (2026-10-04 QA)
+
+- SettingsChoiceGroup reuses the owning Settings window container breakpoint for its columns,
+  so permission cards stack with compact navigation. No new token, primitive or selection state.
+- Native tools, CLI/HTTP/UDS, hooks, extensions, config keys, workspace/profile data and official
+  `skills/compozy/` contracts are unaffected. No persisted shape or migration.
+- QA/docs owner: MS-web-settings-takeover-redesign and
+  BUG-20261004-settings-choices-ignore-window. Matched reference/browser captures own reflow
+  evidence; the existing choice-group suite owns keyboard and RTL selection.

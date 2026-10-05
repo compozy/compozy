@@ -25,6 +25,8 @@ export interface SettingRowProps {
    * only for what the runtime will do with the value.
    */
   help?: ReactNode;
+  /** Accessible help-button name when the visible label contains markup. */
+  helpLabel?: string;
   error?: ReactNode;
   /** Single control, right-aligned. Labelled via aria association automatically. */
   control?: ReactNode;
@@ -49,6 +51,7 @@ export function SettingRow({
   label,
   description,
   help,
+  helpLabel,
   error,
   control,
   className,
@@ -82,7 +85,7 @@ export function SettingRow({
           <LabelTag className="text-body font-medium text-fg" htmlFor={labelHtmlFor} id={labelId}>
             {label}
           </LabelTag>
-          {help ? <HelpTip label={helpTriggerLabel(label)}>{help}</HelpTip> : null}
+          {help ? <HelpTip label={helpLabel ?? helpTriggerLabel(label)}>{help}</HelpTip> : null}
         </div>
         {description ? (
           <div
@@ -116,6 +119,7 @@ export function ModalSettingRow({
   label,
   description,
   help,
+  helpLabel,
   error,
   control,
   className,
@@ -144,7 +148,7 @@ export function ModalSettingRow({
           >
             {label}
           </FieldLabel>
-          {help ? <HelpTip label={helpTriggerLabel(label)}>{help}</HelpTip> : null}
+          {help ? <HelpTip label={helpLabel ?? helpTriggerLabel(label)}>{help}</HelpTip> : null}
         </FieldHeader>
         {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
       </FieldContent>
