@@ -46,9 +46,10 @@ import {
   settingsUpdateBothAvailableFixture,
   settingsUpdateStagedFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
+import { settingsRestartRequiredMutationFixture } from "@/systems/settings/mocks/fixtures";
 
 import { useSettingsGeneralPage } from "../use-settings-general-page";
-import type { SettingsGeneralSection } from "@/systems/settings";
+import type { SettingsGeneralSection, SettingsMutationResult } from "@/systems/settings";
 
 const envelope: SettingsGeneralSection = {
   section: "general",
@@ -104,6 +105,14 @@ function createWrapper() {
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
   return { queryClient, wrapper };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(next => {
+    resolve = next;
+  });
+  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -195,6 +204,90 @@ describe("useSettingsGeneralPage", () => {
       expect(result.current.draft).toEqual(envelope.config);
       expect(result.current.isDirty).toBe(false);
     });
+  });
+
+  it("Should adopt the saved canonical duration and clear the acknowledged draft", async () => {
+    const canonical = {
+      ...envelope,
+      config: { ...envelope.config, session_timeout: "4h0m0s" },
+    };
+    vi.mocked(updateSettingsGeneral).mockImplementation(async () => {
+      vi.mocked(getSettingsGeneral).mockResolvedValue(canonical);
+      return settingsRestartRequiredMutationFixture;
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft({ ...envelope.config, session_timeout: "14400s" });
+    });
+    expect(result.current.isDirty).toBe(true);
+    act(() => result.current.handleSave());
+
+    await waitFor(() => {
+      expect(result.current.isSaving).toBe(false);
+      expect(result.current.draft?.session_timeout).toBe("4h0m0s");
+      expect(result.current.isDirty).toBe(false);
+    });
+    expect(updateSettingsGeneral).toHaveBeenCalledExactlyOnceWith({
+      config: { ...envelope.config, session_timeout: "14400s" },
+    });
+    expect(result.current.lastAppliedLabel).toContain("restart required");
+  });
+
+  it.each(["ws_alpha", "ws_beta"])(
+    "Should retain a newer draft in %s when an earlier save finishes",
+    async workspace => {
+      const pending = deferred<SettingsMutationResult>();
+      vi.mocked(updateSettingsGeneral).mockReturnValue(pending.promise);
+      const { wrapper } = createWrapper();
+      const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+      await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+      act(() => {
+        result.current.setDraft({ ...envelope.config, session_timeout: "14400s" });
+      });
+      act(() => result.current.handleSave());
+      await waitFor(() => expect(updateSettingsGeneral).toHaveBeenCalledTimes(1));
+
+      act(() => {
+        workspaceState.activeWorkspaceId = workspace;
+        rerender();
+      });
+      act(() => {
+        result.current.setDraft({ ...envelope.config, session_timeout: "3600s" });
+      });
+      vi.mocked(getSettingsGeneral).mockResolvedValue({
+        ...envelope,
+        config: { ...envelope.config, session_timeout: "4h0m0s" },
+      });
+      await act(async () => pending.resolve(settingsRestartRequiredMutationFixture));
+
+      await waitFor(() => {
+        expect(result.current.isSaving).toBe(false);
+        expect(result.current.envelope?.config.session_timeout).toBe("4h0m0s");
+      });
+      expect(result.current.draft?.session_timeout).toBe("3600s");
+      expect(result.current.isDirty).toBe(true);
+    }
+  );
+
+  it("Should retain the dirty draft when the save fails", async () => {
+    vi.mocked(updateSettingsGeneral).mockRejectedValue(new Error("Couldn't save General"));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft({ ...envelope.config, session_timeout: "14400s" });
+    });
+    act(() => result.current.handleSave());
+
+    await waitFor(() => expect(result.current.saveError).toBe("Couldn't save General"));
+    expect(result.current.draft?.session_timeout).toBe("14400s");
+    expect(result.current.isDirty).toBe(true);
+    expect(result.current.lastAppliedLabel).toBeNull();
   });
 
   it("Should send all requested targets to the apply endpoint and expose the daemon's answer", async () => {

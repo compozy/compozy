@@ -1809,3 +1809,17 @@ remain unchanged.
 - QA/docs owner: MS-web-settings-takeover-redesign and
   BUG-20261004-settings-choices-ignore-window. Matched reference/browser captures own reflow
   evidence; the existing choice-group suite owns keyboard and RTL selection.
+
+## General idle-timeout save and display (2026-10-04 QA)
+
+- Web General Settings parses canonical compound Go durations through the existing Settings
+  duration helper. A successful save releases only its acknowledged draft after the mutation's
+  canonical refetch; newer or differently scoped drafts survive. The save bar can settle cleanly
+  without erasing a pending user edit, and reload reflects the persisted cutoff.
+- Native tools, CLI/HTTP/UDS DTOs, hook and extension contracts, config keys, restart behavior and
+  timeout enforcement are unchanged. User state, workspace/profile data and official
+  skills/compozy/ contracts need no migration or update.
+- QA/docs owners are MS-web-settings-takeover-redesign and adjacent MS-025, with
+  BUG-20261004-settings-idle-timeout-display. The existing General route suite owns display;
+  the existing General page-model suite owns save reconciliation and pending-edit preservation.
+  A fresh real-browser save/reload/restore walk confirms the production bundle.
