@@ -66,6 +66,8 @@ type CreateOpts struct {
 	ImportedContext *store.SessionImportedContext
 	// deriveReceipt commits the child together with its derive receipt.
 	deriveReceipt *store.SessionDerivationReceipt
+	// deriveSelectsRuntime records the explicit runtime fields as the child's selected runtime.
+	deriveSelectsRuntime bool
 }
 
 // CreateAcceptedOpts carries one logical user-session creation request.

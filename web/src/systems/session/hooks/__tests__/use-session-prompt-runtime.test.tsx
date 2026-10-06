@@ -294,6 +294,49 @@ describe("useSessionPromptRuntime", () => {
       speed: "fast",
     });
   });
+
+  // A continued or forked session is unbound with the runtime its dialog chose as its
+  // selection; the composer and its first prompt must use it, not the agent default.
+  it("Should prefer an unbound session's selected runtime over the agent default", async () => {
+    const workspaceId = workspaceDetailFixture.workspace.id;
+    const { queryClient, wrapper } = createHarness();
+    queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
+      ...workspaceDetailFixture,
+      providers: [
+        { display_name: "Codex", harness: "acp", name: "codex", runtime_provider: "codex" },
+        { display_name: "Claude", harness: "acp", name: "claude", runtime_provider: "claude" },
+      ],
+    } satisfies WorkspaceDetailPayload);
+    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), [
+      { name: "general", provider: "codex", model: "gpt-6.1-sol" } as AgentPayload,
+    ]);
+    queryClient.setQueryData(providerKeys.lists(), {
+      providers: [provider("codex", "authenticated"), provider("claude", "authenticated")],
+    } satisfies ProviderListResponse);
+    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+      models: [model("codex", "gpt-6.1-sol"), model("claude", "claude-fable-5")],
+    } satisfies AllModelsListResponse);
+    const store = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: "general",
+        canPrompt: true,
+        effectiveRuntime: undefined,
+        selectedRuntime: { provider: "claude", model: "claude-fable-5", speed: "normal" },
+        selectionRevision: 1,
+        sessionId: primarySessionFixture.id,
+        workspaceId,
+      })
+    );
+
+    const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
+
+    await waitFor(() => expect(result.current.catalog.loaded).toBe(true));
+    expect(result.current.value).toMatchObject({ provider: "claude", model: "claude-fable-5" });
+    expect(getSessionPromptRuntimeSnapshot(store)).toEqual({
+      provider: "claude",
+      model: "claude-fable-5",
+    });
+  });
 });
 
 describe("SessionPromptRuntimeProvider hydration", () => {

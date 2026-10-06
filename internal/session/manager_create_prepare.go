@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -44,43 +46,71 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
+	selectedRuntime, selectionRevision, err := deriveSelectedRuntime(opts, requestedSpeed, acpOptions)
+	if err != nil {
+		return sessionStartSpec{}, err
+	}
 	return sessionStartSpec{
-		sessionID:               sessionID,
-		profileID:               normalizeCreateProfileID(opts.ProfileID),
-		sessionName:             strings.TrimSpace(opts.Name),
-		agentName:               strings.TrimSpace(agentName),
-		provider:                strings.TrimSpace(opts.Provider),
-		model:                   strings.TrimSpace(opts.Model),
-		command:                 strings.TrimSpace(opts.Command),
-		chainOwner:              opts.ChainOwner,
-		reasoningEffort:         strings.TrimSpace(opts.ReasoningEffort),
-		speed:                   requestedSpeed,
-		acpOptions:              acpOptions,
-		permissions:             opts.Permissions,
-		workspace:               location.workspace,
-		worktreeID:              location.worktreeID,
-		worktreeRoot:            location.worktreeRoot,
-		cwd:                     location.cwd,
-		promptOverlay:           strings.TrimSpace(opts.PromptOverlay),
-		contractOverlay:         strings.TrimSpace(opts.ContractOverlay),
-		runtimeMode:             strings.TrimSpace(opts.RuntimeMode),
-		sessionType:             sessionType,
-		lineage:                 lineage,
-		allowedToolsOverride:    append([]string(nil), opts.AllowedToolsOverride...),
-		deniedToolsOverride:     append([]string(nil), opts.DeniedToolsOverride...),
-		creationProfile:         cloneCreationProfile(opts.CreationProfile),
-		creationIdentity:        cloneCreationIdentity(opts.CreationIdentity),
-		creationIdentityPinned:  opts.CreationProfile != nil || opts.CreationIdentity != nil,
-		creationIdentityEnabled: true,
-		discardStartFailure:     opts.DiscardStartFailure,
-		parentSoulDigest:        strings.TrimSpace(opts.ParentSoulDigest),
-		derivation:              store.CloneSessionDerivation(opts.Derivation),
-		importedContext:         store.CloneSessionImportedContext(opts.ImportedContext),
-		deriveReceipt:           cloneDerivationReceipt(opts.deriveReceipt),
-		postEvent:               hookspkg.HookSessionPostCreate,
-		startAction:             sessionStartActionCreate,
-		cleanupSessionDir:       true,
+		sessionID:                sessionID,
+		profileID:                normalizeCreateProfileID(opts.ProfileID),
+		sessionName:              strings.TrimSpace(opts.Name),
+		agentName:                strings.TrimSpace(agentName),
+		provider:                 strings.TrimSpace(opts.Provider),
+		model:                    strings.TrimSpace(opts.Model),
+		command:                  strings.TrimSpace(opts.Command),
+		chainOwner:               opts.ChainOwner,
+		reasoningEffort:          strings.TrimSpace(opts.ReasoningEffort),
+		speed:                    requestedSpeed,
+		acpOptions:               acpOptions,
+		selectedRuntime:          selectedRuntime,
+		runtimeSelectionRevision: selectionRevision,
+		permissions:              opts.Permissions,
+		workspace:                location.workspace,
+		worktreeID:               location.worktreeID,
+		worktreeRoot:             location.worktreeRoot,
+		cwd:                      location.cwd,
+		promptOverlay:            strings.TrimSpace(opts.PromptOverlay),
+		contractOverlay:          strings.TrimSpace(opts.ContractOverlay),
+		runtimeMode:              strings.TrimSpace(opts.RuntimeMode),
+		sessionType:              sessionType,
+		lineage:                  lineage,
+		allowedToolsOverride:     append([]string(nil), opts.AllowedToolsOverride...),
+		deniedToolsOverride:      append([]string(nil), opts.DeniedToolsOverride...),
+		creationProfile:          cloneCreationProfile(opts.CreationProfile),
+		creationIdentity:         cloneCreationIdentity(opts.CreationIdentity),
+		creationIdentityPinned:   opts.CreationProfile != nil || opts.CreationIdentity != nil,
+		creationIdentityEnabled:  true,
+		discardStartFailure:      opts.DiscardStartFailure,
+		parentSoulDigest:         strings.TrimSpace(opts.ParentSoulDigest),
+		derivation:               store.CloneSessionDerivation(opts.Derivation),
+		importedContext:          store.CloneSessionImportedContext(opts.ImportedContext),
+		deriveReceipt:            cloneDerivationReceipt(opts.deriveReceipt),
+		postEvent:                hookspkg.HookSessionPostCreate,
+		startAction:              sessionStartActionCreate,
+		cleanupSessionDir:        true,
 	}, nil
+}
+
+// deriveSelectedRuntime returns the selected runtime a continued or forked child starts
+// with: the runtime its derive chose, recorded as the first selection write.
+func deriveSelectedRuntime(
+	opts CreateOpts,
+	speed speedpkg.Speed,
+	acpOptions []acp.SessionConfigOptionSelection,
+) (*RuntimeSelection, int64, error) {
+	// A runtime without a provider (a model or speed alone) refines the agent default at
+	// the bind and records no selection.
+	if !opts.deriveSelectsRuntime || strings.TrimSpace(opts.Provider) == "" {
+		return nil, 0, nil
+	}
+	selection, err := NormalizeRuntimeSelection(RuntimeSelection{
+		Provider: opts.Provider, Model: opts.Model, ReasoningEffort: opts.ReasoningEffort,
+		Speed: speed, ACPOptions: acpOptions,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return &selection, 1, nil
 }
 
 func normalizeCreateProfileID(profileID string) string {
