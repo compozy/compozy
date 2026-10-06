@@ -79,3 +79,6 @@ existing thirty-second error interval even while the stream is live, so a quiet 
 recover its badge. A disconnected stream retains visible-window fallback polling; hiding the
 document disables that fallback. Verify badge freshness across live, error recovery, disconnected
 and reconnect transitions without multiplying healthy facet requests.
+
+qa-impact: 2026-10-06 (BUG-20261006-derived-child-nested-under-source) — the 2026-09-28 walk's "Children nest under their source" no
+longer holds for Continue/Fork: those children are top-level rows in the catalog. Flag only.

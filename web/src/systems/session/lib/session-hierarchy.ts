@@ -2,6 +2,7 @@ import type { StateGlyphState } from "@compozy/ui";
 
 import { sessionBadgeSignal } from "./session-badge";
 import type { SessionListScope } from "./session-list-preferences";
+import { sessionOriginKind } from "./session-origin";
 import type { SessionPayload } from "../types";
 
 export interface SessionListTree {
@@ -46,19 +47,28 @@ export function visibleSessionOrder(
 }
 
 /**
- * Nest every session whose creation parent is present in the same page under
+ * The parent a session nests under. Continued and forked sessions are new
+ * top-level sessions the operator started; their source is provenance (the
+ * origin pill and divider), not hierarchy. Spawned, provenance and recovery
+ * children nest.
+ */
+function sessionTreeParentId(session: SessionPayload): string {
+  if (sessionOriginKind(session) !== null) return "";
+  return session.lineage?.parent_session_id ?? "";
+}
+
+/**
+ * Nest every session whose hierarchy parent is present in the same page under
  * that parent. Missing parents and cycle participants stay roots so nothing
  * silently vanishes behind pagination or malformed lineage.
  */
 export function buildSessionTree(sessions: readonly SessionPayload[]): SessionListTree {
-  const parentById = new Map(
-    sessions.map(session => [session.id, session.lineage?.parent_session_id ?? ""])
-  );
+  const parentById = new Map(sessions.map(session => [session.id, sessionTreeParentId(session)]));
   const cycleParticipants = findCycleParticipants(parentById);
   const roots: SessionPayload[] = [];
   const childrenByParent = new Map<string, SessionPayload[]>();
   for (const session of sessions) {
-    const parentId = session.lineage?.parent_session_id ?? "";
+    const parentId = parentById.get(session.id) ?? "";
     if (parentId !== "" && parentById.has(parentId) && !cycleParticipants.has(session.id)) {
       const siblings = childrenByParent.get(parentId);
       if (siblings) {

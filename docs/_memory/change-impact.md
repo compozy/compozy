@@ -1,5 +1,21 @@
 # Compozy Change Impact
 
+## Continue/fork runtime selection and top-level placement — 2026-10-06
+
+Owner: this fix PR (branch `fix-continue-agent`; spec `.compozy/tasks/session-continue-fork/`).
+A continued or forked child records its explicit runtime/route (fork: the source runtime) as
+`runtime.selected` at revision 1, so the unbound child's composer and a runtime-less first prompt
+bind the chosen runtime. Continue/fork lineage is provenance, not hierarchy: one predicate
+(`store.HierarchyParentSessionID`, web `sessionTreeParentId`) keeps those sessions out of the
+sidebar/catalog tree, the supervision active-child signal, and Goal descendant authorization.
+Spawned, provenance, and recovery children keep nesting. No SQLite or wire shape changes:
+`lineage.kind` (column + meta, backfilled by #684) already distinguishes the edge, and
+`parent_session_id` keeps naming the source for the origin pill, the CLI, and the `parent=`/`root=`
+filters (which match stored fields as-is). Native tools, hooks, config, and extensions keep their
+shapes; workspace isolation is unchanged. Docs: `sessions/lifecycle.mdx`; official skill:
+`runtime-operations.md`. QA: `ET-web-session-continue` (steps 10–11), `ET-web-session-fork-from-here`
+(reset to untested), `ET-web-session-sidebar-threads` and `ET-web-sessions-catalog-modal` (flagged).
+
 ## Dependency upgrades — 2026-10-05
 
 Owner: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.

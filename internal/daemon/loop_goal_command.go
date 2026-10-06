@@ -9,6 +9,7 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -175,7 +176,8 @@ func (s *daemonLoopAPIService) authorizeGoalDescendant(
 		if !goalSessionInWorkspace(current, workspaceID) || current.Lineage == nil {
 			return fmt.Errorf("%w: target session is not a child of the caller", errGoalCallerDenied)
 		}
-		parentID := strings.TrimSpace(current.Lineage.ParentSessionID)
+		// A continued or forked session names its source as provenance, not as a parent.
+		parentID := store.HierarchyParentSessionID(current.Lineage)
 		if parentID == "" {
 			return fmt.Errorf("%w: target session is not a child of the caller", errGoalCallerDenied)
 		}

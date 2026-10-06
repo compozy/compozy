@@ -127,6 +127,11 @@ parent:
 | `fork`       | A session forked from another session.                             |
 
 `continue` and `fork` sessions also carry `origin_agent_name`, and forks carry `origin_message_id`.
+Their `parent_session_id` names the source as provenance only: a continued or forked session is a new
+top-level session, so session lists show it as its own row rather than under its source, and it is not
+counted as the source's child (it never keeps the source alive). Spawned, provenance, and recovery
+sessions are children of their parent. The `parent=`/`root=` catalog filters match the stored fields
+as-is, so they include continued and forked sessions; read `lineage.kind` to tell them apart.
 A plain create accepts only `provenance` or `recovery`, and only together with a parent:
 
 ```bash

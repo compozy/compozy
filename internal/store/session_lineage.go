@@ -52,6 +52,16 @@ func (k LineageKind) Derived() bool {
 	return k == LineageKindContinue || k == LineageKindFork
 }
 
+// HierarchyParentSessionID returns the parent a session nests under, or "" for a root
+// session and for a continued or forked one: continue and fork name their source as
+// provenance only, so a user-derived session is a new top-level session.
+func HierarchyParentSessionID(lineage *SessionLineage) string {
+	if lineage == nil || LineageKind(strings.TrimSpace(string(lineage.Kind))).Derived() {
+		return ""
+	}
+	return strings.TrimSpace(lineage.ParentSessionID)
+}
+
 // SessionLineage is the persisted parent/root metadata used for safe spawned sessions.
 type SessionLineage struct {
 	ParentSessionID  string                  `json:"parent_session_id,omitempty"`

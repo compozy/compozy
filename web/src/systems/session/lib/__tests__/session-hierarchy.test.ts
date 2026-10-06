@@ -1,5 +1,6 @@
 // Suite: session-hierarchy
-// Invariant: sessions nest under their loaded creation parent (orphans stay roots),
+// Invariant: sessions nest under their loaded hierarchy parent (orphans stay roots;
+// continued and forked sessions are top-level, their source is provenance only),
 // thread collection flattens descendants in list order, and collapsed-thread
 // signals surface the most urgent child state.
 // Owning layer: unit (systems/session/lib)
@@ -17,7 +18,12 @@ import {
 
 function treeSession(
   id: string,
-  options: { parent?: string; badge?: string; sessionType?: SessionPayload["type"] } = {}
+  options: {
+    parent?: string;
+    kind?: NonNullable<SessionPayload["lineage"]>["kind"];
+    badge?: string;
+    sessionType?: SessionPayload["type"];
+  } = {}
 ): SessionPayload {
   return {
     supervision: null,
@@ -40,6 +46,7 @@ function treeSession(
           lineage: {
             parent_session_id: options.parent,
             root_session_id: options.parent,
+            ...(options.kind ? { kind: options.kind } : {}),
             spawn_depth: 1,
             auto_stop_on_parent: false,
             notify_creator: true,
@@ -84,6 +91,31 @@ describe("buildSessionTree", () => {
     expect(tree.roots.map(session => session.id)).toEqual(["sess-origin"]);
     expect(tree.childrenByParent.get("sess-origin")?.map(session => session.id)).toEqual([
       "sess-goal",
+    ]);
+  });
+
+  it("Should keep continued and forked sessions top-level while spawned children nest", () => {
+    const source = treeSession("sess-source");
+    const continued = treeSession("sess-continued", { parent: "sess-source", kind: "continue" });
+    const forked = treeSession("sess-forked", { parent: "sess-source", kind: "fork" });
+    const spawned = treeSession("sess-spawned", { parent: "sess-source", kind: "spawn" });
+    const spawnedByContinued = treeSession("sess-worker", {
+      parent: "sess-continued",
+      kind: "spawn",
+    });
+
+    const tree = buildSessionTree([source, continued, forked, spawned, spawnedByContinued]);
+
+    expect(tree.roots.map(session => session.id)).toEqual([
+      "sess-source",
+      "sess-continued",
+      "sess-forked",
+    ]);
+    expect(tree.childrenByParent.get("sess-source")?.map(session => session.id)).toEqual([
+      "sess-spawned",
+    ]);
+    expect(tree.childrenByParent.get("sess-continued")?.map(session => session.id)).toEqual([
+      "sess-worker",
     ]);
   });
 

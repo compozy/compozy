@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-14
 expected: A user session's row menu (sessions modal, window sidebar, agent detail) and its window overflow offer "Continue with another agent…" after "Rename session" (absent for archived, spawned, coordinator, and system rows). The dialog ("Continue with another agent", eyebrow "Operate · Session") preselects the first agent that is not the source's, shows the daemon-measured context line ("Carries over N messages · X KiB", or "Carries over K of N messages · X KiB" plus "M earlier messages omitted to fit the context budget.", "A turn is still in progress; it will not be carried over." for a running source), keeps Continue disabled while measuring and after "Couldn't measure this session's context.", shows a Route select ("Default" + "Route n · provider · model", with an account suffix when two routes collide) only for agents that declare fallback routes and then hides Runtime (route XOR runtime), accepts an optional first message, and defaults Open in to New window. Continue shows "Starting the new session…", creates exactly one child, and opens it in a new window (This window retargets the current window instead; lists outside a session window always open a new window). The child's status line shows the neutral pill "Continued from {source agent}" linking to the source; its transcript starts with the hairline divider "Continued from {source title}" (alone above "Nothing said here yet" before the first message); the inspector shows Origin "continue · from {agent}" and Seed "replay". The source window and transcript are unchanged. A rate-limited or unauthenticated turn whose next step is handoff shows "Continue this session with another agent or route." with a "Continue with another agent…" button that opens the same dialog for that session; nothing is created until Continue. The dead-runtime banner reads "Restart in a new session" and creates a recovery child. No surface in this feature is danger-toned except refusal text.
 entry_points: web session window overflow (continue-menu-item); session row overflow (session-row-continue-{id}) in the sessions modal, window sidebar, and agent detail; provider-error marker (provider-error-continue); SessionContinueDialog (session-continue-dialog, session-derive-preview, session-continue-route-select, session-derive-placement, session-continue-submit); SessionOriginPill (session-origin-pill); SessionContinueDivider (session-origin-divider); inspector Origin section (ledger-origin, ledger-seed); dead-runtime banner; GET …/derive/preview; POST …/continue
-qa_status: pass
-bug_ids: BUG-20260928-agent-resource-drops-fallback-chain; BUG-20260928-derive-budget-ignores-workspace-overlay; BUG-20260928-derive-retry-creates-second-child; BUG-20260928-derived-child-empty-state-hidden; BUG-20260929-derive-refusal-below-fold
+qa_status: untested
+bug_ids: BUG-20260928-agent-resource-drops-fallback-chain; BUG-20260928-derive-budget-ignores-workspace-overlay; BUG-20260928-derive-retry-creates-second-child; BUG-20260928-derived-child-empty-state-hidden; BUG-20260929-derive-refusal-below-fold; BUG-20261006-derived-child-runtime-not-selected; BUG-20261006-derived-child-nested-under-source
 fix_status: fixed
-retest_status: pass
+retest_status: pending
 fix_commits: uncommitted (review round 1 QA re-walk)
 evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-reopen-measuring.png; docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-committed-child-after-fix.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl; docs/qa/evidence/2026-09-28-session-continue-fork-b2/continue-route-child-window.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/dead-runtime-banner.png; .compozy/tasks/session-continue-fork/evidence/visual/task_04/
 last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
@@ -39,6 +39,12 @@ commands:
    session until Continue.
 8. A dead runtime shows "Restart in a new session"; it creates a child with lineage kind `recovery`.
 9. Stop a continued child and open its inspector: Origin "continue · from {agent}", Seed "replay".
+10. Continue a Codex session on the same agent with Runtime → a Claude model: the child's composer
+    shows that Claude model before any message (`runtime.selected` on the child, revision 1), and its
+    first prompt binds Claude. With Runtime left at the agent default, the composer shows the default.
+11. Every session list (window sidebar, sessions modal, agent detail) shows the continued child as a
+    top-level row: the source row has no thread count for it and the child is not indented. Its
+    origin stays on the pill, the divider, and the inspector.
 
 Automated evidence at authoring time: `session-continue-dialog.test.tsx`, `use-session-derive.test.ts`,
 `runtime-activity-notice.test.tsx`, `session-status-line.test.tsx`, `session-thread.test.tsx`,
@@ -72,3 +78,14 @@ Bruno, lab `…-r1-rewalk-…` (web served from `COMPOZY_WEB_DIST_DIR`, headless
 Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-fast-switched-normal.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-reopen-measuring.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-committed-child.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-committed-child-after-fix.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-committed-child-opened.png`.
 
 qa-impact: 2026-09-30 shell-rail polish P6 — with the new default `new_window_policy = tab`, Open in › New window now asks for a split explicitly so the child still opens in its own window beside the source (unchanged from the walked behavior; session-derive E2E-001 covers it). Flag only.
+
+Fix 2026-10-06 (desktop v0.3.0 report): a child continued with Runtime → Fable 5 from a Codex source
+opened with GPT-6.1-Sol in the composer and nested under its source in the sidebar
+(BUG-20261006-derived-child-runtime-not-selected: the derive set the child's runtime fields but no selected runtime, and an
+unbound session publishes no effective runtime, so the composer fell back to the agent default and
+its first prompt sent it; BUG-20261006-derived-child-nested-under-source: the sidebar nested every `parent_session_id`,
+ignoring `lineage.kind`). Steps 10–11 cover the fix; reset to untested for the next QA cycle.
+Regressions: `TestContinueSession` "Should select the chosen runtime on the unbound child and bind
+it", `use-session-prompt-runtime.test.tsx` "Should prefer an unbound session's selected runtime over
+the agent default", `session-hierarchy.test.ts` "Should keep continued and forked sessions top-level
+while spawned children nest".
