@@ -25,6 +25,12 @@ and the Web control retain their shapes and semantics. No schema migration, hist
 rewrite, hook/config/extension change, or official skill/site update is required. The existing
 binding integration suite and `LP-per-lane-node-control` own this internal settlement invariant.
 HTTP/UDS request cancellation and notification-ledger fault injection are test-harness changes.
+Web route entry now follows a live replacement of the remembered-profile read after silent
+query cancellation during reconnect. It still waits for authoritative profile identity before
+loading scoped work and propagates real read failures. Native tools, HTTP/UDS/CLI contracts,
+hooks, config, extension SDKs, persisted data and workspace/profile isolation are unchanged;
+no migration or official `skills/compozy/`/site documentation change is required. The existing
+route-preloading integration suite and terminal shell-config restart journey own verification.
 
 ## Untested QA sweep — 2026-10-02
 

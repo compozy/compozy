@@ -272,3 +272,24 @@ reports zero issues. The final official `make test-e2e-runtime` passes all 313 t
 the corrected roster fixture and the unchanged two-second timeout lifecycle scenario.
 The final local `make gate` passes Go lint with zero issues and all affected Go race suites.
 Current-head PR CI remains pending.
+
+## Profile entry during restart reconciliation
+
+Release Nightly job `112266831267`, head `b8cd86cb`, passed 288 browser scenarios with
+three existing skips and failed the Unicode zsh scenario before terminal assertions.
+Its retained trace shows the pre-restart desktop being accepted by the reload helper;
+the screen then entered the root route error boundary with a TanStack `CancelledError`.
+The helper and original E2E assertions remain unchanged during the production repair.
+
+The route's profile precondition can join an in-flight selection query. Reconciliation
+silently cancels that query and replaces it; TanStack's joined-fetch path exposes the old
+promise's cancellation to the route. The existing route-preloading suite reproduces this
+with a real QueryClient/router and adapter-boundary deferred responses: the original
+production code fails the new regression while 52 existing tests pass. Route entry now
+follows a live replacement after silent cancellation, preserving the authoritative profile
+read and propagation of genuine failures. The final local gate passes all affected lanes,
+including 7,014 Web tests, typecheck and lint with zero warnings/errors. The owning route
+suite passes all 53 tests. The production Web build passes through root Turbo and React
+Doctor reports 100/100. Both original zsh prompt scenarios pass three repetitions each
+against the real daemon and current production Web build (six passes, 2.8 minutes).
+Current-head PR CI remains pending.

@@ -30,7 +30,12 @@ import {
 import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/systems/knowledge";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
-import { readProfileLens, resetProfileViews, setProfileView } from "@/systems/profiles";
+import {
+  profileSelectionOptions,
+  readProfileLens,
+  resetProfileViews,
+  setProfileView,
+} from "@/systems/profiles";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
 import { statusOptions } from "@/systems/status";
@@ -1442,6 +1447,43 @@ describe("route query preloading", () => {
     expect(
       router.state.matches.some(match => match.status === "error" && match.error === failure)
     ).toBe(true);
+    queryClient.clear();
+  });
+
+  it("Should await the replacement profile read when reconnect cancels an entry read", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getTaskRun.mockResolvedValue({ run: { id: "run-1", status: "completed" } });
+    adapterMocks.getTask.mockResolvedValue({
+      task: { id: "task-1" },
+      summary: { active_run: null },
+    });
+    adapterMocks.listTaskRuns.mockResolvedValue([]);
+    const lens = readProfileLens();
+    const options = profileSelectionOptions(lens);
+    queryClient.setQueryData(options.queryKey, { profile: "default", scope: lens.scope });
+    const firstRead = createDeferred<{ profile: string; scope: string }>();
+    const replacementRead = createDeferred<{ profile: string; scope: string }>();
+    adapterMocks.fetchProfileSelection
+      .mockReturnValueOnce(firstRead.promise)
+      .mockReturnValueOnce(replacementRead.promise);
+    const backgroundRead = queryClient.fetchQuery(options);
+    const router = createRunEntryRouter(queryClient);
+    const entry = router.load();
+    await Promise.resolve();
+    const reconciliation = queryClient.refetchQueries({ queryKey: options.queryKey });
+    await waitFor(() => expect(adapterMocks.fetchProfileSelection).toHaveBeenCalledTimes(2));
+    expect(adapterMocks.getTaskRun).not.toHaveBeenCalled();
+
+    replacementRead.resolve({ profile: "marketing", scope: lens.scope });
+    await Promise.all([backgroundRead, reconciliation, entry]);
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(router.state.matches.some(match => match.status === "error")).toBe(false);
+    expect(adapterMocks.getTaskRun).toHaveBeenCalledWith(
+      "run-1",
+      { profile: "marketing" },
+      expect.any(AbortSignal)
+    );
     queryClient.clear();
   });
 

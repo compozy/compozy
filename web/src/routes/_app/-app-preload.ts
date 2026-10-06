@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import { CancelledError, type QueryClient } from "@tanstack/react-query";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import { agentCatalogOptions, agentsListOptions } from "@/systems/agent";
@@ -25,7 +25,24 @@ export async function prepareAppProfile(queryClient: QueryClient): Promise<void>
   }
   const lens = readProfileLens();
   if (localProfileView(lens)) return;
-  await queryClient.fetchQuery(profileSelectionOptions(lens));
+  const options = profileSelectionOptions(lens);
+  for (;;) {
+    try {
+      await queryClient.fetchQuery(options);
+      return;
+    } catch (error) {
+      // A joined TanStack fetch can expose the old promise's silent cancellation
+      // when reconciliation replaces it. Follow the replacement, never cached
+      // identity or a cancelled read without a live successor.
+      if (
+        !(error instanceof CancelledError) ||
+        !error.silent ||
+        queryClient.getQueryState(options.queryKey)?.fetchStatus !== "fetching"
+      ) {
+        throw error;
+      }
+    }
+  }
 }
 
 export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
