@@ -186,6 +186,43 @@ describe("useWindowManagerClient", () => {
     expect(unregisterWindowManagerClient).not.toHaveBeenCalled();
   });
 
+  it.each(["timer", "visibility", "explicit"] as const)(
+    "Should retain the failure during %s recovery until registration succeeds",
+    async recovery => {
+      vi.useFakeTimers();
+      let visibilityState: DocumentVisibilityState = "visible";
+      vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibilityState);
+      const failure = new Error("profile needs recovery");
+      let resolveRetry!: (view: WindowManagerRegisteredClientView) => void;
+      vi.mocked(registerWindowManagerClient)
+        .mockRejectedValueOnce(failure)
+        .mockImplementationOnce(() => new Promise(resolve => (resolveRetry = resolve)));
+      const { result } = renderHook(() => useWindowManagerClient("workspace:test", "marketing"));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(result.current.error).toBe(failure);
+
+      if (recovery === "timer") {
+        await act(() => vi.advanceTimersByTimeAsync(500));
+      } else if (recovery === "visibility") {
+        for (const next of ["hidden", "visible"] as const) {
+          act(() => {
+            visibilityState = next;
+            document.dispatchEvent(new Event("visibilitychange"));
+          });
+        }
+      } else {
+        act(() => result.current.reregister());
+      }
+      expect(result.current.status).toBe("registering");
+      expect(result.current.error).toBe(failure);
+      await act(async () => resolveRetry(client()));
+      expect(result.current.status).toBe("registered");
+      expect(result.current.error).toBeNull();
+    }
+  );
+
   it("Should pause failed-registration retries while the document is hidden", async () => {
     vi.useFakeTimers();
     let visibilityState: DocumentVisibilityState = "visible";

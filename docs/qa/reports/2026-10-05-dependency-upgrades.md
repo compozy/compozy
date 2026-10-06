@@ -177,3 +177,60 @@ does not verify the scenario's separate physical clipboard journey.
 Final local gate for the restoration and native-focus corrections: all affected lanes
 passed, including Desktop and Web lint/typecheck/tests. React Doctor reports 100/100
 with no issues. Official Web shard 2 is still running; final CI is pending.
+
+## Loop-record navigation verification follow-up
+
+Main CI job `112163156959` failed the existing Tasks reveal-filter journey after
+the browser URL changed to a Loop run but before the Loop window appeared. The
+trace shows the next Tasks dock click correctly issuing `window.close` with
+`minimize: true`; the preceding run-page screenshot still shows Tasks. The scenario
+now also asserts that the existing `loop-run-detail-content` is visible inside the
+Loops window before returning. All original assertions and deadlines remain.
+This strengthens navigation evidence without changing production behavior. The
+local gate passed, including Web lint, typecheck, tests and codegen. The official
+Web shard 4 verified this Tasks journey, but finished with 71 passes and two
+terminal fixture failures described below.
+
+## Terminal fixture verification follow-up
+
+The local official Web shard 4 exposed two fixture defects in the existing terminal
+E2E suite. E2E-001 inherited Fish 4.9.3, but its piped PTY did not answer the required
+primary-device-attributes query. Instrumentation showed human input admission followed
+by idle fallback after roughly 300 ms, then the shell's authenticated command marker
+about ten seconds later. The unchanged scenario failed ten of ten repetitions. An
+isolated real PTY answered DA1 and observed the first Fish prompt in 56 ms.
+
+The interactive CLI fixture now answers DA1, including queries split across output
+chunks, as a basic VT100 terminal. This supplies the terminal peer required by
+[Fish's terminal contract](https://fishshell.com/docs/current/terminal-compatibility.html).
+It does not change journal attribution, shell selection, assertions or deadlines.
+E2E-014 completed its TUI assertions but failed teardown because `go run` downloaded
+a read-only Go toolchain/module cache into the isolated operator home. The fixture
+now builds the same real TUI using the test runner's Go environment before launching
+the binary inside that home.
+
+Both existing scenarios passed three focused repetitions each (six passes, 45.3s)
+with the diagnostic daemon. The instrumentation was removed from source before
+validation and is not part of the change. The official production-binary shard rerun
+and final CI remain pending. The canonical invariants are human attribution after
+interactive CLI input (E2E-001) and real alternate-screen rendering, resize, watcher
+agreement and primary-screen restoration with clean teardown (E2E-014).
+
+## Profile recovery guidance retry follow-up
+
+PR #695 CI job `112172947814` failed E2E-031 after the recovery tooltip had appeared
+with the correct operation ID. The trace shows the next registration retry clearing
+the last client error at the same time as the status/tooltip unmounted, even though
+the unavailable profile had not recovered. The registration store now retains the
+last error through automatic, visibility-resume and explicit retry transitions. Success
+clears it; workspace/profile rebinding still creates a fresh state.
+
+Three cases added to the existing registration hook suite fail against the prior
+production transitions (three failures, nine passes). The original E2E remains unchanged;
+five local baseline repetitions passed, so local timing alone does not reproduce the
+Linux CI failure. The deterministic hook regression owns the lifetime invariant.
+All 12 owning hook tests pass after the correction. The final local gate passed,
+including Web lint with zero warnings/errors, typecheck, tests and codegen. React
+Doctor reports 100/100. Official Web shards 3/4 and final-head CI remain pending.
+The prior PR head also completed Linux Web shard 4 with 73 passes (16.4m), including
+the corrected Tasks navigation; that evidence does not qualify the newer changes.
