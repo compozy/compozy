@@ -18,10 +18,15 @@ type SessionInspectionRequest struct {
 // SessionModelInspection retains options for each independently selected transport model.
 type SessionModelInspection struct {
 	Options []SessionConfigOption
-	Models  map[string][]SessionConfigOption
+	// Models holds options only for models whose selection the agent acknowledged.
+	Models map[string][]SessionConfigOption
+	// ModelErrors records per-model selection failures; Options stays authoritative.
+	ModelErrors map[string]error
 }
 
 // InspectSessionModels reads model-specific options without submitting a prompt.
+// The advertised model list is the discovery result; per-model option probes only
+// enrich it, so a rejected model or an exhausted budget never discards the list.
 func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (SessionModelInspection, error) {
 	var result SessionModelInspection
 	err := inspectSession(ctx, req, func(driver *Driver, proc *AgentProcess) error {
@@ -35,12 +40,22 @@ func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (Se
 			if _, exists := result.Models[value.Value]; exists {
 				continue
 			}
+			if _, failed := result.ModelErrors[value.Value]; failed {
+				continue
+			}
 			if model.ReadOnly && value.Value != model.CurrentValueID {
 				continue
 			}
+			if ctx.Err() != nil {
+				return nil
+			}
 			if !model.ReadOnly {
 				if _, err := driver.applySessionModel(ctx, proc, value.Value); err != nil {
-					return fmt.Errorf("acp: inspect model %q: %w", value.Value, err)
+					if result.ModelErrors == nil {
+						result.ModelErrors = make(map[string]error)
+					}
+					result.ModelErrors[value.Value] = fmt.Errorf("acp: inspect model %q: %w", value.Value, err)
+					continue
 				}
 			}
 			result.Models[value.Value] = CloneSessionConfigOptions(proc.CapsSnapshot().ConfigOptions)

@@ -20,6 +20,9 @@ type claudeModelCandidate struct {
 }
 
 // parseClaudeModelRows groups verified logical identities while retaining every advertised transport binding.
+// The advertised list is Claude Code's own model picker, so it owns the curated
+// set: version aliases (opus, sonnet, ...) are the provider's current models and
+// lead the list, while pinned exact releases stay curated without being featured.
 func parseClaudeModelRows(
 	providerID string,
 	models compozyconfig.ProviderModelsConfig,
@@ -48,8 +51,13 @@ func parseClaudeModelRows(
 			TransportModelID: transportModelID,
 			Label:            strings.TrimSpace(value.Label),
 		}
+		providerDefault := strings.EqualFold(modelID, providerDefaultOption)
+		alias := !providerDefault && !strings.HasPrefix(transportModelID, "claude-")
 		if index, exists := byID[modelID]; exists {
 			rows[index].TransportBindings = appendTransportBinding(rows[index].TransportBindings, binding)
+			if alias {
+				rows[index].Featured = new(true)
+			}
 			continue
 		}
 
@@ -62,8 +70,12 @@ func parseClaudeModelRows(
 			SourceKind:        SourceKindProviderLive,
 			Priority:          PriorityProviderLive,
 			Available:         &available,
+			ExplicitlyCurated: !providerDefault,
 			TransportBindings: []ModelTransportBinding{binding},
 			RefreshedAt:       nowTime,
+		}
+		if !providerDefault {
+			row.Featured = new(alias)
 		}
 		byID[modelID] = len(rows)
 		rows = append(rows, row)
@@ -129,12 +141,28 @@ func claudeLogicalModelID(
 		}
 	}
 	if len(matching) == 0 {
-		return transportModelID
+		return claudeAliasReleaseID(family, label, transportModelID)
 	}
 	if len(matching) != 1 {
 		return transportModelID
 	}
 	return matching[0].id
+}
+
+// claudeAliasReleaseID names an unseeded alias after the release its provider label
+// advertises (opus + "Opus 5.5" -> claude-opus-5-5), so a newly shipped model gets
+// its exact identity without a catalog seed. Labels without a version keep the alias.
+func claudeAliasReleaseID(family string, label string, transportModelID string) string {
+	version := claudeModelVersion(label)
+	if family == "" || len(version) == 0 || claudeModelFamily(label) != family {
+		return transportModelID
+	}
+	parts := make([]string, 0, len(version)+2)
+	parts = append(parts, "claude", family)
+	for _, number := range version {
+		parts = append(parts, strconv.Itoa(number))
+	}
+	return strings.Join(parts, "-")
 }
 
 // claudeLiveDisplayName prefers the provider label without using it as an exact model identity.

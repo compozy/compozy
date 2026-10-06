@@ -94,7 +94,9 @@ export function useRuntimeModelCatalog(
     missingAllowedProvider,
   });
 
-  const refresh = () => refreshMutation.mutate();
+  // A user-initiated refresh must re-run discovery: an unforced refresh is a no-op
+  // while the daemon's cached source status (even a failed one) is within its TTL.
+  const refresh = () => refreshMutation.mutate({ force: true });
 
   return {
     models,

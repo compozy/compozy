@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -627,17 +628,45 @@ func TestInspectSessionModels(t *testing.T) {
 			t.Fatal("discovery submitted a prompt")
 		}
 	})
-	t.Run("Should fail discovery when a model selection is not acknowledged", func(t *testing.T) {
+	t.Run("Should keep advertised models when a model selection is not acknowledged", func(t *testing.T) {
 		t.Parallel()
 		inspection, err := InspectSessionModels(testutil.Context(t), SessionInspectionRequest{
 			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
 			Env: helperEnv("config_options_unconfirmed", ""),
 		})
-		if err == nil || !strings.Contains(err.Error(), "did not confirm") {
-			t.Fatalf("error = %v, want unconfirmed configuration failure", err)
+		if err != nil {
+			t.Fatalf("InspectSessionModels() error = %v, want advertised options despite one rejected model", err)
+		}
+		assertConfigOption(t, inspection.Options, "model", "new-model", "new-model", "loaded-model", "other-model")
+		for _, rejected := range []string{"loaded-model", "other-model"} {
+			if _, published := inspection.Models[rejected]; published {
+				t.Fatalf("unacknowledged model %q published options: %v", rejected, inspection.Models[rejected])
+			}
+			if err := inspection.ModelErrors[rejected]; err == nil ||
+				!strings.Contains(err.Error(), "did not confirm") {
+				t.Fatalf("ModelErrors[%q] = %v, want unconfirmed configuration failure", rejected, err)
+			}
+		}
+		if _, confirmed := inspection.Models["new-model"]; !confirmed {
+			t.Fatalf("acknowledged model options missing: %v", inspection.Models)
+		}
+	})
+	t.Run("Should return advertised models when the probe budget is exhausted", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+		defer cancel()
+		inspection, err := InspectSessionModels(ctx, SessionInspectionRequest{
+			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnv("stall_config", ""),
+		})
+		if err != nil {
+			t.Fatalf("InspectSessionModels() error = %v, want advertised options after deadline", err)
+		}
+		if _, ok := ModelConfigOption(inspection.Options); !ok {
+			t.Fatalf("advertised model option missing after deadline: %#v", inspection.Options)
 		}
 		if len(inspection.Models) != 0 {
-			t.Fatalf("failed inspection published models: %v", inspection.Models)
+			t.Fatalf("stalled probes published model options: %v", inspection.Models)
 		}
 	})
 }
