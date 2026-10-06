@@ -39,8 +39,12 @@ repair failing main checks, and deliver a PR with green checks on its final head
   `37379680587` succeeded. No current release-job defect was observed.
 - Scheduled checkptr run `37265410608`: `TestGlobalAutomationRunProfileMigrationTail`
   exceeded its three-minute context while applying migration 98. The upgraded SQLite
-  passes the same test with full race/checkptr in 103.200s; Linux workflow verification
-  is run separately on the PR branch. The original deadline and assertions are unchanged.
+  passes the same test with full race/checkptr in 103.200s in isolation. PR audit
+  `37391087126` still exceeded the deadline at migration 120 when four instrumented tests
+  ran concurrently; its other seven shards passed. The entire store suite passes with
+  `GOMAXPROCS=2`, race, full checkptr and `-parallel=1` in 497.451s. The audit now serializes
+  independent tests while preserving internal concurrency, instrumentation, all cases,
+  and the original deadlines/assertions. The ordinary lane retains `-parallel=4`.
 
 ## Research
 
@@ -75,7 +79,7 @@ absent from both the process and project environment. Official upstream sources 
 - Web typecheck passed. The first full test pass exposed four regressions; all 162 tests
   in the three affected suites now pass after repairing asynchronous draft hydration and
   awaiting MSW queue responses without changing behavioral assertions. Full rerun passed:
-  693 files and 7,008 tests.
+  693 files and 7,009 tests after review remediation.
 - The extension registry test-shape heuristic flags existing top-level assertions; the only
   change there is the ULID v2 import, so unrelated test reshaping is outside this migration.
 - Final `make gate`: passed (integration, Mage, Go lint/race tests, codegen, all JS lanes).

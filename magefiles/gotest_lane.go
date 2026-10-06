@@ -44,8 +44,13 @@ type goUnitTestInvocation struct {
 
 func goUnitTestSafetyArgs(fullCheckptr, uncached bool) []string {
 	args := []string{"-race"}
-	if !fullCheckptr {
-		args = append(args, "-gcflags="+moderncCheckptrFlag)
+	if fullCheckptr {
+		// Instrumented SQLite migrations are CPU-heavy; concurrent migration tests
+		// exhaust their operation deadlines on CI runners. Keep their internal
+		// concurrency and all pointer/race checks, but run independent tests serially.
+		args = append(args, "-parallel=1")
+	} else {
+		args = append(args, "-gcflags="+moderncCheckptrFlag, "-parallel="+strconv.Itoa(goUnitTestParallelism))
 	}
 	if uncached {
 		args = append(args, "-count=1")

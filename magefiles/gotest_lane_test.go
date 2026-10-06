@@ -54,16 +54,16 @@ func TestGoUnitTestSafetyArgs(t *testing.T) {
 	t.Run("Should limit disabled checkptr to the modernc dependency", func(t *testing.T) {
 		t.Parallel()
 		got := goUnitTestSafetyArgs(false, false)
-		want := []string{"-race", "-gcflags=" + moderncCheckptrFlag}
+		want := []string{"-race", "-gcflags=" + moderncCheckptrFlag, "-parallel=4"}
 		if !slices.Equal(got, want) {
 			t.Fatalf("goUnitTestSafetyArgs(false, false) = %v, want %v", got, want)
 		}
 	})
 
-	t.Run("Should preserve full checkptr and bypass the test cache for the audit lane", func(t *testing.T) {
+	t.Run("Should serialize the uncached audit without disabling race or checkptr", func(t *testing.T) {
 		t.Parallel()
 		got := goUnitTestSafetyArgs(true, true)
-		want := []string{"-race", "-count=1"}
+		want := []string{"-race", "-parallel=1", "-count=1"}
 		if !slices.Equal(got, want) {
 			t.Fatalf("goUnitTestSafetyArgs(true, true) = %v, want %v", got, want)
 		}
