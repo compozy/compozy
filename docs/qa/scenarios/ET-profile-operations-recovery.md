@@ -61,3 +61,10 @@ clean boot; repeating archive returns the same paused IDs. Retrying the complete
 correctly refused as profile_op_not_retryable. The helper's initial contrary assumption is recorded
 as a driver correction. No product source was read during this walk. The separate TA-052 cursor
 failure remains open and is not qualified by the larger archive inventory page.
+
+QA impact 2026-10-06: CI Web shard 3 exposed recovery guidance disappearing during
+client-registration retries. The browser now retains the last failure until registration
+succeeds or its workspace/profile binding changes. The existing hook suite owns automatic,
+visibility-resume and explicit-retry coverage; the unchanged E2E-031 owns the real recovery
+journey. Current evidence and pending re-walk are recorded in
+`docs/qa/reports/2026-10-05-dependency-upgrades.md`.

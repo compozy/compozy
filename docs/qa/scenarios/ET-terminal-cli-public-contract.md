@@ -59,3 +59,9 @@ while the other remained writable. CLI, UDS, and HTTP state/journal/tail project
 reported delivered and produced exit 130, and the runtime advertised wire v3 with no control flags.
 
 QA impact 2026-09-06: the stream owner now preserves a completed double-key detach when the server closes before the input writer reports completion. The deterministic CLI race regression passes; the unchanged E2E-001 golden-path re-walk passed 3/3 in 18.7s with Bash and the rebuilt daemon/CLI (`.cache/sessions-cli-detach-bash-e2e.log`). Existing unrelated CLI contract evidence remains applicable. See BUG-20260906-terminal-detach-close-race.
+
+QA verification 2026-10-06: E2E-001 now provides the required DA1 response from its
+piped PTY fixture, preserving the default Fish shell and all human journal assertions.
+The original fixture failed ten of ten local runs; the repaired fixture passed three
+focused runs. This verifies the CLI golden-path slice only; final official-shard
+and CI evidence are tracked in `docs/qa/reports/2026-10-05-dependency-upgrades.md`.

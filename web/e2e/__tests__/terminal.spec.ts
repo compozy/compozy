@@ -284,8 +284,21 @@ function startInteractiveCLI(paths: RuntimePaths, args: string[]): InteractiveCL
     stdio: "pipe",
   });
   let captured = "";
+  let pendingQueries = "";
+  const answerPrimaryDeviceQuery = () => {
+    child.stdin.write("\u001b[?1;2c");
+    return "";
+  };
   const append = (chunk: Buffer) => {
-    captured += chunk.toString("utf8").replaceAll("\r", "");
+    const output = chunk.toString("utf8").replaceAll("\r", "");
+    captured += output;
+    // The piped PTY has no emulator to answer Fish's required DA1 handshake.
+    // Preserve split queries and report only basic VT100 capabilities.
+    pendingQueries += output;
+    pendingQueries = pendingQueries
+      .replaceAll("\u001b[c", answerPrimaryDeviceQuery)
+      .replaceAll("\u001b[0c", answerPrimaryDeviceQuery)
+      .slice(-3);
   };
   child.stdout.on("data", append);
   child.stderr.on("data", append);
@@ -991,12 +1004,12 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
   test.setTimeout(150_000);
   assertLaunchRuntime(runtime);
   const workspace = await runtimeWorkspace(runtime);
+  const binary = path.join(runtime.paths.workspaceDir, ".terminal-e2e-tui");
+  await execFileAsync("go", ["build", "-o", binary, "./internal/terminal/testdata/tui"], {
+    cwd: repositoryRoot,
+  });
   const wrapper = path.join(runtime.paths.workspaceDir, ".terminal-e2e-tui.sh");
-  await writeFile(
-    wrapper,
-    `#!/bin/sh\ncd ${shellQuote(repositoryRoot)} || exit 1\nexec go run ./internal/terminal/testdata/tui hold\n`,
-    { mode: 0o700 }
-  );
+  await writeFile(wrapper, `#!/bin/sh\nexec ${shellQuote(binary)} hold\n`, { mode: 0o700 });
   await chmod(wrapper, 0o700);
   const opened = await runTerminalCLI<TerminalEnvelope>(runtime.paths, [
     "open",

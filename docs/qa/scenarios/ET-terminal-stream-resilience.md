@@ -67,3 +67,10 @@ overwriting a live exit and now passes for concrete and aggregate profiles with 
 The unchanged terminal-agent E2E-003 journey passed against the real daemon in
 [CI run 34144138424](https://github.com/compozy/compozy/actions/runs/34144138424), including retained
 output, the exit bar, and journal discovery. See `docs/qa/reports/2026-09-07-ci-recovery.md`.
+
+QA verification 2026-10-06: the existing E2E-014 alternate-screen TUI now builds in
+the runner environment before launching in the isolated operator home, avoiding a
+read-only Go module cache during teardown. Three focused real-browser runs passed
+resize, watcher agreement, primary-screen restoration and cleanup. This is a focused
+slice, not a new full-scenario verdict; official-shard and CI evidence are tracked in
+`docs/qa/reports/2026-10-05-dependency-upgrades.md`.

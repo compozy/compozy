@@ -2159,3 +2159,23 @@ Verification only: the existing Tasks E2E now observes the rendered Loop detail
 before returning. Native tools, extensibility/hooks/configuration, workspace data
 isolation, public Web behavior, docs contracts and official skills are unchanged.
 No migration or release note is needed. QA owner: TA-web-tasks-calm-default-reveal.
+
+## Terminal fixture verification (2026-10-06)
+
+Verification only: the existing interactive CLI test peer answers required DA1
+queries, and the alternate-screen fixture builds before entering the isolated home.
+Production native tools, public surfaces, extensibility/hooks/configuration, workspace
+data isolation, Web behavior and official skills are unchanged. No migration or
+release note is needed. Existing terminal E2Es own the invariants; QA slices are
+ET-terminal-cli-public-contract and ET-terminal-stream-resilience. Evidence and
+remaining verification are in `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+## Profile recovery guidance during registration retries (2026-10-06)
+
+The Web client retains its last registration failure while a retry is in flight,
+clearing it after success or rebinding the workspace/profile. Native tools, CLI/HTTP/UDS
+routes and DTOs, hooks/extensions/configuration, persisted data and workspace/profile
+isolation are unchanged. No compatibility adapter or migration is required. Official
+skills/compozy and site contracts remain accurate; the release note explains the visible
+repair. Owner: ET-profile-operations-recovery and the existing registration hook suite;
+evidence: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
