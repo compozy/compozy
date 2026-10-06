@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-01
+## 0.3.0 - 2026-10-06
 
 ### ♻️ Refactoring
 
@@ -282,6 +282,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wake creator on child turn completion (#685)
 - Resolve reported runtime, catalog and delivery failures (#686)
 - Restore release nightly coverage and package extension runtimes
+- Preserve loop results under SQLite contention (#690)
+- Repair profile isolation, runtime recovery, and loop results (#691)
+- Skills nested
+- Upgrade dependencies and repair CI compatibility (#692)
+- Repair release validation and desktop restoration (#694)
+- Preserve profile recovery guidance and repair browser validation (#695)
+- Preserve SQLite commit outcomes during cancellation (#696)
+- Preserve profile entry across query reconciliation (#697)
 
 ### 🔧 Miscellaneous Tasks
 

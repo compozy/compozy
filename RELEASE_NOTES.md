@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-10-01
+## 0.3.0 - 2026-10-06
 
 ### ♻️ Refactoring
 
@@ -275,6 +275,14 @@
 - Wake creator on child turn completion (#685)
 - Resolve reported runtime, catalog and delivery failures (#686)
 - Restore release nightly coverage and package extension runtimes
+- Preserve loop results under SQLite contention (#690)
+- Repair profile isolation, runtime recovery, and loop results (#691)
+- Skills nested
+- Upgrade dependencies and repair CI compatibility (#692)
+- Repair release validation and desktop restoration (#694)
+- Preserve profile recovery guidance and repair browser validation (#695)
+- Preserve SQLite commit outcomes during cancellation (#696)
+- Preserve profile entry across query reconciliation (#697)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -1023,6 +1031,18 @@ Loop-managed sessions also inherit configured ACP options and speed, with explic
 
 PRs: [#527](https://github.com/compozy/compozy/pull/527), [#531](https://github.com/compozy/compozy/pull/531), [#542](https://github.com/compozy/compozy/pull/542).
 
+##### Updated runtime dependencies and preserved profile icons
+
+Upgrade Go runtime dependencies and the web/desktop toolchain, including the native TypeScript
+checker, Bubble Tea installation wizard and CEL expression engine. Source builds require
+Go 1.27.1. Existing profile icons retain their appearance when Lucide renames their symbols.
+Restored desktop window frames appear before layout-heavy contents finish mounting.
+
+Migration notes: profile reads and writes translate `album`, `book-marked`, `building-2`,
+`flip-horizontal-2`, `flip-vertical-2` and `trash-2` to their canonical Lucide names without
+discarding profile state. The boundary decoder is scheduled for removal in v0.5.0 after the
+persisted names have been migrated. No operator action is required for this release.
+
 ##### Dry-run proves the run you are about to submit
 
 A Loop could validate, dry-run cleanly, and then fail at submission with `executed definition template manifest changed`. The compiler folded default values into the definition it stored, but compiled templates from the definition _before_ those defaults — so a persisted run carried more template keys than its own snapshot, and hydration rightly refused it. Compilation now uses one canonical definition throughout, and dry-run exercises the exact snapshot boundary a real submission uses. (#313, #317)
@@ -1111,6 +1131,11 @@ A short-lived terminal that exits while the browser is attaching now keeps its e
 Session stream closure drains the persisted stop marker. The pending-reply indicator also appears when a delayed React effect has already consumed its initial guard interval, instead of staying hidden indefinitely. Delayed Settings navigation and runtime-selector closing focus no longer override a newer operator action.
 
 PRs: [#547](https://github.com/compozy/compozy/pull/547), [#557](https://github.com/compozy/compozy/pull/557). CI follow-ups: [862e138](https://github.com/compozy/compozy/commit/862e138113f438e532777421ae3b85343162360e), [52d2c4a](https://github.com/compozy/compozy/commit/52d2c4a63f8dbaa429ff61f31671f52bee8a518b).
+
+##### Preserve terminal cleanup ownership when canceling a lane
+
+Canceling a run-agent lane now records terminal session cleanup before generic cancellation
+cleanup, preserving the exact session and binding epoch throughout settlement.
 
 ##### Live changelog and composer fixes
 
@@ -1205,6 +1230,14 @@ CompozyOS wrote a Pi credential slot's target environment name, such as `ZAI_API
 
 Migration notes: this covers the built-in `pi_acp` bound-secret providers — z.ai, OpenRouter, Moonshot/Kimi, xAI, MiniMax, Mistral, Groq, and Vercel AI Gateway.
 
+##### Recover profile entry during daemon reconnection
+
+Fixed a Web route error when daemon reconnection replaces an in-flight profile-selection read. Navigation now waits for the current workspace's profile before loading scoped work, including when the workspace changes during reconnection.
+
+##### Keep profile recovery guidance visible during retries
+
+Profile recovery details now remain visible while the browser retries its window-manager registration. A successful registration or an explicit context switch clears the previous failure.
+
 ##### Recover a Loop-owned task run without losing its place
 
 A Loop worker task run parked in `needs_attention` had no honest way back. Generic subprocess-health escalation swallowed Loop-owned crashes, and `task run recover` re-enqueued a run that no longer belonged to its Loop. (#447, fixes #437)
@@ -1243,6 +1276,19 @@ Changing an Agent's provider with `compozy agent update` clears the previous pro
 
 PRs: [#545](https://github.com/compozy/compozy/pull/545), [#546](https://github.com/compozy/compozy/pull/546).
 
+##### Resource-only extension manifests retain their declared paths
+
+Extension manifests using the published string-array syntax for skills, agents, Loops, automation,
+and layouts load again in TOML and JSON. The decoder translates each string into an unplaced path;
+explicit profile placements and strict unknown-field validation remain intact. Build output uses
+the current path/profile object form.
+
+Migration notes: string-array input is accepted through v0.3.0-beta.30 and removed in
+v0.3.0-beta.31. In handwritten sources, replace `agents = ["agents"]` with
+`agents = [{ path = "agents" }]`, or `[[resources.agents]]` followed by `path = "agents"`.
+Apply the same conversion to the other static resource families. Omit `profile` to preserve
+all-profile visibility. Existing source files and installed resource state are not rewritten.
+
 ##### Resource-only extensions need no toolchain
 
 An extension that ships only declared resources — agents, skills, Loops, automations, layouts — can now use `build`, `dev`, `reload`, and `dev --watch` without installing a Go or TypeScript toolchain. The passive build path validates and publishes those resources without running build or describe subprocesses, and active development links project them into the linked workspace while preserving deterministic generations, atomic reload, and last-good fallback. The Go and TypeScript paths are unchanged, and the resource-only path fails closed. (#423)
@@ -1273,6 +1319,10 @@ Linux AppImages now embed the static runtime, allowing distributions with FUSE 3
 
 PR: [#548](https://github.com/compozy/compozy/pull/548).
 
+##### Preserve successful SQLite commits during cancellation
+
+A request or persistence deadline arriving during a successful SQLite commit no longer reports that committed write as failed. This prevents persistence retries from duplicating completed tool events. Cancellation observed before commit still rolls back the write.
+
 ##### The daemon owns a managed worker's outcome
 
 A managed Loop worker session could call complete or fail and race the daemon's own validated action result, so what a generation recorded depended on which side got there first. The daemon is now the single terminal authority for managed workers. (#438)
@@ -1288,6 +1338,10 @@ Long-running sessions with a large internal session catalog put the macOS deskto
 - Memory-extractor, auto-title, and dream sessions no longer publish wake events to the public session catalog.
 - Built-in background agents, including `dreaming-curator`, resolve through effective workspace configuration instead of being reported as missing workspace-authored agents.
 - The identity contract ships in OpenAPI and the generated TypeScript types.
+
+##### Restore saved windows after layout configuration is ready
+
+Fixed desktop restoration briefly mounting an empty composer before saved window layout configuration was ready.
 
 ##### Zoom a window without covering its tiled neighbors
 
