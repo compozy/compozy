@@ -59,6 +59,9 @@ absent from both the process and project environment. Official upstream sources 
 
 ## Verification
 
+- PR CI exposed the video's obsolete TypeScript `baseUrl` option. Its alias now uses
+  an explicit relative path and its typecheck explicitly selects the native compiler;
+  root Turbo video lint/typecheck passes with TypeScript 7.
 - `go build ./...`: passed after resolving gVisor's Go distribution.
 - Profile lifecycle and CLI wizard suites with race: passed (11.754s / 2.379s).
 - Full-checkptr migration regression: passed (103.200s), original context and assertions intact.
