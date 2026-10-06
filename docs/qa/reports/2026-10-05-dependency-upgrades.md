@@ -63,6 +63,14 @@ absent from both the process and project environment. Official upstream sources 
 
 ## Verification
 
+- PR E2E Web exposed a reproducible 12-window restoration regression: 537.9 ms and
+  505.1 ms on Linux against the unchanged 500 ms limit. Window bodies now mount at
+  deferred priority after their frames commit. A paired CPU-throttled diagnostic measured
+  550.7 ms before and 488.9 ms after; drag and peer convergence assertions also passed.
+  The diagnostic instrumentation was removed; the canonical E2E remains unchanged.
+  The official `COMPOZY_E2E_WEB_SHARD=2/4 make test-e2e-web` rerun passed all 83
+  tests in 14.2 minutes: restore 76.1 ms, no drag long tasks above 50 ms, and peer
+  convergence within its existing limit. The local gate also passed all affected lanes.
 - Review remediation: the composer now suppresses only the pre-hydration observation,
   retaining edits committed before hydration is observed. The existing real-runtime
   session-thread suite passes all 147 tests; the new regression fails on the previous
@@ -85,7 +93,7 @@ absent from both the process and project environment. Official upstream sources 
 - Final `make gate`: passed (integration, Mage, Go lint/race tests, codegen, all JS lanes).
   Go lint reports zero issues; root Turbo reports 26 successful tasks. Final-head CI is owned
   by the pull request.
-- Final React Doctor: 100/100, no issues across 30 changed files.
+- Final React Doctor: 100/100, no issues across 32 changed files.
 - Catalog publisher suite with race: passed, including changed-content publication; lint: zero issues.
   Real `publish` and `validate` commands also preserve Batuta/Herdr metadata and artifact bytes. Go 1.27 changes gzip output; reuse
   published bytes only when decompressed archive hashes match the newly generated package.

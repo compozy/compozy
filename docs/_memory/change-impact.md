@@ -14,6 +14,10 @@ Web composer hydration waits for the assistant-ui commit before persisting obser
 preserving per-session/project drafts. Catalog publication preserves existing compressed bytes
 when decompressed package content is identical across Go toolchain changes. The profile identity
 and composer text-entry scenarios plus existing CLI/profile/catalog suites own these journeys.
+Desktop restoration commits window frames before mounting layout-heavy bodies, preserving
+window identities, geometry, overlays and gestures. The existing 12-window performance E2E
+and desktop-shell lifecycle scenario own this Web-only scheduling change; native tools,
+data, public contracts, official skills and site documentation need no additional changes.
 
 ## Untested QA sweep — 2026-10-02
 
