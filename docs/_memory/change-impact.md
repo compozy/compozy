@@ -2179,3 +2179,16 @@ isolation are unchanged. No compatibility adapter or migration is required. Offi
 skills/compozy and site contracts remain accurate; the release note explains the visible
 repair. Owner: ET-profile-operations-recovery and the existing registration hook suite;
 evidence: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+## SQLite commit acknowledgement (2026-10-06)
+
+The shared write boundary checks cancellation after the existing mutation authorization fence,
+then finishes COMMIT without caller cancellation, matching driver transaction semantics.
+Successful writes retain their success acknowledgement instead of being retried as deadline
+failures. Native tools, CLI/HTTP/UDS and Web consumers benefit without DTO, tool ID, hook,
+extension SDK or configuration changes. Workspace/profile scoping and persisted schemas stay
+unchanged; no migration, compatibility adapter or official skill/site rewrite is needed.
+The roster read E2E now owns a cancellation-driven retry fixture; the separate two-second
+node-timeout E2E remains unchanged. Owners: TestExecuteWrite, TestDaemonToolEventSink,
+LP-run-read-agent-journey and ET-skill-view-actionable-errors.
+Evidence is recorded in docs/qa/reports/2026-10-05-dependency-upgrades.md.

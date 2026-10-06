@@ -3,15 +3,75 @@ package store
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/testutil"
+	"modernc.org/sqlite"
 )
 
 func TestExecuteWrite(t *testing.T) {
+	t.Run("Should preserve committed success when the caller cancels during commit", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		db := sql.OpenDB(&commitCancellationConnector{
+			sqliteDriver: &sqlite.Driver{},
+			dsn:          sqliteDSN(filepath.Join(t.TempDir(), "commit-cancellation.db")),
+			cancel:       cancel,
+		})
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		err := ExecuteWrite(ctx, db, func(ctx context.Context, tx *WriteTx) error {
+			_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('committed')`)
+			return err
+		})
+		if err != nil {
+			t.Fatalf("committed write returned a retryable failure: %v", err)
+		}
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatal("caller was not canceled during commit")
+		}
+		var count int
+		if err := db.QueryRowContext(t.Context(), `SELECT count(*) FROM items`).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("committed rows = %d, error = %v, want one", count, err)
+		}
+	})
+
+	t.Run("Should roll back cancellation observed at the commit fence", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "cancel-before-commit.db"))
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		ctx = ContextWithMutationCommitFence(ctx, func(context.Context) error {
+			cancel()
+			return nil
+		})
+		err := ExecuteWrite(ctx, db, func(ctx context.Context, tx *WriteTx) error {
+			_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('rolled-back')`)
+			return err
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("write error = %v, want cancellation", err)
+		}
+		var count int
+		if err := db.QueryRowContext(t.Context(), `SELECT count(*) FROM items`).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("rows after cancellation = %d, error = %v, want zero", count, err)
+		}
+	})
+
 	t.Run("Should reject same database reentry and roll back the outer write", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -631,4 +691,41 @@ func openExecuteWriteTestDB(t *testing.T, path string) *sql.DB {
 		}
 	})
 	return db
+}
+
+// The driver boundary cancels after SQLite commits, reproducing an ambiguous ExecContext result.
+type commitCancellationConnector struct {
+	sqliteDriver *sqlite.Driver
+	dsn          string
+	cancel       context.CancelFunc
+}
+
+func (c *commitCancellationConnector) Connect(context.Context) (driver.Conn, error) {
+	conn, err := c.sqliteDriver.Open(c.dsn)
+	if err != nil {
+		return nil, err
+	}
+	return &commitCancellationConn{Conn: conn, cancel: c.cancel}, nil
+}
+
+func (c *commitCancellationConnector) Driver() driver.Driver { return c.sqliteDriver }
+
+type commitCancellationConn struct {
+	driver.Conn
+	cancel context.CancelFunc
+}
+
+func (c *commitCancellationConn) ExecContext(
+	ctx context.Context,
+	query string,
+	args []driver.NamedValue,
+) (driver.Result, error) {
+	result, err := c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
+	if err == nil && query == sqliteCommitStatement {
+		c.cancel()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return result, err
 }
