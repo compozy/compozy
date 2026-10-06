@@ -112,3 +112,11 @@ qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless til
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+
+QA impact 2026-10-06: Verify that twelve persisted windows restore within the existing
+500 ms E2E-023 budget when the desktop snapshot arrives before layout configuration.
+Do not mount an empty desktop composer during that interval. Preserve final geometry,
+active window, and the existing drag responsiveness assertion. Focused hook regression
+and throttled browser profiling are recorded in the dependency-upgrades report; the
+full official shard rerun and final CI evidence are recorded separately.

@@ -149,3 +149,31 @@ Follow-up verification:
   retains 14 pre-existing top-level assertion findings; only its request helper changes.
 - Final follow-up `make gate`: passed. Go lint reports zero issues; API/store race
   suites pass (996s overall), and the Web lint/typecheck/test/codegen lane passes.
+
+## Desktop restoration and native diagnostic shortcut follow-up
+
+PR #694 Web shard 2 measured 516.9 ms for the unchanged 500 ms twelve-window
+restoration budget. CPU profiling identified a transient empty desktop: the snapshot
+arrived before layout configuration, so the window layer mounted the empty-state
+composer before replacing it with restored frames. The layer now waits for its
+existing configuration readiness signal before exposing desktops. No persisted
+layout, window geometry, or performance threshold changes.
+
+The existing interaction-hook suite owns this readiness invariant. Its new regression
+fails against the original hook (one failure, 56 passes) and all 57 tests pass with
+the correction through root Turbo. A real browser profile at five-times CPU throttling
+measured 494.9 ms before and 406.9 ms after; these are single local measurements,
+not Linux CI proof. The official Web shard 2 rerun remains pending.
+
+Main CI desktop job `112109695891` failed the second diagnostic shortcut in E2E-034.
+Detached DevTools can own native focus, while Electron requires the target window to
+be focused before `sendInputEvent`. The existing packaged test now focuses the product
+window and observes native focus before sending that second shortcut. The production
+shortcut and all security assertions and deadlines are unchanged. The focused packaged
+macOS scenario passes three repetitions (20.5 seconds); its baseline also passed
+locally, so Linux confirmation remains owned by the next CI run. This focused run
+does not verify the scenario's separate physical clipboard journey.
+
+Final local gate for the restoration and native-focus corrections: all affected lanes
+passed, including Desktop and Web lint/typecheck/tests. React Doctor reports 100/100
+with no issues. Official Web shard 2 is still running; final CI is pending.

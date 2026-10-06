@@ -2137,3 +2137,17 @@ remain unchanged.
   contract. Clarify initial in-body routing and repeated-blocker precedence there. QA owner:
   LP-003, LP-revise-repair-context and the two gate-routing bug records in the owning report.
   Existing coordinator suites own the invariants; real command-gate runs own replay evidence.
+
+
+## Desktop restoration readiness and shortcut verification (2026-10-06)
+
+- Web waits for existing window-manager configuration before exposing restored desktops,
+  preventing a transient empty composer from delaying restored frames. Internal projection
+  only: native tools, CLI/HTTP/UDS contracts, extensibility/hooks/configuration, workspace
+  isolation and persisted layouts are unchanged. No migration or compatibility shim.
+- Electron changes only the packaged test's native-focus precondition; production security
+  and shortcut behavior remain unchanged. Official skills and public site documentation
+  require no changes.
+- QA owners: ET-web-desktop-shell-lifecycle (E2E-023) and
+  ET-electron-session-copy-debug (E2E-034). Evidence and verification limits are recorded
+  in `docs/qa/reports/2026-10-05-dependency-upgrades.md`.

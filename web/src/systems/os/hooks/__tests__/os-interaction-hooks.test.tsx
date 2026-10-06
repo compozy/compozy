@@ -1737,6 +1737,40 @@ describe("useOsZoomMenu", () => {
 });
 
 describe("useOsWinLayer", () => {
+  it("Should wait for layout configuration before exposing restored desktops", () => {
+    const shell = createShell();
+    const desktop = {
+      id: "desktop:main",
+      name: "Main",
+      order: 0,
+      groups: [],
+      floating: ["window:primary"],
+      floatingStacks: [],
+    };
+    const frame = primaryFrame();
+    shell.setRuntimeState({
+      desktops: [desktop],
+      windowManagerConfig: null,
+      hydration: "pending",
+      frames: {},
+    });
+    const { result } = renderHook(() => useOsWinLayer(), { wrapper: shell.wrapper });
+
+    expect(result.current.desktops).toEqual([]);
+
+    act(() => {
+      shell.setRuntimeState({
+        windowManagerConfig: CONFIG,
+        hydration: "live",
+        frames: { [desktop.id]: [frame] },
+      });
+    });
+
+    expect(result.current.desktops).toEqual([
+      { desktop, frames: [frame], active: true, anyVisible: true },
+    ]);
+  });
+
   it("Should refresh the work-area origin when viewport chrome moves without resizing content", () => {
     let callback!: ResizeObserverCallback;
     let observer!: ResizeObserver;

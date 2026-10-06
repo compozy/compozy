@@ -19,3 +19,11 @@ overlaps: RT-053; APP-desktop-native-edit-shortcuts; ET-web-desktop-shell-lifecy
 story: As a desktop operator, I can copy a Session answer and intentionally open the product diagnostics console without weakening the shell's other security boundaries.
 
 QA impact 2026-08-25: ENG-145 now covers the Electron permission seam and the product-only `Ctrl+Opt+I` debugging path. The focused packaged E2E passed; a physical macOS walk is still required before this scenario can become `pass`.
+
+
+QA impact 2026-10-06: E2E-034 must restore native product-window focus after detached
+DevTools opens before injecting the closing shortcut, as required by Electron's input
+API. Keep the existing security, open/close, and deadline assertions. Three focused
+packaged macOS repetitions pass; Linux CI confirmation remains pending. This result
+does not replace the outstanding physical clipboard walk above. Evidence:
+`docs/qa/reports/2026-10-05-dependency-upgrades.md`.
