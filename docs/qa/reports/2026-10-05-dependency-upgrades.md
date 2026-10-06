@@ -177,3 +177,15 @@ does not verify the scenario's separate physical clipboard journey.
 Final local gate for the restoration and native-focus corrections: all affected lanes
 passed, including Desktop and Web lint/typecheck/tests. React Doctor reports 100/100
 with no issues. Official Web shard 2 is still running; final CI is pending.
+
+## Loop-record navigation verification follow-up
+
+Main CI job `112163156959` failed the existing Tasks reveal-filter journey after
+the browser URL changed to a Loop run but before the Loop window appeared. The
+trace shows the next Tasks dock click correctly issuing `window.close` with
+`minimize: true`; the preceding run-page screenshot still shows Tasks. The scenario
+now also asserts that the existing `loop-run-detail-content` is visible inside the
+Loops window before returning. All original assertions and deadlines remain.
+This strengthens navigation evidence without changing production behavior. The
+local gate passed, including Web lint, typecheck, tests and codegen. The official
+Web shard 4 rerun is still in progress.

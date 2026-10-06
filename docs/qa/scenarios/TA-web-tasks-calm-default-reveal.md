@@ -25,3 +25,10 @@ Both empty states matter and are different sentences: the reveal-scoped one name
 src: web/src/systems/tasks/components/tasks-list-surface.tsx; web/src/systems/tasks/components/task-loop-row.tsx; web/src/systems/tasks/components/tasks-list-records-filter.tsx; web/src/systems/tasks/hooks/use-tasks-page.ts; web/src/systems/tasks/lib/task-loop-identity.ts
 
 inventory: Needs QA
+
+
+QA impact 2026-10-06: In the existing reveal-filter journey, confirm the linked
+Loop run content is visible in its owning window before returning through the
+Tasks dock. A changed browser URL alone does not prove the shell transition has
+finished. Preserve the existing reset-to-Tasks filter and hidden-record assertions.
+Evidence: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.

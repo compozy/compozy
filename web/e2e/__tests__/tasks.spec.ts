@@ -841,6 +841,7 @@ test.describe("Loop record legibility", () => {
     // Activation lands on the run page — the observability home for loop work.
     await cellRow.locator("a").first().click();
     await expect(appPage).toHaveURL(new RegExp(`/loop-runs/${seeded.runId}`));
+    await expect(appWindow(appPage, "loops").getByTestId("loop-run-detail-content")).toBeVisible();
     await browserArtifacts.captureScreenshot("tasks-loop-revealed-run-page", appPage);
 
     // Revealing is an explicit act per context: coming back starts calm again.

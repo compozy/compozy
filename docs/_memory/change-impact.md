@@ -2151,3 +2151,11 @@ remain unchanged.
 - QA owners: ET-web-desktop-shell-lifecycle (E2E-023) and
   ET-electron-session-copy-debug (E2E-034). Evidence and verification limits are recorded
   in `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+
+## Loop-record navigation verification (2026-10-06)
+
+Verification only: the existing Tasks E2E now observes the rendered Loop detail
+before returning. Native tools, extensibility/hooks/configuration, workspace data
+isolation, public Web behavior, docs contracts and official skills are unchanged.
+No migration or release note is needed. QA owner: TA-web-tasks-calm-default-reveal.
