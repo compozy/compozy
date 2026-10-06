@@ -20,7 +20,8 @@ type SessionModelInspection struct {
 	Options []SessionConfigOption
 	// Models holds options only for models whose selection the agent acknowledged.
 	Models map[string][]SessionConfigOption
-	// ModelErrors records per-model selection failures; Options stays authoritative.
+	// ModelErrors records each model whose options could not be observed, whether the
+	// selection failed or the budget ran out first; Options stays authoritative.
 	ModelErrors map[string]error
 }
 
@@ -46,15 +47,13 @@ func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (Se
 			if model.ReadOnly && value.Value != model.CurrentValueID {
 				continue
 			}
-			if ctx.Err() != nil {
-				return nil
+			if err := ctx.Err(); err != nil {
+				result.recordModelError(value.Value, err)
+				continue
 			}
 			if !model.ReadOnly {
 				if _, err := driver.applySessionModel(ctx, proc, value.Value); err != nil {
-					if result.ModelErrors == nil {
-						result.ModelErrors = make(map[string]error)
-					}
-					result.ModelErrors[value.Value] = fmt.Errorf("acp: inspect model %q: %w", value.Value, err)
+					result.recordModelError(value.Value, err)
 					continue
 				}
 			}
@@ -66,6 +65,13 @@ func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (Se
 		return SessionModelInspection{}, err
 	}
 	return result, nil
+}
+
+func (r *SessionModelInspection) recordModelError(modelID string, err error) {
+	if r.ModelErrors == nil {
+		r.ModelErrors = make(map[string]error)
+	}
+	r.ModelErrors[modelID] = fmt.Errorf("acp: inspect model %q: %w", modelID, err)
 }
 
 // InspectSessionConfigOptions creates a short-lived ACP session and returns its advertised config options.

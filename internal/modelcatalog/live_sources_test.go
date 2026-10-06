@@ -353,7 +353,7 @@ func TestLiveProviderSources(t *testing.T) {
 		assertClaudeTransportBinding(t, requireModelRow(t, rows, "claude-fable-5-1"), "fable")
 	})
 
-	t.Run("Should publish advertised Claude models when per-model option probes fail", func(t *testing.T) {
+	t.Run("Should publish advertised Claude models with unknown reasoning when option probes fail", func(t *testing.T) {
 		t.Parallel()
 
 		provider := compozyconfig.BuiltinProviders()["claude"]
@@ -366,6 +366,7 @@ func TestLiveProviderSources(t *testing.T) {
 				Kind:     acp.SessionConfigOptionKindSelect,
 				Values: []acp.SessionConfigOptionValue{
 					{Value: "opus", Label: "Opus 5.5"},
+					{Value: "claude-sonnet-5", Label: "Sonnet 5"},
 					{Value: "claude-fable-5-1[1m]", Label: "Fable 5.1 1M"},
 				},
 			}},
@@ -377,6 +378,7 @@ func TestLiveProviderSources(t *testing.T) {
 				Values:         []acp.SessionConfigOptionValue{{Value: "low"}, {Value: "high"}},
 			}}},
 			modelErrors: map[string]error{
+				"claude-sonnet-5":      context.DeadlineExceeded,
 				"claude-fable-5-1[1m]": errors.New("Couldn't confirm model with the API"),
 			},
 		}
@@ -384,21 +386,43 @@ func TestLiveProviderSources(t *testing.T) {
 			BaseEnv:  []string{"PATH=/bin"},
 			ACPProbe: probe,
 		})
-
-		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "claude", Now: testTime(0)})
+		// The builtin source seeds claude-sonnet-5 with static effort levels.
+		service := newTestService(t, newMemoryStore(), []Source{NewBuiltinSource(), source})
+		service.UpdateMergeOptions(MergeOptions{ReasoningApply: map[string]bool{"claude": true}})
+		if _, err := service.Refresh(
+			testutil.Context(t),
+			RefreshOptions{ProviderID: "claude", Force: true, Now: testTime(0)},
+		); err != nil {
+			t.Fatalf("Refresh(claude) error = %v, want advertised rows despite failed probes", err)
+		}
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "claude",
+			View:       CatalogViewAll,
+			Now:        testTime(1),
+		})
 		if err != nil {
-			t.Fatalf("ListModels(Claude ACP) error = %v, want advertised rows despite a rejected probe", err)
+			t.Fatalf("ListModels(claude) error = %v", err)
 		}
-		if got, want := rowModelIDs(rows), []string{"claude-fable-5-1", "claude-opus-5-5"}; !slices.Equal(got, want) {
-			t.Fatalf("row ids = %#v, want %#v", got, want)
+		byID := make(map[string]Model, len(models))
+		for _, model := range models {
+			byID[model.ModelID] = model
 		}
-		opus := requireModelRow(t, rows, "claude-opus-5-5")
-		if !slices.Equal(opus.ReasoningEfforts, []ReasoningEffort{"low", "high"}) {
-			t.Fatalf("probed reasoning efforts = %#v, want low/high", opus.ReasoningEfforts)
+		opus := byID["claude-opus-5-5"]
+		if !opus.ReasoningKnown || !slices.Equal(opus.ReasoningEfforts, []ReasoningEffort{"low", "high"}) {
+			t.Fatalf("probed model = %#v, want observed low/high efforts", opus)
 		}
-		fable := requireModelRow(t, rows, "claude-fable-5-1")
-		if fable.Available == nil || !*fable.Available || len(fable.ReasoningEfforts) != 0 {
-			t.Fatalf("unprobed advertised row = %#v, want available without invented efforts", fable)
+		for _, modelID := range []string{"claude-sonnet-5", "claude-fable-5-1"} {
+			model, ok := byID[modelID]
+			if !ok || model.Stale || model.Available == nil || !*model.Available {
+				t.Fatalf("unprobed model %q = %#v (listed %v), want fresh and available", modelID, model, ok)
+			}
+			if model.ReasoningKnown || len(model.ReasoningEfforts) != 0 || model.DefaultReasoningEffort != nil {
+				t.Fatalf("unprobed model %q reasoning = known %v efforts %#v default %v, want unknown without seed levels",
+					modelID, model.ReasoningKnown, model.ReasoningEfforts, model.DefaultReasoningEffort)
+			}
+			if !strings.Contains(model.LastError, "model options unavailable") {
+				t.Fatalf("unprobed model %q LastError = %q, want probe failure provenance", modelID, model.LastError)
+			}
 		}
 	})
 

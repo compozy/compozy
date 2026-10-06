@@ -43,4 +43,7 @@ TTL. Walk: open the composer picker with Claude Code installed and confirm the b
 `claude-opus-5-5` "Opus 5.5" and `claude-sonnet-5-5` "Sonnet 5.5" first; click refresh and confirm
 `POST /api/model-catalog/models/refresh` carries `"force": true` and the list rereads; with a
 provider-rejected model in the Claude option list, confirm `compozy provider models status claude`
-reports `provider_live:claude` as `succeeded`.
+reports `provider_live:claude` as `succeeded` while that model shows unknown reasoning (no seeded
+effort levels) with a "model options unavailable" error; when a forced composer refresh returns 200
+but a signed-in provider's live source failed, the picker shows "Couldn't refresh <provider> models:
+<error>".

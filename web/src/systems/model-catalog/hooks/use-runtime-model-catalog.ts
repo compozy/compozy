@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { allModelsListOptions } from "../lib/query-options";
 import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
-import type { ProviderModelPayload } from "../types";
+import type { AllModelsRefreshResponse, ProviderModelPayload } from "../types";
 import { useInitialModelCatalogRefresh } from "./use-initial-model-catalog-refresh";
 import { useRefreshAllModels } from "./use-refresh-all-models";
 import type { RuntimeModelOption } from "@/systems/runtime";
@@ -32,6 +32,28 @@ export interface RuntimeModelCatalog {
   refresh: () => void;
   refreshing: boolean;
   refreshError: string | null;
+}
+
+/**
+ * The aggregate refresh answers 200 when any source succeeds, so a provider whose
+ * discovery failed is reported only in `sources`. Surface the first failure among
+ * the surface's signed-in providers instead of treating the refresh as clean.
+ */
+function describeFailedRefreshSource(
+  response: AllModelsRefreshResponse | undefined,
+  allowed: ReadonlyMap<string, boolean>
+): string | null {
+  const failed = response?.sources.find(
+    source =>
+      source.refresh_state === "failed" &&
+      allowed.has(source.provider_id) &&
+      !allowed.get(source.provider_id)
+  );
+  if (!failed) return null;
+  const reason = failed.last_error?.trim() || response?.error?.trim();
+  return reason
+    ? `Couldn't refresh ${failed.provider_id} models: ${reason}`
+    : `Couldn't refresh ${failed.provider_id} models.`;
 }
 
 function describeCatalogError(error: unknown): string {
@@ -109,8 +131,9 @@ export function useRuntimeModelCatalog(
     refreshing: refreshMutation.isPending || initialRefresh.isFetching,
     refreshError: refreshMutation.error
       ? describeCatalogError(refreshMutation.error)
-      : missingAllowedProvider && initialRefresh.error
-        ? describeCatalogError(initialRefresh.error)
-        : null,
+      : (describeFailedRefreshSource(refreshMutation.data, allowed) ??
+        (missingAllowedProvider && initialRefresh.error
+          ? describeCatalogError(initialRefresh.error)
+          : null)),
   };
 }

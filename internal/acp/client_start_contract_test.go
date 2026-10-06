@@ -668,6 +668,12 @@ func TestInspectSessionModels(t *testing.T) {
 		if len(inspection.Models) != 0 {
 			t.Fatalf("stalled probes published model options: %v", inspection.Models)
 		}
+		model, _ := ModelConfigOption(inspection.Options)
+		for _, value := range model.Values {
+			if err := inspection.ModelErrors[value.Value]; !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("ModelErrors[%q] = %v, want unobserved options recorded as deadline", value.Value, err)
+			}
+		}
 	})
 }
 

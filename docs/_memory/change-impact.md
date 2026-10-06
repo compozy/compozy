@@ -23,8 +23,10 @@ Claude live discovery now names version aliases after the release their provider
 advertises (`opus` + "Opus 5.5" -> `claude-opus-5-5`, transport binding stays `opus`) and curates
 the advertised list, featuring aliases over pinned releases; user curation in `config.toml`
 still outranks it. ACP model inspection keeps the advertised list when a per-model option probe
-is rejected or runs out of budget (`acp.SessionModelInspection.ModelErrors`, internal). The Web
-composer refresh sends `force: true`, matching the settings refresh. HTTP/UDS/CLI routes, DTOs,
+is rejected or runs out of budget (`acp.SessionModelInspection.ModelErrors`, internal); such a
+model reports unknown reasoning with a row `last_error` rather than static seed levels. The Web
+composer refresh sends `force: true`, matching the settings refresh, and reports failed sources
+of signed-in providers that a 200 aggregate refresh returns. HTTP/UDS/CLI routes, DTOs,
 `compozy__provider_models_*` tools, hooks, config keys, extension SDKs and SQLite shape are
 unchanged; persisted selections of the bare alias (`opus`) still launch because unknown Claude
 ids fall through to the transport value. Workspace/profile catalog contexts are untouched. No

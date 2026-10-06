@@ -163,6 +163,57 @@ describe("useRuntimeModelCatalog", () => {
     );
   });
 
+  it("Should surface a live source that failed inside a successful forced refresh", async () => {
+    mockModels([payload("claude", "claude-opus-5")]);
+    vi.mocked(refreshAllModels).mockResolvedValue({
+      sources: [
+        {
+          source_id: "builtin",
+          source_kind: "builtin",
+          provider_id: "claude",
+          priority: 10,
+          refresh_state: "succeeded",
+          row_count: 5,
+          stale: false,
+        },
+        {
+          source_id: "provider_live:claude",
+          source_kind: "provider_live",
+          provider_id: "claude",
+          priority: 110,
+          refresh_state: "failed",
+          row_count: 0,
+          stale: false,
+          last_error: "ACP initialization failed",
+        },
+        {
+          source_id: "provider_live:openrouter",
+          source_kind: "provider_live",
+          provider_id: "openrouter",
+          priority: 110,
+          refresh_state: "failed",
+          row_count: 0,
+          stale: false,
+          last_error: "missing key",
+        },
+      ],
+    } as Awaited<ReturnType<typeof refreshAllModels>>);
+
+    const { result } = renderHook(() => useRuntimeModelCatalog([{ id: "claude" }]), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.models).toHaveLength(1));
+
+    act(() => result.current.refresh());
+
+    await waitFor(() =>
+      expect(result.current.refreshError).toBe(
+        "Couldn't refresh claude models: ACP initialization failed"
+      )
+    );
+    expect(result.current.models.map(model => model.id)).toEqual(["claude-opus-5"]);
+  });
+
   it("Should disable every row of a needs-auth provider", async () => {
     mockModels([payload("codex", "gpt-5.6")]);
 
