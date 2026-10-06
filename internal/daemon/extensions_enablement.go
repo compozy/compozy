@@ -217,9 +217,8 @@ func (s *daemonExtensionService) recordExtensionEnablementChanged(
 		ProfileID: profileID, Type: eventspkg.ExtensionEnablementChanged,
 		Outcome:   string(eventspkg.OutcomeFor(eventspkg.ExtensionEnablementChanged)),
 		Summary:   fmt.Sprintf("extension %s enablement changed for profile %s", extensionName, profileName),
-		Timestamp: s.now().UTC(), EventCorrelation: store.EventCorrelation{
-			ActorKind: string(actor.Actor.Kind.Normalize()), ActorID: strings.TrimSpace(actor.Actor.Ref),
-		},
+		Timestamp: s.now().UTC(),
+		ActorKind: string(actor.Actor.Kind.Normalize()), ActorID: strings.TrimSpace(actor.Actor.Ref),
 	}, content)); err != nil {
 		return fmt.Errorf("daemon: record extension enablement event: %w", err)
 	}

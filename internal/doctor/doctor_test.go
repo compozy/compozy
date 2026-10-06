@@ -64,33 +64,27 @@ func TestDeadEntityProbe(t *testing.T) {
 		source := deadEntityProbeSource{entities: map[string][]store.DeadEntity{
 			workspace.ID: {
 				{
-					DeadEntityKey: store.DeadEntityKey{
-						ProfileID:   store.DefaultProfileID,
-						WorkspaceID: workspace.ID,
-						Kind:        store.DeadEntityKindMCPSidecar,
-						EntityID:    "github",
-					},
-					Reason:   "invalid api_key=super-secret",
-					MarkedAt: time.Date(2026, 7, 15, 19, 0, 0, 0, time.UTC),
+					ProfileID:   store.DefaultProfileID,
+					WorkspaceID: workspace.ID,
+					Kind:        store.DeadEntityKindMCPSidecar,
+					EntityID:    "github",
+					Reason:      "invalid api_key=super-secret",
+					MarkedAt:    time.Date(2026, 7, 15, 19, 0, 0, 0, time.UTC),
 				},
 				{
-					DeadEntityKey: store.DeadEntityKey{
-						ProfileID:   "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-						WorkspaceID: workspace.ID,
-						Kind:        store.DeadEntityKindMCPSidecar,
-						EntityID:    "github",
-					},
-					Reason:   "profile-specific outage",
-					MarkedAt: time.Date(2026, 7, 15, 19, 0, 1, 0, time.UTC),
+					ProfileID:   "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+					WorkspaceID: workspace.ID,
+					Kind:        store.DeadEntityKindMCPSidecar,
+					EntityID:    "github",
+					Reason:      "profile-specific outage",
+					MarkedAt:    time.Date(2026, 7, 15, 19, 0, 1, 0, time.UTC),
 				},
 				{
-					DeadEntityKey: store.DeadEntityKey{
-						WorkspaceID: workspace.ID,
-						Kind:        store.DeadEntityKindExtension,
-						EntityID:    "tool-provider",
-					},
-					Reason:   "extension unavailable",
-					MarkedAt: time.Date(2026, 7, 15, 19, 1, 0, 0, time.UTC),
+					WorkspaceID: workspace.ID,
+					Kind:        store.DeadEntityKindExtension,
+					EntityID:    "tool-provider",
+					Reason:      "extension unavailable",
+					MarkedAt:    time.Date(2026, 7, 15, 19, 1, 0, 0, time.UTC),
 				},
 			},
 		}}

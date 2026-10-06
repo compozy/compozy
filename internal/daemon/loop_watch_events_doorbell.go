@@ -5,9 +5,9 @@ import (
 	"strings"
 	"sync"
 
+	"cel.dev/cel-go/cel"
+	celast "cel.dev/cel-go/common/ast"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/google/cel-go/cel"
-	celast "github.com/google/cel-go/common/ast"
 )
 
 const watchEventsDoorbellCostLimit uint64 = 10000

@@ -37,7 +37,7 @@ func (r *nativeToolHookRunner) PreCall(
 	}
 	payload, err := r.hooks.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
 		PayloadBase: r.base(hookspkg.HookToolPreCall), SessionContext: sessionCtx,
-		TurnContext: hookspkg.TurnContext{TurnID: call.TurnID},
+		TurnID:      call.TurnID,
 		ToolCallRef: nativeHookToolRef(descriptor, call), ToolInput: call.Input,
 	})
 	if err != nil {
@@ -87,7 +87,7 @@ func (r *nativeToolHookRunner) PostCall(
 	}
 	payload, err := r.hooks.DispatchToolPostCall(ctx, hookspkg.ToolPostCallPayload{
 		PayloadBase: r.base(hookspkg.HookToolPostCall), SessionContext: sessionCtx,
-		TurnContext: hookspkg.TurnContext{TurnID: call.TurnID},
+		TurnID:      call.TurnID,
 		ToolCallRef: nativeHookToolRef(descriptor, call), ToolInput: call.Input,
 		Title: result.Preview, ToolResult: encoded,
 	})
@@ -120,7 +120,7 @@ func (r *nativeToolHookRunner) PostError(
 	}
 	payload, err := r.hooks.DispatchToolPostError(ctx, hookspkg.ToolPostErrorPayload{
 		PayloadBase: r.base(hookspkg.HookToolPostError), SessionContext: sessionCtx,
-		TurnContext: hookspkg.TurnContext{TurnID: call.TurnID},
+		TurnID:      call.TurnID,
 		ToolCallRef: nativeHookToolRef(descriptor, call), ToolInput: call.Input, Error: callErr.Error(),
 	})
 	if err != nil || payload.Error == callErr.Error() {

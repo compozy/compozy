@@ -302,12 +302,10 @@ func TestValidateInfrastructure(t *testing.T) {
 		h := newHarness(t)
 		missingWorkspace := filepath.Join(t.TempDir(), "missing-workspace")
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: missingWorkspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: missingWorkspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
@@ -371,12 +369,10 @@ func TestValidateInfrastructure(t *testing.T) {
 		h := newHarness(t)
 		missingWorkspace := filepath.Join(t.TempDir(), "missing-workspace")
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      h.workspaceID,
-				RootDir: missingWorkspace,
-				Name:    h.workspaceName,
-			},
-			Config: h.cfg,
+			ID:      h.workspaceID,
+			RootDir: missingWorkspace,
+			Name:    h.workspaceName,
+			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",

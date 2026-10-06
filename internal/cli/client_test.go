@@ -3314,7 +3314,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	}
 
 	memories, err := client.ListMemory(ctx, MemoryListQuery{
-		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeProfile},
+		Scope: memcontract.ScopeProfile,
 	})
 	if err != nil || len(memories.Memories) != 1 {
 		t.Fatalf("ListMemory() = %#v, %v", memories, err)
@@ -4726,11 +4726,11 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	}
 
 	if got := memoryListValues(MemoryListQuery{
-		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeWorkspace},
-		Type:                memcontract.TypeProject,
-		Sort:                "name",
-		Cursor:              "next-page",
-		Limit:               25,
+		Scope:  memcontract.ScopeWorkspace,
+		Type:   memcontract.TypeProject,
+		Sort:   "name",
+		Cursor: "next-page",
+		Limit:  25,
 	}); got.Get("scope") != "workspace" ||
 		got.Get("type") != "project" ||
 		got.Get("sort") != "name" ||

@@ -31,10 +31,8 @@ func TestTaskRunPreClaimDenyAndNarrowCriteriaOnly(t *testing.T) {
 						_ TaskRunPreClaimPayload,
 					) (TaskRunPreClaimPatch, error) {
 						return TaskRunPreClaimPatch{
-							ControlPatch: ControlPatch{
-								Deny:       true,
-								DenyReason: "capacity gate",
-							},
+							Deny:       true,
+							DenyReason: "capacity gate",
 						}, nil
 					},
 				),
@@ -161,10 +159,8 @@ func TestLoopControlHooksDenyAndFailOpen(t *testing.T) {
 						_ LoopGenerationPrePayload,
 					) (LoopGenerationPrePatch, error) {
 						return LoopGenerationPrePatch{
-							ControlPatch: ControlPatch{
-								Deny:       true,
-								DenyReason: "capacity gate",
-							},
+							Deny:       true,
+							DenyReason: "capacity gate",
 						}, nil
 					},
 				),
@@ -202,10 +198,8 @@ func TestLoopControlHooksDenyAndFailOpen(t *testing.T) {
 						_ LoopGatePrePayload,
 					) (LoopGatePrePatch, error) {
 						return LoopGatePrePatch{
-							ControlPatch: ControlPatch{
-								Deny:       true,
-								DenyReason: "policy",
-							},
+							Deny:       true,
+							DenyReason: "policy",
 						}, nil
 					},
 				),
@@ -494,27 +488,21 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 	hooks := newTestHooks(t)
 	now := time.Now().UTC()
 	coordinator := CoordinatorLifecyclePayload{
-		PayloadBase: PayloadBase{Timestamp: now},
-		CoordinatorContext: CoordinatorContext{
-			WorkspaceID:          "ws-1",
-			CoordinatorSessionID: "coord-sess-1",
-		},
+		Timestamp:            now,
+		WorkspaceID:          "ws-1",
+		CoordinatorSessionID: "coord-sess-1",
 	}
 	taskRunLease := TaskRunLeasePayload{
-		PayloadBase: PayloadBase{Timestamp: now},
-		TaskRunContext: TaskRunContext{
-			TaskID:      "task-1",
-			RunID:       "run-1",
-			WorkspaceID: "ws-1",
-		},
+		Timestamp:   now,
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		WorkspaceID: "ws-1",
 	}
 	spawn := SpawnLifecyclePayload{
-		PayloadBase: PayloadBase{Timestamp: now},
-		SpawnContext: SpawnContext{
-			ParentSessionID: "parent-1",
-			ChildSessionID:  "child-1",
-			WorkspaceID:     "ws-1",
-		},
+		Timestamp:       now,
+		ParentSessionID: "parent-1",
+		ChildSessionID:  "child-1",
+		WorkspaceID:     "ws-1",
 	}
 
 	if _, err := hooks.DispatchCoordinatorSpawned(
@@ -543,7 +531,7 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 	}
 
 	if _, err := hooks.DispatchTaskRunPostClaim(t.Context(), TaskRunPostClaimPayload{
-		PayloadBase:    PayloadBase{Event: HookTaskRunPostClaim, Timestamp: now},
+		Event: HookTaskRunPostClaim, Timestamp: now,
 		TaskRunContext: taskRunLease.TaskRunContext,
 		ClaimedAt:      now,
 	}); err != nil {
@@ -593,7 +581,7 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 
 func baseTaskRunPreClaimPayload() TaskRunPreClaimPayload {
 	return TaskRunPreClaimPayload{
-		PayloadBase: PayloadBase{Event: HookTaskRunPreClaim, Timestamp: time.Now().UTC()},
+		Event: HookTaskRunPreClaim, Timestamp: time.Now().UTC(),
 		TaskRunContext: &TaskRunContext{
 			TaskID:      "task-1",
 			RunID:       "run-1",
@@ -609,32 +597,28 @@ func baseTaskRunPreClaimPayload() TaskRunPreClaimPayload {
 
 func baseLoopGenerationPayload() LoopGenerationPrePayload {
 	return LoopGenerationPrePayload{
-		PayloadBase: PayloadBase{Event: HookLoopGenerationPre, Timestamp: time.Now().UTC()},
-		LoopContext: LoopContext{
-			LoopRunID:   "loop-run-1",
-			WorkspaceID: "ws-1",
-			LoopName:    "daily-review",
-			Generation:  1,
-			TaskID:      "task-1",
-			RunID:       "run-1",
-		},
-		Status: "running",
+		Event: HookLoopGenerationPre, Timestamp: time.Now().UTC(),
+		LoopRunID:   "loop-run-1",
+		WorkspaceID: "ws-1",
+		LoopName:    "daily-review",
+		Generation:  1,
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		Status:      "running",
 	}
 }
 
 func baseLoopGatePayload() LoopGatePrePayload {
 	return LoopGatePrePayload{
-		PayloadBase: PayloadBase{Event: HookLoopGatePre, Timestamp: time.Now().UTC()},
-		LoopContext: LoopContext{
-			LoopRunID:   "loop-run-1",
-			WorkspaceID: "ws-1",
-			LoopName:    "daily-review",
-			Generation:  1,
-			TaskID:      "task-1",
-			RunID:       "run-1",
-		},
-		GateID: "contract",
-		Status: "done",
+		Event: HookLoopGatePre, Timestamp: time.Now().UTC(),
+		LoopRunID:   "loop-run-1",
+		WorkspaceID: "ws-1",
+		LoopName:    "daily-review",
+		Generation:  1,
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		GateID:      "contract",
+		Status:      "done",
 	}
 }
 
@@ -644,15 +628,13 @@ func baseSpawnPreCreatePayload() SpawnPreCreatePayload {
 	}
 	childPermissions := parentPermissions
 	return SpawnPreCreatePayload{
-		PayloadBase: PayloadBase{Event: HookSpawnPreCreate, Timestamp: time.Now().UTC()},
-		SpawnContext: SpawnContext{
-			ParentSessionID: "parent-1",
-			RootSessionID:   "root-1",
-			WorkspaceID:     "ws-1",
-			AgentName:       "worker",
-			SpawnRole:       "coder",
-			TTLSeconds:      3600,
-		},
+		Event: HookSpawnPreCreate, Timestamp: time.Now().UTC(),
+		ParentSessionID:   "parent-1",
+		RootSessionID:     "root-1",
+		WorkspaceID:       "ws-1",
+		AgentName:         "worker",
+		SpawnRole:         "coder",
+		TTLSeconds:        3600,
 		ParentPermissions: &parentPermissions,
 		ChildPermissions:  &childPermissions,
 	}

@@ -644,7 +644,7 @@ func TestHookBindingProjectorPreservesPermissionEscalationGuard(t *testing.T) {
 	}
 
 	payload, err := runtime.DispatchPermissionRequest(ctx, hookspkg.PermissionRequestPayload{
-		PayloadBase:   hookspkg.PayloadBase{Event: hookspkg.HookPermissionRequest},
+		Event:         hookspkg.HookPermissionRequest,
 		RequestID:     "perm-1",
 		Action:        "session/request_permission",
 		Resource:      "/tmp/secret.txt",
@@ -879,21 +879,15 @@ func dispatchProjectedToolID(t *testing.T, runtime *hookspkg.Hooks) string {
 	t.Helper()
 
 	payload, err := runtime.DispatchToolPreCall(testutil.Context(t), hookspkg.ToolPreCallPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookToolPreCall,
-			Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   "sess-1",
-			AgentName:   "codex",
-			WorkspaceID: "ws-1",
-			Workspace:   "/tmp/ws-1",
-		},
-		TurnContext: hookspkg.TurnContext{TurnID: "turn-1"},
-		ToolCallRef: hookspkg.ToolCallRef{
-			ToolCallID: "tool-1",
-			ToolID:     "Read",
-		},
+		Event:       hookspkg.HookToolPreCall,
+		Timestamp:   time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+		SessionID:   "sess-1",
+		AgentName:   "codex",
+		WorkspaceID: "ws-1",
+		Workspace:   "/tmp/ws-1",
+		TurnID:      "turn-1",
+		ToolCallID:  "tool-1",
+		ToolID:      "Read",
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPreCall() error = %v", err)

@@ -360,23 +360,21 @@ func (o *loopWatchEventsObserver) writeObserverEvent(
 		return fmt.Errorf("daemon: marshal loop watch-events observer event: %w", err)
 	}
 	return o.store.WriteEventSummary(ctx, daemonEventSummary(store.EventSummary{
-		ProfileID:   strings.TrimSpace(subscription.ProfileID),
-		SessionID:   loopWatchEventsObserverSessionID,
-		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
-		Type:        eventType,
-		AgentName:   loopWatchEventsDaemonAgentName,
-		Outcome:     loopWatchEventsOutcome(eventType),
-		EventCorrelation: store.EventCorrelation{
-			TaskID:               strings.TrimSpace(event.TaskID),
-			RunID:                firstNonEmptyWatchEventsValue(run.ID, event.RunID),
-			CoordinatorSessionID: strings.TrimSpace(event.SessionID),
-			SchedulerReason:      loopWatchEventsDoorbellReason,
-			HookEvent:            strings.TrimSpace(event.Kind),
-			ActorKind:            string(taskpkg.ActorKindDaemon),
-			ActorID:              loopWatchEventsObserverActorID,
-		},
-		Summary:   loopWatchEventsSummary(eventType, event, subscription),
-		Timestamp: o.now().UTC(),
+		ProfileID:            strings.TrimSpace(subscription.ProfileID),
+		SessionID:            loopWatchEventsObserverSessionID,
+		WorkspaceID:          strings.TrimSpace(subscription.WorkspaceID),
+		Type:                 eventType,
+		AgentName:            loopWatchEventsDaemonAgentName,
+		Outcome:              loopWatchEventsOutcome(eventType),
+		TaskID:               strings.TrimSpace(event.TaskID),
+		RunID:                firstNonEmptyWatchEventsValue(run.ID, event.RunID),
+		CoordinatorSessionID: strings.TrimSpace(event.SessionID),
+		SchedulerReason:      loopWatchEventsDoorbellReason,
+		HookEvent:            strings.TrimSpace(event.Kind),
+		ActorKind:            string(taskpkg.ActorKindDaemon),
+		ActorID:              loopWatchEventsObserverActorID,
+		Summary:              loopWatchEventsSummary(eventType, event, subscription),
+		Timestamp:            o.now().UTC(),
 	}, content))
 }
 

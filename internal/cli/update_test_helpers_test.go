@@ -48,18 +48,14 @@ func acquireCLIUpdateOperationWithAppDigest(
 		switch target {
 		case compozyupdate.TargetRuntime:
 			request.Runtime = &compozyupdate.RuntimeOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{
-					FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-					Asset: "runtime.tar.gz", Digest: "sha256:runtime",
-				},
+				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+				Asset: "runtime.tar.gz", Digest: "sha256:runtime",
 				InstallMethod: compozyupdate.InstallMethodDirectBinary, Phase: compozyupdate.PhasePending,
 			}
 		case compozyupdate.TargetApp:
 			request.App = &compozyupdate.AppOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{
-					FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-					Asset: "app.zip", Digest: appDigest,
-				},
+				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+				Asset: "app.zip", Digest: appDigest,
 				AttemptID: "attempt-1", Phase: compozyupdate.PhasePending,
 			}
 		}

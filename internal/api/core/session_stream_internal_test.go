@@ -230,15 +230,13 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		info := streamTestSessionInfo("sess-command")
 		info.State = session.StateStopped
 		manager := &commandStreamManagerStub{
-			sessionManagerStub: sessionManagerStub{
-				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
-				transcriptPage: func(
-					context.Context,
-					string,
-					transcript.PageQuery,
-				) (transcript.Page, error) {
-					return transcript.Page{Generation: 1}, nil
-				},
+			events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, nil },
+			transcriptPage: func(
+				context.Context,
+				string,
+				transcript.PageQuery,
+			) (transcript.Page, error) {
+				return transcript.Page{Generation: 1}, nil
 			},
 			commandErr: catalogErr,
 		}

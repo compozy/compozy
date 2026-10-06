@@ -24,9 +24,7 @@ func (s *profileDetailServiceStub) GetWithCounts(
 	s.detailCalls++
 	s.requested = name
 	return profilepkg.WithCounts{
-		Profile: profilepkg.Profile{
-			ID: "profile-marketing", Name: "marketing", Color: "#5fbf85", State: profilepkg.StateActive,
-		},
+		ID: "profile-marketing", Name: "marketing", Color: "#5fbf85", State: profilepkg.StateActive,
 		WorkItems:  7,
 		NeedsSetup: true,
 		CredentialRequirements: []profilepkg.CredentialRequirement{{

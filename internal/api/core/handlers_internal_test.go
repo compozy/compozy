@@ -74,11 +74,9 @@ func TestCreateAgentDefinitionPath(t *testing.T) {
 			Workspaces: workspaceResolveServiceStub{
 				resolve: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      "ws-empty-root",
-							Name:    "alpha",
-							RootDir: "",
-						},
+						ID:          "ws-empty-root",
+						Name:        "alpha",
+						RootDir:     "",
 						WorkspaceID: "ws-empty-root",
 					}, nil
 				},

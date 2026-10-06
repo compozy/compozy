@@ -29,7 +29,7 @@ func TestResourceAgentCatalogLookupReturnsDefensiveCopy(t *testing.T) {
 				Tools:  []string{toolspkg.ToolIDToolInfo.String()},
 			},
 		}})
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: workspaceID}}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: workspaceID}
 		dependency := agentCatalogDependency(catalog)
 
 		first, err := dependency.ResolveAgent("coder", resolved)
@@ -104,7 +104,7 @@ func TestResourceAgentCatalogPolicyResolution(t *testing.T) {
 			t.Parallel()
 
 			full := &workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: testCase.workspaceID},
+				ID:        testCase.workspaceID,
 				ProfileID: testCase.profileID, ProfileName: testCase.profileName,
 				Agents: []compozyconfig.AgentDef{{Name: "coder", Prompt: "snapshot"}},
 			}

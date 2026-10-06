@@ -214,10 +214,8 @@ func (r *Registry) writeSourceEvent(
 		WorkspaceID: correlation.WorkspaceID,
 		Type:        eventType,
 		Summary:     summaryText,
-		EventCorrelation: store.EventCorrelation{
-			ActorKind: correlation.ActorKind,
-			ActorID:   correlation.ActorID,
-		},
+		ActorKind:   correlation.ActorKind,
+		ActorID:     correlation.ActorID,
 	}
 	summary.SetContent(payload)
 	if err := r.events.WriteEventSummary(ctx, summary); err != nil {

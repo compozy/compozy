@@ -62,7 +62,7 @@ vi.mock("@tanstack/react-router", async original => ({
 }));
 const server = setupServer(...profileHandlers, ...workspaceHandlers, ...statusHandlers);
 const clients: QueryClient[] = [];
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterAll(() => server.close());
 afterEach(() => {
   cleanup();

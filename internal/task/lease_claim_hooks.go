@@ -87,10 +87,8 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 		taskContext.SoulDigest = strings.TrimSpace(criteria.Soul.Digest)
 	}
 	payload := hookspkg.TaskRunPreClaimPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunPreClaim,
-			Timestamp: m.now().UTC(),
-		},
+		Event:          hookspkg.HookTaskRunPreClaim,
+		Timestamp:      m.now().UTC(),
 		TaskRunContext: &taskContext,
 		Criteria: hookspkg.TaskRunClaimCriteria{
 			RunID:                criteria.RunID,

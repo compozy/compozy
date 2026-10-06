@@ -12,7 +12,8 @@ import {
 } from "@tanstack/react-router";
 import { Fragment, createElement, useState, type ReactNode } from "react";
 import { mswLoader } from "msw-storybook-addon/csf3";
-import type { UnhandledRequestCallback } from "msw";
+import type { UnhandledFrameHandle } from "msw";
+import { HttpNetworkFrame } from "msw/experimental";
 import { setupWorker } from "msw/browser";
 import { configure as configureStorybookTestingLibrary, sb } from "storybook/test";
 
@@ -66,7 +67,10 @@ export function isBypassableStorybookRequest(url: URL) {
   );
 }
 
-export const storybookUnhandledRequest: UnhandledRequestCallback = (request, print) => {
+export const storybookUnhandledRequest = (
+  request: Request,
+  print: { error(): void; warn(): void }
+) => {
   const url = new URL(request.url);
 
   if (isStorybookLocalApiRequest(url)) {
@@ -78,12 +82,20 @@ export const storybookUnhandledRequest: UnhandledRequestCallback = (request, pri
     return;
   }
 
-  print.warning();
+  print.warn();
+};
+
+export const storybookUnhandledFrame: UnhandledFrameHandle = ({ frame, defaults }) => {
+  if (frame instanceof HttpNetworkFrame) {
+    storybookUnhandledRequest(frame.data.request, defaults);
+    return;
+  }
+  defaults.warn();
 };
 
 export async function createStorybookMswWorker() {
   const worker = setupWorker(windowManagerStreamHandler, sessionCatalogStreamHandler);
-  await worker.start({ onUnhandledRequest: storybookUnhandledRequest });
+  await worker.start({ onUnhandledFrame: storybookUnhandledFrame });
   return worker;
 }
 

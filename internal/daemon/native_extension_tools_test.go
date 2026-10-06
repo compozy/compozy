@@ -137,13 +137,11 @@ func (s *nativeExtensionSource) Search(
 
 func (s *nativeExtensionSource) Info(context.Context, string) (*registrypkg.Detail, error) {
 	return &registrypkg.Detail{
-		Listing: registrypkg.Listing{
-			Slug:    "acme/tool-ext",
-			Name:    "tool-ext",
-			Version: s.latestVersion,
-			Source:  s.Name(),
-			Type:    registrypkg.PackageTypeExtension,
-		},
+		Slug:    "acme/tool-ext",
+		Name:    "tool-ext",
+		Version: s.latestVersion,
+		Source:  s.Name(),
+		Type:    registrypkg.PackageTypeExtension,
 	}, nil
 }
 

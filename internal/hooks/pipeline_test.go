@@ -88,19 +88,17 @@ func TestPipelineExecuteSortsUnorderedHooks(t *testing.T) {
 		hooks: func(pipelineTestPayload) []*ResolvedHook {
 			return []*ResolvedHook{
 				{
-					RegisteredHook: RegisteredHook{
-						Name:     "hook-b",
-						Event:    HookSessionPreCreate,
-						Source:   HookSourceConfig,
-						Mode:     HookModeSync,
-						Priority: 10,
-						Executor: NewTypedNativeExecutor(
-							func(_ context.Context, _ RegisteredHook, payload pipelineTestPayload) (pipelineTestPatch, error) {
-								seen = append(seen, payload.Value)
-								return pipelineTestPatch{Append: "B"}, nil
-							},
-						),
-					},
+					Name:     "hook-b",
+					Event:    HookSessionPreCreate,
+					Source:   HookSourceConfig,
+					Mode:     HookModeSync,
+					Priority: 10,
+					Executor: NewTypedNativeExecutor(
+						func(_ context.Context, _ RegisteredHook, payload pipelineTestPayload) (pipelineTestPatch, error) {
+							seen = append(seen, payload.Value)
+							return pipelineTestPatch{Append: "B"}, nil
+						},
+					),
 					Decl: HookDecl{
 						Name:         "hook-b",
 						Event:        HookSessionPreCreate,
@@ -111,19 +109,17 @@ func TestPipelineExecuteSortsUnorderedHooks(t *testing.T) {
 					},
 				},
 				{
-					RegisteredHook: RegisteredHook{
-						Name:     "hook-a",
-						Event:    HookSessionPreCreate,
-						Source:   HookSourceNative,
-						Mode:     HookModeSync,
-						Priority: 100,
-						Executor: NewTypedNativeExecutor(
-							func(_ context.Context, _ RegisteredHook, payload pipelineTestPayload) (pipelineTestPatch, error) {
-								seen = append(seen, payload.Value)
-								return pipelineTestPatch{Append: "A"}, nil
-							},
-						),
-					},
+					Name:     "hook-a",
+					Event:    HookSessionPreCreate,
+					Source:   HookSourceNative,
+					Mode:     HookModeSync,
+					Priority: 100,
+					Executor: NewTypedNativeExecutor(
+						func(_ context.Context, _ RegisteredHook, payload pipelineTestPayload) (pipelineTestPatch, error) {
+							seen = append(seen, payload.Value)
+							return pipelineTestPatch{Append: "A"}, nil
+						},
+					),
 					Decl: HookDecl{
 						Name:         "hook-a",
 						Event:        HookSessionPreCreate,
@@ -417,7 +413,7 @@ func TestPermissionPipelineKeepDenyAllowed(t *testing.T) {
 			return []*ResolvedHook{
 				testPipelineHook(HookPermissionRequest, "hook-1", false, 0, NewTypedNativeExecutor(
 					func(_ context.Context, _ RegisteredHook, _ PermissionRequestPayload) (PermissionRequestPatch, error) {
-						return PermissionRequestPatch{ControlPatch: ControlPatch{Deny: true}}, nil
+						return PermissionRequestPatch{Deny: true}, nil
 					},
 				)),
 				testPipelineHook(HookPermissionRequest, "hook-2", false, 0, NewTypedNativeExecutor(
@@ -668,15 +664,13 @@ func testPipelineHook(
 	}
 
 	return &ResolvedHook{
-		RegisteredHook: RegisteredHook{
-			Name:     name,
-			Event:    event,
-			Source:   source,
-			Mode:     HookModeSync,
-			Required: required,
-			Timeout:  timeout,
-			Executor: executor,
-		},
+		Name:     name,
+		Event:    event,
+		Source:   source,
+		Mode:     HookModeSync,
+		Required: required,
+		Timeout:  timeout,
+		Executor: executor,
 		Decl: HookDecl{
 			Name:         name,
 			Event:        event,

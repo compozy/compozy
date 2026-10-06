@@ -49,8 +49,8 @@ args = ["-c", "printf '{\"message\":\"marketing\"}'"]
 			t.Fatalf("Rebuild(%s) error = %v", profileName, err)
 		}
 		result, err := dispatcher.DispatchInputPreSubmit(t.Context(), hookspkg.InputPreSubmitPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookInputPreSubmit},
-			Message:     "original",
+			Event:   hookspkg.HookInputPreSubmit,
+			Message: "original",
 		})
 		if err != nil {
 			t.Fatalf("DispatchInputPreSubmit(%s) error = %v", profileName, err)

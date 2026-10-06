@@ -147,54 +147,54 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 			t.Fatalf("DispatchSessionPostStop() error = %v", err)
 		}
 		if _, err := notifier.DispatchTurnStart(testutil.Context(t), hookspkg.TurnStartPayload{
-			PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookTurnStart, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
-			TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+			Event: hookspkg.HookTurnStart, Timestamp: fixedNow,
+			SessionID: "sess-created",
+			TurnID:    "turn-1",
 		}); err != nil {
 			t.Fatalf("DispatchTurnStart() error = %v", err)
 		}
 		if _, err := notifier.DispatchMessageStart(testutil.Context(t), hookspkg.MessageStartPayload{
-			PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookMessageStart, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
-			TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
-			MessageID:      "msg-1",
+			Event: hookspkg.HookMessageStart, Timestamp: fixedNow,
+			SessionID: "sess-created",
+			TurnID:    "turn-1",
+			MessageID: "msg-1",
 		}); err != nil {
 			t.Fatalf("DispatchMessageStart() error = %v", err)
 		}
 		if _, err := notifier.DispatchMessageDelta(testutil.Context(t), hookspkg.MessageDeltaPayload{
-			PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookMessageDelta, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
-			TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
-			MessageID:      "msg-1",
+			Event: hookspkg.HookMessageDelta, Timestamp: fixedNow,
+			SessionID: "sess-created",
+			TurnID:    "turn-1",
+			MessageID: "msg-1",
 		}); err != nil {
 			t.Fatalf("DispatchMessageDelta() error = %v", err)
 		}
 		if _, err := notifier.DispatchMessageEnd(testutil.Context(t), hookspkg.MessageEndPayload{
-			PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookMessageEnd, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
-			TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
-			MessageID:      "msg-1",
+			Event: hookspkg.HookMessageEnd, Timestamp: fixedNow,
+			SessionID: "sess-created",
+			TurnID:    "turn-1",
+			MessageID: "msg-1",
 		}); err != nil {
 			t.Fatalf("DispatchMessageEnd() error = %v", err)
 		}
 		if _, err := notifier.DispatchTurnEnd(testutil.Context(t), hookspkg.TurnEndPayload{
-			PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookTurnEnd, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
-			TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+			Event: hookspkg.HookTurnEnd, Timestamp: fixedNow,
+			SessionID: "sess-created",
+			TurnID:    "turn-1",
 		}); err != nil {
 			t.Fatalf("DispatchTurnEnd() error = %v", err)
 		}
 		if _, err := notifier.DispatchContextPreCompact(testutil.Context(t), hookspkg.ContextPreCompactPayload{
-			PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookContextPreCompact, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
-			TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+			Event: hookspkg.HookContextPreCompact, Timestamp: fixedNow,
+			SessionID: "sess-created",
+			TurnID:    "turn-1",
 		}); err != nil {
 			t.Fatalf("DispatchContextPreCompact() error = %v", err)
 		}
 		if _, err := notifier.DispatchContextPostCompact(testutil.Context(t), hookspkg.ContextPostCompactPayload{
-			PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookContextPostCompact, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
-			TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+			Event: hookspkg.HookContextPostCompact, Timestamp: fixedNow,
+			SessionID: "sess-created",
+			TurnID:    "turn-1",
 		}); err != nil {
 			t.Fatalf("DispatchContextPostCompact() error = %v", err)
 		}
@@ -455,40 +455,32 @@ func TestHooksNotifierEmitsGlobalHookDispatchSummariesForAutonomyHooks(t *testin
 		notifier.setRuntime(hooks, nil, summaries)
 
 		_, err := notifier.DispatchCoordinatorStopped(testutil.Context(t), hookspkg.CoordinatorStoppedPayload{
-			PayloadBase: hookspkg.PayloadBase{
-				Event:     hookspkg.HookCoordinatorStopped,
-				Timestamp: fixedNow,
-			},
-			CoordinatorContext: hookspkg.CoordinatorContext{
-				WorkspaceID:          "ws-1",
-				AgentName:            "coordinator",
-				CoordinatorSessionID: "sess-coordinator-1",
-				TaskID:               "task-1",
-				RunID:                "run-1",
-				WorkflowID:           "wf-1",
-			},
-			StopReason: "completed",
+			Event:                hookspkg.HookCoordinatorStopped,
+			Timestamp:            fixedNow,
+			WorkspaceID:          "ws-1",
+			AgentName:            "coordinator",
+			CoordinatorSessionID: "sess-coordinator-1",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			WorkflowID:           "wf-1",
+			StopReason:           "completed",
 		})
 		if err != nil {
 			t.Fatalf("DispatchCoordinatorStopped() error = %v", err)
 		}
 
 		_, err = notifier.DispatchTaskRunReleased(testutil.Context(t), hookspkg.TaskRunReleasedPayload{
-			PayloadBase: hookspkg.PayloadBase{
-				Event:     hookspkg.HookTaskRunReleased,
-				Timestamp: fixedNow,
-			},
-			TaskRunContext: hookspkg.TaskRunContext{
-				TaskID:        "task-1",
-				RunID:         "run-1",
-				WorkspaceID:   "ws-1",
-				WorkflowID:    "wf-1",
-				SessionID:     "sess-worker-1",
-				AgentName:     "worker",
-				ActorKind:     "agent_session",
-				ActorID:       "sess-worker-1",
-				ReleaseReason: "manual_release",
-			},
+			Event:             hookspkg.HookTaskRunReleased,
+			Timestamp:         fixedNow,
+			TaskID:            "task-1",
+			RunID:             "run-1",
+			WorkspaceID:       "ws-1",
+			WorkflowID:        "wf-1",
+			SessionID:         "sess-worker-1",
+			AgentName:         "worker",
+			ActorKind:         "agent_session",
+			ActorID:           "sess-worker-1",
+			ReleaseReason:     "manual_release",
 			PreviousRunStatus: "claimed",
 			PreviousSessionID: "sess-worker-1",
 			RecoveryReason:    "manual_release",
@@ -550,20 +542,16 @@ func TestHooksNotifierWritesCoordinatorWatchSummaryWithoutConfiguredHook(t *test
 		notifier.setRuntime(&fakeHookRuntime{}, nil, summaries)
 
 		_, err := notifier.DispatchCoordinatorStopped(testutil.Context(t), hookspkg.CoordinatorStoppedPayload{
-			PayloadBase: hookspkg.PayloadBase{
-				Event:     hookspkg.HookCoordinatorStopped,
-				Timestamp: fixedNow,
-			},
-			CoordinatorContext: hookspkg.CoordinatorContext{
-				WorkspaceID:          "ws-1",
-				AgentName:            "coordinator",
-				CoordinatorSessionID: "sess-coordinator-no-hook",
-				TaskID:               "task-1",
-				RunID:                "run-1",
-				WorkflowID:           "wf-1",
-				Provider:             "mock",
-			},
-			StopReason: "completed",
+			Event:                hookspkg.HookCoordinatorStopped,
+			Timestamp:            fixedNow,
+			WorkspaceID:          "ws-1",
+			AgentName:            "coordinator",
+			CoordinatorSessionID: "sess-coordinator-no-hook",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			WorkflowID:           "wf-1",
+			Provider:             "mock",
+			StopReason:           "completed",
 		})
 		if err != nil {
 			t.Fatalf("DispatchCoordinatorStopped(no hook) error = %v", err)
@@ -632,13 +620,11 @@ func TestHooksNotifierDispatchesPhaseCWatchObservers(t *testing.T) {
 			t.Fatalf("DispatchCoordinatorFailed() error = %v", err)
 		}
 		if _, err := notifier.DispatchEventPostRecord(testutil.Context(t), hookspkg.EventPostRecordPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookEventPostRecord, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{
-				SessionID:   "sess-hot",
-				WorkspaceID: "ws-1",
-				AgentName:   "coder",
-			},
-			TurnContext: hookspkg.TurnContext{TurnID: "turn-1"},
+			Event: hookspkg.HookEventPostRecord, Timestamp: fixedNow,
+			SessionID:   "sess-hot",
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+			TurnID:      "turn-1",
 			RecordType:  "agent_message",
 			Sequence:    42,
 			Content:     json.RawMessage(`{"secret":"do not leak"}`),
@@ -680,21 +666,19 @@ func coordinatorPayloadForWatchObserverTest(
 	now time.Time,
 ) hookspkg.CoordinatorLifecyclePayload {
 	return hookspkg.CoordinatorLifecyclePayload{
-		PayloadBase: hookspkg.PayloadBase{Event: event, Timestamp: now},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			WorkspaceID:          "ws-1",
-			AgentName:            "coordinator",
-			CoordinatorSessionID: "sess-coordinator-phase-c",
-			TaskID:               "task-1",
-			RunID:                "run-1",
-			WorkflowID:           "wf-1",
-			Provider:             "mock",
-			Model:                "mock-model",
-		},
-		DecisionKind: "next_action",
-		Decision:     "continue",
-		StopReason:   "completed",
-		Error:        "boom",
+		Event: event, Timestamp: now,
+		WorkspaceID:          "ws-1",
+		AgentName:            "coordinator",
+		CoordinatorSessionID: "sess-coordinator-phase-c",
+		TaskID:               "task-1",
+		RunID:                "run-1",
+		WorkflowID:           "wf-1",
+		Provider:             "mock",
+		Model:                "mock-model",
+		DecisionKind:         "next_action",
+		Decision:             "continue",
+		StopReason:           "completed",
+		Error:                "boom",
 	}
 }
 
@@ -870,17 +854,15 @@ func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 			t.Fatalf("DispatchSessionPostStop() error = %v", err)
 		}
 		messagePayload := hookspkg.SessionMessagePersistedPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookSessionMessagePersisted, Timestamp: fixedNow},
-			SessionContext: hookspkg.SessionContext{
-				SessionID:   sess.ID,
-				AgentName:   sess.AgentName,
-				WorkspaceID: sess.WorkspaceID,
-				Workspace:   sess.Workspace,
-			},
-			MessageID:  "msg-1",
-			MessageSeq: 1,
-			Role:       "assistant",
-			Text:       "done",
+			Event: hookspkg.HookSessionMessagePersisted, Timestamp: fixedNow,
+			SessionID:   sess.ID,
+			AgentName:   sess.AgentName,
+			WorkspaceID: sess.WorkspaceID,
+			Workspace:   sess.Workspace,
+			MessageID:   "msg-1",
+			MessageSeq:  1,
+			Role:        "assistant",
+			Text:        "done",
 		}
 		if _, err := hooks.DispatchSessionMessagePersisted(testutil.Context(t), messagePayload); err != nil {
 			t.Fatalf("DispatchSessionMessagePersisted() error = %v", err)
@@ -930,16 +912,12 @@ func TestDreamSessionStopExecutorSkipsDreamSessions(t *testing.T) {
 			testutil.Context(t),
 			hookspkg.RegisteredHook{Name: "daemon.dream.session_stop", Event: hookspkg.HookSessionPostStop},
 			hookspkg.SessionLifecyclePayload{
-				PayloadBase: hookspkg.PayloadBase{
-					Event:     hookspkg.HookSessionPostStop,
-					Timestamp: time.Date(2026, 4, 9, 15, 0, 0, 0, time.UTC),
-				},
-				SessionContext: hookspkg.SessionContext{
-					SessionID:   "sess-dream",
-					WorkspaceID: "ws-dream",
-					SessionType: string(session.SessionTypeDream),
-					State:       string(session.StateStopped),
-				},
+				Event:       hookspkg.HookSessionPostStop,
+				Timestamp:   time.Date(2026, 4, 9, 15, 0, 0, 0, time.UTC),
+				SessionID:   "sess-dream",
+				WorkspaceID: "ws-dream",
+				SessionType: string(session.SessionTypeDream),
+				State:       string(session.StateStopped),
 			},
 		); err != nil {
 			t.Fatalf("ExecuteTyped() error = %v", err)
@@ -1382,13 +1360,11 @@ func TestHooksNotifierLoopStartedObserverFiltersNonRunningStatus(t *testing.T) {
 		notifier.AddLoopStartedObserver(observer)
 
 		if _, err := notifier.DispatchLoopStarted(t.Context(), hookspkg.LoopStartedPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopStarted, Timestamp: fixedNow},
-			LoopContext: hookspkg.LoopContext{
-				LoopRunID:   "queued-loop-run",
-				WorkspaceID: "ws-1",
-				LoopName:    "daily-review",
-			},
-			Status: string(looppkg.StatusQueued),
+			Event: hookspkg.HookLoopStarted, Timestamp: fixedNow,
+			LoopRunID:   "queued-loop-run",
+			WorkspaceID: "ws-1",
+			LoopName:    "daily-review",
+			Status:      string(looppkg.StatusQueued),
 		}); err != nil {
 			t.Fatalf("DispatchLoopStarted() error = %v", err)
 		}
@@ -1423,23 +1399,19 @@ func TestHooksNotifierLoopNodeTerminalObserverFiltersAndWakes(t *testing.T) {
 		notifier.AddTaskRunTerminalObserver(observer)
 
 		if _, err := notifier.DispatchTaskRunCompleted(t.Context(), hookspkg.TaskRunCompletedPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
-			TaskRunContext: hookspkg.TaskRunContext{
-				TaskID: "task-no-loop",
-				RunID:  "run-no-loop",
-			},
+			Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow,
+			TaskID: "task-no-loop",
+			RunID:  "run-no-loop",
 		}); err != nil {
 			t.Fatalf("DispatchTaskRunCompleted(non-loop) error = %v", err)
 		}
 		coordinatorKind := taskpkg.RunKindCoordinator.String()
 		if _, err := notifier.DispatchTaskRunCompleted(t.Context(), hookspkg.TaskRunCompletedPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
-			TaskRunContext: hookspkg.TaskRunContext{
-				TaskID:    "task-coordinator",
-				RunID:     "run-coordinator",
-				RunKind:   &coordinatorKind,
-				LoopRunID: "loop-run-1",
-			},
+			Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow,
+			TaskID:    "task-coordinator",
+			RunID:     "run-coordinator",
+			RunKind:   &coordinatorKind,
+			LoopRunID: "loop-run-1",
 		}); err != nil {
 			t.Fatalf("DispatchTaskRunCompleted(coordinator) error = %v", err)
 		}
@@ -1457,17 +1429,15 @@ func TestHooksNotifierLoopNodeTerminalObserverFiltersAndWakes(t *testing.T) {
 		}
 		workerKind := taskpkg.RunKindWorker.String()
 		if _, err := notifier.DispatchTaskRunFailed(t.Context(), hookspkg.TaskRunFailedPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunFailed, Timestamp: fixedNow},
-			TaskRunContext: hookspkg.TaskRunContext{
-				TaskID:      "task-node",
-				RunID:       "run-node",
-				RunKind:     &workerKind,
-				LoopRunID:   "loop-run-1",
-				WorkspaceID: "ws-1",
-				RunStatus:   taskpkg.TaskRunStatusFailed.String(),
-				TaskStatus:  string(taskpkg.TaskStatusFailed),
-				Error:       "node failed",
-			},
+			Event: hookspkg.HookTaskRunFailed, Timestamp: fixedNow,
+			TaskID:      "task-node",
+			RunID:       "run-node",
+			RunKind:     &workerKind,
+			LoopRunID:   "loop-run-1",
+			WorkspaceID: "ws-1",
+			RunStatus:   taskpkg.TaskRunStatusFailed.String(),
+			TaskStatus:  string(taskpkg.TaskStatusFailed),
+			Error:       "node failed",
 		}); err != nil {
 			t.Fatalf("DispatchTaskRunFailed(loop node) error = %v", err)
 		}
@@ -1518,14 +1488,12 @@ func TestHooksNotifierCoordinatorTerminalObserverWakesParentAndPromotesQueued(t 
 		notifier.AddLoopTerminalObserver(observer)
 
 		if _, err := notifier.DispatchLoopTerminal(t.Context(), hookspkg.LoopTerminalPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow},
-			LoopContext: hookspkg.LoopContext{
-				LoopRunID:       "child-loop-run",
-				ParentLoopRunID: "parent-loop-run",
-				WorkspaceID:     "ws-1",
-				LoopName:        "daily-review",
-			},
-			Status: "done",
+			Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow,
+			LoopRunID:       "child-loop-run",
+			ParentLoopRunID: "parent-loop-run",
+			WorkspaceID:     "ws-1",
+			LoopName:        "daily-review",
+			Status:          "done",
 		}); err != nil {
 			t.Fatalf("DispatchLoopTerminal() error = %v", err)
 		}
@@ -1569,13 +1537,11 @@ func TestHooksNotifierCoordinatorTerminalObserversAreFailOpen(t *testing.T) {
 		notifier.AddLoopTerminalObserver(recorder)
 
 		if _, err := notifier.DispatchLoopTerminal(t.Context(), hookspkg.LoopTerminalPayload{
-			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: time.Now().UTC()},
-			LoopContext: hookspkg.LoopContext{
-				LoopRunID:   "loop-run-1",
-				WorkspaceID: "ws-1",
-				LoopName:    "daily-review",
-			},
-			Status: "failed",
+			Event: hookspkg.HookLoopTerminal, Timestamp: time.Now().UTC(),
+			LoopRunID:   "loop-run-1",
+			WorkspaceID: "ws-1",
+			LoopName:    "daily-review",
+			Status:      "failed",
 		}); err != nil {
 			t.Fatalf("DispatchLoopTerminal() error = %v", err)
 		}
@@ -1740,9 +1706,7 @@ func TestHooksNotifierShouldFenceTerminalRuntimeRecoveryGeneration(t *testing.T)
 	spy := &spyTerminalRuntimeRecovery{}
 	notifier.setTerminalRuntime(spy)
 	payload := hookspkg.SessionRuntimeRecoveryStartedPayload{
-		SessionContext: hookspkg.SessionContext{
-			ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a", WorkspaceID: "workspace-a",
-		},
+		ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a", WorkspaceID: "workspace-a",
 		RunID:      "run-a",
 		Generation: 2,
 	}
@@ -1769,9 +1733,7 @@ func TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration(t *te
 		}},
 	}
 	err := observer.OnTaskRunTerminal(context.Background(), hookspkg.TaskRunLeasePayload{
-		TaskRunContext: hookspkg.TaskRunContext{
-			WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", RunID: "run-a",
-		},
+		WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", RunID: "run-a",
 	})
 	if err != nil {
 		t.Fatalf("OnTaskRunTerminal() error = %v", err)
@@ -1892,10 +1854,8 @@ func marketplaceSkillForTest(registry string, slug string, hash string) *skills.
 
 func workspaceResolvedForTest(id string, root string) workspacepkg.ResolvedWorkspace {
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      id,
-			RootDir: root,
-		},
+		ID:          id,
+		RootDir:     root,
 		WorkspaceID: id,
 	}
 }

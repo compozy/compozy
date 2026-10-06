@@ -219,11 +219,9 @@ func toolParityWorkspaceService(t *testing.T) testutil.StubWorkspaceService {
 				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-1",
-					RootDir: root,
-					Name:    "ws-1",
-				},
+				ID:          "ws-1",
+				RootDir:     root,
+				Name:        "ws-1",
 				WorkspaceID: "ws-1",
 			}, nil
 		},

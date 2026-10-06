@@ -376,10 +376,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 			}},
 			CmdPalette: fakeCmdPaletteCatalog{catalog: cmdpalette.Catalog{
 				Commands: []cmdpalette.ResolvedCommand{{
-					Descriptor: cmdpalette.Descriptor{
-						ID: "session.new", Title: "New session", Section: "Sessions",
-						Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-					},
+					ID: "session.new", Title: "New session", Section: "Sessions",
+					Source:   cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
 					Bindings: []string{"meta+KeyN"},
 				}},
 			}},
@@ -405,10 +403,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 		palette := &recordingCmdPaletteCatalog{
 			attachedClient: "client:attached",
 			catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{{
-				Descriptor: cmdpalette.Descriptor{
-					ID: "session.new", Title: "New session", Section: "Sessions",
-					Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-				},
+				ID: "session.new", Title: "New session", Section: "Sessions",
+				Source:   cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
 				Bindings: []string{"meta+KeyN"},
 			}}},
 		}
@@ -586,9 +582,9 @@ command = "before"
 	service := testService(t, homePaths, Dependencies{})
 
 	result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-		Name:              "alpha",
-		Target:            TargetAuto,
+		Collection: CollectionMCPServers,
+		Name:       "alpha",
+		Target:     TargetAuto,
 		MCPServer: &compozyconfig.MCPServer{
 			Command: "after",
 		},
@@ -605,9 +601,9 @@ command = "before"
 	}
 
 	result, err = service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-		Name:              "beta",
-		Target:            TargetAuto,
+		Collection: CollectionMCPServers,
+		Name:       "beta",
+		Target:     TargetAuto,
 		MCPServer: &compozyconfig.MCPServer{
 			Command: "beta-command",
 		},
@@ -671,9 +667,7 @@ func testProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t *testing.T
 	}
 
 	hookResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{
-			Collection: CollectionHooks, Scope: ScopeProfile, ProfileName: "marketing",
-		},
+		Collection: CollectionHooks, Scope: ScopeProfile, ProfileName: "marketing",
 		Name: "ship",
 		Hook: &hookspkg.HookDecl{
 			Event: hookspkg.HookToolPreCall, Mode: hookspkg.HookModeAsync, Command: "/bin/ship",
@@ -687,9 +681,7 @@ func testProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t *testing.T
 	}
 
 	mcpResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{
-			Collection: CollectionMCPServers, Scope: ScopeProfile, ProfileName: "marketing",
-		},
+		Collection: CollectionMCPServers, Scope: ScopeProfile, ProfileName: "marketing",
 		Name: "linear", Target: TargetAuto,
 		MCPServer: &compozyconfig.MCPServer{Command: "linear-mcp"},
 		MCPSecrets: MCPSecretValues{SecretEnv: map[string]string{
@@ -751,17 +743,13 @@ func TestCollectionProfileSelectorMustMatchScope(t *testing.T) {
 			t.Fatalf("ListCollection(profile selector in user scope) error = %v, want ErrConflict", err)
 		}
 		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{
-				Collection: CollectionHooks, Scope: ScopeUser, ProfileName: "marketing",
-			},
+			Collection: CollectionHooks, Scope: ScopeUser, ProfileName: "marketing",
 			Name: "ship", Hook: &hookspkg.HookDecl{Event: hookspkg.HookToolPreCall, Command: "/bin/ship"},
 		}); err == nil || !errors.Is(err, ErrConflict) {
 			t.Fatalf("PutCollectionItem(profile selector in user scope) error = %v, want ErrConflict", err)
 		}
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{
-				Collection: CollectionHooks, Scope: ScopeUser, ProfileName: "marketing",
-			},
+			Collection: CollectionHooks, Scope: ScopeUser, ProfileName: "marketing",
 			Name: "ship",
 		}); err == nil || !errors.Is(err, ErrConflict) {
 			t.Fatalf("DeleteCollectionItem(profile selector in user scope) error = %v, want ErrConflict", err)
@@ -807,7 +795,7 @@ func TestUpdateSectionMarketplaceRuntimeSource(t *testing.T) {
 				desired.BaseURL = tc.explicitURL
 			}
 			if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionMarketplace}, Marketplace: &desired,
+				Section: SectionMarketplace, Marketplace: &desired,
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -844,7 +832,7 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	service := testService(t, homePaths, Dependencies{})
 
 	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-		SectionRequest: SectionRequest{Section: SectionGeneral},
+		Section: SectionGeneral,
 		General: &GeneralSettings{
 			Limits: compozyconfig.LimitsConfig{
 				MaxConcurrentAgents: 11,
@@ -892,7 +880,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		globals := map[string]string{windowmanager.DefaultGlobalSummonCommandID: "meta+shift+Space"}
 		aliases := map[string]string{"session.new": "start"}
 		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest:               SectionRequest{Section: SectionWindowManager},
+			Section:                      SectionWindowManager,
 			WindowManagerShortcuts:       &shortcuts,
 			WindowManagerGlobalShortcuts: &globals,
 			WindowManagerAliases:         &aliases,
@@ -902,7 +890,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		stale.Gaps = compozyconfig.WindowManagerGapsConfig{}
 		for range 2 {
 			if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
-				SectionRequest:                 SectionRequest{Section: SectionWindowManager},
+				Section:                        SectionWindowManager,
 				WindowManager:                  &stale,
 				WindowManagerPreserveShortcuts: true,
 			}); err != nil {
@@ -939,8 +927,8 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		desired.GlobalShortcuts = map[string]string{windowmanager.DefaultGlobalSummonCommandID: "meta+shift+Space"}
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionWindowManager},
-			WindowManager:  &desired,
+			Section:       SectionWindowManager,
+			WindowManager: &desired,
 		})
 		if err != nil {
 			t.Fatalf("UpdateSection(window-manager) error = %v", err)
@@ -976,8 +964,8 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		invalid.HistoryLimit = 0
 
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionWindowManager},
-			WindowManager:  &invalid,
+			Section:       SectionWindowManager,
+			WindowManager: &invalid,
 		})
 		if err == nil {
 			t.Fatal("UpdateSection(invalid window-manager) error = nil, want validation error")
@@ -1006,7 +994,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 			"palette.open": {"meta+KeyN"},
 		}
 		request := SectionUpdateRequest{
-			SectionRequest:         SectionRequest{Section: SectionWindowManager},
+			Section:                SectionWindowManager,
 			WindowManagerShortcuts: &shortcuts,
 		}
 
@@ -1049,7 +1037,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 			"session.new": windowmanager.DefaultGlobalSummonChord,
 		}
 		request := SectionUpdateRequest{
-			SectionRequest:               SectionRequest{Section: SectionWindowManager},
+			Section:                      SectionWindowManager,
 			WindowManagerGlobalShortcuts: &desired,
 		}
 
@@ -1096,7 +1084,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{})
 		initialAliases := map[string]string{"session.new": "new", "palette.open": "open"}
 		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest:       SectionRequest{Section: SectionWindowManager},
+			Section:              SectionWindowManager,
 			WindowManagerAliases: &initialAliases,
 		}); err != nil {
 			t.Fatalf("UpdateSection(initial aliases) error = %v", err)
@@ -1104,7 +1092,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 
 		conflictingAliases := map[string]string{"session.new": "new", "palette.open": "new"}
 		request := SectionUpdateRequest{
-			SectionRequest:       SectionRequest{Section: SectionWindowManager},
+			Section:              SectionWindowManager,
 			WindowManagerAliases: &conflictingAliases,
 		}
 		_, err := service.UpdateSection(ctx, request)
@@ -1133,7 +1121,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 
 		invalidAliases := map[string]string{"palette.open": "my alias"}
 		_, err = service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest:       SectionRequest{Section: SectionWindowManager},
+			Section:              SectionWindowManager,
 			WindowManagerAliases: &invalidAliases,
 		})
 		if _, ok := errors.AsType[*InvalidAliasError](err); !ok {
@@ -1149,15 +1137,13 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		workspaceRoot := t.TempDir()
 		paletteEvents := &recordingCmdPaletteCatalog{catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
-			{Descriptor: cmdpalette.Descriptor{
-				ID: "session.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-			}},
-			{Descriptor: cmdpalette.Descriptor{
+			{
+				ID: "session.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore}},
+			{
 				ID: "ext.notes.capture",
 				Source: cmdpalette.Source{
 					Kind: cmdpalette.SourceKindExtension, Extension: "notes",
-				},
-			}},
+				}},
 		}}}
 		service := testService(t, homePaths, Dependencies{
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
@@ -1171,9 +1157,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		aliases := map[string]string{"ext.notes.capture": "cap"}
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{
-				Section: SectionWindowManager, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
-			},
+			Section: SectionWindowManager, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
 			WindowManagerShortcuts: &shortcuts,
 			WindowManagerAliases:   &aliases,
 		})
@@ -1240,7 +1224,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 			"palette.open": {"meta+alt+KeyP"},
 		}
 		if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
-			SectionRequest:         SectionRequest{Section: SectionWindowManager},
+			Section:                SectionWindowManager,
 			WindowManagerShortcuts: &shortcuts,
 		}); err != nil {
 			t.Fatalf("UpdateSection(global shortcut) error = %v", err)
@@ -1277,7 +1261,7 @@ func TestUpdateSectionCmdPalette(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{})
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionCmdPalette},
+			Section: SectionCmdPalette,
 			CmdPalette: &CmdPaletteUpdate{
 				FallbackAgentEnabled: new(false),
 				Personalization:      new(false),
@@ -1310,8 +1294,8 @@ func TestUpdateSectionCmdPalette(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{})
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionCmdPalette},
-			CmdPalette:     &CmdPaletteUpdate{FallbackAgentEnabled: new(false)},
+			Section:    SectionCmdPalette,
+			CmdPalette: &CmdPaletteUpdate{FallbackAgentEnabled: new(false)},
 		})
 		if err != nil {
 			t.Fatalf("UpdateSection(cmd-palette fallback) error = %v", err)
@@ -1347,7 +1331,7 @@ func TestUpdateSectionAttention(t *testing.T) {
 		}
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Section:                        SectionAttention,
 			Attention:                      &desired,
 			ReplaceAttentionWorkspaceMutes: true,
 		})
@@ -1392,7 +1376,7 @@ func TestUpdateSectionAttention(t *testing.T) {
 		invalid := AttentionSettings{MutedWorkspaces: []string{"not-a-workspace"}}
 
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Section:                        SectionAttention,
 			Attention:                      &invalid,
 			ReplaceAttentionWorkspaceMutes: true,
 		})
@@ -1431,7 +1415,7 @@ func TestUpdateSectionAttention(t *testing.T) {
 		}
 
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Section:                        SectionAttention,
 			Attention:                      &desired,
 			ReplaceAttentionWorkspaceMutes: true,
 		})
@@ -1473,8 +1457,8 @@ func TestUpdateSectionShell(t *testing.T) {
 		}}
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionShell},
-			Shell:          &desired,
+			Section: SectionShell,
+			Shell:   &desired,
 		})
 		if err != nil {
 			t.Fatalf("UpdateSection(shell) error = %v", err)
@@ -1505,8 +1489,8 @@ func TestUpdateSectionShell(t *testing.T) {
 		}}
 
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionShell},
-			Shell:          &invalid,
+			Section: SectionShell,
+			Shell:   &invalid,
 		})
 		validationErr, matched := errors.AsType[compozyconfig.ValidationError](err)
 		if !matched {
@@ -1537,8 +1521,8 @@ func TestUpdateSectionGeneralMemoryReportIntervalRequiresRestart(t *testing.T) {
 		desired.Daemon.MemoryReportInterval = 0
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionGeneral},
-			General:        &desired,
+			Section: SectionGeneral,
+			General: &desired,
 		})
 		if err != nil {
 			t.Fatalf("UpdateSection(memory report interval) error = %v", err)
@@ -1568,7 +1552,7 @@ func TestUpdateSectionSkillsAppliesDisabledSkillsNow(t *testing.T) {
 	service := testService(t, homePaths, Dependencies{SkillsRuntime: skillsRuntime})
 
 	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-		SectionRequest: SectionRequest{Section: SectionSkills},
+		Section: SectionSkills,
 		Skills: &compozyconfig.SkillsConfig{
 			Enabled:                 true,
 			DisabledSkills:          []string{"beta"},
@@ -1609,7 +1593,7 @@ func TestUpdateSectionSkillsWithoutRuntimeDoesNotPersistChanges(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{})
 
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
+			Section: SectionSkills,
 			Skills: &compozyconfig.SkillsConfig{
 				Enabled:                 true,
 				DisabledSkills:          []string{"beta"},
@@ -1646,8 +1630,8 @@ func TestUpdateSectionSkillSourceScopesAndConcurrentWrites(t *testing.T) {
 		loaded.Skills.Sources = []string{"agnets"}
 
 		_, err = service.UpdateSection(context.Background(), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeUser},
-			Skills:         &loaded.Skills,
+			Section: SectionSkills, Scope: ScopeUser,
+			Skills: &loaded.Skills,
 		})
 		var validation *compozyconfig.SkillSourceValidationError
 		if !errors.Is(err, ErrValidation) || !errors.As(err, &validation) ||
@@ -1684,8 +1668,8 @@ Test agent.
 		sourceChange := loaded.Skills
 		sourceChange.Sources = []string{"claude"}
 		_, err = service.UpdateSection(context.Background(), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeAgent, AgentName: "coder"},
-			Skills:         &sourceChange,
+			Section: SectionSkills, Scope: ScopeAgent, AgentName: "coder",
+			Skills: &sourceChange,
 		})
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "only supports skills.disabled_skills") ||
 			!strings.Contains(err.Error(), "skills.sources") {
@@ -1695,8 +1679,8 @@ Test agent.
 		disabledChange := loaded.Skills
 		disabledChange.DisabledSkills = []string{"beta"}
 		result, err := service.UpdateSection(context.Background(), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeAgent, AgentName: "coder"},
-			Skills:         &disabledChange,
+			Section: SectionSkills, Scope: ScopeAgent, AgentName: "coder",
+			Skills: &disabledChange,
 		})
 		if err != nil {
 			t.Fatalf("agent disabled_skills update error = %v", err)
@@ -1728,15 +1712,13 @@ Test agent.
 
 			requests := []SectionUpdateRequest{
 				{
-					SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeUser},
-					Skills:         &userSkills,
+					Section: SectionSkills, Scope: ScopeUser,
+					Skills: &userSkills,
 				},
 				{
-					SectionRequest: SectionRequest{
-						Section:     SectionSkills,
-						Scope:       ScopeWorkspace,
-						WorkspaceID: "ws-alpha",
-					},
+					Section:     SectionSkills,
+					Scope:       ScopeWorkspace,
+					WorkspaceID: "ws-alpha",
 					SkillSourcesOverride: &SkillSourcesOverride{
 						Sources: OptionalStringList{Present: true, Value: []string{"agents"}},
 					},
@@ -1992,9 +1974,9 @@ func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
 		settings := claude.Settings
 		settings.ModelsSet = true
 		result, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "claude",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "claude",
+			Provider:   &settings,
 		})
 		if err != nil {
 			t.Fatalf("PutCollectionItem(unchanged builtin projection) error = %v", err)
@@ -2087,9 +2069,9 @@ display_name = "Raw config row"
 		settings := custom.Settings
 		settings.ModelsSet = true
 		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &settings,
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(unchanged merged projection) error = %v", err)
 		}
@@ -2110,9 +2092,9 @@ display_name = "Raw config row"
 
 		defaultEffort := modelcatalog.ReasoningEffortMax
 		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &settings,
 			ProviderModelCuration: &ProviderModelCurationRequest{
 				ModelID:                "merged-model",
 				DefaultReasoningEffort: &defaultEffort,
@@ -2202,9 +2184,9 @@ display_name = "Raw config row"
 		settings.Models.Default = "grok-4.6"
 
 		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "cursor",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "cursor",
+			Provider:   &settings,
 			ProviderModelCuration: &ProviderModelCurationRequest{
 				ModelID:                "grok-4.6",
 				DefaultReasoningEffort: &xhigh,
@@ -2260,9 +2242,9 @@ featured = true
 		beforeModels := cloneProviderModelsConfig(beforeConfig.Providers["custom"].Models)
 		service := testService(t, homePaths, Dependencies{})
 		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &ProviderSettings{Command: "custom-acp-v2"},
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &ProviderSettings{Command: "custom-acp-v2"},
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(partial provider PUT) error = %v", err)
 		}
@@ -2312,9 +2294,9 @@ command = "custom-acp"
 		settings.ModelsSet = true
 		settings.Models.Curated = settings.Models.Curated[1:]
 		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &settings,
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(first explicit membership edit) error = %v", err)
 		}
@@ -2371,9 +2353,9 @@ deprecated = true
 			compozyconfig.ProviderModelConfig{ID: "excluded"},
 		)
 		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &settings,
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(add excluded model) error = %v", err)
 		}
@@ -2397,8 +2379,8 @@ deprecated = true
 		before := readFile(t, homePaths.ConfigFile)
 		defaultEffort := modelcatalog.ReasoningEffortMax
 		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "missing",
+			Collection: CollectionProviders,
+			Name:       "missing",
 			Provider: &ProviderSettings{
 				Command:   "missing-acp",
 				ModelsSet: true,
@@ -2449,9 +2431,9 @@ id = "custom-model"
 			},
 		}
 		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &settings,
 			ProviderModelCuration: &ProviderModelCurationRequest{
 				ModelID:                "custom-model",
 				DefaultReasoningEffort: &defaultEffort,
@@ -2526,9 +2508,9 @@ featured = true
 		settings := custom.Settings
 		settings.ModelsSet = true
 		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &settings,
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(degraded catalog round trip) error = %v", err)
 		}
@@ -2577,9 +2559,9 @@ id = "raw-model"
 		}
 		before := readFile(t, homePaths.ConfigFile)
 		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &settings,
 		})
 		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
 			t.Fatalf("PutCollectionItem(explicit clear during outage) error = %v, want ErrAllSourcesFailed", err)
@@ -2615,9 +2597,9 @@ id = "raw-model"
 		}
 		before := readFile(t, homePaths.ConfigFile)
 		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "custom",
+			Provider:   &settings,
 		})
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("PutCollectionItem(explicit clear without catalog) error = %v, want ErrValidation", err)
@@ -2665,11 +2647,9 @@ func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 		put := func(settings ProviderSettings) {
 			t.Helper()
 			if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{
-					Collection: CollectionProviders,
-				},
-				Name:     "codex",
-				Provider: &settings,
+				Collection: CollectionProviders,
+				Name:       "codex",
+				Provider:   &settings,
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -2710,8 +2690,8 @@ func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{})
 
 		result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "codex",
+			Collection: CollectionProviders,
+			Name:       "codex",
 			Provider: &ProviderSettings{
 				Command:         "npx -y @agentclientprotocol/codex-acp@latest",
 				DisplayName:     "Codex",
@@ -2779,9 +2759,9 @@ auth_login_command = "codex login --tenant corp --token raw-login-secret"
 		settings := codex.Settings
 		settings.DisplayName = "Codex Enterprise Updated"
 		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "codex",
-			Provider:          &settings,
+			Collection: CollectionProviders,
+			Name:       "codex",
+			Provider:   &settings,
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(read projection) error = %v", err)
 		}
@@ -2807,9 +2787,9 @@ func TestProviderSecretOnlyMutationStoresVaultSecret(t *testing.T) {
 	before := readFile(t, homePaths.ConfigFile)
 
 	result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "openrouter",
-		Provider:          &ProviderSettings{},
+		Collection: CollectionProviders,
+		Name:       "openrouter",
+		Provider:   &ProviderSettings{},
 		ProviderSecrets: []ProviderSecretWrite{
 			{
 				Name:      "api_key",
@@ -2846,9 +2826,9 @@ func TestProviderSecretMutationRejectsCrossProviderRefs(t *testing.T) {
 	service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 
 	_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "openrouter",
-		Provider:          &ProviderSettings{},
+		Collection: CollectionProviders,
+		Name:       "openrouter",
+		Provider:   &ProviderSettings{},
 		ProviderSecrets: []ProviderSecretWrite{{
 			Name:      "api_key",
 			SecretRef: "vault:providers/anthropic/api-key",
@@ -2878,8 +2858,8 @@ func TestProviderSecretMutationRejectsInvalidProviderConfigWithoutStoringSecrets
 			before := readFile(t, homePaths.ConfigFile)
 
 			_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "openrouter",
+				Collection: CollectionProviders,
+				Name:       "openrouter",
 				Provider: &ProviderSettings{
 					AuthMode: compozyconfig.ProviderAuthModeNone,
 					CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
@@ -2924,9 +2904,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 
 		result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "github",
-			Target:            TargetAuto,
+			Collection: CollectionMCPServers,
+			Name:       "github",
+			Target:     TargetAuto,
 			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx",
 			},
@@ -2960,9 +2940,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("settings read exposed OAuth client secret ref %q", item.Auth.ClientSecretRef)
 		}
 		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "github",
-			Target:            TargetAuto,
+			Collection: CollectionMCPServers,
+			Name:       "github",
+			Target:     TargetAuto,
 			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx-updated",
 			},
@@ -2985,8 +2965,8 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("preserved MCP secret plaintext = %q, want %q", got, want)
 		}
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "github",
+			Collection: CollectionMCPServers,
+			Name:       "github",
 		}); err != nil {
 			t.Fatalf("DeleteCollectionItem(non-catalog MCP) error = %v", err)
 		}
@@ -3007,9 +2987,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			secretStore := newFakeProviderSecretStore()
 			initialService := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 			request := CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-				Name:              "github",
-				MCPServer:         &compozyconfig.MCPServer{Command: "old-command"},
+				Collection: CollectionMCPServers,
+				Name:       "github",
+				MCPServer:  &compozyconfig.MCPServer{Command: "old-command"},
 				MCPSecrets: MCPSecretValues{
 					SecretEnv: map[string]string{"GITHUB_TOKEN": "old-secret"},
 				},
@@ -3072,9 +3052,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			secretStore := newFakeProviderSecretStore()
 			initialService := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 			request := CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-				Name:              "github",
-				MCPServer:         &compozyconfig.MCPServer{Command: "old-command"},
+				Collection: CollectionMCPServers,
+				Name:       "github",
+				MCPServer:  &compozyconfig.MCPServer{Command: "old-command"},
 				MCPSecrets: MCPSecretValues{
 					SecretEnv: map[string]string{"GITHUB_TOKEN": "old-secret"},
 				},
@@ -3135,10 +3115,10 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 		canonicalRef := "vault:mcp/user/shared/env/TOKEN"
 		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "shared",
-			Target:            TargetConfig,
-			MCPServer:         &compozyconfig.MCPServer{Command: "config-command"},
+			Collection: CollectionMCPServers,
+			Name:       "shared",
+			Target:     TargetConfig,
+			MCPServer:  &compozyconfig.MCPServer{Command: "config-command"},
 			MCPSecrets: MCPSecretValues{
 				SecretEnv: map[string]string{"TOKEN": "shared-secret"},
 			},
@@ -3146,9 +3126,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("PutCollectionItem(config source) error = %v", err)
 		}
 		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "shared",
-			Target:            TargetSidecar,
+			Collection: CollectionMCPServers,
+			Name:       "shared",
+			Target:     TargetSidecar,
 			MCPServer: &compozyconfig.MCPServer{
 				Command:   "sidecar-command",
 				SecretEnv: map[string]string{"TOKEN": canonicalRef},
@@ -3157,9 +3137,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("PutCollectionItem(sidecar source) error = %v", err)
 		}
 		if _, err := service.DeleteCollectionItem(t.Context(), CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "shared",
-			Target:            TargetSidecar,
+			Collection: CollectionMCPServers,
+			Name:       "shared",
+			Target:     TargetSidecar,
 		}); err != nil {
 			t.Fatalf("DeleteCollectionItem(sidecar source) error = %v", err)
 		}
@@ -3182,9 +3162,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
 		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "plain-env",
-			Target:            TargetSidecar,
+			Collection: CollectionMCPServers,
+			Name:       "plain-env",
+			Target:     TargetSidecar,
 			MCPServer: &compozyconfig.MCPServer{
 				Command: "old-command",
 				Env:     map[string]string{"PROJECT": "compozy"},
@@ -3194,7 +3174,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}
 
 		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
-			CollectionRequest:  CollectionRequest{Collection: CollectionMCPServers},
+			Collection:         CollectionMCPServers,
 			Name:               "plain-env",
 			Target:             TargetSidecar,
 			MCPServer:          &compozyconfig.MCPServer{Command: "new-command"},
@@ -3220,7 +3200,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}
 
 		_, err = service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
-			CollectionRequest:  CollectionRequest{Collection: CollectionMCPServers},
+			Collection:         CollectionMCPServers,
 			Name:               "plain-env",
 			Target:             TargetConfig,
 			MCPServer:          &compozyconfig.MCPServer{Command: "config-command"},
@@ -3242,9 +3222,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		clientSecret := "oauth-client-secret"
 
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "linear",
-			Target:            TargetAuto,
+			Collection: CollectionMCPServers,
+			Name:       "linear",
+			Target:     TargetAuto,
 			MCPServer: &compozyconfig.MCPServer{
 				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://mcp.linear.app/mcp",
@@ -3270,9 +3250,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("sidecar payload leaked OAuth client secret:\n%s", sidecarPayload)
 		}
 		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "linear",
-			Target:            TargetAuto,
+			Collection: CollectionMCPServers,
+			Name:       "linear",
+			Target:     TargetAuto,
 			MCPServer: &compozyconfig.MCPServer{
 				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://mcp.linear.app/mcp-v2",
@@ -3313,8 +3293,8 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			"vault:mcp/user/linear/oauth/registration-access-token",
 		} {
 			_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-				Name:              "linear", Target: TargetAuto,
+				Collection: CollectionMCPServers,
+				Name:       "linear", Target: TargetAuto,
 				MCPServer: &compozyconfig.MCPServer{
 					Transport: compozyconfig.MCPServerTransportHTTP,
 					URL:       "https://mcp.linear.app/replacement",
@@ -3343,10 +3323,10 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: newFakeProviderSecretStore()})
 		_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "github",
-			Target:            TargetConfig,
-			MCPServer:         &compozyconfig.MCPServer{Command: "npx"},
+			Collection: CollectionMCPServers,
+			Name:       "github",
+			Target:     TargetConfig,
+			MCPServer:  &compozyconfig.MCPServer{Command: "npx"},
 			MCPSecretPreservation: MCPSecretPreservation{
 				SecretEnv: []string{"GITHUB_TOKEN"},
 			},
@@ -3373,9 +3353,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}
 
 		result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "full-oauth",
-			Target:            TargetConfig,
+			Collection: CollectionMCPServers,
+			Name:       "full-oauth",
+			Target:     TargetConfig,
 			MCPServer: &compozyconfig.MCPServer{
 				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://mcp.example.com",
@@ -3421,8 +3401,8 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "github",
+			Collection: CollectionMCPServers,
+			Name:       "github",
 			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx",
 				SecretEnv: map[string]string{
@@ -3456,9 +3436,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "github",
-			Target:            TargetAuto,
+			Collection: CollectionMCPServers,
+			Name:       "github",
+			Target:     TargetAuto,
 			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx",
 				SecretEnv: map[string]string{
@@ -3569,10 +3549,10 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				service := testService(t, homePaths, dependencies)
 
 				_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
-					CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-					Name:              tc.serverName,
-					MCPServer:         &tc.server,
-					MCPSecrets:        tc.secrets,
+					Collection: CollectionMCPServers,
+					Name:       tc.serverName,
+					MCPServer:  &tc.server,
+					MCPSecrets: tc.secrets,
 				})
 				if err == nil || !strings.Contains(err.Error(), tc.wantErrorPart) {
 					t.Fatalf(
@@ -3635,9 +3615,9 @@ command = "workspace-config"
 		})
 
 		result, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "alpha",
-			Target:            TargetAuto,
+			Collection: CollectionMCPServers,
+			Name:       "alpha",
+			Target:     TargetAuto,
 		})
 		if err != nil {
 			t.Fatalf("DeleteCollectionItem(global alpha sidecar) error = %v", err)
@@ -3651,9 +3631,9 @@ command = "workspace-config"
 		}
 
 		result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "alpha",
-			Target:            TargetAuto,
+			Collection: CollectionMCPServers,
+			Name:       "alpha",
+			Target:     TargetAuto,
 		})
 		if err != nil {
 			t.Fatalf("DeleteCollectionItem(global alpha config) error = %v", err)
@@ -3667,13 +3647,11 @@ command = "workspace-config"
 		}
 
 		result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{
-				Collection:  CollectionMCPServers,
-				Scope:       ScopeWorkspace,
-				WorkspaceID: "ws-1",
-			},
-			Name:   "alpha",
-			Target: TargetAuto,
+			Collection:  CollectionMCPServers,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-1",
+			Name:        "alpha",
+			Target:      TargetAuto,
 		})
 		if err != nil {
 			t.Fatalf("DeleteCollectionItem(workspace alpha sidecar) error = %v", err)
@@ -3690,13 +3668,11 @@ command = "workspace-config"
 		}
 
 		result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{
-				Collection:  CollectionMCPServers,
-				Scope:       ScopeWorkspace,
-				WorkspaceID: "ws-1",
-			},
-			Name:   "alpha",
-			Target: TargetAuto,
+			Collection:  CollectionMCPServers,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-1",
+			Name:        "alpha",
+			Target:      TargetAuto,
 		})
 		if err != nil {
 			t.Fatalf("DeleteCollectionItem(workspace alpha config) error = %v", err)
@@ -3961,7 +3937,7 @@ func TestUpdateSectionNoChangesReturnsWarning(t *testing.T) {
 	service := testService(t, homePaths, Dependencies{})
 
 	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-		SectionRequest: SectionRequest{Section: SectionGeneral},
+		Section: SectionGeneral,
 		General: &GeneralSettings{
 			Limits: compozyconfig.LimitsConfig{
 				MaxConcurrentAgents: 11,
@@ -4006,7 +3982,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	t.Run("Should missing section payload", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionMemory},
+			Section: SectionMemory,
 		})
 		if err == nil || !strings.Contains(err.Error(), "memory section payload is required") {
 			t.Fatalf("UpdateSection(memory nil) error = %v", err)
@@ -4016,7 +3992,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	t.Run("Should empty collection name", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Collection: CollectionProviders,
 		})
 		if err == nil || !strings.Contains(err.Error(), "collection item name is required") {
 			t.Fatalf("PutCollectionItem(empty name) error = %v", err)
@@ -4026,8 +4002,8 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	t.Run("Should missing provider payload", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "custom",
+			Collection: CollectionProviders,
+			Name:       "custom",
 		})
 		if err == nil || !strings.Contains(err.Error(), "provider payload is required") {
 			t.Fatalf("PutCollectionItem(provider nil) error = %v", err)
@@ -4037,8 +4013,8 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	t.Run("Should missing mcp payload", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "alpha",
+			Collection: CollectionMCPServers,
+			Name:       "alpha",
 		})
 		if err == nil || !strings.Contains(err.Error(), "MCP server payload is required") {
 			t.Fatalf("PutCollectionItem(mcp nil) error = %v", err)
@@ -4048,8 +4024,8 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	t.Run("Should unknown collection", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionName("unknown")},
-			Name:              "alpha",
+			Collection: CollectionName("unknown"),
+			Name:       "alpha",
 		})
 		if err == nil || !strings.Contains(err.Error(), `unknown collection "unknown"`) {
 			t.Fatalf("DeleteCollectionItem(unknown) error = %v", err)
@@ -4059,7 +4035,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	t.Run("Should delete empty name", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Collection: CollectionProviders,
 		})
 		if err == nil || !strings.Contains(err.Error(), "collection item name is required") {
 			t.Fatalf("DeleteCollectionItem(empty name) error = %v", err)
@@ -4069,7 +4045,7 @@ func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	t.Run("Should update unknown section", func(t *testing.T) {
 		t.Parallel()
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionName("mystery")},
+			Section: SectionName("mystery"),
 		})
 		if err == nil || !strings.Contains(err.Error(), `unknown section "mystery"`) {
 			t.Fatalf("UpdateSection(unknown) error = %v", err)
@@ -4444,10 +4420,8 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 		})
 
 		_, err = service.UpdateSection(WithMutationSource(context.Background(), "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{
-				Section: SectionGeneral,
-				Scope:   ScopeUser,
-			},
+			Section: SectionGeneral,
+			Scope:   ScopeUser,
 			General: &GeneralSettings{
 				Limits: compozyconfig.LimitsConfig{
 					MaxConcurrentAgents: cfg.Limits.MaxConcurrentAgents + 1,
@@ -5040,8 +5014,8 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 	})
 
 	providerResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
+		Collection: CollectionProviders,
+		Name:       "custom",
 		Provider: &ProviderSettings{
 			Command:   "custom-acp --stdio",
 			ModelsSet: true,
@@ -5089,8 +5063,8 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		t.Fatalf("config payload missing provider overlay:\n%s", configPayload)
 	}
 	emptyCuratedResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "codex",
+		Collection: CollectionProviders,
+		Name:       "codex",
 		Provider: &ProviderSettings{
 			ModelsSet: true,
 			Models: compozyconfig.ProviderModelsConfig{
@@ -5118,8 +5092,8 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		}
 	}
 	emptyEffortsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
+		Collection: CollectionProviders,
+		Name:       "custom",
 		Provider: &ProviderSettings{
 			Command:   "custom-acp --stdio",
 			ModelsSet: true,
@@ -5157,8 +5131,8 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		t.Fatalf("custom-fast hidden = %v, want true after removal from membership", customFast.Hidden)
 	}
 	blankIDResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
+		Collection: CollectionProviders,
+		Name:       "custom",
 		Provider: &ProviderSettings{
 			Command:   "custom-acp --stdio",
 			ModelsSet: true,
@@ -5194,8 +5168,8 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		t.Fatalf("visible custom model after blank curated id = %q, want %q", got, want)
 	}
 	clearModelsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
+		Collection: CollectionProviders,
+		Name:       "custom",
 		Provider: &ProviderSettings{
 			Command:   "custom-acp --stdio",
 			ModelsSet: true,
@@ -5214,8 +5188,8 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		t.Fatalf("config payload still contains provider model overlay after clear:\n%s", configPayload)
 	}
 	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
+		Collection: CollectionProviders,
+		Name:       "custom",
 	}); err != nil {
 		t.Fatalf("DeleteCollectionItem(provider) error = %v", err)
 	}
@@ -5225,8 +5199,8 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 	}
 
 	hookResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionHooks},
-		Name:              "ship",
+		Collection: CollectionHooks,
+		Name:       "ship",
 		Hook: &hookspkg.HookDecl{
 			Event:   hookspkg.HookToolPreCall,
 			Mode:    hookspkg.HookModeAsync,
@@ -5245,8 +5219,8 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		t.Fatalf("config payload missing hook declaration:\n%s", configPayload)
 	}
 	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionHooks},
-		Name:              "ship",
+		Collection: CollectionHooks,
+		Name:       "ship",
 	}); err != nil {
 		t.Fatalf("DeleteCollectionItem(hook) error = %v", err)
 	}

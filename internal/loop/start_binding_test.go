@@ -103,18 +103,16 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 		def := startBindingDefinition()
 		resolver := startBindingResolver(t, def)
 		values, err := loop.ResolveStartTargetInputs(context.Background(), resolver, loop.StartTargetResolution{
-			StartTargetValidation: loop.StartTargetValidation{
-				WorkspaceID: "ws-1",
-				ProfileID:   "profile-marketing",
-				LoopName:    "valid-loop",
-				Kind:        dsl.StartTrigger,
-				Inputs: map[string]any{
-					"tasks": "task-ref",
-					"count": 2,
-				},
-				InputMapping: map[string]string{
-					"title": "{{ .trigger.payload.title }}",
-				},
+			WorkspaceID: "ws-1",
+			ProfileID:   "profile-marketing",
+			LoopName:    "valid-loop",
+			Kind:        dsl.StartTrigger,
+			Inputs: map[string]any{
+				"tasks": "task-ref",
+				"count": 2,
+			},
+			InputMapping: map[string]string{
+				"title": "{{ .trigger.payload.title }}",
 			},
 			TriggerPayload: map[string]any{"title": "mapped-title"},
 		})

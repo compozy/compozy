@@ -1,5 +1,16 @@
-import "@testing-library/jest-dom";
-import { beforeEach } from "vitest";
+import * as matchers from "@testing-library/jest-dom/matchers";
+import type { TestingLibraryMatchers } from "@testing-library/jest-dom/matchers";
+import { beforeEach, expect } from "vitest";
+
+// jest-dom 7 declares the pre-Vitest-5 assertion interface.
+declare module "vitest" {
+  interface Matchers<
+    R extends void | Promise<void> = void | Promise<void>,
+    T = unknown,
+  > extends TestingLibraryMatchers<T, R> {}
+}
+
+expect.extend(matchers);
 
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();

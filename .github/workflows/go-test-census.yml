@@ -24,7 +24,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
-          go-version: "1.26.4"
+          go-version: "1.27.1"
 
       - name: Download latest shard timing artifacts
         env:

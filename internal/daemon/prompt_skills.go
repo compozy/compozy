@@ -219,10 +219,8 @@ func resolvePromptSkillsWorkspace(
 		return nil, nil
 	}
 	return &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      strings.TrimSpace(workspaceID),
-			RootDir: strings.TrimSpace(workspaceRoot),
-		},
+		ID:        strings.TrimSpace(workspaceID),
+		RootDir:   strings.TrimSpace(workspaceRoot),
 		ProfileID: strings.TrimSpace(profileID),
 	}, nil
 }

@@ -241,7 +241,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		registry, _ := newPromptSkillsAugmenterForTest(t, nil)
 		augmenter := &skillsCatalogAugmenter{registry: registry}
 		workspace := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/tmp/ws-1"},
+			ID: "ws-1", RootDir: "/tmp/ws-1",
 		}
 		if _, err := augmenter.skillsForSessionAgent(
 			t.Context(),
@@ -277,7 +277,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			nameErr: skillspkg.ErrAgentNotFound,
 		}
 		workspace := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-extension", RootDir: "/workspace"},
+			ID: "ws-extension", RootDir: "/workspace",
 		}
 		var resolver session.AgentResolver
 		augmenter := &skillsCatalogAugmenter{

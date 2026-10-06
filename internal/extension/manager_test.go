@@ -394,7 +394,7 @@ func testInstalledProfileRuntimeLifecycle(t *testing.T, workspaceID string) {
 	}))
 	if workspaceID != "" {
 		WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot},
+			ID: workspaceID, RootDir: workspaceRoot,
 		}))(manager)
 	}
 	if err := manager.Start(t.Context()); err != nil {
@@ -1033,11 +1033,9 @@ func TestManagerWorkspaceScopedResourceSessionBindsOwningWorkspace(t *testing.T)
 
 		workspaceRoot := t.TempDir()
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      "ws-extension",
-				RootDir: workspaceRoot,
-				Name:    "extension-workspace",
-			},
+			ID:          "ws-extension",
+			RootDir:     workspaceRoot,
+			Name:        "extension-workspace",
 			WorkspaceID: "ws-extension-stable",
 		}
 		manager := NewManager(

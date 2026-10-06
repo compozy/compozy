@@ -34,8 +34,8 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 	if err != nil {
 		if invalidField, ok := errors.AsType[*invalidTaskQueryFieldError](err); ok {
 			c.JSON(http.StatusBadRequest, contract.TaskQueryErrorPayload{
-				ErrorPayload: contract.ErrorPayload{Error: "invalid_query_field"},
-				Field:        invalidField.field,
+				Error: "invalid_query_field",
+				Field: invalidField.field,
 			})
 			return
 		}

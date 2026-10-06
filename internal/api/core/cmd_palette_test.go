@@ -87,12 +87,10 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		t.Parallel()
 		registry := &cmdPaletteRegistryStub{catalog: cmdpalette.Catalog{
 			Commands: []cmdpalette.ResolvedCommand{{
-				Descriptor: cmdpalette.Descriptor{
-					ID: "window.close", Title: "Close window", Section: "Window", Icon: "x-square",
-					Source:    cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-					Action:    cmdpalette.Action{Kind: cmdpalette.ActionKindClientOp, Op: "window.close"},
-					Arguments: []cmdpalette.Argument{},
-				},
+				ID: "window.close", Title: "Close window", Section: "Window", Icon: "x-square",
+				Source:    cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				Action:    cmdpalette.Action{Kind: cmdpalette.ActionKindClientOp, Op: "window.close"},
+				Arguments: []cmdpalette.Argument{},
 				Available: true, Bindings: []string{"meta+KeyW"},
 			}},
 			Sources:  []cmdpalette.SourceStatus{{Source: "core", Status: cmdpalette.SourceHealthy}},
@@ -854,7 +852,7 @@ func newCmdPaletteHandlers(
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "workspace-canonical", Name: "alpha"},
+					ID: "workspace-canonical", Name: "alpha",
 					WorkspaceID: "workspace-canonical",
 				}, nil
 			},

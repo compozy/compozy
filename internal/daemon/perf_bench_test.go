@@ -41,7 +41,7 @@ func BenchmarkResourceAgentCatalogResolveAgentWorkspaceHit(b *testing.B) {
 	catalog.Replace(1, daemonBenchmarkAgentRecords(256, workspaceID))
 	dependency := agentCatalogDependency(catalog)
 	resolved := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: workspaceID},
+		ID: workspaceID,
 	}
 
 	for b.Loop() {

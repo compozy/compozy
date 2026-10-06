@@ -63,9 +63,8 @@ func TestTerminalAgentHandlersShouldPreserveUntrustedAndRedactedContracts(t *tes
 func TestTerminalAgentHandlersShouldExecuteEveryUnregisteredBody(t *testing.T) { // IT-009, IT-029, IT-034, IT-037
 	t.Parallel()
 	gin.SetMode(gin.TestMode)
-	handle := &terminalAgentHandleStub{terminalHandleStub: terminalHandleStub{
-		pending: &terminalpkg.PendingInputRequest{ID: "input-a", Redacted: true},
-	}}
+	handle := &terminalAgentHandleStub{
+		pending: &terminalpkg.PendingInputRequest{ID: "input-a", Redacted: true}}
 	journal := &terminalAgentJournalStub{}
 	manager := &terminalAgentManagerStub{terminalManagerStub: terminalManagerStub{}, handle: handle, journal: journal}
 	provider := &terminalProviderStub{Manager: manager}

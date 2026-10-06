@@ -27,10 +27,8 @@ func TestCreateFailsWhenSessionPreCreateDenied(t *testing.T) {
 			"deny-create": hookspkg.NewTypedNativeExecutor(
 				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreCreatePayload) (hookspkg.SessionCreatePatch, error) {
 					return hookspkg.SessionCreatePatch{
-						ControlPatch: hookspkg.ControlPatch{
-							Deny:       true,
-							DenyReason: "blocked",
-						},
+						Deny:       true,
+						DenyReason: "blocked",
 					}, nil
 				},
 			),

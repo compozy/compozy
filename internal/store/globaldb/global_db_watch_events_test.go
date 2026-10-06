@@ -1219,12 +1219,12 @@ func TestGlobalDBWatchEventsProfileIsolation(t *testing.T) {
 				SessionID:   "watch-profile-observe-default",
 				WorkspaceID: "ws-a", Type: "profile.observe", AgentName: "coder",
 				Outcome: "info", Timestamp: now.Add(5 * time.Second),
-				EventCorrelation: store.EventCorrelation{CoordinatorSessionID: "watch-profile-observe-default"}},
+				CoordinatorSessionID: "watch-profile-observe-default"},
 			{ProfileID: marketingProfileID,
 				SessionID:   "watch-profile-observe-marketing",
 				WorkspaceID: "ws-a", Type: "profile.observe", AgentName: "coder",
 				Outcome: "info", Timestamp: now.Add(6 * time.Second),
-				EventCorrelation: store.EventCorrelation{CoordinatorSessionID: "watch-profile-observe-marketing"}},
+				CoordinatorSessionID: "watch-profile-observe-marketing"},
 		} {
 			summary.SetContent([]byte(`{}`))
 			if err := globalDB.WriteEventSummary(ctx, summary); err != nil {
@@ -2657,20 +2657,18 @@ func appendCoordinatorWatchSummaryForTest(
 		t.Fatalf("Marshal(coordinator watch content) error = %v", err)
 	}
 	summary := EventSummary{
-		ProfileID:   store.DefaultProfileID,
-		SessionID:   coordinatorSessionID,
-		WorkspaceID: workspaceID,
-		Type:        string(event),
-		AgentName:   "coordinator-agent",
-		Provider:    "mock",
-		Outcome:     "info",
-		EventCorrelation: store.EventCorrelation{
-			HookEvent:            string(event),
-			CoordinatorSessionID: coordinatorSessionID,
-			WorkflowID:           "wf-watch",
-		},
-		Summary:   "coordinator watch summary",
-		Timestamp: at,
+		ProfileID:            store.DefaultProfileID,
+		SessionID:            coordinatorSessionID,
+		WorkspaceID:          workspaceID,
+		Type:                 string(event),
+		AgentName:            "coordinator-agent",
+		Provider:             "mock",
+		Outcome:              "info",
+		HookEvent:            string(event),
+		CoordinatorSessionID: coordinatorSessionID,
+		WorkflowID:           "wf-watch",
+		Summary:              "coordinator watch summary",
+		Timestamp:            at,
 	}
 	summary.SetContent(content)
 	if err := globalDB.WriteEventSummary(ctx, summary); err != nil {

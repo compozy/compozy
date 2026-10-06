@@ -232,11 +232,11 @@ func (m *parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookM
 		DecisionClass:    strings.TrimSpace(m.DecisionClass),
 		MessageRole:      strings.TrimSpace(m.MessageRole),
 		MessageDeltaType: strings.TrimSpace(m.MessageDeltaType),
-	}
-	matcher.CompactionMatcher = &hookspkg.CompactionMatcher{
-		Reason:   strings.TrimSpace(m.CompactionReason),
-		Strategy: strings.TrimSpace(m.CompactionStrategy),
-	}
+
+		CompactionMatcher: &hookspkg.CompactionMatcher{
+			Reason:   strings.TrimSpace(m.CompactionReason),
+			Strategy: strings.TrimSpace(m.CompactionStrategy),
+		}}
 	autonomy := hookspkg.AutonomyMatcher{
 		TaskID:               strings.TrimSpace(m.TaskID),
 		RunID:                strings.TrimSpace(m.RunID),

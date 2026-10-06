@@ -19,7 +19,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 )
 
 const legacyRegistryTestExtensionsTableSchema = `CREATE TABLE IF NOT EXISTS extensions (

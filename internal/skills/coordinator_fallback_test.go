@@ -25,10 +25,8 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 			}
 
 			resolved := &workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-coordinator",
-					RootDir: t.TempDir(),
-				},
+				ID:      "ws-coordinator",
+				RootDir: t.TempDir(),
 				Agents: []compozyconfig.AgentDef{{
 					Name:     "coder",
 					Provider: "claude",
@@ -68,10 +66,8 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 
 			provider := NewCatalogProvider(registry)
 			resolved := &workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-coordinator",
-					RootDir: t.TempDir(),
-				},
+				ID:      "ws-coordinator",
+				RootDir: t.TempDir(),
 			}
 
 			section, err := provider.PromptAgentSection(

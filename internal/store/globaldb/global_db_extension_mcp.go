@@ -185,12 +185,10 @@ func decodeExtensionMCPRecords(rows []sqlcgen.ExtensionMcpOverride) ([]extension
 	records := make([]extensionmcp.Record, 0, len(rows))
 	for _, row := range rows {
 		record := extensionmcp.Record{
-			Target: extensionmcp.Target{
-				Extension:   row.Extension,
-				ProfileID:   row.Profile,
-				WorkspaceID: row.WorkspaceID,
-				ServerName:  row.Server,
-			},
+			Extension:   row.Extension,
+			ProfileID:   row.Profile,
+			WorkspaceID: row.WorkspaceID,
+			ServerName:  row.Server,
 			RuntimeName: row.RuntimeName,
 		}
 		if err := json.Unmarshal([]byte(row.EnvJson), &record.Env); err != nil {

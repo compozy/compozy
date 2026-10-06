@@ -571,7 +571,7 @@ func TestAutomationTriggerWritesAuthorizeBeforeMutation(t *testing.T) {
 				config.Workspaces = workspaceServiceStub{
 					resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 						return workspacepkg.ResolvedWorkspace{
-							Workspace: workspacepkg.Workspace{ID: ref}, WorkspaceID: ref,
+							ID: ref, WorkspaceID: ref,
 						}, nil
 					},
 				}

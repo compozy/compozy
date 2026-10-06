@@ -320,13 +320,11 @@ func autoTitleUserEvent(t *testing.T, sessionID string, turnID string, text stri
 
 func autoTitleHookPayload(sessionID string, turnID string, text string) hookspkg.SessionMessagePersistedPayload {
 	return hookspkg.SessionMessagePersistedPayload{
-		SessionContext: hookspkg.SessionContext{
-			ProfileID: store.DefaultProfileID, SessionID: sessionID,
-			SessionType: string(session.SessionTypeUser), AgentName: "coder",
-		},
-		TurnContext: hookspkg.TurnContext{TurnID: turnID},
-		Role:        "assistant",
-		Text:        text,
+		ProfileID: store.DefaultProfileID, SessionID: sessionID,
+		SessionType: string(session.SessionTypeUser), AgentName: "coder",
+		TurnID: turnID,
+		Role:   "assistant",
+		Text:   text,
 	}
 }
 

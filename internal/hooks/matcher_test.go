@@ -49,10 +49,8 @@ func TestHookMatcherMatchesToolWithWildcard(t *testing.T) {
 	}
 
 	payload := ToolPreCallPayload{
-		ToolCallRef: ToolCallRef{
-			ToolID:   "compozy__read_text_file",
-			ReadOnly: true,
-		},
+		ToolID:   "compozy__read_text_file",
+		ReadOnly: true,
 	}
 	if !matcher.MatchesToolPreCall(payload) {
 		t.Fatal("MatchesToolPreCall() = false, want true")
@@ -131,12 +129,10 @@ func TestHookMatcherMatchesInput(t *testing.T) {
 		InputClass:    "chat",
 	}
 	if !scopeMatcher.MatchesInput(InputPreSubmitPayload{
-		SessionContext: SessionContext{
-			AgentName:   "claude",
-			WorkspaceID: "ws-1",
-			Workspace:   "/workspace/demo",
-		},
-		InputClass: "chat",
+		AgentName:   "claude",
+		WorkspaceID: "ws-1",
+		Workspace:   "/workspace/demo",
+		InputClass:  "chat",
 	}) {
 		t.Fatal("MatchesInput() = false, want true")
 	}
@@ -152,12 +148,10 @@ func TestHookMatcherMatchesPrompt(t *testing.T) {
 		InputClass:    "chat",
 	}
 	if !scopeMatcher.MatchesPrompt(PromptPayload{
-		SessionContext: SessionContext{
-			AgentName:   "claude",
-			WorkspaceID: "ws-1",
-			Workspace:   "/workspace/demo",
-		},
-		InputClass: "chat",
+		AgentName:   "claude",
+		WorkspaceID: "ws-1",
+		Workspace:   "/workspace/demo",
+		InputClass:  "chat",
 	}) {
 		t.Fatal("MatchesPrompt() = false, want true")
 	}
@@ -172,11 +166,9 @@ func TestHookMatcherMatchesAgentPreStart(t *testing.T) {
 		WorkspaceRoot: "/workspace/demo",
 	}
 	if !scopeMatcher.MatchesAgentPreStart(AgentPreStartPayload{
-		SessionContext: SessionContext{
-			AgentName:   "claude",
-			WorkspaceID: "ws-1",
-			Workspace:   "/workspace/demo",
-		},
+		AgentName:   "claude",
+		WorkspaceID: "ws-1",
+		Workspace:   "/workspace/demo",
 	}) {
 		t.Fatal("MatchesAgentPreStart() = false, want true")
 	}
@@ -191,11 +183,9 @@ func TestHookMatcherMatchesAgentLifecycle(t *testing.T) {
 		WorkspaceRoot: "/workspace/demo",
 	}
 	if !scopeMatcher.MatchesAgentLifecycle(AgentLifecyclePayload{
-		SessionContext: SessionContext{
-			AgentName:   "claude",
-			WorkspaceID: "ws-1",
-			Workspace:   "/workspace/demo",
-		},
+		AgentName:   "claude",
+		WorkspaceID: "ws-1",
+		Workspace:   "/workspace/demo",
 	}) {
 		t.Fatal("MatchesAgentLifecycle() = false, want true")
 	}
@@ -211,12 +201,10 @@ func TestHookMatcherMatchesTurn(t *testing.T) {
 		InputClass:    "chat",
 	}
 	if !scopeMatcher.MatchesTurn(TurnPayload{
-		SessionContext: SessionContext{
-			AgentName:   "claude",
-			WorkspaceID: "ws-1",
-			Workspace:   "/workspace/demo",
-		},
-		InputClass: "chat",
+		AgentName:   "claude",
+		WorkspaceID: "ws-1",
+		Workspace:   "/workspace/demo",
+		InputClass:  "chat",
 	}) {
 		t.Fatal("MatchesTurn() = false, want true")
 	}
@@ -231,9 +219,9 @@ func TestHookMatcherMatchesEvent(t *testing.T) {
 		TurnID:       "turn-1",
 	}
 	if !eventMatcher.MatchesEvent(EventRecordPayload{
-		SessionContext: SessionContext{AgentName: "claude"},
-		TurnContext:    TurnContext{TurnID: "turn-1"},
-		RecordType:     "permission",
+		AgentName:  "claude",
+		TurnID:     "turn-1",
+		RecordType: "permission",
 	}) {
 		t.Fatal("MatchesEvent() = false, want true")
 	}
@@ -261,12 +249,12 @@ func TestHookMatcherMatchesToolResponses(t *testing.T) {
 		ToolID: "compozy__terminal_run",
 	}
 	if !toolMatcher.MatchesToolPostCall(ToolPostCallPayload{
-		ToolCallRef: ToolCallRef{ToolID: "compozy__terminal_run"},
+		ToolID: "compozy__terminal_run",
 	}) {
 		t.Fatal("MatchesToolPostCall() = false, want true")
 	}
 	if !toolMatcher.MatchesToolPostError(ToolPostErrorPayload{
-		ToolCallRef: ToolCallRef{ToolID: "compozy__terminal_run"},
+		ToolID: "compozy__terminal_run",
 	}) {
 		t.Fatal("MatchesToolPostError() = false, want true")
 	}

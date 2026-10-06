@@ -621,7 +621,7 @@ func TestHookTypeValidationBranches(t *testing.T) {
 	t.Run("Should validate resolved hook", func(t *testing.T) {
 		t.Parallel()
 
-		resolved := &ResolvedHook{RegisteredHook: RegisteredHook{
+		resolved := &ResolvedHook{
 			Name:   "resolved",
 			Event:  HookPromptPostAssemble,
 			Source: HookSourceConfig,
@@ -630,12 +630,11 @@ func TestHookTypeValidationBranches(t *testing.T) {
 				func(context.Context, RegisteredHook, PromptPayload) (PromptPatch, error) {
 					return PromptPatch{}, nil
 				},
-			),
-		}, Decl: HookDecl{
-			Name:         "resolved",
-			ExecutorKind: HookExecutorNative,
-			SkillSource:  HookSkillSourceWorkspace,
-		}}
+			), Decl: HookDecl{
+				Name:         "resolved",
+				ExecutorKind: HookExecutorNative,
+				SkillSource:  HookSkillSourceWorkspace,
+			}}
 		if err := resolved.Validate(); err != nil {
 			t.Fatalf("ResolvedHook.Validate() error = %v, want nil", err)
 		}
@@ -644,7 +643,7 @@ func TestHookTypeValidationBranches(t *testing.T) {
 	t.Run("Should reject name mismatch for resolved hook", func(t *testing.T) {
 		t.Parallel()
 
-		resolved := &ResolvedHook{RegisteredHook: RegisteredHook{
+		resolved := &ResolvedHook{
 			Name:   "resolved",
 			Event:  HookPromptPostAssemble,
 			Source: HookSourceConfig,
@@ -653,12 +652,11 @@ func TestHookTypeValidationBranches(t *testing.T) {
 				func(context.Context, RegisteredHook, PromptPayload) (PromptPatch, error) {
 					return PromptPatch{}, nil
 				},
-			),
-		}, Decl: HookDecl{
-			Name:         "other",
-			ExecutorKind: HookExecutorNative,
-			SkillSource:  HookSkillSourceWorkspace,
-		}}
+			), Decl: HookDecl{
+				Name:         "other",
+				ExecutorKind: HookExecutorNative,
+				SkillSource:  HookSkillSourceWorkspace,
+			}}
 		err := resolved.Validate()
 		if err == nil {
 			t.Fatal("ResolvedHook.Validate(name mismatch) error = nil, want error")

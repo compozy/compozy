@@ -5167,11 +5167,9 @@ Review the workspace changes carefully.
 	baseNow := time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC)
 	env := &hostAPITestEnv{now: baseNow, homePaths: homePaths}
 	resolvedWorkspace := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      "ws-host-api",
-			RootDir: workspaceRoot,
-			Name:    "host-api-workspace",
-		},
+		ID:          "ws-host-api",
+		RootDir:     workspaceRoot,
+		Name:        "host-api-workspace",
 		WorkspaceID: "ws-host-api",
 		Config: compozyconfig.Config{
 			Defaults: compozyconfig.DefaultsConfig{Agent: "coder"},

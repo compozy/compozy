@@ -192,11 +192,9 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 		taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 		if err != nil {
 			r.logTaskRoleError("daemon: load task for role recovery", err, hookspkg.TaskRunEnqueuedPayload{
-				TaskRunContext: hookspkg.TaskRunContext{
-					ProfileID: strings.TrimSpace(run.ProfileID),
-					RunID:     run.ID,
-					TaskID:    run.TaskID,
-				},
+				ProfileID: strings.TrimSpace(run.ProfileID),
+				RunID:     run.ID,
+				TaskID:    run.TaskID,
 			})
 			continue
 		}
@@ -205,12 +203,10 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 				"daemon: recover task role session for queued run",
 				err,
 				hookspkg.TaskRunEnqueuedPayload{
-					TaskRunContext: hookspkg.TaskRunContext{
-						ProfileID:   strings.TrimSpace(run.ProfileID),
-						RunID:       run.ID,
-						TaskID:      run.TaskID,
-						WorkspaceID: taskRecord.WorkspaceID,
-					},
+					ProfileID:   strings.TrimSpace(run.ProfileID),
+					RunID:       run.ID,
+					TaskID:      run.TaskID,
+					WorkspaceID: taskRecord.WorkspaceID,
 				},
 			)
 		}

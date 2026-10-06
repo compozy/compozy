@@ -217,10 +217,10 @@ func TestUpdateTerminalProjection(t *testing.T) {
 		}
 		got := completedUpdateRecord(record, compozyupdate.OperationRequest{
 			Runtime: &compozyupdate.RuntimeOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"},
+				ToVersion: "v1.1.0",
 			},
 			App: &compozyupdate.AppOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"}, AttemptID: "attempt-1",
+				ToVersion: "v1.1.0", AttemptID: "attempt-1",
 			},
 		}, nil)
 		if got.Status != compozyupdate.StatusStaged || got.Runtime.Status != compozyupdate.StatusUpdated ||
@@ -295,7 +295,7 @@ func TestUpdateTerminalProjection(t *testing.T) {
 		record, err := finalizeUpdateRecord(
 			base,
 			compozyupdate.OperationRequest{App: &compozyupdate.AppOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"}, AttemptID: "attempt-1",
+				ToVersion: "v1.1.0", AttemptID: "attempt-1",
 			}},
 			nil,
 			nil,

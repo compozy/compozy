@@ -33,17 +33,14 @@ const secrets: VaultSecret[] = [
   },
 ];
 
-const denseSecrets = Array.from(
-  { length: 12 },
-  (_, index): VaultSecret => ({
-    ref: `vault:providers/provider_${index + 1}/api_key_with_a_very_long_metadata_reference_${index + 1}`,
-    namespace: index % 3 === 0 ? "sessions" : "providers",
-    kind: index % 2 === 0 ? "api_key" : "webhook",
-    present: true,
-    created_at: "2026-04-17T17:30:00Z",
-    updated_at: "2026-04-17T17:42:00Z",
-  })
-);
+const denseSecrets = Array.from({ length: 12 }, (_, index): VaultSecret => ({
+  ref: `vault:providers/provider_${index + 1}/api_key_with_a_very_long_metadata_reference_${index + 1}`,
+  namespace: index % 3 === 0 ? "sessions" : "providers",
+  kind: index % 2 === 0 ? "api_key" : "webhook",
+  present: true,
+  created_at: "2026-04-17T17:30:00Z",
+  updated_at: "2026-04-17T17:42:00Z",
+}));
 
 const meta: Meta<typeof VaultSecretsList> = {
   title: "systems/vault/components/VaultSecretsList",

@@ -795,17 +795,15 @@ func TestMarketplaceCatalog(t *testing.T) {
 				servers[0].Status, servers[0].RuntimeName = "running", "custom-instance.remote"
 			}
 			handlers.Extensions = marketplaceInspectionService{
-				extensionServiceStub: extensionServiceStub{
-					listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
-						sourceRef := "github:team/other"
-						if installed {
-							sourceRef = marketplacepkg.CompozyCatalogRef
-						}
-						return []contract.ExtensionPayload{{Name: "custom-instance", Version: "1.0.0",
-							Origin:   &contract.MarketplaceOriginPayload{SourceRef: sourceRef, EntryID: entry.EntryID},
-							Contents: contract.ExtensionContentsPayload{MCPServers: 1}, MCPServers: servers,
-						}}, nil
-					},
+				listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+					sourceRef := "github:team/other"
+					if installed {
+						sourceRef = marketplacepkg.CompozyCatalogRef
+					}
+					return []contract.ExtensionPayload{{Name: "custom-instance", Version: "1.0.0",
+						Origin:   &contract.MarketplaceOriginPayload{SourceRef: sourceRef, EntryID: entry.EntryID},
+						Contents: contract.ExtensionContentsPayload{MCPServers: 1}, MCPServers: servers,
+					}}, nil
 				},
 				inspectFn: func(_ context.Context, got marketplacepkg.Entry, profile string) (contract.MarketplaceExtensionDetailPayload, error) {
 					inspections++

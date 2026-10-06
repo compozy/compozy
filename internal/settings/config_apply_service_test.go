@@ -69,8 +69,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		}
 		for _, name := range []string{"repair-cloud", "new-cloud"} {
 			result, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-				Name:              name,
+				Collection: CollectionMCPServers,
+				Name:       name,
 				MCPServer: &compozyconfig.MCPServer{
 					Name: name, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.test/mcp",
 					Auth: compozyconfig.MCPAuthConfig{
@@ -158,12 +158,10 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		)
 		pending := readFile(t, homePaths.ConfigFile)
 		put, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{
-				Collection: CollectionMCPServers,
-				Owner:      "extension:linear",
-			},
-			Name:      "linear",
-			MCPServer: &compozyconfig.MCPServer{URL: "https://extension.example/changed"},
+			Collection: CollectionMCPServers,
+			Owner:      "extension:linear",
+			Name:       "linear",
+			MCPServer:  &compozyconfig.MCPServer{URL: "https://extension.example/changed"},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -180,8 +178,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		reset, err := service.ApplyCollectionDelete(
 			ctx,
 			CollectionItemDeleteRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers, Owner: "extension:linear"},
-				Name:              "linear",
+				Collection: CollectionMCPServers, Owner: "extension:linear",
+				Name: "linear",
 			},
 		)
 		if err != nil || !reset.Applied || reset.RestartRequired || reset.MCPServer == nil ||
@@ -192,12 +190,10 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			t.Fatal("override reset changed config or did not clear the override")
 		}
 		_, err = service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{
-				Collection: CollectionMCPServers,
-				Owner:      "extension:linear",
-			},
-			Name:      "linear",
-			MCPServer: &compozyconfig.MCPServer{Command: "forbidden"},
+			Collection: CollectionMCPServers,
+			Owner:      "extension:linear",
+			Name:       "linear",
+			MCPServer:  &compozyconfig.MCPServer{Command: "forbidden"},
 		})
 		if !errors.Is(err, ErrValidation) || len(written) != 2 {
 			t.Fatalf("package field reached mutation: %v", err)
@@ -226,7 +222,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		general := generalSettingsFromConfig(&cfg)
 		general.FollowUpMode = new("queue")
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general,
+			Section: SectionGeneral, General: &general,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -246,7 +242,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		general.FollowUpMode = nil
 		if _, err := service.UpdateSection(
 			ctx,
-			SectionUpdateRequest{SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general},
+			SectionUpdateRequest{Section: SectionGeneral, General: &general},
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -280,15 +276,13 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		})
 		for _, request := range []SectionUpdateRequest{
 			{
-				SectionRequest: SectionRequest{Section: SectionPersona, Scope: ScopeUser},
+				Section: SectionPersona, Scope: ScopeUser,
 				Persona: &compozyconfig.DefaultsConfig{
 					Agent: "user-agent", Provider: "codex",
 				},
 			},
 			{
-				SectionRequest: SectionRequest{
-					Section: SectionPersona, Scope: ScopeProfile, ProfileName: "marketing",
-				},
+				Section: SectionPersona, Scope: ScopeProfile, ProfileName: "marketing",
 				Persona: &compozyconfig.DefaultsConfig{
 					Agent: "profile-agent", Provider: "codex",
 				},
@@ -348,8 +342,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		cfg.Skills.DisabledSkills = []string{"alpha"}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
-			Skills:         &cfg.Skills,
+			Section: SectionSkills,
+			Skills:  &cfg.Skills,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(skills) error = %v", err)
@@ -415,8 +409,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		roles.MemoryExtractor.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionRoles},
-			Roles:          &roles,
+			Section: SectionRoles,
+			Roles:   &roles,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(roles) error = %v", err)
@@ -515,9 +509,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "uds"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{
-				Section: SectionRoles, Scope: ScopeWorkspace, WorkspaceID: workspaceID,
-			},
+			Section: SectionRoles, Scope: ScopeWorkspace, WorkspaceID: workspaceID,
 			Roles: &roles,
 		})
 		if err != nil {
@@ -696,8 +688,8 @@ cost_reasoning_per_million = 30
 		desired := testWindowManagerConfig()
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionWindowManager},
-			WindowManager:  &desired,
+			Section:       SectionWindowManager,
+			WindowManager: &desired,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(window-manager) error = %v", err)
@@ -807,7 +799,7 @@ cost_reasoning_per_million = 30
 		}
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Section:                        SectionAttention,
 			Attention:                      &desired,
 			ReplaceAttentionWorkspaceMutes: true,
 		})
@@ -876,8 +868,8 @@ cost_reasoning_per_million = 30
 		}}
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionShell},
-			Shell:          &desired,
+			Section: SectionShell,
+			Shell:   &desired,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(shell) error = %v", err)
@@ -925,7 +917,7 @@ cost_reasoning_per_million = 30
 
 		desired := AttentionSettings{Toasts: true, Sound: true, MutedWorkspaces: []string{retainedID}}
 		if _, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Section:                        SectionAttention,
 			Attention:                      &desired,
 			ReplaceAttentionWorkspaceMutes: true,
 		}); err != nil {
@@ -982,7 +974,7 @@ cost_reasoning_per_million = 30
 			candidate := normalizeAttentionSettings(candidates[index])
 			writers.Go(func() {
 				_, applyErr := service.ApplySection(ctx, SectionUpdateRequest{
-					SectionRequest:                 SectionRequest{Section: SectionAttention},
+					Section:                        SectionAttention,
 					Attention:                      &candidate,
 					ReplaceAttentionWorkspaceMutes: true,
 				})
@@ -1052,7 +1044,7 @@ cost_reasoning_per_million = 30
 			aliases := cloneAliases(candidates[index].aliases)
 			writers.Go(func() {
 				_, applyErr := service.ApplySection(ctx, SectionUpdateRequest{
-					SectionRequest:       SectionRequest{Section: SectionWindowManager},
+					Section:              SectionWindowManager,
 					WindowManager:        &windowManagerConfig,
 					WindowManagerAliases: &aliases,
 				})
@@ -1113,8 +1105,8 @@ cost_reasoning_per_million = 30
 			pendingGateway := initial.Gateway
 			pendingGateway.PrivatePort = 43210
 			pending, err := service.ApplySection(ctx, SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionGateway},
-				Gateway:        &pendingGateway,
+				Section: SectionGateway,
+				Gateway: &pendingGateway,
 			})
 			if err != nil {
 				t.Fatalf("ApplySection(pending gateway port) error = %v", err)
@@ -1129,8 +1121,8 @@ cost_reasoning_per_million = 30
 			}
 			desired.Gateway.Enabled = !initial.Gateway.Enabled
 			live, err := service.ApplySection(ctx, SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionGateway},
-				Gateway:        &desired.Gateway,
+				Section: SectionGateway,
+				Gateway: &desired.Gateway,
 			})
 			if err != nil {
 				t.Fatalf("ApplySection(gateway ceiling) error = %v", err)
@@ -1198,8 +1190,8 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 		skills := initial.Skills
 		skills.PollInterval += time.Second
 		pending, err := svc.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeProfile, ProfileName: "marketing"},
-			Skills:         &skills,
+			Section: SectionSkills, Scope: ScopeProfile, ProfileName: "marketing",
+			Skills: &skills,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1212,7 +1204,7 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 			t.Fatalf("profile restart requirement = %t, error = %v", required, err)
 		}
 		live, err := svc.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionShell, Scope: ScopeUser},
+			Section: SectionShell, Scope: ScopeUser,
 			Shell: &compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
 				Sort:  compozyconfig.ShellSessionSortAttention,
 				Scope: compozyconfig.ShellSessionScopeAllWorkspaces,
@@ -1270,8 +1262,8 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 		general.HTTP.Port = 2124
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "uds"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionGeneral},
-			General:        &general,
+			Section: SectionGeneral,
+			General: &general,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(general) error = %v", err)
@@ -1331,8 +1323,8 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 		result, err := service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "codex",
+				Collection: CollectionProviders,
+				Name:       "codex",
 				Provider: &ProviderSettings{
 					Command: "codex-browser",
 				},
@@ -1440,9 +1432,9 @@ default_reasoning_effort = "high"
 		result, err := service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "codex",
-				Provider:          &settings,
+				Collection: CollectionProviders,
+				Name:       "codex",
+				Provider:   &settings,
 			},
 		)
 		if err != nil {
@@ -1490,9 +1482,9 @@ default_reasoning_effort = "high"
 		_, err = service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "codex",
-				Provider:          &settings,
+				Collection: CollectionProviders,
+				Name:       "codex",
+				Provider:   &settings,
 			},
 		)
 		if err == nil {
@@ -1542,9 +1534,9 @@ default_reasoning_effort = "high"
 		result, err := service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "claude",
-				Provider:          &settings,
+				Collection: CollectionProviders,
+				Name:       "claude",
+				Provider:   &settings,
 			},
 		)
 		if err != nil {
@@ -1605,8 +1597,8 @@ default_reasoning_effort = "high"
 		result, err := service.ApplyCollectionItem(
 			WithMutationSource(ctx, "http"),
 			CollectionItemPutRequest{
-				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-				Name:              "codex",
+				Collection: CollectionProviders,
+				Name:       "codex",
 				Provider: &ProviderSettings{
 					ModelsSet: true,
 					Models: compozyconfig.ProviderModelsConfig{
@@ -1688,7 +1680,7 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 		}
 		cfg.Extensions.Trust.AllowUnverified = false
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest:  SectionRequest{Section: SectionHooksExtensions},
+			Section:         SectionHooksExtensions,
 			HooksExtensions: &cfg.Extensions,
 		})
 		if err != nil {
@@ -2095,9 +2087,9 @@ featured = true
 
 		const pendingCommand = "codex-pending-restart"
 		pending, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-			Name:              "codex",
-			Provider:          &ProviderSettings{Command: pendingCommand},
+			Collection: CollectionProviders,
+			Name:       "codex",
+			Provider:   &ProviderSettings{Command: pendingCommand},
 		})
 		if err != nil {
 			t.Fatalf("ApplyCollectionItem(pending command) error = %v", err)
@@ -2337,8 +2329,8 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		}
 		cfg.Skills.DisabledSkills = []string{"alpha"}
 		applied, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
-			Skills:         &cfg.Skills,
+			Section: SectionSkills,
+			Skills:  &cfg.Skills,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(skills) error = %v", err)
@@ -2354,8 +2346,8 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		automation := automationSettingsFromConfig(&cfg)
 		automation.Enabled = false
 		blocked, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionAutomation},
-			Automation:     &automation,
+			Section:    SectionAutomation,
+			Automation: &automation,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(automation) error = %v", err)
@@ -2446,7 +2438,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		}
 		desired := cfg.WindowManager
 		desired.Gaps.Inner = 6
-		request := SectionUpdateRequest{SectionRequest: SectionRequest{Section: SectionWindowManager},
+		request := SectionUpdateRequest{Section: SectionWindowManager,
 			WindowManager: &desired, WindowManagerPreserveShortcuts: true}
 		failed, err := service.ApplySection(ctx, request)
 		if err != nil {
@@ -2465,7 +2457,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		general := generalSettingsFromConfig(&persisted)
 		general.HTTP.Port++
 		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general,
+			Section: SectionGeneral, General: &general,
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -2537,8 +2529,8 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		cfg.Skills.DisabledSkills = []string{"alpha"}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
-			Skills:         &cfg.Skills,
+			Section: SectionSkills,
+			Skills:  &cfg.Skills,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(skills) error = %v", err)
@@ -2591,7 +2583,7 @@ func TestConfigApplyServiceFailedRecordsPreserveLifecycleIntent(t *testing.T) {
 		})
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "cli"), SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionSkills},
+			Section: SectionSkills,
 		})
 		if err == nil {
 			t.Fatal("ApplySection(skills nil payload) error = nil, want validation error")

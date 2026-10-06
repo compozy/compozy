@@ -1001,7 +1001,7 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 					t.Fatalf("Resolve() ref = %q", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: "ws-1"},
+					ID:          "ws-1",
 					WorkspaceID: "content-ws-1",
 				}, nil
 			},

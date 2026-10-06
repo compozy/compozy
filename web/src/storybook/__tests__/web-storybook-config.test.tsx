@@ -12,7 +12,6 @@ vi.mock("msw-storybook-addon/csf3", () => ({ mswLoader }));
 
 const webPreviewModule = await import("../../../.storybook/preview");
 const {
-  createStorybookMswWorker,
   createStorybookQueryClient,
   createStorybookRouter,
   isBypassableStorybookRequest,
@@ -47,11 +46,13 @@ function QueryClientProbe() {
 
 describe("web Storybook config", () => {
   it("registers MSW and exposes router decorators with system handlers", async () => {
-    expect(mswLoader).toHaveBeenCalledWith(createStorybookMswWorker);
+    vi.resetModules();
+    const preview = await import("../../../.storybook/preview");
+    expect(mswLoader).toHaveBeenCalledWith(preview.createStorybookMswWorker);
 
-    await createStorybookMswWorker();
+    await preview.createStorybookMswWorker();
 
-    expect(workerStart).toHaveBeenCalledWith({ onUnhandledRequest: storybookUnhandledRequest });
+    expect(workerStart).toHaveBeenCalledWith({ onUnhandledFrame: preview.storybookUnhandledFrame });
     expect(storybookSystemHandlers.length).toBeGreaterThan(0);
     expect(storybookDecorators).toContain(routerDecorator);
     expect(storybookDecorators).not.toContain(queryClientDecorator);
@@ -60,7 +61,7 @@ describe("web Storybook config", () => {
   it("fails local unhandled API requests while bypassing assets and third-party calls", () => {
     const print = {
       error: vi.fn(),
-      warning: vi.fn(),
+      warn: vi.fn(),
     };
     const localApiUrl = new URL(`${location.origin}/api/storybook-unhandled-request`);
     const storybookConsolePipeUrl = new URL(`${location.origin}/__tsd/console-pipe`);
@@ -80,7 +81,7 @@ describe("web Storybook config", () => {
     storybookUnhandledRequest(new Request(localUnknownUrl.href), print);
 
     expect(print.error).toHaveBeenCalledTimes(1);
-    expect(print.warning).toHaveBeenCalledTimes(1);
+    expect(print.warn).toHaveBeenCalledTimes(1);
   });
 
   it("creates story-scoped query clients with retry disabled and infinite stale time", () => {

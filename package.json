@@ -38,32 +38,32 @@
         "typecheck": "turbo run typecheck"
     },
     "devDependencies": {
-        "@commitlint/cli": "^21.2.2",
-        "@commitlint/config-conventional": "^21.2.2",
+        "@commitlint/cli": "21.2.3",
+        "@commitlint/config-conventional": "21.2.3",
         "@octokit/rest": "^22.0.1",
-        "@types/node": "^26.3.0",
-        "@typescript/native": "npm:typescript@^7.0.2",
-        "@vitest/coverage-v8": "^4.1.11",
+        "@types/node": "26.6.4",
+        "@typescript/native": "npm:typescript@7.0.2",
+        "@vitest/coverage-v8": "5.0.3",
         "husky": "^9.1.7",
-        "lint-staged": "^17.3.0",
+        "lint-staged": "17.6.0",
         "openapi-typescript": "^7.13.0",
-        "oxfmt": "^0.61.0",
-        "oxlint": "^1.80.0",
-        "oxlint-plugin-react-doctor": "0.9.13",
-        "react-doctor": "0.9.13",
-        "shadcn": "^4.19.0",
+        "oxfmt": "0.72.0",
+        "oxlint": "1.87.0",
+        "oxlint-plugin-react-doctor": "0.9.17",
+        "react-doctor": "0.9.17",
+        "shadcn": "4.21.2",
         "tailwindcss": "^4.3.3",
-        "turbo": "^2.10.12",
+        "turbo": "2.11.7",
         "tw-animate-css": "^1.4.0",
-        "typescript": "^5.9.3",
-        "vite": "^8.2.2",
-        "vitest": "^4.1.11"
+        "typescript": "5.9.3",
+        "vite": "8.3.2",
+        "vitest": "5.0.3"
     },
     "overrides": {
-        "@assistant-ui/core": "0.3.2",
-        "@assistant-ui/store": "0.3.2",
-        "@assistant-ui/tap": "0.9.7",
-        "assistant-stream": "0.3.31"
+        "@assistant-ui/core": "0.3.22",
+        "@assistant-ui/store": "0.3.16",
+        "@assistant-ui/tap": "0.9.20",
+        "assistant-stream": "0.3.46"
     },
     "lint-staged": {
         "*.go": "sh -c 'make fmt'",
@@ -77,8 +77,6 @@
     },
     "packageManager": "bun@1.4.0",
     "patchedDependencies": {
-        "@assistant-ui/store@0.3.2": "patches/@assistant-ui%2Fstore@0.3.2.patch",
-        "@assistant-ui/tap@0.9.7": "patches/@assistant-ui%2Ftap@0.9.7.patch",
         "swr@2.5.1": "patches/swr@2.5.1.patch"
     }
 }

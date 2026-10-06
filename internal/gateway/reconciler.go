@@ -447,7 +447,7 @@ func planForTier(plan ExposurePlan, tier Tier) TierPlan {
 func (r *Reconciler) runtimeState(tier Tier) *runtimeTierState {
 	state := r.runtime[tier]
 	if state == nil {
-		state = &runtimeTierState{RuntimeTier: RuntimeTier{Tier: tier}}
+		state = &runtimeTierState{Tier: tier}
 		r.runtime[tier] = state
 	}
 	return state

@@ -36,20 +36,18 @@ func (r *coordinatorRuntime) dispatchSpawned(
 		return
 	}
 	_, err := r.hooks.DispatchCoordinatorSpawned(ctx, hookspkg.CoordinatorSpawnedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorSpawned, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:            decision.ProfileID,
-			WorkspaceID:          decision.WorkspaceID,
-			Workspace:            info.Workspace,
-			AgentName:            info.AgentName,
-			CoordinatorSessionID: info.ID,
-			TaskID:               decision.TaskID,
-			RunID:                decision.RunID,
-			WorkflowID:           decision.WorkflowID,
+		Event: hookspkg.HookCoordinatorSpawned, Timestamp: r.now().UTC(),
+		ProfileID:            decision.ProfileID,
+		WorkspaceID:          decision.WorkspaceID,
+		Workspace:            info.Workspace,
+		AgentName:            info.AgentName,
+		CoordinatorSessionID: info.ID,
+		TaskID:               decision.TaskID,
+		RunID:                decision.RunID,
+		WorkflowID:           decision.WorkflowID,
 
-			Provider: cfg.Provider,
-			Model:    cfg.Model,
-		},
+		Provider:     cfg.Provider,
+		Model:        cfg.Model,
 		DecisionKind: "lifecycle",
 		Decision:     reason,
 	})
@@ -63,16 +61,14 @@ func (r *coordinatorRuntime) dispatchStopped(ctx context.Context, info *session.
 		return
 	}
 	_, err := r.hooks.DispatchCoordinatorStopped(ctx, hookspkg.CoordinatorStoppedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorStopped, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:            info.ProfileID,
-			WorkspaceID:          info.WorkspaceID,
-			Workspace:            info.Workspace,
-			AgentName:            info.AgentName,
-			CoordinatorSessionID: info.ID,
+		Event: hookspkg.HookCoordinatorStopped, Timestamp: r.now().UTC(),
+		ProfileID:            info.ProfileID,
+		WorkspaceID:          info.WorkspaceID,
+		Workspace:            info.Workspace,
+		AgentName:            info.AgentName,
+		CoordinatorSessionID: info.ID,
 
-			Provider: info.Provider,
-		},
+		Provider:     info.Provider,
 		DecisionKind: "lifecycle",
 		Decision:     coordinator.ReasonCoordinatorStopped,
 		StopReason:   string(info.StopReason),
@@ -92,14 +88,12 @@ func (r *coordinatorRuntime) dispatchFailed(
 		return
 	}
 	_, err := r.hooks.DispatchCoordinatorFailed(ctx, hookspkg.CoordinatorFailedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorFailed, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:   decision.ProfileID,
-			WorkspaceID: decision.WorkspaceID,
-			TaskID:      decision.TaskID,
-			RunID:       decision.RunID,
-			WorkflowID:  decision.WorkflowID,
-		},
+		Event: hookspkg.HookCoordinatorFailed, Timestamp: r.now().UTC(),
+		ProfileID:    decision.ProfileID,
+		WorkspaceID:  decision.WorkspaceID,
+		TaskID:       decision.TaskID,
+		RunID:        decision.RunID,
+		WorkflowID:   decision.WorkflowID,
 		DecisionKind: "bootstrap",
 		Decision:     reason,
 		Error:        failed.Error(),
@@ -123,14 +117,12 @@ func (r *coordinatorRuntime) dispatchDecision(
 		value = strings.TrimSpace(override)
 	}
 	_, err := r.hooks.DispatchCoordinatorDecision(ctx, hookspkg.CoordinatorDecisionPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorDecision, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:   decision.ProfileID,
-			WorkspaceID: decision.WorkspaceID,
-			TaskID:      decision.TaskID,
-			RunID:       decision.RunID,
-			WorkflowID:  decision.WorkflowID,
-		},
+		Event: hookspkg.HookCoordinatorDecision, Timestamp: r.now().UTC(),
+		ProfileID:    decision.ProfileID,
+		WorkspaceID:  decision.WorkspaceID,
+		TaskID:       decision.TaskID,
+		RunID:        decision.RunID,
+		WorkflowID:   decision.WorkflowID,
 		DecisionKind: "bootstrap",
 		Decision:     firstNonEmpty(value, reason),
 	})
@@ -145,18 +137,16 @@ func (r *coordinatorRuntime) preSpawnPayload(
 	reason string,
 ) hookspkg.CoordinatorPreSpawnPayload {
 	return hookspkg.CoordinatorPreSpawnPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorPreSpawn, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			ProfileID:   decision.ProfileID,
-			WorkspaceID: decision.WorkspaceID,
-			AgentName:   cfg.AgentName,
-			TaskID:      decision.TaskID,
-			RunID:       decision.RunID,
-			WorkflowID:  decision.WorkflowID,
+		Event: hookspkg.HookCoordinatorPreSpawn, Timestamp: r.now().UTC(),
+		ProfileID:   decision.ProfileID,
+		WorkspaceID: decision.WorkspaceID,
+		AgentName:   cfg.AgentName,
+		TaskID:      decision.TaskID,
+		RunID:       decision.RunID,
+		WorkflowID:  decision.WorkflowID,
 
-			Provider: cfg.Provider,
-			Model:    cfg.Model,
-		},
-		Reason: reason,
+		Provider: cfg.Provider,
+		Model:    cfg.Model,
+		Reason:   reason,
 	}
 }

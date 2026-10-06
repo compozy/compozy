@@ -201,7 +201,7 @@ func TestProviderBackendContract(t *testing.T) {
 			t.Fatalf("SystemPromptBlock().AgeMs = %d, want positive age", snapshot.AgeMs)
 		}
 		recalled, err := provider.Recall(ctx, memcontract.RecallRequest{
-			Query: memcontract.Query{QueryText: "contract backend"},
+			QueryText: "contract backend",
 		})
 		if err != nil {
 			t.Fatalf("Recall() error = %v", err)
@@ -323,8 +323,8 @@ func TestProviderRecall(t *testing.T) {
 			t.Fatalf("Initialize() error = %v", err)
 		}
 		result, err := provider.Recall(ctx, memcontract.RecallRequest{
-			Query:   memcontract.Query{QueryText: "auth migration sessions"},
-			Options: memcontract.RecallOptions{TopK: 5},
+			QueryText: "auth migration sessions",
+			Options:   memcontract.RecallOptions{TopK: 5},
 		})
 		if err != nil {
 			t.Fatalf("Recall() error = %v", err)
@@ -601,7 +601,7 @@ func TestProviderValidationErrors(t *testing.T) {
 		backend.recallErr = boom
 		if _, err := provider.Recall(
 			ctx,
-			memcontract.RecallRequest{Query: memcontract.Query{QueryText: "boom"}},
+			memcontract.RecallRequest{QueryText: "boom"},
 		); err == nil {
 			t.Fatal("Recall(backend error) error = nil, want error")
 		}

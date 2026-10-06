@@ -24,26 +24,22 @@ const snapSchema = z
     exit_slack: z.number().finite().nonnegative(),
     repeat_ratios: z.array(z.number().finite().min(0.1).max(0.9)).min(1),
   })
-  .transform(
-    (snap): WindowManagerSnapConfig => ({
-      edgeBand: snap.edge_band,
-      cornerReach: snap.corner_reach,
-      exitSlack: snap.exit_slack,
-      repeatRatios: snap.repeat_ratios,
-    })
-  );
+  .transform((snap): WindowManagerSnapConfig => ({
+    edgeBand: snap.edge_band,
+    cornerReach: snap.corner_reach,
+    exitSlack: snap.exit_slack,
+    repeatRatios: snap.repeat_ratios,
+  }));
 
 const bindingsSchema = z
   .strictObject({
     top_center: z.enum(["none", "reserved", "zoom"]),
     bottom_center: z.enum(["none", "reserved", "zoom"]),
   })
-  .transform(
-    (bindings): WindowManagerBindingsConfig => ({
-      topCenter: bindings.top_center,
-      bottomCenter: bindings.bottom_center,
-    })
-  );
+  .transform((bindings): WindowManagerBindingsConfig => ({
+    topCenter: bindings.top_center,
+    bottomCenter: bindings.bottom_center,
+  }));
 
 const shortcutBindingSchema = z
   .union([z.string(), z.array(z.string())])
@@ -83,28 +79,26 @@ export const windowManagerWorkspaceConfigSchema = z
     shortcuts: shortcutsSchema.optional(),
     global_shortcuts: z.record(z.string(), z.string()).optional(),
   })
-  .transform(
-    (config): WindowManagerWorkspaceConfig => ({
-      newWindowPolicy: config.new_window_policy,
-      smallViewportPolicy: config.small_viewport_policy,
-      focusPolicy: config.focus_policy,
-      focusWrap: config.focus_wrap,
-      focusFollowsPointer: config.focus_follows_pointer,
-      raiseOnFocus: config.raise_on_focus,
-      dragAwayPolicy: config.drag_away_policy,
-      groupMoveModifier: config.group_move_modifier,
-      swapModifier: config.swap_modifier,
-      historyLimit: config.history_limit,
-      navStackLimit: config.nav_stack_limit,
-      closedEntryLimit: config.closed_entry_limit,
-      desktopTransition: config.desktop_transition,
-      gaps: config.gaps,
-      snap: config.snap,
-      bindings: config.bindings,
-      shortcuts: config.shortcuts,
-      globalShortcuts: config.global_shortcuts,
-    })
-  );
+  .transform((config): WindowManagerWorkspaceConfig => ({
+    newWindowPolicy: config.new_window_policy,
+    smallViewportPolicy: config.small_viewport_policy,
+    focusPolicy: config.focus_policy,
+    focusWrap: config.focus_wrap,
+    focusFollowsPointer: config.focus_follows_pointer,
+    raiseOnFocus: config.raise_on_focus,
+    dragAwayPolicy: config.drag_away_policy,
+    groupMoveModifier: config.group_move_modifier,
+    swapModifier: config.swap_modifier,
+    historyLimit: config.history_limit,
+    navStackLimit: config.nav_stack_limit,
+    closedEntryLimit: config.closed_entry_limit,
+    desktopTransition: config.desktop_transition,
+    gaps: config.gaps,
+    snap: config.snap,
+    bindings: config.bindings,
+    shortcuts: config.shortcuts,
+    globalShortcuts: config.global_shortcuts,
+  }));
 
 export const windowManagerWireConfigSchema = z.strictObject({
   new_window_policy: z.enum(["floating", "beside_focus", "tab"]),

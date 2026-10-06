@@ -863,14 +863,12 @@ func TestBootSessionAttachmentRetentionPinsQueuedInputs(t *testing.T) {
 
 		registry := &queuedAttachmentRecordingRegistry{
 			recordingRegistry: &recordingRegistry{path: homePaths.DatabaseFile},
-			queuedAttachmentStore: queuedAttachmentStore{
-				entries: []store.SessionInputQueueEntry{{
-					SessionID: "sess-queued",
-					Attachments: []store.SessionInputAttachment{{
-						ID: queued.ID,
-					}},
+			entries: []store.SessionInputQueueEntry{{
+				SessionID: "sess-queued",
+				Attachments: []store.SessionInputAttachment{{
+					ID: queued.ID,
 				}},
-			},
+			}},
 		}
 		d := newTestDaemon(t, homePaths, &cfg)
 		d.openRegistry = func(context.Context, string) (Registry, error) {
@@ -3857,8 +3855,8 @@ func TestExtensionDeclarationProviderReturnsRuntimeDeclarations(t *testing.T) {
 		}}
 		runtime := &fakeExtensionRuntime{hookDecls: want}
 		profiles := extensionHookProfileCatalogStub{profiles: []profilepkg.WithCounts{
-			{Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}},
-			{Profile: profilepkg.Profile{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive}},
+			{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+			{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive},
 		}}
 
 		got, err := extensionDeclarationProvider(
@@ -4470,10 +4468,8 @@ func TestShutdownRuntimeWorkersDrainsCheckpointBeforeSessionManager(t *testing.T
 		var shutdownErrs []error
 
 		d.shutdownRuntimeWorkers(testutil.Context(t), &shutdownTargets{
-			daemonRuntimeState: daemonRuntimeState{
-				sessions:            manager,
-				localMemoryProvider: provider,
-			},
+			sessions:            manager,
+			localMemoryProvider: provider,
 		}, &shutdownErrs)
 
 		if err := errors.Join(shutdownErrs...); err != nil {
@@ -4501,10 +4497,8 @@ func TestShutdownRuntimeWorkersDrainsCheckpointBeforeSessionManager(t *testing.T
 		var shutdownErrs []error
 
 		d.shutdownRuntimeWorkers(testutil.Context(t), &shutdownTargets{
-			daemonRuntimeState: daemonRuntimeState{
-				workspaceRuntimeState: workspaceRuntimeState{workspaceFinalizer: finalizer},
-				sessions:              manager,
-			},
+			workspaceFinalizer: finalizer,
+			sessions:           manager,
 		}, &shutdownErrs)
 
 		if err := errors.Join(shutdownErrs...); err != nil {
@@ -4524,14 +4518,12 @@ func TestShutdownServersAndHooksDrainsSupportAfterServers(t *testing.T) {
 	d := &Daemon{}
 	var shutdownErrs []error
 	d.shutdownServersAndHooks(testutil.Context(t), &shutdownTargets{
-		daemonRuntimeState: daemonRuntimeState{
-			httpServer: &fakeServer{name: "http", onShutdown: func() { order = append(order, "http") }},
-			udsServer:  &fakeServer{name: "uds", onShutdown: func() { order = append(order, "uds") }},
-			supportBundles: supportBundleShutdownerFunc(func(context.Context) error {
-				order = append(order, "support")
-				return nil
-			}),
-		},
+		httpServer: &fakeServer{name: "http", onShutdown: func() { order = append(order, "http") }},
+		udsServer:  &fakeServer{name: "uds", onShutdown: func() { order = append(order, "uds") }},
+		supportBundles: supportBundleShutdownerFunc(func(context.Context) error {
+			order = append(order, "support")
+			return nil
+		}),
 	}, &shutdownErrs)
 
 	if err := errors.Join(shutdownErrs...); err != nil {
@@ -5264,8 +5256,8 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			}
 
 			workspaceRef := workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{RootDir: workspace},
-				Agents:    []compozyconfig.AgentDef{testPromptAgent("Base prompt.")},
+				RootDir: workspace,
+				Agents:  []compozyconfig.AgentDef{testPromptAgent("Base prompt.")},
 			}
 			prompt, err := capturedDeps.PromptAssembler.Assemble(
 				context.Background(),
@@ -5785,16 +5777,12 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 
 	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspace)
 	if _, err := dispatcher.Session.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionPostStop,
-			Timestamp: time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   "sess-user",
-			WorkspaceID: resolved.ID,
-			SessionType: string(session.SessionTypeUser),
-			State:       string(session.StateStopped),
-		},
+		Event:       hookspkg.HookSessionPostStop,
+		Timestamp:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
+		SessionID:   "sess-user",
+		WorkspaceID: resolved.ID,
+		SessionType: string(session.SessionTypeUser),
+		State:       string(session.StateStopped),
 	}); err != nil {
 		t.Fatalf("DispatchSessionPostStop() error = %v", err)
 	}
@@ -10917,7 +10905,7 @@ func (s extensionHookProfileCatalogStub) List(context.Context) ([]profilepkg.Wit
 
 func defaultExtensionHookProfiles() []profilepkg.WithCounts {
 	return []profilepkg.WithCounts{{
-		Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+		ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
 	}}
 }
 

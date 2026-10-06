@@ -165,7 +165,7 @@ const server = setupServer(
   })
 );
 const clients: QueryClient[] = [];
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterAll(() => server.close());
 afterEach(() => {
   cleanup();

@@ -4595,7 +4595,7 @@ func TestCoordinatorRunnerShouldIsolateRepeatedFailures(t *testing.T) {
 		}}
 		failureClass := FailureTransport
 		outputs := &lifecycleCoordinatorStore{
-			coordinatorRunnerOutputs: coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
+			outputs: map[int][]GenerationOutput{
 				1: {
 					{Generation: 1, NodeID: "a_failing", Status: generationOutputFailed},
 					{Generation: 1, NodeID: "z_healthy", Status: generationOutputSucceeded},
@@ -4604,7 +4604,7 @@ func TestCoordinatorRunnerShouldIsolateRepeatedFailures(t *testing.T) {
 					{Generation: 2, NodeID: "a_failing", Status: generationOutputFailed},
 					{Generation: 2, NodeID: "z_healthy", Status: generationOutputSucceeded},
 				},
-			}},
+			},
 			attempts: []NodeAttempt{
 				{
 					LoopRunID: loopRun.ID, Generation: 1, NodeID: "a_failing", ItemIndex: 0,

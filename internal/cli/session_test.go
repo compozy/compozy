@@ -19,7 +19,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
@@ -1699,9 +1698,9 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 				t.Fatalf("answer request = %#v, want zero-based choice %d", request, wireChoice)
 			}
 			return ClarificationAnswerRecord{
-				ClarifyAnswer: toolspkg.ClarifyAnswer{Choice: &wireChoice},
-				Outcome:       "answered",
-				RequestID:     requestID,
+				Choice:    &wireChoice,
+				Outcome:   "answered",
+				RequestID: requestID,
 			}, nil
 		},
 	})

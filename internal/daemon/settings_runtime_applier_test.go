@@ -376,7 +376,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		manager := fixture.manager
 		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
 		state := &bootState{
-			cfg: previous, windowManagerBootState: windowManagerBootState{windowManagers: fixture.registry},
+			cfg: previous, windowManagers: fixture.registry,
 			toolMCPResources: &recordingToolMCPPublisher{errors: []error{errors.New("sync boom"), nil}},
 		}
 		failures := daemonSettingsRuntimeApplier{daemon: &Daemon{}, state: state}.

@@ -69,7 +69,7 @@ func BenchmarkMultiRegistryResolveSource(b *testing.B) {
 		&stubRegistrySource{
 			name: "low",
 			infoFunc: func(context.Context, string) (*Detail, error) {
-				return &Detail{Listing: Listing{Slug: "shared", Name: "low", Version: "1.0.0"}}, nil
+				return &Detail{Slug: "shared", Name: "low", Version: "1.0.0"}, nil
 			},
 		},
 		&stubRegistrySource{
@@ -81,7 +81,7 @@ func BenchmarkMultiRegistryResolveSource(b *testing.B) {
 		&stubRegistrySource{
 			name: "high",
 			infoFunc: func(context.Context, string) (*Detail, error) {
-				return &Detail{Listing: Listing{Slug: "shared", Name: "high", Version: "2.0.0"}}, nil
+				return &Detail{Slug: "shared", Name: "high", Version: "2.0.0"}, nil
 			},
 		},
 	)

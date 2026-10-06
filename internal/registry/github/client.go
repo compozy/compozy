@@ -249,18 +249,16 @@ func (c *Client) Info(ctx context.Context, slug string) (*registry.Detail, error
 	}
 
 	return &registry.Detail{
-		Listing: registry.Listing{
-			Slug:        repo.full,
-			Name:        firstNonEmpty(latest.Name, repo.name),
-			Description: releaseDescription(latest),
-			Author:      firstNonEmpty(latest.Author.Login, repo.owner),
-			Version:     strings.TrimSpace(latest.TagName),
-			Downloads:   releaseDownloadCount(latest),
-			Source:      c.Name(),
-		},
-		Readme:     strings.TrimSpace(latest.Body),
-		Repository: githubRepositoryBaseURL + "/" + repo.full,
-		Versions:   releaseVersions(releases),
+		Slug:        repo.full,
+		Name:        firstNonEmpty(latest.Name, repo.name),
+		Description: releaseDescription(latest),
+		Author:      firstNonEmpty(latest.Author.Login, repo.owner),
+		Version:     strings.TrimSpace(latest.TagName),
+		Downloads:   releaseDownloadCount(latest),
+		Source:      c.Name(),
+		Readme:      strings.TrimSpace(latest.Body),
+		Repository:  githubRepositoryBaseURL + "/" + repo.full,
+		Versions:    releaseVersions(releases),
 	}, nil
 }
 

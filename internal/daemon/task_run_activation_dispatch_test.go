@@ -33,7 +33,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		}
 		var missingContext context.Context
 		dispatcher.OnTaskRunEnqueued(missingContext, hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{RunID: "run-loop-worker"},
+			RunID: "run-loop-worker",
 		})
 		if got := loops.runIDs(); len(got) != 0 {
 			t.Fatalf("loop observer run IDs after nil context = %#v, want empty", got)
@@ -41,7 +41,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 
 		for _, runID := range []string{"run-loop-worker", "run-plain-worker", "run-coordinator"} {
 			dispatcher.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-				TaskRunContext: hookspkg.TaskRunContext{RunID: runID},
+				RunID: runID,
 			})
 		}
 
@@ -208,7 +208,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		cancel()
 
 		dispatcher.OnTaskRunEnqueued(parent, hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{RunID: "run-plain-worker"},
+			RunID: "run-plain-worker",
 		})
 
 		hasDeadline, contextErr := store.getContextState()
@@ -242,7 +242,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		}
 
 		dispatcher.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
-			TaskRunContext: hookspkg.TaskRunContext{RunID: "run-loop-worker"},
+			RunID: "run-loop-worker",
 		})
 
 		output := logs.String()

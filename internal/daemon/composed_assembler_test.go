@@ -55,7 +55,7 @@ func TestComposedAssemblerFiltersProviderNativeSkillsAtStartup(t *testing.T) {
 		)
 		agent := compozyconfig.AgentDef{Name: "coder", Prompt: "Base prompt."}
 		workspace := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-start", RootDir: t.TempDir()},
+			ID: "ws-start", RootDir: t.TempDir(),
 		}
 
 		suppressed, err := assembler.AssembleStartup(t.Context(), session.StartupPromptContext{
@@ -860,7 +860,7 @@ func testPromptAgent(prompt string) compozyconfig.AgentDef {
 
 func testResolvedWorkspace(root string) workspacepkg.ResolvedWorkspace {
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{RootDir: root},
+		RootDir: root,
 	}
 }
 

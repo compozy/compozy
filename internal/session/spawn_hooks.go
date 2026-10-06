@@ -18,10 +18,8 @@ func (m *Manager) dispatchSpawnPreCreate(
 	lineage *store.SessionLineage,
 ) (SpawnOpts, *store.SessionLineage, error) {
 	payload := hookspkg.SpawnPreCreatePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSpawnPreCreate,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookSpawnPreCreate,
+		Timestamp:         m.now().UTC(),
 		SpawnContext:      spawnHookContext(parent, nil, lineage, opts.AgentName, opts.SpawnRole),
 		ParentPermissions: hookPermissionSetFromPolicy(parent.Lineage.PermissionPolicy),
 		ChildPermissions:  hookPermissionSetFromPolicy(opts.PermissionPolicy),
@@ -59,10 +57,8 @@ func (m *Manager) dispatchSpawnCreated(ctx context.Context, parent *Info, child 
 	}
 	lineage := store.NormalizeSessionLineage(child.ID, child.Lineage)
 	payload := hookspkg.SpawnCreatedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSpawnCreated,
-			Timestamp: m.now().UTC(),
-		},
+		Event:             hookspkg.HookSpawnCreated,
+		Timestamp:         m.now().UTC(),
 		SpawnContext:      spawnHookContext(parent, child, lineage, child.AgentName, lineage.SpawnRole),
 		ParentPermissions: hookPermissionSetFromPolicy(parent.Lineage.PermissionPolicy),
 		ChildPermissions:  hookPermissionSetFromPolicy(lineage.PermissionPolicy),

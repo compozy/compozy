@@ -439,7 +439,10 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 			if _, err := env.db.ExecContext(
 				t.Context(),
 				`INSERT INTO extension_profile_markers(extension_name, profile_name, created_profile_id, created_at, created_by_extension) VALUES (?, ?, ?, '2026-09-12T00:00:00Z', ?)`,
-				manifest.Name, marker.name, marker.profileID, marker.created,
+				manifest.Name,
+				marker.name,
+				marker.profileID,
+				marker.created,
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -474,9 +477,17 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 					var created sql.NullBool
 					if err := env.db.QueryRowContext(ctx, `SELECT created_profile_id, created_at, created_by_extension FROM extension_profile_markers WHERE extension_name = ? AND profile_name = ?`, manifest.Name, marker.name).
 						Scan(&profileID, &createdAt, &created); err != nil ||
-						profileID != marker.profileID || created != marker.created ||
+						profileID != marker.profileID ||
+						created != marker.created ||
 						createdAt != "2026-09-12T00:00:00Z" {
-						t.Fatalf("profile %s provenance changed: %q %q %+v %v", marker.name, profileID, createdAt, created, err)
+						t.Fatalf(
+							"profile %s provenance changed: %q %q %+v %v",
+							marker.name,
+							profileID,
+							createdAt,
+							created,
+							err,
+						)
 					}
 				}
 			}
@@ -649,13 +660,11 @@ func (s *lifecycleSource) Search(
 
 func (s *lifecycleSource) Info(context.Context, string) (*registrypkg.Detail, error) {
 	return &registrypkg.Detail{
-		Listing: registrypkg.Listing{
-			Slug:    s.packageSlug(),
-			Name:    s.packageName(),
-			Version: s.latestVersion,
-			Source:  s.Name(),
-			Type:    registrypkg.PackageTypeExtension,
-		},
+		Slug:    s.packageSlug(),
+		Name:    s.packageName(),
+		Version: s.latestVersion,
+		Source:  s.Name(),
+		Type:    registrypkg.PackageTypeExtension,
 	}, nil
 }
 

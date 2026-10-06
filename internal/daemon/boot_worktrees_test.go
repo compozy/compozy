@@ -40,8 +40,8 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	resolvedConfig.Worktrees.Root = worktreesRoot
 	resolvedConfig.Worktrees.SetupCommand = "bun install"
 	resolved := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-resolved", Name: "Resolved", RootDir: workspaceRoot},
-		Config:    resolvedConfig,
+		ID: "ws-resolved", Name: "Resolved", RootDir: workspaceRoot,
+		Config: resolvedConfig,
 	}
 	stub := &daemonWorktreeResolverStub{
 		resolved: resolved,

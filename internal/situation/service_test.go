@@ -202,8 +202,8 @@ func TestContextForSessionBoundsListsAndIncludesTaskProvenance(t *testing.T) {
 		SectionLimit: 2,
 		WorkspaceResolver: workspaceResolverFunc(func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy"},
-				Config:    compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
+				ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy",
+				Config: compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
 			}, nil
 		}),
 		AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
@@ -334,7 +334,7 @@ func testContextForSessionProfileLeakProbe(t *testing.T) {
 		Now: fixedNow,
 		WorkspaceResolver: workspaceResolverFunc(func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy"},
+				ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy",
 			}, nil
 		}),
 		TaskStore: taskStoreStub{
@@ -445,8 +445,8 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-redact", Name: "Compozy", RootDir: "/work/compozy"},
-						Config:    workspaceConfigWithTaskDefaults(),
+						ID: "ws-redact", Name: "Compozy", RootDir: "/work/compozy",
+						Config: workspaceConfigWithTaskDefaults(),
 					}, nil
 				},
 			),
@@ -595,8 +595,8 @@ func TestTaskRunPromptOverlayByIDRejectsMismatchedRunTaskPair(t *testing.T) {
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-overlay", Name: "Compozy", RootDir: "/work/compozy"},
-						Config:    cfg,
+						ID: "ws-overlay", Name: "Compozy", RootDir: "/work/compozy",
+						Config: cfg,
 					}, nil
 				},
 			),
@@ -633,12 +633,10 @@ func TestBundleForOperatorTaskRejectsOversizedUntrimmableBundle(t *testing.T) {
 		WorkspaceResolver: workspaceResolverFunc(
 			func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      taskRecord.WorkspaceID,
-						Name:    "Compozy",
-						RootDir: "/work/compozy",
-					},
-					Config: cfg,
+					ID:      taskRecord.WorkspaceID,
+					Name:    "Compozy",
+					RootDir: "/work/compozy",
+					Config:  cfg,
 				}, nil
 			},
 		),
@@ -698,8 +696,8 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "Compozy", RootDir: "/work/compozy"},
-						Config:    workspaceConfigWithTaskDefaults(),
+						ID: "ws-review", Name: "Compozy", RootDir: "/work/compozy",
+						Config: workspaceConfigWithTaskDefaults(),
 					}, nil
 				},
 			),
@@ -779,8 +777,8 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "Compozy", RootDir: "/work/compozy"},
-						Config:    workspaceConfigWithTaskDefaults(),
+						ID: "ws-review", Name: "Compozy", RootDir: "/work/compozy",
+						Config: workspaceConfigWithTaskDefaults(),
 					}, nil
 				},
 			),
@@ -846,12 +844,10 @@ func TestContextForSessionKeepsTaskContextWhenBundleEnrichmentFails(t *testing.T
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      taskRecord.WorkspaceID,
-							Name:    "Compozy",
-							RootDir: "/work/compozy",
-						},
-						Config: workspaceConfigWithTaskDefaults(),
+						ID:      taskRecord.WorkspaceID,
+						Name:    "Compozy",
+						RootDir: "/work/compozy",
+						Config:  workspaceConfigWithTaskDefaults(),
 					}, nil
 				},
 			),
@@ -921,12 +917,10 @@ func TestContextForSessionKeepsTaskContextWhenBundleEnrichmentFails(t *testing.T
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{
-							ID:      taskRecord.WorkspaceID,
-							Name:    "Compozy",
-							RootDir: "/work/compozy",
-						},
-						Config: workspaceConfigWithTaskDefaults(),
+						ID:      taskRecord.WorkspaceID,
+						Name:    "Compozy",
+						RootDir: "/work/compozy",
+						Config:  workspaceConfigWithTaskDefaults(),
 					}, nil
 				},
 			),
@@ -995,8 +989,8 @@ func TestContextForSessionIncludesCompactSoulProjection(t *testing.T) {
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy"},
-						Config:    compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
+						ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy",
+						Config: compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
 					}, nil
 				},
 			),
@@ -1118,8 +1112,8 @@ func TestPromptStartupSectionIncludesStartupIdentity(t *testing.T) {
 
 	service := NewService(Deps{Now: fixedNow, SectionLimit: 4})
 	workspace := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy"},
-		Config:    compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
+		ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy",
+		Config: compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
 	}
 
 	rendered, err := service.PromptStartupSection(

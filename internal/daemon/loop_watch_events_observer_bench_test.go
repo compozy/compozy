@@ -145,12 +145,10 @@ func BenchmarkLoopWatchEventsObserverWorkerTerminal(b *testing.B) {
 	observer := newLoopWatchEventsObserverForBenchmark(b, watchStore)
 	runKind := "worker"
 	payload := hookspkg.TaskRunLeasePayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted},
-		TaskRunContext: hookspkg.TaskRunContext{
-			RunID:     "worker-run",
-			RunKind:   &runKind,
-			LoopRunID: "loop-run-1",
-		},
+		Event:     hookspkg.HookTaskRunCompleted,
+		RunID:     "worker-run",
+		RunKind:   &runKind,
+		LoopRunID: "loop-run-1",
 	}
 
 	b.ReportAllocs()
@@ -226,16 +224,12 @@ func watchEventsDoorbellSubscriptionsForTest(
 
 func watchEventsPostRecordPayloadForDoorbellTest() hookspkg.EventPostRecordPayload {
 	return hookspkg.EventPostRecordPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookEventPostRecord,
-			Timestamp: time.Date(2026, 7, 9, 11, 45, 0, 0, time.UTC),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID:   "sess-hot",
-			AgentName:   "coder",
-			WorkspaceID: "ws-1",
-		},
-		TurnContext: hookspkg.TurnContext{TurnID: "turn-hot"},
+		Event:       hookspkg.HookEventPostRecord,
+		Timestamp:   time.Date(2026, 7, 9, 11, 45, 0, 0, time.UTC),
+		SessionID:   "sess-hot",
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+		TurnID:      "turn-hot",
 		RecordType:  "agent_message",
 		Sequence:    100,
 	}

@@ -267,7 +267,7 @@ func TestRegistryForAgentDefUsesConcretePackageAgent(t *testing.T) {
 	}
 
 	resolved := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-extension"},
+		ID: "ws-extension",
 	}
 	skillList, err := registry.ForAgentDefSession(
 		context.Background(),
@@ -315,10 +315,8 @@ func TestRegistryEventSummaries(t *testing.T) {
 		}
 
 		_, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      "ws-shadow",
-				RootDir: workspaceRoot,
-			},
+			ID:        "ws-shadow",
+			RootDir:   workspaceRoot,
 			ProfileID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 			Skills: []workspacepkg.SkillPath{{
 				Dir:    filepath.Join(workspaceRoot, ".compozy", "skills", "review"),
@@ -415,7 +413,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 		}, WithEventSummaryStore(eventStore))
 
 		skillList, err := registry.ForAgent(context.Background(), &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-load-failed"},
+			ID:        "ws-load-failed",
 			ProfileID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 			Agents: []compozyconfig.AgentDef{{
 				Name:       "writer",
@@ -972,13 +970,11 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 	}
 
 	got, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:             "ws_1",
-			RootDir:        workspace,
-			AdditionalDirs: []string{additional},
-		},
-		ProfileName: "marketing",
-		ProfileRoot: profileRoot,
+		ID:             "ws_1",
+		RootDir:        workspace,
+		AdditionalDirs: []string{additional},
+		ProfileName:    "marketing",
+		ProfileRoot:    profileRoot,
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
@@ -1287,11 +1283,9 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		registry := newTestRegistry(t, RegistryConfig{}, WithLogger(logger))
 
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:             "ws-layered-shadow",
-				RootDir:        workspace,
-				AdditionalDirs: []string{additional},
-			},
+			ID:             "ws-layered-shadow",
+			RootDir:        workspace,
+			AdditionalDirs: []string{additional},
 		}
 
 		got, err := registry.ForWorkspace(context.Background(), resolved)
@@ -2731,7 +2725,7 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 			t.Fatalf("ApplyResourceRecords() error = %v", err)
 		}
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-command-catalog", RootDir: t.TempDir()},
+			ID: "ws-command-catalog", RootDir: t.TempDir(),
 			Config: compozyconfig.Config{
 				Skills: compozyconfig.SkillsConfig{DisabledSkills: []string{"release"}},
 			},
@@ -2828,7 +2822,7 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 		if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
 			t.Fatalf("ApplyResourceRecords() error = %v", err)
 		}
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-roots"}}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: "ws-roots"}
 		candidates, err := registry.CommandCandidatesForAgentDefSession(
 			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-roots",
 		)
@@ -2962,7 +2956,7 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 		if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
 			t.Fatalf("ApplyResourceRecords() error = %v", err)
 		}
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-nested"}}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: "ws-nested"}
 		candidates, err := registry.CommandCandidatesForAgentDefSession(
 			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-nested",
 		)
@@ -3064,7 +3058,7 @@ func TestRegistryProtectsBundledRuntimeSkillFromWorkspaceCopies(t *testing.T) {
 			t.Fatalf("ApplyResourceRecords() error = %v", err)
 		}
 
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: workspaceID}}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: workspaceID}
 		effective, err := registry.ForAgentDefSession(
 			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-runtime-skill",
 		)
@@ -3191,7 +3185,7 @@ func TestRegistryRejectsCanceledContext(t *testing.T) {
 func TestRegistrySetEnabled(t *testing.T) {
 	t.Parallel()
 	workspaceKey := workspaceCacheKey(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-1"},
+		ID: "ws-1",
 	})
 
 	makeRegistry := func() *Registry {
@@ -3517,10 +3511,8 @@ func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecede
 
 		registry := newTestRegistry(t, RegistryConfig{})
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				RootDir:        workspace,
-				AdditionalDirs: []string{additional},
-			},
+			RootDir:        workspace,
+			AdditionalDirs: []string{additional},
 			Skills: []workspacepkg.SkillPath{{
 				Name:   "shared",
 				Dir:    filepath.Dir(workspaceSkillPath),
@@ -3716,11 +3708,9 @@ func resolvedWorkspaceForTest(
 	skills ...workspacepkg.SkillPath,
 ) workspacepkg.ResolvedWorkspace {
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      strings.TrimSpace(id),
-			RootDir: strings.TrimSpace(root),
-		},
-		Skills: append([]workspacepkg.SkillPath(nil), skills...),
+		ID:      strings.TrimSpace(id),
+		RootDir: strings.TrimSpace(root),
+		Skills:  append([]workspacepkg.SkillPath(nil), skills...),
 	}
 }
 

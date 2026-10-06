@@ -148,11 +148,9 @@ func TestDispatchSessionAttentionChangedContract(t *testing.T) {
 func sessionAttentionDispatchPayload(runtimeContext *SessionRuntimeContext) SessionAttentionChangedPayload {
 	at := time.Date(2026, 8, 15, 20, 15, 0, 0, time.UTC)
 	return SessionAttentionChangedPayload{
-		PayloadBase: PayloadBase{Event: HookSessionAttentionChanged, Timestamp: at},
-		SessionContext: SessionContext{
-			SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder",
-			SessionRuntimeContext: runtimeContext, CreatedAt: at.Add(-time.Hour), UpdatedAt: at,
-		},
+		Event: HookSessionAttentionChanged, Timestamp: at,
+		SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder",
+		SessionRuntimeContext: runtimeContext, CreatedAt: at.Add(-time.Hour), UpdatedAt: at,
 		From: "idle", To: "done", Class: "finished", At: at,
 	}
 }

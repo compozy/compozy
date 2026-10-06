@@ -275,7 +275,7 @@ func TestSkillExposureEndpoints(t *testing.T) {
 				t.Fatalf("ResolveForProfile(%q, %q), want canonical/default", ref, profileName)
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: workspaceID, RootDir: root},
+				ID: workspaceID, RootDir: root,
 				WorkspaceID: workspaceID, ProfileName: profileName,
 			}, nil
 		}}
@@ -806,11 +806,9 @@ func TestListSkills(t *testing.T) {
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, _ string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      "ws-1",
-						RootDir: "/workspace",
-						Name:    "test",
-					},
+					ID:      "ws-1",
+					RootDir: "/workspace",
+					Name:    "test",
 				}, nil
 			},
 		}
@@ -932,11 +930,9 @@ func TestGetSkill(t *testing.T) {
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, _ string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      "ws_1a9b181e45528661",
-						RootDir: "/workspace",
-						Name:    "test",
-					},
+					ID:          "ws_1a9b181e45528661",
+					RootDir:     "/workspace",
+					Name:        "test",
 					WorkspaceID: "01M0WZZB8C9NCWN606SZDCSXMG",
 				}, nil
 			},
@@ -975,11 +971,9 @@ func TestGetSkill(t *testing.T) {
 					t.Errorf("Resolve got ref %q, want ws-1", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      "ws-1",
-						RootDir: "/workspace",
-						Name:    "test",
-					},
+					ID:      "ws-1",
+					RootDir: "/workspace",
+					Name:    "test",
 				}, nil
 			},
 		}
@@ -1116,7 +1110,7 @@ func TestGetSkillContent(t *testing.T) {
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, _ string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+					ID: "ws-1", RootDir: "/workspace", Name: "test",
 				}, nil
 			},
 		}
@@ -1174,7 +1168,7 @@ func TestEnableSkill(t *testing.T) {
 					t.Errorf("Resolve got ref %q, want ws-1", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+					ID: "ws-1", RootDir: "/workspace", Name: "test",
 				}, nil
 			},
 		}
@@ -1207,7 +1201,7 @@ func TestEnableSkill(t *testing.T) {
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, _ string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+					ID: "ws-1", RootDir: "/workspace", Name: "test",
 				}, nil
 			},
 		}
@@ -1258,7 +1252,7 @@ func TestDisableSkill(t *testing.T) {
 					t.Errorf("Resolve got ref %q, want ws-1", ref)
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+					ID: "ws-1", RootDir: "/workspace", Name: "test",
 				}, nil
 			},
 		}
@@ -1291,7 +1285,7 @@ func TestDisableSkill(t *testing.T) {
 		workspaces := testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, _ string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+					ID: "ws-1", RootDir: "/workspace", Name: "test",
 				}, nil
 			},
 		}

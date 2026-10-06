@@ -6,7 +6,7 @@ import {
   type TopbarSlotStore,
 } from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
-import { Suspense, useState } from "react";
+import { Suspense, useDeferredValue, useState } from "react";
 import { Rnd } from "react-rnd";
 
 import { cn } from "@/lib/utils";
@@ -235,6 +235,8 @@ function OsWindowMember({
   const win = useDesktop(state => state.windows[windowId]);
   const liveDataEnabled = useWindowLiveDataEnabled(windowId);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
+  // Mount layout-heavy bodies after the restored window frames commit.
+  const contentHost = useDeferredValue(overlayHost);
   if (!win) return null;
   const app = getOsApp(win.app);
   const Controller = app.Controller;
@@ -293,8 +295,8 @@ function OsWindowMember({
       data-window-placement={win.placement}
       data-stack-active={active ? "" : undefined}
     >
-      <OverlayContainerContext.Provider value={overlayHost}>
-        {overlayHost ? (
+      <OverlayContainerContext.Provider value={contentHost}>
+        {contentHost ? (
           <OsWindowErrorBoundary title={app.title}>
             <Suspense
               fallback={<SkeletonRows role="status" aria-label="Loading" className="gap-4 p-4" />}

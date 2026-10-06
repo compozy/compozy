@@ -56,7 +56,7 @@ func NormalizeIdentity(color, icon, emoji string) (string, string, string, error
 
 func normalizeIdentity(color, icon, emoji string) (string, string, string, error) {
 	color = strings.ToLower(strings.TrimSpace(color))
-	icon = strings.TrimSpace(icon)
+	icon = canonicalIcon(strings.TrimSpace(icon))
 	emoji = strings.TrimSpace(emoji)
 	if color == "" {
 		color = "#8e8eb5"

@@ -440,12 +440,12 @@ func nativeWorktreeWorkspaceService() core.WorkspaceService {
 		switch ref {
 		case "ws-a", "registry-a":
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "registry-a", Name: "alpha"},
+				ID: "registry-a", Name: "alpha",
 				WorkspaceID: "ws-a",
 			}, nil
 		case "ws-b", "registry-b":
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "registry-b", Name: "beta"},
+				ID: "registry-b", Name: "beta",
 				WorkspaceID: "ws-b",
 			}, nil
 		default:

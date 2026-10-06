@@ -15,10 +15,8 @@ func (s *service) dispatchLoopStarted(ctx context.Context, run Run, actor task.A
 		return
 	}
 	payload := hookspkg.LoopStartedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopStarted,
-			Timestamp: run.CreatedAt,
-		},
+		Event:       hookspkg.HookLoopStarted,
+		Timestamp:   run.CreatedAt,
 		LoopContext: serviceLoopContext(run, actor),
 		Status:      string(run.Status),
 		Cause:       string(TransitionCauseStart),
@@ -39,10 +37,8 @@ func (s *service) dispatchCoordinatorTerminal(
 		return
 	}
 	payload := hookspkg.LoopTerminalPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopTerminal,
-			Timestamp: at,
-		},
+		Event:       hookspkg.HookLoopTerminal,
+		Timestamp:   at,
 		LoopContext: serviceLoopContext(run, task.ActorContext{}),
 		Status:      string(run.Status),
 		Cause:       string(cause),

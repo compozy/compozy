@@ -43,12 +43,10 @@ func TestProfileDetailReadHTTPUDSTransportParityIT070(t *testing.T) {
 		}, nil
 	}}
 	profiles := parityProfileService{profiles: []profilepkg.WithCounts{
-		{Profile: profilepkg.Profile{
-			ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive,
-		}},
-		{Profile: profilepkg.Profile{
-			ID: aggregateReadProfileID, Name: "marketing", Color: "#E8572A", State: profilepkg.StateActive,
-		}},
+		{
+			ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive},
+		{
+			ID: aggregateReadProfileID, Name: "marketing", Color: "#E8572A", State: profilepkg.StateActive},
 	}}
 	httpRouter := newProfileReadParityHTTPRouter(t, taskService, profiles)
 	udsRouter := newProfileReadParityUDSRouter(t, taskService, profiles)
@@ -92,9 +90,8 @@ func TestMemoryAggregateReadRefusalHTTPUDSTransportParityIT074(t *testing.T) {
 	t.Parallel()
 	t.Run("Should reject memory aggregate reads", func(t *testing.T) {
 		t.Parallel()
-		profiles := parityProfileService{profiles: []profilepkg.WithCounts{{Profile: profilepkg.Profile{
-			ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive,
-		}}}}
+		profiles := parityProfileService{profiles: []profilepkg.WithCounts{{
+			ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive}}}
 		httpRouter := newProfileReadParityHTTPRouter(t, &testutil.StubTaskManager{}, profiles)
 		udsRouter := newProfileReadParityUDSRouter(t, &testutil.StubTaskManager{}, profiles)
 		httpResponse := performWorktreeParityRequest(t, httpRouter, http.MethodGet, "/api/memory?all_profiles=true", "")

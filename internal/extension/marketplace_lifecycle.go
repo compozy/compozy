@@ -184,11 +184,9 @@ func prepareMarketplacePackage(ctx context.Context, homePaths compozyconfig.Home
 	case req.Plugin != nil:
 		downloader = &pluginMarketplaceDownloader{acquisition: req.Plugin}
 		detail = &registrypkg.Detail{
-			Listing: registrypkg.Listing{
-				Slug:    slug,
-				Source:  req.Plugin.SourceName,
-				Version: req.Plugin.Record.Version,
-			},
+			Slug:       slug,
+			Source:     req.Plugin.SourceName,
+			Version:    req.Plugin.Record.Version,
 			Repository: req.Plugin.Record.SourceRef,
 		}
 	case hasCuratedMarketplaceArtifact(req.Trust):

@@ -55,11 +55,10 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 			"Workspace profile compozy source",
 		)
 
-		profile := profilepkg.WithCounts{Profile: profilepkg.Profile{
-			ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
-		}}
+		profile := profilepkg.WithCounts{
+			ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive}
 		resolved := workspacepkg.ResolvedWorkspace{
-			Workspace:   workspacepkg.Workspace{ID: "workspace-marketing", RootDir: workspaceRoot},
+			ID: "workspace-marketing", RootDir: workspaceRoot,
 			WorkspaceID: "workspace-marketing", ProfileID: profile.ID, ProfileName: profile.Name,
 			ProfileRoot: profileRoot, Config: compozyconfig.DefaultWithHome(homePaths),
 		}
@@ -72,7 +71,7 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 			skillProfileCatalogStub{profiles: []profilepkg.WithCounts{profile}},
 			&skillProfileWorkspaceResolver{resolved: resolved},
 			[]workspacepkg.ResolvedWorkspace{{
-				Workspace:   workspacepkg.Workspace{ID: resolved.ID, RootDir: workspaceRoot},
+				ID: resolved.ID, RootDir: workspaceRoot,
 				WorkspaceID: resolved.WorkspaceID,
 			}},
 			registry,
@@ -229,7 +228,7 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		}
 
 		resolved := &workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-1"},
+			ID:        "ws-1",
 			ProfileID: store.DefaultProfileID, ProfileName: "default",
 		}
 		workspaceEntries, err := dependency.ListAgentsForWorkspace(context.Background(), resolved)
@@ -459,7 +458,7 @@ func TestResourceAgentCatalogResolveAgentFallsBackWhenCatalogMissesWorkspaceAgen
 	}})
 
 	resolved := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-fallback"},
+		ID: "ws-fallback",
 		Agents: []compozyconfig.AgentDef{{
 			Name:   "fallback",
 			Prompt: "resolved workspace agent",
@@ -646,7 +645,7 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 					heartbeat: heartbeatCatalog,
 				})
 				resolved := &workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()},
+					ID: "ws-1", RootDir: t.TempDir(),
 					ProfileID: "profile-marketing", ProfileName: "marketing",
 				}
 				artifacts, err := dependency.ResolveAgentArtifacts("marketer", resolved)
@@ -751,7 +750,7 @@ func TestResourceAgentCatalogMatchesExtensionSidecarsByOwnerScopeAndAgentID(t *t
 		dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
 			soul: soulCatalog, heartbeat: heartbeatCatalog,
 		})
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
+		resolved := &workspacepkg.ResolvedWorkspace{ID: "ws-1"}
 		artifacts, err := dependency.ResolveAgentArtifacts("coder", resolved)
 		if err != nil {
 			t.Fatalf("ResolveAgentArtifacts(coder) error = %v", err)

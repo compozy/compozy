@@ -88,7 +88,7 @@ class ClipboardEventShim extends Event {
 }
 
 describe("SessionThread queue stories", () => {
-  beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
+  beforeAll(() => server.listen({ onUnhandledFrame: "bypass" }));
   // Stubs are dropped after every case (`unstubAllGlobals`), so both go in per case.
   beforeEach(() => {
     vi.stubGlobal("scrollTo", vi.fn());
@@ -120,7 +120,7 @@ describe("SessionThread queue stories", () => {
 
   it("Should attribute another actor's rows and drop their verbs (VC-02)", async () => {
     await mountStory(composed.OtherActor);
-    const rows = screen.getAllByTestId("composer-queued-prompt-row");
+    const rows = await screen.findAllByTestId("composer-queued-prompt-row");
     expect(rows).toHaveLength(3);
     expect(within(rows[0]!).getByTestId("composer-queued-edit")).toBeInTheDocument();
     expect(within(rows[1]!).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
@@ -156,7 +156,7 @@ describe("SessionThread queue stories", () => {
 
   it("Should read full at cap and drop the queue affordance (VC-05)", async () => {
     await mountStory(composed.Full);
-    expect(screen.getByTestId("composer-queue-full")).toBeInTheDocument();
+    expect(await screen.findByTestId("composer-queue-full")).toBeInTheDocument();
     expect(screen.getByTestId("composer-queue-count")).toHaveTextContent("10");
     expect(screen.queryByTestId("composer-queue-button")).not.toBeInTheDocument();
     expect(screen.getByTestId("composer-steer-button")).toBeInTheDocument();

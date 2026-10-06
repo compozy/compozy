@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 type failingWriter struct {
@@ -126,6 +127,51 @@ func TestPublishCatalog(t *testing.T) {
 					t.Fatalf("artifact %q in %q changed: %s, want %s", name, directory, digest, before.DigestSHA256)
 				}
 			}
+		}
+	})
+	t.Run("Should publish changed package content instead of retaining old artifact bytes", func(t *testing.T) {
+		t.Parallel()
+
+		changedSource := t.TempDir()
+		if err := os.CopyFS(changedSource, os.DirFS(source)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(changedSource, "packages", "batuta", "README.md"),
+			[]byte("Changed publication content.\n"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		changedOutput := t.TempDir()
+		if err := run(t.Context(), []string{"publish", changedSource, changedOutput}, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		before := readPublishedExtensions(t, source)["batuta"]
+		after := readPublishedExtensions(t, changedOutput)["batuta"]
+		if after.DigestSHA256 == "" || after.DigestSHA256 == before.DigestSHA256 {
+			t.Fatal("changed package did not publish a new artifact digest")
+		}
+	})
+	t.Run("Should reject a published artifact above the compressed size limit", func(t *testing.T) {
+		t.Parallel()
+		oversizedSource := t.TempDir()
+		if err := os.CopyFS(oversizedSource, os.DirFS(source)); err != nil {
+			t.Fatal(err)
+		}
+		entry := readPublishedExtensions(t, source)["batuta"]
+		filename, err := curatedArtifactFilename(entry.ArtifactURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Truncate(
+			filepath.Join(oversizedSource, "artifacts", filename), registry.DefaultMaxArchiveSize+1,
+		); err != nil {
+			t.Fatal(err)
+		}
+		err = run(t.Context(), []string{"publish", oversizedSource, t.TempDir()}, io.Discard)
+		if err == nil || !strings.Contains(err.Error(), "exceeds the compressed size limit") {
+			t.Fatalf("expected compressed archive size rejection, got %v", err)
 		}
 	})
 	t.Run("Should reject a root-only catalog without falling back [UT-055]", func(t *testing.T) {

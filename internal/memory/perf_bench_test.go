@@ -65,7 +65,7 @@ func BenchmarkAssemblerPromptSectionDualIndex(b *testing.B) {
 
 	assembler := NewAssembler(env.store)
 	workspace := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{RootDir: filepath.Dir(env.store.workspaceDir)},
+		RootDir: filepath.Dir(env.store.workspaceDir),
 	}
 	ctx := context.Background()
 

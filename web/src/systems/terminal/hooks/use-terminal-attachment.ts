@@ -60,13 +60,11 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
   const viewerId = options.viewer?.id ?? null;
   const viewerAttachmentToken = options.viewer?.attachmentToken ?? null;
 
-  const buildSink = useEffectEvent(
-    (): TerminalStreamSink => ({
-      write: data => options.handleRef.current?.write(data) ?? Promise.resolve(),
-      reset: () => options.handleRef.current?.reset(),
-      applyDimensions: dimensions => options.handleRef.current?.applyDimensions(dimensions),
-    })
-  );
+  const buildSink = useEffectEvent((): TerminalStreamSink => ({
+    write: data => options.handleRef.current?.write(data) ?? Promise.resolve(),
+    reset: () => options.handleRef.current?.reset(),
+    applyDimensions: dimensions => options.handleRef.current?.applyDimensions(dimensions),
+  }));
 
   useEffect(() => {
     if (!enabled || workspaceId === "" || terminalId === "") return undefined;

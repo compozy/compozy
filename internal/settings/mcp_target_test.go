@@ -35,9 +35,9 @@ command = "config-before"
 		service := testService(t, homePaths, Dependencies{})
 
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "alpha",
-			Target:            TargetSelector("cfg"),
+			Collection: CollectionMCPServers,
+			Name:       "alpha",
+			Target:     TargetSelector("cfg"),
 			MCPServer: &compozyconfig.MCPServer{
 				Command: "after",
 			},
@@ -77,9 +77,9 @@ command = "config-before"
 		service := testService(t, homePaths, Dependencies{})
 
 		_, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "alpha",
-			Target:            TargetSelector("CONFIG"),
+			Collection: CollectionMCPServers,
+			Name:       "alpha",
+			Target:     TargetSelector("CONFIG"),
 		})
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("DeleteCollectionItem(invalid target) error = %v, want ErrValidation", err)
@@ -122,9 +122,9 @@ client_id = "client-id"
 		target := mcpauth.Target{Owner: "manual", Scope: mcpauth.ScopeUser, ServerName: "linear"}
 
 		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "linear",
-			Target:            TargetConfig,
+			Collection: CollectionMCPServers,
+			Name:       "linear",
+			Target:     TargetConfig,
 			MCPServer: &compozyconfig.MCPServer{
 				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://replacement.example/mcp",
@@ -140,9 +140,9 @@ client_id = "client-id"
 		assertMCPAuthLifecycle(t, runtime.operations, target, 1)
 
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              "linear",
-			Target:            TargetConfig,
+			Collection: CollectionMCPServers,
+			Name:       "linear",
+			Target:     TargetConfig,
 		}); err != nil {
 			t.Fatalf("DeleteCollectionItem() error = %v", err)
 		}

@@ -43,13 +43,11 @@ const diagnosticSchema = z
     path: z.string().optional(),
     message: z.string(),
   })
-  .transform(
-    (diagnostic): WindowManagerDiagnosticPayload => ({
-      code: diagnostic.code,
-      path: diagnostic.path ?? null,
-      message: diagnostic.message,
-    })
-  );
+  .transform((diagnostic): WindowManagerDiagnosticPayload => ({
+    code: diagnostic.code,
+    path: diagnostic.path ?? null,
+    message: diagnostic.message,
+  }));
 
 const conflictSchema = z
   .strictObject({
@@ -57,13 +55,11 @@ const conflictSchema = z
     entity_id: z.string().optional(),
     current_id: z.string().optional(),
   })
-  .transform(
-    (conflict): WindowManagerConflictPayload => ({
-      code: conflict.code,
-      entityId: conflict.entity_id ?? null,
-      currentId: conflict.current_id ?? null,
-    })
-  );
+  .transform((conflict): WindowManagerConflictPayload => ({
+    code: conflict.code,
+    entityId: conflict.entity_id ?? null,
+    currentId: conflict.current_id ?? null,
+  }));
 
 const leafNodeSchema = z
   .strictObject({
@@ -71,13 +67,11 @@ const leafNodeSchema = z
     kind: z.literal("leaf"),
     window_id: identifierSchema,
   })
-  .transform(
-    (node): LayoutNode => ({
-      id: node.id,
-      kind: node.kind,
-      windowId: node.window_id,
-    })
-  );
+  .transform((node): LayoutNode => ({
+    id: node.id,
+    kind: node.kind,
+    windowId: node.window_id,
+  }));
 
 const stackNodeSchema = z
   .strictObject({
@@ -86,14 +80,12 @@ const stackNodeSchema = z
     window_ids: z.array(identifierSchema).min(1),
     active_id: identifierSchema,
   })
-  .transform(
-    (node): LayoutNode => ({
-      id: node.id,
-      kind: node.kind,
-      windowIds: node.window_ids,
-      activeId: node.active_id,
-    })
-  );
+  .transform((node): LayoutNode => ({
+    id: node.id,
+    kind: node.kind,
+    windowIds: node.window_ids,
+    activeId: node.active_id,
+  }));
 
 const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
   z.union([
@@ -110,15 +102,13 @@ const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
       .refine(node => node.children.length === node.weights.length, {
         message: "split children and weights must have the same length",
       })
-      .transform(
-        (node): LayoutNode => ({
-          id: node.id,
-          kind: node.kind,
-          axis: node.axis,
-          children: node.children,
-          weights: node.weights,
-        })
-      ),
+      .transform((node): LayoutNode => ({
+        id: node.id,
+        kind: node.kind,
+        axis: node.axis,
+        children: node.children,
+        weights: node.weights,
+      })),
   ])
 );
 
@@ -158,16 +148,14 @@ const desktopSchema = z
     floating: z.array(identifierSchema),
     floating_stacks: z.array(floatingStackSchema),
   })
-  .transform(
-    (desktop): LayoutDesktop => ({
-      id: desktop.id,
-      name: desktop.name,
-      order: desktop.order,
-      groups: desktop.groups,
-      floating: desktop.floating,
-      floatingStacks: desktop.floating_stacks,
-    })
-  );
+  .transform((desktop): LayoutDesktop => ({
+    id: desktop.id,
+    name: desktop.name,
+    order: desktop.order,
+    groups: desktop.groups,
+    floating: desktop.floating,
+    floatingStacks: desktop.floating_stacks,
+  }));
 
 const returnAnchorSchema = z
   .strictObject({
@@ -181,19 +169,17 @@ const returnAnchorSchema = z
     source_group: groupSchema.optional(),
     zoomed: z.boolean().optional(),
   })
-  .transform(
-    (anchor): WindowManagerReturnAnchor => ({
-      desktopId: anchor.desktop_id,
-      groupId: anchor.group_id ?? null,
-      parentSplitId: anchor.parent_split_id ?? null,
-      childIndex: anchor.child_index ?? null,
-      weight: anchor.weight ?? null,
-      neighborIds: anchor.neighbor_ids ?? [],
-      sourceRevision: anchor.source_revision,
-      sourceGroup: anchor.source_group ?? null,
-      zoomed: anchor.zoomed ?? false,
-    })
-  );
+  .transform((anchor): WindowManagerReturnAnchor => ({
+    desktopId: anchor.desktop_id,
+    groupId: anchor.group_id ?? null,
+    parentSplitId: anchor.parent_split_id ?? null,
+    childIndex: anchor.child_index ?? null,
+    weight: anchor.weight ?? null,
+    neighborIds: anchor.neighbor_ids ?? [],
+    sourceRevision: anchor.source_revision,
+    sourceGroup: anchor.source_group ?? null,
+    zoomed: anchor.zoomed ?? false,
+  }));
 
 const routeSchema = z
   .strictObject({
@@ -217,22 +203,20 @@ const windowSchema = z
     zoomed: z.boolean(),
     return_anchor: returnAnchorSchema.optional(),
   })
-  .transform(
-    (window): WindowManagerWindow => ({
-      id: window.id,
-      app: window.app,
-      instanceKey: window.instance_key ?? null,
-      route: window.route,
-      navStack: window.nav_stack,
-      pinned: window.pinned,
-      placement: window.placement,
-      desktopId: window.desktop_id,
-      floatingRect: window.floating_rect,
-      minimized: window.minimized,
-      zoomed: window.zoomed,
-      returnAnchor: window.return_anchor ?? null,
-    })
-  );
+  .transform((window): WindowManagerWindow => ({
+    id: window.id,
+    app: window.app,
+    instanceKey: window.instance_key ?? null,
+    route: window.route,
+    navStack: window.nav_stack,
+    pinned: window.pinned,
+    placement: window.placement,
+    desktopId: window.desktop_id,
+    floatingRect: window.floating_rect,
+    minimized: window.minimized,
+    zoomed: window.zoomed,
+    returnAnchor: window.return_anchor ?? null,
+  }));
 
 const windowsSchema = z.record(z.string(), windowSchema);
 
@@ -274,18 +258,16 @@ export const windowManagerSnapshotSchema = z
     overrides: windowManagerWorkspaceConfigSchema,
     updated_at: timestampSchema,
   })
-  .transform(
-    (snapshot): WindowManagerSnapshot => ({
-      version: snapshot.version,
-      workspaceId: snapshot.workspace_id,
-      revision: snapshot.revision,
-      desktops: snapshot.desktops,
-      windows: snapshot.windows,
-      closedEntryCount: snapshot.closed_entry_count,
-      overrides: snapshot.overrides,
-      updatedAt: snapshot.updated_at,
-    })
-  );
+  .transform((snapshot): WindowManagerSnapshot => ({
+    version: snapshot.version,
+    workspaceId: snapshot.workspace_id,
+    revision: snapshot.revision,
+    desktops: snapshot.desktops,
+    windows: snapshot.windows,
+    closedEntryCount: snapshot.closed_entry_count,
+    overrides: snapshot.overrides,
+    updatedAt: snapshot.updated_at,
+  }));
 
 export const windowManagerClientViewSchema = z
   .strictObject({
@@ -313,39 +295,37 @@ export const windowManagerClientViewSchema = z
     attachment_token: identifierSchema.optional(),
     global_shortcuts: z.array(globalShortcutRegistrationSchema),
   })
-  .transform(
-    (client): WindowManagerAttachedClientView => ({
-      workspaceId: client.workspace_id,
-      clientId: client.client_id,
-      kind: client.kind,
-      presentationRevision: client.presentation_revision,
-      contextRevision: client.context_revision,
-      activeDesktopId: client.active_desktop_id,
-      focusedWindowId: client.focused_window_id ?? null,
-      focusOrder: client.focus_order,
-      stackActive: client.stack_active,
-      paletteContext: {
-        windowFocused: client.palette_context.window_focused,
-        windowFloating: client.palette_context.window_floating,
-        windowStacked: client.palette_context.window_stacked,
-        desktopWindowCount: client.palette_context.desktop_window_count,
-        scopeGlobal: client.palette_context.scope_global,
-        shellDesktop: client.palette_context.shell_desktop,
-        focusedSessionState: client.palette_context.focused_session_state ?? null,
-        workspaceTrusted: client.palette_context.workspace_trusted,
-        destinationIntent: client.palette_context.destination_intent ?? null,
-      },
-      connectedAt: client.connected_at,
-      globalShortcuts: client.global_shortcuts.map(registration => ({
-        commandId: registration.command_id,
-        intendedChord: registration.intended_chord,
-        activeChord: registration.active_chord ?? null,
-        status: registration.status,
-        reason: registration.reason ?? null,
-        settingsUrl: registration.settings_url ?? null,
-      })),
-    })
-  );
+  .transform((client): WindowManagerAttachedClientView => ({
+    workspaceId: client.workspace_id,
+    clientId: client.client_id,
+    kind: client.kind,
+    presentationRevision: client.presentation_revision,
+    contextRevision: client.context_revision,
+    activeDesktopId: client.active_desktop_id,
+    focusedWindowId: client.focused_window_id ?? null,
+    focusOrder: client.focus_order,
+    stackActive: client.stack_active,
+    paletteContext: {
+      windowFocused: client.palette_context.window_focused,
+      windowFloating: client.palette_context.window_floating,
+      windowStacked: client.palette_context.window_stacked,
+      desktopWindowCount: client.palette_context.desktop_window_count,
+      scopeGlobal: client.palette_context.scope_global,
+      shellDesktop: client.palette_context.shell_desktop,
+      focusedSessionState: client.palette_context.focused_session_state ?? null,
+      workspaceTrusted: client.palette_context.workspace_trusted,
+      destinationIntent: client.palette_context.destination_intent ?? null,
+    },
+    connectedAt: client.connected_at,
+    globalShortcuts: client.global_shortcuts.map(registration => ({
+      commandId: registration.command_id,
+      intendedChord: registration.intended_chord,
+      activeChord: registration.active_chord ?? null,
+      status: registration.status,
+      reason: registration.reason ?? null,
+      settingsUrl: registration.settings_url ?? null,
+    })),
+  }));
 
 const changeSetSchema = z
   .strictObject({
@@ -357,17 +337,15 @@ const changeSetSchema = z
     stack_grouped: z.array(identifierSchema).optional(),
     stack_ungrouped: z.array(identifierSchema).optional(),
   })
-  .transform(
-    (changes): WindowManagerChangeSet => ({
-      desktopIds: changes.desktop_ids ?? [],
-      windowIds: changes.window_ids ?? [],
-      groupIds: changes.group_ids ?? [],
-      nodeIds: changes.node_ids ?? [],
-      clientIds: changes.client_ids ?? [],
-      stackGrouped: changes.stack_grouped ?? [],
-      stackUngrouped: changes.stack_ungrouped ?? [],
-    })
-  );
+  .transform((changes): WindowManagerChangeSet => ({
+    desktopIds: changes.desktop_ids ?? [],
+    windowIds: changes.window_ids ?? [],
+    groupIds: changes.group_ids ?? [],
+    nodeIds: changes.node_ids ?? [],
+    clientIds: changes.client_ids ?? [],
+    stackGrouped: changes.stack_grouped ?? [],
+    stackUngrouped: changes.stack_ungrouped ?? [],
+  }));
 
 export const windowManagerCommandResultSchema = z
   .strictObject({
@@ -378,16 +356,14 @@ export const windowManagerCommandResultSchema = z
     client: windowManagerClientViewSchema.optional(),
     rebased_from: safeRevisionSchema.optional(),
   })
-  .transform(
-    (result): WindowManagerCommandResult => ({
-      snapshot: result.snapshot,
-      applied: result.applied,
-      changes: result.changes,
-      diagnostics: result.diagnostics ?? [],
-      client: result.client ?? null,
-      rebasedFrom: result.rebased_from ?? null,
-    })
-  );
+  .transform((result): WindowManagerCommandResult => ({
+    snapshot: result.snapshot,
+    applied: result.applied,
+    changes: result.changes,
+    diagnostics: result.diagnostics ?? [],
+    client: result.client ?? null,
+    rebasedFrom: result.rebased_from ?? null,
+  }));
 
 export const windowManagerEventSchema = z
   .strictObject({
@@ -399,17 +375,15 @@ export const windowManagerEventSchema = z
     origin: z.string().optional(),
     occurred_at: timestampSchema,
   })
-  .transform(
-    (event): WindowManagerEvent => ({
-      workspaceId: event.workspace_id,
-      revision: event.revision,
-      commandId: event.command_id,
-      changes: event.changes,
-      actor: event.actor,
-      origin: event.origin ?? "",
-      occurredAt: event.occurred_at,
-    })
-  );
+  .transform((event): WindowManagerEvent => ({
+    workspaceId: event.workspace_id,
+    revision: event.revision,
+    commandId: event.command_id,
+    changes: event.changes,
+    actor: event.actor,
+    origin: event.origin ?? "",
+    occurredAt: event.occurred_at,
+  }));
 
 export const windowManagerErrorSchema = z
   .strictObject({
@@ -420,16 +394,14 @@ export const windowManagerErrorSchema = z
     conflicts: z.array(conflictSchema).optional(),
     diagnostics: z.array(diagnosticSchema).optional(),
   })
-  .transform(
-    (error): WindowManagerErrorPayload => ({
-      error: error.error,
-      code: error.code,
-      workspaceId: error.workspace_id,
-      currentRevision: error.current_revision ?? null,
-      conflicts: error.conflicts ?? [],
-      diagnostics: error.diagnostics ?? [],
-    })
-  );
+  .transform((error): WindowManagerErrorPayload => ({
+    error: error.error,
+    code: error.code,
+    workspaceId: error.workspace_id,
+    currentRevision: error.current_revision ?? null,
+    conflicts: error.conflicts ?? [],
+    diagnostics: error.diagnostics ?? [],
+  }));
 
 export function parseWindowManagerSnapshot(value: unknown): WindowManagerSnapshot {
   return windowManagerSnapshotSchema.parse(value);

@@ -52,9 +52,9 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		DecisionClass:    strings.TrimSpace(matcher.DecisionClass),
 		MessageRole:      strings.TrimSpace(matcher.MessageRole),
 		MessageDeltaType: strings.TrimSpace(matcher.MessageDeltaType),
-	}
-	normalized.CompactionMatcher = normalizeCompactionMatcher(matcher.CompactionMatcher)
-	normalized.Autonomy = normalizeAutonomyMatcher(matcher.Autonomy)
+
+		CompactionMatcher: normalizeCompactionMatcher(matcher.CompactionMatcher),
+		Autonomy:          normalizeAutonomyMatcher(matcher.Autonomy)}
 	if matcher.ToolReadOnly != nil {
 		value := *matcher.ToolReadOnly
 		normalized.ToolReadOnly = &value
