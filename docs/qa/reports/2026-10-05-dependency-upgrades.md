@@ -112,3 +112,40 @@ absent from both the process and project environment. Official upstream sources 
 
 - Both targeted QA audits passed with strict enforcement and clean teardown. Audit and teardown
   receipts are stored beside the browser and profile evidence.
+
+## Release-validation follow-up
+
+Release PR #688, head `b95d7e9cb`, exposed an obsolete failure injection in the
+existing disconnected-bell browser scenario. CI job `112111431739` shows the
+notification-ledger endpoint returning HTTP 200 while the test interrupts the old
+session-catalog source. The bell correctly remains connected. The existing E2E now
+interrupts its actual ledger endpoint and observes the failed request before checking
+the unchanged warning assertion and timeout. This bell correction changes verification only; native
+tools, public contracts, hooks, configuration, persisted data, official skills, and
+production behavior are unchanged.
+
+Two additional release integration failures reproduced locally:
+
+- The 500-event SSE replay delivered every expected event but its reader failed to join
+  in all ten runs. A goroutine dump located the reader in Go 1.27's HTTP response-drain
+  EOF handshake after concurrent body closure. HTTP and UDS test requests now own a
+  cancellable context; closing their bodies cancels the request before closing the
+  transport body. All ten replay runs pass with the original two-second join deadline,
+  ten-second replay deadline, event count, and cursor-order assertions unchanged.
+- Lane cancellation queued a generic `stop` cleanup before terminal run-agent settlement.
+  The idempotent cleanup insert consequently preserved the wrong cause. Production now
+  captures the addressed session identities, settles terminal bindings, then queues any
+  remaining generic cleanup. The existing real-SQLite regression passes three repetitions;
+  it additionally verifies that the returned session identity is retained.
+
+Follow-up verification:
+
+- Official Web E2E shard 1: 79 passed, three existing skips (13.7 minutes), including
+  the corrected disconnected-ledger scenario with its original assertion.
+- HTTP and UDS stream/SSE integration suites with race: passed (11.489s / 5.481s).
+- Existing goal-binding, cancellation atomicity, and terminal-settlement authority
+  integration suites with race: passed (5.679s after final helper organization).
+- Test-shape checks pass for the HTTP helper and goal-binding suite. The UDS suite
+  retains 14 pre-existing top-level assertion findings; only its request helper changes.
+- Final follow-up `make gate`: passed. Go lint reports zero issues; API/store race
+  suites pass (996s overall), and the Web lint/typecheck/test/codegen lane passes.

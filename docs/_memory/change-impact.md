@@ -18,6 +18,13 @@ Desktop restoration commits window frames before mounting layout-heavy bodies, p
 window identities, geometry, overlays and gestures. The existing 12-window performance E2E
 and desktop-shell lifecycle scenario own this Web-only scheduling change; native tools,
 data, public contracts, official skills and site documentation need no additional changes.
+Release validation additionally repairs run-agent lane cleanup ordering: terminal binding
+settlement records its cause before generic cancellation, while returned session IDs and
+workspace/epoch ownership stay intact. `compozy__loop_node_cancel`, CLI/HTTP/UDS cancellation
+and the Web control retain their shapes and semantics. No schema migration, historical data
+rewrite, hook/config/extension change, or official skill/site update is required. The existing
+binding integration suite and `LP-per-lane-node-control` own this internal settlement invariant.
+HTTP/UDS request cancellation and notification-ledger fault injection are test-harness changes.
 
 ## Untested QA sweep — 2026-10-02
 

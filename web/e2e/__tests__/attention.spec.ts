@@ -19,7 +19,7 @@ import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixture
  *
  * Runtime truth comes from isolated acpmock sessions. Transport overrides are
  * limited to presentation boundaries that cannot be produced by an acpmock
- * turn: a frozen catalog source and an agent that reports an unknown badge.
+ * turn: an unavailable notification ledger and an agent that reports an unknown badge.
  * E2E-020 (system notifications) belongs to the desktop lane.
  */
 
@@ -167,8 +167,15 @@ test.describe("E2E-009 attention bell", () => {
   test("Should state that a disconnected source is frozen and uncounted", async ({
     appPage: page,
   }) => {
-    await page.route(/\/api\/sessions\/catalog-stream(?:\?.*)?$/, route => route.abort());
-    await page.reload();
+    // The bell reads the notification ledger, independently of the session catalog stream.
+    await page.route(/\/api\/notifications\/attention(?:\?.*)?$/, route => route.abort());
+    await Promise.all([
+      page.waitForEvent(
+        "requestfailed",
+        request => new URL(request.url()).pathname === "/api/notifications/attention"
+      ),
+      page.reload(),
+    ]);
     await completeOnboardingIfPrompted(page);
 
     await page.locator(bell.trigger).click();

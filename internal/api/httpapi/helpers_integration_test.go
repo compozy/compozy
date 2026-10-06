@@ -201,9 +201,12 @@ func mustHTTPRequest(
 	if len(body) > 0 {
 		reader = strings.NewReader(string(body))
 	}
-	req, err := http.NewRequest(method, url, reader)
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
-		t.Fatalf("http.NewRequest() error = %v", err)
+		cancel()
+		t.Fatalf("http.NewRequestWithContext() error = %v", err)
 	}
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/json")
@@ -214,7 +217,20 @@ func mustHTTPRequest(
 
 	resp, err := client.Do(req)
 	if err != nil {
+		cancel()
 		t.Fatalf("client.Do() error = %v", err)
 	}
+	resp.Body = &integrationResponseBody{ReadCloser: resp.Body, cancel: cancel}
 	return resp
+}
+
+// Cancel the request before closing its body so an in-flight stream read cannot enter draining.
+type integrationResponseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *integrationResponseBody) Close() error {
+	b.cancel()
+	return b.ReadCloser.Close()
 }
