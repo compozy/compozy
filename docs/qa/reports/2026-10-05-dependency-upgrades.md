@@ -293,3 +293,14 @@ suite passes all 53 tests. The production Web build passes through root Turbo an
 Doctor reports 100/100. Both original zsh prompt scenarios pass three repetitions each
 against the real daemon and current production Web build (six passes, 2.8 minutes).
 Current-head PR CI remains pending.
+
+PR #697 review additionally identified a workspace switch during replacement of that read.
+The extended owning regression confirms the failure: the previous head reads the destination
+task under `default` instead of its remembered `engineering` profile (53 pass, one fails).
+Profile preparation now rereads the lens on every attempt and checks that the successful
+read still belongs to the current lens before releasing route loaders. All 54 owning tests
+pass after this correction. The final review gate passes 7,015 Web tests, lint with zero
+warnings/errors and typecheck; the production build passes and React Doctor reports 100/100.
+The unchanged profile switch/remembered-selection journey and both zsh prompt scenarios
+pass against the real daemon and final production Web build (three passes, 1.4 minutes).
+CI for the review revision remains pending.

@@ -48,6 +48,8 @@ Earlier evidence remains applicable to unchanged fish and shell-config loading b
 
 2026-10-06 dependency follow-up: after the daemon restarts, the desktop must retain or recover
 its active profile while profile-stream reconciliation replaces an in-flight selection read.
+If the operator changes workspace during that read, subsequent route data must use the
+destination workspace's remembered or locally selected profile.
 The original step 9 browser scenarios exercise this restart before terminal input. Release
 Nightly job `112266831267` reached a route error from a cancelled query before terminal
 assertions. Both unchanged zsh prompt variants now pass three repetitions each with the

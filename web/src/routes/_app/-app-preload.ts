@@ -12,6 +12,7 @@ import {
 import {
   actingProfile,
   localProfileView,
+  profileLensKey,
   profileSelectionOptions,
   readProfileLens,
   readProfileView,
@@ -23,12 +24,13 @@ export async function prepareAppProfile(queryClient: QueryClient): Promise<void>
   if (!isActiveWorkspaceStoreHydrated()) {
     await rehydrateActiveWorkspaceStore();
   }
-  const lens = readProfileLens();
-  if (localProfileView(lens)) return;
-  const options = profileSelectionOptions(lens);
   for (;;) {
+    const lens = readProfileLens();
+    if (localProfileView(lens)) return;
+    const options = profileSelectionOptions(lens);
     try {
       await queryClient.fetchQuery(options);
+      if (profileLensKey(readProfileLens()) !== profileLensKey(lens)) continue;
       return;
     } catch (error) {
       // A joined TanStack fetch can expose the old promise's silent cancellation

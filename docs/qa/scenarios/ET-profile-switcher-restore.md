@@ -97,3 +97,11 @@ restored identity is announced. The existing keyboard evidence does not claim sp
 
 Repair committed as b915570a8. Keyboard/public-interface retest passes; the current verdict is
 blocked-verify solely for the spoken VoiceOver checks listed above.
+
+2026-10-06 dependency follow-up: changing workspace while reconnect replaces a pending
+profile-selection read must resolve the destination lens before route data loads. The
+route-preloading regression owns this interleaving; the unchanged E2E-013 journey owns
+the real project-switch/remembered-selection replay, which passes on the final production
+build alongside both restart/zsh scenarios (three passes, 1.4 minutes). Repair evidence is tracked
+in [the dependency report](../reports/2026-10-05-dependency-upgrades.md); the pre-existing
+spoken-output limitation is unchanged.
