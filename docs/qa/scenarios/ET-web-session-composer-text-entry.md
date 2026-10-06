@@ -57,3 +57,9 @@ QA verdict 2026-10-05 (dependency upgrades): passed on the production build in a
 daemon/Web lab. Repeated spaces and Unicode survived project remount, subsequent editing and
 full reload. Evidence: `docs/qa/evidence/2026-10-05-dependency-upgrades/draft-reload.json`
 and `draft-reload.png`.
+
+QA review regression 2026-10-05: an edit committed during asynchronous restoration must
+replace the saved draft even when the restored text was never observed. The existing
+session-thread suite verifies this with the real assistant-ui runtime (147 tests passed);
+the regression fails against the preceding implementation. Ordinary remount behavior remains
+covered by the same suite and the production-browser evidence above.

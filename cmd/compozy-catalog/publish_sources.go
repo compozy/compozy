@@ -147,12 +147,19 @@ func packagePublicationEntry(
 // Compression output can change between Go releases; unchanged package contents retain their published bytes.
 func preservePublishedArtifact(existing, generated string) error {
 	// #nosec G703 -- existing is an artifact beneath the operator-selected catalog source.
-	raw, err := os.ReadFile(existing)
+	published, err := os.Open(existing)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
 		return err
+	}
+	raw, readErr := io.ReadAll(io.LimitReader(published, registry.DefaultMaxArchiveSize+1))
+	if err := errors.Join(readErr, published.Close()); err != nil {
+		return err
+	}
+	if int64(len(raw)) > registry.DefaultMaxArchiveSize {
+		return errors.New("catalog artifact exceeds the compressed size limit")
 	}
 	oldDigest, err := uncompressedArtifactDigest(bytes.NewReader(raw))
 	if err != nil {

@@ -59,6 +59,12 @@ absent from both the process and project environment. Official upstream sources 
 
 ## Verification
 
+- Review remediation: the composer now suppresses only the pre-hydration observation,
+  retaining edits committed before hydration is observed. The existing real-runtime
+  session-thread suite passes all 147 tests; the new regression fails on the previous
+  implementation because the persisted draft retains the old text.
+- Published compressed artifacts are read with the installer's 50 MiB bound. The catalog
+  publisher race suite passes, including rejection of an oversized existing artifact.
 - PR CI exposed the video's obsolete TypeScript `baseUrl` option. Its alias now uses
   an explicit relative path and its typecheck explicitly selects the native compiler;
   root Turbo video lint/typecheck passes with TypeScript 7.

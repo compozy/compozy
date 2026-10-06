@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
+import { useSessionComposerState } from "../hooks/use-session-composer-state";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import {
@@ -3989,6 +3990,34 @@ describe("SessionThread composer running semantics", () => {
       expect(screen.getByTestId("composer-input")).toHaveTextContent("keep this draft")
     );
     expect(composerText()).toBe("keep this draft");
+  });
+
+  it("Should persist an edit committed before saved draft hydration is observed", async () => {
+    const sessionId = primarySessionFixture.id;
+    sessionStore.trigger.composerDraftChanged({ sessionId, text: "saved draft" });
+    function EditingComposer() {
+      const aui = useAui();
+      const { composerText: text } = useSessionComposerState(sessionId);
+      useLayoutEffect(() => {
+        aui.composer.setText("new edit during hydration");
+      }, [aui]);
+      return <output data-testid="hydrating-composer">{text}</output>;
+    }
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <SessionChatRuntimeProvider sessionId={sessionId} workspaceId={fixtureWorkspaceId()}>
+          <EditingComposer />
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("hydrating-composer")).toHaveTextContent(
+        "new edit during hydration"
+      );
+      expect(sessionStore.getSnapshot().context.drafts[sessionId]).toBe(
+        "new edit during hydration"
+      );
+    });
   });
 
   it("Should insert a standalone command token without submitting the prompt", async () => {
