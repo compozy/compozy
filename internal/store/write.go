@@ -220,7 +220,11 @@ func executeWriteAttempt(
 	if err := validateMutationCommitFence(ctx); err != nil {
 		return fmt.Errorf("store: mutation commit fence: %w", err)
 	}
-	if _, err := conn.ExecContext(ctx, sqliteCommitStatement); err != nil {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("store: commit sqlite write: %w", err)
+	}
+	// Once commit starts, cancellation must not disguise a durable write as retryable failure.
+	if _, err := conn.ExecContext(context.WithoutCancel(ctx), sqliteCommitStatement); err != nil {
 		return fmt.Errorf("store: commit sqlite write: %w", err)
 	}
 	active = false

@@ -28,6 +28,7 @@ import (
 )
 
 const (
+	loopReadRetryLoopName      = "loop-read-retry"
 	loopReadApprovalLoopName   = "loop-read-approval"
 	loopReadUnblockerLoopName  = "loop-read-unblocker"
 	loopReadQuarantineLoopName = "loop-read-quarantine"
@@ -66,6 +67,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	setupCtx, setupCancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer setupCancel()
 	createLoopViaHTTP(t, setupCtx, harness, loopEventsDefinition())
+	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadRetryLoopName)
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadApprovalLoopName)
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadUnblockerLoopName)
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadQuarantineLoopName)
@@ -449,7 +451,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	})
 	t.Run("Should expose settled attempts through the roster E2E-005", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
-		retryRun := runLoopViaHTTP(t, ctx, harness, lifecycleRetryLoopName)
+		retryRun := runLoopViaHTTP(t, ctx, harness, loopReadRetryLoopName)
 		waitForLoopRunStatus(t, ctx, harness, retryRun.ID, compozycontract.LoopRunStatusDone)
 		var roster compozycontract.LoopRunNodesResponse
 		if err := harness.CLI.RunJSON(
@@ -1112,6 +1114,7 @@ func seedLoopReadDefinitions(t testing.TB, workspaceRoot string) {
 	t.Helper()
 	root := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 	definitions := map[string]string{
+		loopReadRetryLoopName:      loopReadRetryYAML(),
 		loopReadApprovalLoopName:   loopReadApprovalYAML(),
 		loopReadUnblockerLoopName:  loopReadUnblockerYAML(),
 		loopReadQuarantineLoopName: loopReadQuarantineYAML(),
@@ -1126,6 +1129,14 @@ func seedLoopReadDefinitions(t testing.TB, workspaceRoot string) {
 			t.Fatalf("WriteDefinition(%s) error = %v", name, err)
 		}
 	}
+}
+
+func loopReadRetryYAML() string {
+	return strings.NewReplacer(
+		"node-lifecycle-retry", loopReadRetryLoopName,
+		"timeout: 2s", "timeout: 10s",
+		`prompt: "retry lifecycle"`, `prompt: "read retry lifecycle"`,
+	).Replace(lifecycleRetryLoopYAML())
 }
 
 func loopReadUnblockerYAML() string {

@@ -52,3 +52,14 @@ and recovery on the same handle. Live-provider hosted-tool evidence: `skill-reso
 `# Terminal` after release. `writer-transient.jsonl` records the isolated writer interval.
 This validates failure within the managed caller bound and same-daemon recovery; it does not
 assert exhaustion of all 15 default helper attempts or a filesystem loader failure.
+
+QA impact 2026-10-06: a deadline arriving during a successful SQLite COMMIT must not turn
+its acknowledgement into a retryable error or duplicate the completed tool event. Cancellation
+observed before commit must still roll back. TestExecuteWrite owns this transaction boundary;
+TestDaemonToolEventSink retains the real writer-contention and exactly-one-event assertions.
+Focused and runtime re-walk evidence: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+QA result 2026-10-06: the owning managed-skill contention integration passed with a real ACP
+subprocess and SQLite under the race detector (5.869s). The unchanged tool-event contention
+suite passed 30 repetitions each on macOS and Linux; transaction cancellation regressions
+passed. Broader release delivery remains tracked in the dependency-upgrade report.

@@ -234,3 +234,41 @@ including Web lint with zero warnings/errors, typecheck, tests and codegen. Reac
 Doctor reports 100/100. Official Web shards 3/4 and final-head CI remain pending.
 The prior PR head also completed Linux Web shard 4 with 73 passes (16.4m), including
 the corrected Tasks navigation; that evidence does not qualify the newer changes.
+
+## SQLite commit acknowledgement and roster fixture follow-up
+
+Release PR #688 head `6e89b3ff` failed Go race shard 2 (`112218483055`): the completed
+native-tool event did not persist within the existing post-unlock deadline. Thirty focused
+macOS baseline repetitions passed, but a concurrent two-CPU reproduction exposed a related
+production failure: COMMIT completed durably, the driver returned context deadline exceeded,
+rollback reported no active transaction, and the persistence retry inserted a second event.
+A Linux/arm64 race reproduction also reported two events instead of one.
+
+The shared write boundary now checks cancellation after its mutation fence, then executes
+COMMIT without caller cancellation. It preserves the actual commit result, as the SQLite
+driver's transaction Commit implementation does. Admission, callback cancellation and the
+existing rollback path remain in place. The existing TestExecuteWrite suite adds a real-SQLite
+case with cancellation injected only at the driver I/O boundary after commit, plus a case
+that proves cancellation observed at the fence still rolls back. The first regression fails
+against the previous production implementation. Both cases pass ten repetitions after repair.
+The original daemon contention test and its assertions/deadlines remain unchanged.
+
+Runtime job `112218483056` separately failed roster journey E2E-005 after both attempts hit
+the reused lifecycle fixture's two-second action deadline. The second session completed ACP
+startup in 197 ms, then its creation hook took 558 ms; the deadline arrived before a successful
+prompt result. This read-layer invariant has no two-second session-start SLA. Its dedicated
+fixture blocks until actual cancellation, uses a ten-second action budget for real session
+setup and returns the existing successful response on retry. The two-attempt roster assertions
+and 45-second overall journey deadline remain unchanged. The separate timeout lifecycle E2E
+retains its original two-second deadline and three-second delayed first response.
+
+The complete TestExecuteWrite suite passes (16.293s), the new boundary cases pass ten repetitions
+(1.183s), and the unchanged tool-event suite passes 30 repetitions on macOS (20.123s) and Linux
+with two CPUs (21.167s), all with the race detector. The real-daemon roster journey passes
+three repetitions (50.927s). The existing ACP-subprocess/SQLite managed skill contention
+integration passes (5.869s), proving same-session recovery alongside health writes. Lint
+reports zero issues. The final official `make test-e2e-runtime` passes all 313 tests:
+231 daemon, 21 HTTP, 49 UDS, eight harness and four remote Gateway CLI tests. It includes
+the corrected roster fixture and the unchanged two-second timeout lifecycle scenario.
+The final local `make gate` passes Go lint with zero issues and all affected Go race suites.
+Current-head PR CI remains pending.
