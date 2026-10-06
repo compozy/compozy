@@ -49,6 +49,16 @@ func listAndEnqueueCancellationSessions(
 	if err != nil {
 		return nil, err
 	}
+	return enqueueCancellationSessions(ctx, exec, mutation, cause, sources)
+}
+
+func enqueueCancellationSessions(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation looppkg.CancellationMutation,
+	cause looppkg.SessionCleanupCause,
+	sources []cancellationSessionSource,
+) ([]string, error) {
 	for _, source := range sources {
 		createdAt := mutation.RequestedAt.UTC()
 		if source.createdAt.After(createdAt) {

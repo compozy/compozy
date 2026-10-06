@@ -112,3 +112,68 @@ absent from both the process and project environment. Official upstream sources 
 
 - Both targeted QA audits passed with strict enforcement and clean teardown. Audit and teardown
   receipts are stored beside the browser and profile evidence.
+
+## Release-validation follow-up
+
+Release PR #688, head `b95d7e9cb`, exposed an obsolete failure injection in the
+existing disconnected-bell browser scenario. CI job `112111431739` shows the
+notification-ledger endpoint returning HTTP 200 while the test interrupts the old
+session-catalog source. The bell correctly remains connected. The existing E2E now
+interrupts its actual ledger endpoint and observes the failed request before checking
+the unchanged warning assertion and timeout. This bell correction changes verification only; native
+tools, public contracts, hooks, configuration, persisted data, official skills, and
+production behavior are unchanged.
+
+Two additional release integration failures reproduced locally:
+
+- The 500-event SSE replay delivered every expected event but its reader failed to join
+  in all ten runs. A goroutine dump located the reader in Go 1.27's HTTP response-drain
+  EOF handshake after concurrent body closure. HTTP and UDS test requests now own a
+  cancellable context; closing their bodies cancels the request before closing the
+  transport body. All ten replay runs pass with the original two-second join deadline,
+  ten-second replay deadline, event count, and cursor-order assertions unchanged.
+- Lane cancellation queued a generic `stop` cleanup before terminal run-agent settlement.
+  The idempotent cleanup insert consequently preserved the wrong cause. Production now
+  captures the addressed session identities, settles terminal bindings, then queues any
+  remaining generic cleanup. The existing real-SQLite regression passes three repetitions;
+  it additionally verifies that the returned session identity is retained.
+
+Follow-up verification:
+
+- Official Web E2E shard 1: 79 passed, three existing skips (13.7 minutes), including
+  the corrected disconnected-ledger scenario with its original assertion.
+- HTTP and UDS stream/SSE integration suites with race: passed (11.489s / 5.481s).
+- Existing goal-binding, cancellation atomicity, and terminal-settlement authority
+  integration suites with race: passed (5.679s after final helper organization).
+- Test-shape checks pass for the HTTP helper and goal-binding suite. The UDS suite
+  retains 14 pre-existing top-level assertion findings; only its request helper changes.
+- Final follow-up `make gate`: passed. Go lint reports zero issues; API/store race
+  suites pass (996s overall), and the Web lint/typecheck/test/codegen lane passes.
+
+## Desktop restoration and native diagnostic shortcut follow-up
+
+PR #694 Web shard 2 measured 516.9 ms for the unchanged 500 ms twelve-window
+restoration budget. CPU profiling identified a transient empty desktop: the snapshot
+arrived before layout configuration, so the window layer mounted the empty-state
+composer before replacing it with restored frames. The layer now waits for its
+existing configuration readiness signal before exposing desktops. No persisted
+layout, window geometry, or performance threshold changes.
+
+The existing interaction-hook suite owns this readiness invariant. Its new regression
+fails against the original hook (one failure, 56 passes) and all 57 tests pass with
+the correction through root Turbo. A real browser profile at five-times CPU throttling
+measured 494.9 ms before and 406.9 ms after; these are single local measurements,
+not Linux CI proof. The official Web shard 2 rerun remains pending.
+
+Main CI desktop job `112109695891` failed the second diagnostic shortcut in E2E-034.
+Detached DevTools can own native focus, while Electron requires the target window to
+be focused before `sendInputEvent`. The existing packaged test now focuses the product
+window and observes native focus before sending that second shortcut. The production
+shortcut and all security assertions and deadlines are unchanged. The focused packaged
+macOS scenario passes three repetitions (20.5 seconds); its baseline also passed
+locally, so Linux confirmation remains owned by the next CI run. This focused run
+does not verify the scenario's separate physical clipboard journey.
+
+Final local gate for the restoration and native-focus corrections: all affected lanes
+passed, including Desktop and Web lint/typecheck/tests. React Doctor reports 100/100
+with no issues. Official Web shard 2 is still running; final CI is pending.

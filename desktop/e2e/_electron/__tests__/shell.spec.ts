@@ -1368,6 +1368,13 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
         )
     )
     .toBe(true);
+  // Detached DevTools can own native focus; sendInputEvent requires the product window focused.
+  const nativeProduct = await desktop.app.browserWindow(product);
+  await nativeProduct.evaluate(window => {
+    window.focus();
+    window.webContents.focus();
+  });
+  await expect.poll(() => nativeProduct.evaluate(window => window.isFocused())).toBe(true);
   await desktop.app.evaluate(({ BrowserWindow }) => {
     const productWindow = BrowserWindow.getAllWindows().find(window =>
       /^https?:/u.test(window.webContents.getURL())

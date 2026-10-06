@@ -19,3 +19,9 @@ overlaps: LP-forced-cancel-owned-sessions; LP-amend-rerun; LP-fail-fast-lane-can
 Use a multi-lane run and compare the addressed cell with at least one healthy sibling after every verb through an independent read surface.
 
 QA impact 2026-08-31: Kill was removed; addressed Cancel now owns immediate fencing and session cleanup.
+
+Dependency-release follow-up: canceling a run-agent lane must retain its exact session in
+the cancellation result and durably enqueue one terminal cleanup for its binding epoch.
+Terminal settlement must precede generic stop cleanup within the same transaction. The
+existing real-SQLite `TestGoalSessionBindingLifecycleIntegration` owns this invariant;
+CLI/HTTP/UDS/native payloads and sibling-lane behavior remain unchanged.

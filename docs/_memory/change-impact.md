@@ -18,6 +18,13 @@ Desktop restoration commits window frames before mounting layout-heavy bodies, p
 window identities, geometry, overlays and gestures. The existing 12-window performance E2E
 and desktop-shell lifecycle scenario own this Web-only scheduling change; native tools,
 data, public contracts, official skills and site documentation need no additional changes.
+Release validation additionally repairs run-agent lane cleanup ordering: terminal binding
+settlement records its cause before generic cancellation, while returned session IDs and
+workspace/epoch ownership stay intact. `compozy__loop_node_cancel`, CLI/HTTP/UDS cancellation
+and the Web control retain their shapes and semantics. No schema migration, historical data
+rewrite, hook/config/extension change, or official skill/site update is required. The existing
+binding integration suite and `LP-per-lane-node-control` own this internal settlement invariant.
+HTTP/UDS request cancellation and notification-ledger fault injection are test-harness changes.
 
 ## Untested QA sweep — 2026-10-02
 
@@ -2130,3 +2137,17 @@ remain unchanged.
   contract. Clarify initial in-body routing and repeated-blocker precedence there. QA owner:
   LP-003, LP-revise-repair-context and the two gate-routing bug records in the owning report.
   Existing coordinator suites own the invariants; real command-gate runs own replay evidence.
+
+
+## Desktop restoration readiness and shortcut verification (2026-10-06)
+
+- Web waits for existing window-manager configuration before exposing restored desktops,
+  preventing a transient empty composer from delaying restored frames. Internal projection
+  only: native tools, CLI/HTTP/UDS contracts, extensibility/hooks/configuration, workspace
+  isolation and persisted layouts are unchanged. No migration or compatibility shim.
+- Electron changes only the packaged test's native-focus precondition; production security
+  and shortcut behavior remain unchanged. Official skills and public site documentation
+  require no changes.
+- QA owners: ET-web-desktop-shell-lifecycle (E2E-023) and
+  ET-electron-session-copy-debug (E2E-034). Evidence and verification limits are recorded
+  in `docs/qa/reports/2026-10-05-dependency-upgrades.md`.

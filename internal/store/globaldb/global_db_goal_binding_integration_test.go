@@ -1227,6 +1227,10 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			t.Fatalf("RequestNodeCancellation() = %#v, want applied", result)
 		}
 
+		if len(result.SessionIDs) != 1 || result.SessionIDs[0] != sessionID {
+			t.Fatalf("canceled lane sessions = %#v, want the bound session", result.SessionIDs)
+		}
+
 		binding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
 			WorkspaceID: workspaceID,
 			LoopRunID:   loopRunID,

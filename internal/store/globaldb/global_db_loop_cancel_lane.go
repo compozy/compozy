@@ -23,11 +23,8 @@ func (g *LoopRepo) requestNodeLaneCancellation(
 	if !live {
 		return nil
 	}
-	sessions, err := listNodeCancellationSessions(ctx, exec, mutation)
+	sessions, err := g.prepareNodeLaneCancellation(ctx, exec, mutation, run)
 	if err != nil {
-		return err
-	}
-	if err := g.prepareNodeLaneCancellation(ctx, exec, mutation, run); err != nil {
 		return err
 	}
 	failureCode := string(looppkg.TransitionCauseOperatorCancel)
@@ -96,11 +93,19 @@ func (g *LoopRepo) prepareNodeLaneCancellation(
 	exec taskSQLExecutor,
 	mutation looppkg.CancellationMutation,
 	run looppkg.Run,
-) error {
-	if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
-		return err
+) ([]string, error) {
+	sources, err := queryCancellationSessionSources(ctx, exec, mutation)
+	if err != nil {
+		return nil, err
 	}
-	return g.tasks.closeCanceledRunAgentLaneBinding(ctx, exec, mutation, run.Generation)
+	if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
+		return nil, err
+	}
+	if err := g.tasks.closeCanceledRunAgentLaneBinding(ctx, exec, mutation, run.Generation); err != nil {
+		return nil, err
+	}
+	// Terminal binding settlement owns cleanup before generic cancellation fills remaining obligations.
+	return enqueueCancellationSessions(ctx, exec, mutation, looppkg.SessionCleanupCauseStop, sources)
 }
 
 func nodeLaneLive(

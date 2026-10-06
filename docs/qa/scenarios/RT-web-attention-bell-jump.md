@@ -36,3 +36,9 @@ Local rendered QA is deferred by explicit user instruction; CI owns the new brow
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+Dependency-release CI follow-up: the disconnected-bell E2E must interrupt
+`/api/notifications/attention`, the bell's notification ledger, and observe that
+request failing before checking the warning. Interrupting the session catalog stream
+does not disconnect the ledger and can only pass accidentally during initial loading.
+The canonical `web/e2e/__tests__/attention.spec.ts` assertion and timeout remain intact.
