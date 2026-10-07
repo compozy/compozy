@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -1929,46 +1930,48 @@ func TestSharedSessionStopOperation(t *testing.T) {
 
 	t.Run("Should bound stop while the launcher ignores cancellation and settle after it returns", func(t *testing.T) {
 		t.Parallel()
-		h := newHarness(t)
-		entered, release := make(chan struct{}), make(chan struct{})
-		unblock := sync.OnceFunc(func() { close(release) })
-		t.Cleanup(unblock)
-		h.driver.startContextHook = func(ctx context.Context, _ acp.StartOpts, _ int) (*fakeProcess, error) {
-			close(entered)
-			<-release
-			return nil, ctx.Err()
-		}
-		created := make(chan error, 1)
-		go func() {
-			_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
-			created <- err
-		}()
-		<-entered
-		if err := h.manager.RequestStop(t.Context(), "sess-1", CauseUserRequested); err != nil {
-			t.Fatal(err)
-		}
-		budget := h.manager.stopConfig.CooperativeGrace + stopForcedGrace + stopKillGrace
-		ctx, cancel := context.WithTimeout(t.Context(), budget+time.Second)
-		defer cancel()
-		pending, err := h.manager.AwaitStopped(ctx, "sess-1")
-		if !errors.Is(err, ErrStopVerificationFailed) || pending.Verified || pending.FinalState != StateStopping {
-			t.Fatalf("hung launcher stop = %#v, %v", pending, err)
-		}
-		active, ok := h.manager.Get("sess-1")
-		if !ok || !readMeta(t, active.MetaPath()).StopVerificationFailed || h.notifier.stoppedCount() != 0 {
-			t.Fatal("hung launcher did not retain durable stop attention")
-		}
-		unblock()
-		if err := <-created; err != nil && !errors.Is(err, context.Canceled) {
-			t.Fatal(err)
-		}
-		if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
-			t.Fatal(err)
-		}
-		settled, err := h.manager.AwaitStopped(t.Context(), active.ID)
-		if err != nil || !settled.Verified || settled.FinalState != StateStopped {
-			t.Fatalf("late startup settlement = %#v, %v", settled, err)
-		}
+		synctest.Test(t, func(t *testing.T) {
+			h := newHarness(t)
+			entered, release := make(chan struct{}), make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			t.Cleanup(unblock)
+			h.driver.startContextHook = func(ctx context.Context, _ acp.StartOpts, _ int) (*fakeProcess, error) {
+				close(entered)
+				<-release
+				return nil, ctx.Err()
+			}
+			created := make(chan error, 1)
+			go func() {
+				_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				created <- err
+			}()
+			<-entered
+			if err := h.manager.RequestStop(t.Context(), "sess-1", CauseUserRequested); err != nil {
+				t.Fatal(err)
+			}
+			budget := h.manager.stopConfig.CooperativeGrace + stopForcedGrace + stopKillGrace
+			ctx, cancel := context.WithTimeout(t.Context(), budget+time.Second)
+			defer cancel()
+			pending, err := h.manager.AwaitStopped(ctx, "sess-1")
+			if !errors.Is(err, ErrStopVerificationFailed) || pending.Verified || pending.FinalState != StateStopping {
+				t.Fatalf("hung launcher stop = %#v, %v", pending, err)
+			}
+			active, ok := h.manager.Get("sess-1")
+			if !ok || !readMeta(t, active.MetaPath()).StopVerificationFailed || h.notifier.stoppedCount() != 0 {
+				t.Fatal("hung launcher did not retain durable stop attention")
+			}
+			unblock()
+			if err := <-created; err != nil && !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
+				t.Fatal(err)
+			}
+			settled, err := h.manager.AwaitStopped(t.Context(), active.ID)
+			if err != nil || !settled.Verified || settled.FinalState != StateStopped {
+				t.Fatalf("late startup settlement = %#v, %v", settled, err)
+			}
+		})
 	})
 	t.Run("Should retain an unverified process acquired after startup cancellation", func(t *testing.T) {
 		t.Parallel()

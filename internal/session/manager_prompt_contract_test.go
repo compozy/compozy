@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 	"unicode/utf8"
 
@@ -376,73 +377,76 @@ func TestPromptPersistenceFailureStopsSessionBeforeLiveDelivery(t *testing.T) {
 func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t, WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
-		ActivityHeartbeatInterval: time.Hour,
-		ProgressNotifyInterval:    0,
-		QuietAfter:                0,
-		StopGrace:                 0,
-		TimeoutCancelGrace:        2 * time.Second,
-		PromptDeadline:            20 * time.Millisecond,
-	}))
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
-			t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+	// Keep the deadline and stop budgets while advancing blocked time virtually.
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
+			ActivityHeartbeatInterval: time.Hour,
+			ProgressNotifyInterval:    0,
+			QuietAfter:                0,
+			StopGrace:                 0,
+			TimeoutCancelGrace:        2 * time.Second,
+			PromptDeadline:            20 * time.Millisecond,
+		}))
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+			}
+		})
+
+		source := make(chan acp.AgentEvent, 1)
+		var promptTurnID string
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			promptTurnID = req.TurnID
+			return source, nil
+		}
+		// The deadline issues the cancel under test; the cleanup stop ladder later
+		// sends a second cooperative cancel to the already-quiesced turn, which must
+		// not replay the provider error into the closed source.
+		var deadlineCancel sync.Once
+		h.driver.cancelHook = func(proc *fakeProcess) error {
+			deadlineCancel.Do(func() {
+				source <- acp.AgentEvent{
+					Type:      acp.EventTypeError,
+					SessionID: proc.handle.SessionID,
+					TurnID:    promptTurnID,
+					Timestamp: time.Now().UTC(),
+					Error:     `{"code":-32603,"message":"Internal error","data":{"error":"context deadline exceeded"}}`,
+				}
+				close(source)
+			})
+			return nil
+		}
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "long running")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		if got, want := len(events), 2; got != want {
+			t.Fatalf("Prompt() events = %d, want %d", got, want)
+		}
+		if got, want := events[0].Type, acp.EventTypeRuntimeWarning; got != want {
+			t.Fatalf("Prompt() first event type = %q, want %q", got, want)
+		}
+		if got, want := events[1].Type, acp.EventTypeError; got != want {
+			t.Fatalf("Prompt() second event type = %q, want %q", got, want)
+		}
+		if events[0].Runtime == nil || events[0].Runtime.DeadlineAt == nil {
+			t.Fatalf("Prompt() first runtime = %#v, want deadline payload", events[0].Runtime)
+		}
+		// The deadline cancels the turn in turn scope; the provider answers that cancel
+		// with a fatal transport error, so the session-scope ladder stops the process
+		// exactly once. Its cooperative phase may re-issue the cancel before the
+		// forced stop verifies exit, which the once-guarded hook above absorbs.
+		h.notifier.waitForStopped(t, session.ID)
+		if got := h.driver.cancelCalls; got < 1 {
+			t.Fatalf("driver cancel calls = %d, want at least 1", got)
+		}
+		if got := h.driver.stopCalls; got != 1 {
+			t.Fatalf("driver stop calls = %d, want 1", got)
 		}
 	})
-
-	source := make(chan acp.AgentEvent, 1)
-	var promptTurnID string
-	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		promptTurnID = req.TurnID
-		return source, nil
-	}
-	// The deadline issues the cancel under test; the cleanup stop ladder later
-	// sends a second cooperative cancel to the already-quiesced turn, which must
-	// not replay the provider error into the closed source.
-	var deadlineCancel sync.Once
-	h.driver.cancelHook = func(proc *fakeProcess) error {
-		deadlineCancel.Do(func() {
-			source <- acp.AgentEvent{
-				Type:      acp.EventTypeError,
-				SessionID: proc.handle.SessionID,
-				TurnID:    promptTurnID,
-				Timestamp: time.Now().UTC(),
-				Error:     `{"code":-32603,"message":"Internal error","data":{"error":"context deadline exceeded"}}`,
-			}
-			close(source)
-		})
-		return nil
-	}
-
-	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "long running")
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-	events := collectEvents(t, eventsCh)
-	if got, want := len(events), 2; got != want {
-		t.Fatalf("Prompt() events = %d, want %d", got, want)
-	}
-	if got, want := events[0].Type, acp.EventTypeRuntimeWarning; got != want {
-		t.Fatalf("Prompt() first event type = %q, want %q", got, want)
-	}
-	if got, want := events[1].Type, acp.EventTypeError; got != want {
-		t.Fatalf("Prompt() second event type = %q, want %q", got, want)
-	}
-	if events[0].Runtime == nil || events[0].Runtime.DeadlineAt == nil {
-		t.Fatalf("Prompt() first runtime = %#v, want deadline payload", events[0].Runtime)
-	}
-	// The deadline cancels the turn in turn scope; the provider answers that cancel
-	// with a fatal transport error, so the session-scope ladder stops the process
-	// exactly once. Its cooperative phase may re-issue the cancel before the
-	// forced stop verifies exit, which the once-guarded hook above absorbs.
-	h.notifier.waitForStopped(t, session.ID)
-	if got := h.driver.cancelCalls; got < 1 {
-		t.Fatalf("driver cancel calls = %d, want at least 1", got)
-	}
-	if got := h.driver.stopCalls; got != 1 {
-		t.Fatalf("driver stop calls = %d, want 1", got)
-	}
 }
 
 func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *testing.T) {

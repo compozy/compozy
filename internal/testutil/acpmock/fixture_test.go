@@ -1145,6 +1145,12 @@ func TestDefaultDriverPathSharesConcurrentBuildResult(t *testing.T) {
 	if _, err := os.Stat(builtPath); err != nil {
 		t.Fatalf("os.Stat(%q) error = %v", builtPath, err)
 	}
+
+	// Reuse the cold-build result for the real command contract; the serial
+	// parent keeps its PATH override isolated from the parallel driver tests.
+	t.Run("Should support user command expectations with the shared driver", func(t *testing.T) {
+		testDriverSupportsUserCommandExpectations(t, builtPath)
+	})
 }
 
 func TestValidationAndDriverHelpers(t *testing.T) {
