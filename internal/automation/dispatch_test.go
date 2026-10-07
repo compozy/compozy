@@ -2,13 +2,13 @@ package automation
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -854,7 +854,7 @@ func TestDispatchFireLimitPersistsAcrossDispatcherRecreation(t *testing.T) {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(ctx); err != nil {
+		if err := db.Close(context.WithoutCancel(ctx)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})
@@ -932,8 +932,8 @@ func TestDispatchScheduledReservedRunCancelsOnFireLimit(t *testing.T) {
 				JobID:     job.ID,
 				Status:    RunCompleted,
 				Attempt:   1,
-				StartedAt: timePointer(earlierStartedAt),
-				EndedAt:   timePointer(earlierStartedAt.Add(time.Minute)),
+				StartedAt: new(earlierStartedAt),
+				EndedAt:   new(earlierStartedAt.Add(time.Minute)),
 			}); err != nil {
 				t.Fatalf("CreateRun(existing) error = %v", err)
 			}
@@ -943,8 +943,8 @@ func TestDispatchScheduledReservedRunCancelsOnFireLimit(t *testing.T) {
 				JobID:       job.ID,
 				Status:      RunScheduled,
 				Attempt:     1,
-				ScheduledAt: timePointer(now),
-				StartedAt:   timePointer(now),
+				ScheduledAt: new(now),
+				StartedAt:   new(now),
 			})
 			if err != nil {
 				t.Fatalf("CreateRun(reserved) error = %v", err)
@@ -1019,7 +1019,7 @@ func TestDispatchReservedRunAdvancesAttemptAcrossRetry(t *testing.T) {
 		JobID:     job.ID,
 		Status:    RunScheduled,
 		Attempt:   1,
-		StartedAt: timePointer(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
+		StartedAt: new(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
 	})
 	if err != nil {
 		t.Fatalf("CreateRun(reserved) error = %v", err)
@@ -1085,8 +1085,8 @@ func TestDispatchFireLimitIgnoresCancelledRuns(t *testing.T) {
 			JobID:     job.ID,
 			Status:    RunCancelled,
 			Attempt:   1,
-			StartedAt: timePointer(cancelledAt),
-			EndedAt:   timePointer(cancelledAt.Add(time.Minute)),
+			StartedAt: new(cancelledAt),
+			EndedAt:   new(cancelledAt.Add(time.Minute)),
 		}); err != nil {
 			t.Fatalf("CreateRun(canceled) error = %v", err)
 		}
@@ -1173,8 +1173,8 @@ func TestDispatchBackoffRetryRecordsAttemptMetadata(t *testing.T) {
 	if got, want := len(runs), 2; got != want {
 		t.Fatalf("len(runs) = %d, want %d", got, want)
 	}
-	sort.Slice(runs, func(i, j int) bool {
-		return runs[i].Attempt < runs[j].Attempt
+	slices.SortFunc(runs, func(a, b Run) int {
+		return cmp.Compare(a.Attempt, b.Attempt)
 	})
 	if got, want := runs[0].Status, RunFailed; got != want {
 		t.Fatalf("runs[0].Status = %q, want %q", got, want)
@@ -1310,7 +1310,7 @@ func TestDispatchRequestValidateRejectsInvalidShapes(t *testing.T) {
 			req: DispatchRequest{
 				Kind:    DispatchKindTrigger,
 				Trigger: &trigger,
-				Envelope: pointerToEnvelope(ActivationEnvelope{
+				Envelope: new(ActivationEnvelope{
 					Kind:   "session.stopped",
 					Scope:  AutomationScopeGlobal,
 					Source: ActivationSourceWebhook,
@@ -1321,8 +1321,8 @@ func TestDispatchRequestValidateRejectsInvalidShapes(t *testing.T) {
 			name: "trigger workspace mismatch",
 			req: DispatchRequest{
 				Kind:    DispatchKindTrigger,
-				Trigger: pointerToTrigger(testTrigger(AutomationScopeWorkspace, "trigger-workspace", "ws_alpha")),
-				Envelope: pointerToEnvelope(ActivationEnvelope{
+				Trigger: new(testTrigger(AutomationScopeWorkspace, "trigger-workspace", "ws_alpha")),
+				Envelope: new(ActivationEnvelope{
 					Kind:        "webhook",
 					Scope:       AutomationScopeWorkspace,
 					WorkspaceID: "ws_bravo",
@@ -1335,7 +1335,7 @@ func TestDispatchRequestValidateRejectsInvalidShapes(t *testing.T) {
 			req: DispatchRequest{
 				Kind:    DispatchKindTrigger,
 				Trigger: &trigger,
-				Envelope: pointerToEnvelope(ActivationEnvelope{
+				Envelope: new(ActivationEnvelope{
 					Kind:   envelope.Kind,
 					Scope:  AutomationScopeWorkspace,
 					Source: ActivationSourceWebhook,
@@ -1368,7 +1368,7 @@ func TestDispatchTriggerRendersPromptTemplateAndUsesTriggerMetadata(t *testing.T
 	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
 		Kind:     DispatchKindTrigger,
 		Trigger:  &trigger,
-		Envelope: pointerToEnvelope(envelope),
+		Envelope: new(envelope),
 	})
 	if err != nil {
 		t.Fatalf("Dispatch() error = %v", err)
@@ -2264,14 +2264,4 @@ func testEnvelope(scope Scope, workspaceID string) ActivationEnvelope {
 			"payload": "deploy",
 		},
 	}
-}
-
-func pointerToTrigger(trigger Trigger) *Trigger {
-	clone := trigger
-	return &clone
-}
-
-func pointerToEnvelope(envelope ActivationEnvelope) *ActivationEnvelope {
-	clone := envelope
-	return &clone
 }

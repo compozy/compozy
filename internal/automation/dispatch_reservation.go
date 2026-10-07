@@ -126,7 +126,7 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 		ProfileID: req.profileID(),
 		Status:    RunScheduled,
 		Attempt:   attempt,
-		StartedAt: timePointer(now),
+		StartedAt: new(now),
 		Metadata:  webhookRunMetadata(req),
 	}
 	if req.Job != nil {

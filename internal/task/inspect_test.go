@@ -78,7 +78,7 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 			ClaimedAt:      now.Add(-12 * time.Minute),
 		})
 
-		view, err := manager.InspectTask(context.Background(), "task-inspect-stuck", validActorContext())
+		view, err := manager.InspectTask(t.Context(), "task-inspect-stuck", validActorContext())
 		if err != nil {
 			t.Fatalf("InspectTask() error = %v", err)
 		}
@@ -102,7 +102,7 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 			ClaimedAt: time.Time{},
 		})
 
-		view, err := manager.InspectTask(context.Background(), "task-inspect-stranded", validActorContext())
+		view, err := manager.InspectTask(t.Context(), "task-inspect-stranded", validActorContext())
 		if err != nil {
 			t.Fatalf("InspectTask() error = %v", err)
 		}
@@ -127,7 +127,7 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 			ClaimedAt: time.Time{},
 		})
 
-		view, err := manager.InspectTask(context.Background(), "task-inspect-paused-scheduler", validActorContext())
+		view, err := manager.InspectTask(t.Context(), "task-inspect-paused-scheduler", validActorContext())
 		if err != nil {
 			t.Fatalf("InspectTask() error = %v", err)
 		}
@@ -162,7 +162,7 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 			ClaimedAt:      now.Add(-time.Minute),
 		})
 
-		view, err := manager.InspectRun(context.Background(), "run-inspect-orphan", validActorContext())
+		view, err := manager.InspectRun(t.Context(), "run-inspect-orphan", validActorContext())
 		if err != nil {
 			t.Fatalf("InspectRun() error = %v", err)
 		}
@@ -203,7 +203,7 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 				ClaimedAt:      now.Add(-time.Minute),
 			})
 
-			view, err := manager.InspectRun(context.Background(), runID, validActorContext())
+			view, err := manager.InspectRun(t.Context(), runID, validActorContext())
 			if err != nil {
 				t.Fatalf("InspectRun(%s) error = %v", status, err)
 			}
@@ -242,7 +242,7 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 			QueuedAt:      now.Add(-time.Minute),
 		}
 
-		view, err := manager.InspectTask(context.Background(), "task-inspect-crashed-retry", validActorContext())
+		view, err := manager.InspectTask(t.Context(), "task-inspect-crashed-retry", validActorContext())
 		if err != nil {
 			t.Fatalf("InspectTask() error = %v", err)
 		}

@@ -188,7 +188,7 @@ func (d *Dispatcher) delegateRunToLoop(ctx context.Context, current *Run, loopRu
 		run.TaskID = ""
 		run.TaskRunID = ""
 		run.Status = RunDelegated
-		run.EndedAt = timePointer(now)
+		run.EndedAt = new(now)
 		run.Error = ""
 	})
 	if updateErr != nil {

@@ -18,11 +18,6 @@ func persistenceContext(ctx context.Context) (context.Context, context.CancelFun
 	return context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 }
 
-func timePointer(value time.Time) *time.Time {
-	timestamp := value
-	return &timestamp
-}
-
 func cloneRun(run *Run) *Run {
 	if run == nil {
 		return nil
@@ -30,20 +25,16 @@ func cloneRun(run *Run) *Run {
 
 	cloned := *run
 	if run.ScheduledAt != nil {
-		scheduledAt := *run.ScheduledAt
-		cloned.ScheduledAt = &scheduledAt
+		cloned.ScheduledAt = new(*run.ScheduledAt)
 	}
 	if run.StartedAt != nil {
-		startedAt := *run.StartedAt
-		cloned.StartedAt = &startedAt
+		cloned.StartedAt = new(*run.StartedAt)
 	}
 	if run.EndedAt != nil {
-		endedAt := *run.EndedAt
-		cloned.EndedAt = &endedAt
+		cloned.EndedAt = new(*run.EndedAt)
 	}
 	if run.DeliveryErrorAt != nil {
-		deliveryErrorAt := *run.DeliveryErrorAt
-		cloned.DeliveryErrorAt = &deliveryErrorAt
+		cloned.DeliveryErrorAt = new(*run.DeliveryErrorAt)
 	}
 	cloned.Metadata = cloneJSONMap(run.Metadata)
 	return &cloned

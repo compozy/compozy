@@ -48,8 +48,7 @@ func (m *Service) BindLeasedRunSession(
 	if err != nil {
 		return nil, err
 	}
-	run := settlement.Run
-	return &run, nil
+	return new(settlement.Run), nil
 }
 
 // ReleaseRunLease releases one active task-run lease after token verification and requeues the run.

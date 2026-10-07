@@ -1,15 +1,14 @@
 package model
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 )
 
 // SortJobsForList orders jobs by source precedence, name, and id.
 func SortJobsForList(jobs []Job) {
-	sort.Slice(jobs, func(left int, right int) bool {
-		leftJob := jobs[left]
-		rightJob := jobs[right]
+	slices.SortFunc(jobs, func(leftJob, rightJob Job) int {
 		return compareListKey(
 			leftJob.Source,
 			leftJob.Name,
@@ -17,15 +16,13 @@ func SortJobsForList(jobs []Job) {
 			rightJob.Source,
 			rightJob.Name,
 			rightJob.ID,
-		) < 0
+		)
 	})
 }
 
 // SortTriggersForList orders triggers by source precedence, name, and id.
 func SortTriggersForList(triggers []Trigger) {
-	sort.Slice(triggers, func(left int, right int) bool {
-		leftTrigger := triggers[left]
-		rightTrigger := triggers[right]
+	slices.SortFunc(triggers, func(leftTrigger, rightTrigger Trigger) int {
 		return compareListKey(
 			leftTrigger.Source,
 			leftTrigger.Name,
@@ -33,7 +30,7 @@ func SortTriggersForList(triggers []Trigger) {
 			rightTrigger.Source,
 			rightTrigger.Name,
 			rightTrigger.ID,
-		) < 0
+		)
 	})
 }
 
@@ -158,12 +155,9 @@ func TriggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
 }
 
 func listSearchMatches(search string, fields ...string) bool {
-	for _, field := range fields {
-		if strings.Contains(strings.ToLower(field), search) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(fields, func(field string) bool {
+		return strings.Contains(strings.ToLower(field), search)
+	})
 }
 
 func jobMatchesLoopName(job Job, loopName string) bool {
@@ -186,13 +180,11 @@ func compareListKey(
 	rightName string,
 	rightID string,
 ) int {
-	if sourceComparison := listSourceRank(leftSource) - listSourceRank(rightSource); sourceComparison != 0 {
-		return sourceComparison
-	}
-	if nameComparison := strings.Compare(leftName, rightName); nameComparison != 0 {
-		return nameComparison
-	}
-	return strings.Compare(leftID, rightID)
+	return cmp.Or(
+		listSourceRank(leftSource)-listSourceRank(rightSource),
+		strings.Compare(leftName, rightName),
+		strings.Compare(leftID, rightID),
+	)
 }
 
 func listSourceRank(source JobSource) int {

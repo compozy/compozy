@@ -80,12 +80,10 @@ func (c *TerminalRunHistoryImport) Actor() ActorContext { return c.actor }
 func cloneImportedRun(run Run) Run {
 	cloned := run
 	if run.ClaimedBy != nil {
-		claimedBy := *run.ClaimedBy
-		cloned.ClaimedBy = &claimedBy
+		cloned.ClaimedBy = new(*run.ClaimedBy)
 	}
 	if run.RunWorktreeState != nil {
-		worktreeState := *run.RunWorktreeState
-		cloned.RunWorktreeState = &worktreeState
+		cloned.RunWorktreeState = new(*run.RunWorktreeState)
 	}
 	cloned.RequiredCapabilities = slices.Clone(run.RequiredCapabilities)
 	cloned.PreferredCapabilities = slices.Clone(run.PreferredCapabilities)

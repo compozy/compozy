@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"sort"
+	"cmp"
+	"slices"
 
 	"strings"
 
@@ -29,8 +30,8 @@ func (e *TriggerEngine) matchingRegistrations(envelope ActivationEnvelope) ([]Tr
 			matches = append(matches, cloneTriggerRegistration(registration))
 		}
 	}
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].Trigger.ID < matches[j].Trigger.ID
+	slices.SortFunc(matches, func(a, b TriggerRegistration) int {
+		return cmp.Compare(a.Trigger.ID, b.Trigger.ID)
 	})
 	return matches, nil
 }
@@ -73,10 +74,9 @@ func (e *TriggerEngine) dispatchMatches(
 		}
 
 		result.Matched++
-		trigger := registration.Trigger
 		run, err := e.dispatcher.Dispatch(ctx, DispatchRequest{
 			Kind:        dispatchKind,
-			Trigger:     &trigger,
+			Trigger:     new(registration.Trigger),
 			Envelope:    pointerToActivationEnvelope(envelope),
 			ReservedRun: cloneRun(reservedRun),
 		})

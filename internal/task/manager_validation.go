@@ -60,12 +60,10 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 	normalized.Description = strings.TrimSpace(normalized.Description)
 	normalized.Priority = normalizePriorityOrDefault(normalized.Priority)
 	if normalized.MaxAttempts != nil {
-		maxAttempts := *normalized.MaxAttempts
-		normalized.MaxAttempts = &maxAttempts
+		normalized.MaxAttempts = new(*normalized.MaxAttempts)
 	}
 	if normalized.WakeCreator != nil {
-		wakeCreator := *normalized.WakeCreator
-		normalized.WakeCreator = &wakeCreator
+		normalized.WakeCreator = new(*normalized.WakeCreator)
 	}
 	normalized.ApprovalPolicy = normalizeApprovalPolicyOrDefault(normalized.ApprovalPolicy)
 	if normalized.Owner != nil {
@@ -88,32 +86,25 @@ func createTaskWakeCreator(spec CreateTask) bool {
 func normalizeTaskPatch(patch Patch) (Patch, error) {
 	normalized := patch
 	if normalized.Title != nil {
-		title := strings.TrimSpace(*normalized.Title)
-		normalized.Title = &title
+		normalized.Title = new(strings.TrimSpace(*normalized.Title))
 	}
 	if normalized.Description != nil {
-		description := strings.TrimSpace(*normalized.Description)
-		normalized.Description = &description
+		normalized.Description = new(strings.TrimSpace(*normalized.Description))
 	}
 	if normalized.Priority != nil {
-		priority := normalized.Priority.Normalize()
-		normalized.Priority = &priority
+		normalized.Priority = new(normalized.Priority.Normalize())
 	}
 	if normalized.MaxAttempts != nil {
-		maxAttempts := *normalized.MaxAttempts
-		normalized.MaxAttempts = &maxAttempts
+		normalized.MaxAttempts = new(*normalized.MaxAttempts)
 	}
 	if normalized.AutoEnqueueOnReady != nil {
-		autoEnqueue := *normalized.AutoEnqueueOnReady
-		normalized.AutoEnqueueOnReady = &autoEnqueue
+		normalized.AutoEnqueueOnReady = new(*normalized.AutoEnqueueOnReady)
 	}
 	if normalized.ApprovalPolicy != nil {
-		approvalPolicy := normalized.ApprovalPolicy.Normalize()
-		normalized.ApprovalPolicy = &approvalPolicy
+		normalized.ApprovalPolicy = new(normalized.ApprovalPolicy.Normalize())
 	}
 	if normalized.Metadata != nil {
-		metadata := normalizeRawJSON(*normalized.Metadata)
-		normalized.Metadata = &metadata
+		normalized.Metadata = new(normalizeRawJSON(*normalized.Metadata))
 	}
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)

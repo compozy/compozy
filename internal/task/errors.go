@@ -3,6 +3,7 @@ package task
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -126,7 +127,5 @@ func cloneErrorStringSlice(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
-	cloned := make([]string, len(values))
-	copy(cloned, values)
-	return cloned
+	return slices.Clone(values)
 }

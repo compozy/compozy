@@ -42,8 +42,7 @@ func cloneRunReview(review *RunReview) RunReview {
 	cloned.MissingWork = cloneRawJSON(review.MissingWork)
 	cloned.ReviewedBy = cloneActorIdentity(review.ReviewedBy)
 	if review.Confidence != nil {
-		confidence := *review.Confidence
-		cloned.Confidence = &confidence
+		cloned.Confidence = new(*review.Confidence)
 	}
 	return cloned
 }
