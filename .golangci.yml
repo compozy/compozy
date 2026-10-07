@@ -41,6 +41,7 @@ linters:
       rules:
         modern-go-root:
           files:
+            - "${config-path}/*.go"
             - "${config-path}/**/*.go"
             - "!${config-path}/sdk/**/*.go"
             - "!${config-path}/internal/extension/testdata/**/*.go"
