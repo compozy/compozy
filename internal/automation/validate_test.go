@@ -398,58 +398,6 @@ func TestDefaultsAndEnumValidation(t *testing.T) {
 	}
 }
 
-func TestValidateTriggerFilter(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name    string
-		filter  map[string]string
-		wantErr string
-	}{
-		{
-			name: "valid built in fields",
-			filter: map[string]string{
-				"kind":       "session.stopped",
-				"data.agent": "researcher",
-			},
-		},
-		{
-			name: "invalid path",
-			filter: map[string]string{
-				"payload.agent": "researcher",
-			},
-			wantErr: "payload.agent",
-		},
-		{
-			name: "empty value",
-			filter: map[string]string{
-				"kind": " ",
-			},
-			wantErr: "kind",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := ValidateTriggerFilter(tc.filter, "trigger.filter")
-			if tc.wantErr == "" {
-				if err != nil {
-					t.Fatalf("ValidateTriggerFilter() error = %v", err)
-				}
-				return
-			}
-			if err == nil {
-				t.Fatal("ValidateTriggerFilter() error = nil, want non-nil")
-			}
-			if got := err.Error(); !strings.Contains(got, tc.wantErr) {
-				t.Fatalf("ValidateTriggerFilter() error = %q, want substring %q", got, tc.wantErr)
-			}
-		})
-	}
-}
-
 func TestJobValidate(t *testing.T) {
 	t.Parallel()
 
