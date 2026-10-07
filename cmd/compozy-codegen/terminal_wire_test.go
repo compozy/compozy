@@ -11,6 +11,8 @@ import (
 )
 
 func TestTerminalWire(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should generate both terminal wire languages from one manifest", func(t *testing.T) {
 		t.Parallel()
 		directory := t.TempDir()

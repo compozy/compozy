@@ -16,6 +16,8 @@ import (
 )
 
 func TestRunWithPaths(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ShouldReturnUsageWhenTargetIsMissing", func(t *testing.T) {
 		t.Parallel()
 
@@ -405,6 +407,8 @@ func TestCanonicalJSON(t *testing.T) {
 }
 
 func TestWriteOpenAPI(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should propagate write errors", func(t *testing.T) {
 		t.Parallel()
 
@@ -419,6 +423,8 @@ func TestWriteOpenAPI(t *testing.T) {
 }
 
 func TestWriteSDKContracts(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should propagate write errors", func(t *testing.T) {
 		t.Parallel()
 
@@ -450,6 +456,8 @@ func TestWriteSDKContracts(t *testing.T) {
 }
 
 func TestWriteAll(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should restore every file when file publication fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -582,6 +590,8 @@ func TestShutdownSignals(t *testing.T) {
 }
 
 func TestFormatTypeScript(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ShouldMatchRepositoryFormatter", func(t *testing.T) {
 		t.Parallel()
 
@@ -633,6 +643,8 @@ func TestMarshalOpenAPI(t *testing.T) {
 }
 
 func TestGenerateFormattedSDKContracts(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ShouldReturnContextErrorsFromFormatting", func(t *testing.T) {
 		t.Parallel()
 
@@ -650,6 +662,8 @@ func TestGenerateFormattedSDKContracts(t *testing.T) {
 }
 
 func TestGenerateFormattedLoopEnums(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should format generated loop enums", func(t *testing.T) {
 		t.Parallel()
 
