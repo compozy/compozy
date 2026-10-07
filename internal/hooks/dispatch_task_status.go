@@ -7,9 +7,8 @@ func (h *Hooks) DispatchTaskStatusChanged(
 	ctx context.Context,
 	payload TaskStatusChangedPayload,
 ) (TaskStatusChangedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookTaskStatusChanged,
 		payload,
 		dispatchConfig[TaskStatusChangedPayload, TaskObservationPatch]{

@@ -296,8 +296,8 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 					manifest.Gateway = &GatewayRequirement{Permissions: test.scopes}
 				}
 				err := env.registry.Install(manifest, dir, checksum)
-				var validationErr *ManifestValidationError
-				if !errors.As(err, &validationErr) || validationErr.Field != test.field {
+				validationErr, ok := errors.AsType[*ManifestValidationError](err)
+				if !ok || validationErr.Field != test.field {
 					t.Fatalf("Install() error = %v, want validation field %q", err, test.field)
 				}
 			})
@@ -330,8 +330,8 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 		if err == nil {
 			t.Fatal("Install() error = nil, want workspace provider rejection")
 		}
-		var validationErr *ManifestValidationError
-		if !errors.As(err, &validationErr) || validationErr.Field != "capabilities.provides" {
+		validationErr, ok := errors.AsType[*ManifestValidationError](err)
+		if !ok || validationErr.Field != "capabilities.provides" {
 			t.Fatalf("Install() error = %v, want capabilities.provides validation", err)
 		}
 	})

@@ -222,9 +222,7 @@ func cloneRawMessage(src json.RawMessage) json.RawMessage {
 	if len(src) == 0 {
 		return nil
 	}
-	out := make(json.RawMessage, len(src))
-	copy(out, src)
-	return out
+	return slices.Clone(src)
 }
 
 func runtimeToolID(handler string) (toolspkg.ToolID, error) {

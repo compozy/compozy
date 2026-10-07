@@ -3,7 +3,7 @@ package hooks
 import (
 	"fmt"
 
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -195,7 +195,7 @@ func ValidateMatcherForEvent(event HookEvent, matcher HookMatcher) error {
 		return validateMatcherPatterns(matcher)
 	}
 
-	sort.Strings(invalid)
+	slices.Sort(invalid)
 	return fmt.Errorf("hooks: matcher fields [%s] are not valid for event %q", strings.Join(invalid, ", "), event)
 }
 

@@ -433,8 +433,7 @@ func cloneModelSourceRows(src []extensioncontract.ModelSourceRow) []extensioncon
 		cloned[index].ReleaseDate = cloneModelSourceStringPointer(src[index].ReleaseDate)
 		cloned[index].ReasoningEfforts = append([]apicontract.ReasoningEffort(nil), src[index].ReasoningEfforts...)
 		if src[index].DefaultReasoningEffort != nil {
-			value := *src[index].DefaultReasoningEffort
-			cloned[index].DefaultReasoningEffort = &value
+			cloned[index].DefaultReasoningEffort = new(*src[index].DefaultReasoningEffort)
 		}
 		if src[index].Cost != nil {
 			cloned[index].Cost = &apicontract.ModelCatalogCostPayload{
@@ -454,30 +453,26 @@ func cloneModelSourceStringPointer(src *string) *string {
 	if src == nil {
 		return nil
 	}
-	value := *src
-	return &value
+	return new(*src)
 }
 
 func cloneModelSourceBoolPointer(src *bool) *bool {
 	if src == nil {
 		return nil
 	}
-	value := *src
-	return &value
+	return new(*src)
 }
 
 func cloneModelSourceInt64Pointer(src *int64) *int64 {
 	if src == nil {
 		return nil
 	}
-	value := *src
-	return &value
+	return new(*src)
 }
 
 func cloneModelSourceFloat64Pointer(src *float64) *float64 {
 	if src == nil {
 		return nil
 	}
-	value := *src
-	return &value
+	return new(*src)
 }

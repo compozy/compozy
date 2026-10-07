@@ -17,8 +17,7 @@ func (h *HostAPIHandler) taskRunDetailPayloadFromView(
 
 	var task *apicontract.TaskReferencePayload
 	if view.Task != nil {
-		payload := taskReferencePayloadFromReference(*view.Task)
-		task = &payload
+		task = new(taskReferencePayloadFromReference(*view.Task))
 	}
 
 	payload := apicontract.TaskRunDetailPayload{

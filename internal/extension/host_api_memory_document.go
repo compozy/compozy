@@ -148,6 +148,5 @@ func cloneHostAPITime(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}
-	cloned := value.UTC()
-	return &cloned
+	return new(value.UTC())
 }

@@ -21,7 +21,7 @@ func TestMultiRegistryContractNotFound(t *testing.T) {
 			},
 		})
 
-		_, err := registry.Info(context.Background(), "missing")
+		_, err := registry.Info(t.Context(), "missing")
 		if !errors.Is(err, ErrPackageNotFound) {
 			t.Fatalf("Info(missing) error = %v, want ErrPackageNotFound", err)
 		}
@@ -53,7 +53,7 @@ func TestMultiRegistryContractNotFound(t *testing.T) {
 		}
 		registry := NewMultiRegistry(testLogger(), lower, higher)
 
-		detail, err := registry.Info(context.Background(), "shared")
+		detail, err := registry.Info(t.Context(), "shared")
 		if err != nil {
 			t.Fatalf("Info(shared) error = %v", err)
 		}
@@ -61,7 +61,7 @@ func TestMultiRegistryContractNotFound(t *testing.T) {
 			t.Fatalf("Info(shared) source = %q, want local", detail.Source)
 		}
 
-		result, err := registry.Download(context.Background(), "shared", DownloadOpts{})
+		result, err := registry.Download(t.Context(), "shared", DownloadOpts{})
 		if err != nil {
 			t.Fatalf("Download(shared) error = %v", err)
 		}

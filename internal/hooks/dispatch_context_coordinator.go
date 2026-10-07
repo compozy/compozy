@@ -7,9 +7,8 @@ func (h *Hooks) DispatchContextPreCompact(
 	ctx context.Context,
 	payload ContextPreCompactPayload,
 ) (ContextPreCompactPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookContextPreCompact,
 		payload,
 		dispatchConfig[ContextPreCompactPayload, ContextPreCompactPatch]{
@@ -25,9 +24,8 @@ func (h *Hooks) DispatchContextPostCompact(
 	ctx context.Context,
 	payload ContextPostCompactPayload,
 ) (ContextPostCompactPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookContextPostCompact,
 		payload,
 		dispatchConfig[ContextPostCompactPayload, ContextPostCompactPatch]{
@@ -43,9 +41,8 @@ func (h *Hooks) DispatchCoordinatorPreSpawn(
 	ctx context.Context,
 	payload CoordinatorPreSpawnPayload,
 ) (CoordinatorPreSpawnPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookCoordinatorPreSpawn,
 		payload,
 		dispatchConfig[CoordinatorPreSpawnPayload, CoordinatorSpawnPatch]{
@@ -64,9 +61,8 @@ func (h *Hooks) DispatchCoordinatorSpawned(
 	ctx context.Context,
 	payload CoordinatorSpawnedPayload,
 ) (CoordinatorSpawnedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookCoordinatorSpawned,
 		payload,
 		dispatchConfig[CoordinatorSpawnedPayload, CoordinatorObservationPatch]{
@@ -81,9 +77,8 @@ func (h *Hooks) DispatchCoordinatorDecision(
 	ctx context.Context,
 	payload CoordinatorDecisionPayload,
 ) (CoordinatorDecisionPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookCoordinatorDecision,
 		payload,
 		dispatchConfig[CoordinatorDecisionPayload, CoordinatorObservationPatch]{
@@ -98,9 +93,8 @@ func (h *Hooks) DispatchCoordinatorStopped(
 	ctx context.Context,
 	payload CoordinatorStoppedPayload,
 ) (CoordinatorStoppedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookCoordinatorStopped,
 		payload,
 		dispatchConfig[CoordinatorStoppedPayload, CoordinatorObservationPatch]{
@@ -115,9 +109,8 @@ func (h *Hooks) DispatchCoordinatorFailed(
 	ctx context.Context,
 	payload CoordinatorFailedPayload,
 ) (CoordinatorFailedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookCoordinatorFailed,
 		payload,
 		dispatchConfig[CoordinatorFailedPayload, CoordinatorObservationPatch]{

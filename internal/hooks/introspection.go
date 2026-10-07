@@ -162,16 +162,13 @@ func catalogStringMatches(filter string, value string) bool {
 func cloneHookMatcher(src HookMatcher) HookMatcher {
 	cloned := src
 	if src.ToolReadOnly != nil {
-		value := *src.ToolReadOnly
-		cloned.ToolReadOnly = &value
+		cloned.ToolReadOnly = new(*src.ToolReadOnly)
 	}
 	if src.CompactionMatcher != nil {
-		value := *src.CompactionMatcher
-		cloned.CompactionMatcher = &value
+		cloned.CompactionMatcher = new(*src.CompactionMatcher)
 	}
 	if src.Autonomy != nil {
-		value := *src.Autonomy
-		cloned.Autonomy = &value
+		cloned.Autonomy = new(*src.Autonomy)
 	}
 	return cloned
 }

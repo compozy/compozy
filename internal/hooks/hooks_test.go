@@ -245,14 +245,12 @@ func TestHooksConcurrentRebuildAndDispatch(t *testing.T) {
 		WithExecutorResolver(testExecutorResolver(map[string]Executor{
 			"native-a": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, payload InputPreSubmitPayload) (InputPreSubmitPatch, error) {
-					msg := payload.Message + "a"
-					return InputPreSubmitPatch{Message: &msg}, nil
+					return InputPreSubmitPatch{Message: new(payload.Message + "a")}, nil
 				},
 			),
 			"native-b": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, payload InputPreSubmitPayload) (InputPreSubmitPatch, error) {
-					msg := payload.Message + "b"
-					return InputPreSubmitPatch{Message: &msg}, nil
+					return InputPreSubmitPatch{Message: new(payload.Message + "b")}, nil
 				},
 			),
 		})),
@@ -264,7 +262,7 @@ func TestHooksConcurrentRebuildAndDispatch(t *testing.T) {
 	for range 2 {
 		wg.Go(func() {
 			for range 100 {
-				if err := hooks.Rebuild(context.Background()); err != nil {
+				if err := hooks.Rebuild(t.Context()); err != nil {
 					errCh <- err
 					return
 				}
@@ -275,7 +273,7 @@ func TestHooksConcurrentRebuildAndDispatch(t *testing.T) {
 	for range 4 {
 		wg.Go(func() {
 			for range 100 {
-				if _, err := hooks.DispatchInputPreSubmit(context.Background(), InputPreSubmitPayload{
+				if _, err := hooks.DispatchInputPreSubmit(t.Context(), InputPreSubmitPayload{
 					Event:   HookInputPreSubmit,
 					Message: "seed-",
 				}); err != nil {
@@ -306,7 +304,7 @@ func TestDispatchInputPreSubmitRejectsNilHooksAndContext(t *testing.T) {
 
 	var nilHooks *Hooks
 	if _, err := nilHooks.DispatchInputPreSubmit(
-		context.Background(),
+		t.Context(),
 		payload,
 	); err == nil ||
 		!strings.Contains(err.Error(), "dispatcher is nil") {
@@ -674,15 +672,13 @@ func TestDispatchInputPreSubmitAppliesMatchingHooksInOrder(t *testing.T) {
 			"append-a": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, payload InputPreSubmitPayload) (InputPreSubmitPatch, error) {
 					seen = append(seen, payload.Message)
-					msg := payload.Message + "a"
-					return InputPreSubmitPatch{Message: &msg}, nil
+					return InputPreSubmitPatch{Message: new(payload.Message + "a")}, nil
 				},
 			),
 			"append-b": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, payload InputPreSubmitPayload) (InputPreSubmitPatch, error) {
 					seen = append(seen, payload.Message)
-					msg := payload.Message + "b"
-					return InputPreSubmitPatch{Message: &msg}, nil
+					return InputPreSubmitPatch{Message: new(payload.Message + "b")}, nil
 				},
 			),
 		})),
@@ -1200,8 +1196,7 @@ func TestDispatchAsyncEventPanicDoesNotAffectSyncToolChain(t *testing.T) {
 			"sync-tool": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, _ ToolPreCallPayload) (ToolCallPatch, error) {
 					syncCalled = true
-					id := "compozy__write"
-					return ToolCallPatch{ToolID: &id, ToolInput: []byte(`{"aut17":true}`)}, nil
+					return ToolCallPatch{ToolID: new("compozy__write"), ToolInput: []byte(`{"aut17":true}`)}, nil
 				},
 			),
 		})),
@@ -1702,10 +1697,9 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 	}
 
 	permission, err := hooks.DispatchPermissionRequest(t.Context(), PermissionRequestPayload{
-		Event:          HookPermissionRequest,
-		DecisionClass:  "tool",
-		Decision:       "allow",
-		SessionContext: SessionContext{},
+		Event:         HookPermissionRequest,
+		DecisionClass: "tool",
+		Decision:      "allow",
 	})
 	if err != nil {
 		t.Fatalf("DispatchPermissionRequest() error = %v, want nil", err)

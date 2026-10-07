@@ -115,11 +115,11 @@ func reconcileExtensionDataQuarantines(home string, dataRoot string) error {
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		marker := strings.LastIndex(name, ".compozy-quarantine-")
-		if marker <= 0 {
+		prefix, timestamp, found := strings.CutLast(name, ".compozy-quarantine-")
+		if !found || prefix == "" {
 			continue
 		}
-		createdAt, parseErr := strconv.ParseInt(name[marker+len(".compozy-quarantine-"):], 10, 64)
+		createdAt, parseErr := strconv.ParseInt(timestamp, 10, 64)
 		if parseErr != nil || createdAt <= 0 {
 			continue
 		}

@@ -4,9 +4,8 @@ import "context"
 
 // DispatchToolPreCall runs the tool.pre_call hook pipeline.
 func (h *Hooks) DispatchToolPreCall(ctx context.Context, payload ToolPreCallPayload) (ToolPreCallPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookToolPreCall,
 		payload,
 		dispatchConfig[ToolPreCallPayload, ToolCallPatch]{
@@ -22,9 +21,8 @@ func (h *Hooks) DispatchToolPreCall(ctx context.Context, payload ToolPreCallPayl
 
 // DispatchToolPostCall runs the tool.post_call hook pipeline.
 func (h *Hooks) DispatchToolPostCall(ctx context.Context, payload ToolPostCallPayload) (ToolPostCallPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookToolPostCall,
 		payload,
 		dispatchConfig[ToolPostCallPayload, ToolResultPatch]{
@@ -37,9 +35,8 @@ func (h *Hooks) DispatchToolPostCall(ctx context.Context, payload ToolPostCallPa
 
 // DispatchToolPostError runs the tool.post_error hook pipeline.
 func (h *Hooks) DispatchToolPostError(ctx context.Context, payload ToolPostErrorPayload) (ToolPostErrorPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookToolPostError,
 		payload,
 		dispatchConfig[ToolPostErrorPayload, ToolPostErrorPatch]{
@@ -55,9 +52,8 @@ func (h *Hooks) DispatchPermissionRequest(
 	ctx context.Context,
 	payload PermissionRequestPayload,
 ) (PermissionRequestPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookPermissionRequest,
 		payload,
 		dispatchConfig[PermissionRequestPayload, PermissionRequestPatch]{
@@ -74,9 +70,8 @@ func (h *Hooks) DispatchPermissionResolved(
 	ctx context.Context,
 	payload PermissionResolvedPayload,
 ) (PermissionResolvedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookPermissionResolved,
 		payload,
 		dispatchConfig[PermissionResolvedPayload, PermissionResolvedPatch]{
@@ -91,9 +86,8 @@ func (h *Hooks) DispatchPermissionDenied(
 	ctx context.Context,
 	payload PermissionDeniedPayload,
 ) (PermissionDeniedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookPermissionDenied,
 		payload,
 		dispatchConfig[PermissionDeniedPayload, PermissionDeniedPatch]{

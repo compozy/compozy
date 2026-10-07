@@ -17,9 +17,8 @@ func (h *Hooks) DispatchSessionPreCreate(
 	ctx context.Context,
 	payload SessionPreCreatePayload,
 ) (SessionPreCreatePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPreCreate,
 		payload,
 		dispatchConfig[SessionPreCreatePayload, SessionCreatePatch]{
@@ -38,9 +37,8 @@ func (h *Hooks) DispatchSessionPostCreate(
 	ctx context.Context,
 	payload SessionPostCreatePayload,
 ) (SessionPostCreatePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPostCreate,
 		payload,
 		dispatchConfig[SessionPostCreatePayload, SessionPostCreatePatch]{
@@ -56,9 +54,8 @@ func (h *Hooks) DispatchSessionPreResume(
 	ctx context.Context,
 	payload SessionPreResumePayload,
 ) (SessionPreResumePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPreResume,
 		payload,
 		dispatchConfig[SessionPreResumePayload, SessionPreResumePatch]{
@@ -78,9 +75,8 @@ func (h *Hooks) DispatchSessionPostResume(
 	ctx context.Context,
 	payload SessionPostResumePayload,
 ) (SessionPostResumePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPostResume,
 		payload,
 		dispatchConfig[SessionPostResumePayload, SessionPostResumePatch]{
@@ -96,9 +92,8 @@ func (h *Hooks) DispatchSessionPreStop(
 	ctx context.Context,
 	payload SessionPreStopPayload,
 ) (SessionPreStopPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPreStop,
 		payload,
 		dispatchConfig[SessionPreStopPayload, SessionPreStopPatch]{
@@ -118,9 +113,8 @@ func (h *Hooks) DispatchSessionPostStop(
 	ctx context.Context,
 	payload SessionPostStopPayload,
 ) (SessionPostStopPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionPostStop,
 		payload,
 		dispatchConfig[SessionPostStopPayload, SessionPostStopPatch]{

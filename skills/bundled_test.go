@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"context"
 	"errors"
 	"io/fs"
 	"slices"
@@ -54,7 +53,7 @@ func TestBundledFSContainsOnlyCompozySkill(t *testing.T) {
 		t.Parallel()
 
 		registry := internal.NewRegistry(internal.RegistryConfig{BundledFS: FS()})
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll error = %v", err)
 		}
 		loaded := registry.List()

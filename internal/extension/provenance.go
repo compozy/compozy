@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -306,11 +307,7 @@ func (s permissionSet) sorted() []string {
 	if len(s) == 0 {
 		return nil
 	}
-	items := make([]string, 0, len(s))
-	for item := range s {
-		items = append(items, item)
-	}
-	slices.Sort(items)
+	items := slices.Sorted(maps.Keys(s))
 	return items
 }
 

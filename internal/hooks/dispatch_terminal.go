@@ -7,13 +7,12 @@ type terminalHookPayload interface {
 	hookTerminalContext() TerminalContext
 }
 
-func dispatchTerminal[P terminalHookPayload](
+func (h *Hooks) dispatchTerminal[P terminalHookPayload](
 	ctx context.Context,
-	hooks *Hooks,
 	event HookEvent,
 	payload P,
 ) (P, error) {
-	return executeDispatch(ctx, hooks, event, payload, dispatchConfig[P, TerminalObservationPatch]{
+	return h.executeDispatch(ctx, event, payload, dispatchConfig[P, TerminalObservationPatch]{
 		match: func(matcher HookMatcher, candidate P) bool {
 			return matchStringField(matcher.WorkspaceID, candidate.hookTerminalContext().WorkspaceID)
 		},
@@ -22,65 +21,65 @@ func dispatchTerminal[P terminalHookPayload](
 }
 
 func (h *Hooks) DispatchTerminalOpened(ctx context.Context, p TerminalOpenedPayload) (TerminalOpenedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalOpened, p)
+	return h.dispatchTerminal(ctx, HookTerminalOpened, p)
 }
 
 func (h *Hooks) DispatchTerminalClosed(ctx context.Context, p TerminalClosedPayload) (TerminalClosedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalClosed, p)
+	return h.dispatchTerminal(ctx, HookTerminalClosed, p)
 }
 
 func (h *Hooks) DispatchTerminalCommandStarted(
 	ctx context.Context,
 	p TerminalCommandStartedPayload,
 ) (TerminalCommandStartedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalCommandStarted, p)
+	return h.dispatchTerminal(ctx, HookTerminalCommandStarted, p)
 }
 
 func (h *Hooks) DispatchTerminalCommandFinished(
 	ctx context.Context,
 	p TerminalCommandFinishedPayload,
 ) (TerminalCommandFinishedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalCommandFinished, p)
+	return h.dispatchTerminal(ctx, HookTerminalCommandFinished, p)
 }
 
 func (h *Hooks) DispatchTerminalInputRequested(
 	ctx context.Context,
 	p TerminalInputRequestedPayload,
 ) (TerminalInputRequestedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalInputRequested, p)
+	return h.dispatchTerminal(ctx, HookTerminalInputRequested, p)
 }
 
 func (h *Hooks) DispatchTerminalInputProvided(
 	ctx context.Context,
 	p TerminalInputProvidedPayload,
 ) (TerminalInputProvidedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalInputProvided, p)
+	return h.dispatchTerminal(ctx, HookTerminalInputProvided, p)
 }
 
 func (h *Hooks) DispatchTerminalRecordingStarted(
 	ctx context.Context,
 	p TerminalRecordingStartedPayload,
 ) (TerminalRecordingStartedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalRecordingStarted, p)
+	return h.dispatchTerminal(ctx, HookTerminalRecordingStarted, p)
 }
 
 func (h *Hooks) DispatchTerminalRecordingStopped(
 	ctx context.Context,
 	p TerminalRecordingStoppedPayload,
 ) (TerminalRecordingStoppedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalRecordingStopped, p)
+	return h.dispatchTerminal(ctx, HookTerminalRecordingStopped, p)
 }
 
 func (h *Hooks) DispatchTerminalSubscriberEvicted(
 	ctx context.Context,
 	p TerminalSubscriberEvictedPayload,
 ) (TerminalSubscriberEvictedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalSubscriberEvicted, p)
+	return h.dispatchTerminal(ctx, HookTerminalSubscriberEvicted, p)
 }
 
 func (h *Hooks) DispatchTerminalLimitRejected(
 	ctx context.Context,
 	p TerminalLimitRejectedPayload,
 ) (TerminalLimitRejectedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalLimitRejected, p)
+	return h.dispatchTerminal(ctx, HookTerminalLimitRejected, p)
 }

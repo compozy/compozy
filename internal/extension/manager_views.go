@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"context"
+	"maps"
 
 	"slices"
 	"strings"
@@ -121,14 +122,12 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 	m.mu.RLock()
 	byName := make(map[string]*ExtensionInfo, len(m.extensions)+len(m.devExtensions))
 	for name, ext := range m.extensions {
-		snapshot := cloneExtensionInfo(&ext.info)
-		byName[name] = &snapshot
+		byName[name] = new(cloneExtensionInfo(&ext.info))
 	}
 	if workspaceID != "" {
 		for key, ext := range m.devExtensions {
 			if key.WorkspaceID == workspaceID {
-				snapshot := ext.info
-				byName[key.Name] = &snapshot
+				byName[key.Name] = new(ext.info)
 			}
 		}
 	}
@@ -218,11 +217,7 @@ func (m *Manager) AgentDefinitions() []compozyconfig.AgentDef {
 	defer m.mu.RUnlock()
 
 	var agents []compozyconfig.AgentDef
-	names := make([]string, 0, len(m.extensions))
-	for name := range m.extensions {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(m.extensions))
 	for _, name := range names {
 		ext := m.extensions[name]
 		if !ext.registered {

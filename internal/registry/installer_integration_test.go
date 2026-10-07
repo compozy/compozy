@@ -40,7 +40,7 @@ func TestInstallerInstallPipelineWithInMemoryDownloader(t *testing.T) {
 		}
 		result, err := NewInstaller(
 			downloader,
-		).Install(context.Background(), "acme/pipeline-ext", DownloadOpts{}, targetDir)
+		).Install(t.Context(), "acme/pipeline-ext", DownloadOpts{}, targetDir)
 		if err != nil {
 			t.Fatalf("Install() error = %v", err)
 		}

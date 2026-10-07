@@ -34,8 +34,7 @@ func TestDispatchInputPreSubmitOrdersNativeBeforeSubprocess(t *testing.T) {
 		WithExecutorResolver(testExecutorResolver(map[string]Executor{
 			"native-prefix": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, payload InputPreSubmitPayload) (InputPreSubmitPatch, error) {
-					msg := payload.Message + "native"
-					return InputPreSubmitPatch{Message: &msg}, nil
+					return InputPreSubmitPatch{Message: new(payload.Message + "native")}, nil
 				},
 			),
 		})),
@@ -46,8 +45,8 @@ func TestDispatchInputPreSubmitOrdersNativeBeforeSubprocess(t *testing.T) {
 	}
 
 	result, err := hooks.DispatchInputPreSubmit(t.Context(), InputPreSubmitPayload{
-		PayloadBase: PayloadBase{Event: HookInputPreSubmit},
-		Message:     "",
+		Event:   HookInputPreSubmit,
+		Message: "",
 	})
 	if err != nil {
 		t.Fatalf("DispatchInputPreSubmit() error = %v, want nil", err)
@@ -75,7 +74,7 @@ func TestDispatchPermissionRequestBlocksEscalationFromSubprocess(t *testing.T) {
 	}
 
 	result, err := hooks.DispatchPermissionRequest(t.Context(), PermissionRequestPayload{
-		PayloadBase:   PayloadBase{Event: HookPermissionRequest},
+		Event:         HookPermissionRequest,
 		RequestID:     "req-1",
 		Action:        "session/request_permission",
 		Resource:      "/tmp/secret.txt",

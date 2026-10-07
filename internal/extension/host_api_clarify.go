@@ -10,10 +10,11 @@ import (
 	"strings"
 	"sync"
 
+	"uuid"
+
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/google/uuid"
 )
 
 const hostAPIClarifyAskPath = "clarify/ask"
@@ -40,7 +41,7 @@ func WithHostAPIClarify(broker toolspkg.ClarifyBroker) HostAPIOption {
 		handler.clarify = &hostAPIClarifyRuntime{
 			broker:      broker,
 			invocations: make(map[string]hostAPIClarifyInvocation),
-			newID:       uuid.NewString,
+			newID:       func() string { return uuid.NewV4().String() },
 		}
 	}
 }

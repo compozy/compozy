@@ -377,12 +377,7 @@ func sourceName(source Source, index int) string {
 }
 
 func sourceIndex(sources []Source, target Source) int {
-	for index, source := range sources {
-		if source == target {
-			return index
-		}
-	}
-	return -1
+	return slices.Index(sources, target)
 }
 
 func firstNonEmpty(values ...string) string {

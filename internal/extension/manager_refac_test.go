@@ -31,7 +31,7 @@ func TestManagerStopShutdownErrors(t *testing.T) {
 		}
 
 		manager := NewManager(nil)
-		lifecycleCtx, cancel := context.WithCancel(context.Background())
+		lifecycleCtx, cancel := context.WithCancel(t.Context())
 		manager.mu.Lock()
 		manager.started = true
 		manager.lifecycleCtx = lifecycleCtx
@@ -70,7 +70,7 @@ func TestManagerStopShutdownErrors(t *testing.T) {
 			return ctx.Err()
 		}
 		manager := NewManager(nil)
-		lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+		lifecycleCtx, lifecycleCancel := context.WithCancel(t.Context())
 		manager.mu.Lock()
 		manager.started = true
 		manager.lifecycleCtx = lifecycleCtx
@@ -576,7 +576,7 @@ func TestManagerCrashLoopGenerationFencing(t *testing.T) {
 			}
 			manager.mu.Lock()
 			manager.started = true
-			manager.lifecycleCtx = context.Background()
+			manager.lifecycleCtx = t.Context()
 			manager.devExtensions[key.Normalize()] = old
 			manager.mu.Unlock()
 

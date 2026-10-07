@@ -11,9 +11,8 @@ func (h *Hooks) DispatchAutomationJobPreFire(
 	ctx context.Context,
 	payload AutomationJobPreFirePayload,
 ) (AutomationJobPreFirePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAutomationJobPreFire,
 		payload,
 		dispatchConfig[AutomationJobPreFirePayload, AutomationFirePatch]{
@@ -32,9 +31,8 @@ func (h *Hooks) DispatchAutomationJobPostFire(
 	ctx context.Context,
 	payload AutomationJobPostFirePayload,
 ) (AutomationJobPostFirePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAutomationJobPostFire,
 		payload,
 		dispatchConfig[AutomationJobPostFirePayload, AutomationObservationPatch]{
@@ -49,9 +47,8 @@ func (h *Hooks) DispatchAutomationTriggerPreFire(
 	ctx context.Context,
 	payload AutomationTriggerPreFirePayload,
 ) (AutomationTriggerPreFirePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAutomationTriggerPreFire,
 		payload,
 		dispatchConfig[AutomationTriggerPreFirePayload, AutomationFirePatch]{
@@ -70,9 +67,8 @@ func (h *Hooks) DispatchAutomationTriggerPostFire(
 	ctx context.Context,
 	payload AutomationTriggerPostFirePayload,
 ) (AutomationTriggerPostFirePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAutomationTriggerPostFire,
 		payload,
 		dispatchConfig[AutomationTriggerPostFirePayload, AutomationObservationPatch]{
@@ -87,9 +83,8 @@ func (h *Hooks) DispatchAutomationRunCompleted(
 	ctx context.Context,
 	payload AutomationRunCompletedPayload,
 ) (AutomationRunCompletedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAutomationRunCompleted,
 		payload,
 		dispatchConfig[AutomationRunCompletedPayload, AutomationObservationPatch]{
@@ -104,9 +99,8 @@ func (h *Hooks) DispatchAutomationRunFailed(
 	ctx context.Context,
 	payload AutomationRunFailedPayload,
 ) (AutomationRunFailedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAutomationRunFailed,
 		payload,
 		dispatchConfig[AutomationRunFailedPayload, AutomationObservationPatch]{

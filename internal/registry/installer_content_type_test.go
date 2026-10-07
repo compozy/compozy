@@ -27,7 +27,7 @@ func TestInstallerInstallContentTypeCleanupContract(t *testing.T) {
 		}
 
 		_, err := NewInstaller(downloader).Install(
-			context.Background(),
+			t.Context(),
 			"acme/html",
 			DownloadOpts{},
 			filepath.Join(t.TempDir(), "html"),
@@ -58,7 +58,7 @@ func TestInstallerInstallContentTypeCleanupContract(t *testing.T) {
 		}
 
 		_, err := NewInstaller(downloader).Install(
-			context.Background(),
+			t.Context(),
 			"acme/html",
 			DownloadOpts{},
 			filepath.Join(t.TempDir(), "html"),

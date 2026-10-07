@@ -37,7 +37,7 @@ func TestCredentialResolverIT036(t *testing.T) {
 				return nil, nil
 			},
 		}
-		got, err := resolver.resolve(context.Background())
+		got, err := resolver.resolve(t.Context())
 		if err != nil || got != (credential{token: "bound-token", source: "binding"}) || ghCalls != 0 {
 			t.Fatalf("resolve() = %#v, %v, gh calls %d", got, err, ghCalls)
 		}
@@ -50,7 +50,7 @@ func TestCredentialResolverIT036(t *testing.T) {
 			lookPath: func(string) (string, error) { return "/usr/bin/gh", nil },
 			runGH:    func(context.Context, string) ([]byte, error) { return []byte(" gh-token\n"), nil },
 		}
-		got, err := resolver.resolve(context.Background())
+		got, err := resolver.resolve(t.Context())
 		if err != nil || got != (credential{token: "gh-token", source: "gh"}) {
 			t.Fatalf("resolve() = %#v, %v", got, err)
 		}
@@ -63,7 +63,7 @@ func TestCredentialResolverIT036(t *testing.T) {
 			lookPath: func(string) (string, error) { return "", exec.ErrNotFound },
 			runGH:    func(context.Context, string) ([]byte, error) { return nil, errors.New("unexpected gh call") },
 		}
-		got, err := resolver.resolve(context.Background())
+		got, err := resolver.resolve(t.Context())
 		if err != nil || got != (credential{}) {
 			t.Fatalf("resolve() = %#v, %v", got, err)
 		}
@@ -71,7 +71,7 @@ func TestCredentialResolverIT036(t *testing.T) {
 
 	t.Run("Should preserve cancellation from native gh lookup", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		resolver := credentialResolver{
 			getenv:   func(string) string { return "" },
@@ -292,7 +292,7 @@ func TestProvider(t *testing.T) {
 		})
 		defer closeServer()
 
-		got, err := provider.Capabilities(context.Background(), extensioncontract.ForgeCapabilitiesRequest{
+		got, err := provider.Capabilities(t.Context(), extensioncontract.ForgeCapabilitiesRequest{
 			RemoteURLs: []string{"git@github.com:acme/repo.git"},
 		})
 		if err != nil || !got.Served || !got.Available || got.Provider != "github" ||
@@ -317,7 +317,7 @@ func TestProvider(t *testing.T) {
 				writeJSON(t, w, testCase.statusCode, map[string]string{"message": testCase.name})
 			})
 			defer closeServer()
-			got, err := provider.Capabilities(context.Background(), extensioncontract.ForgeCapabilitiesRequest{
+			got, err := provider.Capabilities(t.Context(), extensioncontract.ForgeCapabilitiesRequest{
 				RemoteURLs: []string{"https://github.com/acme/repo.git"},
 			})
 			if err != nil || got.Cause != testCase.cause || calls.Load() != 1 {
@@ -346,7 +346,7 @@ func TestProvider(t *testing.T) {
 			)
 		})
 		defer closeServer()
-		got, err := provider.CreatePR(context.Background(), createRequest())
+		got, err := provider.CreatePR(t.Context(), createRequest())
 		if err != nil || got.Status != "opened_existing" || got.Number != 41 || getCalls.Load() != 1 ||
 			postCalls.Load() != 0 {
 			t.Fatalf("CreatePR() = %#v, %v; GET=%d POST=%d", got, err, getCalls.Load(), postCalls.Load())
@@ -381,7 +381,7 @@ func TestProvider(t *testing.T) {
 			}
 		})
 		defer closeServer()
-		got, err := provider.CreatePR(context.Background(), createRequest())
+		got, err := provider.CreatePR(t.Context(), createRequest())
 		if err != nil || got.Status != "created" || got.Number != 42 || getCalls.Load() != 1 || postCalls.Load() != 1 {
 			t.Fatalf("CreatePR() = %#v, %v; GET=%d POST=%d", got, err, getCalls.Load(), postCalls.Load())
 		}
@@ -397,7 +397,7 @@ func TestProvider(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 		})
 		defer closeServer()
-		if got, err := provider.CreatePR(context.Background(), createRequest()); err == nil ||
+		if got, err := provider.CreatePR(t.Context(), createRequest()); err == nil ||
 			!strings.Contains(err.Error(), "invalid created pull request") {
 			t.Fatalf("CreatePR(empty success) = %#v, %v; want invalid created pull request", got, err)
 		}
@@ -415,7 +415,7 @@ func TestProvider(t *testing.T) {
 			writeJSON(t, w, http.StatusOK, []pullPayload{candidate})
 		})
 		defer closeServer()
-		status, err := provider.Status(context.Background(), extensioncontract.ForgeStatusRequest{
+		status, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
 			RemoteURLs: []string{
 				"https://github.com/acme/repo",
 			},
@@ -429,7 +429,7 @@ func TestProvider(t *testing.T) {
 		}
 		request := createRequest()
 		request.HeadSHA = "reviewed-sha"
-		created, err := provider.CreatePR(context.Background(), request)
+		created, err := provider.CreatePR(t.Context(), request)
 		if err != nil || created.Status != "opened_existing" || created.Number != candidate.Number {
 			t.Fatalf("reconciled create = %#v, %v", created, err)
 		}
@@ -471,7 +471,7 @@ func TestProvider(t *testing.T) {
 			if mismatch == "ambiguous" {
 				want = "multiple pull requests match"
 			}
-			if got, err := provider.CreatePR(context.Background(), request); err == nil ||
+			if got, err := provider.CreatePR(t.Context(), request); err == nil ||
 				!strings.Contains(err.Error(), want) || posts.Load() != 0 {
 				t.Fatalf("mismatched CreatePR = %#v, %v, posts=%d; want %q", got, err, posts.Load(), want)
 			}
@@ -504,7 +504,7 @@ func TestProvider(t *testing.T) {
 			})
 		})
 		defer closeServer()
-		got, err := provider.Status(context.Background(), extensioncontract.ForgeStatusRequest{
+		got, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
 			RemoteURLs: []string{
 				"https://github.com/acme/repo",
 			},
@@ -526,7 +526,7 @@ func TestProvider(t *testing.T) {
 			}})
 		})
 		defer closeServer()
-		got, err := provider.Status(context.Background(), extensioncontract.ForgeStatusRequest{
+		got, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
 			RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "feature/exit",
 		})
 		if err != nil || got.PRState == nil || *got.PRState != "merged" || got.Merged == nil || !*got.Merged {
