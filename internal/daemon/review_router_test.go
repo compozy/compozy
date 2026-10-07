@@ -489,50 +489,6 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject reviewer creation when the only candidate is the original worker agent", func(t *testing.T) {
-		t.Parallel()
-
-		tasks := &reviewRouterTasksStub{
-			profile: taskpkg.ExecutionProfile{
-				TaskID: "task-1",
-				Review: taskpkg.ReviewProfile{
-					AgentName: "worker",
-				},
-			},
-		}
-		sessions := &coordinatorRuntimeSessions{
-			infos: []*session.Info{
-				reviewRouterSessionInfo("sess-worker", "worker"),
-			},
-		}
-		router := newReviewRouterForTest(
-			t,
-			tasks,
-			reviewRouterStoreForTest(),
-			sessions,
-			reviewRouterAgentResolverStub{"worker": reviewRouterAgentDef("worker")},
-		)
-
-		notification := reviewRouterNotificationForTest()
-		router.OnRunReviewRequested(t.Context(), &notification)
-
-		if got := sessions.createCount(); got != 0 {
-			t.Fatalf("session create calls = %d, want 0 when only original worker agent is available", got)
-		}
-		if len(tasks.binds) != 0 {
-			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
-		}
-		if got, want := len(tasks.records), 1; got != want {
-			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
-		}
-		if !strings.Contains(tasks.records[0].Verdict.Reason, "exclude all eligible reviewer agents") {
-			t.Fatalf(
-				"RecordRunReview reason = %q, want original-worker exclusion diagnostic",
-				tasks.records[0].Verdict.Reason,
-			)
-		}
-	})
-
 	t.Run(
 		"Should record a deterministic no-route diagnostic instead of binding the original worker",
 		func(t *testing.T) {
@@ -562,6 +518,9 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			notification := reviewRouterNotificationForTest()
 			router.OnRunReviewRequested(t.Context(), &notification)
 
+			if got := sessions.createCount(); got != 0 {
+				t.Fatalf("session create calls = %d, want 0 when only original worker agent is available", got)
+			}
 			if len(tasks.binds) != 0 {
 				t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
 			}

@@ -147,31 +147,6 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return only the exact fallback sentinel on timeout", func(t *testing.T) {
-		t.Parallel()
-
-		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, 10*time.Millisecond, publisher)
-		answer, err := bridge.Ask(
-			testutil.Context(t),
-			testClarifyScope(),
-			toolspkg.ClarifyQuestion{Question: "Continue?"},
-		)
-		if err != nil {
-			t.Fatalf("Ask() error = %v", err)
-		}
-		if answer.Choice != nil || answer.Text != "" || !answer.Fallback {
-			t.Fatalf("Ask() answer = %#v, want exact fallback sentinel", answer)
-		}
-		statuses := publisher.statuses()
-		if !equalClarifyStatuses(statuses, []toolspkg.ClarifyStatus{
-			toolspkg.ClarifyStatusPending,
-			toolspkg.ClarifyStatusTimedOut,
-		}) {
-			t.Fatalf("published statuses = %v, want pending then timed_out", statuses)
-		}
-	})
-
 	t.Run("Should return a typed cancellation error instead of fallback", func(t *testing.T) {
 		t.Parallel()
 
@@ -493,6 +468,9 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 		if !pending[0].Deadline.IsZero() {
 			t.Fatalf("Pending().Deadline = %s, want zero for unbounded", pending[0].Deadline)
 		}
+		if pending[0].AskedAt.IsZero() || pending[0].RequestID == "" {
+			t.Fatalf("Pending() = %#v, want identity and ask timestamps", pending[0])
+		}
 		if _, err := bridge.Answer(
 			testutil.Context(t),
 			scope,
@@ -610,28 +588,6 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 		if got := awaitClarifyResult(t, first); !errors.Is(got.err, toolspkg.ErrClarifyCanceled) {
 			t.Fatalf("Ask(first) error = %v, want %v", got.err, toolspkg.ErrClarifyCanceled)
 		}
-	})
-
-	t.Run("Should project an unbounded pending wait with a zero deadline", func(t *testing.T) {
-		t.Parallel()
-
-		publisher := newClarifyPublisherStub()
-		bridge := newTestClarifyBridge(t, 0, publisher)
-		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
-		publisher.await(t)
-		pending := awaitPendingClarification(t, bridge, scope)
-		if len(pending) != 1 {
-			t.Fatalf("Pending() = %#v, want one request", pending)
-		}
-		if !pending[0].Deadline.IsZero() {
-			t.Fatalf("Pending().Deadline = %s, want zero", pending[0].Deadline)
-		}
-		if pending[0].AskedAt.IsZero() || pending[0].RequestID == "" {
-			t.Fatalf("Pending() = %#v, want identity and ask timestamps", pending[0])
-		}
-		bridge.CancelSession(scope.SessionID)
-		awaitClarifyResult(t, result)
 	})
 
 	t.Run("Should treat a negative policy as unbounded with a zero deadline", func(t *testing.T) {

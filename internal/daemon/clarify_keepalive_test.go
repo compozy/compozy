@@ -267,13 +267,17 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		publisher := newClarifyPublisherStub()
 		keepalive := newRecordingClarifyKeepalive()
 		ticker := newManualClarifyTicker()
-		bridge := newTestClarifyBridgeWithKeepalive(t, 0, publisher, keepalive, ticker)
+		clock := newStubClarifyClock(time.Date(2026, 9, 17, 10, 0, 0, 0, time.UTC))
+		bridge := newTestClarifyBridgeWithKeepalive(t, 0, publisher, keepalive, ticker, withClarifyClock(clock.Now))
 		scope := testClarifyScope()
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Which env first?"})
 		publisher.await(t)
 		first := keepalive.await(t)
 		if first.SessionID != scope.SessionID || first.RequestID != "clarify-request" || first.Seq != 1 {
 			t.Fatalf("first ping = %#v, want session/request identity with seq 1", first)
+		}
+		if !first.AskedAt.Equal(clock.Now()) {
+			t.Fatalf("ping asked_at = %s, want stub-clock %s", first.AskedAt, clock.Now())
 		}
 		if !first.Deadline.IsZero() {
 			t.Fatalf("first ping deadline = %s, want zero for unbounded", first.Deadline)
@@ -289,34 +293,14 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		if second.Seq != 2 || second.RequestID != first.RequestID {
 			t.Fatalf("second ping = %#v, want seq 2 for the same request", second)
 		}
+		for range 9 {
+			ticker.fire()
+		}
+		assertClarifyPingSeqs(t, keepalive, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
 		bridge.CancelSession(scope.SessionID)
 		if got := awaitClarifyResult(t, result); !errors.Is(got.err, toolspkg.ErrClarifyCanceled) {
 			t.Fatalf("Ask() error = %v, want %v", got.err, toolspkg.ErrClarifyCanceled)
 		}
-	})
-
-	t.Run("Should ping exactly on cadence over a long wait", func(t *testing.T) {
-		t.Parallel()
-
-		publisher := newClarifyPublisherStub()
-		keepalive := newRecordingClarifyKeepalive()
-		ticker := newManualClarifyTicker()
-		bridge := newTestClarifyBridgeWithKeepalive(t, 0, publisher, keepalive, ticker)
-		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
-		publisher.await(t)
-		keepalive.await(t)
-		const ticks = 10
-		for range ticks {
-			ticker.fire()
-		}
-		want := make([]uint64, 0, ticks+1)
-		for seq := uint64(1); seq <= ticks+1; seq++ {
-			want = append(want, seq)
-		}
-		assertClarifyPingSeqs(t, keepalive, want...)
-		bridge.CancelSession(scope.SessionID)
-		awaitClarifyResult(t, result)
 	})
 
 	t.Run("Should keep waiting and resolve a late answer when every ping fails", func(t *testing.T) {
@@ -596,43 +580,6 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		ticker.fire()
 		ticker.fire()
 		keepalive.awaitCount(t, 1)
-	})
-
-	t.Run("Should carry identity only with a null unbounded deadline", func(t *testing.T) {
-		t.Parallel()
-
-		clock := newStubClarifyClock(time.Now().UTC())
-		publisher := newClarifyPublisherStub()
-		keepalive := newRecordingClarifyKeepalive()
-		ticker := newManualClarifyTicker()
-		bridge, err := newClarifyBridge(
-			0,
-			publisher,
-			&clarifySummaryStub{},
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
-			withClarifyIDGenerator(func() string { return "clarify-request" }),
-			withClarifyClock(clock.Now),
-			withClarifyKeepalive(keepalive),
-			withClarifyPingTicker(ticker.ticker),
-		)
-		if err != nil {
-			t.Fatalf("newClarifyBridge() error = %v", err)
-		}
-		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
-		publisher.await(t)
-		ping := keepalive.await(t)
-		if ping.SessionID != scope.SessionID || ping.RequestID != "clarify-request" || ping.Seq != 1 {
-			t.Fatalf("ping identity = %#v, want session/request with seq 1", ping)
-		}
-		if !ping.AskedAt.Equal(clock.Now()) {
-			t.Fatalf("ping asked_at = %s, want stub-clock %s", ping.AskedAt, clock.Now())
-		}
-		if !ping.Deadline.IsZero() {
-			t.Fatalf("ping deadline = %s, want zero for unbounded", ping.Deadline)
-		}
-		bridge.CancelSession(scope.SessionID)
-		awaitClarifyResult(t, result)
 	})
 
 	t.Run("Should carry the finite deadline on each ping", func(t *testing.T) {

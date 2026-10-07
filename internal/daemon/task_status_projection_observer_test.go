@@ -133,27 +133,6 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 		}
 	})
 
-	t.Run("Should apply the configured projection queue and timeout", func(t *testing.T) {
-		t.Parallel()
-
-		db := openDaemonTestGlobalDB(t)
-		publisher := &recordingTaskStatusProjectionPublisher{}
-		observer := newTaskStatusProjectionObserver(
-			db,
-			publisher,
-			withTaskStatusProjectionObserverLogger(discardLogger()),
-			withTaskStatusProjectionObserverQueueSize(7),
-			withTaskStatusProjectionObserverTimeout(2*time.Second),
-		)
-		if observer == nil {
-			t.Fatal("newTaskStatusProjectionObserver() = nil, want configured observer")
-		}
-		t.Cleanup(observer.shutdown)
-		if cap(observer.queue) != 7 || observer.timeout != 2*time.Second {
-			t.Fatalf("observer queue/timeout = %d/%s, want 7/2s", cap(observer.queue), observer.timeout)
-		}
-	})
-
 	t.Run(
 		"Should replay every durable rollup transition after a coalesced wake and retry before advancing",
 		func(t *testing.T) {

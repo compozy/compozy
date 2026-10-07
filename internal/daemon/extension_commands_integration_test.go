@@ -49,26 +49,18 @@ func TestExtensionCommandPolicyAndAvailabilityParityIntegration(t *testing.T) {
 		})
 	}
 
-	t.Run("Should gate command facade and raw invocation identically", func(t *testing.T) {
-		_, execErr := call("")
-		_, toolErr := call("")
-		assertExtensionCommandApprovalError(t, execErr)
-		assertExtensionCommandApprovalError(t, toolErr)
-		if execErr.Error() != toolErr.Error() {
-			t.Fatalf("approval errors differ: exec=%q tool=%q", execErr, toolErr)
-		}
+	t.Run("Should gate registry invocation before reaching the extension handle", func(t *testing.T) {
+		_, err := call("")
+		assertExtensionCommandApprovalError(t, err)
 		if handle.calls != 0 {
 			t.Fatalf("unapproved runtime calls = %d, want 0", handle.calls)
 		}
 
 		if _, err := call(extensionCommandIntegrationApprovalToken); err != nil {
-			t.Fatalf("approved command facade call error = %v", err)
+			t.Fatalf("approved registry call error = %v", err)
 		}
-		if _, err := call(extensionCommandIntegrationApprovalToken); err != nil {
-			t.Fatalf("approved raw tool call error = %v", err)
-		}
-		if handle.calls != 2 {
-			t.Fatalf("approved runtime calls = %d, want 2", handle.calls)
+		if handle.calls != 1 {
+			t.Fatalf("approved runtime calls = %d, want 1", handle.calls)
 		}
 	})
 
@@ -87,8 +79,8 @@ func TestExtensionCommandPolicyAndAvailabilityParityIntegration(t *testing.T) {
 		if !typedMatched || !slices.Contains(typed.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
 			t.Fatalf("unavailable command error = %#v, want backend_unhealthy", err)
 		}
-		if handle.calls != 2 {
-			t.Fatalf("unavailable runtime calls = %d, want unchanged 2", handle.calls)
+		if handle.calls != 1 {
+			t.Fatalf("unavailable runtime calls = %d, want unchanged 1", handle.calls)
 		}
 	})
 }

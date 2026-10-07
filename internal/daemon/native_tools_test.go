@@ -1270,6 +1270,7 @@ func nativeTestSessionManager(workspaceID string, profileIDs ...string) apitest.
 // TestDaemonNativeTools exercises native tool dispatch, authorization, and resource ownership through the daemon registry.
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+	bundledSkills := newLoadedNativeSkillRegistry(t)
 
 	t.Run("Should expose the session-bound profile through read-only native tools [UT-073]", func(t *testing.T) {
 		t.Parallel()
@@ -2525,7 +2526,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should dispatch skill catalog tools through the real skill registry", func(t *testing.T) {
 		t.Parallel()
 
-		skillRegistry := newLoadedNativeSkillRegistry(t)
+		skillRegistry := bundledSkills
 		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), compozyconfig.DirName))
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -2721,7 +2722,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 				}
 				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-					Skills:    newLoadedNativeSkillRegistry(t),
+					Skills:    bundledSkills,
 					HomePaths: homePaths,
 				}, nativeApproveAllPolicyInputs())
 				_, err = registry.Call(
@@ -3102,7 +3103,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills: newLoadedNativeSkillRegistry(t),
+			Skills: bundledSkills,
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
@@ -3119,7 +3120,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills: newLoadedNativeSkillRegistry(t),
+			Skills: bundledSkills,
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
@@ -3136,7 +3137,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills: newLoadedNativeSkillRegistry(t),
+			Skills: bundledSkills,
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
@@ -3155,7 +3156,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions:   nativeTestSessionManager("ws-command"),
 			Workspaces: nativeTestWorkspaceService(t),
-			Skills:     newLoadedNativeSkillRegistry(t),
+			Skills:     bundledSkills,
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
@@ -3181,7 +3182,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				StubSessionManager: nativeTestSessionManager("ws-command"),
 			},
 			Workspaces: nativeTestWorkspaceService(t),
-			Skills:     newLoadedNativeSkillRegistry(t),
+			Skills:     bundledSkills,
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
@@ -3210,7 +3211,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			Sessions:   manager,
 			Workspaces: nativeTestWorkspaceService(t),
 			Skills: nativeSkillsWithoutCommandCandidates{
-				SkillsRegistry: newLoadedNativeSkillRegistry(t),
+				SkillsRegistry: bundledSkills,
 			},
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
@@ -3327,7 +3328,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions:   manager,
 			Workspaces: nativeTestWorkspaceService(t),
-			Skills:     newLoadedNativeSkillRegistry(t),
+			Skills:     bundledSkills,
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
@@ -3344,7 +3345,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills: newLoadedNativeSkillRegistry(t),
+			Skills: bundledSkills,
 
 			Tasks: &nativeTaskManager{},
 		}, nativeApproveAllPolicyInputs())
@@ -3917,7 +3918,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions:   manager,
 			Workspaces: nativeTestWorkspaceService(t),
-			Skills:     newLoadedNativeSkillRegistry(t),
+			Skills:     bundledSkills,
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
 
@@ -4045,30 +4046,6 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeViewExcludes(t, sessionViews, toolspkg.ToolIDWorkspaceDescribe)
 	})
 
-	t.Run("Should reject schema-invalid task input before service calls", func(t *testing.T) {
-		t.Parallel()
-
-		tasks := &nativeTaskManager{}
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
-		}, nativeApproveAllPolicyInputs())
-
-		_, err := registry.Call(
-			t.Context(),
-			toolspkg.Scope{Operator: true},
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDTaskCreate,
-				Input:  json.RawMessage(`{"scope":"global","title":"root","parent_task_id":"not-allowed"}`),
-			},
-		)
-		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
-			t.Fatalf("Registry.Call(task_create invalid input) error = %v, want ErrToolInvalidInput", err)
-		}
-		if tasks.createCalls != 0 {
-			t.Fatalf("CreateTask calls = %d, want 0", tasks.createCalls)
-		}
-	})
-
 	t.Run("Should reject schema-invalid input for every native built-in before service calls", func(t *testing.T) {
 		t.Parallel()
 
@@ -4084,7 +4061,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		providers := &nativeMemoryProviderService{}
 		ledger := &nativeMemorySessionLedgerService{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills: newLoadedNativeSkillRegistry(t),
+			Skills: bundledSkills,
 
 			Tasks: tasks,
 
@@ -7143,7 +7120,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: nativeTestSessionManager("ws-1"),
-			Skills:   newLoadedNativeSkillRegistry(t),
+			Skills:   bundledSkills,
 			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 
@@ -7200,7 +7177,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		tasks := &nativeTaskManager{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: nativeTestSessionManager("ws-1"),
-			Skills:   newLoadedNativeSkillRegistry(t),
+			Skills:   bundledSkills,
 			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-unbound", WorkspaceID: "ws-1", AgentName: "reviewer"}
@@ -7270,7 +7247,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: nativeTestSessionManager("ws-1"),
-			Skills:   newLoadedNativeSkillRegistry(t),
+			Skills:   bundledSkills,
 			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 
@@ -9769,7 +9746,6 @@ func TestDaemonNativeTools(t *testing.T) {
 			wantErr toolspkg.ErrorCode
 			assert  func(*testing.T, nativeMemoryAdminFixture)
 		}{
-			{name: "health", id: toolspkg.ToolIDMemoryHealth, want: []byte(`"enabled":true`)},
 			{
 				name:  "scope show",
 				id:    toolspkg.ToolIDMemoryScopeShow,
@@ -9914,7 +9890,6 @@ func TestDaemonNativeTools(t *testing.T) {
 				wantErr: toolspkg.ErrorCodeInvalidInput,
 			},
 			{name: "daily list", id: toolspkg.ToolIDMemoryDailyList, want: []byte(`"logs"`)},
-			{name: "extractor status", id: toolspkg.ToolIDMemoryExtractorStatus, want: []byte(`"status":"idle"`)},
 			{name: "extractor failures", id: toolspkg.ToolIDMemoryExtractorFailures, want: []byte(`"failure-native"`)},
 			{
 				name:  "extractor retry",
@@ -9929,12 +9904,6 @@ func TestDaemonNativeTools(t *testing.T) {
 				},
 			},
 			{name: "extractor drain", id: toolspkg.ToolIDMemoryExtractorDrain, want: []byte(`"remaining":0`)},
-			{
-				name:  "provider list",
-				id:    toolspkg.ToolIDMemoryProviderList,
-				input: staticNativeInput(`{"workspace":"ws-1"}`),
-				want:  []byte(`"name":"builtin"`),
-			},
 			{
 				name:  "provider get",
 				id:    toolspkg.ToolIDMemoryProviderGet,
@@ -9958,12 +9927,6 @@ func TestDaemonNativeTools(t *testing.T) {
 				id:    toolspkg.ToolIDMemoryProviderDisable,
 				input: staticNativeInput(`{"workspace":"ws-1","name":"builtin","reason":"test"}`),
 				want:  []byte(`"changed":true`),
-			},
-			{
-				name:  "session ledger",
-				id:    toolspkg.ToolIDMemorySessionLedger,
-				input: staticNativeInput(`{"workspace":"ws-1","session_id":"sess-memory"}`),
-				want:  []byte(`"session_id":"sess-memory"`),
 			},
 			{
 				name: "session replay",

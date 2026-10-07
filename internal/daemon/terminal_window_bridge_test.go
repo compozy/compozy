@@ -143,7 +143,7 @@ func TestTerminalWindowBridgeApplies(t *testing.T) {
 func TestOpenTerminalWindow(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should open exactly one terminal window for an agent pty terminal", func(t *testing.T) {
+	t.Run("Should open exactly one terminal window for repeated agent pty events", func(t *testing.T) {
 		t.Parallel()
 		manager := newBridgeTestManager(t)
 		provider := &staticWindowManagerProvider{manager: manager}
@@ -168,25 +168,14 @@ func TestOpenTerminalWindow(t *testing.T) {
 		if window.DesktopID != "desktop-default" {
 			t.Fatalf("window desktop = %q, want desktop-default", window.DesktopID)
 		}
-	})
-
-	t.Run("Should not open a second window for a duplicate opened event", func(t *testing.T) {
-		t.Parallel()
-		manager := newBridgeTestManager(t)
-		provider := &staticWindowManagerProvider{manager: manager}
-		event := agentPTYOpenedEvent("term-0000000000ac")
-
-		for range 2 {
-			if err := openTerminalWindow(testutil.Context(t), provider, event); err != nil {
-				t.Fatalf("openTerminalWindow() error = %v", err)
-			}
+		if err := openTerminalWindow(testutil.Context(t), provider, event); err != nil {
+			t.Fatalf("openTerminalWindow(duplicate) error = %v", err)
 		}
-
-		snapshot, err := manager.Snapshot(testutil.Context(t), bridgeTestWorkspace)
+		snapshot, err = manager.Snapshot(testutil.Context(t), bridgeTestWorkspace)
 		if err != nil {
-			t.Fatalf("Snapshot() error = %v", err)
+			t.Fatalf("Snapshot(after duplicate) error = %v", err)
 		}
-		if windows := terminalWindowsIn(snapshot, "term-0000000000ac"); len(windows) != 1 {
+		if windows := terminalWindowsIn(snapshot, "term-0000000000ab"); len(windows) != 1 {
 			t.Fatalf("terminal windows after duplicate event = %#v, want exactly one", windows)
 		}
 	})
@@ -210,7 +199,8 @@ func TestOpenTerminalWindow(t *testing.T) {
 			t.Fatalf("Snapshot() error = %v", err)
 		}
 		terminal := terminalWindowsIn(snapshot, "term-0000000000b1")
-		if len(terminal) != 1 || terminal[0].Placement != windowmanager.WindowPlacementTiled {
+		if len(terminal) != 1 || terminal[0].DesktopID != "desktop-two" ||
+			terminal[0].Placement != windowmanager.WindowPlacementTiled {
 			t.Fatalf("terminal windows = %#v, want one tiled window (not floating over the session)", terminal)
 		}
 		var group []windowmanager.WindowID
@@ -297,30 +287,6 @@ func TestOpenTerminalWindow(t *testing.T) {
 		}
 		if len(clients) != 1 || clients[0].FocusedWindowID == nil || *clients[0].FocusedWindowID != focused {
 			t.Fatalf("client focus after the bridge open = %#v, want %q kept", clients, focused)
-		}
-	})
-
-	t.Run("Should land the window on the desktop showing the bound session", func(t *testing.T) {
-		t.Parallel()
-		manager := newBridgeTestManager(t)
-		provider := &staticWindowManagerProvider{manager: manager}
-		seedSessionWindowOnSecondDesktop(t, manager, "session-a")
-
-		event := agentPTYOpenedEvent("term-0000000000ad")
-		event.Info = &terminalpkg.Info{
-			BoundRun: &terminalpkg.RunRef{SessionID: "session-a", RunID: "run-a", Generation: 3},
-		}
-		if err := openTerminalWindow(testutil.Context(t), provider, event); err != nil {
-			t.Fatalf("openTerminalWindow() error = %v", err)
-		}
-
-		snapshot, err := manager.Snapshot(testutil.Context(t), bridgeTestWorkspace)
-		if err != nil {
-			t.Fatalf("Snapshot() error = %v", err)
-		}
-		windows := terminalWindowsIn(snapshot, "term-0000000000ad")
-		if len(windows) != 1 || windows[0].DesktopID != "desktop-two" {
-			t.Fatalf("terminal windows = %#v, want one window on desktop-two", windows)
 		}
 	})
 

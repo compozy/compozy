@@ -26,249 +26,7 @@ import (
 func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	manager := newNativeAutomationIntegrationManager(t, ctx)
-	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-		Automation: manager,
-	}, nativeApproveAllPolicyInputs())
-
-	jobCreateResult, err := registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationJobsCreate,
-			Input: json.RawMessage(
-				`{"scope":"global","name":"integration-daily","agent_name":"codex","prompt":"run integration","schedule":{"mode":"every","interval":"1h"}}`,
-			),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_jobs_create) error = %v", err)
-	}
-	jobID := nativeAutomationResultResourceID(t, jobCreateResult, "job")
-	job, err := manager.GetJob(ctx, jobID)
-	if err != nil {
-		t.Fatalf("manager.GetJob(created) error = %v", err)
-	}
-	if job.Name != "integration-daily" || job.Source != automationpkg.JobSourceDynamic {
-		t.Fatalf("created job = %#v, want dynamic integration job", job)
-	}
-
-	_, err = registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationJobsUpdate,
-			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q,"name":"integration-daily-updated"}`, jobID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_jobs_update) error = %v", err)
-	}
-	job, err = manager.GetJob(ctx, jobID)
-	if err != nil {
-		t.Fatalf("manager.GetJob(updated) error = %v", err)
-	}
-	if job.Name != "integration-daily-updated" {
-		t.Fatalf("job.Name = %q, want updated name", job.Name)
-	}
-
-	_, err = registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationJobsDisable,
-			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_jobs_disable) error = %v", err)
-	}
-	job, err = manager.GetJob(ctx, jobID)
-	if err != nil {
-		t.Fatalf("manager.GetJob(disabled) error = %v", err)
-	}
-	if job.Enabled {
-		t.Fatal("job.Enabled = true, want false after disable tool")
-	}
-
-	_, err = registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationJobsEnable,
-			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_jobs_enable) error = %v", err)
-	}
-
-	jobRunResult, err := registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationJobsTrigger,
-			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_jobs_trigger) error = %v", err)
-	}
-	runID := nativeAutomationResultResourceID(t, jobRunResult, nativeAutomationToolsRunKey)
-	run, err := manager.GetRun(ctx, runID)
-	if err != nil {
-		t.Fatalf("manager.GetRun(triggered) error = %v", err)
-	}
-	if run.JobID != jobID || run.Status != automationpkg.RunCompleted {
-		t.Fatalf("triggered run = %#v, want completed run for %q", run, jobID)
-	}
-
-	historyResult, err := registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationJobsHistory,
-			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q,"status":"completed"}`, jobID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_jobs_history) error = %v", err)
-	}
-	requireNativeStructuredContains(t, historyResult, []byte(runID))
-
-	runsResult, err := registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationRunsList,
-			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_runs_list) error = %v", err)
-	}
-	requireNativeStructuredContains(t, runsResult, []byte(runID))
-
-	runGetResult, err := registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationRunsGet,
-			Input:  json.RawMessage(fmt.Sprintf(`{"run_id":%q}`, runID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_runs_get) error = %v", err)
-	}
-	requireNativeStructuredContains(t, runGetResult, []byte(jobID))
-
-	triggerCreateResult, err := registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationTriggersCreate,
-			Input: json.RawMessage(
-				`{"scope":"global","name":"integration-trigger","agent_name":"codex","prompt":"trigger {{ .Kind }}","event":"session.created"}`,
-			),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_triggers_create) error = %v", err)
-	}
-	triggerID := nativeAutomationResultResourceID(t, triggerCreateResult, "trigger")
-	trigger, err := manager.GetTrigger(ctx, triggerID)
-	if err != nil {
-		t.Fatalf("manager.GetTrigger(created) error = %v", err)
-	}
-	if trigger.Name != "integration-trigger" || trigger.Source != automationpkg.JobSourceDynamic {
-		t.Fatalf("created trigger = %#v, want dynamic integration trigger", trigger)
-	}
-
-	_, err = registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
-			Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q,"name":"integration-trigger-updated"}`, triggerID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_triggers_update) error = %v", err)
-	}
-	trigger, err = manager.GetTrigger(ctx, triggerID)
-	if err != nil {
-		t.Fatalf("manager.GetTrigger(updated) error = %v", err)
-	}
-	if trigger.Name != "integration-trigger-updated" {
-		t.Fatalf("trigger.Name = %q, want updated name", trigger.Name)
-	}
-
-	_, err = registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationTriggersDisable,
-			Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_triggers_disable) error = %v", err)
-	}
-	trigger, err = manager.GetTrigger(ctx, triggerID)
-	if err != nil {
-		t.Fatalf("manager.GetTrigger(disabled) error = %v", err)
-	}
-	if trigger.Enabled {
-		t.Fatal("trigger.Enabled = true, want false after disable tool")
-	}
-
-	triggerHistoryResult, err := registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationTriggersHistory,
-			Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_triggers_history) error = %v", err)
-	}
-	requireNativeStructuredContains(t, triggerHistoryResult, []byte(`"runs":[]`))
-
-	_, err = registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationTriggersDelete,
-			Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_triggers_delete) error = %v", err)
-	}
-	if _, err = manager.GetTrigger(ctx, triggerID); !errors.Is(err, automationpkg.ErrTriggerNotFound) {
-		t.Fatalf("manager.GetTrigger(deleted) error = %v, want ErrTriggerNotFound", err)
-	}
-
-	_, err = registry.Call(
-		ctx,
-		toolspkg.Scope{Operator: true},
-		toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAutomationJobsDelete,
-			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
-		},
-	)
-	if err != nil {
-		t.Fatalf("Registry.Call(automation_jobs_delete) error = %v", err)
-	}
-	if _, err = manager.GetJob(ctx, jobID); !errors.Is(err, automationpkg.ErrJobNotFound) {
-		t.Fatalf("manager.GetJob(deleted) error = %v, want ErrJobNotFound", err)
-	}
-}
-
-func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *testing.T) {
-	t.Run("Should return the blocked class and persist no job", func(t *testing.T) {
+	t.Run("Should reject lifecycle commands before managing valid automation resources", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -277,6 +35,7 @@ func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *test
 			Automation: manager,
 		}, nativeApproveAllPolicyInputs())
 
+		// Rejection precedes creation so the empty-store assertion shares the lifecycle fixture.
 		_, err := registry.Call(
 			ctx,
 			toolspkg.Scope{Operator: true},
@@ -324,6 +83,240 @@ func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *test
 		}
 		if len(page.Jobs) != 0 {
 			t.Fatalf("manager.ListJobs() jobs = %#v, want no persisted job", page.Jobs)
+		}
+
+		jobCreateResult, err := registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsCreate,
+				Input: json.RawMessage(
+					`{"scope":"global","name":"integration-daily","agent_name":"codex","prompt":"run integration","schedule":{"mode":"every","interval":"1h"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_jobs_create) error = %v", err)
+		}
+		jobID := nativeAutomationResultResourceID(t, jobCreateResult, "job")
+		job, err := manager.GetJob(ctx, jobID)
+		if err != nil {
+			t.Fatalf("manager.GetJob(created) error = %v", err)
+		}
+		if job.Name != "integration-daily" || job.Source != automationpkg.JobSourceDynamic {
+			t.Fatalf("created job = %#v, want dynamic integration job", job)
+		}
+
+		_, err = registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsUpdate,
+				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q,"name":"integration-daily-updated"}`, jobID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_jobs_update) error = %v", err)
+		}
+		job, err = manager.GetJob(ctx, jobID)
+		if err != nil {
+			t.Fatalf("manager.GetJob(updated) error = %v", err)
+		}
+		if job.Name != "integration-daily-updated" {
+			t.Fatalf("job.Name = %q, want updated name", job.Name)
+		}
+
+		_, err = registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsDisable,
+				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_jobs_disable) error = %v", err)
+		}
+		job, err = manager.GetJob(ctx, jobID)
+		if err != nil {
+			t.Fatalf("manager.GetJob(disabled) error = %v", err)
+		}
+		if job.Enabled {
+			t.Fatal("job.Enabled = true, want false after disable tool")
+		}
+
+		_, err = registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsEnable,
+				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_jobs_enable) error = %v", err)
+		}
+
+		jobRunResult, err := registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsTrigger,
+				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_jobs_trigger) error = %v", err)
+		}
+		runID := nativeAutomationResultResourceID(t, jobRunResult, nativeAutomationToolsRunKey)
+		run, err := manager.GetRun(ctx, runID)
+		if err != nil {
+			t.Fatalf("manager.GetRun(triggered) error = %v", err)
+		}
+		if run.JobID != jobID || run.Status != automationpkg.RunCompleted {
+			t.Fatalf("triggered run = %#v, want completed run for %q", run, jobID)
+		}
+
+		historyResult, err := registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsHistory,
+				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q,"status":"completed"}`, jobID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_jobs_history) error = %v", err)
+		}
+		requireNativeStructuredContains(t, historyResult, []byte(runID))
+
+		runsResult, err := registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationRunsList,
+				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_runs_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, runsResult, []byte(runID))
+
+		runGetResult, err := registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationRunsGet,
+				Input:  json.RawMessage(fmt.Sprintf(`{"run_id":%q}`, runID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_runs_get) error = %v", err)
+		}
+		requireNativeStructuredContains(t, runGetResult, []byte(jobID))
+
+		triggerCreateResult, err := registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationTriggersCreate,
+				Input: json.RawMessage(
+					`{"scope":"global","name":"integration-trigger","agent_name":"codex","prompt":"trigger {{ .Kind }}","event":"session.created"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_triggers_create) error = %v", err)
+		}
+		triggerID := nativeAutomationResultResourceID(t, triggerCreateResult, "trigger")
+		trigger, err := manager.GetTrigger(ctx, triggerID)
+		if err != nil {
+			t.Fatalf("manager.GetTrigger(created) error = %v", err)
+		}
+		if trigger.Name != "integration-trigger" || trigger.Source != automationpkg.JobSourceDynamic {
+			t.Fatalf("created trigger = %#v, want dynamic integration trigger", trigger)
+		}
+
+		_, err = registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
+				Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q,"name":"integration-trigger-updated"}`, triggerID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_triggers_update) error = %v", err)
+		}
+		trigger, err = manager.GetTrigger(ctx, triggerID)
+		if err != nil {
+			t.Fatalf("manager.GetTrigger(updated) error = %v", err)
+		}
+		if trigger.Name != "integration-trigger-updated" {
+			t.Fatalf("trigger.Name = %q, want updated name", trigger.Name)
+		}
+
+		_, err = registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationTriggersDisable,
+				Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_triggers_disable) error = %v", err)
+		}
+		trigger, err = manager.GetTrigger(ctx, triggerID)
+		if err != nil {
+			t.Fatalf("manager.GetTrigger(disabled) error = %v", err)
+		}
+		if trigger.Enabled {
+			t.Fatal("trigger.Enabled = true, want false after disable tool")
+		}
+
+		triggerHistoryResult, err := registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationTriggersHistory,
+				Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_triggers_history) error = %v", err)
+		}
+		requireNativeStructuredContains(t, triggerHistoryResult, []byte(`"runs":[]`))
+
+		_, err = registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationTriggersDelete,
+				Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_triggers_delete) error = %v", err)
+		}
+		if _, err = manager.GetTrigger(ctx, triggerID); !errors.Is(err, automationpkg.ErrTriggerNotFound) {
+			t.Fatalf("manager.GetTrigger(deleted) error = %v, want ErrTriggerNotFound", err)
+		}
+
+		_, err = registry.Call(
+			ctx,
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsDelete,
+				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_jobs_delete) error = %v", err)
+		}
+		if _, err = manager.GetJob(ctx, jobID); !errors.Is(err, automationpkg.ErrJobNotFound) {
+			t.Fatalf("manager.GetJob(deleted) error = %v, want ErrJobNotFound", err)
 		}
 	})
 }

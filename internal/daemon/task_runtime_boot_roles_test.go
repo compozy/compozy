@@ -20,6 +20,8 @@ import (
 func TestTaskManagerOptionsShouldWireLoopCoordinatorTerminalStatusValidator(t *testing.T) {
 	t.Parallel()
 
+	// Each case owns a unique workspace and runner; share only the migrated database.
+	db := openDaemonTestGlobalDB(t)
 	validStatuses := []looppkg.Status{
 		looppkg.StatusQueued,
 		looppkg.StatusRunning,
@@ -37,7 +39,7 @@ func TestTaskManagerOptionsShouldWireLoopCoordinatorTerminalStatusValidator(t *t
 		t.Run("Should accept "+string(status), func(t *testing.T) {
 			t.Parallel()
 
-			if err := runBootWiredCoordinatorTerminalStatus(t, string(status)); err != nil {
+			if err := runBootWiredCoordinatorTerminalStatus(t, db, string(status)); err != nil {
 				t.Fatalf("StartRun(%q) error = %v", status, err)
 			}
 		})
@@ -46,19 +48,18 @@ func TestTaskManagerOptionsShouldWireLoopCoordinatorTerminalStatusValidator(t *t
 	t.Run("Should reject statuses outside the loop vocabulary", func(t *testing.T) {
 		t.Parallel()
 
-		err := runBootWiredCoordinatorTerminalStatus(t, "not-a-loop-status")
+		err := runBootWiredCoordinatorTerminalStatus(t, db, "not-a-loop-status")
 		if !errors.Is(err, taskpkg.ErrValidation) || !coordinatorOwnerRejectedStatus(err) {
 			t.Fatalf("StartRun(invalid status) error = %v, want owner ErrValidation", err)
 		}
 	})
 }
 
-func runBootWiredCoordinatorTerminalStatus(t *testing.T, status string) error {
+func runBootWiredCoordinatorTerminalStatus(t *testing.T, db *globaldb.GlobalDB, status string) error {
 	t.Helper()
 
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
-	db := openDaemonTestGlobalDB(t)
 	runner := &bootWiredCoordinatorRunner{statusByRun: make(map[taskpkg.RunID]string)}
 	options := taskManagerOptions(
 		db,

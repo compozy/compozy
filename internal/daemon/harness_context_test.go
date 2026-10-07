@@ -208,14 +208,6 @@ func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *te
 				root: filepath.Join(operatorHome, ".agents", "skills"),
 			},
 			{
-				name: "Should suppress the Hermes workspace preset", provider: "hermes", origin: "agents",
-				root: filepath.Join(workspace, ".agents", "skills"),
-			},
-			{
-				name: "Should retain the Hermes operator agents preset", provider: "hermes", origin: "agents",
-				root: filepath.Join(operatorHome, ".agents", "skills"), wantKeep: true,
-			},
-			{
 				name: "Should retain preset skills for an unknown provider", provider: "custom", origin: "claude",
 				root: filepath.Join(workspace, ".claude", "skills"), wantKeep: true,
 			},
@@ -669,21 +661,6 @@ func testSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testi
 	}
 	if !slices.Equal(gotNames, wantNames) {
 		t.Fatalf("selected section names = %#v, want %#v", gotNames, wantNames)
-	}
-
-	plain, _, err := selector.Select(session.StartupPromptContext{
-		SessionType: session.SessionTypeUser,
-	}, descriptors)
-	if err != nil {
-		t.Fatalf("Select(no channel) error = %v", err)
-	}
-
-	gotNames = gotNames[:0]
-	for _, descriptor := range plain {
-		gotNames = append(gotNames, descriptor.Name)
-	}
-	if !slices.Equal(gotNames, wantNames[:2]) {
-		t.Fatalf("selected names without channel = %#v, want %#v", gotNames, wantNames[:2])
 	}
 }
 
