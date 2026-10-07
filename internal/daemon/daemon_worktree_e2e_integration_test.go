@@ -1070,7 +1070,7 @@ func TestDaemonNativeWorktreeJourneyE2E004(t *testing.T) {
 		},
 		MockAgents: []e2etest.MockAgentSpec{mockSpec, denyMockSpec},
 	})
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
 	workspaceID := harness.WorkspaceID
 	session, client := newWorkspaceAccessHostedSession(
