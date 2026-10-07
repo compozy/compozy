@@ -11,7 +11,7 @@ bug_ids: ""
 fix_status:
 retest_status:
 fix_commits: ""
-evidence: ""; web/src/systems/loops/routes/__tests__/loop-runs.test.tsx (E2E-030: Loop request attention routes)
+evidence: "web/src/systems/loops/routes/__tests__/loop-runs.test.tsx (E2E-030: Loop request attention routes)"
 last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps: LP-ask-answer; RT-web-attention-bell-jump
 ---

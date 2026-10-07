@@ -11,7 +11,7 @@ bug_ids: ""
 fix_status:
 retest_status:
 fix_commits: ""
-evidence: /Users/pedronauck/dev/qa-labs/compozy-graph-eng-review-20260818-141718-102629-lab/qa-artifacts/qa/screenshots/loop-editor-authored-published.png; web/src/systems/loops/components/__tests__/loop-editor.test.tsx (E2E-029: editor grammar round-trips and reports a missing route default)
+evidence: "/Users/pedronauck/dev/qa-labs/compozy-graph-eng-review-20260818-141718-102629-lab/qa-artifacts/qa/screenshots/loop-editor-authored-published.png; web/src/systems/loops/components/__tests__/loop-editor.test.tsx (E2E-029: editor grammar round-trips and reports a missing route default)"
 last_report: docs/qa/reports/2026-08-18-graph-eng-review.md
 overlaps: ""
 ---
