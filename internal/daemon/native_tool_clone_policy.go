@@ -16,48 +16,42 @@ func cloneStringPtr(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := strings.TrimSpace(*value)
-	return &cloned
+	return new(strings.TrimSpace(*value))
 }
 
 func cloneIntPtr(value *int) *int {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneBoolPtr(value *bool) *bool {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneRawMessagePtr(value *json.RawMessage) *json.RawMessage {
 	if value == nil {
 		return nil
 	}
-	cloned := cloneJSON(*value)
-	return &cloned
+	return new(cloneJSON(*value))
 }
 
 func taskPriorityPtr(value *string) *taskpkg.Priority {
 	if value == nil {
 		return nil
 	}
-	priority := taskpkg.Priority(strings.TrimSpace(*value))
-	return &priority
+	return new(taskpkg.Priority(strings.TrimSpace(*value)))
 }
 
 func taskApprovalPolicyPtr(value *string) *taskpkg.ApprovalPolicy {
 	if value == nil {
 		return nil
 	}
-	policy := taskpkg.ApprovalPolicy(strings.TrimSpace(*value))
-	return &policy
+	return new(taskpkg.ApprovalPolicy(strings.TrimSpace(*value)))
 }
 
 func cloneTaskOwner(owner *taskpkg.Ownership) *taskpkg.Ownership {

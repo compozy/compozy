@@ -31,7 +31,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 	workspaceRoot := t.TempDir()
 	options := goalCommandRuntimeOptions(t, homePaths, workspaceRoot)
 	harness := e2etest.StartRuntimeHarness(t, &options)
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
 
 	// Subtests share one runtime and are intentionally sequential.
@@ -357,7 +357,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 	})
 
 	t.Run("Should preserve Goal snapshot and turns across restart", func(t *testing.T) {
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
 			stopCancel()
 			t.Fatalf("Stop(before Goal restart) error = %v", err)

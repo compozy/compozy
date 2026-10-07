@@ -34,7 +34,7 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			now := time.Date(2026, 7, 15, 20, 0, 0, 0, time.UTC)
 			workspaceID := "ws-dead-mcp-integration"

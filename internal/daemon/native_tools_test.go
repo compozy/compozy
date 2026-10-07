@@ -224,9 +224,9 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 				)
 				mapped := terminalToolError(request.ToolID, contextErr)
 				toolErr, ok := errors.AsType[*toolspkg.ToolError](mapped)
-				var domainErr *terminalpkg.Error
+				_, isDomainErr := errors.AsType[*terminalpkg.Error](mapped)
 				if !ok || toolErr.Code != testCase.wantCode ||
-					!slices.Contains(toolErr.ReasonCodes, testCase.wantReason) || errors.As(mapped, &domainErr) {
+					!slices.Contains(toolErr.ReasonCodes, testCase.wantReason) || isDomainErr {
 					t.Fatalf(
 						"native identity error = %#v, want %s/%s without terminal code",
 						mapped,
@@ -4212,14 +4212,13 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should read provider model catalog tools through the model catalog service boundary", func(t *testing.T) {
 		t.Parallel()
 
-		available := true
 		now := time.Date(2026, 5, 12, 9, 0, 0, 0, time.UTC)
 		catalog := &nativeModelCatalogService{
 			models: []modelcatalog.Model{{
 				ProviderID:        "codex",
 				ModelID:           "gpt-5.4",
 				DisplayName:       "GPT-5.4",
-				Available:         &available,
+				Available:         new(true),
 				AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
 				RefreshedAt:       now,
 				Sources: []modelcatalog.SourceRef{{

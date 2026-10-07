@@ -215,7 +215,7 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 			publisher := &recordingTaskStatusProjectionPublisher{
 				ch: make(chan taskStatusProjection, len(allRecords)),
 			}
-			observerCtx, cancel := context.WithCancel(context.Background())
+			observerCtx, cancel := context.WithCancel(t.Context())
 			observer := &taskStatusProjectionObserver{
 				tasks: flakyStore, designations: flakyStore,
 				events: flakyStore, cursors: flakyStore, publisher: publisher,

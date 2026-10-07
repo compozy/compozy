@@ -61,7 +61,7 @@ func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrust
 ) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second)
 	defer cancel()
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -154,7 +154,7 @@ func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrust
 func testDaemonE2EResourceOnlyExtensionAuthoring(t *testing.T, binaryPath string) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second)
 	defer cancel()
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -466,7 +466,7 @@ func TestDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testi
 func testDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Second)
 	defer cancel()
 
 	repoRoot := extensionAuthoringE2ERepoRoot(t)
@@ -582,7 +582,7 @@ func quickstartFencedLines(t *testing.T, block string) []string {
 		t.Fatal("quickstart bash code fence is unterminated")
 	}
 	lines := make([]string, 0, 4)
-	for _, raw := range strings.Split(fence, "\n") {
+	for raw := range strings.SplitSeq(fence, "\n") {
 		line := strings.TrimSpace(raw)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

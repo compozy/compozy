@@ -27,7 +27,7 @@ import (
 func TestDaemonE2EExtensionErrorUXPreservesStructuredRemediationInHumanStderr(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 	repoRoot := extensionAuthoringE2ERepoRoot(t)
 	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)

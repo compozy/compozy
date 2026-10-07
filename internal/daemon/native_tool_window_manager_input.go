@@ -370,8 +370,7 @@ func windowManagerOptionalString[T ~string](value string) *T {
 	if trimmed == "" {
 		return nil
 	}
-	converted := T(trimmed)
-	return &converted
+	return new(T(trimmed))
 }
 
 func (input windowManagerMutationInput) rebaseGuard() *windowmanager.RebaseGuard {

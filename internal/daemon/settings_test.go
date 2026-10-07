@@ -303,7 +303,7 @@ func TestSettingsRuntimeSurfaceTransportParityStatus(t *testing.T) {
 				},
 			}
 
-			status, err := surface.TransportParityStatus(context.Background())
+			status, err := surface.TransportParityStatus(t.Context())
 			if err != nil {
 				t.Fatalf("TransportParityStatus() error = %v", err)
 			}
@@ -326,7 +326,7 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 	t.Run("Should preserve MCP auth status after reopening the backing store", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
 		first, err := openDaemonTestGlobalDBAtPath(ctx, path)
 		if err != nil {
@@ -437,7 +437,7 @@ func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
 		defer func() {
-			if err := database.Close(context.Background()); err != nil {
+			if err := database.Close(t.Context()); err != nil {
 				t.Fatalf("Close() error = %v", err)
 			}
 		}()
@@ -578,7 +578,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 	t.Run("Should probe a reachable MCP server independent of observability agent probe timeout", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		server := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 			return newSettingsMCPTestServer()
 		}, &mcp.StreamableHTTPOptions{
@@ -672,7 +672,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 
 		surface := &settingsRuntimeSurface{}
 		status, err := surface.MCPServerRuntimeStatus(
-			context.Background(),
+			t.Context(),
 			globalMCPTestTarget("linear"),
 			compozyconfig.MCPServer{
 				Name:      "linear",
@@ -704,7 +704,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 
 		surface := &settingsRuntimeSurface{}
 		status, err := surface.MCPServerRuntimeStatus(
-			context.Background(),
+			t.Context(),
 			globalMCPTestTarget("broken"),
 			compozyconfig.MCPServer{
 				Name:      "broken",
@@ -988,7 +988,7 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 			},
 		}
 
-		got, err := controller.GetUpdate(context.Background())
+		got, err := controller.GetUpdate(t.Context())
 		if err != nil {
 			t.Fatalf("GetUpdate() error = %v", err)
 		}
@@ -1001,7 +1001,7 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 	t.Run("Should reject a missing settings update manager", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := (settingsUpdateController{}).GetUpdate(context.Background())
+		_, err := (settingsUpdateController{}).GetUpdate(t.Context())
 		if err == nil {
 			t.Fatal("GetUpdate() error = nil, want missing manager error")
 		}
@@ -1019,7 +1019,7 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 			},
 		}
 
-		_, err := controller.GetUpdate(context.Background())
+		_, err := controller.GetUpdate(t.Context())
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("GetUpdate() error = %v, want %v", err, wantErr)
 		}

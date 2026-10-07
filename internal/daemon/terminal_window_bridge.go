@@ -159,6 +159,5 @@ func sessionWindowID(window *windowmanager.Window) *windowmanager.WindowID {
 	if window == nil {
 		return nil
 	}
-	id := window.ID
-	return &id
+	return new(window.ID)
 }

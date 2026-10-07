@@ -48,7 +48,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		notification := reviewRouterNotificationForTest()
-		router.OnRunReviewRequested(context.Background(), &notification)
+		router.OnRunReviewRequested(t.Context(), &notification)
 
 		if got, want := len(tasks.binds), 1; got != want {
 			t.Fatalf("bind calls = %d, want %d", got, want)
@@ -95,7 +95,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		notification.Actor = taskpkg.ActorContext{
 			Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-requester"},
 		}
-		router.OnRunReviewRequested(context.Background(), &notification)
+		router.OnRunReviewRequested(t.Context(), &notification)
 
 		if got, want := len(tasks.binds), 1; got != want {
 			t.Fatalf("bind calls = %d, want %d", got, want)
@@ -131,7 +131,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		notification.Actor = taskpkg.ActorContext{
 			Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-requester"},
 		}
-		router.OnRunReviewRequested(context.Background(), &notification)
+		router.OnRunReviewRequested(t.Context(), &notification)
 
 		if got := sessions.createCount(); got != 0 {
 			t.Fatalf("session create calls = %d, want 0", got)
@@ -175,7 +175,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		notification := reviewRouterNotificationForTest()
-		router.OnRunReviewRequested(context.Background(), &notification)
+		router.OnRunReviewRequested(t.Context(), &notification)
 
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("session create calls = %d, want %d", got, want)
@@ -229,7 +229,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		router.contextOverlay = overlay
 
 		notification := reviewRouterNotificationForTest()
-		router.OnRunReviewRequested(context.Background(), &notification)
+		router.OnRunReviewRequested(t.Context(), &notification)
 
 		create := sessions.createCall(0)
 		if !strings.Contains(create.PromptOverlay, "review task context bundle") ||
@@ -276,7 +276,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			},
 		)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		notification := reviewRouterNotificationForTest()
 		router.OnRunReviewRequested(ctx, &notification)
@@ -313,7 +313,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			reviewRouterAgentResolverStub{"worker": reviewRouterAgentDef("worker")},
 		)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		notification := reviewRouterNotificationForTest()
 		router.OnRunReviewRequested(ctx, &notification)
@@ -357,7 +357,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			},
 		)
 
-		router.OnSessionStopped(context.Background(), &session.Session{
+		router.OnSessionStopped(t.Context(), &session.Session{
 			ID:          "sess-stopped-reviewer",
 			AgentName:   "reviewer",
 			WorkspaceID: "ws-1",
@@ -418,7 +418,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			},
 		)
 
-		router.OnSessionStopped(context.Background(), &session.Session{
+		router.OnSessionStopped(t.Context(), &session.Session{
 			ID:          "sess-stopped-reviewer",
 			AgentName:   "reviewer",
 			WorkspaceID: "ws-1",
@@ -466,7 +466,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		notification := reviewRouterNotificationForTest()
-		router.OnRunReviewRequested(context.Background(), &notification)
+		router.OnRunReviewRequested(t.Context(), &notification)
 
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("session create calls = %d, want %d", got, want)
@@ -514,7 +514,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		notification := reviewRouterNotificationForTest()
-		router.OnRunReviewRequested(context.Background(), &notification)
+		router.OnRunReviewRequested(t.Context(), &notification)
 
 		if got := sessions.createCount(); got != 0 {
 			t.Fatalf("session create calls = %d, want 0 when only original worker agent is available", got)
@@ -560,7 +560,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			)
 
 			notification := reviewRouterNotificationForTest()
-			router.OnRunReviewRequested(context.Background(), &notification)
+			router.OnRunReviewRequested(t.Context(), &notification)
 
 			if len(tasks.binds) != 0 {
 				t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
@@ -611,7 +611,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		notification := reviewRouterNotificationForTest()
-		router.OnRunReviewRequested(context.Background(), &notification)
+		router.OnRunReviewRequested(t.Context(), &notification)
 
 		if len(tasks.binds) != 0 {
 			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)

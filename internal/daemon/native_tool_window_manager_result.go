@@ -1,10 +1,11 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -119,8 +120,8 @@ func windowManagerSortedWindows(
 		}
 		windows = append(windows, window)
 	}
-	sort.Slice(windows, func(left, right int) bool {
-		return windows[left].ID < windows[right].ID
+	slices.SortFunc(windows, func(a, b windowmanager.Window) int {
+		return cmp.Compare(a.ID, b.ID)
 	})
 	return windows
 }

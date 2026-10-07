@@ -168,14 +168,17 @@ func (n *daemonNativeTools) nativeCmdPaletteWorkspaceID(
 }
 
 func nativeCmdPaletteError(id toolspkg.ToolID, err error) error {
-	var invalidArguments *cmdpalette.InvalidArgumentsError
-	var unavailable *cmdpalette.UnavailableError
 	switch {
 	case errors.Is(err, cmdpalette.ErrCommandNotFound):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeNotFound, id, err.Error(), fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
 		)
-	case errors.As(err, &invalidArguments), errors.Is(err, cmdpalette.ErrCannotDeferSecrets):
+	case func() bool {
+		//nolint:errcheck // AsType returns a match, not an operation error.
+		_, ok := errors.AsType[*cmdpalette.InvalidArgumentsError](err)
+		return ok
+	}(),
+		errors.Is(err, cmdpalette.ErrCannotDeferSecrets):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput, id, err.Error(), fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonSchemaInvalid,
@@ -189,7 +192,12 @@ func nativeCmdPaletteError(id toolspkg.ToolID, err error) error {
 			toolspkg.ErrorCodeDenied, id, err.Error(), fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
 			toolspkg.ReasonScopeMismatch,
 		)
-	case errors.Is(err, cmdpalette.ErrNoAttachedShell), errors.As(err, &unavailable):
+	case errors.Is(err, cmdpalette.ErrNoAttachedShell),
+		func() bool {
+			//nolint:errcheck // AsType returns a match, not an operation error.
+			_, ok := errors.AsType[*cmdpalette.UnavailableError](err)
+			return ok
+		}():
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeUnavailable, id, err.Error(), fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, err),
 			toolspkg.ReasonDependencyMissing,

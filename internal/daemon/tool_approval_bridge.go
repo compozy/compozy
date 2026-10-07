@@ -9,11 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"uuid"
+
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -320,7 +321,7 @@ func toolApprovalCallID(call toolspkg.CallRequest) string {
 			return trimmed
 		}
 	}
-	return uuid.NewString()
+	return uuid.NewV4().String()
 }
 
 func toolApprovalTitle(descriptor toolspkg.Descriptor) string {

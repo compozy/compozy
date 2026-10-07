@@ -68,7 +68,7 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 		},
 		StartTimeout: 30 * time.Second,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 
 	requireSpecCycleExtensionEnabled(t, ctx, harness)

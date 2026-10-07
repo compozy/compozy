@@ -696,16 +696,14 @@ func TestClarifyBridgeAnswerExpiryRace(t *testing.T) {
 		errs := make([]error, callers)
 		var wg sync.WaitGroup
 		for i := range errs {
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
+			wg.Go(func() {
 				_, errs[i] = bridge.Answer(
 					testutil.Context(t),
 					scope,
 					"clarify-request",
 					toolspkg.ClarifyAnswerRequest{Text: "yes"},
 				)
-			}(i)
+			})
 		}
 		wg.Wait()
 

@@ -158,7 +158,7 @@ func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
 	}
 	runtime.claimRetryInterval = time.Millisecond
 
-	runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+	runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 		TaskID: taskRecord.ID, RunID: run.ID,
 	})
 
@@ -177,7 +177,7 @@ func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
 		t.Fatalf("ExecuteActionRun() calls = %d, want 1", got)
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	if err := runtime.shutdown(shutdownCtx); err != nil {
 		t.Fatalf("shutdown() error = %v", err)
@@ -192,7 +192,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 
 		runner := &loopActionLivenessTestRunner{}
 		runtime := &loopActionRuntime{runner: runner}
-		got, err := runtime.actionTimeoutForRun(context.Background(), taskpkg.Run{})
+		got, err := runtime.actionTimeoutForRun(t.Context(), taskpkg.Run{})
 		if err != nil {
 			t.Fatalf("actionTimeoutForRun(unset) error = %v", err)
 		}
@@ -202,7 +202,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 
 		runner.timeout = 45 * time.Second
 		runner.hasTimeout = true
-		got, err = runtime.actionTimeoutForRun(context.Background(), taskpkg.Run{})
+		got, err = runtime.actionTimeoutForRun(t.Context(), taskpkg.Run{})
 		if err != nil {
 			t.Fatalf("actionTimeoutForRun(explicit) error = %v", err)
 		}
@@ -211,7 +211,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 
 		runner.timeoutErr = fmt.Errorf("invalid node timeout: %w", looppkg.ErrValidation)
-		if _, err := runtime.actionTimeoutForRun(context.Background(), taskpkg.Run{}); !errors.Is(
+		if _, err := runtime.actionTimeoutForRun(t.Context(), taskpkg.Run{}); !errors.Is(
 			err,
 			looppkg.ErrValidation,
 		) {
@@ -240,7 +240,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 		runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 		runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
-		callerCtx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+		callerCtx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
 		defer cancel()
 		err = runtime.executeQueuedRun(callerCtx, taskRecord, run, loopActionRuntimeReasonEnqueued)
 		if !errors.Is(err, context.DeadlineExceeded) {
@@ -272,7 +272,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 		runtime.livenessPollInterval = func(time.Duration) time.Duration { return time.Millisecond }
 
-		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		err = runtime.executeQueuedRun(t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued)
 		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 0)
 	})
 
@@ -295,7 +295,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 		runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 
-		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		err = runtime.executeQueuedRun(t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued)
 		if err != nil {
 			t.Fatalf("executeQueuedRun() error = %v", err)
 		}
@@ -330,7 +330,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			t.Fatalf("newLoopActionRuntime() error = %v", err)
 		}
 
-		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		err = runtime.executeQueuedRun(t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued)
 		if !errors.Is(err, completeErr) || manager.failure.RunID != run.ID {
 			t.Fatalf("completion/failure = %v/%#v, want precommit error to fail owned lease", err, manager.failure)
 		}
@@ -354,7 +354,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			t.Fatalf("newLoopActionRuntime() error = %v", err)
 		}
 
-		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		err = runtime.executeQueuedRun(t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued)
 		if !errors.Is(err, completeErr) || manager.failure.RunID != "" {
 			t.Fatalf("completion/failure = %v/%#v, want committed result without rollback", err, manager.failure)
 		}
@@ -386,7 +386,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			t.Fatalf("newLoopActionRuntime() error = %v", err)
 		}
 
-		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		err = runtime.executeQueuedRun(t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued)
 		if !errors.Is(err, looppkg.ErrActionInvalidOutput) {
 			t.Fatalf("executeQueuedRun() error = %v, want ErrActionInvalidOutput", err)
 		}
@@ -447,7 +447,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 
 		if err := runtime.executeQueuedRun(
-			context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued,
+			t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued,
 		); err != nil {
 			t.Fatalf("executeQueuedRun() error = %v", err)
 		}
@@ -474,7 +474,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			}},
 		}}}
 
-		evidence, err := runtime.refreshActionProgress(context.Background(), usage)
+		evidence, err := runtime.refreshActionProgress(t.Context(), usage)
 		if err != nil {
 			t.Fatalf("refreshActionProgress() error = %v", err)
 		}
@@ -503,7 +503,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			Liveness: &store.SessionLivenessMeta{StallState: store.SessionStallStateDetected},
 		}}}
 
-		evidence, err := runtime.refreshActionProgress(context.Background(), usage)
+		evidence, err := runtime.refreshActionProgress(t.Context(), usage)
 		if err != nil {
 			t.Fatalf("refreshActionProgress() error = %v", err)
 		}
@@ -535,7 +535,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 
 		if err := runtime.executeQueuedRun(
-			context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued,
+			t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued,
 		); err != nil {
 			t.Fatalf("executeQueuedRun() error = %v", err)
 		}
@@ -587,7 +587,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 			t.Fatalf("newLoopActionRuntime() error = %v", err)
 		}
 		if err := runtime.executeQueuedRun(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			loopActionRuntimeReasonEnqueued,
@@ -631,7 +631,7 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newLoopActionRuntime() error = %v", err)
 		}
-		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		err = runtime.executeQueuedRun(t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued)
 		if !errors.Is(err, runnerErr) {
 			t.Fatalf("executeQueuedRun(status failure) error = %v, want ordinary runner failure", err)
 		}
@@ -1240,7 +1240,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-profile",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -1299,7 +1299,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-evidence-inherit",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -1345,7 +1345,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		ref, err := bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-worktree-none",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -1384,7 +1384,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{ID: "task-global-worktree", Scope: taskpkg.ScopeGlobal},
 			Run: taskpkg.Run{
 				ID: "run-global-worktree", TaskID: "task-global-worktree",
@@ -1422,7 +1422,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-worktree-ref",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -1470,7 +1470,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-removed-ref",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -1520,7 +1520,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		ref, err := bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-per-run",
 				Identifier:  "review-docs",
@@ -1579,7 +1579,7 @@ func TestTaskSessionBridgeStartTaskSessionInjectsTaskContextOverlay(t *testing.T
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-context",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -1622,7 +1622,7 @@ func TestTaskSessionBridgeStartTaskSessionInjectsTaskContextOverlay(t *testing.T
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-context-error",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -1671,7 +1671,7 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		ref, err := bridge.AttachTaskSession(context.Background(), "run-1", "sess-active")
+		ref, err := bridge.AttachTaskSession(t.Context(), "run-1", "sess-active")
 		if err != nil {
 			t.Fatalf("AttachTaskSession(active) error = %v", err)
 		}
@@ -1680,7 +1680,7 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 		}
 
 		if _, err := bridge.AttachTaskSession(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			"sess-stopped",
 		); !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
@@ -1701,7 +1701,7 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+		_, err = bridge.AttachTaskRunSession(t.Context(), taskpkg.Run{
 			ID:               "run-root",
 			WorkspaceID:      "ws-attach",
 			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModeNone},
@@ -1721,7 +1721,7 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+		_, err = bridge.AttachTaskRunSession(t.Context(), taskpkg.Run{
 			ID: "run-root", WorkspaceID: "ws-owning",
 			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModeNone},
 		}, "sess-foreign")
@@ -1753,7 +1753,7 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		ref, err := bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+		ref, err := bridge.AttachTaskRunSession(t.Context(), taskpkg.Run{
 			ID:          "run-ref",
 			WorkspaceID: "ws-attach",
 			RunWorktreeState: &taskpkg.RunWorktreeState{
@@ -1787,7 +1787,7 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
-		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+		_, err = bridge.AttachTaskRunSession(t.Context(), taskpkg.Run{
 			ID:               "run-per-run",
 			WorkspaceID:      "ws-attach",
 			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
@@ -1807,10 +1807,10 @@ func TestTaskSessionBridgeStopPathsUseCooperativeThenForcedCalls(t *testing.T) {
 		t.Fatalf("newTaskSessionBridge() error = %v", err)
 	}
 
-	if err := bridge.RequestTaskStop(context.Background(), "sess-1", taskpkg.StopReasonCancellation); err != nil {
+	if err := bridge.RequestTaskStop(t.Context(), "sess-1", taskpkg.StopReasonCancellation); err != nil {
 		t.Fatalf("RequestTaskStop() error = %v", err)
 	}
-	if err := bridge.ForceTaskStop(context.Background(), "sess-1", taskpkg.StopReasonCancellation); err != nil {
+	if err := bridge.ForceTaskStop(t.Context(), "sess-1", taskpkg.StopReasonCancellation); err != nil {
 		t.Fatalf("ForceTaskStop() error = %v", err)
 	}
 
@@ -1920,7 +1920,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			recovery, err := planTaskRunRecovery(context.Background(), sessions, tc.run)
+			recovery, err := planTaskRunRecovery(t.Context(), sessions, tc.run)
 			if err != nil {
 				t.Fatalf("planTaskRunRecovery() error = %v", err)
 			}
@@ -2035,7 +2035,7 @@ func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testi
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			recovery, err := planTaskRunRecovery(context.Background(), sessions, taskpkg.Run{
+			recovery, err := planTaskRunRecovery(t.Context(), sessions, taskpkg.Run{
 				ID:        "run-" + tc.sessionID,
 				TaskID:    "task-" + tc.sessionID,
 				Status:    taskpkg.TaskRunStatusRunning,
@@ -2081,7 +2081,7 @@ func TestTaskSessionBridgeGuardsAndFallbackStopPaths(t *testing.T) {
 	if _, err := bridge.StartTaskSession(nilTaskRuntimeContext(), &taskpkg.StartTaskSession{}); err == nil {
 		t.Fatal("StartTaskSession(nil ctx) error = nil, want validation error")
 	}
-	if _, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+	if _, err := bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 		Task: taskpkg.Task{
 			ID:    "task-global",
 			Scope: taskpkg.ScopeGlobal,
@@ -2093,7 +2093,7 @@ func TestTaskSessionBridgeGuardsAndFallbackStopPaths(t *testing.T) {
 	}); err == nil {
 		t.Fatal("StartTaskSession(global without workspace path) error = nil, want validation error")
 	}
-	if _, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+	if _, err := bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 		Task: taskpkg.Task{
 			ID:    "task-invalid",
 			Scope: taskpkg.Scope("invalid"),
@@ -2112,7 +2112,7 @@ func TestTaskSessionBridgeGuardsAndFallbackStopPaths(t *testing.T) {
 		t.Fatal("RequestTaskStop(nil ctx) error = nil, want validation error")
 	}
 	if err := bridge.ForceTaskStop(
-		context.Background(),
+		t.Context(),
 		"   ",
 		taskpkg.StopReasonCancellation,
 	); !errors.Is(
@@ -2134,10 +2134,10 @@ func TestTaskSessionBridgeGuardsAndFallbackStopPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newTaskSessionBridge() error = %v", err)
 	}
-	if err := bridge.RequestTaskStop(context.Background(), "sess-missing", taskpkg.StopReasonShutdown); err != nil {
+	if err := bridge.RequestTaskStop(t.Context(), "sess-missing", taskpkg.StopReasonShutdown); err != nil {
 		t.Fatalf("RequestTaskStop(missing) error = %v, want nil", err)
 	}
-	if err := bridge.ForceTaskStop(context.Background(), "sess-missing", taskpkg.StopReasonOrphanedRun); err != nil {
+	if err := bridge.ForceTaskStop(t.Context(), "sess-missing", taskpkg.StopReasonOrphanedRun); err != nil {
 		t.Fatalf("ForceTaskStop(missing) error = %v, want nil", err)
 	}
 
@@ -2146,7 +2146,7 @@ func TestTaskSessionBridgeGuardsAndFallbackStopPaths(t *testing.T) {
 		t.Fatalf("newTaskSessionBridge(stop-only) error = %v", err)
 	}
 	if err := stopOnlyBridge.RequestTaskStop(
-		context.Background(),
+		t.Context(),
 		"sess-fallback",
 		taskpkg.StopReasonShutdown,
 	); err != nil {
@@ -2176,7 +2176,7 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		if _, err := bridge.StartTaskSession(context.Background(), nil); err == nil {
+		if _, err := bridge.StartTaskSession(t.Context(), nil); err == nil {
 			t.Fatal("StartTaskSession(nil spec) error = nil, want validation error")
 		}
 	})
@@ -2194,7 +2194,7 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-workspace",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -2227,7 +2227,7 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-materialize-failure",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -2268,7 +2268,7 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-create-failure",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -2303,7 +2303,7 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+		_, err = bridge.StartTaskSession(t.Context(), &taskpkg.StartTaskSession{
 			Task: taskpkg.Task{
 				ID:          "task-workspace",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -2327,7 +2327,7 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		_, err = bridge.AttachTaskSession(context.Background(), "run-1", "sess-missing")
+		_, err = bridge.AttachTaskSession(t.Context(), "run-1", "sess-missing")
 		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
 			t.Fatalf("AttachTaskSession(nil status) error = %v, want %v", err, taskpkg.ErrSessionAttachNotAllowed)
 		}
@@ -2351,21 +2351,21 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 
-		if err := bridge.RequestTaskStop(context.Background(), "   ", taskpkg.StopReasonCancellation); !errors.Is(
+		if err := bridge.RequestTaskStop(t.Context(), "   ", taskpkg.StopReasonCancellation); !errors.Is(
 			err,
 			taskpkg.ErrValidation,
 		) {
 			t.Fatalf("RequestTaskStop(blank id) error = %v, want %v", err, taskpkg.ErrValidation)
 		}
 		if err := bridge.RequestTaskStop(
-			context.Background(),
+			t.Context(),
 			"sess-request",
 			taskpkg.StopReasonCancellation,
 		); !errors.Is(err, wantRequestErr) {
 			t.Fatalf("RequestTaskStop(request failure) error = %v, want %v", err, wantRequestErr)
 		}
 		if err := bridge.ForceTaskStop(
-			context.Background(),
+			t.Context(),
 			"sess-force",
 			taskpkg.StopReasonCancellation,
 		); !errors.Is(err, wantForceErr) {
@@ -2416,7 +2416,7 @@ func TestBootTasksSkipsMissingPrerequisites(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if err := daemon.bootTasks(context.Background(), tc.state, &bootCleanup{}); err != nil {
+			if err := daemon.bootTasks(t.Context(), tc.state, &bootCleanup{}); err != nil {
 				t.Fatalf("bootTasks() error = %v, want nil", err)
 			}
 		})
@@ -2821,7 +2821,7 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveDaemonActorContext(seed) error = %v", err)
 	}
-	taskRecord, err := seedManager.CreateTask(context.Background(), taskpkg.CreateTask{
+	taskRecord, err := seedManager.CreateTask(t.Context(), taskpkg.CreateTask{
 		ProfileID: store.DefaultProfileID,
 		Scope:     taskpkg.ScopeGlobal,
 		Title:     "Recover boot task",
@@ -2829,14 +2829,14 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	runRecord, err := seedManager.EnqueueRun(context.Background(), taskpkg.EnqueueRun{
+	runRecord, err := seedManager.EnqueueRun(t.Context(), taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "enqueue-boot-recovery",
 	}, seedActor)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	if _, err := seedManager.AttachRunSession(context.Background(), runRecord.ID, "sess-live", seedActor); err != nil {
+	if _, err := seedManager.AttachRunSession(t.Context(), runRecord.ID, "sess-live", seedActor); err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
 	}
 	daemon := &Daemon{
@@ -2875,7 +2875,7 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		}
 	})
 
-	recoveredRun, err := db.GetTaskRun(context.Background(), runRecord.ID)
+	recoveredRun, err := db.GetTaskRun(t.Context(), runRecord.ID)
 	if err != nil {
 		t.Fatalf("GetTaskRun(recovered) error = %v", err)
 	}
@@ -2959,7 +2959,7 @@ func TestTaskRuntimeHelpers(t *testing.T) {
 		t.Fatalf("taskStopDetail(failed) = %q, want %q", got, want)
 	}
 
-	live, state, err := taskSessionRuntimeState(context.Background(), &taskBridgeStopOnlySessionManager{}, "")
+	live, state, err := taskSessionRuntimeState(t.Context(), &taskBridgeStopOnlySessionManager{}, "")
 	if err != nil {
 		t.Fatalf("taskSessionRuntimeState(blank id) error = %v", err)
 	}
@@ -2970,7 +2970,7 @@ func TestTaskRuntimeHelpers(t *testing.T) {
 		t.Fatalf("taskSessionRuntimeState(blank id) state = %q, want %q", got, want)
 	}
 
-	if _, err := planTaskRunRecovery(context.Background(), nil, taskpkg.Run{
+	if _, err := planTaskRunRecovery(t.Context(), nil, taskpkg.Run{
 		ID:     "run-1",
 		Status: taskpkg.TaskRunStatusClaimed,
 	}); err == nil {
@@ -2981,7 +2981,7 @@ func TestTaskRuntimeHelpers(t *testing.T) {
 func TestTaskRecoveryLivenessHelpers(t *testing.T) {
 	t.Parallel()
 
-	live, state, err := taskSessionRuntimeState(context.Background(), &fakeSessionManager{
+	live, state, err := taskSessionRuntimeState(t.Context(), &fakeSessionManager{
 		infos: []*session.Info{
 			{ID: "sess-live", State: session.StateActive},
 		},
@@ -3089,7 +3089,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		},
 	}
 
-	first, err := runtime.submitDetachedHarnessWork(context.Background(), req)
+	first, err := runtime.submitDetachedHarnessWork(t.Context(), req)
 	if err != nil {
 		t.Fatalf("submitDetachedHarnessWork(first) error = %v", err)
 	}
@@ -3104,7 +3104,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		t.Fatal("submitDetachedHarnessWork(first).ExistingRun = true, want false")
 	}
 
-	second, err := runtime.submitDetachedHarnessWork(context.Background(), req)
+	second, err := runtime.submitDetachedHarnessWork(t.Context(), req)
 	if err != nil {
 		t.Fatalf("submitDetachedHarnessWork(duplicate) error = %v", err)
 	}
@@ -3126,7 +3126,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	storedTask, err := runtime.store.GetTask(context.Background(), first.Task.ID)
+	storedTask, err := runtime.store.GetTask(t.Context(), first.Task.ID)
 	if err != nil {
 		t.Fatalf("GetTask() error = %v", err)
 	}
@@ -3174,7 +3174,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		t.Fatalf("task metadata = %#v, want %#v", got, want)
 	}
 
-	storedRun, err := runtime.store.GetTaskRun(context.Background(), first.Run.ID)
+	storedRun, err := runtime.store.GetTaskRun(t.Context(), first.Run.ID)
 	if err != nil {
 		t.Fatalf("GetTaskRun() error = %v", err)
 	}
@@ -3217,14 +3217,14 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
-	view, err := runtime.manager.GetTask(context.Background(), storedTask.ID, readActor)
+	view, err := runtime.manager.GetTask(t.Context(), storedTask.ID, readActor)
 	if err != nil {
 		t.Fatalf("manager.GetTask() error = %v", err)
 	}
 	if got, want := len(view.Runs), 1; got != want {
 		t.Fatalf("len(view.Runs) = %d, want %d", got, want)
 	}
-	runs, err := runtime.manager.ListTaskRuns(context.Background(), storedTask.ID, taskpkg.RunQuery{}, readActor)
+	runs, err := runtime.manager.ListTaskRuns(t.Context(), storedTask.ID, taskpkg.RunQuery{}, readActor)
 	if err != nil {
 		t.Fatalf("manager.ListTaskRuns() error = %v", err)
 	}
@@ -3298,7 +3298,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionValidationErrors(t *testing.T) {
 			t.Parallel()
 
 			if _, err := runtime.submitDetachedHarnessWork(
-				context.Background(),
+				t.Context(),
 				tc.req,
 			); !errors.Is(
 				err,
@@ -3385,7 +3385,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 		},
 	}
 
-	submission, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{
+	submission, err := runtime.submitDetachedHarnessWork(t.Context(), detachedHarnessSubmitRequest{
 		SubmissionKey:  "detached-recovery-1",
 		OwnerSessionID: "sess-owner",
 		Scope:          taskpkg.ScopeWorkspace,
@@ -3404,7 +3404,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	starting, err := runtime.manager.AttachRunSession(context.Background(), submission.Run.ID, "sess-runtime", actor)
+	starting, err := runtime.manager.AttachRunSession(t.Context(), submission.Run.ID, "sess-runtime", actor)
 	if err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
 	}
@@ -3416,7 +3416,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 	}
-	stats, err := recoverTaskRunsOnBoot(context.Background(), runtime.manager, runtime.store, sessions, bootActor)
+	stats, err := recoverTaskRunsOnBoot(t.Context(), runtime.manager, runtime.store, sessions, bootActor)
 	if err != nil {
 		t.Fatalf("recoverTaskRunsOnBoot() error = %v", err)
 	}
@@ -3424,7 +3424,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 		t.Fatalf("stats.markedRunning = %d, want %d", got, want)
 	}
 
-	recovered, err := runtime.store.GetTaskRun(context.Background(), submission.Run.ID)
+	recovered, err := runtime.store.GetTaskRun(t.Context(), submission.Run.ID)
 	if err != nil {
 		t.Fatalf("GetTaskRun(recovered) error = %v", err)
 	}
@@ -3513,7 +3513,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 
 	claimRunForDaemonTest(t, runtime.manager, runtime.store, requeueSubmission.Run.ID, actor)
 	if _, err := runtime.manager.AttachRunSession(
-		context.Background(),
+		t.Context(),
 		markSubmission.Run.ID,
 		"sess-live",
 		actor,
@@ -3521,7 +3521,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 		t.Fatalf("AttachRunSession(mark) error = %v", err)
 	}
 	if _, err := runtime.manager.AttachRunSession(
-		context.Background(),
+		t.Context(),
 		failSubmission.Run.ID,
 		"sess-fail",
 		actor,
@@ -3535,7 +3535,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 	}
-	stats, err := recoverTaskRunsOnBoot(context.Background(), runtime.manager, runtime.store, sessions, bootActor)
+	stats, err := recoverTaskRunsOnBoot(t.Context(), runtime.manager, runtime.store, sessions, bootActor)
 	if err != nil {
 		t.Fatalf("recoverTaskRunsOnBoot() error = %v", err)
 	}
@@ -3549,7 +3549,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 		t.Fatalf("stats.failed = %d, want %d", got, want)
 	}
 
-	requeuedRun, err := runtime.store.GetTaskRun(context.Background(), requeueSubmission.Run.ID)
+	requeuedRun, err := runtime.store.GetTaskRun(t.Context(), requeueSubmission.Run.ID)
 	if err != nil {
 		t.Fatalf("GetTaskRun(requeue) error = %v", err)
 	}
@@ -3557,7 +3557,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 		t.Fatalf("requeued run status = %q, want %q", got, want)
 	}
 
-	markedRun, err := runtime.store.GetTaskRun(context.Background(), markSubmission.Run.ID)
+	markedRun, err := runtime.store.GetTaskRun(t.Context(), markSubmission.Run.ID)
 	if err != nil {
 		t.Fatalf("GetTaskRun(mark) error = %v", err)
 	}
@@ -3565,7 +3565,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 		t.Fatalf("marked run status = %q, want %q", got, want)
 	}
 
-	failedRun, err := runtime.store.GetTaskRun(context.Background(), failSubmission.Run.ID)
+	failedRun, err := runtime.store.GetTaskRun(t.Context(), failSubmission.Run.ID)
 	if err != nil {
 		t.Fatalf("GetTaskRun(fail) error = %v", err)
 	}
@@ -3673,11 +3673,11 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 			SessionID: "sess-wake",
 		},
 	}
-	if _, err := runtime.submitDetachedHarnessWork(context.Background(), baseReq); err != nil {
+	if _, err := runtime.submitDetachedHarnessWork(t.Context(), baseReq); err != nil {
 		t.Fatalf("submitDetachedHarnessWork(base) error = %v", err)
 	}
 
-	if _, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{
+	if _, err := runtime.submitDetachedHarnessWork(t.Context(), detachedHarnessSubmitRequest{
 		SubmissionKey:  "detached-mismatch",
 		OwnerSessionID: "sess-owner",
 		Scope:          taskpkg.ScopeWorkspace,
@@ -3732,11 +3732,11 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		UpdatedAt: time.Date(2026, 4, 18, 10, 0, 0, 0, time.UTC),
 		Metadata:  conflictMetadata,
 	}
-	if err := runtime.store.CreateTask(context.Background(), conflictingTask); err != nil {
+	if err := runtime.store.CreateTask(t.Context(), conflictingTask); err != nil {
 		t.Fatalf("CreateTask(conflictingTask) error = %v", err)
 	}
 
-	if _, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{
+	if _, err := runtime.submitDetachedHarnessWork(t.Context(), detachedHarnessSubmitRequest{
 		SubmissionKey:  "detached-conflict",
 		OwnerSessionID: "sess-owner",
 		Scope:          taskpkg.ScopeWorkspace,
@@ -3749,7 +3749,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		t.Fatalf("submitDetachedHarnessWork(task mismatch) error = %v, want %v", err, taskpkg.ErrValidation)
 	}
 
-	if _, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{
+	if _, err := runtime.submitDetachedHarnessWork(t.Context(), detachedHarnessSubmitRequest{
 		SubmissionKey:  "missing-session",
 		OwnerSessionID: "sess-owner",
 		Scope:          taskpkg.ScopeWorkspace,
@@ -3768,14 +3768,14 @@ func TestTaskRuntimeSubmitDetachedHarnessWorkGuards(t *testing.T) {
 
 	var nilRuntime *taskRuntime
 	if _, err := nilRuntime.submitDetachedHarnessWork(
-		context.Background(),
+		t.Context(),
 		detachedHarnessSubmitRequest{},
 	); err == nil {
 		t.Fatal("nil runtime submit error = nil, want validation error")
 	}
 
 	runtime := &taskRuntime{}
-	if _, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{}); err == nil {
+	if _, err := runtime.submitDetachedHarnessWork(t.Context(), detachedHarnessSubmitRequest{}); err == nil {
 		t.Fatal("runtime without detached bridge error = nil, want validation error")
 	}
 
@@ -4272,11 +4272,11 @@ func testHarnessReentryBridgeHelperCoverage(t *testing.T) {
 	); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil ctx) error = nil, want validation error")
 	}
-	if _, err := newHarnessReentryBridge(context.Background(), nil, nil, db, sessions, discardLogger()); err == nil {
+	if _, err := newHarnessReentryBridge(t.Context(), nil, nil, db, sessions, discardLogger()); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil resolver) error = nil, want validation error")
 	}
 	if _, err := newHarnessReentryBridge(
-		context.Background(),
+		t.Context(),
 		resolver,
 		nil,
 		nil,
@@ -4285,21 +4285,21 @@ func testHarnessReentryBridgeHelperCoverage(t *testing.T) {
 	); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil store) error = nil, want validation error")
 	}
-	if _, err := newHarnessReentryBridge(context.Background(), resolver, nil, db, nil, discardLogger()); err == nil {
+	if _, err := newHarnessReentryBridge(t.Context(), resolver, nil, db, nil, discardLogger()); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil sessions) error = nil, want validation error")
 	}
 
-	bridge, err := newHarnessReentryBridge(context.Background(), resolver, nil, db, sessions, discardLogger())
+	bridge, err := newHarnessReentryBridge(t.Context(), resolver, nil, db, sessions, discardLogger())
 	if err != nil {
 		t.Fatalf("newHarnessReentryBridge() error = %v", err)
 	}
-	bridge.OnTaskEvent(context.Background(), taskpkg.EventRecord{})
+	bridge.OnTaskEvent(t.Context(), taskpkg.EventRecord{})
 	bridge.shutdown()
 	bridge.shutdown()
 
 	var nilBridge *harnessReentryBridge
 	nilBridge.shutdown()
-	if err := nilBridge.recover(context.Background()); err == nil {
+	if err := nilBridge.recover(t.Context()); err == nil {
 		t.Fatal("nil bridge recover error = nil, want validation error")
 	}
 	if err := bridge.recover(nilTaskRuntimeContext()); err == nil {

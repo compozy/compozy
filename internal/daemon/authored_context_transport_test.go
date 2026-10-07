@@ -226,7 +226,7 @@ func TestAPIHeartbeatWakePrompterShutdownClosesAdmissionAndJoinsDrains(t *testin
 			return events, nil
 		},
 	}
-	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	lifecycleCtx, cancel := context.WithCancel(t.Context())
 	prompter := &apiHeartbeatWakePrompter{
 		ctx:      lifecycleCtx,
 		sessions: sessions,
@@ -238,16 +238,16 @@ func TestAPIHeartbeatWakePrompterShutdownClosesAdmissionAndJoinsDrains(t *testin
 		WakeEventID: "wake-api",
 		TurnID:      "turn-api",
 	}
-	if _, err := prompter.PromptHeartbeatWake(context.Background(), req); err != nil {
+	if _, err := prompter.PromptHeartbeatWake(t.Context(), req); err != nil {
 		t.Fatalf("PromptHeartbeatWake() error = %v", err)
 	}
-	if err := prompter.shutdown(context.Background()); err != nil {
+	if err := prompter.shutdown(t.Context()); err != nil {
 		t.Fatalf("shutdown() error = %v", err)
 	}
-	if err := prompter.shutdown(context.Background()); err != nil {
+	if err := prompter.shutdown(t.Context()); err != nil {
 		t.Fatalf("shutdown(retry) error = %v", err)
 	}
-	if _, err := prompter.PromptHeartbeatWake(context.Background(), req); err == nil {
+	if _, err := prompter.PromptHeartbeatWake(t.Context(), req); err == nil {
 		t.Fatal("PromptHeartbeatWake(after shutdown) error = nil, want admission failure")
 	}
 	if got, want := sessions.syntheticPromptCount(), 1; got != want {
@@ -415,7 +415,7 @@ func parseTestSoul(
 		"---",
 		"Stay precise.",
 	}, "\n"))
-	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
+	resolved, err := soul.Parse(t.Context(), soul.ParseRequest{
 		SourcePath:    sourcePath,
 		WorkspaceRoot: workspaceRoot,
 		Content:       content,

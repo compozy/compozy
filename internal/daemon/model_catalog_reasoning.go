@@ -2,7 +2,8 @@ package daemon
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -17,11 +18,7 @@ func effectiveCatalogReasoningApply(cfg *compozyconfig.Config) (map[string]bool,
 			providerIDs[providerID] = struct{}{}
 		}
 	}
-	ordered := make([]string, 0, len(providerIDs))
-	for providerID := range providerIDs {
-		ordered = append(ordered, providerID)
-	}
-	sort.Strings(ordered)
+	ordered := slices.Sorted(maps.Keys(providerIDs))
 
 	result := make(map[string]bool, len(ordered))
 	for _, providerID := range ordered {

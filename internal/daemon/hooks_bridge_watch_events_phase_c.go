@@ -64,9 +64,7 @@ func dispatchEventPostRecordWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.EventPostRecordPayload,
 ) (hookspkg.EventPostRecordPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookEventPostRecord,
 		payload,
 		hookRuntime.DispatchEventPostRecord,
@@ -80,9 +78,7 @@ func dispatchCoordinatorSpawnedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.CoordinatorSpawnedPayload,
 ) (hookspkg.CoordinatorSpawnedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorSpawned,
 		payload,
 		hookRuntime.DispatchCoordinatorSpawned,
@@ -106,9 +102,7 @@ func dispatchCoordinatorDecisionWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.CoordinatorDecisionPayload,
 ) (hookspkg.CoordinatorDecisionPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorDecision,
 		payload,
 		hookRuntime.DispatchCoordinatorDecision,
@@ -132,9 +126,7 @@ func dispatchCoordinatorStoppedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.CoordinatorStoppedPayload,
 ) (hookspkg.CoordinatorStoppedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorStopped,
 		payload,
 		hookRuntime.DispatchCoordinatorStopped,
@@ -158,9 +150,7 @@ func dispatchCoordinatorFailedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.CoordinatorFailedPayload,
 ) (hookspkg.CoordinatorFailedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookCoordinatorFailed,
 		payload,
 		hookRuntime.DispatchCoordinatorFailed,

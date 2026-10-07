@@ -212,7 +212,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		workspace := testResolvedWorkspace(t.TempDir())
 
 		_, err := assembler.Assemble(
-			context.Background(),
+			t.Context(),
 			testPromptAgent("Base prompt."),
 			&workspace,
 		)
@@ -266,7 +266,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		var assembler *ComposedAssembler
 		workspace := testResolvedWorkspace(t.TempDir())
 		got, err := assembler.Assemble(
-			context.Background(),
+			t.Context(),
 			testPromptAgent("  Base prompt.\n"),
 			&workspace,
 		)
@@ -353,12 +353,12 @@ func TestComposedAssemblerRegressionMatchesMemoryAssembler(t *testing.T) {
 	)
 
 	workspace := testResolvedWorkspace(env.workspace)
-	got, err := composedAssembler.Assemble(context.Background(), env.agent, &workspace)
+	got, err := composedAssembler.Assemble(t.Context(), env.agent, &workspace)
 	if err != nil {
 		t.Fatalf("ComposedAssembler.Assemble() error = %v", err)
 	}
 
-	want, err := memoryAssembler.Assemble(context.Background(), env.agent, &workspace)
+	want, err := memoryAssembler.Assemble(t.Context(), env.agent, &workspace)
 	if err != nil {
 		t.Fatalf("memory.Assemble() error = %v", err)
 	}
@@ -826,7 +826,7 @@ func assemblePrompt(t *testing.T, assembler *ComposedAssembler, agent compozycon
 	t.Helper()
 
 	resolvedWorkspace := testResolvedWorkspace(workspace)
-	got, err := assembler.Assemble(context.Background(), agent, &resolvedWorkspace)
+	got, err := assembler.Assemble(t.Context(), agent, &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("Assemble() error = %v", err)
 	}
@@ -843,7 +843,7 @@ func assembleStartupPrompt(
 	t.Helper()
 
 	resolvedWorkspace := testResolvedWorkspace(workspace)
-	got, err := assembler.AssembleStartup(context.Background(), startup, agent, &resolvedWorkspace)
+	got, err := assembler.AssembleStartup(t.Context(), startup, agent, &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("AssembleStartup() error = %v", err)
 	}
@@ -868,7 +868,7 @@ func testPromptSoulSnapshot(t *testing.T, body string) *soul.Snapshot {
 	t.Helper()
 
 	cfg := compozyconfig.DefaultSoulConfig()
-	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
+	resolved, err := soul.Parse(t.Context(), soul.ParseRequest{
 		SourcePath:    "/workspace/.compozy/agents/coder/SOUL.md",
 		WorkspaceRoot: "/workspace",
 		Content: []byte(strings.Join([]string{

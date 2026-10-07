@@ -201,9 +201,7 @@ func newExtensionSecretIntegrationHarness(
 	if opts.workspaceID != "" {
 		workspaceRoot = t.TempDir()
 		workspaceResolver = &daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID: opts.workspaceID, Name: "extension-secret-integration", RootDir: workspaceRoot,
-			},
+			ID: opts.workspaceID, Name: "extension-secret-integration", RootDir: workspaceRoot,
 			WorkspaceID: opts.workspaceID,
 		}}
 		managerOptions = append(managerOptions, extensionpkg.WithWorkspaceResolver(workspaceResolver))
@@ -324,7 +322,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		t.Context(),
 		extensionName,
 		contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
-			{EnvName: "BOUND_SECRET", Value: extensionSecretInputValue(ownedGlobal)},
+			{EnvName: "BOUND_SECRET", Value: new(ownedGlobal)},
 			{EnvName: "OTHER_SECRET", VaultRef: &foreignRef},
 		}},
 		harness.actor,
@@ -472,7 +470,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		t.Context(),
 		extensionName,
 		contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
-			{EnvName: "BOUND_SECRET", Value: extensionSecretInputValue(ownedDev)},
+			{EnvName: "BOUND_SECRET", Value: new(ownedDev)},
 			{EnvName: "OTHER_SECRET", VaultRef: &devForeignRef},
 		}},
 		devActor,
@@ -1078,10 +1076,6 @@ func testExtensionSecretBindingEnableInjection(t *testing.T) {
 		string(mustExtensionTransportJSON(t, events)),
 		[]string{secretValue},
 	)
-}
-
-func extensionSecretInputValue(value string) *string {
-	return &value
 }
 
 func writeBoundSecretExtensionFixture(t *testing.T, root, name string) string {

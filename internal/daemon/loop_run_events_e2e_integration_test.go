@@ -46,7 +46,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			}},
 		}
 		harness := e2etest.StartRuntimeHarness(t, &harnessOptions)
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 		defer cancel()
 		createLoopViaHTTP(t, ctx, harness, loopEventsDefinition())
 		runs := make([]compozycontract.LoopRunPayload, 0, 2)
@@ -121,7 +121,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			}},
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		createLoopViaHTTP(t, ctx, harness, loopEventsDefinition())
@@ -176,7 +176,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 				AgentName:    "loop-events-agent",
 			}},
 		})
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		definition := loopEventsDefinition()
@@ -230,7 +230,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			}},
 		}
 		harness := e2etest.StartRuntimeHarness(t, &harnessOptions)
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		definition := loopEventsDefinition()
@@ -245,7 +245,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		mutateLoopRunViaHTTP(t, ctx, harness, run.ID, "pause")
 		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusPaused)
 
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
 			stopCancel()
 			t.Fatalf("Stop runtime harness error = %v", err)
@@ -276,7 +276,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			Workspace: e2etest.WorkspaceSeedOptions{Root: filepath.Join(homePaths.HomeDir, "workspace")},
 		}
 		harness := e2etest.StartRuntimeHarness(t, &harnessOptions)
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		createLoopViaHTTP(t, ctx, harness, awaitedChildHoldDefinition())
@@ -292,7 +292,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		)
 		assertAwaitedParentNodeStatus(t, beforeRestart, "second_child", "pending")
 
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
 			stopCancel()
 			t.Fatalf("Stop runtime harness error = %v", err)
@@ -343,7 +343,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 
 func stopRuntimeHarness(t testing.TB, harness *e2etest.RuntimeHarness) {
 	t.Helper()
-	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer stopCancel()
 	if err := harness.Stop(stopCtx); err != nil {
 		t.Fatalf("Stop runtime harness error = %v", err)
@@ -392,7 +392,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			MockAgents: watchEventsMockAgents(fixturePath),
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		waitForLoopCatalogEntry(t, ctx, harness, watchEventsE2ELoopName)
@@ -470,7 +470,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			MockAgents: watchEventsMockAgents(fixturePath),
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 		defer cancel()
 
 		waitForLoopCatalogEntry(t, ctx, harness, watchEventsE2ELoopName)
@@ -486,7 +486,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusWatching)
 		assertWatchEventsReadModelParity(t, ctx, harness, run.ID)
 
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
 			stopCancel()
 			t.Fatalf("Stop runtime harness error = %v", err)
@@ -1668,7 +1668,7 @@ func logLoopRunTimeoutDebug(
 	)
 	t.Logf("loop run timeout events = %v", compactLoopRunEvents(events))
 	for _, taskID := range appendLoopRunDebugTaskIDs(loopRunInputTaskIDs(lastRun.Inputs), loopRunEventTaskIDs(events)...) {
-		debugCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		debugCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		runs, err := harness.ListTaskRuns(debugCtx, taskID, url.Values{})
 		cancel()
 		if err != nil {
@@ -1810,7 +1810,7 @@ func readLoopRunSSEForDuration(
 	duration time.Duration,
 ) []loopRunSSEEvent {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	ctx, cancel := context.WithTimeout(t.Context(), duration)
 	defer cancel()
 	events, err := streamLoopRunSSE(ctx, harness, path, func([]loopRunSSEEvent) bool { return false })
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {

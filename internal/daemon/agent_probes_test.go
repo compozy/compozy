@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"strings"
 	"testing"
@@ -20,7 +19,7 @@ func TestCollectAgentProbeTargetsSkipsUnresolvedProviders(t *testing.T) {
 				"valid":  {Command: "valid-agent --acp"},
 			},
 		}
-		targets, err := collectAgentProbeTargets(context.Background(), cfg, nil, nil)
+		targets, err := collectAgentProbeTargets(t.Context(), cfg, nil, nil)
 		if err != nil {
 			t.Fatalf("collectAgentProbeTargets() error = %v", err)
 		}

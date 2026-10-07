@@ -3,6 +3,7 @@ package daemon
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -20,7 +21,6 @@ import (
 	"reflect"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -134,7 +134,7 @@ func TestRuntimeMemoryMonitor(t *testing.T) {
 		}
 
 		now = startedAt.Add(2 * time.Minute)
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		if err := monitor.Shutdown(shutdownCtx); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
@@ -1024,10 +1024,7 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		lateFailure := errors.New("late reconciliation failure")
 		reconcileStarted := make(chan struct{})
 		releaseReconcile := make(chan struct{})
-		var releaseOnce sync.Once
-		release := func() {
-			releaseOnce.Do(func() { close(releaseReconcile) })
-		}
+		release := sync.OnceFunc(func() { close(releaseReconcile) })
 		t.Cleanup(release)
 		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 			return &fakeObserver{
@@ -3952,7 +3949,7 @@ func TestBootStateExtensionRuntimeAccessIsSynchronized(t *testing.T) {
 			defer wg.Done()
 			<-start
 			for range 128 {
-				if _, err := provider(context.Background()); err != nil {
+				if _, err := provider(t.Context()); err != nil {
 					providerErrors <- err
 				}
 			}
@@ -4013,7 +4010,7 @@ func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {
 		infos: []*session.Info{{ID: "sess-a"}},
 		onStop: func(string) {
 			if _, err := notifier.DispatchSessionPostStop(
-				context.Background(),
+				t.Context(),
 				hookSessionLifecyclePayload(&session.Session{
 					ID:          "sess-a",
 					AgentName:   "codex",
@@ -4662,7 +4659,7 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- d.Run(context.Background())
+		errCh <- d.Run(t.Context())
 	}()
 
 	select {
@@ -4768,7 +4765,7 @@ func TestRunAbortsCleanlyOnInjectedSignalDuringBoot(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- d.Run(context.Background())
+		errCh <- d.Run(t.Context())
 	}()
 
 	select {
@@ -4874,7 +4871,7 @@ func TestDaemonGoleakFullCycle(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- d.Run(context.Background())
+		errCh <- d.Run(t.Context())
 	}()
 
 	select {
@@ -4959,7 +4956,7 @@ func TestRunShutsDownWhenObserverRetentionStartFails(t *testing.T) {
 			return &fakeServer{name: "uds", onShutdown: func() { udsShutdown = true }}, nil
 		}
 
-		err := d.Run(context.Background())
+		err := d.Run(t.Context())
 		if !errors.Is(err, retentionErr) {
 			t.Fatalf("Run() error = %v, want retention start failure", err)
 		}
@@ -5260,7 +5257,7 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 				Agents:  []compozyconfig.AgentDef{testPromptAgent("Base prompt.")},
 			}
 			prompt, err := capturedDeps.PromptAssembler.Assemble(
-				context.Background(),
+				t.Context(),
 				testPromptAgent("Base prompt."),
 				&workspaceRef,
 			)
@@ -5638,7 +5635,7 @@ func runDreamRuntimeLifecycleCases(t *testing.T) {
 				return &fakeServer{name: "uds"}, nil
 			}
 
-			runCtx, cancel := context.WithCancel(context.Background())
+			runCtx, cancel := context.WithCancel(t.Context())
 			errCh := make(chan error, 1)
 			go func() {
 				errCh <- d.Run(runCtx)
@@ -5694,7 +5691,7 @@ func TestDreamTickerRunsAndStopsOnCancellation(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(t.Context())
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- d.Run(runCtx)
@@ -5759,7 +5756,7 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(t.Context())
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- d.Run(runCtx)
@@ -5776,7 +5773,7 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 	}
 
 	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspace)
-	if _, err := dispatcher.Session.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
+	if _, err := dispatcher.Session.DispatchSessionPostStop(t.Context(), hookspkg.SessionPostStopPayload{
 		Event:       hookspkg.HookSessionPostStop,
 		Timestamp:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
 		SessionID:   "sess-user",
@@ -6313,7 +6310,7 @@ func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 }
 
 func testHarnessReentryBridgeOnTaskEventSchedulesRescanWhenQueueIsFull(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	record := taskpkg.EventRecord{
@@ -6337,7 +6334,7 @@ func testHarnessReentryBridgeOnTaskEventSchedulesRescanWhenQueueIsFull(t *testin
 
 	done := make(chan struct{})
 	go func() {
-		bridge.OnTaskEvent(context.Background(), record)
+		bridge.OnTaskEvent(t.Context(), record)
 		close(done)
 	}()
 
@@ -6409,7 +6406,7 @@ func testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *t
 		base,
 	)
 
-	bridge, err := newHarnessReentryBridge(context.Background(), resolver, nil, db, sessions, discardLogger())
+	bridge, err := newHarnessReentryBridge(t.Context(), resolver, nil, db, sessions, discardLogger())
 	if err != nil {
 		t.Fatalf("newHarnessReentryBridge() error = %v", err)
 	}
@@ -6520,13 +6517,13 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 		statusStarted:  statusStarted,
 	}
 
-	bridge, err := newHarnessReentryBridge(context.Background(), resolver, nil, db, sessions, discardLogger())
+	bridge, err := newHarnessReentryBridge(t.Context(), resolver, nil, db, sessions, discardLogger())
 	if err != nil {
 		t.Fatalf("newHarnessReentryBridge() error = %v", err)
 	}
 	t.Cleanup(bridge.shutdown)
 
-	bridge.OnTaskEvent(context.Background(), taskpkg.EventRecord{
+	bridge.OnTaskEvent(t.Context(), taskpkg.EventRecord{
 		Sequence: 1,
 		Event: taskpkg.Event{
 			TaskID:    "task-blocked",
@@ -6758,7 +6755,7 @@ func TestPromptInputCompositeEnforcesPerDescriptorBudgets(t *testing.T) {
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 		}
 
-		got, err := augmenter(context.Background(), newPromptInputTestSession(""), "base")
+		got, err := augmenter(t.Context(), newPromptInputTestSession(""), "base")
 		if err != nil {
 			t.Fatalf("Augment() error = %v", err)
 		}
@@ -7145,8 +7142,8 @@ func (f *fakeSessionManager) Events(
 		}
 		filtered = append(filtered, event)
 	}
-	sort.SliceStable(filtered, func(i, j int) bool {
-		return filtered[i].Sequence < filtered[j].Sequence
+	slices.SortStableFunc(filtered, func(a, b store.SessionEvent) int {
+		return cmp.Compare(a.Sequence, b.Sequence)
 	})
 	if query.Limit > 0 && len(filtered) > query.Limit {
 		filtered = filtered[len(filtered)-query.Limit:]
@@ -7444,7 +7441,7 @@ func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversat
 
 	t.Run("ShouldTreatAMissingSessionAsAFreshConversation", func(t *testing.T) {
 		manager := &fakeSessionManager{}
-		cleared, err := manager.ClearConversation(context.Background(), "sess-missing")
+		cleared, err := manager.ClearConversation(t.Context(), "sess-missing")
 		if err != nil {
 			t.Fatalf("ClearConversation(missing) error = %v", err)
 		}
@@ -9042,8 +9039,8 @@ func (r *recordingRegistry) ListWorkspaceDeletionIntents(
 		intent.Workspace = cloneRecordingWorkspace(intent.Workspace)
 		intents = append(intents, intent)
 	}
-	sort.Slice(intents, func(i, j int) bool {
-		return intents[i].Workspace.ID < intents[j].Workspace.ID
+	slices.SortFunc(intents, func(a, b workspacepkg.DeletionIntent) int {
+		return strings.Compare(a.Workspace.ID, b.Workspace.ID)
 	})
 	return intents, nil
 }
@@ -9111,11 +9108,8 @@ func (r *recordingRegistry) ListWorkspaces(context.Context) ([]workspacepkg.Work
 	for _, ws := range r.workspaces {
 		workspaces = append(workspaces, cloneRecordingWorkspace(ws))
 	}
-	sort.Slice(workspaces, func(i, j int) bool {
-		if workspaces[i].Name == workspaces[j].Name {
-			return workspaces[i].ID < workspaces[j].ID
-		}
-		return workspaces[i].Name < workspaces[j].Name
+	slices.SortFunc(workspaces, func(a, b workspacepkg.Workspace) int {
+		return cmp.Or(strings.Compare(a.Name, b.Name), strings.Compare(a.ID, b.ID))
 	})
 	return workspaces, nil
 }

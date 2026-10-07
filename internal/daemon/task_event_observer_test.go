@@ -20,7 +20,7 @@ func TestTaskEventObserverFanout(t *testing.T) {
 		}
 
 		record := taskpkg.EventRecord{Event: taskpkg.Event{ID: "evt-1", TaskID: "task-1"}}
-		fanout.OnTaskEvent(context.Background(), record)
+		fanout.OnTaskEvent(t.Context(), record)
 
 		if got, want := first.count, 1; got != want {
 			t.Fatalf("first observer count = %d, want %d", got, want)

@@ -28,7 +28,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 	t.Run("Should project global and workspace records with workspace precedence", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := loopIntegrationHome(t)
 		if _, _, err := looppkg.WriteDefinition(
 			homePaths.LoopsDir,
@@ -112,7 +112,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 	t.Run("Should resolve extension contributed loop below user global override", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		extensionSpec := testLoopSpec(t, "extension-loop", looppkg.SourceMarketplace)
 		extensionSpec.Description = "marketplace extension"
 		extensionSpec.InstalledFromExtension = "market-ext"
@@ -295,7 +295,7 @@ func TestLoopWatcherIntegrationShouldResyncForkedFileBackedEdits(t *testing.T) {
 			t.Fatalf("ForkDefinitionFile() error = %v", err)
 		}
 		publisher := &loopWatcherTestPublisher{synced: make(chan struct{}, 1)}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		stop, done := startLoopWatcher(
 			ctx,

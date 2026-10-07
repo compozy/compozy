@@ -10,9 +10,7 @@ func (n *hooksNotifier) DispatchAutomationJobPreFire(
 	ctx context.Context,
 	payload hookspkg.AutomationJobPreFirePayload,
 ) (hookspkg.AutomationJobPreFirePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAutomationJobPreFire,
 		payload,
 		hookRuntime.DispatchAutomationJobPreFire,
@@ -23,9 +21,7 @@ func (n *hooksNotifier) DispatchAutomationJobPostFire(
 	ctx context.Context,
 	payload hookspkg.AutomationJobPostFirePayload,
 ) (hookspkg.AutomationJobPostFirePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAutomationJobPostFire,
 		payload,
 		hookRuntime.DispatchAutomationJobPostFire,
@@ -36,9 +32,7 @@ func (n *hooksNotifier) DispatchAutomationTriggerPreFire(
 	ctx context.Context,
 	payload hookspkg.AutomationTriggerPreFirePayload,
 ) (hookspkg.AutomationTriggerPreFirePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAutomationTriggerPreFire,
 		payload,
 		hookRuntime.DispatchAutomationTriggerPreFire,
@@ -49,9 +43,7 @@ func (n *hooksNotifier) DispatchAutomationTriggerPostFire(
 	ctx context.Context,
 	payload hookspkg.AutomationTriggerPostFirePayload,
 ) (hookspkg.AutomationTriggerPostFirePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAutomationTriggerPostFire,
 		payload,
 		hookRuntime.DispatchAutomationTriggerPostFire,
@@ -62,9 +54,7 @@ func (n *hooksNotifier) DispatchAutomationRunCompleted(
 	ctx context.Context,
 	payload hookspkg.AutomationRunCompletedPayload,
 ) (hookspkg.AutomationRunCompletedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		n,
+	result, err := n.dispatchRuntime(ctx,
 		hookspkg.HookAutomationRunCompleted,
 		payload,
 		hookRuntime.DispatchAutomationRunCompleted,
@@ -77,9 +67,7 @@ func (n *hooksNotifier) DispatchAutomationRunFailed(
 	ctx context.Context,
 	payload hookspkg.AutomationRunFailedPayload,
 ) (hookspkg.AutomationRunFailedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		n,
+	result, err := n.dispatchRuntime(ctx,
 		hookspkg.HookAutomationRunFailed,
 		payload,
 		hookRuntime.DispatchAutomationRunFailed,

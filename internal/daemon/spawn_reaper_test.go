@@ -46,7 +46,7 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 		hooks := &recordingSpawnHooks{}
 
 		reaper, err := newSpawnReaper(
-			context.Background(),
+			t.Context(),
 			sessions,
 			leases,
 			hooks,
@@ -58,7 +58,7 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 			t.Fatalf("newSpawnReaper() error = %v", err)
 		}
 
-		report, err := reaper.Sweep(context.Background())
+		report, err := reaper.Sweep(t.Context())
 		if err != nil {
 			t.Fatalf("Sweep() error = %v", err)
 		}
@@ -139,7 +139,7 @@ func TestSpawnReaperReapsTTLExpiredStarvationWorkers(t *testing.T) {
 		hooks := &recordingSpawnHooks{}
 
 		reaper, err := newSpawnReaper(
-			context.Background(),
+			t.Context(),
 			sessions,
 			leases,
 			hooks,
@@ -151,7 +151,7 @@ func TestSpawnReaperReapsTTLExpiredStarvationWorkers(t *testing.T) {
 			t.Fatalf("newSpawnReaper() error = %v", err)
 		}
 
-		report, err := reaper.Sweep(context.Background())
+		report, err := reaper.Sweep(t.Context())
 		if err != nil {
 			t.Fatalf("Sweep() error = %v", err)
 		}
@@ -207,7 +207,7 @@ func TestSpawnReaperTTLClassification(t *testing.T) {
 				prompting: map[string]bool{"child": tt.prompting},
 			}
 			reaper, err := newSpawnReaper(
-				context.Background(),
+				t.Context(),
 				sessions,
 				leases,
 				hooks,
@@ -219,7 +219,7 @@ func TestSpawnReaperTTLClassification(t *testing.T) {
 				t.Fatalf("newSpawnReaper() error = %v", err)
 			}
 
-			if _, err := reaper.Sweep(context.Background()); err != nil {
+			if _, err := reaper.Sweep(t.Context()); err != nil {
 				t.Fatalf("Sweep() error = %v", err)
 			}
 			assertStopWithCause(
@@ -257,7 +257,7 @@ func TestSpawnReaperTTLWithoutAtomicStopperUsesTimeoutFallback(t *testing.T) {
 			spawnedReaperInfo("child", "parent", now.Add(-time.Minute), true),
 		}}
 		reaper, err := newSpawnReaper(
-			context.Background(),
+			t.Context(),
 			sessions,
 			&fakeSpawnLeaseReleaser{},
 			&recordingSpawnHooks{},
@@ -268,7 +268,7 @@ func TestSpawnReaperTTLWithoutAtomicStopperUsesTimeoutFallback(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newSpawnReaper() error = %v", err)
 		}
-		if _, err := reaper.Sweep(context.Background()); err != nil {
+		if _, err := reaper.Sweep(t.Context()); err != nil {
 			t.Fatalf("Sweep() error = %v", err)
 		}
 		assertStopWithCause(

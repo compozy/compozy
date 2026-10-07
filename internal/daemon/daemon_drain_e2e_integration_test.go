@@ -29,7 +29,7 @@ func TestDaemonE2EDrainRefusesNewSessionsUntilUndrained(t *testing.T) {
 		},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	active := createFixtureBackedSession(t, ctx, harness, agentName, "admitted-before-drain")

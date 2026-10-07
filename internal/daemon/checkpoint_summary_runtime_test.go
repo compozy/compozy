@@ -81,7 +81,7 @@ func TestCheckpointSummaryRuntime(t *testing.T) {
 
 		shutdownErr := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 			shutdownErr <- runtime.Shutdown(shutdownCtx)
 		}()
@@ -101,15 +101,15 @@ func TestCheckpointSummaryRuntime(t *testing.T) {
 
 		started := make(chan struct{})
 		release := make(chan struct{})
-		var blockFirst sync.Once
+		blockFirst := sync.OnceFunc(func() {
+			close(started)
+			<-release
+		})
 		provider := &checkpointProviderStub{onSessionEnd: func(
 			context.Context,
 			memcontract.SessionEndRecord,
 		) error {
-			blockFirst.Do(func() {
-				close(started)
-				<-release
-			})
+			blockFirst()
 			return nil
 		}}
 		registry := extensionpkg.NewMemoryProviderRegistry()
@@ -169,7 +169,7 @@ func TestCheckpointSummaryRuntime(t *testing.T) {
 		}
 
 		close(release)
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		if err := runtime.Shutdown(shutdownCtx); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)

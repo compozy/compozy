@@ -495,7 +495,6 @@ func assertGatewayPublicIngressStartsLoopE2E(
 	}
 
 	const webhookSecret = "gateway-e2e-shared-secret"
-	enabled := true
 	createTriggerBody := gatewayDaemonMarshalJSON(t, contract.CreateTriggerRequest{
 		Scope:       automationpkg.AutomationScopeWorkspace,
 		Name:        "gateway-e2e-loop-webhook",
@@ -506,7 +505,7 @@ func assertGatewayPublicIngressStartsLoopE2E(
 			WorkspaceID: workspaceID,
 			LoopName:    definition.Meta.Name,
 		},
-		Enabled:            &enabled,
+		Enabled:            new(true),
 		EndpointSlug:       "gateway-e2e-loop-webhook",
 		WebhookSecretValue: webhookSecret,
 	})

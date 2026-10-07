@@ -99,7 +99,7 @@ func TestAutoTitleRuntime(t *testing.T) {
 			}
 			shutdownErr := make(chan error, 1)
 			go func() {
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 				defer cancel()
 				shutdownErr <- runtime.Shutdown(shutdownCtx)
 			}()
@@ -270,7 +270,7 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 			5*time.Second,
 			slog.Default(),
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		result := make(chan error, 1)
 		go func() {
 			_, err := generator.Generate(ctx, autoTitleRequest{

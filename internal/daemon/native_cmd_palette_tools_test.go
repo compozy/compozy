@@ -229,8 +229,8 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 			ToolID: toolspkg.ToolIDCmdPaletteList,
 			Input:  json.RawMessage(`{"workspace":"foreign"}`),
 		})
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeDenied {
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeDenied {
 			t.Fatalf("cmdPaletteList(foreign) error = %#v, want denied tool error", err)
 		}
 	})

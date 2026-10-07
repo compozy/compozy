@@ -3,7 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -121,7 +121,7 @@ func (r *windowManagerRegistry) retireClientElsewhere(
 			otherIDs = append(otherIDs, id)
 		}
 	}
-	sort.Strings(otherIDs)
+	slices.Sort(otherIDs)
 	others := make([]*windowManagerProfileRuntime, 0, len(otherIDs))
 	for _, id := range otherIDs {
 		others = append(others, r.runtimes[id])

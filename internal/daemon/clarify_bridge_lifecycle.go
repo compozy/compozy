@@ -194,8 +194,7 @@ func cloneClarifyAnswer(answer *toolspkg.ClarifyAnswer) *toolspkg.ClarifyAnswer 
 	}
 	cloned := *answer
 	if answer.Choice != nil {
-		choice := *answer.Choice
-		cloned.Choice = &choice
+		cloned.Choice = new(*answer.Choice)
 	}
 	return &cloned
 }

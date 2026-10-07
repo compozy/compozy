@@ -151,8 +151,5 @@ func (i automationTriggerUpdateInput) webhookSecretWrite() *automationpkg.Webhoo
 	if i.WebhookSecretValue == nil {
 		return nil
 	}
-	write := automationpkg.WebhookSecretWrite{}
-	value := strings.TrimSpace(*i.WebhookSecretValue)
-	write.Value = &value
-	return &write
+	return &automationpkg.WebhookSecretWrite{Value: new(strings.TrimSpace(*i.WebhookSecretValue))}
 }

@@ -33,7 +33,7 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 		t.Fatalf("MockAgentRegistration(%s) = missing, want present", automationTaskFixtureAgentName)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Triggers: []compozycontract.CreateTriggerRequest{{
@@ -166,7 +166,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 		t.Fatalf("MockAgentRegistration(%s) = missing, want present", automationTaskFixtureAgentName)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
