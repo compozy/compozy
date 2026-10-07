@@ -79,8 +79,7 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 		ActorID:     strings.TrimSpace(actor.Actor.Ref),
 	}
 	if criteria.RunKind.Normalize() != RunKindUnknown {
-		runKind := criteria.RunKind.Normalize().String()
-		taskContext.RunKind = &runKind
+		taskContext.RunKind = new(criteria.RunKind.Normalize().String())
 	}
 	if criteria.Soul != nil {
 		taskContext.SoulSnapshotID = strings.TrimSpace(criteria.Soul.SnapshotID)

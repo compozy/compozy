@@ -67,14 +67,14 @@ func schedulerStateAfterInMemoryClaim(
 ) SchedulerState {
 	state := current
 	state.NextRunAt = cloneTimePointer(nextRun)
-	state.LastRunAt = timePointer(claim.ClaimedAt)
-	state.LastScheduledAt = timePointer(claim.ScheduledAt)
+	state.LastRunAt = new(claim.ClaimedAt)
+	state.LastScheduledAt = new(claim.ScheduledAt)
 	state.LastFireID = claim.FireID
 	state.ScheduleHash = claim.ScheduleHash
 	state.CatchUpPolicy = schedulerCatchUpPolicyOrDefault(claim.CatchUpPolicy, current.CatchUpPolicy)
 	state.MisfireGraceSeconds = claim.MisfireGraceSeconds
 	if claim.Misfire {
-		state.LastMisfireAt = timePointer(claim.ClaimedAt)
+		state.LastMisfireAt = new(claim.ClaimedAt)
 		state.MisfireCount++
 	} else if !claim.CatchUp {
 		state.LastMisfireAt = nil
@@ -111,7 +111,7 @@ func (s *Scheduler) deferAfterFireLimit(
 	if state.NextRunAt != nil && state.NextRunAt.After(target) {
 		target = *state.NextRunAt
 	}
-	state.NextRunAt = timePointer(target)
+	state.NextRunAt = new(target)
 	state.UpdatedAt = s.now()
 
 	if s.store != nil {

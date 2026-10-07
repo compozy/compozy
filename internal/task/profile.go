@@ -1,7 +1,7 @@
 package task
 
 import (
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -225,6 +225,6 @@ func normalizeProfileSelectorList(values []string) []string {
 		seen[trimmed] = struct{}{}
 		normalized = append(normalized, trimmed)
 	}
-	sort.Strings(normalized)
+	slices.Sort(normalized)
 	return normalized
 }

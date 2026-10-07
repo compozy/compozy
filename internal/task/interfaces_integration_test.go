@@ -532,7 +532,7 @@ func TestTaskDomainInterfacesComposeWithoutSessionImport(t *testing.T) {
 		store:    fakeStore{},
 		sessions: fakeSessionExecutor{},
 	}
-	if err := coordinator.compose(context.Background()); err != nil {
+	if err := coordinator.compose(t.Context()); err != nil {
 		t.Fatalf("compose() error = %v", err)
 	}
 }

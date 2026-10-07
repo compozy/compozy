@@ -1,11 +1,12 @@
 package automation
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"maps"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	modelpkg "github.com/compozy/compozy/internal/automation/model"
@@ -133,8 +134,8 @@ func scheduledJobStatesFromDurable(states []SchedulerState) []ScheduledJobState 
 	for _, state := range states {
 		scheduled = append(scheduled, stateFromDurableState(state, false))
 	}
-	sort.Slice(scheduled, func(i, j int) bool {
-		return scheduled[i].JobID < scheduled[j].JobID
+	slices.SortFunc(scheduled, func(a, b ScheduledJobState) int {
+		return cmp.Compare(a.JobID, b.JobID)
 	})
 	return scheduled
 }
@@ -151,8 +152,7 @@ func sortTriggers(triggers []Trigger) {
 func CloneJob(job Job) Job {
 	cloned := job
 	if job.Schedule != nil {
-		schedule := *job.Schedule
-		cloned.Schedule = &schedule
+		cloned.Schedule = new(*job.Schedule)
 	}
 	cloned.Task = cloneJobTaskConfig(job.Task)
 	cloned.LoopTarget = cloneLoopTarget(job.LoopTarget)
@@ -169,8 +169,7 @@ func cloneJobTaskConfig(config *JobTaskConfig) *JobTaskConfig {
 	}
 	cloned := *config
 	if config.Owner != nil {
-		owner := *config.Owner
-		cloned.Owner = &owner
+		cloned.Owner = new(*config.Owner)
 	}
 	return &cloned
 }

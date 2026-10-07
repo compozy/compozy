@@ -46,7 +46,7 @@ func BenchmarkTriggerEngineFireMatchingRegistrations(b *testing.B) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	envelope := ActivationEnvelope{
 		Kind:        "session.stopped",
 		Scope:       AutomationScopeWorkspace,

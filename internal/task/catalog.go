@@ -1,10 +1,11 @@
 package task
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -352,11 +353,8 @@ func normalizeCatalogActorRefs(refs []ActorRef) []ActorRef {
 		seen[candidate] = struct{}{}
 		normalized = append(normalized, candidate)
 	}
-	sort.Slice(normalized, func(left int, right int) bool {
-		if normalized[left].Kind != normalized[right].Kind {
-			return normalized[left].Kind < normalized[right].Kind
-		}
-		return normalized[left].Ref < normalized[right].Ref
+	slices.SortFunc(normalized, func(a, b ActorRef) int {
+		return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Ref, b.Ref))
 	})
 	return normalized
 }

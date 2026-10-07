@@ -46,6 +46,5 @@ func cloneTaskOwnership(owner *taskpkg.Ownership) *taskpkg.Ownership {
 	if owner == nil {
 		return nil
 	}
-	cloned := *owner
-	return &cloned
+	return new(*owner)
 }

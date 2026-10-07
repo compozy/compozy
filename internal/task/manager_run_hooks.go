@@ -97,7 +97,6 @@ func (m *Service) taskRunHookContext(
 	actor ActorContext,
 ) hookspkg.TaskRunContext {
 	soulSnapshotID, soulDigest := taskRunSoulMetadata(run.Metadata)
-	runKind := run.RunKind.Normalize().String()
 	workspaceID := strings.TrimSpace(run.WorkspaceID)
 	if workspaceID == "" {
 		workspaceID = strings.TrimSpace(taskRecord.WorkspaceID)
@@ -106,7 +105,7 @@ func (m *Service) taskRunHookContext(
 		ProfileID:      strings.TrimSpace(run.ProfileID),
 		TaskID:         strings.TrimSpace(run.TaskID),
 		RunID:          strings.TrimSpace(run.ID),
-		RunKind:        &runKind,
+		RunKind:        new(run.RunKind.Normalize().String()),
 		LoopRunID:      strings.TrimSpace(run.LoopRunID),
 		WorkspaceID:    workspaceID,
 		WorkflowID:     taskRunMetadataString(run.Metadata, "workflow_id"),

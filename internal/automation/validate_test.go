@@ -1077,13 +1077,12 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	t.Parallel()
 
 	startedAt := time.Now().UTC()
-	endedAt := startedAt.Add(-time.Minute)
 
 	run := Run{
 		Status:    RunRunning,
 		Attempt:   1,
 		StartedAt: &startedAt,
-		EndedAt:   &endedAt,
+		EndedAt:   new(startedAt.Add(-time.Minute)),
 	}
 	if err := run.Validate("run"); err == nil {
 		t.Fatal("Run.Validate() error = nil, want non-nil")

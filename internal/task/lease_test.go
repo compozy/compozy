@@ -354,7 +354,7 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 		metadata := json.RawMessage(
 			`{"claim_token":"task-raw","nested":{"claim_token":"nested-raw"},"workflow_id":"wf-safe"}`,
 		)
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Claim result redaction",
@@ -364,7 +364,7 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		run, err := manager.EnqueueRun(
-			context.Background(),
+			t.Context(),
 			EnqueueRun{
 				TaskID:   taskRecord.ID,
 				Metadata: json.RawMessage(`{"workflow_id":"wf-safe"}`),
@@ -375,7 +375,7 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
 
-		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 			RunID:            run.ID,
 			Scope:            ScopeGlobal,
 			ClaimerSessionID: "sess-claim-redaction",
@@ -407,7 +407,7 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 			t.Fatalf("post-claim hook WorkflowID = %q, want %q", got, want)
 		}
 
-		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+		events, err := store.ListTaskEvents(t.Context(), EventQuery{
 			TaskID: taskRecord.ID,
 			RunID:  run.ID,
 		})
@@ -429,7 +429,7 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 		if !foundClaimEvent {
 			t.Fatalf("task events = %#v, want %q", events, taskEventRunClaimed)
 		}
-		persisted, err := store.GetTask(context.Background(), taskRecord.ID)
+		persisted, err := store.GetTask(t.Context(), taskRecord.ID)
 		if err != nil {
 			t.Fatalf("GetTask() error = %v", err)
 		}
@@ -534,7 +534,7 @@ func TestManagerLookupActiveRunForSessionRejectsUnsafeLeases(t *testing.T) {
 			manager := newTaskManagerForTestWithOptions(t, store, WithManagerNow(func() time.Time {
 				return now
 			}))
-			_, err := manager.LookupActiveRunForSession(context.Background(), tt.sessionID, tt.runID)
+			_, err := manager.LookupActiveRunForSession(t.Context(), tt.sessionID, tt.runID)
 			if !errors.Is(err, tt.cause) {
 				t.Fatalf("LookupActiveRunForSession() error = %v, want cause %v", err, tt.cause)
 			}
@@ -560,7 +560,7 @@ func TestManagerLookupActiveRunForSessionReturnsInternalHandle(t *testing.T) {
 		return now
 	}))
 
-	handle, err := manager.LookupActiveRunForSession(context.Background(), " sess-a ", " run-1 ")
+	handle, err := manager.LookupActiveRunForSession(t.Context(), " sess-a ", " run-1 ")
 	if err != nil {
 		t.Fatalf("LookupActiveRunForSession() error = %v", err)
 	}
@@ -611,7 +611,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	operator := validActorContext()
 	agent := agentActorContextForTest("sess-agent", "ws-agent")
 
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
 		Scope:     ScopeGlobal,
 		Title:     "Claim lease task",
@@ -619,11 +619,11 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	firstRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+	firstRun, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, operator)
 	if err != nil {
 		t.Fatalf("EnqueueRun(first) error = %v", err)
 	}
-	secondTask, err := manager.CreateTask(context.Background(), CreateTask{
+	secondTask, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
 		Scope:     ScopeGlobal,
 		Title:     "Second claim lease task",
@@ -631,12 +631,12 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask(second) error = %v", err)
 	}
-	if _, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: secondTask.ID}, operator); err != nil {
+	if _, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: secondTask.ID}, operator); err != nil {
 		t.Fatalf("EnqueueRun(second) error = %v", err)
 	}
 
 	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		RunID:            firstRun.ID,
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-agent",
@@ -656,12 +656,12 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 		t.Fatal("ClaimToken does not verify against persisted hash")
 	}
 
-	if _, err := manager.CompleteRun(context.Background(), firstRun.ID, RunResult{
+	if _, err := manager.CompleteRun(t.Context(), firstRun.ID, RunResult{
 		Value: json.RawMessage(`{"legacy":true}`),
 	}, agent); !errors.Is(err, ErrInvalidClaimToken) {
 		t.Fatalf("CompleteRun(unfenced active lease) error = %v, want %v", err, ErrInvalidClaimToken)
 	}
-	if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+	if _, err := manager.HeartbeatRunLease(t.Context(), LeaseHeartbeat{
 		RunID:         firstRun.ID,
 		ClaimToken:    "wrong-token",
 		LeaseDuration: time.Minute,
@@ -669,7 +669,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	}, agent); !errors.Is(err, ErrInvalidClaimToken) {
 		t.Fatalf("HeartbeatRunLease(stale token) error = %v, want %v", err, ErrInvalidClaimToken)
 	}
-	if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+	if _, err := manager.HeartbeatRunLease(t.Context(), LeaseHeartbeat{
 		RunID:         firstRun.ID,
 		ClaimToken:    claim.ClaimToken,
 		LeaseDuration: time.Minute,
@@ -677,7 +677,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	}, agent); !errors.Is(err, ErrLeaseExpired) {
 		t.Fatalf("HeartbeatRunLease(expired lease) error = %v, want %v", err, ErrLeaseExpired)
 	}
-	heartbeat, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+	heartbeat, err := manager.HeartbeatRunLease(t.Context(), LeaseHeartbeat{
 		RunID:         firstRun.ID,
 		ClaimToken:    claim.ClaimToken,
 		LeaseDuration: 2 * time.Minute,
@@ -690,7 +690,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 		t.Fatalf("HeartbeatRunLease().LeaseUntil = %v, want %v", got, want)
 	}
 
-	if _, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	if _, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-agent",
 		LeaseDuration:    time.Minute,
@@ -699,7 +699,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 		t.Fatalf("ClaimNextRun(second active lease) error = %v, want %v", err, ErrActiveRunLease)
 	}
 
-	completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+	completed, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 		RunID:      firstRun.ID,
 		ClaimToken: claim.ClaimToken,
 		Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
@@ -722,7 +722,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 		t.Fatal("completed.ClaimTokenHash = empty, want retained fencing history")
 	}
 
-	secondClaim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	secondClaim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-agent",
 		LeaseDuration:    time.Minute,
@@ -731,7 +731,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ClaimNextRun(after completion) error = %v", err)
 	}
-	released, err := manager.ReleaseRunLease(context.Background(), LeaseRelease{
+	released, err := manager.ReleaseRunLease(t.Context(), LeaseRelease{
 		RunID:      secondClaim.Run.ID,
 		ClaimToken: secondClaim.ClaimToken,
 		Reason:     "handoff",
@@ -750,7 +750,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 			released.ClaimedBy,
 		)
 	}
-	if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+	if _, err := manager.HeartbeatRunLease(t.Context(), LeaseHeartbeat{
 		RunID:         released.ID,
 		ClaimToken:    secondClaim.ClaimToken,
 		LeaseDuration: time.Minute,
@@ -759,7 +759,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 		t.Fatalf("HeartbeatRunLease(after release) error = %v, want %v", err, ErrInvalidClaimToken)
 	}
 
-	failClaim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	failClaim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-agent",
 		LeaseDuration:    time.Minute,
@@ -768,7 +768,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ClaimNextRun(for failure) error = %v", err)
 	}
-	failed, err := manager.FailRunLease(context.Background(), LeaseFailure{
+	failed, err := manager.FailRunLease(t.Context(), LeaseFailure{
 		RunID:      failClaim.Run.ID,
 		ClaimToken: failClaim.ClaimToken,
 		Failure:    RunFailure{Error: "worker failed"},
@@ -796,7 +796,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		executor := &testSessionExecutor{}
 		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
 		operator := validActorContext()
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Release cleanup failure path",
@@ -804,12 +804,12 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, operator)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
 		agent := agentActorContextForTest("sess-settlement-worker", "ws-settlement")
-		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 			RunID:            run.ID,
 			Scope:            ScopeGlobal,
 			ClaimerSessionID: "sess-settlement-worker",
@@ -821,7 +821,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		}
 
 		store.fail = true
-		_, err = manager.ReleaseRunLease(context.Background(), LeaseRelease{
+		_, err = manager.ReleaseRunLease(t.Context(), LeaseRelease{
 			RunID:      run.ID,
 			ClaimToken: claim.ClaimToken,
 			Reason:     "handoff",
@@ -830,7 +830,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("ReleaseRunLease() error = %v, want identity %v", err, sentinel)
 		}
-		persisted, err := base.GetTaskRun(context.Background(), run.ID)
+		persisted, err := base.GetTaskRun(t.Context(), run.ID)
 		if err != nil {
 			t.Fatalf("GetTaskRun() error = %v", err)
 		}
@@ -861,7 +861,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		)
 		store.fail = true
 
-		_, err := manager.FailRunLease(context.Background(), LeaseFailure{
+		_, err := manager.FailRunLease(t.Context(), LeaseFailure{
 			RunID:      run.ID,
 			ClaimToken: claim.ClaimToken,
 			Failure:    RunFailure{Error: "worker failed"},
@@ -870,7 +870,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("FailRunLease() error = %v, want identity %v", err, sentinel)
 		}
-		persisted, err := base.GetTaskRun(context.Background(), run.ID)
+		persisted, err := base.GetTaskRun(t.Context(), run.ID)
 		if err != nil {
 			t.Fatalf("GetTaskRun() error = %v", err)
 		}
@@ -893,13 +893,13 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		claim := claimSettlementRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 10, 0, 0, time.UTC))
 		store.fail = true
 
-		_, err := manager.ForceReleaseRun(context.Background(), run.ID, ForceReleaseRun{
+		_, err := manager.ForceReleaseRun(t.Context(), run.ID, ForceReleaseRun{
 			Reason: "operator handoff",
 		}, validActorContext())
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("ForceReleaseRun() error = %v, want identity %v", err, sentinel)
 		}
-		persisted, getErr := store.GetTaskRun(context.Background(), run.ID)
+		persisted, getErr := store.GetTaskRun(t.Context(), run.ID)
 		if getErr != nil {
 			t.Fatalf("GetTaskRun() error = %v", getErr)
 		}
@@ -917,13 +917,13 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		claim := claimSettlementRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 20, 0, 0, time.UTC))
 		store.fail = true
 
-		_, err := manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
+		_, err := manager.ForceFailRun(t.Context(), run.ID, ForceFailRun{
 			Reason: "operator recovery",
 		}, validActorContext())
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("ForceFailRun() error = %v, want identity %v", err, sentinel)
 		}
-		persisted, getErr := store.GetTaskRun(context.Background(), run.ID)
+		persisted, getErr := store.GetTaskRun(t.Context(), run.ID)
 		if getErr != nil {
 			t.Fatalf("GetTaskRun() error = %v", getErr)
 		}
@@ -947,7 +947,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		)
 		operator := validActorContext()
 		attention, err := manager.MarkRunNeedsAttention(
-			context.Background(),
+			t.Context(),
 			run.ID,
 			"operator review",
 			operator,
@@ -958,7 +958,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		store.fail = true
 
 		_, err = manager.RecoverRun(
-			context.Background(),
+			t.Context(),
 			run.ID,
 			RecoverRunRequest{Reason: "resume work"},
 			operator,
@@ -966,7 +966,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 		if !errors.Is(err, sentinel) {
 			t.Fatalf("RecoverRun() error = %v, want identity %v", err, sentinel)
 		}
-		persisted, getErr := store.GetTaskRun(context.Background(), run.ID)
+		persisted, getErr := store.GetTaskRun(t.Context(), run.ID)
 		if getErr != nil {
 			t.Fatalf("GetTaskRun() error = %v", getErr)
 		}
@@ -991,7 +991,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 		}
 
-		_, err = manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
+		_, err = manager.ReleaseSessionRunLeases(t.Context(), SessionLeaseRelease{
 			SessionID: "sess-settlement-worker",
 			Reason:    "session teardown",
 			Now:       time.Date(2026, 7, 31, 13, 30, 30, 0, time.UTC),
@@ -1000,7 +1000,7 @@ func TestManagerClaimedRunSettlementRollback(t *testing.T) {
 			t.Fatalf("ReleaseSessionRunLeases() error = %v, want identity %v", err, sentinel)
 		}
 
-		persisted, getErr := store.GetTaskRun(context.Background(), run.ID)
+		persisted, getErr := store.GetTaskRun(t.Context(), run.ID)
 		if getErr != nil {
 			t.Fatalf("GetTaskRun() error = %v", getErr)
 		}
@@ -1081,7 +1081,7 @@ func newQueuedSettlementRunWithStore(
 		WithSessionExecutor(executor),
 	)
 	operator := validActorContext()
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
 		Scope:     ScopeGlobal,
 		Title:     "Task-run settlement",
@@ -1090,7 +1090,7 @@ func newQueuedSettlementRunWithStore(
 		t.Fatalf("CreateTask() error = %v", err)
 	}
 
-	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+	run, err := manager.EnqueueRun(t.Context(), EnqueueRun{
 		TaskID: taskRecord.ID,
 	}, operator)
 	if err != nil {
@@ -1107,7 +1107,7 @@ func claimSettlementRun(
 	now time.Time,
 ) *ClaimResult {
 	t.Helper()
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		RunID:            run.ID,
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-settlement-worker",
@@ -1143,7 +1143,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		entropyErr := errors.New("completion advisory identity unavailable")
 		manager.newID = func(string) (string, error) { return "", entropyErr }
 
-		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		completed, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Result:     RunResult{Value: json.RawMessage(`{"summary":"done"}`)},
@@ -1200,7 +1200,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 				)
 				before := cloneTaskRun(store.runs[claim.Run.ID])
 
-				_, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+				_, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 					RunID:          claim.Run.ID,
 					ClaimToken:     claim.ClaimToken,
 					Result:         RunResult{Value: json.RawMessage(`{"summary":"invalid collection"}`)},
@@ -1234,7 +1234,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		markClaimedRunRunningForTest(t, store, claim.Run.ID)
 		before := cloneTaskRun(store.runs[claim.Run.ID])
 
-		_, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		_, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:          claim.Run.ID,
 			ClaimToken:     claim.ClaimToken,
 			Result:         RunResult{Value: json.RawMessage(`{"summary":"claimed phantom child"}`)},
@@ -1257,7 +1257,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		after := store.runs[claim.Run.ID]
 		assertRunLeaseUnchangedAfterBlockedCompletion(t, after, before)
 
-		events, eventErr := store.ListTaskEvents(context.Background(), EventQuery{
+		events, eventErr := store.ListTaskEvents(t.Context(), EventQuery{
 			TaskID:    taskRecord.ID,
 			RunID:     claim.Run.ID,
 			EventType: taskEventCompletionHallucinationBlocked,
@@ -1295,7 +1295,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 				createClaim: func(t *testing.T, manager *Service, _ ActorContext) string {
 					t.Helper()
 					otherAgent := agentActorContextForTest("sess-other", "ws-same")
-					child, err := manager.CreateTask(context.Background(), CreateTask{
+					child, err := manager.CreateTask(t.Context(), CreateTask{
 						ProfileID:   storepkg.DefaultProfileID,
 						Scope:       ScopeWorkspace,
 						WorkspaceID: "ws-same",
@@ -1313,7 +1313,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 				createClaim: func(t *testing.T, manager *Service, agent ActorContext) string {
 					t.Helper()
 					foreignWorkspaceAgent := agentActorContextForTest(agent.Actor.Ref, "ws-away")
-					child, err := manager.CreateTask(context.Background(), CreateTask{
+					child, err := manager.CreateTask(t.Context(), CreateTask{
 						ProfileID:   storepkg.DefaultProfileID,
 						Scope:       ScopeWorkspace,
 						WorkspaceID: "ws-away",
@@ -1344,7 +1344,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 				claimedTaskID := tt.createClaim(t, manager, agent)
 				before := cloneTaskRun(store.runs[claim.Run.ID])
 
-				_, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+				_, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 					RunID:          claim.Run.ID,
 					ClaimToken:     claim.ClaimToken,
 					Result:         RunResult{Value: json.RawMessage(`{"summary":"claimed invalid child"}`)},
@@ -1369,7 +1369,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		store := newInMemoryManagerStore()
 		manager := newTaskManagerForTest(t, store)
 		_, claim, agent := setupCompletionLeaseForTest(t, manager, ScopeWorkspace, "ws-valid", "sess-valid", claimNow)
-		child, err := manager.CreateTask(context.Background(), CreateTask{
+		child, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-valid",
@@ -1379,7 +1379,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 			t.Fatalf("CreateTask(valid child) error = %v", err)
 		}
 
-		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		completed, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:          claim.Run.ID,
 			ClaimToken:     claim.ClaimToken,
 			Result:         RunResult{Value: json.RawMessage(`{"summary":"valid child complete"}`)},
@@ -1414,7 +1414,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 			claimNow,
 		)
 
-		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		completed, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Result: RunResult{
@@ -1429,7 +1429,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 			t.Fatalf("completed.Status = %q, want %q", got, want)
 		}
 
-		events, eventErr := store.ListTaskEvents(context.Background(), EventQuery{
+		events, eventErr := store.ListTaskEvents(t.Context(), EventQuery{
 			TaskID:    completed.TaskID,
 			RunID:     completed.ID,
 			EventType: taskEventCompletionHallucinationSuspected,
@@ -1472,7 +1472,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 			t.Fatalf("json.Marshal(result) error = %v", err)
 		}
 
-		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		completed, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Result:     RunResult{Value: result},
@@ -1481,7 +1481,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CompleteRunLease() error = %v", err)
 		}
-		events, eventErr := store.ListTaskEvents(context.Background(), EventQuery{
+		events, eventErr := store.ListTaskEvents(t.Context(), EventQuery{
 			TaskID:    completed.TaskID,
 			RunID:     completed.ID,
 			EventType: taskEventCompletionHallucinationSuspected,
@@ -1526,7 +1526,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 			t.Fatalf("json.Marshal(result) error = %v", err)
 		}
 
-		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		completed, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Result:     RunResult{Value: result},
@@ -1535,7 +1535,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CompleteRunLease() error = %v", err)
 		}
-		events, eventErr := store.ListTaskEvents(context.Background(), EventQuery{
+		events, eventErr := store.ListTaskEvents(t.Context(), EventQuery{
 			TaskID:    completed.TaskID,
 			RunID:     completed.ID,
 			EventType: taskEventCompletionHallucinationSuspected,
@@ -1570,7 +1570,7 @@ func setupCompletionLeaseForTest(
 		agentWorkspaceID = "ws-agent-home"
 	}
 	agent := agentActorContextForTest(sessionID, agentWorkspaceID)
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       scope,
 		WorkspaceID: workspaceID,
@@ -1579,10 +1579,10 @@ func setupCompletionLeaseForTest(
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	if _, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator); err != nil {
+	if _, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, operator); err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            scope,
 		WorkspaceID:      workspaceID,
 		ClaimerSessionID: sessionID,
@@ -1664,7 +1664,7 @@ func TestManagerBlockTaskAndReleaseRunParksActiveLease(t *testing.T) {
 	operator := validActorContext()
 	agent := agentActorContextForTest("sess-blocker", "ws-blocker")
 
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
 		Scope:     ScopeGlobal,
 		Title:     "Block leased task",
@@ -1672,12 +1672,12 @@ func TestManagerBlockTaskAndReleaseRunParksActiveLease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+	run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, operator)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
 	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-blocker",
 		LeaseDuration:    2 * time.Minute,
@@ -1688,7 +1688,7 @@ func TestManagerBlockTaskAndReleaseRunParksActiveLease(t *testing.T) {
 	}
 	before := cloneTaskRun(store.runs[run.ID])
 
-	block, err := manager.BlockTask(context.Background(), BlockRequest{
+	block, err := manager.BlockTask(t.Context(), BlockRequest{
 		TaskID:     taskRecord.ID,
 		Kind:       BlockKindNeedsInput,
 		Reason:     "creator clarification required",
@@ -1725,7 +1725,7 @@ func TestManagerBlockTaskAndReleaseRunParksActiveLease(t *testing.T) {
 		t.Fatalf("storedTask.Status = %q, want %q", got, want)
 	}
 
-	events, err := store.ListTaskEvents(context.Background(), EventQuery{
+	events, err := store.ListTaskEvents(t.Context(), EventQuery{
 		TaskID:    taskRecord.ID,
 		RunID:     run.ID,
 		EventType: taskEventRunReleased,
@@ -1749,7 +1749,7 @@ func TestManagerBlockTaskAndReleaseRunRejectsClaimTokenMismatch(t *testing.T) {
 	operator := validActorContext()
 	agent := agentActorContextForTest("sess-mismatch", "ws-mismatch")
 
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
 		Scope:     ScopeGlobal,
 		Title:     "Block token mismatch",
@@ -1757,12 +1757,12 @@ func TestManagerBlockTaskAndReleaseRunRejectsClaimTokenMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+	run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, operator)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
 	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-mismatch",
 		LeaseDuration:    time.Minute,
@@ -1773,7 +1773,7 @@ func TestManagerBlockTaskAndReleaseRunRejectsClaimTokenMismatch(t *testing.T) {
 	}
 	before := cloneTaskRun(store.runs[run.ID])
 
-	_, err = manager.BlockTask(context.Background(), BlockRequest{
+	_, err = manager.BlockTask(t.Context(), BlockRequest{
 		TaskID:     taskRecord.ID,
 		Kind:       BlockKindCapability,
 		Reason:     "missing deploy capability",
@@ -1790,7 +1790,7 @@ func TestManagerBlockTaskAndReleaseRunRejectsClaimTokenMismatch(t *testing.T) {
 		!after.LeaseUntil.Equal(before.LeaseUntil) {
 		t.Fatalf("run after rejected block = %#v, want unchanged %#v", after, before)
 	}
-	blocks, err := manager.ListTaskBlocks(context.Background(), taskRecord.ID, true, agent)
+	blocks, err := manager.ListTaskBlocks(t.Context(), taskRecord.ID, true, agent)
 	if err != nil {
 		t.Fatalf("ListTaskBlocks() error = %v", err)
 	}
@@ -1815,7 +1815,7 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 	operator := validActorContext()
 	agent := agentActorContextForTest("sess-race", "ws-race")
 
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
 		Scope:     ScopeGlobal,
 		Title:     "Race block leased task",
@@ -1823,12 +1823,12 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+	run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, operator)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
 	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-race",
 		LeaseDuration:    2 * time.Minute,
@@ -1841,18 +1841,16 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
 	blocks := make([]TaskBlock, 2)
-	for idx := range errs {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			blocks[index], errs[index] = manager.BlockTask(context.Background(), BlockRequest{
+	for index := range errs {
+		wg.Go(func() {
+			blocks[index], errs[index] = manager.BlockTask(t.Context(), BlockRequest{
 				TaskID:     taskRecord.ID,
 				Kind:       BlockKindNeedsInput,
 				Reason:     "duplicate caller " + strconv.Itoa(index),
 				RunID:      claim.Run.ID,
 				ClaimToken: claim.ClaimToken,
 			}, agent)
-		}(idx)
+		})
 	}
 	wg.Wait()
 
@@ -1873,21 +1871,21 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 		t.Fatalf("successful BlockTask calls = %d, want 1 (errs=%#v blocks=%#v)", successes, errs, blocks)
 	}
 
-	openBlocks, err := manager.ListTaskBlocks(context.Background(), taskRecord.ID, false, operator)
+	openBlocks, err := manager.ListTaskBlocks(t.Context(), taskRecord.ID, false, operator)
 	if err != nil {
 		t.Fatalf("ListTaskBlocks(open) error = %v", err)
 	}
 	if len(openBlocks) != 1 {
 		t.Fatalf("len(openBlocks) = %d, want 1: %#v", len(openBlocks), openBlocks)
 	}
-	persisted, err := store.GetTaskRun(context.Background(), run.ID)
+	persisted, err := store.GetTaskRun(t.Context(), run.ID)
 	if err != nil {
 		t.Fatalf("GetTaskRun() error = %v", err)
 	}
 	if persisted.Status != TaskRunStatusQueued || persisted.ClaimTokenHash != "" || persisted.SessionID != "" {
 		t.Fatalf("persisted run after race = %#v, want one queued unleased run", persisted)
 	}
-	events, err := store.ListTaskEvents(context.Background(), EventQuery{
+	events, err := store.ListTaskEvents(t.Context(), EventQuery{
 		TaskID:    taskRecord.ID,
 		RunID:     run.ID,
 		EventType: taskEventRunReleased,
@@ -1909,7 +1907,7 @@ func TestManagerBlockClearAutoEnqueuesReadyOptedInTaskIdempotently(t *testing.T)
 		store := newInMemoryManagerStore()
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:          storepkg.DefaultProfileID,
 			Scope:              ScopeWorkspace,
 			WorkspaceID:        "ws-auto-block-clear",
@@ -1919,7 +1917,7 @@ func TestManagerBlockClearAutoEnqueuesReadyOptedInTaskIdempotently(t *testing.T)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		block, err := manager.BlockTask(context.Background(), BlockRequest{
+		block, err := manager.BlockTask(t.Context(), BlockRequest{
 			TaskID: taskRecord.ID,
 			Kind:   BlockKindCapability,
 			Reason: "capability unavailable",
@@ -1928,7 +1926,7 @@ func TestManagerBlockClearAutoEnqueuesReadyOptedInTaskIdempotently(t *testing.T)
 			t.Fatalf("BlockTask() error = %v", err)
 		}
 		if _, err := manager.ClearTaskBlock(
-			context.Background(),
+			t.Context(),
 			taskRecord.ID,
 			block.ID,
 			"capability restored",
@@ -1943,7 +1941,7 @@ func TestManagerBlockClearAutoEnqueuesReadyOptedInTaskIdempotently(t *testing.T)
 			t.Fatalf("auto enqueue triggered events = %d, want %d", got, want)
 		}
 
-		manager.autoEnqueueReadyTaskDetached(context.Background(), taskRecord.ID, autoEnqueueTrigger{
+		manager.autoEnqueueReadyTaskDetached(t.Context(), taskRecord.ID, autoEnqueueTrigger{
 			Kind: autoEnqueueTriggerBlockClear,
 			Ref:  block.ID,
 		}, actor)
@@ -1962,7 +1960,7 @@ func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
 		store := newInMemoryManagerStore()
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:          storepkg.DefaultProfileID,
 			Scope:              ScopeWorkspace,
 			WorkspaceID:        "ws-auto-approval",
@@ -1977,7 +1975,7 @@ func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
 			t.Fatalf("created Status = %q, want %q", got, want)
 		}
 
-		execution, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
+		execution, err := manager.ApproveTask(t.Context(), taskRecord.ID, ExecutionRequest{}, actor)
 		if err != nil {
 			t.Fatalf("ApproveTask() error = %v", err)
 		}
@@ -1992,7 +1990,7 @@ func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
 			t.Fatalf("auto enqueue triggered events = %d, want %d", got, want)
 		}
 
-		replayed, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
+		replayed, err := manager.ApproveTask(t.Context(), taskRecord.ID, ExecutionRequest{}, actor)
 		if err != nil {
 			t.Fatalf("ApproveTask(replay) error = %v", err)
 		}
@@ -2010,7 +2008,7 @@ func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
 		store := &approvalAliasFailureStore{inMemoryManagerStore: newInMemoryManagerStore()}
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:          storepkg.DefaultProfileID,
 			Scope:              ScopeWorkspace,
 			WorkspaceID:        "ws-auto-approval-alias-failure",
@@ -2023,7 +2021,7 @@ func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
 		}
 		store.failKey = taskExecutionIdempotencyKey(taskRecord.ID, ExecutionActionApproval, "")
 
-		execution, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
+		execution, err := manager.ApproveTask(t.Context(), taskRecord.ID, ExecutionRequest{}, actor)
 		if err == nil {
 			t.Fatal("ApproveTask(alias failure) error = nil, want persistence failure")
 		}
@@ -2045,17 +2043,16 @@ func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testin
 		store := newInMemoryManagerStore()
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
-		maxAttempts := 3
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Recurrence reset target",
-			MaxAttempts: &maxAttempts,
+			MaxAttempts: new(3),
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		first, err := manager.BlockTask(context.Background(), BlockRequest{
+		first, err := manager.BlockTask(t.Context(), BlockRequest{
 			TaskID: taskRecord.ID,
 			Kind:   BlockKindNeedsInput,
 			Reason: "first loop",
@@ -2064,7 +2061,7 @@ func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testin
 			t.Fatalf("BlockTask(first) error = %v", err)
 		}
 		if _, err := manager.ClearTaskBlock(
-			context.Background(),
+			t.Context(),
 			taskRecord.ID,
 			first.ID,
 			"resolved",
@@ -2072,7 +2069,7 @@ func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testin
 		); err != nil {
 			t.Fatalf("ClearTaskBlock(first) error = %v", err)
 		}
-		second, err := manager.BlockTask(context.Background(), BlockRequest{
+		second, err := manager.BlockTask(t.Context(), BlockRequest{
 			TaskID: taskRecord.ID,
 			Kind:   BlockKindNeedsInput,
 			Reason: "second loop",
@@ -2084,7 +2081,7 @@ func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testin
 			t.Fatalf("recurrence count after reblock = %d, want %d", got, want)
 		}
 		if _, err := manager.ClearTaskBlock(
-			context.Background(),
+			t.Context(),
 			taskRecord.ID,
 			second.ID,
 			"resolved again",
@@ -2096,13 +2093,13 @@ func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testin
 			t.Fatalf("recurrence count after clear = %d, want %d", got, want)
 		}
 
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
 		agent := agentActorContextForTest("sess-reset", "ws-reset")
 		claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 			Scope:            ScopeGlobal,
 			ClaimerSessionID: "sess-reset",
 			LeaseDuration:    2 * time.Minute,
@@ -2114,7 +2111,7 @@ func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testin
 		if claim.Run.ID != run.ID {
 			t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", claim.Run.ID, run.ID)
 		}
-		if _, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		if _, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
@@ -2213,7 +2210,7 @@ func TestManagerTaskBlockLifecycleRejectsSecretMaterial(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			store := newInMemoryManagerStore()
 			manager := newTaskManagerForTest(t, store)
 			actor := validActorContext()
@@ -2295,8 +2292,8 @@ func TestTaskBlockHookPayloadsRedactStoredSecretMaterial(t *testing.T) {
 		ClearNote: "oauth_code=raw-oauth-secret",
 	}
 
-	manager.dispatchTaskBlocked(context.Background(), block, taskRecord, actor, nil)
-	manager.dispatchTaskUnblocked(context.Background(), block, taskRecord, actor)
+	manager.dispatchTaskBlocked(t.Context(), block, taskRecord, actor, nil)
+	manager.dispatchTaskUnblocked(t.Context(), block, taskRecord, actor)
 
 	assertPayloadRedactsStoredTaskBlockSecrets(t, "task.blocked payload", blocked)
 	assertPayloadRedactsStoredTaskBlockSecrets(t, "task.unblocked payload", unblocked)
@@ -2343,7 +2340,7 @@ func TestManagerClaimNextRunRequiresWriteAuthority(t *testing.T) {
 	actor.Authority.CreateGlobal = false
 	actor.Authority.CreateWorkspace = false
 
-	if _, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	if _, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-agent",
 	}, actor); !errors.Is(err, ErrPermissionDenied) {
@@ -2366,7 +2363,7 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 		}
 		agent := agentActorContextForTest("sess-child", "ws-child")
 
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Structurally released task",
@@ -2374,13 +2371,13 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, operator)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
 
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 			Scope:            ScopeGlobal,
 			ClaimerSessionID: "sess-child",
 			LeaseDuration:    time.Minute,
@@ -2392,7 +2389,7 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 		if claim.Run.ID != run.ID || claim.Run.ClaimTokenHash == "" {
 			t.Fatalf("claim = %#v, want active lease for %q", claim, run.ID)
 		}
-		if _, releaseErr := manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
+		if _, releaseErr := manager.ReleaseSessionRunLeases(t.Context(), SessionLeaseRelease{
 			SessionID: "sess-child",
 			Reason:    "ttl_expired",
 			Now:       now.Add(30 * time.Second),
@@ -2400,7 +2397,7 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 			t.Fatalf("ReleaseSessionRunLeases(human operator) error = %v, want %v", releaseErr, ErrPermissionDenied)
 		}
 
-		results, err := manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
+		results, err := manager.ReleaseSessionRunLeases(t.Context(), SessionLeaseRelease{
 			SessionID: "sess-child",
 			Reason:    "ttl_expired",
 			Now:       now.Add(30 * time.Second),
@@ -2418,7 +2415,7 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 			result.Reason != "ttl_expired" {
 			t.Fatalf("release result = %#v, want previous active lease metadata", result)
 		}
-		persisted, err := store.GetTaskRun(context.Background(), run.ID)
+		persisted, err := store.GetTaskRun(t.Context(), run.ID)
 		if err != nil {
 			t.Fatalf("GetTaskRun() error = %v", err)
 		}
@@ -2430,7 +2427,7 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 			!persisted.HeartbeatAt.IsZero() {
 			t.Fatalf("persisted run after structural release = %#v, want queued and unleased", persisted)
 		}
-		if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+		if _, err := manager.HeartbeatRunLease(t.Context(), LeaseHeartbeat{
 			RunID:         run.ID,
 			ClaimToken:    claim.ClaimToken,
 			LeaseDuration: time.Minute,
@@ -2439,7 +2436,7 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 			t.Fatalf("HeartbeatRunLease(after structural release) error = %v, want %v", err, ErrInvalidClaimToken)
 		}
 
-		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+		events, err := store.ListTaskEvents(t.Context(), EventQuery{
 			TaskID:    taskRecord.ID,
 			RunID:     run.ID,
 			EventType: taskEventRunReleased,

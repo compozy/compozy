@@ -1,7 +1,9 @@
 package automation
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"sort"
 	"strings"
 
@@ -166,9 +168,7 @@ func (m *Manager) triggerEnabledOverrides(ctx context.Context) (map[string]bool,
 }
 
 func sortResourceCatalogCandidates(candidates []resourceCatalogCandidate) {
-	sort.Slice(candidates, func(left int, right int) bool {
-		return compareResourceCatalogCandidate(candidates[left], candidates[right]) < 0
-	})
+	slices.SortFunc(candidates, compareResourceCatalogCandidate)
 }
 
 func resourceCatalogPageStart(
@@ -186,11 +186,9 @@ func resourceCatalogPageStart(
 }
 
 func compareResourceCatalogCandidate(left resourceCatalogCandidate, right resourceCatalogCandidate) int {
-	if rank := modelpkg.ListSourceRank(left.source) - modelpkg.ListSourceRank(right.source); rank != 0 {
-		return rank
-	}
-	if name := strings.Compare(left.name, right.name); name != 0 {
-		return name
-	}
-	return strings.Compare(left.id, right.id)
+	return cmp.Or(
+		modelpkg.ListSourceRank(left.source)-modelpkg.ListSourceRank(right.source),
+		strings.Compare(left.name, right.name),
+		strings.Compare(left.id, right.id),
+	)
 }

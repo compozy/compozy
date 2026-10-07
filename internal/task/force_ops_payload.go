@@ -38,8 +38,7 @@ func optionalPayloadTime(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	normalized := value.UTC()
-	return &normalized
+	return new(value.UTC())
 }
 
 type operatorForcedFailPayload struct {

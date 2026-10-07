@@ -335,12 +335,10 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 		normalized.PostCommitTimers[idx] = normalized.PostCommitTimers[idx].Normalize()
 	}
 	if normalized.NextCoordinator != nil {
-		next := normalized.NextCoordinator.Normalize()
-		normalized.NextCoordinator = &next
+		normalized.NextCoordinator = new(normalized.NextCoordinator.Normalize())
 	}
 	if normalized.Terminal != nil {
-		terminal := normalized.Terminal.Normalize()
-		normalized.Terminal = &terminal
+		normalized.Terminal = new(normalized.Terminal.Normalize())
 	}
 	return normalized
 }

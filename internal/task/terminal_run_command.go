@@ -365,8 +365,7 @@ func cloneTerminalRunCommandIntent(intent terminalRunCommandIntent) terminalRunC
 		cloned.Cancellation = &cancellation
 	}
 	if intent.RecoveryAudit != nil {
-		recovery := *intent.RecoveryAudit
-		cloned.RecoveryAudit = &recovery
+		cloned.RecoveryAudit = new(*intent.RecoveryAudit)
 	}
 	return cloned
 }
@@ -456,8 +455,7 @@ func (c TerminalRunCommand) Advance(
 	}
 	cloned := c
 	if c.terminalRunCommandTimestamps != nil {
-		timestamps := *c.terminalRunCommandTimestamps
-		cloned.terminalRunCommandTimestamps = &timestamps
+		cloned.terminalRunCommandTimestamps = new(*c.terminalRunCommandTimestamps)
 	}
 	cloned.phase = phase
 	cloned.updatedAt = updatedAt.UTC()

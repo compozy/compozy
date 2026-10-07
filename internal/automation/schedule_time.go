@@ -79,7 +79,7 @@ func nextRunAfter(job Job, scheduledAt time.Time, location *time.Location) *time
 	if next.IsZero() {
 		return nil
 	}
-	return timePointer(next)
+	return new(next)
 }
 
 func schedulerCatchUpPolicyOrDefault(
@@ -99,8 +99,7 @@ func cloneTimePointer(value *time.Time) *time.Time {
 	if value == nil || value.IsZero() {
 		return nil
 	}
-	clone := *value
-	return &clone
+	return new(*value)
 }
 
 func unregisteredJobState(jobID string) ScheduledJobState {
