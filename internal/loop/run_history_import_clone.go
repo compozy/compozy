@@ -15,8 +15,7 @@ func cloneRunHistorySnapshot(snapshot *RunHistorySnapshot) RunHistorySnapshot {
 	cloned.Events = cloneRunHistoryEvents(snapshot.Events)
 	cloned.GoalTurns = cloneRunHistoryGoalTurns(snapshot.GoalTurns)
 	if snapshot.Best != nil {
-		best := *snapshot.Best
-		cloned.Best = &best
+		cloned.Best = new(*snapshot.Best)
 	}
 	return cloned
 }
@@ -41,8 +40,7 @@ func cloneRunHistoryRun(run Run) Run {
 	cloned.Inputs = cloneRunHistoryValues(run.Inputs)
 	cloned.StartMetadata = cloneRunHistoryValues(run.StartMetadata)
 	if run.Origin != nil {
-		origin := *run.Origin
-		cloned.Origin = &origin
+		cloned.Origin = new(*run.Origin)
 	}
 	return cloned
 }
@@ -108,8 +106,7 @@ func cloneRunHistoryOutputs(outputs []GenerationOutput) []GenerationOutput {
 	for _, output := range outputs {
 		copied := output
 		if output.ResolvedRuntime != nil {
-			runtime := *output.ResolvedRuntime
-			copied.ResolvedRuntime = &runtime
+			copied.ResolvedRuntime = new(*output.ResolvedRuntime)
 		}
 		copied.NextAttemptAt = cloneRunHistoryTime(output.NextAttemptAt)
 		copied.FirstScheduledAt = cloneRunHistoryTime(output.FirstScheduledAt)
@@ -134,8 +131,7 @@ func cloneRunHistoryAttempts(attempts []NodeAttempt) []NodeAttempt {
 	for _, attempt := range attempts {
 		copied := attempt
 		if attempt.FailureClass != nil {
-			failureClass := *attempt.FailureClass
-			copied.FailureClass = &failureClass
+			copied.FailureClass = new(*attempt.FailureClass)
 		}
 		copied.EndedAt = cloneRunHistoryTime(attempt.EndedAt)
 		copied.NextAttemptAt = cloneRunHistoryTime(attempt.NextAttemptAt)
@@ -150,9 +146,7 @@ func cloneRunHistoryControls(controls []NodeControlMutation) []NodeControlMutati
 		copied := control
 		copied.QuarantineEntry = cloneRawMessage(control.QuarantineEntry)
 		if control.GateRevisions != nil {
-			revisions := make(map[int]int, len(control.GateRevisions))
-			maps.Copy(revisions, control.GateRevisions)
-			copied.GateRevisions = revisions
+			copied.GateRevisions = maps.Clone(control.GateRevisions)
 		}
 		cloned = append(cloned, copied)
 	}
@@ -198,12 +192,10 @@ func cloneRunHistoryVerdicts(verdicts []RunHistoryVerdict) []RunHistoryVerdict {
 		copied.Intent.BlockingIssues = cloneRawMessage(verdict.Intent.BlockingIssues)
 		copied.Intent.Criteria = cloneRawMessage(verdict.Intent.Criteria)
 		if verdict.Intent.Score != nil {
-			score := *verdict.Intent.Score
-			copied.Intent.Score = &score
+			copied.Intent.Score = new(*verdict.Intent.Score)
 		}
 		if verdict.Intent.RouteCauseRank != nil {
-			rank := *verdict.Intent.RouteCauseRank
-			copied.Intent.RouteCauseRank = &rank
+			copied.Intent.RouteCauseRank = new(*verdict.Intent.RouteCauseRank)
 		}
 		cloned = append(cloned, copied)
 	}
@@ -226,14 +218,12 @@ func cloneRunHistoryTime(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}
-	copied := *value
-	return &copied
+	return new(*value)
 }
 
 func cloneRunHistoryEpoch(value *int64) *int64 {
 	if value == nil {
 		return nil
 	}
-	copied := *value
-	return &copied
+	return new(*value)
 }

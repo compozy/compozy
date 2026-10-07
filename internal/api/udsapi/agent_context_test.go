@@ -181,7 +181,7 @@ func performAgentKernelRequest(
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequestWithContext(context.Background(), method, path, bytesReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), method, path, bytesReader(body))
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}

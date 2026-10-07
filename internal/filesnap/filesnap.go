@@ -123,7 +123,5 @@ func Clone(src map[string]Snapshot) map[string]Snapshot {
 		return map[string]Snapshot{}
 	}
 
-	cloned := make(map[string]Snapshot, len(src))
-	maps.Copy(cloned, src)
-	return cloned
+	return maps.Clone(src)
 }

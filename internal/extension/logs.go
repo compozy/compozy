@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 const extensionLogRingCapacity = 256 * 1024
@@ -45,7 +45,7 @@ func newExtensionLogRing(now func() time.Time) *ExtensionLogRing {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &ExtensionLogRing{capacity: extensionLogRingCapacity, now: now, epoch: uuid.NewString()}
+	return &ExtensionLogRing{capacity: extensionLogRingCapacity, now: now, epoch: uuid.NewV4().String()}
 }
 
 func (r *ExtensionLogRing) append(message, generationHash string) {

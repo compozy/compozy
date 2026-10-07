@@ -238,8 +238,8 @@ func TestGatewayConfig(t *testing.T) {
 
 func assertGatewayValidationPath(t *testing.T, err error, wantPath string) {
 	t.Helper()
-	var validationErr ValidationError
-	if !errors.As(err, &validationErr) {
+	validationErr, validationErrOK := errors.AsType[ValidationError](err)
+	if !validationErrOK {
 		t.Fatalf("Validate() error = %v, want ValidationError", err)
 	}
 	if validationErr.Path != wantPath {

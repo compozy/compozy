@@ -3,8 +3,8 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 
-	"sort"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -129,8 +129,8 @@ func sortedResolvedAgents(resolved *workspacepkg.ResolvedWorkspace) []compozycon
 		return nil
 	}
 	agents := append([]compozyconfig.AgentDef(nil), resolved.Agents...)
-	sort.SliceStable(agents, func(i int, j int) bool {
-		return strings.TrimSpace(agents[i].Name) < strings.TrimSpace(agents[j].Name)
+	slices.SortStableFunc(agents, func(a, b compozyconfig.AgentDef) int {
+		return strings.Compare(strings.TrimSpace(a.Name), strings.TrimSpace(b.Name))
 	})
 	return agents
 }

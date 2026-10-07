@@ -256,9 +256,7 @@ binding = { type = "url_query", name = "workspace" }
 			}
 		}
 		_, err = settingsService.PutCollectionItem(testutil.Context(t), settingspkg.CollectionItemPutRequest{
-			CollectionRequest: settingspkg.CollectionRequest{
-				Collection: settingspkg.CollectionMCPServers, Owner: "manual",
-			},
+			Collection: settingspkg.CollectionMCPServers, Owner: "manual",
 			Name:      "remote",
 			MCPServer: &compozyconfig.MCPServer{Name: "remote", Command: "manual-mcp"},
 		})
@@ -349,12 +347,10 @@ binding = { type = "url_query", name = "workspace" }
 			t.Fatalf("extension override deleted manual credentials: %v", err)
 		}
 		mutation, err := settingsService.PutCollectionItem(testutil.Context(t), settingspkg.CollectionItemPutRequest{
-			CollectionRequest: settingspkg.CollectionRequest{
-				Collection: settingspkg.CollectionMCPServers,
-				Owner:      "extension:" + manifest.Name,
-			},
-			Name:      "remote",
-			MCPServer: &compozyconfig.MCPServer{URL: "https://mcp.example.com/settings-edit"},
+			Collection: settingspkg.CollectionMCPServers,
+			Owner:      "extension:" + manifest.Name,
+			Name:       "remote",
+			MCPServer:  &compozyconfig.MCPServer{URL: "https://mcp.example.com/settings-edit"},
 		})
 		if err != nil || mutation.MCPServer == nil ||
 			mutation.MCPServer.URL != "https://mcp.example.com/settings-edit" {
@@ -363,11 +359,9 @@ binding = { type = "url_query", name = "workspace" }
 		mutation, err = settingsService.DeleteCollectionItem(
 			testutil.Context(t),
 			settingspkg.CollectionItemDeleteRequest{
-				CollectionRequest: settingspkg.CollectionRequest{
-					Collection: settingspkg.CollectionMCPServers,
-					Owner:      "extension:" + manifest.Name,
-				},
-				Name: "remote",
+				Collection: settingspkg.CollectionMCPServers,
+				Owner:      "extension:" + manifest.Name,
+				Name:       "remote",
 			},
 		)
 		if err != nil || mutation.MCPServer == nil ||
@@ -816,7 +810,7 @@ type defaultToolMCPProfileCatalog struct{}
 
 func (defaultToolMCPProfileCatalog) List(context.Context) ([]profilepkg.WithCounts, error) {
 	return []profilepkg.WithCounts{{
-		Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+		ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
 	}}, nil
 }
 

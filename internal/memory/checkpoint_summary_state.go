@@ -1,13 +1,14 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -102,11 +103,11 @@ func renderCheckpointSummaryState(state checkpointSummaryState) ([]byte, error) 
 
 func splitCheckpointCoverage(body string) (string, checkpointCoverage, error) {
 	trimmed := strings.TrimSpace(body)
-	index := strings.LastIndex(trimmed, checkpointCoveragePrefix)
-	if index < 0 {
+	before, after, found := strings.CutLast(trimmed, checkpointCoveragePrefix)
+	if !found {
 		return trimmed, checkpointCoverage{}, nil
 	}
-	marker := strings.TrimSpace(trimmed[index:])
+	marker := strings.TrimSpace(checkpointCoveragePrefix + after)
 	if !strings.HasSuffix(marker, checkpointCoverageSuffix) {
 		return "", checkpointCoverage{}, errors.New("checkpoint compaction coverage marker is malformed")
 	}
@@ -122,7 +123,7 @@ func splitCheckpointCoverage(body string) (string, checkpointCoverage, error) {
 	if err := coverage.validate(); err != nil {
 		return "", checkpointCoverage{}, err
 	}
-	return strings.TrimSpace(trimmed[:index]), coverage, nil
+	return strings.TrimSpace(before), coverage, nil
 }
 
 func renderCheckpointCoverage(coverage checkpointCoverage) (string, error) {
@@ -178,12 +179,9 @@ func (c checkpointCoverage) covers(workspaceID string, sessionID string, fromSeq
 
 func (c checkpointCoverage) hasSession(sessionID string) bool {
 	target := strings.TrimSpace(sessionID)
-	for _, item := range c.Ranges {
-		if item.SessionID == target {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(c.Ranges, func(item checkpointCoverageRange) bool {
+		return item.SessionID == target
+	})
 }
 
 func (c checkpointCoverage) withRange(item checkpointCoverageRange, summary string) checkpointCoverage {
@@ -193,15 +191,12 @@ func (c checkpointCoverage) withRange(item checkpointCoverageRange, summary stri
 		ResumeSummary: strings.TrimSpace(summary),
 	}
 	updated.Ranges = append(updated.Ranges, item)
-	sort.Slice(updated.Ranges, func(i int, j int) bool {
-		left, right := updated.Ranges[i], updated.Ranges[j]
-		if left.WorkspaceID != right.WorkspaceID {
-			return left.WorkspaceID < right.WorkspaceID
-		}
-		if left.SessionID != right.SessionID {
-			return left.SessionID < right.SessionID
-		}
-		return left.FromSequence < right.FromSequence
+	slices.SortFunc(updated.Ranges, func(left, right checkpointCoverageRange) int {
+		return cmp.Or(
+			strings.Compare(left.WorkspaceID, right.WorkspaceID),
+			strings.Compare(left.SessionID, right.SessionID),
+			cmp.Compare(left.FromSequence, right.FromSequence),
+		)
 	})
 	merged := make([]checkpointCoverageRange, 0, len(updated.Ranges))
 	for _, candidate := range updated.Ranges {

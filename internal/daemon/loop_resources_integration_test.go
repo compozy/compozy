@@ -28,7 +28,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 	t.Run("Should project global and workspace records with workspace precedence", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := loopIntegrationHome(t)
 		if _, _, err := looppkg.WriteDefinition(
 			homePaths.LoopsDir,
@@ -112,7 +112,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 	t.Run("Should resolve extension contributed loop below user global override", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		extensionSpec := testLoopSpec(t, "extension-loop", looppkg.SourceMarketplace)
 		extensionSpec.Description = "marketplace extension"
 		extensionSpec.InstalledFromExtension = "market-ext"
@@ -185,8 +185,8 @@ func TestDaemonE2ESpecCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 			t.Fatalf("bootResourceReconcile() error = %v", err)
 		}
 		t.Cleanup(func() {
-			for idx := len(cleanup.fns) - 1; idx >= 0; idx-- {
-				if err := cleanup.fns[idx](context.Background()); err != nil {
+			for idx, fn := range slices.Backward(cleanup.fns) {
+				if err := fn(context.Background()); err != nil {
 					t.Fatalf("cleanup[%d]() error = %v", idx, err)
 				}
 			}
@@ -295,7 +295,7 @@ func TestLoopWatcherIntegrationShouldResyncForkedFileBackedEdits(t *testing.T) {
 			t.Fatalf("ForkDefinitionFile() error = %v", err)
 		}
 		publisher := &loopWatcherTestPublisher{synced: make(chan struct{}, 1)}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		stop, done := startLoopWatcher(
 			ctx,

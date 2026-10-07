@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 )
@@ -24,7 +25,7 @@ type NodeControlMutation struct {
 	Kind             NodeControlMutationKind `json:"kind"`
 	NodeID           NodeID                  `json:"node_id"`
 	ExpectedRevision int64                   `json:"expected_revision"`
-	ExpectExisting   bool                    `json:"expect_existing,omitempty"`
+	ExpectExisting   bool                    `json:"expect_existing,omitzero"`
 	QuarantineEntry  json.RawMessage         `json:"quarantine_entry,omitempty"`
 	AttentionFlag    string                  `json:"attention_flag,omitempty"`
 	AttentionReason  string                  `json:"attention_reason,omitempty"`
@@ -52,7 +53,7 @@ func (m NodeControlMutation) normalized() NodeControlMutation {
 	m.PauseReason = strings.TrimSpace(m.PauseReason)
 	m.PauseRuleID = strings.TrimSpace(m.PauseRuleID)
 	if len(m.QuarantineEntry) > 0 {
-		m.QuarantineEntry = append(json.RawMessage(nil), m.QuarantineEntry...)
+		m.QuarantineEntry = slices.Clone(m.QuarantineEntry)
 	}
 	if len(m.GateRevisions) > 0 {
 		m.GateRevisions = maps.Clone(m.GateRevisions)

@@ -100,7 +100,7 @@ type Desktop struct {
 type FloatingStack struct {
 	ID        NodeID         `json:"id"`
 	WindowIDs []WindowID     `json:"window_ids"`
-	ActiveID  *WindowID      `json:"active_id,omitempty"`
+	ActiveID  *WindowID      `json:"active_id,omitzero"`
 	Rect      NormalizedRect `json:"rect"`
 	Minimized bool           `json:"minimized"`
 }
@@ -116,19 +116,19 @@ type LayoutGroup struct {
 type LayoutNode struct {
 	ID        NodeID       `json:"id"`
 	Kind      NodeKind     `json:"kind"`
-	WindowID  *WindowID    `json:"window_id,omitempty"`
-	Axis      *Axis        `json:"axis,omitempty"`
+	WindowID  *WindowID    `json:"window_id,omitzero"`
+	Axis      *Axis        `json:"axis,omitzero"`
 	Children  []LayoutNode `json:"children,omitempty"`
 	Weights   []float64    `json:"weights,omitempty"`
 	WindowIDs []WindowID   `json:"window_ids,omitempty"`
-	ActiveID  *WindowID    `json:"active_id,omitempty"`
+	ActiveID  *WindowID    `json:"active_id,omitzero"`
 }
 
 // Window is one durable application instance.
 type Window struct {
 	ID           WindowID        `json:"id"`
 	App          string          `json:"app"`
-	InstanceKey  *string         `json:"instance_key,omitempty"`
+	InstanceKey  *string         `json:"instance_key,omitzero"`
 	Route        RouteIntent     `json:"route"`
 	NavStack     []RouteIntent   `json:"nav_stack"`
 	Pinned       bool            `json:"pinned"`
@@ -138,14 +138,14 @@ type Window struct {
 	Minimized    bool            `json:"minimized"`
 	// Zoomed fills the desktop work area with the unit holding this window.
 	Zoomed       bool          `json:"zoomed"`
-	ReturnAnchor *ReturnAnchor `json:"return_anchor,omitempty"`
+	ReturnAnchor *ReturnAnchor `json:"return_anchor,omitzero"`
 }
 
 // ClosedEntry is one reopenable close operation, newest last in Snapshot.ClosedEntries.
 type ClosedEntry struct {
 	Windows   []Window       `json:"windows"`
-	ActiveID  *WindowID      `json:"active_id,omitempty"`
-	StackID   *NodeID        `json:"stack_id,omitempty"`
+	ActiveID  *WindowID      `json:"active_id,omitzero"`
+	StackID   *NodeID        `json:"stack_id,omitzero"`
 	DesktopID DesktopID      `json:"desktop_id"`
 	Rect      NormalizedRect `json:"rect"`
 	ClosedAt  time.Time      `json:"closed_at"`
@@ -154,16 +154,16 @@ type ClosedEntry struct {
 // ReturnAnchor describes a window's prior structural slot.
 type ReturnAnchor struct {
 	DesktopID      DesktopID      `json:"desktop_id"`
-	GroupID        *GroupID       `json:"group_id,omitempty"`
-	ParentSplitID  *NodeID        `json:"parent_split_id,omitempty"`
-	ChildIndex     *int           `json:"child_index,omitempty"`
-	Weight         *float64       `json:"weight,omitempty"`
+	GroupID        *GroupID       `json:"group_id,omitzero"`
+	ParentSplitID  *NodeID        `json:"parent_split_id,omitzero"`
+	ChildIndex     *int           `json:"child_index,omitzero"`
+	Weight         *float64       `json:"weight,omitzero"`
 	NeighborIDs    []WindowID     `json:"neighbor_ids,omitempty"`
 	SourceRevision Revision       `json:"source_revision"`
-	SourceGroup    *LayoutGroup   `json:"source_group,omitempty"`
-	SourceStack    *FloatingStack `json:"source_stack,omitempty"`
+	SourceGroup    *LayoutGroup   `json:"source_group,omitzero"`
+	SourceStack    *FloatingStack `json:"source_stack,omitzero"`
 	// Zoomed restores the zoom a minimized window held when it left.
-	Zoomed bool `json:"zoomed,omitempty"`
+	Zoomed bool `json:"zoomed,omitzero"`
 }
 
 // ClientView is transient presentation state for one connected client.
@@ -174,7 +174,7 @@ type ClientView struct {
 	PresentationRevision uint64                       `json:"presentation_revision"`
 	ContextRevision      uint64                       `json:"context_revision"`
 	ActiveDesktopID      DesktopID                    `json:"active_desktop_id"`
-	FocusedWindowID      *WindowID                    `json:"focused_window_id,omitempty"`
+	FocusedWindowID      *WindowID                    `json:"focused_window_id,omitzero"`
 	FocusOrder           []WindowID                   `json:"focus_order"`
 	StackActive          map[NodeID]WindowID          `json:"stack_active"`
 	PaletteContext       PaletteContext               `json:"palette_context"`
@@ -193,7 +193,7 @@ type PaletteContext struct {
 	ShellDesktop        bool         `json:"shell_desktop"`
 	FocusedSessionState string       `json:"focused_session_state,omitempty"`
 	WorkspaceTrusted    bool         `json:"workspace_trusted"`
-	DestinationIntent   *RouteIntent `json:"destination_intent,omitempty"`
+	DestinationIntent   *RouteIntent `json:"destination_intent,omitzero"`
 }
 
 // ClientRegistration requests a live client view.

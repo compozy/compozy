@@ -23,7 +23,7 @@ func TestGlobalDBCreateDependencyCycleFailsTransactionally(t *testing.T) {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := globalDB.Close(ctx); err != nil {
+		if err := globalDB.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})
@@ -108,7 +108,7 @@ func TestGlobalDBTaskRunIdempotencyDeduplicatesDuplicateWrites(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})

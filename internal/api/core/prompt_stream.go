@@ -40,27 +40,27 @@ type promptAgentEventPayload struct {
 	Resource      string                           `json:"resource,omitempty"`
 	Decision      string                           `json:"decision,omitempty"`
 	Error         string                           `json:"error,omitempty"`
-	ProviderError *acp.ProviderErrorDiagnostic     `json:"provider_error,omitempty"`
-	Delivery      *acp.DeliveryManifest            `json:"delivery,omitempty"`
-	Usage         *promptTokenUsagePayload         `json:"usage,omitempty"`
-	Runtime       *contract.RuntimeActivityPayload `json:"runtime,omitempty"`
+	ProviderError *acp.ProviderErrorDiagnostic     `json:"provider_error,omitzero"`
+	Delivery      *acp.DeliveryManifest            `json:"delivery,omitzero"`
+	Usage         *promptTokenUsagePayload         `json:"usage,omitzero"`
+	Runtime       *contract.RuntimeActivityPayload `json:"runtime,omitzero"`
 	Raw           json.RawMessage                  `json:"raw,omitempty"`
 }
 
 type promptTokenUsagePayload struct {
 	Meta             map[string]any `json:"meta,omitempty"`
-	Sequence         *int64         `json:"sequence,omitempty"`
+	Sequence         *int64         `json:"sequence,omitzero"`
 	TurnID           string         `json:"turn_id,omitempty"`
-	InputTokens      *int64         `json:"input_tokens,omitempty"`
-	OutputTokens     *int64         `json:"output_tokens,omitempty"`
-	TotalTokens      *int64         `json:"total_tokens,omitempty"`
-	ThoughtTokens    *int64         `json:"thought_tokens,omitempty"`
-	CacheReadTokens  *int64         `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int64         `json:"cache_write_tokens,omitempty"`
-	ContextUsed      *int64         `json:"context_used,omitempty"`
-	ContextSize      *int64         `json:"context_size,omitempty"`
-	CostAmount       *float64       `json:"cost_amount,omitempty"`
-	CostCurrency     *string        `json:"cost_currency,omitempty"`
+	InputTokens      *int64         `json:"input_tokens,omitzero"`
+	OutputTokens     *int64         `json:"output_tokens,omitzero"`
+	TotalTokens      *int64         `json:"total_tokens,omitzero"`
+	ThoughtTokens    *int64         `json:"thought_tokens,omitzero"`
+	CacheReadTokens  *int64         `json:"cache_read_tokens,omitzero"`
+	CacheWriteTokens *int64         `json:"cache_write_tokens,omitzero"`
+	ContextUsed      *int64         `json:"context_used,omitzero"`
+	ContextSize      *int64         `json:"context_size,omitzero"`
+	CostAmount       *float64       `json:"cost_amount,omitzero"`
+	CostCurrency     *string        `json:"cost_currency,omitzero"`
 	Timestamp        string         `json:"timestamp,omitempty"`
 }
 
@@ -113,7 +113,7 @@ type promptToolOutputAvailablePayload struct {
 type promptErrorPayload struct {
 	Type      string                          `json:"type"`
 	ErrorText string                          `json:"errorText"`
-	Failure   *contract.SessionFailurePayload `json:"failure,omitempty"`
+	Failure   *contract.SessionFailurePayload `json:"failure,omitzero"`
 }
 
 // PromptStreamEncoder converts raw ACP agent events into the typed public

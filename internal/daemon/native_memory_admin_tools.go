@@ -52,12 +52,12 @@ type memoryAdminHistoryInput struct {
 	memoryAdminSelectorInput
 	Operation string `json:"operation,omitempty"`
 	Since     string `json:"since,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+	Limit     int    `json:"limit,omitzero"`
 }
 
 type memoryAdminReindexInput struct {
 	memoryAdminSelectorInput
-	IncludeSystem bool `json:"include_system,omitempty"`
+	IncludeSystem bool `json:"include_system,omitzero"`
 }
 
 type memoryAdminPromoteInput struct {
@@ -65,7 +65,7 @@ type memoryAdminPromoteInput struct {
 	From           memoryAdminSelectorInput `json:"from"`
 	To             memoryAdminSelectorInput `json:"to"`
 	IdempotencyKey string                   `json:"idempotency_key,omitempty"`
-	DryRun         bool                     `json:"dry_run,omitempty"`
+	DryRun         bool                     `json:"dry_run,omitzero"`
 }
 
 type memoryAdminResetInput struct {
@@ -81,7 +81,7 @@ type memoryAdminRecallTraceInput struct {
 
 type memoryAdminDreamListInput struct {
 	memoryAdminSelectorInput
-	Limit int `json:"limit,omitempty"`
+	Limit int `json:"limit,omitzero"`
 }
 
 type memoryAdminDreamIDInput struct {
@@ -90,19 +90,19 @@ type memoryAdminDreamIDInput struct {
 
 type memoryAdminDreamTriggerInput struct {
 	memoryAdminSelectorInput
-	Force bool `json:"force,omitempty"`
+	Force bool `json:"force,omitzero"`
 }
 
 type memoryAdminDreamRetryInput struct {
 	FailureID string `json:"failure_id,omitempty"`
 	DreamID   string `json:"dream_id,omitempty"`
-	Force     bool   `json:"force,omitempty"`
+	Force     bool   `json:"force,omitzero"`
 }
 
 type memoryAdminDailyListInput struct {
 	memoryAdminSelectorInput
 	Date  string `json:"date,omitempty"`
-	Limit int    `json:"limit,omitempty"`
+	Limit int    `json:"limit,omitzero"`
 }
 
 type memoryAdminExtractorRetryInput struct {
@@ -133,13 +133,13 @@ type memoryAdminSessionIDInput struct {
 type memoryAdminSessionReplayInput struct {
 	WorkspaceID       string `json:"workspace"`
 	SessionID         string `json:"session_id"`
-	IncludeToolEvents bool   `json:"include_tool_events,omitempty"`
-	IncludeMemory     bool   `json:"include_memory,omitempty"`
+	IncludeToolEvents bool   `json:"include_tool_events,omitzero"`
+	IncludeMemory     bool   `json:"include_memory,omitzero"`
 }
 
 type memoryAdminSessionsPruneInput struct {
 	OlderThanHours int  `json:"older_than_hours"`
-	DryRun         bool `json:"dry_run,omitempty"`
+	DryRun         bool `json:"dry_run,omitzero"`
 }
 
 func (n *daemonNativeTools) memoryAdminToolBindings(

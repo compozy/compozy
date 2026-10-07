@@ -196,8 +196,7 @@ func (r *hostedBindRecord) clone() *hostedBindRecord {
 	if r == nil {
 		return nil
 	}
-	cloned := *r
-	return &cloned
+	return new(*r)
 }
 
 func (r *hostedBindRecord) validatePeer(peer PeerInfo) error {

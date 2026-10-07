@@ -2,7 +2,8 @@ package heartbeat
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -138,11 +139,8 @@ func normalizeKey(value string) string {
 }
 
 func sortedKeys(raw map[string]any) []string {
-	keys := make([]string, 0, len(raw))
-	for key := range raw {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(raw)), maps.Keys(raw))
+	slices.Sort(keys)
 	return keys
 }
 

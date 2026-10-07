@@ -317,7 +317,7 @@ func TestMemoryExtractorDrainUsesTimeoutContext(t *testing.T) {
 		cmd.SetOut(&bytes.Buffer{})
 		cmd.SetErr(&bytes.Buffer{})
 		cmd.SetArgs([]string{"memory", "extractor", "drain", "--timeout", "5s"})
-		if err := cmd.ExecuteContext(context.Background()); err != nil {
+		if err := cmd.ExecuteContext(t.Context()); err != nil {
 			t.Fatalf("memory extractor drain error = %v", err)
 		}
 		if remaining < 4*time.Second || remaining > 6*time.Second {
@@ -344,7 +344,7 @@ func TestMemoryExtractorDrainUsesTimeoutContext(t *testing.T) {
 		cmd.SetOut(&bytes.Buffer{})
 		cmd.SetErr(&bytes.Buffer{})
 		cmd.SetArgs([]string{"memory", "extractor", "drain"})
-		if err := cmd.ExecuteContext(context.Background()); err != nil {
+		if err := cmd.ExecuteContext(t.Context()); err != nil {
 			t.Fatalf("memory extractor drain error = %v", err)
 		}
 		if remaining < 55*time.Second || remaining > 65*time.Second {

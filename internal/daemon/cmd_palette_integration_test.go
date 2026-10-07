@@ -348,12 +348,12 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 				switch ref {
 				case "workspace-a", "acme", "/repo/acme":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "workspace-a", Name: "acme"},
+						ID: "workspace-a", Name: "acme",
 						WorkspaceID: "workspace-a",
 					}, nil
 				case "workspace-b", "beta", "/repo/beta":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "workspace-b", Name: "beta"},
+						ID: "workspace-b", Name: "beta",
 						WorkspaceID: "workspace-b",
 					}, nil
 				default:
@@ -459,8 +459,8 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		if _, err := service.ResolveView(t.Context(), marketing, "workspace-acme", "ext.notes.recent"); err == nil {
 			t.Fatal("ResolveView(marketing) error = nil, want placed view absent")
 		} else {
-			var notFound *cmdpalette.ViewNotFoundError
-			if !errors.As(err, &notFound) || notFound.ViewID != "ext.notes.recent" {
+			notFound, ok := errors.AsType[*cmdpalette.ViewNotFoundError](err)
+			if !ok || notFound.ViewID != "ext.notes.recent" {
 				t.Fatalf("ResolveView(marketing) error = %v, want ViewNotFoundError for ext.notes.recent", err)
 			}
 		}
@@ -639,7 +639,7 @@ func newCmdPaletteIntegrationEngine(registry cmdpalette.Registry) *gin.Engine {
 		registry,
 		func(ref string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "workspace-acme", Name: ref},
+				ID: "workspace-acme", Name: ref,
 				WorkspaceID: "workspace-acme",
 			}, nil
 		},

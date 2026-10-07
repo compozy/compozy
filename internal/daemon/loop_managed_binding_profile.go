@@ -306,11 +306,9 @@ func shortSHA256(value string) string {
 }
 
 func cloneStoreCreationProfile(profile store.SessionCreationProfile) *store.SessionCreationProfile {
-	cloned := store.NormalizeSessionCreationProfile(profile)
-	return &cloned
+	return new(store.NormalizeSessionCreationProfile(profile))
 }
 
 func cloneStoreCreationIdentity(identity store.SessionCreationIdentity) *store.SessionCreationIdentity {
-	cloned := identity
-	return &cloned
+	return new(identity)
 }

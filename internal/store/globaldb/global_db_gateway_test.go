@@ -57,7 +57,7 @@ func TestGlobalDBGatewayTierKeysSurviveReopen(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := reopened.Close(ctx); err != nil {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
@@ -221,7 +221,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := reopened.Close(ctx); err != nil {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})

@@ -185,7 +185,7 @@ func TestClarifyKeepaliveE2EJourneys(t *testing.T) {
 
 		options := keepaliveRuntimeOptions(t, nil)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 		defer cancel()
 
 		target := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "keepalive-e2e-01")
@@ -243,7 +243,7 @@ func TestClarifyKeepaliveE2EJourneys(t *testing.T) {
 			cfg.Tools.Clarify.Timeout = 2 * time.Second
 		})
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 		defer cancel()
 
 		target := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "keepalive-e2e-02")

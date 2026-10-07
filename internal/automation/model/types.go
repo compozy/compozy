@@ -187,7 +187,7 @@ type Trigger struct {
 	Prompt           string            `json:"prompt"`
 	Event            string            `json:"event"`
 	Filter           map[string]string `json:"filter,omitempty"`
-	LoopTarget       *LoopTarget       `json:"loop_target,omitempty"`
+	LoopTarget       *LoopTarget       `json:"loop_target,omitzero"`
 	Enabled          bool              `json:"enabled"`
 	Retry            RetryConfig       `json:"retry"`
 	FireLimit        FireLimitConfig   `json:"fire_limit"`

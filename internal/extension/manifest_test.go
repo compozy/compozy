@@ -1,7 +1,6 @@
 package extensionpkg
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -235,7 +234,7 @@ func TestLoadManifestSynthesizesAgentPluginPackages(t *testing.T) {
 		}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("Skills = %#v, want %#v", got, want)
 		}
-		if err := validateStaticKitResources(context.Background(), root, first); err != nil {
+		if err := validateStaticKitResources(t.Context(), root, first); err != nil {
 			t.Fatalf("validateStaticKitResources() error = %v", err)
 		}
 		stdio := first.Resources.MCPServers["local"]
@@ -836,8 +835,8 @@ min_compozy_version = "0.5.0"
 
 `+testCase.fragment+"\n")
 			_, err := LoadManifest(dir)
-			var validationErr *ManifestValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, ok := errors.AsType[*ManifestValidationError](err)
+			if !ok {
 				t.Fatalf("LoadManifest() error = %T %v, want ManifestValidationError", err, err)
 			}
 			if validationErr.Field != testCase.field {
@@ -2033,8 +2032,8 @@ func TestManifestPackagedInputs(t *testing.T) {
 				if err == nil {
 					t.Fatal("invalid policy accepted")
 				}
-				var validationErr *ManifestValidationError
-				if !errors.As(err, &validationErr) ||
+				validationErr, ok := errors.AsType[*ManifestValidationError](err)
+				if !ok ||
 					!strings.HasPrefix(validationErr.Field, "resources.mcp_servers.example.") {
 					t.Fatalf("diagnostic = %v", err)
 				}

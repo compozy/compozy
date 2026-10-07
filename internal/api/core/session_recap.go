@@ -1,8 +1,9 @@
 package core
 
 import (
+	"cmp"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -65,10 +66,7 @@ func (h *BaseHandlers) SessionRecap(c *gin.Context) {
 }
 
 func recapTranscriptReadLimit(limit int) int {
-	if limit < pendingTranscriptMarkerLimit {
-		return pendingTranscriptMarkerLimit
-	}
-	return limit
+	return max(limit, pendingTranscriptMarkerLimit)
 }
 
 func recentTranscriptEntries(entries []transcript.Entry, limit int) []transcript.Entry {
@@ -83,8 +81,8 @@ func pendingTranscriptMarkerCountFromEntries(entries []transcript.Entry) int {
 	if len(allMarkers) == 0 {
 		return 0
 	}
-	sort.SliceStable(allMarkers, func(i int, j int) bool {
-		return allMarkers[i].Sequence < allMarkers[j].Sequence
+	slices.SortStableFunc(allMarkers, func(a, b markerWithSequence) int {
+		return cmp.Compare(a.Sequence, b.Sequence)
 	})
 
 	var runtimeRecoveredAfter int64

@@ -15,8 +15,8 @@ type taskListInput struct {
 	WorkspaceID   string `json:"workspace,omitempty"`
 	Status        string `json:"status,omitempty"`
 	Priority      string `json:"priority,omitempty"`
-	IncludeDrafts bool   `json:"include_drafts,omitempty"`
-	IncludeLoop   bool   `json:"include_loop,omitempty"`
+	IncludeDrafts bool   `json:"include_drafts,omitzero"`
+	IncludeLoop   bool   `json:"include_loop,omitzero"`
 	LoopRunID     string `json:"loop_run_id,omitempty"`
 	ApprovalState string `json:"approval_state,omitempty"`
 	OwnerKind     string `json:"owner_kind,omitempty"`
@@ -27,7 +27,7 @@ type taskListInput struct {
 	Search string `json:"search,omitempty"`
 	Sort   string `json:"sort,omitempty"`
 	Cursor string `json:"cursor,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
+	Limit  int    `json:"limit,omitzero"`
 }
 
 func (n *daemonNativeTools) taskList(

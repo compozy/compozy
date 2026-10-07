@@ -30,6 +30,5 @@ func (m *Service) schedulerCounters() *SchedulerCounters {
 	if read == nil {
 		return nil
 	}
-	counters := read()
-	return &counters
+	return new(read())
 }

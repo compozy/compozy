@@ -98,7 +98,7 @@ func (d *Dispatcher) delegateRun(ctx context.Context, current *Run, taskID strin
 		run.TaskID = strings.TrimSpace(taskID)
 		run.TaskRunID = strings.TrimSpace(taskRunID)
 		run.Status = RunDelegated
-		run.EndedAt = timePointer(now)
+		run.EndedAt = new(now)
 		run.Error = ""
 	})
 	if updateErr != nil {
@@ -120,7 +120,7 @@ func (d *Dispatcher) delegateRun(ctx context.Context, current *Run, taskID strin
 func (d *Dispatcher) finishRun(ctx context.Context, current *Run, status RunStatus, runErr error) (*Run, error) {
 	updatedRun, updateErr := d.transitionRun(ctx, current, func(run *Run, now time.Time) {
 		run.Status = status
-		run.EndedAt = timePointer(now)
+		run.EndedAt = new(now)
 		if runErr != nil {
 			run.Error = runErr.Error()
 			if refusal, ok := errors.AsType[*store.ProfileAdmissionError](runErr); ok {

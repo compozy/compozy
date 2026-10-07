@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -253,11 +254,7 @@ func (r *Registry) Probes() []Probe {
 	if r == nil || len(r.probes) == 0 {
 		return nil
 	}
-	ids := make([]string, 0, len(r.probes))
-	for id := range r.probes {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := slices.Sorted(maps.Keys(r.probes))
 	probes := make([]Probe, 0, len(ids))
 	for _, id := range ids {
 		probes = append(probes, r.probes[id])

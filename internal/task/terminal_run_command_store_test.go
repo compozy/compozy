@@ -1,9 +1,11 @@
 package task
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"time"
 )
 
@@ -67,15 +69,12 @@ func (s *inMemoryManagerStore) ReleaseTerminalRunCommand(
 func (s *inMemoryManagerStore) ListTerminalRunCommands(
 	_ context.Context,
 ) ([]TerminalRunCommand, error) {
-	commands := make([]TerminalRunCommand, 0, len(s.terminalCommands))
-	for _, command := range s.terminalCommands {
-		commands = append(commands, command)
-	}
-	sort.Slice(commands, func(i, j int) bool {
-		if commands[i].admittedAt.Equal(commands[j].admittedAt) {
-			return commands[i].RunID() < commands[j].RunID()
-		}
-		return commands[i].admittedAt.Before(commands[j].admittedAt)
+	commands := slices.AppendSeq(
+		make([]TerminalRunCommand, 0, len(s.terminalCommands)),
+		maps.Values(s.terminalCommands),
+	)
+	slices.SortFunc(commands, func(a, b TerminalRunCommand) int {
+		return cmp.Or(a.admittedAt.Compare(b.admittedAt), cmp.Compare(a.RunID(), b.RunID()))
 	})
 	return commands, nil
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 const defaultViewOpenBudget = 5 * time.Second
@@ -88,7 +88,7 @@ func newViewSession(
 ) *viewSession {
 	sessionCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &viewSession{
-		id: "vs_" + uuid.NewString(), streamToken: "vst_" + uuid.NewString(),
+		id: "vs_" + uuid.NewV4().String(), streamToken: "vst_" + uuid.NewV4().String(),
 		profileLens: request.ProfileLens,
 		workspace:   request.Workspace, client: request.Client, view: descriptor.ID,
 		extension: descriptor.Extension,

@@ -90,7 +90,7 @@ func TestMultiRegistrySearchQueriesSourcesConcurrently(t *testing.T) {
 
 	resultCh := make(chan searchResult, 1)
 	go func() {
-		listings, err := registry.Search(context.Background(), "query", SearchOpts{})
+		listings, err := registry.Search(t.Context(), "query", SearchOpts{})
 		resultCh <- searchResult{listings: listings, err: err}
 	}()
 
@@ -219,7 +219,7 @@ func TestMultiRegistrySearchMergesAndOverridesByPriority(t *testing.T) {
 	}
 
 	registry := NewMultiRegistry(testLogger(), low, high)
-	listings, err := registry.Search(context.Background(), "shared", SearchOpts{})
+	listings, err := registry.Search(t.Context(), "shared", SearchOpts{})
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -255,7 +255,7 @@ func TestMultiRegistrySearchSkipsNonSearchableSources(t *testing.T) {
 	}
 
 	registry := NewMultiRegistry(testLogger(), skipped, searchable)
-	listings, err := registry.Search(context.Background(), "pkg", SearchOpts{})
+	listings, err := registry.Search(t.Context(), "pkg", SearchOpts{})
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -288,7 +288,7 @@ func TestMultiRegistrySearchReturnsHealthyResultsOnPartialFailure(t *testing.T) 
 		},
 	)
 
-	listings, err := registry.Search(context.Background(), "pkg", SearchOpts{})
+	listings, err := registry.Search(t.Context(), "pkg", SearchOpts{})
 	if err != nil {
 		t.Fatalf("Search() error = %v, want nil when at least one source succeeds", err)
 	}
@@ -321,7 +321,7 @@ func TestMultiRegistrySearchReturnsCombinedErrorWhenAllSourcesFail(t *testing.T)
 		},
 	)
 
-	listings, err := registry.Search(context.Background(), "pkg", SearchOpts{})
+	listings, err := registry.Search(t.Context(), "pkg", SearchOpts{})
 	if err == nil {
 		t.Fatal("Search() error = nil, want combined error")
 	}
@@ -337,7 +337,7 @@ func TestMultiRegistrySearchWithNoSourcesReturnsEmptySlice(t *testing.T) {
 	t.Parallel()
 
 	registry := NewMultiRegistry(testLogger())
-	listings, err := registry.Search(context.Background(), "pkg", SearchOpts{})
+	listings, err := registry.Search(t.Context(), "pkg", SearchOpts{})
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -353,7 +353,7 @@ func TestMultiRegistrySearchHonorsCancellationAfterPartialResults(t *testing.T) 
 	t.Parallel()
 
 	started := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	registry := NewMultiRegistry(
 		testLogger(),
 		&stubRegistrySource{
@@ -411,7 +411,7 @@ func TestMultiRegistryInfoResolvesHighestPrioritySource(t *testing.T) {
 		},
 	)
 
-	detail, err := registry.Info(context.Background(), "pkg")
+	detail, err := registry.Info(t.Context(), "pkg")
 	if err != nil {
 		t.Fatalf("Info() error = %v", err)
 	}
@@ -427,7 +427,7 @@ func TestMultiRegistryInfoHonorsCancellationAfterPartialResults(t *testing.T) {
 	t.Parallel()
 
 	started := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	registry := NewMultiRegistry(
 		testLogger(),
 		&stubRegistrySource{
@@ -497,7 +497,7 @@ func TestMultiRegistryDownloadDelegatesToResolvedSource(t *testing.T) {
 	}
 
 	registry := NewMultiRegistry(testLogger(), low, high)
-	result, err := registry.Download(context.Background(), "pkg", DownloadOpts{Version: "1.2.3"})
+	result, err := registry.Download(t.Context(), "pkg", DownloadOpts{Version: "1.2.3"})
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}
@@ -531,7 +531,7 @@ func TestMultiRegistryCheckUpdate(t *testing.T) {
 	}
 
 	t.Run("Should newer version available", func(t *testing.T) {
-		info, err := makeRegistry("1.2.0").CheckUpdate(context.Background(), "pkg", "1.1.0")
+		info, err := makeRegistry("1.2.0").CheckUpdate(t.Context(), "pkg", "1.1.0")
 		if err != nil {
 			t.Fatalf("CheckUpdate() error = %v", err)
 		}
@@ -541,7 +541,7 @@ func TestMultiRegistryCheckUpdate(t *testing.T) {
 	})
 
 	t.Run("Should equal version", func(t *testing.T) {
-		info, err := makeRegistry("1.2.0").CheckUpdate(context.Background(), "pkg", "1.2.0")
+		info, err := makeRegistry("1.2.0").CheckUpdate(t.Context(), "pkg", "1.2.0")
 		if err != nil {
 			t.Fatalf("CheckUpdate() error = %v", err)
 		}
@@ -582,7 +582,7 @@ func TestMultiRegistryValidationAndFallbackErrors(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should search respects canceled context", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		err := checkMultiRegistryContext(ctx)
@@ -592,7 +592,7 @@ func TestMultiRegistryValidationAndFallbackErrors(t *testing.T) {
 	})
 
 	t.Run("Should info requires slug", func(t *testing.T) {
-		_, err := NewMultiRegistry(testLogger(), &stubRegistrySource{name: "source"}).Info(context.Background(), " ")
+		_, err := NewMultiRegistry(testLogger(), &stubRegistrySource{name: "source"}).Info(t.Context(), " ")
 		if err == nil {
 			t.Fatal("Info(blank slug) error = nil, want non-nil")
 		}
@@ -602,7 +602,7 @@ func TestMultiRegistryValidationAndFallbackErrors(t *testing.T) {
 		_, err := NewMultiRegistry(
 			testLogger(),
 			&stubRegistrySource{name: "source"},
-		).Info(context.Background(), "missing")
+		).Info(t.Context(), "missing")
 		if err == nil {
 			t.Fatal("Info(missing) error = nil, want non-nil")
 		}
@@ -622,7 +622,7 @@ func TestMultiRegistryValidationAndFallbackErrors(t *testing.T) {
 			},
 		})
 
-		_, err := registry.Download(context.Background(), "pkg", DownloadOpts{})
+		_, err := registry.Download(t.Context(), "pkg", DownloadOpts{})
 		if err == nil {
 			t.Fatal("Download(nil result) error = nil, want non-nil")
 		}

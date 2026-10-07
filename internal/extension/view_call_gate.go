@@ -21,13 +21,10 @@ func (r *viewCallGateRegistry) acquire(ctx context.Context, key InstanceKey) (fu
 	gate := r.retain(key.Normalize())
 	select {
 	case <-gate.tokens:
-		var once sync.Once
-		return func() {
-			once.Do(func() {
-				gate.tokens <- struct{}{}
-				r.release(key.Normalize(), gate)
-			})
-		}, nil
+		return sync.OnceFunc(func() {
+			gate.tokens <- struct{}{}
+			r.release(key.Normalize(), gate)
+		}), nil
 	case <-ctx.Done():
 		r.release(key.Normalize(), gate)
 		return nil, ctx.Err()

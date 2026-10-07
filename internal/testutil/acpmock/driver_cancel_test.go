@@ -397,7 +397,7 @@ func waitForTerminalRecords(
 	defer ticker.Stop()
 
 	for {
-		records, err := store.ListProcessRecords(context.Background(), toolruntime.ProcessQuery{
+		records, err := store.ListProcessRecords(t.Context(), toolruntime.ProcessQuery{
 			Scope: toolruntime.InterruptScope{Source: toolruntime.ProcessSourceTerminal},
 		})
 		if err != nil {

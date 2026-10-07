@@ -25,7 +25,7 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 	t.Run("Should bind action environments to real Git roots", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		repository := filepath.Join(t.TempDir(), "repository")
 		if err := os.MkdirAll(filepath.Join(repository, "packages", "api"), 0o700); err != nil {
 			t.Fatalf("MkdirAll(repository) error = %v", err)
@@ -88,9 +88,7 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 		resolvedConfig.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
 
 		resolved := workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID: workspaceID, RootDir: repository,
-			},
+			ID: workspaceID, RootDir: repository,
 			WorkspaceID: workspaceID,
 			ProfileID:   store.DefaultProfileID,
 			Config:      resolvedConfig,
@@ -212,7 +210,7 @@ func runLoopEnvironmentGit(
 	args ...string,
 ) string {
 	t.Helper()
-	stdout, stderr, err := runner.Run(context.Background(), dir, args...)
+	stdout, stderr, err := runner.Run(t.Context(), dir, args...)
 	if err != nil {
 		t.Fatalf("git %s error = %v; stderr=%q", strings.Join(args, " "), err, strings.TrimSpace(string(stderr)))
 	}

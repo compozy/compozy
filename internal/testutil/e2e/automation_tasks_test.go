@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -123,7 +122,7 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 		}},
 	}
 
-	created, err := harness.SeedAutomationFixtures(context.Background(), seed)
+	created, err := harness.SeedAutomationFixtures(t.Context(), seed)
 	if err != nil {
 		t.Fatalf("SeedAutomationFixtures() error = %v", err)
 	}
@@ -363,7 +362,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		HTTPClient:  server.Client(),
 	}
 
-	run, err := harness.TriggerAutomationJob(context.Background(), "job-1")
+	run, err := harness.TriggerAutomationJob(t.Context(), "job-1")
 	if err != nil {
 		t.Fatalf("TriggerAutomationJob() error = %v", err)
 	}
@@ -371,7 +370,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("run.TaskRunID = %q, want %q", got, want)
 	}
 
-	runs, err := harness.ListAutomationRuns(context.Background(), url.Values{"status": {"completed"}})
+	runs, err := harness.ListAutomationRuns(t.Context(), url.Values{"status": {"completed"}})
 	if err != nil {
 		t.Fatalf("ListAutomationRuns() error = %v", err)
 	}
@@ -379,7 +378,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("len(runs) = %d, want %d", got, want)
 	}
 
-	storedRun, err := harness.GetAutomationRun(context.Background(), "run-1")
+	storedRun, err := harness.GetAutomationRun(t.Context(), "run-1")
 	if err != nil {
 		t.Fatalf("GetAutomationRun() error = %v", err)
 	}
@@ -387,7 +386,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("storedRun.SessionID = %q, want %q", got, want)
 	}
 
-	tasks, err := harness.ListTasks(context.Background(), url.Values{"workspace": {"ws-1"}})
+	tasks, err := harness.ListTasks(t.Context(), url.Values{"workspace": {"ws-1"}})
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
@@ -395,7 +394,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("len(tasks) = %d, want %d", got, want)
 	}
 
-	taskDetail, err := harness.GetTask(context.Background(), "task-1")
+	taskDetail, err := harness.GetTask(t.Context(), "task-1")
 	if err != nil {
 		t.Fatalf("GetTask() error = %v", err)
 	}
@@ -403,7 +402,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("taskDetail.Task.ID = %q, want %q", got, want)
 	}
 
-	taskRuns, err := harness.ListTaskRuns(context.Background(), "task-1", url.Values{"status": {"queued"}})
+	taskRuns, err := harness.ListTaskRuns(t.Context(), "task-1", url.Values{"status": {"queued"}})
 	if err != nil {
 		t.Fatalf("ListTaskRuns() error = %v", err)
 	}
@@ -412,7 +411,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 	}
 
 	claimed, err := harness.ClaimExactTaskRunForSession(
-		context.Background(),
+		t.Context(),
 		"task-run-1",
 		&compozycontract.SessionPayload{
 			ID:          "sess-agent",
@@ -427,7 +426,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("claimed.Status = %q, want %q", got, want)
 	}
 
-	started, err := harness.StartTaskRun(context.Background(), "task-run-1", compozycontract.StartTaskRunRequest{
+	started, err := harness.StartTaskRun(t.Context(), "task-run-1", compozycontract.StartTaskRunRequest{
 		IdempotencyKey: "start-1",
 	})
 	if err != nil {
@@ -438,7 +437,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 	}
 
 	completed, err := harness.CompleteClaimedTaskRunForSession(
-		context.Background(),
+		t.Context(),
 		"task-run-1",
 		&compozycontract.SessionPayload{ID: "sess-agent", AgentName: "worker", WorkspaceID: "ws-1"},
 		compozycontract.AgentTaskCompleteRequest{
@@ -452,7 +451,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 	}
 
 	globalDelivery, err := harness.DeliverGlobalWebhook(
-		context.Background(),
+		t.Context(),
 		"deploy-hook",
 		"shared-secret",
 		webhookPayload,
@@ -467,7 +466,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 	}
 
 	workspaceDelivery, err := harness.DeliverWorkspaceWebhook(
-		context.Background(),
+		t.Context(),
 		"ws-1",
 		"deploy-hook",
 		"shared-secret",
@@ -543,7 +542,7 @@ func TestDeliverWebhookRejectsMissingRequiredFields(t *testing.T) {
 			t.Parallel()
 
 			_, err := harness.deliverWebhook(
-				context.Background(),
+				t.Context(),
 				"/api/webhooks/global/deploy-hook",
 				tt.secret,
 				tt.payload,

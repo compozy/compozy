@@ -45,12 +45,12 @@ type bootstrapEvent struct {
 	Phase          bootstrapPhase          `json:"phase"`
 	Status         string                  `json:"status"`
 	Resolution     bootstrapResolution     `json:"resolution,omitempty"`
-	Attempt        int                     `json:"attempt,omitempty"`
-	BackoffMS      int64                   `json:"backoff_ms,omitempty"`
+	Attempt        int                     `json:"attempt,omitzero"`
+	BackoffMS      int64                   `json:"backoff_ms,omitzero"`
 	Classification bootstrapProbeClass     `json:"classification,omitempty"`
 	Message        string                  `json:"message"`
-	Daemon         *bootstrapDaemon        `json:"daemon,omitempty"`
-	Compatibility  *bootstrapCompatibility `json:"compatibility,omitempty"`
+	Daemon         *bootstrapDaemon        `json:"daemon,omitzero"`
+	Compatibility  *bootstrapCompatibility `json:"compatibility,omitzero"`
 }
 
 type bootstrapCompatibility struct {

@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"context"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -86,7 +85,7 @@ func TestDeliverPromptEventStream(t *testing.T) {
 		close(events)
 
 		core.DeliverPromptEventStream(
-			context.Background(),
+			t.Context(),
 			make(chan struct{}),
 			events,
 			func() {},

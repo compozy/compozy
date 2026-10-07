@@ -1,12 +1,12 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
@@ -216,7 +216,7 @@ func (m *Manager) sortedWorkspaceSessions(ctx context.Context, workspaceID strin
 			err,
 		)
 	}
-	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
+	slices.SortFunc(infos, func(a, b *Info) int { return cmp.Compare(a.ID, b.ID) })
 	return infos, nil
 }
 

@@ -69,8 +69,10 @@ func newCmdPaletteBindCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := cmdPaletteBindingMutationResult{Status: "ok"}
-			result.Bound = append([]string(nil), updated.EffectiveShortcuts[commandID]...)
+			result := cmdPaletteBindingMutationResult{
+				Status: "ok",
+				Bound:  append([]string(nil), updated.EffectiveShortcuts[commandID]...),
+			}
 			if overwrite {
 				result.UnboundOwner = owner
 			}

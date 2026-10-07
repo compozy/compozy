@@ -44,7 +44,7 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			ConfigSeed: configSeed,
 		})
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 		requireSpecCycleExtensionEnabled(t, ctx, harness)
 		assertSpecCycleE2ECatalogPresence(t, ctx, harness, true)
@@ -122,7 +122,7 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 			t.Fatalf("fresh extension agent = %#v, want persisted update %#v", fresh.Agent, updated.Agent)
 		}
 
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
 			stopCancel()
 			t.Fatalf("stop runtime before extension agent restart check error = %v", err)
@@ -280,7 +280,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 			AgentName:    "reserved-sweep-provider",
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	var before []compozycontract.AgentPayload
@@ -407,7 +407,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 			AgentName:    "parity-provider-fixture",
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 
 	const sourceName = "parity-coder"
@@ -620,7 +620,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		t.Fatalf("CLI delete = %#v, want workspace duplicate", deleted)
 	}
 
-	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 	if err := harness.Stop(stopCtx); err != nil {
 		stopCancel()
 		t.Fatalf("stop runtime before restart error = %v", err)
@@ -821,8 +821,8 @@ func assertReservedAgentHTTPError(t *testing.T, got agentDefinitionE2EError) {
 func assertReservedAgentCLIError(t *testing.T, err error, stderr string) {
 	t.Helper()
 
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
+	_, ok := errors.AsType[*exec.ExitError](err)
+	if !ok {
 		t.Fatalf("reserved CLI error = %T %[1]v, want *exec.ExitError", err)
 	}
 	var payload compozycontract.ErrorPayload
@@ -917,7 +917,7 @@ func runDaemonE2EAgentFallbackLedgerOrder(t *testing.T) {
 			t.Fatalf("WriteFile(seat %d) error = %v", seat, err)
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
 	var created compozycontract.AgentPayload
@@ -1019,7 +1019,7 @@ func runDaemonE2EAgentFallbackChain(t *testing.T) {
 		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
 	}
 	seatTwo := registration.Command
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 
 	var created compozycontract.AgentPayload

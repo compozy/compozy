@@ -140,7 +140,7 @@ func (l *terminalLane) finishAssembly(exitCode *int, finishedAt time.Time) {
 		detectedBy = commandDetectionMarker
 	}
 	row := terminalpkg.CommandRow{
-		ID: assembly.id, TerminalID: terminalIDPointer(l.info.ID), ProfileID: l.info.ProfileID,
+		ID: assembly.id, TerminalID: new(l.info.ID), ProfileID: l.info.ProfileID,
 		Actor: actor, Command: assembly.command, Cwd: assembly.cwd,
 		StartedAt: assembly.startedAt, DurationMs: &duration, ExitCode: exitCode,
 		ExitCause: exitCause, DetectedBy: detectedBy, Approval: approvalForActor(actor),
@@ -181,9 +181,4 @@ func (s *Service) lane(info terminalpkg.Info) *terminalLane {
 
 func terminalLaneKey(info terminalpkg.Info) string {
 	return strings.Join([]string{info.WS, info.ProfileID, string(info.ID)}, "\x00")
-}
-
-func terminalIDPointer(id terminalpkg.ID) *terminalpkg.ID {
-	result := id
-	return &result
 }

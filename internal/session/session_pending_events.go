@@ -181,8 +181,7 @@ func pendingInteractionByProviderRequest(info *Info, kind string, requestID stri
 		if interaction.Kind == kind && interaction.ProviderRequestID == requestID &&
 			(interaction.Status == store.PendingInteractionStatusPending ||
 				interaction.Status == store.PendingInteractionStatusOrphaned) {
-			cloned := *interaction
-			return &cloned
+			return new(*interaction)
 		}
 	}
 	return nil

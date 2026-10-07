@@ -40,7 +40,7 @@ type EventCorrelation struct {
 	WorktreeID           string     `json:"worktree_id,omitempty"`
 	TaskID               string     `json:"task_id,omitempty"`
 	RunID                string     `json:"run_id,omitempty"`
-	Generation           int64      `json:"generation,omitempty"`
+	Generation           int64      `json:"generation,omitzero"`
 	WorkflowID           string     `json:"workflow_id,omitempty"`
 	ClaimTokenHash       string     `json:"claim_token_hash,omitempty"`
 	LeaseUntil           *time.Time `json:"lease_until,omitempty"`
@@ -69,8 +69,8 @@ func (c EventCorrelation) Normalize() EventCorrelation {
 		ActorKind:            strings.TrimSpace(c.ActorKind),
 		ActorID:              strings.TrimSpace(c.ActorID),
 		ReleaseReason:        strings.TrimSpace(c.ReleaseReason),
+		LeaseUntil:           cloneNormalizedTimestamp(c.LeaseUntil),
 	}
-	normalized.LeaseUntil = cloneNormalizedTimestamp(c.LeaseUntil)
 	return normalized
 }
 

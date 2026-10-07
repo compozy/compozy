@@ -560,7 +560,7 @@ func TestEmitPromptEventDeferredToolResultsStayBounded(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer proc.endPrompt(active)
-		for i := 0; i <= maxPendingToolResults; i++ {
+		for i := range maxPendingToolResults + 1 {
 			proc.emitPromptEvent(
 				AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-" + strconv.Itoa(i)},
 			)

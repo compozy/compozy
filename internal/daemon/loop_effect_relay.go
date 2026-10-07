@@ -57,8 +57,8 @@ type persistedEffectEntry struct {
 	Emit *struct {
 		Kind    string         `json:"kind"`
 		Payload map[string]any `json:"payload,omitempty"`
-	} `json:"emit,omitempty"`
-	RenderError bool   `json:"render_error,omitempty"`
+	} `json:"emit,omitzero"`
+	RenderError bool   `json:"render_error,omitzero"`
 	Diagnostic  string `json:"diagnostic,omitempty"`
 }
 
@@ -247,8 +247,8 @@ func (r *loopEffectRelay) effectToolError(
 		ack.Code = loopEffectApprovalCode
 	default:
 		ack.Code = "effect_tool_failed"
-		var toolErr *toolspkg.ToolError
-		if errors.As(err, &toolErr) && toolErr.Code != "" {
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if ok && toolErr.Code != "" {
 			ack.Code = string(toolErr.Code)
 		}
 	}

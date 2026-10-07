@@ -26,7 +26,7 @@ func TestHookParsersAndPayloadConverters(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			rawURL,
 			http.NoBody,

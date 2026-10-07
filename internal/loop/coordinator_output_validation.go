@@ -29,8 +29,7 @@ func completedRunAgentOutputFailure(node dsl.Node, payload json.RawMessage) *Act
 		return nil
 	}
 	if provider, ok := errors.AsType[SafeActionFailureProvider](err); ok {
-		failure := provider.SafeActionFailure()
-		return &failure
+		return new(provider.SafeActionFailure())
 	}
 	failure := NewActionFailure(
 		string(ReasonCodeInvalidOutput),

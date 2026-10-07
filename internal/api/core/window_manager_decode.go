@@ -58,8 +58,7 @@ func windowManagerStreamClientID(c *gin.Context) *windowmanager.ClientID {
 	if value == "" {
 		return nil
 	}
-	clientID := windowmanager.ClientID(value)
-	return &clientID
+	return new(windowmanager.ClientID(value))
 }
 
 func validateWindowManagerWorkspace(pathWorkspace, bodyWorkspace windowmanager.WorkspaceID) error {

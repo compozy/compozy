@@ -164,9 +164,7 @@ func normalizeExecuteWriteConfig(cfg executeWriteConfig) executeWriteConfig {
 	if cfg.minRetryDelay <= 0 {
 		cfg.minRetryDelay = defaults.minRetryDelay
 	}
-	if cfg.maxRetryDelay < cfg.minRetryDelay {
-		cfg.maxRetryDelay = cfg.minRetryDelay
-	}
+	cfg.maxRetryDelay = max(cfg.maxRetryDelay, cfg.minRetryDelay)
 	if cfg.jitter == nil {
 		cfg.jitter = defaults.jitter
 	}

@@ -52,7 +52,7 @@ func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *
 		t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session := createFixtureBackedSession(t, ctx, harness, "mock-alpha", "launch-alpha")
@@ -162,7 +162,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		MockAgents: specs,
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	// not parallel: subtests share one runtime harness and per-agent diagnostics files.
 
@@ -282,7 +282,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}
 
 		sessions := make([]compozycontract.SessionPayload, 0, 2)
-		for index := 0; index < 2; index++ {
+		for index := range 2 {
 			sessionPayload, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 				AgentName:     "reasoning-claude-concurrent",
 				WorkspacePath: harness.WorkspaceRoot,
@@ -621,7 +621,7 @@ func TestDaemonE2EMockAgentsRemainIsolated(t *testing.T) {
 		t.Fatal("MockAgentRegistration(mock-beta) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	alphaSession := createFixtureBackedSession(t, ctx, harness, "mock-alpha", "alpha-session")
@@ -690,7 +690,7 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 		t.Fatal("MockAgentRegistration(mock-golden) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session := createFixtureBackedSession(t, ctx, harness, "mock-golden", "golden-session")
@@ -820,7 +820,7 @@ matcher = {tool_id = "compozy__task_list"}
 			t.Fatal("MockAgentRegistration(mock-hosted-native) = missing, want present")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		session, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -940,7 +940,7 @@ matcher = {tool_id = "compozy__task_list"}
 			t.Fatal("MockAgentRegistration(mock-hosted-provider-legacy) = missing, want present")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 		createBoundFixtureBackedSession(t, ctx, harness, "mock-hosted-provider-legacy", "hosted-provider-legacy")
 		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
@@ -983,7 +983,7 @@ matcher = {tool_id = "compozy__task_list"}
 			t.Fatal("MockAgentRegistration(mock-provider-models) = missing, want present")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		createBoundFixtureBackedSession(t, ctx, harness, "mock-provider-models", "provider-models-session")
@@ -1168,7 +1168,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 		})
 	}
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: mockAgents})
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 	sourceWorkspaceID := harness.WorkspaceID
 	target, err := harness.ResolveWorkspace(ctx, t.TempDir())
@@ -1404,7 +1404,7 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 		t.Fatal("MockAgentRegistration(mock-wake-creator) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	creatorSession := createBoundFixtureBackedSession(t, ctx, harness, "mock-wake-creator", "wake-creator-session")

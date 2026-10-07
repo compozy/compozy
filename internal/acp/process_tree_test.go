@@ -37,7 +37,7 @@ func TestStopTerminatesWrappedProcessTree(t *testing.T) {
 
 		childPID := waitForWrapperChildPID(t, pidFile)
 
-		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		stopCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
 		startedAt := time.Now()
@@ -61,7 +61,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 		pidFile := filepath.Join(t.TempDir(), "terminal-child.pid")
 
 		createResult, reqErr := proc.handleInbound(
-			context.Background(),
+			t.Context(),
 			acpsdk.ClientMethodTerminalCreate,
 			mustMarshalJSON(acpsdk.CreateTerminalRequest{
 				SessionId: "sess-direct",
@@ -84,7 +84,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 		childPID := waitForWrapperChildPID(t, pidFile)
 
 		if _, reqErr := proc.handleInbound(
-			context.Background(),
+			t.Context(),
 			acpsdk.ClientMethodTerminalKill,
 			mustMarshalJSON(acpsdk.KillTerminalRequest{
 				SessionId:  "sess-direct",
@@ -94,7 +94,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 			t.Fatalf("handleInbound(kill wrapped terminal) error = %v", reqErr)
 		}
 
-		waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		waitCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		if _, err := proc.terminals.wait(waitCtx, createResponse.TerminalId); err != nil {
 			t.Fatalf("terminals.wait() error = %v", err)

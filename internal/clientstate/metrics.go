@@ -112,23 +112,15 @@ func (m *runtimeMetrics) subscriptionClosed() {
 func (m *runtimeMetrics) subscriptionsClosed(count int) {
 	m.mu.Lock()
 	m.activeSubscriptions -= int64(count)
-	if m.activeSubscriptions < 0 {
-		m.activeSubscriptions = 0
-	}
+	m.activeSubscriptions = max(m.activeSubscriptions, 0)
 	m.mu.Unlock()
 }
 
 func (m *runtimeMetrics) observeQueueDepth(depth int) {
-	if depth < 0 {
-		depth = 0
-	}
-	if depth > SubscriptionBufferSize {
-		depth = SubscriptionBufferSize
-	}
+	depth = max(depth, 0)
+	depth = min(depth, SubscriptionBufferSize)
 	m.mu.Lock()
-	if depth > m.queueDepthMax {
-		m.queueDepthMax = depth
-	}
+	m.queueDepthMax = max(m.queueDepthMax, depth)
 	m.queueDepthSamples[depth]++
 	m.mu.Unlock()
 }

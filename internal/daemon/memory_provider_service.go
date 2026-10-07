@@ -121,8 +121,10 @@ func memoryProviderPayload(
 }
 
 func isMemoryProviderNotFound(err error) bool {
-	var typed *extensionpkg.MemoryProviderNotFoundError
-	return errors.As(err, &typed)
+	_, ok := errors.AsType[*extensionpkg.MemoryProviderNotFoundError](
+		err,
+	)
+	return ok
 }
 
 func newDaemonMemoryProviderRegistry(

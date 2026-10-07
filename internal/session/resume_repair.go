@@ -85,7 +85,7 @@ func (m *Manager) restoreFailedResumeStart(
 	restored.State = string(StateStopped)
 	if clearACP {
 		if sessionMetaStopReason(&restored) != store.StopAgentCrashed {
-			restored.StopReason = resumeStopReasonPointer(store.StopError)
+			restored.StopReason = new(store.StopError)
 			restored.StopDetail = resumeStopDetailStartIncomplete
 		}
 		restored.ACPSessionID = nil
@@ -305,9 +305,4 @@ func (m *Manager) resumeLogger(meta *store.SessionMeta) *slog.Logger {
 		"provider", strings.TrimSpace(meta.Provider),
 		"workspace_id", strings.TrimSpace(meta.WorkspaceID),
 	)
-}
-
-func resumeStopReasonPointer(reason store.StopReason) *store.StopReason {
-	value := reason
-	return &value
 }

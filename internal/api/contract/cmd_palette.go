@@ -20,13 +20,13 @@ type CmdPaletteCommand struct {
 	Bindings           []string                   `json:"bindings"`
 	Alias              *string                    `json:"alias"`
 	Destructive        bool                       `json:"destructive"`
-	Confirmation       *cmdpalette.Confirmation   `json:"confirmation,omitempty"`
+	Confirmation       *cmdpalette.Confirmation   `json:"confirmation,omitzero"`
 	Arguments          []cmdpalette.Argument      `json:"arguments"`
 	Action             cmdpalette.Action          `json:"action"`
 	Execution          cmdpalette.ExecutionPolicy `json:"execution"`
 	When               []cmdpalette.Predicate     `json:"when,omitempty"`
 	AvailabilityExempt bool                       `json:"availability_exempt"`
-	GlobalShortcut     *cmdpalette.GlobalShortcut `json:"global_shortcut,omitempty"`
+	GlobalShortcut     *cmdpalette.GlobalShortcut `json:"global_shortcut,omitzero"`
 }
 
 type CmdPaletteCommandsResponse struct {
@@ -117,10 +117,10 @@ type CmdPaletteViewEnvelope struct {
 type CmdPaletteViewPatch struct {
 	Sequence    int64                   `json:"sequence"`
 	StreamEpoch string                  `json:"stream_epoch"`
-	Patch       *cmdpalette.ViewPatch   `json:"patch,omitempty"`
-	Payload     *cmdpalette.ViewPayload `json:"payload,omitempty"`
+	Patch       *cmdpalette.ViewPatch   `json:"patch,omitzero"`
+	Payload     *cmdpalette.ViewPayload `json:"payload,omitzero"`
 	Revision    string                  `json:"revision"`
-	Reset       bool                    `json:"reset,omitempty"`
+	Reset       bool                    `json:"reset,omitzero"`
 }
 
 type CmdPaletteViewSessionOpenRequest struct {
@@ -141,7 +141,7 @@ type CmdPaletteViewSessionEventRequest struct {
 	Revision     string                   `json:"revision"`
 	Seq          int64                    `json:"seq"`
 	AckEffects   []string                 `json:"ack_effects,omitempty"`
-	EffectResult *cmdpalette.EffectResult `json:"effect_result,omitempty"`
+	EffectResult *cmdpalette.EffectResult `json:"effect_result,omitzero"`
 }
 
 type CmdPaletteViewSessionAccepted struct {
@@ -192,8 +192,7 @@ func cloneGlobalShortcut(value *cmdpalette.GlobalShortcut) *cmdpalette.GlobalSho
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func CmdPaletteClientsFromDomain(clients []cmdpalette.Client) []CmdPaletteClient {
@@ -265,14 +264,12 @@ func cloneContractString(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneConfirmation(value *cmdpalette.Confirmation) *cmdpalette.Confirmation {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

@@ -37,7 +37,7 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 		runner := newWatchCoordinatorRunnerForTest(t, loopRun, coordinatorRun, nil, coordinatorRunnerOutputs{}, poller)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -114,7 +114,7 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -160,7 +160,7 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -208,7 +208,7 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -244,7 +244,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -300,7 +300,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -339,7 +339,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -385,7 +385,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -425,7 +425,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -479,7 +479,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -555,7 +555,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 			)
 			runner.now = func() time.Time { return now }
 
-			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
@@ -614,7 +614,7 @@ func TestCoordinatorRunnerEventWaitAheadArrival(t *testing.T) {
 			ledger,
 		)
 		runner.now = func() time.Time { return now }
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -673,7 +673,7 @@ func TestCoordinatorRunnerEventWaitAheadArrival(t *testing.T) {
 			ledger,
 		)
 		runner.now = func() time.Time { return now }
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}

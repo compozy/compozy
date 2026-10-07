@@ -37,15 +37,13 @@ func TestEditConfigOverlayConcurrentUserAndProfileWritesIT044(t *testing.T) {
 		{target: userTarget, value: "claude"},
 		{target: profileTarget, value: "codex"},
 	} {
-		writers.Add(1)
-		go func() {
-			defer writers.Done()
+		writers.Go(func() {
 			<-start
 			_, writeErr := EditConfigOverlay(homePaths, "", writer.target, func(editor *OverlayEditor) error {
 				return editor.SetValue([]string{"defaults", "provider"}, writer.value)
 			})
 			errorsByScope <- writeErr
-		}()
+		})
 	}
 	close(start)
 	writers.Wait()

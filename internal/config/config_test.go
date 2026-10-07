@@ -2701,8 +2701,8 @@ func TestProfileConfigOverlayRejectsMachineOnlyKeys(t *testing.T) {
 		}
 		for _, input := range inputs {
 			_, err := loadProfileConfigOverlayBytes([]byte(input), "profile.toml")
-			var validation ValidationError
-			if !errors.As(err, &validation) || validation.Code != "profile_config_key_denied" {
+			validation, validationOK := errors.AsType[ValidationError](err)
+			if !validationOK || validation.Code != "profile_config_key_denied" {
 				t.Fatalf("loadProfileConfigOverlayBytes(%q) error = %#v, want profile_config_key_denied", input, err)
 			}
 			if !strings.Contains(err.Error(), "--scope user") {

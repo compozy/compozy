@@ -165,38 +165,33 @@ func trimStringPtr(source *string) *string {
 	if source == nil {
 		return nil
 	}
-	trimmed := strings.TrimSpace(*source)
-	return &trimmed
+	return new(strings.TrimSpace(*source))
 }
 
 func normalizePriorityPtr(source *taskpkg.Priority) *taskpkg.Priority {
 	if source == nil {
 		return nil
 	}
-	normalized := source.Normalize()
-	return &normalized
+	return new(source.Normalize())
 }
 
 func normalizeApprovalPolicyPtr(source *taskpkg.ApprovalPolicy) *taskpkg.ApprovalPolicy {
 	if source == nil {
 		return nil
 	}
-	normalized := source.Normalize()
-	return &normalized
+	return new(source.Normalize())
 }
 
 func optionalTime(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	cloned := value
-	return &cloned
+	return new(value)
 }
 
 func cloneRawMessagePtr(source *json.RawMessage) *json.RawMessage {
 	if source == nil {
 		return nil
 	}
-	copyValue := cloneRawMessage(*source)
-	return &copyValue
+	return new(cloneRawMessage(*source))
 }

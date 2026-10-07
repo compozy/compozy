@@ -3,8 +3,9 @@ package sdkts
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
-	"sort"
+	"slices"
 
 	"strings"
 	"time"
@@ -131,11 +132,8 @@ func namedBaseType(value any) reflect.Type {
 	return t
 }
 func (g *generator) emitAllNamedTypes() error {
-	names := make([]string, 0, len(g.queued))
-	for name := range g.queued {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.AppendSeq(make([]string, 0, len(g.queued)), maps.Keys(g.queued))
+	slices.Sort(names)
 	for _, name := range names {
 		if err := g.ensureNamed(name, g.queued[name]); err != nil {
 			return err

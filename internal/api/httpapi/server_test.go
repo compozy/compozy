@@ -293,12 +293,12 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		mustURL(cfg.HTTP.Host, server.Port(), "/api/status"),
 		http.NoBody,
@@ -321,14 +321,14 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
 	req, err = http.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		mustURL(cfg.HTTP.Host, server.Port(), "/api/status"),
 		http.NoBody,
@@ -367,13 +367,13 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
 		shutdownServerForTest(t, server)
 	}()
-	if err := server.Start(context.Background()); err == nil {
+	if err := server.Start(t.Context()); err == nil {
 		t.Fatal("Start(second) error = nil, want non-nil")
 	}
 }
@@ -485,7 +485,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		firstShutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancelShutdown()
 			firstShutdownDone <- server.Shutdown(shutdownCtx)
 		}()
@@ -493,7 +493,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		secondShutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancelShutdown()
 			secondShutdownDone <- server.Shutdown(shutdownCtx)
 		}()
@@ -518,12 +518,9 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		entered := make(chan struct{}, 1)
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		releaseRequest := func() {
-			releaseOnce.Do(func() {
-				close(release)
-			})
-		}
+		releaseRequest := sync.OnceFunc(func() {
+			close(release)
+		})
 		server := newLifecycleServer(t, entered, release)
 		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
@@ -543,7 +540,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 		shutdownStarted := registerServerShutdownSignal(t, server)
 		shutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancelShutdown()
 			shutdownDone <- server.Shutdown(shutdownCtx)
 		}()
@@ -582,12 +579,9 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		entered := make(chan struct{}, 1)
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		releaseRequest := func() {
-			releaseOnce.Do(func() {
-				close(release)
-			})
-		}
+		releaseRequest := sync.OnceFunc(func() {
+			close(release)
+		})
 		server := newLifecycleServer(t, entered, release)
 		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
@@ -616,7 +610,7 @@ func TestServerShutdownLifecycle(t *testing.T) {
 
 		secondShutdownDone := make(chan error, 1)
 		go func() {
-			secondCtx, cancelSecond := context.WithTimeout(context.Background(), 2*time.Second)
+			secondCtx, cancelSecond := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancelSecond()
 			secondShutdownDone <- server.Shutdown(secondCtx)
 		}()
@@ -690,7 +684,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
@@ -863,7 +857,7 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
@@ -958,7 +952,7 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
@@ -1037,7 +1031,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	defer func() {
@@ -1200,11 +1194,11 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 func TestWaitForServeDone(t *testing.T) {
 	done := make(chan struct{})
 	close(done)
-	if err := waitForServeDone(context.Background(), done); err != nil {
+	if err := waitForServeDone(t.Context(), done); err != nil {
 		t.Fatalf("waitForServeDone(done) error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 	if err := waitForServeDone(ctx, make(chan struct{})); err == nil {
 		t.Fatal("waitForServeDone(timeout) error = nil, want non-nil")
@@ -1218,7 +1212,7 @@ func doServerRequest(t *testing.T, client *http.Client, method, url string, body
 	if len(body) > 0 {
 		reader = bytes.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(context.Background(), method, url, reader)
+	req, err := http.NewRequestWithContext(t.Context(), method, url, reader)
 	if err != nil {
 		t.Fatalf("http.NewRequestWithContext() error = %v", err)
 	}
@@ -1263,7 +1257,7 @@ func TestServerStartReportsListenFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first New() error = %v", err)
 	}
-	if err := first.Start(context.Background()); err != nil {
+	if err := first.Start(t.Context()); err != nil {
 		t.Fatalf("first Start() error = %v", err)
 	}
 	defer func() {
@@ -1284,14 +1278,14 @@ func TestServerStartReportsListenFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second New() error = %v", err)
 	}
-	if err := second.Start(context.Background()); err == nil {
+	if err := second.Start(t.Context()); err == nil {
 		t.Fatal("second Start() error = nil, want non-nil")
 	}
 }
 
 func TestShutdownNilServerIsSafe(t *testing.T) {
 	var server *Server
-	if err := server.Shutdown(context.Background()); err != nil {
+	if err := server.Shutdown(t.Context()); err != nil {
 		t.Fatalf("Shutdown(nil) error = %v", err)
 	}
 }
@@ -1569,12 +1563,7 @@ func registerServerShutdownSignal(t *testing.T, server *Server) <-chan struct{} 
 		t.Fatal("HTTP server was not initialized")
 	}
 	started := make(chan struct{})
-	var once sync.Once
-	generation.httpServer.RegisterOnShutdown(func() {
-		once.Do(func() {
-			close(started)
-		})
-	})
+	generation.httpServer.RegisterOnShutdown(sync.OnceFunc(func() { close(started) }))
 	return started
 }
 

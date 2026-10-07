@@ -685,7 +685,7 @@ func writeJSONResponse(w http.ResponseWriter, value any) error {
 
 func testContext(t testing.TB) context.Context {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 	return ctx
 }

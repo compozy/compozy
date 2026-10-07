@@ -72,7 +72,7 @@ type ledgerMetaLine struct {
 	WorkspaceID   string `json:"workspace_id"`
 	SpawnParentID string `json:"spawn_parent_id,omitempty"`
 	RootSessionID string `json:"root_session_id,omitempty"`
-	SpawnDepth    int    `json:"spawn_depth,omitempty"`
+	SpawnDepth    int    `json:"spawn_depth,omitzero"`
 	AgentName     string `json:"agent_name,omitempty"`
 	SessionType   string `json:"session_type,omitempty"`
 	StartedAt     string `json:"started_at,omitempty"`

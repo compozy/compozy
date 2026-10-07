@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 )
@@ -63,9 +64,7 @@ func raceEnabledCommandEnv(overrides map[string]string) []string {
 
 func withRaceEnabledEnv(overrides map[string]string) map[string]string {
 	env := make(map[string]string, len(overrides)+1)
-	for key, value := range overrides {
-		env[key] = value
-	}
+	maps.Copy(env, overrides)
 	env["CGO_ENABLED"] = "1"
 	return env
 }

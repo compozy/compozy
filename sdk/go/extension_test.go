@@ -352,7 +352,7 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		transport := &recordingTransport{}
 		host := compozysdk.NewHostAPI(transport, func() bool { return true })
 		err := host.Request(
-			context.Background(),
+			t.Context(),
 			compozysdk.HostAPIMethodSessionsPrompt,
 			map[string]any{"claim_token": "compozy_claim_secret"},
 			&json.RawMessage{},
@@ -371,7 +371,7 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		transport := &recordingTransport{}
 		host := compozysdk.NewHostAPI(transport, func() bool { return true })
 		err := host.Request(
-			context.Background(),
+			t.Context(),
 			compozysdk.HostAPIMethodSessionsPrompt,
 			map[string]any{"note": "COMPOZY_CLAIM_EXTENSION_SECRET"},
 			&json.RawMessage{},
@@ -389,7 +389,7 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 
 		transport := &recordingTransport{}
 		host := compozysdk.NewHostAPI(transport, func() bool { return false })
-		err := host.Request(context.Background(), compozysdk.HostAPIMethodSessionsList, nil, &json.RawMessage{})
+		err := host.Request(t.Context(), compozysdk.HostAPIMethodSessionsList, nil, &json.RawMessage{})
 		if err == nil {
 			t.Fatal("HostAPI.Request() error = nil, want not initialized")
 		}
@@ -436,7 +436,7 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 			t.Fatalf("Tool() error = %v", err)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() {
@@ -530,7 +530,7 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 			t.Fatalf("Tool() error = %v", err)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() {
@@ -607,7 +607,7 @@ func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
 			t.Fatalf("WatchSource() error = %v", err)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() {
@@ -673,7 +673,7 @@ func TestStdioRuntimeProvidesConnectivityProvider(t *testing.T) {
 		if err := compozysdk.ConnectivityProvider(extension, validConnectivityHandlers()); err != nil {
 			t.Fatalf("ConnectivityProvider() error = %v", err)
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
@@ -790,7 +790,7 @@ func TestConnectivityProviderRegistrationIsAtomic(t *testing.T) {
 			compozysdk.ExtensionDefinition{Name: "late", Version: "0.1.0"},
 			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- late.Run(ctx) }()
 		params := initializeParams("Late Connectivity")
@@ -872,7 +872,7 @@ func TestStdioRuntimeValidatesForgeProviderRequests(t *testing.T) {
 		if err := compozysdk.ForgeProvider(extension, validForgeHandlers()); err != nil {
 			t.Fatalf("ForgeProvider() error = %v", err)
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan error, 1)
 		go func() { done <- extension.Run(ctx) }()
 		t.Cleanup(func() {
@@ -1002,37 +1002,42 @@ func connectivitySDKReachability(tier string) compozysdk.ConnectivityReachabilit
 
 func TestSDKHasNoDaemonInternalImports(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep daemon internal packages out of the SDK", func(t *testing.T) {
+		t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
 
-	cmd := exec.CommandContext(ctx, "go", "list", "-deps", ".")
-	cmd.Dir = "."
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go list -deps . error = %v\n%s", err, string(output))
-	}
-	for line := range strings.SplitSeq(string(output), "\n") {
-		if strings.HasPrefix(line, "github.com/compozy/compozy/internal/") {
-			t.Fatalf("sdk/go imports daemon internal package %q", line)
+		cmd := exec.CommandContext(ctx, "go", "list", "-deps", ".")
+		cmd.Dir = "."
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("go list -deps . error = %v\n%s", err, string(output))
 		}
-	}
+		for line := range strings.SplitSeq(string(output), "\n") {
+			if strings.HasPrefix(line, "github.com/compozy/compozy/internal/") {
+				t.Fatalf("sdk/go imports daemon internal package %q", line)
+			}
+		}
+	})
 }
 
 func TestExternalConsumerBuildsAgainstPublicSDK(t *testing.T) {
 	t.Parallel()
+	t.Run("Should build an external public SDK consumer", func(t *testing.T) {
+		t.Parallel()
 
-	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatalf("filepath.Abs(repo root) error = %v", err)
-	}
-	dir := t.TempDir()
-	writeText(
-		t,
-		filepath.Join(dir, "go.mod"),
-		"module example.com/compozy-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v0.0.0\n",
-	)
-	writeText(t, filepath.Join(dir, "main.go"), `package main
+		repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+		if err != nil {
+			t.Fatalf("filepath.Abs(repo root) error = %v", err)
+		}
+		dir := t.TempDir()
+		writeText(
+			t,
+			filepath.Join(dir, "go.mod"),
+			"module example.com/compozy-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v0.0.0\n",
+		)
+		writeText(t, filepath.Join(dir, "main.go"), `package main
 
 import (
 	"context"
@@ -1057,32 +1062,33 @@ func main() {
 }
 `)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
 
-	edit := exec.CommandContext(
-		ctx,
-		"go",
-		"mod",
-		"edit",
-		"-replace",
-		"github.com/compozy/compozy/sdk/go="+filepath.Join(repoRoot, "sdk", "go"),
-	)
-	edit.Dir = dir
-	if output, err := edit.CombinedOutput(); err != nil {
-		t.Fatalf("go mod edit replace error = %v\n%s", err, string(output))
-	}
-	tidy := exec.CommandContext(ctx, "go", "mod", "tidy")
-	tidy.Dir = dir
-	if output, err := tidy.CombinedOutput(); err != nil {
-		t.Fatalf("go mod tidy error = %v\n%s", err, string(output))
-	}
-	cmd := exec.CommandContext(ctx, "go", "test", "./...")
-	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("external consumer go test error = %v\n%s", err, string(output))
-	}
+		edit := exec.CommandContext(
+			ctx,
+			"go",
+			"mod",
+			"edit",
+			"-replace",
+			"github.com/compozy/compozy/sdk/go="+filepath.Join(repoRoot, "sdk", "go"),
+		)
+		edit.Dir = dir
+		if output, err := edit.CombinedOutput(); err != nil {
+			t.Fatalf("go mod edit replace error = %v\n%s", err, string(output))
+		}
+		tidy := exec.CommandContext(ctx, "go", "mod", "tidy")
+		tidy.Dir = dir
+		if output, err := tidy.CombinedOutput(); err != nil {
+			t.Fatalf("go mod tidy error = %v\n%s", err, string(output))
+		}
+		cmd := exec.CommandContext(ctx, "go", "test", "./...")
+		cmd.Dir = dir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("external consumer go test error = %v\n%s", err, string(output))
+		}
+	})
 }
 
 func newTestExtension() *compozysdk.Extension {

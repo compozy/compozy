@@ -121,8 +121,7 @@ func buildTaskBlockRequest(
 		if duration <= 0 {
 			return CreateTaskBlockRequest{}, errors.New("cli: --expires-in must be positive")
 		}
-		expiresAt := now.Add(duration).UTC()
-		request.ExpiresAt = &expiresAt
+		request.ExpiresAt = new(now.Add(duration).UTC())
 	}
 	return request, nil
 }

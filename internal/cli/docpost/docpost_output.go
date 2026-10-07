@@ -10,7 +10,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -168,8 +168,8 @@ func writeDirMeta(ctx context.Context, dir string) error {
 		}
 		files = append(files, base)
 	}
-	sort.Strings(files)
-	sort.Strings(subdirs)
+	slices.Sort(files)
+	slices.Sort(subdirs)
 
 	pages := make([]string, 0, 1+len(files)+len(subdirs))
 	if hasIndex {

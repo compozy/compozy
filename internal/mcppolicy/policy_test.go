@@ -122,8 +122,8 @@ func TestValidateHeaders(t *testing.T) {
 			t.Parallel()
 
 			err := ValidateHeaders(test.fixed, test.secret, test.source, test.authEnabled)
-			var policyErr *Error
-			if !errors.As(err, &policyErr) {
+			policyErr, ok := errors.AsType[*Error](err)
+			if !ok {
 				t.Fatalf("ValidateHeaders() error = %v, want *Error", err)
 			}
 			if policyErr.Code != test.wantCode {

@@ -87,11 +87,11 @@ type automationJobsListInput struct {
 	Scope       string `json:"scope,omitempty"`
 	WorkspaceID string `json:"workspace,omitempty"`
 	Source      string `json:"source,omitempty"`
-	Enabled     *bool  `json:"enabled,omitempty"`
+	Enabled     *bool  `json:"enabled,omitzero"`
 	LoopName    string `json:"loop,omitempty"`
 	Query       string `json:"q,omitempty"`
 	Cursor      string `json:"cursor,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 }
 
 func (i automationJobsListInput) query(
@@ -127,11 +127,11 @@ type automationTriggersListInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	Event       string `json:"event,omitempty"`
 	Source      string `json:"source,omitempty"`
-	Enabled     *bool  `json:"enabled,omitempty"`
+	Enabled     *bool  `json:"enabled,omitzero"`
 	LoopName    string `json:"loop,omitempty"`
 	Query       string `json:"q,omitempty"`
 	Cursor      string `json:"cursor,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 }
 
 func (i automationTriggersListInput) query(

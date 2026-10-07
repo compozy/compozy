@@ -1,5 +1,21 @@
 # Compozy Change Impact
 
+## Modern Go adoption across module boundaries (#482) — 2026-10-06
+
+Owner: this refactor PR (branch `modern-go-482`; issue #482). Behavior-preserving migration of
+every Go module (root at Go 1.27.1, `sdk/go`, both SDK examples and both extension fixture modules
+at Go 1.26.4) plus `magefiles`, with continuous enforcement: `make go-lint` now lints all modules,
+`magefiles` (`mage` tag) and an `integration`-tag Modern Go pass; `forbidigo`/`depguard`/
+`copyloopvar` cover the guideline gaps `modernize` does not; `scripts/gate.sh` and CI select nested
+module lanes. Native tools: none — `compozy__*` descriptors, schemas and digests are byte-identical
+(`make codegen` produced no generated diff). Extensibility/hooks/config: no interface, hook-order,
+registry-order or `config.toml` key change; SDK and fixtures are now linted. Workspace isolation:
+unchanged. JSON: 1,238 scalar/pointer tags moved to `omitzero` only where `encoding/json` output is
+byte-identical; strings/collections, `IsZero` types, interfaces and generated or SDK-generator source
+tags keep `omitempty`. Official skill and Web: unchanged. Docs: new developer runbook
+`docs/runbooks/modern-go.md` (rule → enforcement map and retained exclusions). QA: no user-visible
+behavior, no scenario change.
+
 ## Continue/fork runtime selection and top-level placement — 2026-10-06
 
 Owner: this fix PR (branch `fix-continue-agent`; spec `.compozy/tasks/session-continue-fork/`).

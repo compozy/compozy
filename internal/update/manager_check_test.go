@@ -1,7 +1,6 @@
 package update
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -44,7 +43,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("writeCache() error = %v", err)
 		}
 
-		state, release, err := manager.Check(context.Background(), CheckOptions{})
+		state, release, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
@@ -98,14 +97,14 @@ func TestManagerCheck(t *testing.T) {
 			}),
 		}
 
-		_, freshRelease, err := manager.Check(context.Background(), CheckOptions{})
+		_, freshRelease, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check(fresh) error = %v", err)
 		}
 		if _, err := manager.resolveReleaseAssets(freshRelease); err != nil {
 			t.Fatalf("resolveReleaseAssets(fresh) error = %v", err)
 		}
-		_, cachedRelease, err := manager.Check(context.Background(), CheckOptions{})
+		_, cachedRelease, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check(cached) error = %v", err)
 		}
@@ -150,7 +149,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("writeCache() error = %v", err)
 		}
 
-		state, release, err := manager.Check(context.Background(), CheckOptions{})
+		state, release, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
@@ -201,7 +200,7 @@ func TestManagerCheck(t *testing.T) {
 				t.Fatalf("writeCache() error = %v", err)
 			}
 
-			state, release, err := manager.Check(context.Background(), CheckOptions{
+			state, release, err := manager.Check(t.Context(), CheckOptions{
 				AllowCachedOnFailure: true,
 			})
 			if err != nil {
@@ -253,7 +252,7 @@ func TestManagerCheck(t *testing.T) {
 			},
 		})
 
-		state, release, err := manager.Check(context.Background(), CheckOptions{})
+		state, release, err := manager.Check(t.Context(), CheckOptions{})
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
@@ -286,7 +285,7 @@ func TestManagerCheck(t *testing.T) {
 			},
 		})
 
-		_, err := manager.fetchLatestRelease(context.Background())
+		_, err := manager.fetchLatestRelease(t.Context())
 		if err == nil {
 			t.Fatal("fetchLatestRelease() error = nil, want prerelease rejection")
 		}
@@ -341,7 +340,7 @@ func TestManagerCheck(t *testing.T) {
 			},
 		})
 
-		state, release, err := manager.Check(context.Background(), CheckOptions{ForceRefresh: true})
+		state, release, err := manager.Check(t.Context(), CheckOptions{ForceRefresh: true})
 		if err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
@@ -656,7 +655,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 		})
 
 		var release githubReleaseResponse
-		err := manager.fetchGitHubJSON(context.Background(), "https://example.invalid/releases", &release)
+		err := manager.fetchGitHubJSON(t.Context(), "https://example.invalid/releases", &release)
 		if err == nil {
 			t.Fatal("fetchGitHubJSON() error = nil, want status and close failures")
 		}
@@ -696,7 +695,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 		})
 
 		var release githubReleaseResponse
-		err := manager.fetchGitHubJSON(context.Background(), "https://example.invalid/releases", &release)
+		err := manager.fetchGitHubJSON(t.Context(), "https://example.invalid/releases", &release)
 		if err == nil {
 			t.Fatal("fetchGitHubJSON() error = nil, want status, drain, and close failures")
 		}

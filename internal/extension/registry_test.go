@@ -296,8 +296,8 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 					manifest.Gateway = &GatewayRequirement{Permissions: test.scopes}
 				}
 				err := env.registry.Install(manifest, dir, checksum)
-				var validationErr *ManifestValidationError
-				if !errors.As(err, &validationErr) || validationErr.Field != test.field {
+				validationErr, ok := errors.AsType[*ManifestValidationError](err)
+				if !ok || validationErr.Field != test.field {
 					t.Fatalf("Install() error = %v, want validation field %q", err, test.field)
 				}
 			})
@@ -330,8 +330,8 @@ func TestConnectivityProviderRegistryPolicy(t *testing.T) {
 		if err == nil {
 			t.Fatal("Install() error = nil, want workspace provider rejection")
 		}
-		var validationErr *ManifestValidationError
-		if !errors.As(err, &validationErr) || validationErr.Field != "capabilities.provides" {
+		validationErr, ok := errors.AsType[*ManifestValidationError](err)
+		if !ok || validationErr.Field != "capabilities.provides" {
 			t.Fatalf("Install() error = %v, want capabilities.provides validation", err)
 		}
 	})
@@ -1791,12 +1791,14 @@ func holdTransientRegistryWriteLock(t *testing.T, db *sql.DB) {
 
 	releaseDone := make(chan error, 1)
 	timer := time.AfterFunc(100*time.Millisecond, func() {
-		_, commitErr := lockConn.ExecContext(ctx, `COMMIT`)
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 45*time.Second)
+		defer cancel()
+		_, commitErr := lockConn.ExecContext(releaseCtx, `COMMIT`)
 		releaseDone <- commitErr
 	})
 	t.Cleanup(func() {
 		if timer.Stop() {
-			if _, err := lockConn.ExecContext(ctx, `COMMIT`); err != nil {
+			if _, err := lockConn.ExecContext(testutil.Context(t), `COMMIT`); err != nil {
 				t.Errorf("manual lock release error = %v", err)
 			}
 			return

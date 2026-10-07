@@ -208,7 +208,7 @@ func TestBriefingContract(t *testing.T) {
 	t.Run("Should satisfy UT-009 with the typed unknown-run error", func(t *testing.T) {
 		t.Parallel()
 		service := NewRunReadService(missingRunReadStore{}, func() time.Time { return now })
-		_, err := service.Briefing(context.Background(), "ws", "missing")
+		_, err := service.Briefing(t.Context(), "ws", "missing")
 		if !errors.Is(err, ErrRunNotFound) {
 			t.Fatalf("Briefing() error = %v", err)
 		}

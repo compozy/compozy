@@ -520,7 +520,7 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 				// Race losers return not-found; exactly-once is asserted on
 				// the published statuses below.
 				if _, err := bridge.Answer(
-					context.Background(),
+					t.Context(),
 					scope,
 					"clarify-request",
 					toolspkg.ClarifyAnswerRequest{Text: "yes"},

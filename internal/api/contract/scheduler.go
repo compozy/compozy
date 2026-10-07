@@ -12,7 +12,7 @@ const SchedulerDrainTimeoutMaxSeconds int64 = math.MaxInt64 / int64(time.Second)
 
 // SchedulerStatusPayload exposes scheduler-wide pause state and queue pressure.
 type SchedulerStatusPayload struct {
-	Counters               *SchedulerCountersPayload `json:"counters,omitempty"`
+	Counters               *SchedulerCountersPayload `json:"counters,omitzero"`
 	Paused                 bool                      `json:"paused"`
 	PausedBy               string                    `json:"paused_by,omitempty"`
 	PausedAt               *time.Time                `json:"paused_at,omitempty"`
@@ -43,14 +43,14 @@ type SchedulerResumeRequest struct {
 // SchedulerDrainRequest captures scheduler drain input.
 type SchedulerDrainRequest struct {
 	Reason         string `json:"reason,omitempty"`
-	TimeoutSeconds *int64 `json:"timeout_seconds,omitempty"`
+	TimeoutSeconds *int64 `json:"timeout_seconds,omitzero"`
 }
 
 // SchedulerDrainResponse wraps the final drain result.
 type SchedulerDrainResponse struct {
 	Scheduler       SchedulerStatusPayload `json:"scheduler"`
 	Completed       bool                   `json:"completed"`
-	TimedOut        bool                   `json:"timed_out,omitempty"`
+	TimedOut        bool                   `json:"timed_out,omitzero"`
 	RemainingClaims int                    `json:"remaining_claims"`
 	StartedAt       time.Time              `json:"started_at"`
 	CompletedAt     time.Time              `json:"completed_at"`
@@ -75,10 +75,10 @@ type SchedulerBacklogResponse struct {
 
 // SchedulerBacklogQuery captures transport query filters.
 type SchedulerBacklogQuery struct {
-	Limit         int           `form:"limit"          json:"limit,omitempty"`
+	Limit         int           `form:"limit"          json:"limit,omitzero"`
 	Scope         taskpkg.Scope `form:"scope"          json:"scope,omitempty"`
 	WorkspaceID   string        `form:"workspace"      json:"workspace,omitempty"`
-	IncludePaused bool          `form:"include_paused" json:"include_paused,omitempty"`
+	IncludePaused bool          `form:"include_paused" json:"include_paused,omitzero"`
 }
 
 // SchedulerBacklogDomainQuery converts API filters into task-domain filters.

@@ -9,7 +9,7 @@ type AgentNotifyRequest struct {
 
 type AgentNotifyResponse struct {
 	Outcome      string `json:"outcome"`
-	RetryAfterMS int64  `json:"retry_after_ms,omitempty"`
+	RetryAfterMS int64  `json:"retry_after_ms,omitzero"`
 }
 
 type OperatorNotificationEventPayload struct {

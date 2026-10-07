@@ -156,8 +156,7 @@ func roleStatusSpeed(value speedpkg.Speed) *contract.Speed {
 	if trimmed == "" {
 		return nil
 	}
-	speed := contract.Speed(trimmed)
-	return &speed
+	return new(contract.Speed(trimmed))
 }
 
 func roleStatusACPOptions(options []compozyconfig.ACPOptionSelection) []contract.AgentACPOptionSelection {

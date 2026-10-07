@@ -1,10 +1,11 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -215,18 +216,12 @@ func sanitizeEventSourceID(value string) string {
 }
 
 func sortEventSummaries(summaries []storepkg.EventSummary) {
-	sort.SliceStable(summaries, func(i, j int) bool {
-		left := summaries[i]
-		right := summaries[j]
-		leftAt := left.Timestamp.UTC()
-		rightAt := right.Timestamp.UTC()
-		if !leftAt.Equal(rightAt) {
-			return leftAt.Before(rightAt)
-		}
-		if left.Sequence != right.Sequence {
-			return left.Sequence < right.Sequence
-		}
-		return left.ID < right.ID
+	slices.SortStableFunc(summaries, func(left, right storepkg.EventSummary) int {
+		return cmp.Or(
+			left.Timestamp.UTC().Compare(right.Timestamp.UTC()),
+			cmp.Compare(left.Sequence, right.Sequence),
+			strings.Compare(left.ID, right.ID),
+		)
 	})
 }
 
@@ -234,7 +229,7 @@ func clampEventSummaries(summaries []storepkg.EventSummary, limit int) []storepk
 	if limit <= 0 || len(summaries) <= limit {
 		return summaries
 	}
-	return append([]storepkg.EventSummary(nil), summaries[len(summaries)-limit:]...)
+	return slices.Clone(summaries[len(summaries)-limit:])
 }
 
 func catalogHealthKey(source observabilitySource, entry catalogDocument) string {

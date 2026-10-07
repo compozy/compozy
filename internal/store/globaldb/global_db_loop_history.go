@@ -191,8 +191,7 @@ func gateVerdictRecord(
 				looppkg.ErrValidation,
 			)
 		}
-		value := score.Float64
-		record.Score = &value
+		record.Score = new(score.Float64)
 	}
 	if rank.Valid {
 		if rank.Int64 < 0 {
@@ -201,8 +200,7 @@ func gateVerdictRecord(
 				looppkg.ErrValidation,
 			)
 		}
-		value := int(rank.Int64)
-		record.RouteCauseRank = &value
+		record.RouteCauseRank = new(int(rank.Int64))
 	}
 	return record, nil
 }

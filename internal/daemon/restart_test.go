@@ -1272,7 +1272,7 @@ func sequentialTime(values []time.Time) func() time.Time {
 func TestWithTimeoutCapHonorsEarlierDeadlineAndShortensLongerParent(t *testing.T) {
 	t.Parallel()
 
-	baseCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	sameCtx, sameCancel := withTimeoutCap(baseCtx, time.Second)
@@ -1298,7 +1298,7 @@ func TestWithTimeoutCapHonorsEarlierDeadlineAndShortensLongerParent(t *testing.T
 		t.Fatalf("shortened deadline %v is not earlier than parent deadline %v", shortenedDeadline, parentDeadline)
 	}
 
-	derivedCtx, derivedCancel := withTimeoutCap(context.Background(), 50*time.Millisecond)
+	derivedCtx, derivedCancel := withTimeoutCap(t.Context(), 50*time.Millisecond)
 	defer derivedCancel()
 	deadline, ok := derivedCtx.Deadline()
 	if !ok {

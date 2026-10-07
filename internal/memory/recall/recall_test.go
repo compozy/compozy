@@ -26,7 +26,7 @@ func TestRecallerRecall(t *testing.T) {
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
 		packaged, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "auth migration sessions"},
 			memcontract.RecallOptions{TopK: 2},
 		)
@@ -51,7 +51,7 @@ func TestRecallerRecall(t *testing.T) {
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
 		packaged, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "auth"},
 			memcontract.RecallOptions{TopK: 3},
 		)
@@ -78,7 +78,7 @@ func TestRecallerRecall(t *testing.T) {
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
 		packaged, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "launch"},
 			memcontract.RecallOptions{TopK: 3, AllowTrivialQuery: true},
 		)
@@ -111,7 +111,7 @@ func TestRecallerRecall(t *testing.T) {
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
 		packaged, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "auth sessions"},
 			memcontract.RecallOptions{TopK: 3},
 		)
@@ -148,7 +148,7 @@ func TestRecallerRecall(t *testing.T) {
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
 		packaged, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{WorkspaceID: "ws_01", AgentName: "coder", QueryText: "auth migration sessions"},
 			memcontract.RecallOptions{TopK: 5},
 		)
@@ -182,7 +182,7 @@ func TestRecallerRecall(t *testing.T) {
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
 		packaged, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "auth migration sessions"},
 			memcontract.RecallOptions{AlreadySurfaced: []string{"chunk-seen"}},
 		)
@@ -204,7 +204,7 @@ func TestRecallerRecall(t *testing.T) {
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
 		first, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "stale migration sessions"},
 			memcontract.RecallOptions{TopK: 1},
 		)
@@ -212,7 +212,7 @@ func TestRecallerRecall(t *testing.T) {
 			t.Fatalf("Recall(first) error = %v", err)
 		}
 		second, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "stale migration sessions"},
 			memcontract.RecallOptions{TopK: 1},
 		)
@@ -245,7 +245,7 @@ func TestRecallerRecall(t *testing.T) {
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
 		packaged, err := recaller.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "auth migration sessions"},
 			memcontract.RecallOptions{TopK: 1},
 		)

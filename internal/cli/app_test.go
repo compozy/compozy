@@ -1643,8 +1643,8 @@ func writeAppTestRecord(t *testing.T, homePaths compozyconfig.HomePaths, value m
 
 func assertAppCommandError(t *testing.T, err error, wantCode string) {
 	t.Helper()
-	var appErr *appCommandError
-	if !errors.As(err, &appErr) || appErr.code != wantCode {
+	appErr, appErrOK := errors.AsType[*appCommandError](err)
+	if !appErrOK || appErr.code != wantCode {
 		t.Fatalf("error = %#v, want app command code %q", err, wantCode)
 	}
 }

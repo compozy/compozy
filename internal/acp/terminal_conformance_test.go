@@ -71,7 +71,7 @@ func assertTerminalOutputWindow(t *testing.T) {
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	beginACPTestRun(t, proc, "turn-output-window")
 	run := func(payload string, limit *int) acpsdk.TerminalOutputResponse {
-		create, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
+		create, err := proc.handleCreateTerminal(t.Context(), acpsdk.CreateTerminalRequest{
 			SessionId:       "sess-direct",
 			Command:         "printf",
 			Args:            []string{"%s", payload},
@@ -81,7 +81,7 @@ func assertTerminalOutputWindow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("handleCreateTerminal() error = %v", err)
 		}
-		if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
+		if _, err := proc.handleWaitForTerminalExit(t.Context(), acpsdk.WaitForTerminalExitRequest{
 			SessionId: "sess-direct", TerminalId: create.TerminalId,
 		}); err != nil {
 			t.Fatalf("handleWaitForTerminalExit() error = %v", err)
@@ -268,7 +268,7 @@ func assertTerminalPermissionGate(t *testing.T) {
 	t.Parallel()
 
 	host, root := newTestLocalToolHost(t, compozyconfig.PermissionModeDenyAll)
-	_, err := host.CreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
+	_, err := host.CreateTerminal(t.Context(), acpsdk.CreateTerminalRequest{
 		SessionId: "sess-denied", Command: "printf", Args: []string{"denied"}, Cwd: new(root),
 	})
 	if !errors.Is(err, ErrPermissionDenied) {

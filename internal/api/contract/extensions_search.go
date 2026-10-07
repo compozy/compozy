@@ -15,7 +15,7 @@ type ExtensionSearchItem struct {
 	Description      string `json:"description,omitempty"`
 	Author           string `json:"author,omitempty"`
 	Version          string `json:"version,omitempty"`
-	Downloads        int    `json:"downloads,omitempty"`
+	Downloads        int    `json:"downloads,omitzero"`
 	Source           string `json:"source"`
 	Tier             string `json:"tier"`
 	Integrity        string `json:"integrity"`

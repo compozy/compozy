@@ -85,9 +85,8 @@ func roleInvocationCorrelationFromContext(ctx context.Context, workspaceID strin
 // launch it makes). Each callback reports acceptance as
 // session.StartAccepted(err) || value != nil; an accepted attempt ends the chain even
 // when it returned an error.
-func invokeRoleWithFallback[T any](
+func (role *ResolvedRole) invokeRoleWithFallback[T any](
 	ctx context.Context,
-	role *ResolvedRole,
 	correlation roleInvocationCorrelation,
 	invoke func(context.Context, roleAttemptRoute) (T, bool, error),
 ) (T, error) {

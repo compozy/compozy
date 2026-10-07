@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -60,11 +59,11 @@ func TestRegistryForWorkspaceDisabledOverlay(t *testing.T) {
 			registry := newTestRegistry(t, RegistryConfig{
 				GlobalSkillRoots: testGlobalSkillRoots(userDir),
 			})
-			if err := registry.LoadAll(context.Background()); err != nil {
+			if err := registry.LoadAll(t.Context()); err != nil {
 				t.Fatalf("LoadAll() error = %v", err)
 			}
 
-			got, err := registry.ForWorkspace(context.Background(), resolved)
+			got, err := registry.ForWorkspace(t.Context(), resolved)
 			if err != nil {
 				t.Fatalf("ForWorkspace() error = %v", err)
 			}

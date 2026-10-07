@@ -674,12 +674,8 @@ Keep this installed skill body.
 		})
 
 		profiles := skillProfileCatalogStub{profiles: []profilepkg.WithCounts{
-			{Profile: profilepkg.Profile{
-				ID: store.DefaultProfileID, Name: daemonDefaultProfileName, State: profilepkg.StateActive,
-			}},
-			{Profile: profilepkg.Profile{
-				ID: "profile-finance", Name: "finance", State: profilepkg.StateActive,
-			}},
+			{ID: store.DefaultProfileID, Name: daemonDefaultProfileName, State: profilepkg.StateActive},
+			{ID: "profile-finance", Name: "finance", State: profilepkg.StateActive},
 		}}
 		provider := extensionAgentSkillDeclarationProvider(
 			registry,

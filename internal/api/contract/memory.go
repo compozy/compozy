@@ -129,7 +129,7 @@ type MemoryCreateRequest struct {
 	Attribute      string                `json:"attribute,omitempty"`
 	Metadata       map[string]string     `json:"metadata,omitempty"`
 	IdempotencyKey string                `json:"idempotency_key,omitempty"`
-	DryRun         bool                  `json:"dry_run,omitempty"`
+	DryRun         bool                  `json:"dry_run,omitzero"`
 }
 
 // MemoryEditRequest is the canonical controller-backed update payload.
@@ -144,7 +144,7 @@ type MemoryEditRequest struct {
 	Content        string                `json:"content"`
 	Metadata       map[string]string     `json:"metadata,omitempty"`
 	IdempotencyKey string                `json:"idempotency_key,omitempty"`
-	DryRun         bool                  `json:"dry_run,omitempty"`
+	DryRun         bool                  `json:"dry_run,omitzero"`
 }
 
 // MemoryDeleteResponse wraps a controller-backed delete decision.
@@ -157,7 +157,7 @@ type MemoryDeleteResponse struct {
 type MemoryMutationDecisionResponse struct {
 	Decision MemoryDecisionPayload `json:"decision"`
 	Applied  bool                  `json:"applied"`
-	DryRun   bool                  `json:"dry_run,omitempty"`
+	DryRun   bool                  `json:"dry_run,omitzero"`
 }
 
 // MemorySearchRequest is the canonical deterministic recall/search payload.
@@ -168,12 +168,12 @@ type MemorySearchRequest struct {
 	WorkspaceID            string                `json:"workspace_id,omitempty"`
 	AgentName              string                `json:"agent_name,omitempty"`
 	AgentTier              memcontract.AgentTier `json:"agent_tier,omitempty"`
-	TopK                   int                   `json:"top_k,omitempty"`
-	RawCandidates          int                   `json:"raw_candidates,omitempty"`
-	IncludeAlreadySurfaced bool                  `json:"include_already_surfaced,omitempty"`
-	IncludeSystem          bool                  `json:"include_system,omitempty"`
+	TopK                   int                   `json:"top_k,omitzero"`
+	RawCandidates          int                   `json:"raw_candidates,omitzero"`
+	IncludeAlreadySurfaced bool                  `json:"include_already_surfaced,omitzero"`
+	IncludeSystem          bool                  `json:"include_system,omitzero"`
 	AlreadySurfaced        []string              `json:"already_surfaced,omitempty"`
-	Explain                bool                  `json:"explain,omitempty"`
+	Explain                bool                  `json:"explain,omitzero"`
 }
 
 // MemorySearchResultPayload is one redaction-safe deterministic search result.
@@ -183,7 +183,7 @@ type MemorySearchResultPayload struct {
 	Snippet      string                    `json:"snippet,omitempty"`
 	WhyRecalled  []string                  `json:"why_recalled,omitempty"`
 	ShadowedBy   string                    `json:"shadowed_by,omitempty"`
-	AlreadyShown bool                      `json:"already_shown,omitempty"`
+	AlreadyShown bool                      `json:"already_shown,omitzero"`
 }
 
 // MemorySearchResponse wraps deterministic recall/search output.
@@ -198,7 +198,7 @@ type MemoryReindexV2Request struct {
 	WorkspaceID   string                `json:"workspace_id,omitempty"`
 	AgentName     string                `json:"agent_name,omitempty"`
 	AgentTier     memcontract.AgentTier `json:"agent_tier,omitempty"`
-	IncludeSystem bool                  `json:"include_system,omitempty"`
+	IncludeSystem bool                  `json:"include_system,omitzero"`
 }
 
 // MemoryReindexResponse reports the outcome of a catalog rebuild.
@@ -242,14 +242,14 @@ type MemoryPromoteRequest struct {
 	From           MemoryScopeSelectorPayload `json:"from"`
 	To             MemoryScopeSelectorPayload `json:"to"`
 	IdempotencyKey string                     `json:"idempotency_key,omitempty"`
-	DryRun         bool                       `json:"dry_run,omitempty"`
+	DryRun         bool                       `json:"dry_run,omitzero"`
 }
 
 // MemoryPromoteResponse wraps the promotion controller decision.
 type MemoryPromoteResponse struct {
 	Decision MemoryDecisionPayload `json:"decision"`
 	Applied  bool                  `json:"applied"`
-	DryRun   bool                  `json:"dry_run,omitempty"`
+	DryRun   bool                  `json:"dry_run,omitzero"`
 }
 
 // MemoryResetRequest asks the daemon to reset derived memory indexes or runtime state.
@@ -301,7 +301,7 @@ type MemoryDecisionPayload struct {
 	Confidence      float32                    `json:"confidence"`
 	Source          memcontract.DecisionSource `json:"source"`
 	RuleTrace       []memcontract.RuleHit      `json:"rule_trace,omitempty"`
-	LLMTrace        *MemoryLLMTracePayload     `json:"llm_trace,omitempty"`
+	LLMTrace        *MemoryLLMTracePayload     `json:"llm_trace,omitzero"`
 	Reason          string                     `json:"reason,omitempty"`
 	PromptVersion   string                     `json:"prompt_version,omitempty"`
 	AppliedAt       *time.Time                 `json:"applied_at,omitempty"`
@@ -321,14 +321,14 @@ type MemoryDecisionResponse struct {
 // MemoryDecisionRevertRequest asks the controller to revert one applied decision.
 type MemoryDecisionRevertRequest struct {
 	Reason string `json:"reason,omitempty"`
-	DryRun bool   `json:"dry_run,omitempty"`
+	DryRun bool   `json:"dry_run,omitzero"`
 }
 
 // MemoryDecisionRevertResponse wraps a revert decision.
 type MemoryDecisionRevertResponse struct {
 	Decision MemoryDecisionPayload `json:"decision"`
 	Reverted bool                  `json:"reverted"`
-	DryRun   bool                  `json:"dry_run,omitempty"`
+	DryRun   bool                  `json:"dry_run,omitzero"`
 }
 
 // MemoryRecallTracePayload records one recall trace without prompt-only payload leakage.

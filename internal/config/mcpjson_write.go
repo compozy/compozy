@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -175,10 +176,7 @@ type mcpJSONCollection struct {
 }
 
 func loadEditableMCPJSONDocument(content []byte, source string) (*editableMCPJSONDocument, error) {
-	trimmedSource := strings.TrimSpace(source)
-	if trimmedSource == "" {
-		trimmedSource = MCPJSONName
-	}
+	trimmedSource := cmp.Or(strings.TrimSpace(source), MCPJSONName)
 
 	document := &editableMCPJSONDocument{
 		source: trimmedSource,

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -433,7 +432,7 @@ func assertGatewayHTTPRouteUnionMatchesDocumentedOperations(t *testing.T) {
 	for route := range actualSet {
 		actual = append(actual, route)
 	}
-	sort.Strings(actual)
+	slices.Sort(actual)
 
 	want := make([]string, 0)
 	for _, operation := range apispec.Operations() {
@@ -442,7 +441,7 @@ func assertGatewayHTTPRouteUnionMatchesDocumentedOperations(t *testing.T) {
 			want = append(want, operation.Method+" "+operation.Path)
 		}
 	}
-	sort.Strings(want)
+	slices.Sort(want)
 	if !slices.Equal(actual, want) {
 		t.Fatalf("HTTP gateway route union = %v, want documented operations %v", actual, want)
 	}

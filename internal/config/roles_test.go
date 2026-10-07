@@ -335,8 +335,8 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		cfg := DefaultRolesConfig()
 		cfg.Dream.Agent = "audio designer"
 		err := cfg.Validate("roles", &Config{})
-		var validationErr ValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrOK := errors.AsType[ValidationError](err)
+		if !validationErrOK {
 			t.Fatalf("RolesConfig.Validate() error = %T, want ValidationError", err)
 		}
 		if got, want := validationErr.Path, "roles.dream.agent"; got != want {

@@ -53,7 +53,7 @@ func TestSeed(t *testing.T) {
 	t.Run("Should persist one coherent scenario and replace it without duplication", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		now := time.Date(2026, 7, 27, 20, 0, 0, 0, time.UTC)
 		homeDir := filepath.Join(t.TempDir(), "home")
 
@@ -129,7 +129,7 @@ func TestSeed(t *testing.T) {
 	t.Run("Should resolve an existing workspace through a filesystem alias", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		root := t.TempDir()
 		realRoot := filepath.Join(root, "real-workspace")
 		if err := os.Mkdir(realRoot, 0o755); err != nil {
@@ -174,7 +174,7 @@ func TestSeed(t *testing.T) {
 	t.Run("Should refuse to replace an unowned workspace root", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		now := time.Date(2026, 7, 27, 20, 0, 0, 0, time.UTC)
 		homeDir := filepath.Join(t.TempDir(), "home")
 		story := scenarioWorkspaces(newTimeline(now))[0]

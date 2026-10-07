@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 )
@@ -29,7 +30,7 @@ type OutputRef struct {
 	SettledAt     *time.Time             `json:"settled_at,omitempty"`
 	Subscriptions []EventSubscriptionRef `json:"subscriptions,omitempty"`
 	Cursors       map[string]int64       `json:"cursors,omitempty"`
-	CursorVersion int                    `json:"cursor_version,omitempty"`
+	CursorVersion int                    `json:"cursor_version,omitzero"`
 	Events        json.RawMessage        `json:"events,omitempty"`
 }
 
@@ -169,14 +170,12 @@ func cloneEventSubscriptionRefs(src []EventSubscriptionRef) []EventSubscriptionR
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]EventSubscriptionRef(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneCursors(src map[string]int64) map[string]int64 {
 	if len(src) == 0 {
 		return nil
 	}
-	dst := make(map[string]int64, len(src))
-	maps.Copy(dst, src)
-	return dst
+	return maps.Clone(src)
 }

@@ -548,9 +548,10 @@ func newCheckpointSummaryTestEnv(t *testing.T) checkpointSummaryTestEnv {
 		t.Fatalf("Store.EnsureDirs() error = %v", err)
 	}
 	resolved := workspacepkg.ResolvedWorkspace{
-		ID:      identity.WorkspaceID,
-		RootDir: workspaceRoot}
-	resolved.WorkspaceID = identity.WorkspaceID
+		ID:          identity.WorkspaceID,
+		RootDir:     workspaceRoot,
+		WorkspaceID: identity.WorkspaceID,
+	}
 	return checkpointSummaryTestEnv{
 		store:         store,
 		resolver:      &checkpointWorkspaceResolverStub{resolved: resolved},

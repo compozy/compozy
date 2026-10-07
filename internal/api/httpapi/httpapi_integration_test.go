@@ -49,13 +49,10 @@ func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 		held := make(chan acp.AgentEvent, 1)
-		var heldOnce sync.Once
-		release := func() {
-			heldOnce.Do(func() {
-				held <- acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "end_turn"}
-				close(held)
-			})
-		}
+		release := sync.OnceFunc(func() {
+			held <- acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "end_turn"}
+			close(held)
+		})
 		defer release()
 		var calls atomic.Int32
 		runtime.driver.mu.Lock()
@@ -293,7 +290,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	if listed.Sessions[0].WorkspaceID == "" || listed.Sessions[0].WorkspacePath != canonicalWorkspace {
 		t.Fatalf("listed session workspace = %#v", listed.Sessions[0])
 	}
-	tasksAfterManualSession, err := runtime.registry.ListTasks(context.Background(), taskpkg.Query{Limit: 10})
+	tasksAfterManualSession, err := runtime.registry.ListTasks(t.Context(), taskpkg.Query{Limit: 10})
 	if err != nil {
 		t.Fatalf("ListTasks(after manual session) error = %v", err)
 	}
@@ -301,7 +298,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("tasks after manual session = %#v, want none", tasksAfterManualSession)
 	}
 	runsAfterManualSession, err := runtime.registry.ListTaskRunsByStatus(
-		context.Background(),
+		t.Context(),
 		[]taskpkg.RunStatus{
 			taskpkg.TaskRunStatusQueued,
 			taskpkg.TaskRunStatusClaimed,
@@ -387,8 +384,7 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 	completeTool := make(chan struct{})
-	var completeOnce sync.Once
-	releaseTool := func() { completeOnce.Do(func() { close(completeTool) }) }
+	releaseTool := sync.OnceFunc(func() { close(completeTool) })
 	t.Cleanup(releaseTool)
 	runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 		events := make(chan acp.AgentEvent, 3)
@@ -483,7 +479,7 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	releaseTool()
 	waitForIntegrationTerminalToolEvents(t, terminalEvents)
 
-	events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	events, err := runtime.manager.Events(t.Context(), sessionID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events() error after disconnect = %v", err)
 	}
@@ -498,12 +494,9 @@ func TestHTTPPromptQueuesConcurrentInputWithoutGhostDispatch(t *testing.T) {
 
 	firstPromptEntered := make(chan struct{})
 	releaseFirstPrompt := make(chan struct{})
-	var releaseFirstPromptOnce sync.Once
-	releaseFirstPromptWorker := func() {
-		releaseFirstPromptOnce.Do(func() {
-			close(releaseFirstPrompt)
-		})
-	}
+	releaseFirstPromptWorker := sync.OnceFunc(func() {
+		close(releaseFirstPrompt)
+	})
 	t.Cleanup(releaseFirstPromptWorker)
 	runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 		events := make(chan acp.AgentEvent, 2)
@@ -622,7 +615,7 @@ func TestHTTPPromptQueuesConcurrentInputWithoutGhostDispatch(t *testing.T) {
 		t.Fatalf("second prompt = %#v, want durable queued input", accepted.Prompt)
 	}
 
-	eventsWhileBusy, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	eventsWhileBusy, err := runtime.manager.Events(t.Context(), sessionID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events(while busy) error = %v", err)
 	}
@@ -679,7 +672,7 @@ func TestHTTPPromptQueuesConcurrentInputWithoutGhostDispatch(t *testing.T) {
 			t.Fatalf("wait for queued prompt completion: %v", completionCtx.Err())
 		}
 	}
-	eventsAfterRelease, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	eventsAfterRelease, err := runtime.manager.Events(t.Context(), sessionID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events(after release) error = %v", err)
 	}
@@ -776,12 +769,12 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 
 	const promptTimeout = 5 * time.Second
 
-	userCtx, cancelUser := context.WithTimeout(context.Background(), promptTimeout)
+	userCtx, cancelUser := context.WithTimeout(t.Context(), promptTimeout)
 	userEvents, userErr := runtime.manager.Prompt(userCtx, sessionID, "hello")
 	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, userEvents, userErr), promptTimeout)
 	cancelUser()
 
-	syntheticCtx, cancelSynthetic := context.WithTimeout(context.Background(), promptTimeout)
+	syntheticCtx, cancelSynthetic := context.WithTimeout(t.Context(), promptTimeout)
 	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(
 		syntheticCtx,
 		sessionID,
@@ -1422,7 +1415,7 @@ func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	stopIntegrationSession(t, runtime, sessionID)
 
 	sessions, err := runtime.registry.ListSessions(
-		context.Background(),
+		t.Context(),
 		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, State: "stopped"},
 	)
 	if err != nil {
@@ -2325,7 +2318,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	released := false
@@ -2333,7 +2326,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 		if !released {
 			close(release)
 		}
-		if err := server.Shutdown(context.Background()); err != nil {
+		if err := server.Shutdown(t.Context()); err != nil {
 			t.Errorf("server.Shutdown() error = %v", err)
 		}
 	}()
@@ -2359,7 +2352,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 	shutdownDone := make(chan error, 1)
 	shutdownStarted := registerServerShutdownSignal(t, server)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 		shutdownDone <- server.Shutdown(ctx)
 	}()
@@ -3683,7 +3676,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		t.Fatalf("write integration provider config: %v", err)
 	}
 
-	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -3711,7 +3704,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
-	if _, err := resolver.Register(context.Background(), workspacepkg.RegisterOptions{
+	if _, err := resolver.Register(t.Context(), workspacepkg.RegisterOptions{
 		RootDir: workspace,
 		Name:    "ws-workspace",
 	}); err != nil {
@@ -3741,7 +3734,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	})
 
 	observer, err := observe.New(
-		context.Background(),
+		t.Context(),
 		observe.WithHomePaths(homePaths),
 		observe.WithRegistry(registry),
 		observe.WithSessionSource(manager),
@@ -3797,7 +3790,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("automation.New() error = %v", err)
 	}
-	if err := automationManager.Start(context.Background()); err != nil {
+	if err := automationManager.Start(t.Context()); err != nil {
 		t.Fatalf("automationManager.Start() error = %v", err)
 	}
 	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
@@ -3848,7 +3841,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("httpapi.New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("server.Start() error = %v", err)
 	}
 	t.Cleanup(func() {
@@ -4172,7 +4165,7 @@ func createIntegrationSessionFromRequest(
 func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, sessionID string) {
 	t.Helper()
 
-	info, err := manager.Status(context.Background(), sessionID)
+	info, err := manager.Status(t.Context(), sessionID)
 	if err != nil {
 		t.Fatalf("Status(%q) error = %v", sessionID, err)
 	}
@@ -4189,7 +4182,7 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 	}
 	defer cancel()
 
-	info, err = manager.Status(context.Background(), sessionID)
+	info, err = manager.Status(t.Context(), sessionID)
 	if err != nil {
 		t.Fatalf("Status(%q) after catalog subscription error = %v", sessionID, err)
 	}
@@ -4209,7 +4202,7 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 				continue
 			}
 
-			info, err = manager.Status(context.Background(), sessionID)
+			info, err = manager.Status(t.Context(), sessionID)
 			if err != nil {
 				t.Fatalf("Status(%q) after catalog event error = %v", sessionID, err)
 			}
@@ -4517,7 +4510,7 @@ func integrationRegistryHasStopReason(
 	t.Helper()
 
 	sessions, err := runtime.registry.ListSessions(
-		context.Background(),
+		t.Context(),
 		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, State: "stopped"},
 	)
 	if err != nil {

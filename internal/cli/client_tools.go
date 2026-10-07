@@ -130,8 +130,7 @@ func (e *toolAPIError) PartialToolResult() *toolspkg.ToolResult {
 	if e == nil || e.response.Error.PartialResult == nil {
 		return nil
 	}
-	partial := sanitizeToolResult(*e.response.Error.PartialResult)
-	return &partial
+	return new(sanitizeToolResult(*e.response.Error.PartialResult))
 }
 
 func (c *daemonClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {

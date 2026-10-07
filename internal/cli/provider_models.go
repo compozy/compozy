@@ -104,12 +104,10 @@ func newProviderModelsSetCommand(deps commandDeps) *cobra.Command {
 				request.Deprecated = &deprecated
 			}
 			if cmd.Flags().Changed("default-effort") {
-				effort := contract.ReasoningEffort(strings.TrimSpace(defaultEffort))
-				request.DefaultReasoningEffort = &effort
+				request.DefaultReasoningEffort = new(contract.ReasoningEffort(strings.TrimSpace(defaultEffort)))
 			}
 			if cmd.Flags().Changed("default-speed") {
-				speed := contract.Speed(strings.TrimSpace(defaultSpeed))
-				request.DefaultSpeed = &speed
+				request.DefaultSpeed = new(contract.Speed(strings.TrimSpace(defaultSpeed)))
 			}
 			record, err := client.CurateProviderModel(cmd.Context(), providerID, request)
 			if err != nil {

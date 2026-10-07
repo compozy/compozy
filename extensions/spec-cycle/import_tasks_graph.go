@@ -140,8 +140,8 @@ func idFromTaskFile(file string) string {
 
 func pathBaseSlash(path string) string {
 	normalized := strings.ReplaceAll(strings.TrimSpace(path), "\\", "/")
-	if idx := strings.LastIndex(normalized, "/"); idx >= 0 {
-		return normalized[idx+1:]
+	if _, base, found := strings.CutLast(normalized, "/"); found {
+		return base
 	}
 	return normalized
 }

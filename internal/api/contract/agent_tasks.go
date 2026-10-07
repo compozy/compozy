@@ -7,9 +7,9 @@ type AgentTaskClaimNextRequest struct {
 	RunID                string   `json:"run_id,omitempty"`
 	WorkspaceID          string   `json:"workspace_id,omitempty"`
 	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
-	PriorityMin          int      `json:"priority_min,omitempty"`
-	LeaseSeconds         int64    `json:"lease_seconds,omitempty"`
-	Wait                 bool     `json:"wait,omitempty"`
+	PriorityMin          int      `json:"priority_min,omitzero"`
+	LeaseSeconds         int64    `json:"lease_seconds,omitzero"`
+	Wait                 bool     `json:"wait,omitzero"`
 	IdempotencyKey       string   `json:"idempotency_key,omitempty"`
 }
 
@@ -22,7 +22,7 @@ type AgentTaskClaimPayload struct {
 
 // AgentTaskHeartbeatRequest extends the caller session's task-run lease.
 type AgentTaskHeartbeatRequest struct {
-	LeaseSeconds int64 `json:"lease_seconds,omitempty"`
+	LeaseSeconds int64 `json:"lease_seconds,omitzero"`
 }
 
 // AgentTaskCompleteRequest completes the caller session's claimed task run.

@@ -94,7 +94,7 @@ func TestMockAgentInitializeAdvertisesFixtureLoadCapability(t *testing.T) {
 			t.Parallel()
 
 			agent := &mockAgent{agent: tc.fixture}
-			response, err := agent.Initialize(context.Background(), acpsdk.InitializeRequest{})
+			response, err := agent.Initialize(t.Context(), acpsdk.InitializeRequest{})
 			if err != nil {
 				t.Fatalf("Initialize() error = %v", err)
 			}
@@ -238,7 +238,7 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 			}),
 			sessions: map[string]*sessionState{},
 		}
-		session, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{})
+		session, err := agent.NewSession(t.Context(), acpsdk.NewSessionRequest{})
 		if err != nil {
 			t.Fatalf("NewSession() error = %v", err)
 		}
@@ -248,7 +248,7 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		}
 
 		response, err := agent.SetSessionConfigOption(
-			context.Background(),
+			t.Context(),
 			acpsdk.SetSessionConfigOptionRequest{
 				ValueId: &acpsdk.SetSessionConfigOptionValueId{
 					SessionId: session.SessionId,
@@ -278,7 +278,7 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		}
 
 		_, err = agent.SetSessionConfigOption(
-			context.Background(),
+			t.Context(),
 			acpsdk.SetSessionConfigOptionRequest{
 				ValueId: &acpsdk.SetSessionConfigOptionValueId{
 					SessionId: session.SessionId,
@@ -310,17 +310,17 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 			sessions: map[string]*sessionState{},
 		}
 
-		first, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{})
+		first, err := agent.NewSession(t.Context(), acpsdk.NewSessionRequest{})
 		if err != nil {
 			t.Fatalf("NewSession(first) error = %v", err)
 		}
-		second, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{})
+		second, err := agent.NewSession(t.Context(), acpsdk.NewSessionRequest{})
 		if err != nil {
 			t.Fatalf("NewSession(second) error = %v", err)
 		}
 
 		response, err := agent.SetSessionConfigOption(
-			context.Background(),
+			t.Context(),
 			acpsdk.SetSessionConfigOptionRequest{
 				ValueId: &acpsdk.SetSessionConfigOptionValueId{
 					SessionId: first.SessionId,
@@ -339,7 +339,7 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		}
 
 		resumedFirst, err := agent.ResumeSession(
-			context.Background(),
+			t.Context(),
 			acpsdk.ResumeSessionRequest{SessionId: first.SessionId},
 		)
 		if err != nil {
@@ -352,7 +352,7 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		}
 
 		loadedSecond, err := agent.LoadSession(
-			context.Background(),
+			t.Context(),
 			acpsdk.LoadSessionRequest{SessionId: second.SessionId},
 		)
 		if err != nil {
@@ -381,7 +381,7 @@ func TestMockAgentLoadSessionValidation(t *testing.T) {
 			}
 		}()
 
-		_, err := agent.LoadSession(context.Background(), acpsdk.LoadSessionRequest{})
+		_, err := agent.LoadSession(t.Context(), acpsdk.LoadSessionRequest{})
 		if err == nil || !strings.Contains(err.Error(), "session id is required") {
 			t.Fatalf("LoadSession(empty) error = %v, want session id validation", err)
 		}

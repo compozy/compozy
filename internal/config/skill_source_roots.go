@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"path/filepath"
@@ -79,10 +80,7 @@ func (r WorkspaceDiscoveryRoot) SkillsDirs(cfg *SkillsConfig) []SkillRootSpec {
 			if isWorkspaceRelative && r.Source == WorkspaceDiscoverySourceProfile {
 				continue
 			}
-			base := r.WorkspaceRoot
-			if base == "" {
-				base = r.Dir
-			}
+			base := cmp.Or(r.WorkspaceRoot, r.Dir)
 			dir := expanded
 			if isWorkspaceRelative {
 				dir = canonicalSkillSourcePath(filepath.Join(base, path))

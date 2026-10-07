@@ -1,9 +1,10 @@
 package windowmanager
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -68,11 +69,8 @@ func canonicalGlobalShortcuts(
 	source map[string]string,
 	bindableIDs BindableIDs,
 ) (map[string]string, error) {
-	commandIDs := make([]string, 0, len(source))
-	for commandID := range source {
-		commandIDs = append(commandIDs, commandID)
-	}
-	sort.Strings(commandIDs)
+	commandIDs := slices.AppendSeq(make([]string, 0, len(source)), maps.Keys(source))
+	slices.Sort(commandIDs)
 	canonical := make(map[string]string, len(source))
 	owners := make(map[string]string, len(source))
 	for _, rawID := range commandIDs {
@@ -161,8 +159,8 @@ func normalizeGlobalShortcutRegistrations(
 		seen[registration.CommandID] = struct{}{}
 		result[index] = registration
 	}
-	sort.Slice(result, func(left, right int) bool {
-		return result[left].CommandID < result[right].CommandID
+	slices.SortFunc(result, func(a, b GlobalShortcutRegistration) int {
+		return cmp.Compare(a.CommandID, b.CommandID)
 	})
 	return result, nil
 }

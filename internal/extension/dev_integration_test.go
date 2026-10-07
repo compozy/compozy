@@ -1038,23 +1038,19 @@ func testManagerDevelopmentReloadConcurrency(t *testing.T) {
 	errorsByReload := make(chan error, len(firstHashes)+1)
 	var reloads sync.WaitGroup
 	for _, generationHash := range firstHashes {
-		reloads.Add(1)
-		go func(hash string) {
-			defer reloads.Done()
+		reloads.Go(func() {
 			_, err := manager.ReloadExtension(testutil.Context(t), InstanceKey{
 				Name: "concurrent", WorkspaceID: firstWorkspace.WorkspaceID,
-			}, hash)
+			}, generationHash)
 			errorsByReload <- err
-		}(generationHash)
+		})
 	}
-	reloads.Add(1)
-	go func() {
-		defer reloads.Done()
+	reloads.Go(func() {
 		_, err := manager.ReloadExtension(testutil.Context(t), InstanceKey{
 			Name: "concurrent", WorkspaceID: secondWorkspace.WorkspaceID,
 		}, secondHash)
 		errorsByReload <- err
-	}()
+	})
 	reloads.Wait()
 	close(errorsByReload)
 	for err := range errorsByReload {
@@ -1460,7 +1456,6 @@ func TestManagerStartDevelopmentLinks(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1761,11 +1756,9 @@ func TestVerifyDevGeneration(t *testing.T) {
 func newDevTestWorkspace(t *testing.T, id string) *workspacepkg.ResolvedWorkspace {
 	t.Helper()
 	return &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      id,
-			Name:    id,
-			RootDir: t.TempDir(),
-		},
+		ID:          id,
+		Name:        id,
+		RootDir:     t.TempDir(),
 		WorkspaceID: id,
 	}
 }

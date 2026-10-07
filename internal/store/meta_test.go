@@ -74,10 +74,7 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := range 25 {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			meta := base
 			meta.Name = filepath.Base(
 				filepath.Join("name", time.Date(2026, 4, 3, 18, 0, i, 0, time.UTC).Format(time.RFC3339Nano)),
@@ -86,7 +83,7 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 			if err := WriteSessionMeta(path, &meta); err != nil {
 				t.Errorf("WriteSessionMeta() error = %v", err)
 			}
-		}(i)
+		})
 	}
 	wg.Wait()
 

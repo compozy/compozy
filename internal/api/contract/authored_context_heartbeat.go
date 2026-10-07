@@ -333,7 +333,7 @@ type HeartbeatWakeByPathRequest struct {
 	WorkspaceID    string              `json:"workspace_id,omitempty"`
 	SessionID      string              `json:"session_id"`
 	Source         HeartbeatWakeSource `json:"source"`
-	DryRun         bool                `json:"dry_run,omitempty"`
+	DryRun         bool                `json:"dry_run,omitzero"`
 	IdempotencyKey string              `json:"idempotency_key,omitempty"`
 }
 

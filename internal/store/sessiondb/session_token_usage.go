@@ -74,24 +74,21 @@ func nullableInt64Pointer(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil
 	}
-	result := value.Int64
-	return &result
+	return new(value.Int64)
 }
 
 func nullableFloat64Pointer(value sql.NullFloat64) *float64 {
 	if !value.Valid {
 		return nil
 	}
-	result := value.Float64
-	return &result
+	return new(value.Float64)
 }
 
 func nullableStringPointer(value sql.NullString) *string {
 	if !value.Valid {
 		return nil
 	}
-	result := value.String
-	return &result
+	return new(value.String)
 }
 
 func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage) error {

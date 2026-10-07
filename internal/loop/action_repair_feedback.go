@@ -1,9 +1,10 @@
 package loop
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -36,11 +37,8 @@ func actionRepairFailures(history GenerationHistory) []ActionRepairFailure {
 			})
 		}
 	}
-	sort.Slice(failures, func(i, j int) bool {
-		if failures[i].NodeID == failures[j].NodeID {
-			return failures[i].ItemIndex < failures[j].ItemIndex
-		}
-		return failures[i].NodeID < failures[j].NodeID
+	slices.SortFunc(failures, func(a, b ActionRepairFailure) int {
+		return cmp.Or(cmp.Compare(a.NodeID, b.NodeID), cmp.Compare(a.ItemIndex, b.ItemIndex))
 	})
 	return failures
 }

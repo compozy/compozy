@@ -109,7 +109,7 @@ func (p *preparedGatewayPairingProfile) Release() error {
 
 func isDefinitiveGatewayPairingRejection(err error) bool {
 	var payloadError interface{ errorPayload() contract.ErrorPayload }
-	if !errors.As(err, &payloadError) {
+	if !errors.As(err, &payloadError) { //nolint:forbidigo // Target only has errorPayload, not Error.
 		return false
 	}
 	switch payloadError.errorPayload().Code {
@@ -166,6 +166,6 @@ func gatewayPairingRequestNotSent(err error) bool {
 	if requestError, ok := errors.AsType[*gatewayPairingRequestError](err); ok {
 		return requestError.requestNotSent
 	}
-	var operationError *net.OpError
-	return errors.As(err, &operationError) && operationError.Op == "dial"
+	operationError, operationErrorOK := errors.AsType[*net.OpError](err)
+	return operationErrorOK && operationError.Op == "dial"
 }

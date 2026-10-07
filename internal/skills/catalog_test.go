@@ -435,7 +435,7 @@ func TestCatalogProviderPromptSectionReturnsEmptyStringWhenWorkspaceHasNoSkills(
 
 	provider := NewCatalogProvider(newTestRegistry(t, RegistryConfig{}))
 
-	got, err := provider.PromptSection(context.Background(), &workspacepkg.ResolvedWorkspace{})
+	got, err := provider.PromptSection(t.Context(), &workspacepkg.ResolvedWorkspace{})
 	if err != nil {
 		t.Fatalf("PromptSection() error = %v", err)
 	}
@@ -469,13 +469,13 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 	registry := newTestRegistry(t, RegistryConfig{
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
 	provider := NewCatalogProvider(registry)
 
-	got, err := provider.PromptSection(context.Background(), resolvedWorkspacePtr(
+	got, err := provider.PromptSection(t.Context(), resolvedWorkspacePtr(
 		"ws_catalog_one",
 		workspaceOne,
 		resolvedSkillPath(filepath.Join(workspaceOne, ".compozy", "skills", "alpha"), "workspace"),

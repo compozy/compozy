@@ -1,7 +1,6 @@
 package providers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"os/exec"
@@ -349,7 +348,7 @@ func TestClassifyProviderAuth(t *testing.T) {
 	t.Run("Should return explicit none when auth mode is none", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := ClassifyDeclared(context.Background(), compozyconfig.ProviderConfig{
+		got, err := ClassifyDeclared(t.Context(), compozyconfig.ProviderConfig{
 			AuthMode: compozyconfig.ProviderAuthModeNone,
 		}, nil)
 		if err != nil {

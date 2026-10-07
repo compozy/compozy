@@ -82,7 +82,7 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(second) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := second.Close(ctx); err != nil {
+			if err := second.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(second) error = %v", err)
 			}
 		})
@@ -146,7 +146,7 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(reopen v2 migration) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := reopened.Close(reopenCtx); err != nil {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})

@@ -170,13 +170,13 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 		Kind:          DispatchKindSchedule,
 		Job:           &job,
 		ReservedRun:   claimed.reservedRun,
-		ScheduledAt:   timePointer(claimed.claim.ScheduledAt),
+		ScheduledAt:   new(claimed.claim.ScheduledAt),
 		CatchUp:       claimed.claim.CatchUp,
 		CatchUpPolicy: claimed.state.CatchUpPolicy,
 	})
 	if errors.Is(err, ErrConcurrencyLimitReached) || errors.Is(err, errScheduledAdmissionDeferred) {
 		s.setCapacityWaiting(job.ID, claimed.state.ScheduleHash, errors.Is(err, ErrConcurrencyLimitReached))
-		return s.setScheduledDeferral(ctx, claimed, timePointer(s.now().Add(time.Second)))
+		return s.setScheduledDeferral(ctx, claimed, new(s.now().Add(time.Second)))
 	}
 	if fireLimitErr, ok := errors.AsType[*FireLimitError](err); ok {
 		if adjustErr := s.deferAfterFireLimit(ctx, job.ID, claimed.state, fireLimitErr); adjustErr != nil {

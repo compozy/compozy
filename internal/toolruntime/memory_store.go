@@ -102,12 +102,10 @@ func cloneRecord(record ProcessRecord) ProcessRecord {
 	cloned := record
 	cloned.Args = append([]string(nil), record.Args...)
 	if record.ExitCode != nil {
-		value := *record.ExitCode
-		cloned.ExitCode = &value
+		cloned.ExitCode = new(*record.ExitCode)
 	}
 	if record.CompletedAt != nil {
-		value := *record.CompletedAt
-		cloned.CompletedAt = &value
+		cloned.CompletedAt = new(*record.CompletedAt)
 	}
 	return cloned
 }

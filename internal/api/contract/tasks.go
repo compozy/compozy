@@ -136,7 +136,7 @@ type TaskRunReviewPayload struct {
 	ProfileColor    string `json:"profile_color,omitempty"`
 	ProfileIcon     string `json:"profile_icon,omitempty"`
 	ProfileEmoji    string `json:"profile_emoji,omitempty"`
-	ProfileArchived bool   `json:"profile_archived,omitempty"`
+	ProfileArchived bool   `json:"profile_archived,omitzero"`
 }
 
 // CreateTaskRunReviewRequest captures one request to review a terminal task run.
@@ -290,8 +290,8 @@ type TaskInspectRunPayload struct {
 	ClaimTokenHashTruncated string            `json:"claim_token_hash_truncated,omitempty"`
 	LeaseUntil              *time.Time        `json:"lease_until,omitempty"`
 	HeartbeatAt             *time.Time        `json:"heartbeat_at,omitempty"`
-	HeartbeatAgeSeconds     *int64            `json:"heartbeat_age_seconds,omitempty"`
-	Retries                 int               `json:"retries,omitempty"`
+	HeartbeatAgeSeconds     *int64            `json:"heartbeat_age_seconds,omitzero"`
+	Retries                 int               `json:"retries,omitzero"`
 	LastErrorSummary        string            `json:"last_error_summary,omitempty"`
 	FailureKind             string            `json:"failure_kind,omitempty"`
 	BoundSessionID          string            `json:"bound_session_id,omitempty"`
@@ -340,8 +340,8 @@ type TaskInspectSchedulerPayload struct {
 type TaskInspectPayload struct {
 	Target       string                      `json:"target"`
 	Task         TaskSummaryPayload          `json:"task"`
-	CurrentRun   *TaskInspectRunPayload      `json:"current_run,omitempty"`
-	BoundSession *TaskInspectSessionPayload  `json:"bound_session,omitempty"`
+	CurrentRun   *TaskInspectRunPayload      `json:"current_run,omitzero"`
+	BoundSession *TaskInspectSessionPayload  `json:"bound_session,omitzero"`
 	RecentRuns   []TaskInspectRunPayload     `json:"recent_runs,omitempty"`
 	RecentEvents []TaskInspectEventPayload   `json:"recent_events,omitempty"`
 	Scheduler    TaskInspectSchedulerPayload `json:"scheduler"`
@@ -366,5 +366,5 @@ type TaskFanOutRunDesignationRequest struct {
 type FanOutTaskRunsRequest struct {
 	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
 	IdempotencyKey string                            `json:"idempotency_key,omitempty"`
-	WorktreePerRun bool                              `json:"worktree_per_run,omitempty"`
+	WorktreePerRun bool                              `json:"worktree_per_run,omitzero"`
 }

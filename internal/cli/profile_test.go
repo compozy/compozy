@@ -54,7 +54,7 @@ func TestAgentProfileSelectionUsesTheDaemonSessionOwner(t *testing.T) {
 		command := &cobra.Command{Use: "prompt"}
 		root.AddCommand(sessionCommand)
 		sessionCommand.AddCommand(command)
-		command.SetContext(context.Background())
+		command.SetContext(t.Context())
 		command.Flags().String(profileFlagName, "", "")
 		client := &profileTestDaemonClient{
 			DaemonClient: &stubClient{getSessionFn: func(ctx context.Context, id string) (SessionRecord, error) {
@@ -491,7 +491,7 @@ func TestProfileCommandOutputContract(t *testing.T) {
 		}
 
 		if _, err := resolveCommandWorkspace(
-			context.Background(), list, deps, client, workspaceResolutionRequest{},
+			t.Context(), list, deps, client, workspaceResolutionRequest{},
 		); err != nil {
 			t.Fatalf("resolveCommandWorkspace() error = %v", err)
 		}
@@ -519,7 +519,7 @@ func TestProfileCommandOutputContract(t *testing.T) {
 		root.AddCommand(doctor)
 
 		if _, err := resolveCommandWorkspace(
-			context.Background(), doctor, deps, client, workspaceResolutionRequest{},
+			t.Context(), doctor, deps, client, workspaceResolutionRequest{},
 		); err != nil {
 			t.Fatalf("resolveCommandWorkspace() error = %v", err)
 		}
@@ -539,8 +539,8 @@ func TestProfileStructuredErrorsCoverPublicCodes(t *testing.T) {
 			{"update", "--profile", "marketing"},
 		} {
 			_, _, err := executeRootCommand(t, newTestDeps(t, nil), args...)
-			var profileErr *profileCommandError
-			if err == nil || !errors.As(err, &profileErr) ||
+			profileErr, profileErrOK := errors.AsType[*profileCommandError](err)
+			if err == nil || !profileErrOK ||
 				profileErr.payload.Error.Code != profileSelectionUnsupportedCode {
 				t.Fatalf("command %v error = %v, want %s", args, err, profileSelectionUnsupportedCode)
 			}

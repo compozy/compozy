@@ -371,8 +371,8 @@ func TestConfigAutomationAgentReferencesValidateAtTheirOwningBoundary(t *testing
 			t.Parallel()
 
 			err := tc.validate()
-			var validationErr ValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, validationErrOK := errors.AsType[ValidationError](err)
+			if !validationErrOK {
 				t.Fatalf("validation error = %T, want ValidationError", err)
 			}
 			if got := validationErr.Path; got != tc.wantPath {

@@ -206,7 +206,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		binding, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID:  looppkg.WorkspaceID("ws-loop"),
 			LoopRunID:    looppkg.RunID("loop-run-policy"),
 			Agent:        "task-worker",
@@ -304,7 +304,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}}
 		_, opts, _, err := binder.resolveRunOwnedBindingProfile(
-			context.Background(),
+			t.Context(),
 			looppkg.ActionSessionBindRequest{
 				ProfileID: store.DefaultProfileID, WorkspaceID: "ws-loop",
 				LoopRunID: "loop-run-goal", Agent: "task-worker",
@@ -341,7 +341,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		binding, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: "ws-loop", Agent: "task-worker", Handle: "execute_task",
 		})
 		if err != nil {
@@ -384,7 +384,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 
 		for itemIndex := range 3 {
-			_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 				ProfileID:   "profile-marketing",
 				WorkspaceID: "ws-loop",
 				LoopRunID:   "loop-run-worktree",
@@ -450,7 +450,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: "ws-loop",
 			LoopRunID:   "loop-run-removed-ref",
 			Generation:  1,
@@ -498,7 +498,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: "ws-loop",
 			LoopRunID:   "loop-run-failure",
 			Generation:  1,
@@ -545,7 +545,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID:   looppkg.WorkspaceID("ws-loop"),
 			Agent:         "task-worker",
 			Handle:        "execute_task",
@@ -577,7 +577,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
 			Agent:       "missing-worker",
 			Handle:      "execute_task",
@@ -615,7 +615,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		opts := session.CreateOpts{
 			WorkspacePath: workspacePath,
 		}
-		_, err := binder.policyGate.applyResolved(context.Background(), &opts, "task-worker", nil)
+		_, err := binder.policyGate.applyResolved(t.Context(), &opts, "task-worker", nil)
 		if err != nil {
 			t.Fatalf("applyResolved() error = %v", err)
 		}
@@ -751,7 +751,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			executions: newLoopJudgeExecutionRegistry(),
 		}
 
-		_, err := runner.Judge(context.Background(), gate.JudgeRequest{
+		_, err := runner.Judge(t.Context(), gate.JudgeRequest{
 			GateID:        "quality-gate",
 			CriterionID:   "review",
 			LoopRunID:     "loop-run-judge",
@@ -806,7 +806,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			}},
 		}
 		runner := loopJudgeRunnerForTest(t, sessions)
-		response, err := runner.Judge(context.Background(), loopJudgeRequestForTest())
+		response, err := runner.Judge(t.Context(), loopJudgeRequestForTest())
 		if err != nil {
 			t.Fatalf("Judge() error = %v", err)
 		}
@@ -835,7 +835,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 				},
 			},
 		}
-		_, err := loopJudgeRunnerForTest(t, sessions).Judge(context.Background(), loopJudgeRequestForTest())
+		_, err := loopJudgeRunnerForTest(t, sessions).Judge(t.Context(), loopJudgeRequestForTest())
 		if err == nil || !strings.Contains(err.Error(), "verdict-only judge attempted tool activity") {
 			t.Fatalf("Judge() error = %v, want verdict-only tool activity rejection", err)
 		}
@@ -859,7 +859,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 		response, err := loopJudgeRunnerForTest(t, sessions).Judge(
-			context.Background(),
+			t.Context(),
 			loopJudgeRequestForTest(),
 		)
 		if err != nil {
@@ -889,7 +889,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 		response, err := loopJudgeRunnerForTest(t, sessions).Judge(
-			context.Background(),
+			t.Context(),
 			loopJudgeRequestForTest(),
 		)
 		if err != nil {
@@ -1019,7 +1019,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 
 		judgeDone := make(chan error, 1)
 		go func() {
-			_, err := runner.Judge(context.Background(), req)
+			_, err := runner.Judge(t.Context(), req)
 			judgeDone <- err
 		}()
 		select {
@@ -1030,7 +1030,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 
 		revokeDone := make(chan error, 1)
 		go func() {
-			revokeDone <- runner.revokeExecution(context.Background(), req.CorrelationID)
+			revokeDone <- runner.revokeExecution(t.Context(), req.CorrelationID)
 		}()
 		waitForCondition(t, "judge revocation recorded before bind", func() bool {
 			runner.executions.mu.Lock()
@@ -1091,7 +1091,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		req.CorrelationID = "judge-attempt-clear-stop-failure"
 		judgeDone := make(chan error, 1)
 		go func() {
-			_, err := runner.Judge(context.Background(), req)
+			_, err := runner.Judge(t.Context(), req)
 			judgeDone <- err
 		}()
 		select {
@@ -1102,7 +1102,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 
 		revoker := loopGoalPromptLeaseRevoker{judges: runner}
 		err := revoker.RevokeGoalPromptLease(
-			context.Background(),
+			t.Context(),
 			looppkg.GoalPromptLease{JudgeAttemptID: req.CorrelationID},
 			string(looppkg.TransitionCauseGoalClear),
 		)
@@ -1132,7 +1132,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		defer release()
 		revoker := loopGoalPromptLeaseRevoker{judges: runner}
 		if err := revoker.RevokeGoalPromptLease(
-			context.Background(),
+			t.Context(),
 			looppkg.GoalPromptLease{JudgeAttemptID: "judge-attempt-revoked-before-begin"},
 			string(looppkg.TransitionCauseGoalClear),
 		); err != nil {
@@ -1140,7 +1140,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		req := loopJudgeRequestForTest()
 		req.CorrelationID = "judge-attempt-revoked-before-begin"
-		_, err = runner.Judge(context.Background(), req)
+		_, err = runner.Judge(t.Context(), req)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Judge() error = %v, want context.Canceled", err)
 		}
@@ -1159,7 +1159,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		runner := loopJudgeRunnerForTest(t, &loopActionBinderSessionManager{})
 		runner.executions = registry
-		if err := runner.revokeExecution(context.Background(), "judge-attempt-abandoned"); err != nil {
+		if err := runner.revokeExecution(t.Context(), "judge-attempt-abandoned"); err != nil {
 			t.Fatalf("revokeExecution() error = %v", err)
 		}
 		release()
@@ -1183,7 +1183,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			promptErr: context.Canceled,
 		}
 		runner := loopJudgeRunnerForTest(t, sessions)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err := runner.Judge(ctx, loopJudgeRequestForTest())
 		if !errors.Is(err, context.Canceled) {
@@ -1209,7 +1209,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			}},
 			stopErr: stopErr,
 		}
-		_, err := loopJudgeRunnerForTest(t, sessions).Judge(context.Background(), loopJudgeRequestForTest())
+		_, err := loopJudgeRunnerForTest(t, sessions).Judge(t.Context(), loopJudgeRequestForTest())
 		if !errors.Is(err, stopErr) {
 			t.Fatalf("Judge() error = %v, want cleanup failure", err)
 		}
@@ -1227,7 +1227,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			createErr:                createErr,
 			returnSessionOnCreateErr: true,
 		}
-		_, err := loopJudgeRunnerForTest(t, sessions).Judge(context.Background(), loopJudgeRequestForTest())
+		_, err := loopJudgeRunnerForTest(t, sessions).Judge(t.Context(), loopJudgeRequestForTest())
 		if !errors.Is(err, createErr) {
 			t.Fatalf("Judge() error = %v, want create failure", err)
 		}
@@ -1250,7 +1250,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 			}},
 		}
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop",
 			looppkg.ActionPromptRequest{Message: "loop event probe"},
@@ -1276,7 +1276,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 			{Type: acp.EventTypeAgentMessage, Text: `"files_changed":["server/index.ts"]}`},
 		}}
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop-deltas",
 			looppkg.ActionPromptRequest{Message: "loop delta probe"},
@@ -1305,7 +1305,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 			{Type: acp.EventTypeAgentMessage, Text: `{"status":"completed","summary":"shipped"}`},
 		}}
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop-filter",
 			looppkg.ActionPromptRequest{Message: "loop filter probe"},
@@ -1328,7 +1328,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 			{Type: acp.EventTypeThought, Text: "only thoughts this turn"},
 		}}
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop-fallback",
 			looppkg.ActionPromptRequest{Message: "loop fallback probe"},
@@ -1350,7 +1350,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 		}}}
 		var reported []int64
 		result, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			manager,
 			"sess-loop",
 			looppkg.ActionPromptRequest{
@@ -1842,7 +1842,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		res, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -1863,7 +1863,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		res, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -1997,7 +1997,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		_, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -2026,7 +2026,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		_, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -2059,7 +2059,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		_, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -2123,7 +2123,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
 			LoopRunID:   looppkg.RunID("loop-run-opt"),
 			Agent:       "opt-worker",
@@ -2167,8 +2167,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			},
 		}
 
-		trueVal := true
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
 			LoopRunID:   looppkg.RunID("loop-run-override"),
 			Agent:       "override-worker",
@@ -2176,7 +2175,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			Runtime: &looppkg.RuntimeSpec{
 				ACPOptions: []dsl.ACPOptionSelection{
 					{ID: "thinking", ValueID: "max"},
-					{ID: "fast_mode", BoolValue: &trueVal},
+					{ID: "fast_mode", BoolValue: new(true)},
 				},
 			},
 		})
@@ -2216,7 +2215,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			},
 		}
 
-		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+		_, err := binder.BindActionSession(t.Context(), looppkg.ActionSessionBindRequest{
 			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
 			LoopRunID:   looppkg.RunID("loop-run-speed"),
 			Agent:       "speed-worker",

@@ -375,7 +375,9 @@ describe("marketplace rendering boundary", () => {
     expect(screen.getByText(/No extensions match/)).toBeTruthy();
     fireEvent.change(search, { target: { value: "" } });
     expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(19);
-  });
+    // Accessible-name role queries over the full catalog run ~4s in jsdom and exceed the
+    // 5s default when turbo runs every workspace suite concurrently on CI.
+  }, 15_000);
 
   it("Should render truthful dates and current detail links without invented trust signals", () => {
     const entry = {

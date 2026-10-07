@@ -26,7 +26,7 @@ func TestEngineShouldSerializeConcurrentWriters(t *testing.T) {
 			waitGroup.Go(func() {
 				key := fmt.Sprintf("writer:%d", writer)
 				for write := range writesPerKey {
-					_, err := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+					_, err := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 						Kind: OpPut, Key: key, Value: objectValue(fmt.Sprintf("%d", write)),
 					}}, ApplyOptions{})
 					if err != nil {
@@ -39,7 +39,7 @@ func TestEngineShouldSerializeConcurrentWriters(t *testing.T) {
 		waitGroup.Wait()
 		for writer := range writers {
 			key := fmt.Sprintf("writer:%d", writer)
-			entry, err := engine.Get(context.Background(), "w1", "os_shell", key)
+			entry, err := engine.Get(t.Context(), "w1", "os_shell", key)
 			if err != nil {
 				t.Fatalf("Get(%s) error = %v", key, err)
 			}
@@ -56,7 +56,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 	t.Run("Should reject every operation outside its resolver gate (UT-076)", func(t *testing.T) {
 		t.Parallel()
 		engine, resolver, _ := newTestEngine(t, testLimits())
-		ctx := context.Background()
+		ctx := t.Context()
 		assertWorkspaceNotFound := func(name string, operation func() error) {
 			t.Helper()
 			if err := operation(); !errors.Is(err, ErrWorkspaceNotFound) {
@@ -123,7 +123,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 			entered: make(chan struct{}),
 			release: make(chan struct{}),
 		}
-		engine, err := Open(context.Background(), DatabasePath(t.TempDir()), resolver, testLimits())
+		engine, err := Open(t.Context(), DatabasePath(t.TempDir()), resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -132,14 +132,14 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
-		subscription, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		subscription, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch() error = %v", err)
 		}
 		resolver.armExecutionCheck()
 		applyDone := make(chan error, 1)
 		go func() {
-			_, applyErr := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+			_, applyErr := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 				Kind: OpPut, Key: "desktop", Value: objectValue("racing"),
 			}}, ApplyOptions{})
 			applyDone <- applyErr
@@ -152,7 +152,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 		base.markDeleting("w1")
 		purgeDone := make(chan error, 1)
 		go func() {
-			purgeDone <- engine.PurgeWorkspace(context.Background(), "w1")
+			purgeDone <- engine.PurgeWorkspace(t.Context(), "w1")
 		}()
 		close(resolver.release)
 		if err := <-applyDone; !errors.Is(err, ErrWorkspaceNotFound) {
@@ -169,11 +169,11 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("subscription did not close after purge")
 		}
-		if err := engine.PurgeWorkspace(context.Background(), "w1"); err != nil {
+		if err := engine.PurgeWorkspace(t.Context(), "w1"); err != nil {
 			t.Fatalf("second PurgeWorkspace() error = %v", err)
 		}
 		base.register("w1", "generation-2")
-		if entries, err := engine.List(context.Background(), "w1", "os_shell"); err != nil || len(entries) != 0 {
+		if entries, err := engine.List(t.Context(), "w1", "os_shell"); err != nil || len(entries) != 0 {
 			t.Fatalf("List(recreated) = %#v, %v; want empty", entries, err)
 		}
 	})
@@ -187,7 +187,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 			entered: make(chan struct{}),
 			release: make(chan struct{}),
 		}
-		engine, err := Open(context.Background(), DatabasePath(t.TempDir()), resolver, testLimits())
+		engine, err := Open(t.Context(), DatabasePath(t.TempDir()), resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -198,7 +198,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 		})
 		applyDone := make(chan error, 1)
 		go func() {
-			_, applyErr := engine.Apply(context.Background(), "w1", "os_shell", []Op{{
+			_, applyErr := engine.Apply(t.Context(), "w1", "os_shell", []Op{{
 				Kind: OpPut, Key: "desktop", Value: objectValue("old-generation"),
 			}}, ApplyOptions{})
 			applyDone <- applyErr
@@ -213,7 +213,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 		if err := <-applyDone; !errors.Is(err, ErrWorkspaceNotFound) {
 			t.Fatalf("delayed Apply() error = %v, want ErrWorkspaceNotFound", err)
 		}
-		if _, err := engine.Get(context.Background(), "w1", "os_shell", "desktop"); !errors.Is(err, ErrNotFound) {
+		if _, err := engine.Get(t.Context(), "w1", "os_shell", "desktop"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("Get(recreated) error = %v, want empty ErrNotFound", err)
 		}
 		created := applyPut(t, engine, "w1", "os_shell", "desktop", objectValue("new-generation"), 0, ApplyOptions{})
@@ -221,15 +221,15 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 			t.Fatalf("created = %#v, want fresh rev=1 seq=1", created)
 		}
 		base.markDeleting("w1")
-		if err := engine.PurgeWorkspace(context.Background(), "w1"); err != nil {
+		if err := engine.PurgeWorkspace(t.Context(), "w1"); err != nil {
 			t.Fatalf("PurgeWorkspace() error = %v", err)
 		}
-		if err := engine.PurgeWorkspace(context.Background(), "w1"); err != nil {
+		if err := engine.PurgeWorkspace(t.Context(), "w1"); err != nil {
 			t.Fatalf("second PurgeWorkspace() error = %v", err)
 		}
 		base.remove("w1")
 		base.register("w1", "generation-3")
-		if entries, err := engine.List(context.Background(), "w1", "os_shell"); err != nil || len(entries) != 0 {
+		if entries, err := engine.List(t.Context(), "w1", "os_shell"); err != nil || len(entries) != 0 {
 			t.Fatalf("List(second recreation) = %#v, %v; want empty", entries, err)
 		}
 	})
@@ -237,7 +237,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 	t.Run("Should close service and subscriptions idempotently (UT-089)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
-		subscription, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+		subscription, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch() error = %v", err)
 		}
@@ -269,16 +269,16 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 			run  func() error
 		}{
 			{name: "Get", run: func() error {
-				_, err := engine.Get(context.Background(), "w1", "os_shell", "desktop")
+				_, err := engine.Get(t.Context(), "w1", "os_shell", "desktop")
 				return err
 			}},
 			{name: "List", run: func() error {
-				_, err := engine.List(context.Background(), "w1", "os_shell")
+				_, err := engine.List(t.Context(), "w1", "os_shell")
 				return err
 			}},
 			{name: "Apply", run: func() error {
 				_, err := engine.Apply(
-					context.Background(),
+					t.Context(),
 					"w1",
 					"os_shell",
 					[]Op{{Kind: OpPut, Key: "desktop", Value: objectValue("closed")}},
@@ -287,10 +287,10 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 				return err
 			}},
 			{name: "Watch", run: func() error {
-				_, err := engine.Watch(context.Background(), "w1", []string{"os_shell"})
+				_, err := engine.Watch(t.Context(), "w1", []string{"os_shell"})
 				return err
 			}},
-			{name: "PurgeWorkspace", run: func() error { return engine.PurgeWorkspace(context.Background(), "w1") }},
+			{name: "PurgeWorkspace", run: func() error { return engine.PurgeWorkspace(t.Context(), "w1") }},
 		}
 		for _, operation := range operations {
 			if err := operation.run(); !errors.Is(err, ErrClosed) {
@@ -321,25 +321,25 @@ func TestEngineShouldValidateConstructionAndTransportMetrics(t *testing.T) {
 			open func() (*Engine, error)
 		}{
 			{name: "Should reject a nil resolver", open: func() (*Engine, error) {
-				return Open(context.Background(), path, nil, testLimits())
+				return Open(t.Context(), path, nil, testLimits())
 			}},
 			{name: "Should reject a zero value limit", open: func() (*Engine, error) {
-				return Open(context.Background(), path, resolver, Limits{MaxKeysPerWorkspace: 1})
+				return Open(t.Context(), path, resolver, Limits{MaxKeysPerWorkspace: 1})
 			}},
 			{name: "Should reject a zero key limit", open: func() (*Engine, error) {
-				return Open(context.Background(), path, resolver, Limits{MaxValueBytes: 1})
+				return Open(t.Context(), path, resolver, Limits{MaxValueBytes: 1})
 			}},
 			{name: "Should reject a nil logger", open: func() (*Engine, error) {
-				return Open(context.Background(), path, resolver, testLimits(), WithLogger(nil))
+				return Open(t.Context(), path, resolver, testLimits(), WithLogger(nil))
 			}},
 			{name: "Should reject a nil clock", open: func() (*Engine, error) {
-				return Open(context.Background(), path, resolver, testLimits(), WithClock(nil))
+				return Open(t.Context(), path, resolver, testLimits(), WithClock(nil))
 			}},
 			{name: "Should reject a zero open timeout", open: func() (*Engine, error) {
-				return Open(context.Background(), path, resolver, testLimits(), WithOpenTimeout(0))
+				return Open(t.Context(), path, resolver, testLimits(), WithOpenTimeout(0))
 			}},
 			{name: "Should reject an empty database path", open: func() (*Engine, error) {
-				return Open(context.Background(), "", resolver, testLimits())
+				return Open(t.Context(), "", resolver, testLimits())
 			}},
 		}
 		for _, test := range tests {
@@ -379,7 +379,7 @@ func TestEngineShouldValidateConstructionAndTransportMetrics(t *testing.T) {
 	t.Run("Should close a subscription when its context is canceled", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		subscription, err := engine.Watch(ctx, "w1", []string{"os_shell"})
 		if err != nil {
 			t.Fatalf("Watch() error = %v", err)

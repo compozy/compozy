@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -57,8 +57,8 @@ func collectAgentProbeTargetsWithDiagnostics(
 		if err != nil {
 			return nil, fmt.Errorf("daemon: list agents for probe health: %w", err)
 		}
-		sort.SliceStable(agents, func(i, j int) bool {
-			return strings.TrimSpace(agents[i].Def.Name) < strings.TrimSpace(agents[j].Def.Name)
+		slices.SortStableFunc(agents, func(a, b core.AgentCatalogEntry) int {
+			return strings.Compare(strings.TrimSpace(a.Def.Name), strings.TrimSpace(b.Def.Name))
 		})
 		for _, entry := range agents {
 			agent := entry.Def
@@ -96,7 +96,7 @@ func collectAgentProbeTargetsWithDiagnostics(
 	for name := range cfg.Providers {
 		providerNames = append(providerNames, strings.TrimSpace(name))
 	}
-	sort.Strings(providerNames)
+	slices.Sort(providerNames)
 	for _, name := range providerNames {
 		if name == "" {
 			continue

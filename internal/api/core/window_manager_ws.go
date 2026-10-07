@@ -286,9 +286,7 @@ func encodeWindowManagerUpdate(
 
 func (update encodedWindowManagerUpdate) write(socket *windowManagerSocket) error {
 	if update.event != nil {
-		if update.event.Revision > socket.revision {
-			socket.revision = update.event.Revision
-		}
+		socket.revision = max(socket.revision, update.event.Revision)
 		return socket.writeJSON(*update.event)
 	}
 	if update.client != nil {

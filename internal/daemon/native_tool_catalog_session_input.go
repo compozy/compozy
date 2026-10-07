@@ -14,13 +14,13 @@ import (
 )
 
 type toolListInput struct {
-	Offset int `json:"offset,omitempty"`
-	Limit  int `json:"limit,omitempty"`
+	Offset int `json:"offset,omitzero"`
+	Limit  int `json:"limit,omitzero"`
 }
 
 type toolSearchInput struct {
 	Query string `json:"query"`
-	Limit int    `json:"limit,omitempty"`
+	Limit int    `json:"limit,omitzero"`
 }
 
 type toolInfoInput struct {
@@ -29,13 +29,13 @@ type toolInfoInput struct {
 
 type skillListInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 }
 
 type skillSearchInput struct {
 	Query       string `json:"query"`
 	WorkspaceID string `json:"workspace,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 }
 
 type skillViewInput struct {
@@ -56,8 +56,8 @@ type sessionEventQueryInput struct {
 	Type          string `json:"type,omitempty"`
 	AgentName     string `json:"agent_name,omitempty"`
 	TurnID        string `json:"turn_id,omitempty"`
-	AfterSequence *int64 `json:"after_sequence,omitempty"`
-	Limit         int    `json:"limit,omitempty"`
+	AfterSequence *int64 `json:"after_sequence,omitzero"`
+	Limit         int    `json:"limit,omitzero"`
 	Since         string `json:"since,omitempty"`
 	Archive       string `json:"archive,omitempty"`
 }
@@ -66,8 +66,8 @@ type agentHeartbeatStatusInput struct {
 	WorkspaceID             string `json:"workspace"`
 	AgentName               string `json:"agent_name"`
 	SessionID               string `json:"session_id,omitempty"`
-	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
-	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
+	IncludeSessionHealth    bool   `json:"include_session_health,omitzero"`
+	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitzero"`
 }
 
 type agentHeartbeatWakeInput struct {
@@ -75,7 +75,7 @@ type agentHeartbeatWakeInput struct {
 	AgentName   string `json:"agent_name"`
 	SessionID   string `json:"session_id"`
 	Source      string `json:"source,omitempty"`
-	DryRun      bool   `json:"dry_run,omitempty"`
+	DryRun      bool   `json:"dry_run,omitzero"`
 }
 
 func (i sessionEventQueryInput) eventQuery(id toolspkg.ToolID) (store.EventQuery, error) {

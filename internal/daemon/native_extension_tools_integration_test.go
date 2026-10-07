@@ -246,11 +246,9 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		workspaceLookupIdentity := "01KYYQSM30GYWR3KY485HKB9QT"
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      workspaceRegistrationID,
-					Name:    "native-extension-workspace",
-					RootDir: workspaceRoot,
-				},
+				ID:          workspaceRegistrationID,
+				Name:        "native-extension-workspace",
+				RootDir:     workspaceRoot,
 				WorkspaceID: workspaceLookupIdentity,
 			},
 		}

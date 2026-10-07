@@ -1,7 +1,9 @@
 package gateway
 
 import (
-	"sort"
+	"cmp"
+	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 )
@@ -68,11 +70,8 @@ func projectStatus(
 			ListenerAddress: listenerAddress, Advertised: runtimeByTier[tier].Advertised,
 		})
 	}
-	sort.Slice(status.Addresses, func(i, j int) bool {
-		if status.Addresses[i].Tier != status.Addresses[j].Tier {
-			return status.Addresses[i].Tier < status.Addresses[j].Tier
-		}
-		return status.Addresses[i].Address < status.Addresses[j].Address
+	slices.SortFunc(status.Addresses, func(left, right AddressStatus) int {
+		return cmp.Or(cmp.Compare(left.Tier, right.Tier), strings.Compare(left.Address, right.Address))
 	})
 	return status
 }

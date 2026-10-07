@@ -205,11 +205,9 @@ func sqliteBoolWithPresence(value int, present int, field string) (*bool, error)
 	}
 	switch value {
 	case 0:
-		converted := false
-		return &converted, nil
+		return new(false), nil
 	case 1:
-		converted := true
-		return &converted, nil
+		return new(true), nil
 	default:
 		return nil, fmt.Errorf("store: model catalog %s boolean value %d is invalid", field, value)
 	}
@@ -221,11 +219,9 @@ func nullableSQLiteIntToBool(value sql.NullInt64, field string) (*bool, error) {
 	}
 	switch value.Int64 {
 	case 0:
-		converted := false
-		return &converted, nil
+		return new(false), nil
 	case 1:
-		converted := true
-		return &converted, nil
+		return new(true), nil
 	default:
 		return nil, fmt.Errorf("store: model catalog %s boolean value %d is invalid", field, value.Int64)
 	}
@@ -320,8 +316,7 @@ func nullReasoningEffort(value sql.NullString) *modelcatalog.ReasoningEffort {
 	if trimmed == "" {
 		return nil
 	}
-	effort := modelcatalog.ReasoningEffort(trimmed)
-	return &effort
+	return new(modelcatalog.ReasoningEffort(trimmed))
 }
 
 func parseOptionalModelCatalogTimestamp(value string, field string) (time.Time, error) {

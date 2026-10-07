@@ -1,7 +1,6 @@
 package situation
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -42,7 +41,7 @@ func TestContextForSessionActiveLeaseMetadataContract(t *testing.T) {
 			},
 		})
 
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:          "sess-1",
 			ProfileID:   store.DefaultProfileID,
 			AgentName:   "coder",

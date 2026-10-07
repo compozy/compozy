@@ -8,9 +8,8 @@ import (
 
 var errAsyncHookDropped = errors.New("hooks: async hook submission dropped")
 
-func submitAsyncHooks[P any, R any](
+func (h *Hooks) submitAsyncHooks[P any, R any](
 	parent context.Context,
-	h *Hooks,
 	payload P,
 	hooks []*ResolvedHook,
 	pipe pipeline[P, R],
@@ -22,13 +21,12 @@ func submitAsyncHooks[P any, R any](
 	parentDepth := currentDispatchDepth(parent)
 	parentChain := currentDispatchChain(parent)
 	for _, hook := range hooks {
-		submitAsyncHook(parent, h, payload, parentDepth, parentChain, hook, pipe)
+		h.submitAsyncHook(parent, payload, parentDepth, parentChain, hook, pipe)
 	}
 }
 
-func submitAsyncHook[P any, R any](
+func (h *Hooks) submitAsyncHook[P any, R any](
 	parent context.Context,
-	h *Hooks,
 	payload P,
 	parentDepth int,
 	parentChain []HookEvent,
@@ -43,7 +41,7 @@ func submitAsyncHook[P any, R any](
 	asyncPayload := cloneAsyncPayload(payload)
 	task := asyncTask{
 		hook: asyncHook.RegisteredHook,
-		run:  buildAsyncHookRunner(parent, h, asyncPayload, &asyncHook, pipe, parentDepth, parentChain),
+		run:  h.buildAsyncHookRunner(parent, asyncPayload, &asyncHook, pipe, parentDepth, parentChain),
 	}
 	if h.pool.Submit(task) {
 		return
@@ -61,9 +59,8 @@ func submitAsyncHook[P any, R any](
 	)
 }
 
-func buildAsyncHookRunner[P any, R any](
+func (h *Hooks) buildAsyncHookRunner[P any, R any](
 	parent context.Context,
-	h *Hooks,
 	payload P,
 	hook *ResolvedHook,
 	pipe pipeline[P, R],

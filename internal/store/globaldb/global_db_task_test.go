@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -6023,7 +6023,7 @@ func taskSummaryIDs(summaries []taskpkg.Summary) []string {
 	for idx := range summaries {
 		ids = append(ids, summaries[idx].ID)
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids
 }
 

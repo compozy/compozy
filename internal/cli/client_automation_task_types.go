@@ -173,7 +173,7 @@ type AgentTaskLeaseRecord = contract.TaskRunLeaseSummaryPayload
 // AgentTaskNextRecord is the stable CLI/client wrapper for next-work polling.
 type AgentTaskNextRecord struct {
 	Claimed bool                  `json:"claimed"`
-	Claim   *AgentTaskClaimRecord `json:"claim,omitempty"`
+	Claim   *AgentTaskClaimRecord `json:"claim,omitzero"`
 }
 
 // TaskEventRecord is the shared task audit-event payload.

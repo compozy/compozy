@@ -1039,17 +1039,15 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 		results := make([][]SourceStatus, 2)
 		errs := make([]error, 2)
 		startRefresh := func(index int) {
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
+			wg.Go(func() {
 				statuses, err := service.Refresh(ctx, RefreshOptions{
 					ProviderID: "codex",
 					Force:      true,
 					Now:        testTime(0),
 				})
-				results[i] = statuses
-				errs[i] = err
-			}(index)
+				results[index] = statuses
+				errs[index] = err
+			})
 		}
 		startRefresh(0)
 		waitForBlockingProviderSourceStart(t, source.started, "first provider refresh")

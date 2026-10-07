@@ -1020,7 +1020,6 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.method, func(t *testing.T) {
 			_, err := env.call(t, "ext-denied", tt.method, tt.params)
 			assertCapabilityDenied(t, err, tt.method)
@@ -1128,8 +1127,7 @@ func TestHostAPIIntegrationAutomationPreFireHookMutatesPrompt(t *testing.T) {
 		hookspkg.WithExecutorResolver(func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
 			return hookspkg.NewTypedNativeExecutor(
 				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationFirePatch, error) {
-					prompt := payload.Prompt + " with hook mutation"
-					return hookspkg.AutomationFirePatch{Prompt: &prompt}, nil
+					return hookspkg.AutomationFirePatch{Prompt: new(payload.Prompt + " with hook mutation")}, nil
 				},
 			), nil
 		}),

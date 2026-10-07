@@ -1,10 +1,11 @@
 package desktoprelease
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"path/filepath"
-	"sort"
+	"slices"
 )
 
 func (a *Authority) publishAndVerifyInventory(
@@ -67,6 +68,8 @@ func (a *Authority) verifyArtifacts(ctx context.Context, version string, artifac
 			return nil, errorWithCode(ErrorVerificationFailed, err)
 		}
 	}
-	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].Name < artifacts[j].Name })
+	slices.SortFunc(artifacts, func(a, b Artifact) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 	return artifacts, nil
 }

@@ -407,8 +407,7 @@ func cloneTimePointer(value *time.Time) *time.Time {
 	if value == nil || value.IsZero() {
 		return nil
 	}
-	clone := *value
-	return &clone
+	return new(*value)
 }
 
 func automationTimePointer(value time.Time) *time.Time {

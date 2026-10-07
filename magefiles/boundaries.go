@@ -3,6 +3,8 @@
 package main
 
 import (
+	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"go/parser"
@@ -11,7 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -354,7 +356,7 @@ func productionFilesImportingOutsideLeaf(
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 	return files, nil
 }
 
@@ -386,11 +388,8 @@ func inspectDependencyClosures(
 			})
 		}
 	}
-	sort.Slice(violations, func(left int, right int) bool {
-		if violations[left].root == violations[right].root {
-			return violations[left].dependency < violations[right].dependency
-		}
-		return violations[left].root < violations[right].root
+	slices.SortFunc(violations, func(a, b dependencyClosureViolation) int {
+		return cmp.Or(cmp.Compare(a.root, b.root), cmp.Compare(a.dependency, b.dependency))
 	})
 	return violations, nil
 }
@@ -401,10 +400,8 @@ func dependencyForbiddenByClosureRule(dependency string, rule dependencyClosureR
 			return false
 		}
 	}
-	for _, exact := range rule.forbiddenExact {
-		if dependency == exact {
-			return true
-		}
+	if slices.Contains(rule.forbiddenExact, dependency) {
+		return true
 	}
 	for _, prefix := range rule.forbiddenPrefixes {
 		if dependency == prefix || strings.HasPrefix(dependency, prefix+"/") {
@@ -415,13 +412,13 @@ func dependencyForbiddenByClosureRule(dependency string, rule dependencyClosureR
 }
 
 func listPackageDependencies(root string) ([]string, error) {
-	command := exec.Command("go", "list", "-deps", root)
+	command := exec.CommandContext(context.Background(), "go", "list", "-deps", root)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("go list -deps %s: %w: %s", root, err, strings.TrimSpace(string(output)))
 	}
 	dependencies := strings.Fields(string(output))
-	sort.Strings(dependencies)
+	slices.Sort(dependencies)
 	return dependencies, nil
 }
 
@@ -466,6 +463,6 @@ func filesImportingMatching(root string, matches func(string) bool) ([]string, e
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 	return files, nil
 }

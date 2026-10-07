@@ -97,7 +97,7 @@ func TestBindWithFallback(t *testing.T) {
 		ledger := &recordingEventLedger{}
 		primary, routes := testFallbackRoutes()
 		var calls []int
-		value, index, err := bindWithFallback(testutil.Context(t), manager, newSequence(ledger), primary, routes,
+		value, index, err := manager.bindWithFallback(testutil.Context(t), newSequence(ledger), primary, routes,
 			func(_ context.Context, attempt int, _ FallbackRoute) (string, error) {
 				calls = append(calls, attempt)
 				if attempt == 1 && len(ledger.fallbackRows()) != 1 {
@@ -136,7 +136,7 @@ func TestBindWithFallback(t *testing.T) {
 		t.Parallel()
 		ledger := &recordingEventLedger{}
 		primary, routes := testFallbackRoutes()
-		_, index, err := bindWithFallback(testutil.Context(t), manager, newSequence(ledger), primary, routes,
+		_, index, err := manager.bindWithFallback(testutil.Context(t), newSequence(ledger), primary, routes,
 			func(context.Context, int, FallbackRoute) (int, error) { return 7, nil })
 		if err != nil || index != 0 || len(ledger.fallbackRows()) != 0 {
 			t.Fatalf("bindWithFallback() index=%d err=%v rows=%d, want 0/nil/0", index, err, len(ledger.fallbackRows()))
@@ -149,7 +149,7 @@ func TestBindWithFallback(t *testing.T) {
 		primary, _ := testFallbackRoutes()
 		refused := refusedRateLimit()
 		calls := 0
-		_, _, err := bindWithFallback(testutil.Context(t), manager, newSequence(ledger), primary, nil,
+		_, _, err := manager.bindWithFallback(testutil.Context(t), newSequence(ledger), primary, nil,
 			func(context.Context, int, FallbackRoute) (int, error) {
 				calls++
 				return 0, refused
@@ -170,7 +170,7 @@ func TestBindWithFallback(t *testing.T) {
 		primary, routes := testFallbackRoutes()
 		acceptedErr := acp.WrapAcceptedStart("acp_1", errors.New("set config option failed"))
 		calls := 0
-		_, index, err := bindWithFallback(testutil.Context(t), manager, newSequence(ledger), primary, routes,
+		_, index, err := manager.bindWithFallback(testutil.Context(t), newSequence(ledger), primary, routes,
 			func(context.Context, int, FallbackRoute) (int, error) {
 				calls++
 				return 0, acceptedErr
@@ -185,7 +185,7 @@ func TestBindWithFallback(t *testing.T) {
 		primary, routes := testFallbackRoutes()
 		last := errors.New("cursor refused")
 		run := func() error {
-			_, _, err := bindWithFallback(testutil.Context(t), manager, newSequence(&recordingEventLedger{}), primary,
+			_, _, err := manager.bindWithFallback(testutil.Context(t), newSequence(&recordingEventLedger{}), primary,
 				routes, func(_ context.Context, attempt int, _ FallbackRoute) (int, error) {
 					if attempt == 2 {
 						return 0, last
@@ -224,7 +224,7 @@ func TestBindWithFallback(t *testing.T) {
 		primary, routes := testFallbackRoutes()
 		refused := refusedRateLimit()
 		calls := 0
-		_, _, err := bindWithFallback(testutil.Context(t), manager, newSequence(ledger), primary, routes,
+		_, _, err := manager.bindWithFallback(testutil.Context(t), newSequence(ledger), primary, routes,
 			func(context.Context, int, FallbackRoute) (int, error) {
 				calls++
 				return 0, refused
@@ -242,7 +242,7 @@ func TestBindWithFallback(t *testing.T) {
 		primary, routes := testFallbackRoutes()
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		calls := 0
-		_, _, err := bindWithFallback(ctx, manager, newSequence(&recordingEventLedger{}), primary, routes,
+		_, _, err := manager.bindWithFallback(ctx, newSequence(&recordingEventLedger{}), primary, routes,
 			func(ctx context.Context, _ int, _ FallbackRoute) (int, error) {
 				calls++
 				cancel()

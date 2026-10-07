@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"reflect"
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -120,23 +120,18 @@ func buildDefaultWindowManagerSection(
 	for commandID := range effective {
 		ids = append(ids, commandID)
 	}
-	for commandID := range section.Aliases {
-		if _, exists := bindableIDs[commandID]; !exists {
-			delete(section.Aliases, commandID)
-		}
-	}
-	sort.Strings(ids)
+	maps.DeleteFunc(section.Aliases, func(commandID, _ string) bool {
+		_, exists := bindableIDs[commandID]
+		return !exists
+	})
+	slices.Sort(ids)
 	section.Commands = make([]WindowManagerShortcutCommand, 0, len(ids))
 	for _, commandID := range ids {
 		section.Commands = append(section.Commands, WindowManagerShortcutCommand{
 			ID: commandID, Title: commandID, Source: string(cmdpalette.SourceKindCore),
 		})
 	}
-	globalIDs := make([]string, 0, len(cfg.WindowManager.GlobalShortcuts))
-	for commandID := range cfg.WindowManager.GlobalShortcuts {
-		globalIDs = append(globalIDs, commandID)
-	}
-	sort.Strings(globalIDs)
+	globalIDs := slices.Sorted(maps.Keys(cfg.WindowManager.GlobalShortcuts))
 	for _, commandID := range globalIDs {
 		section.GlobalShortcuts = append(section.GlobalShortcuts, WindowManagerGlobalShortcut{
 			CommandID: commandID, IntendedChord: cfg.WindowManager.GlobalShortcuts[commandID],

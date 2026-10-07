@@ -126,8 +126,7 @@ func redactMarker(marker *Marker) *Marker {
 	if marker == nil {
 		return nil
 	}
-	redacted := marker.Normalize()
-	return &redacted
+	return new(marker.Normalize())
 }
 
 func redactTranscriptToolResult(result *ToolResult) *ToolResult {

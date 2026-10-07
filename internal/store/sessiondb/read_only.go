@@ -65,9 +65,7 @@ func (c readOnlyOpenConfig) normalize() readOnlyOpenConfig {
 	if c.maxRetryDelay <= 0 {
 		c.maxRetryDelay = defaultReadOnlyOpenMaxRetryDelay
 	}
-	if c.maxRetryDelay < c.minRetryDelay {
-		c.maxRetryDelay = c.minRetryDelay
-	}
+	c.maxRetryDelay = max(c.maxRetryDelay, c.minRetryDelay)
 	return c
 }
 

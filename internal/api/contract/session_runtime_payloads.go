@@ -23,7 +23,7 @@ type CreateSessionRequest struct {
 	Workspace     string                     `json:"workspace,omitempty"`
 	WorkspacePath string                     `json:"workspace_path,omitempty"`
 	Worktree      string                     `json:"worktree,omitempty"`
-	NewWorktree   *NewSessionWorktreeRequest `json:"new_worktree,omitempty"`
+	NewWorktree   *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
 	// ParentSessionID records creation provenance; the parent must live in the
 	// target workspace and the link never narrows the child's lifecycle.
 	ParentSessionID string `json:"parent_session_id,omitempty"`
@@ -46,7 +46,7 @@ type NewSessionWorktreeRequest struct {
 // Confirmed is mandatory because the origin session is never moved in place.
 type ForkSessionWorktreeRequest struct {
 	Worktree    string                     `json:"worktree,omitempty"`
-	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitempty"`
+	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
 	Confirmed   bool                       `json:"confirmed"`
 }
 
@@ -59,16 +59,16 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	Queue               *SessionQueueSummaryPayload `json:"queue,omitempty"`
+	Queue               *SessionQueueSummaryPayload `json:"queue,omitzero"`
 	Supervision         *session.SupervisionState   `json:"supervision"`
-	BusyInput           *session.BusyInputState     `json:"busy_input,omitempty"`
+	BusyInput           *session.BusyInputState     `json:"busy_input,omitzero"`
 	ID                  string                      `json:"id"`
 	ProfileID           string                      `json:"profile_id"`
 	ProfileName         string                      `json:"profile_name"`
 	ProfileColor        string                      `json:"profile_color,omitempty"`
 	ProfileIcon         string                      `json:"profile_icon,omitempty"`
 	ProfileEmoji        string                      `json:"profile_emoji,omitempty"`
-	ProfileArchived     bool                        `json:"profile_archived,omitempty"`
+	ProfileArchived     bool                        `json:"profile_archived,omitzero"`
 	Name                string                      `json:"name,omitempty"`
 	AgentName           string                      `json:"agent_name"`
 	Runtime             SessionRuntimePayload       `json:"runtime"`
@@ -81,7 +81,7 @@ type SessionPayload struct {
 	Attachable          bool                        `json:"attachable"`
 	AttachedTo          string                      `json:"attached_to,omitempty"`
 	AttachExpiresAt     *time.Time                  `json:"attach_expires_at,omitempty"`
-	TranscriptEpoch     int64                       `json:"transcript_epoch,omitempty"`
+	TranscriptEpoch     int64                       `json:"transcript_epoch,omitzero"`
 	AttentionChangedAt  *time.Time                  `json:"attention_changed_at,omitempty"`
 	PendingInteractions []PendingInteractionPayload `json:"pending_interactions"`
 	ArchivedAt          *time.Time                  `json:"archived_at"`
@@ -89,16 +89,16 @@ type SessionPayload struct {
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	StopCause  string           `json:"stop_cause,omitempty"`
 	Attention  string           `json:"attention,omitempty"`
-	Verified   *bool            `json:"verified,omitempty"`
-	Escalated  *bool            `json:"escalated,omitempty"`
+	Verified   *bool            `json:"verified,omitzero"`
+	Escalated  *bool            `json:"escalated,omitzero"`
 	// StopDetail is the session-level stop context paired with StopReason.
 	StopDetail        string                       `json:"stop_detail,omitempty"`
-	Failure           *SessionFailurePayload       `json:"failure,omitempty"`
+	Failure           *SessionFailurePayload       `json:"failure,omitzero"`
 	AvailableCommands []ACPAvailableCommandPayload `json:"available_commands"`
-	Activity          *RuntimeActivityPayload      `json:"activity,omitempty"`
-	Lineage           *SessionLineagePayload       `json:"lineage,omitempty"`
-	Derivation        *SessionDerivationPayload    `json:"derivation,omitempty"`
-	Health            *SessionHealthPayload        `json:"health,omitempty"`
+	Activity          *RuntimeActivityPayload      `json:"activity,omitzero"`
+	Lineage           *SessionLineagePayload       `json:"lineage,omitzero"`
+	Derivation        *SessionDerivationPayload    `json:"derivation,omitzero"`
+	Health            *SessionHealthPayload        `json:"health,omitzero"`
 	CreatedAt         time.Time                    `json:"created_at"`
 	UpdatedAt         time.Time                    `json:"updated_at"`
 }
@@ -184,7 +184,7 @@ type RuntimeActivityPayload struct {
 // AttachSessionRequest captures explicit attach-lock options.
 type AttachSessionRequest struct {
 	AttachedTo string `json:"attached_to,omitempty"`
-	TTLSeconds int    `json:"ttl_seconds,omitempty"`
+	TTLSeconds int    `json:"ttl_seconds,omitzero"`
 }
 
 // SessionAttachPayload reports the attach lease acquired by one caller.
@@ -217,7 +217,7 @@ type RecapSnapshotPayload struct {
 // RecapPayload is a deterministic session recap composed from persisted daemon state.
 type RecapPayload struct {
 	Session        SessionPayload            `json:"session"`
-	ActiveRun      *TaskRunPayload           `json:"active_run,omitempty"`
+	ActiveRun      *TaskRunPayload           `json:"active_run,omitzero"`
 	RecentMarkers  []TranscriptMarkerPayload `json:"recent_markers"`
 	RecentMessages []transcript.UIMessage    `json:"recent_messages"`
 	PendingInputs  int                       `json:"pending_inputs"`

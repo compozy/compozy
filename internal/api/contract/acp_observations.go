@@ -31,7 +31,7 @@ func ACPPromptStopReasonValues() []string {
 type ACPAvailableCommandPayload struct {
 	Name        string                           `json:"name"`
 	Description string                           `json:"description"`
-	Input       *ACPAvailableCommandInputPayload `json:"input,omitempty"`
+	Input       *ACPAvailableCommandInputPayload `json:"input,omitzero"`
 }
 
 // ACPAvailableCommandInputPayload describes the optional unstructured command argument.

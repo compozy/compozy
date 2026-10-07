@@ -73,8 +73,7 @@ func (g *GoalRepo) ListGoalTurns(
 	page.Turns = turns
 	if len(page.Turns) > limit {
 		page.Turns = page.Turns[:limit]
-		next := page.Turns[len(page.Turns)-1].Seq
-		page.NextAfterSeq = &next
+		page.NextAfterSeq = new(page.Turns[len(page.Turns)-1].Seq)
 	}
 	return page, nil
 }
@@ -200,20 +199,16 @@ type goalTurnScanFields struct {
 
 func (fields *goalTurnScanFields) apply(turn *goal.Turn) error {
 	if fields.resultStatus.Valid {
-		value := fields.resultStatus.String
-		turn.ResultStatus = &value
+		turn.ResultStatus = new(fields.resultStatus.String)
 	}
 	if fields.stopReason.Valid {
-		value := looppkg.ActionStopReason(fields.stopReason.String)
-		turn.StopReason = &value
+		turn.StopReason = new(looppkg.ActionStopReason(fields.stopReason.String))
 	}
 	if fields.reasonCode.Valid {
-		value := looppkg.ReasonCode(fields.reasonCode.String)
-		turn.ReasonCode = &value
+		turn.ReasonCode = new(looppkg.ReasonCode(fields.reasonCode.String))
 	}
 	if fields.verdictOutcome.Valid {
-		value := gate.VerdictOutcome(fields.verdictOutcome.String)
-		turn.VerdictOutcome = &value
+		turn.VerdictOutcome = new(gate.VerdictOutcome(fields.verdictOutcome.String))
 	}
 	if err := json.Unmarshal([]byte(fields.blockingJSON), &turn.BlockingIssues); err != nil {
 		return fmt.Errorf("store: decode goal turn blocking issues: %w", err)
@@ -234,16 +229,13 @@ func (fields *goalTurnScanFields) apply(turn *goal.Turn) error {
 		turn.Warnings = []gate.DiagnosticWarning{}
 	}
 	if fields.evidenceRef.Valid {
-		value := fields.evidenceRef.String
-		turn.EvidenceRef = &value
+		turn.EvidenceRef = new(fields.evidenceRef.String)
 	}
 	if fields.promptRef.Valid {
-		value := fields.promptRef.String
-		turn.PromptRef = &value
+		turn.PromptRef = new(fields.promptRef.String)
 	}
 	if fields.tokensUsed.Valid {
-		value := fields.tokensUsed.Int64
-		turn.TokensUsed = &value
+		turn.TokensUsed = new(fields.tokensUsed.Int64)
 	}
 	var err error
 	turn.StartedAt, err = parseGoalTimestampValue(fields.startedAtRaw, "turn started_at")

@@ -1,7 +1,8 @@
 package testutil
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,13 +22,11 @@ func stubSessionListPage(infos []*session.Info, query session.ListQuery) session
 		}
 		filtered = append(filtered, info)
 	}
-	sort.Slice(filtered, func(i, j int) bool {
-		left := stubSessionListTime(filtered[i], query.Sort)
-		right := stubSessionListTime(filtered[j], query.Sort)
-		if left.Equal(right) {
-			return filtered[i].ID > filtered[j].ID
-		}
-		return left.After(right)
+	slices.SortFunc(filtered, func(a, b *session.Info) int {
+		return cmp.Or(
+			stubSessionListTime(b, query.Sort).Compare(stubSessionListTime(a, query.Sort)),
+			cmp.Compare(b.ID, a.ID),
+		)
 	})
 	total := len(filtered)
 	hasMore := total > limit

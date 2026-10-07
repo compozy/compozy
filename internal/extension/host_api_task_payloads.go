@@ -139,8 +139,7 @@ func needsAttentionBy(attention *taskpkg.NeedsAttention) *taskpkg.ActorIdentity 
 	if attention == nil || attention.By.IsZero() {
 		return nil
 	}
-	actor := attention.By
-	return &actor
+	return new(attention.By)
 }
 
 func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {

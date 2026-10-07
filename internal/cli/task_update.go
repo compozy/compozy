@@ -104,8 +104,7 @@ func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTa
 		request.Metadata = &metadata
 	}
 	if input.AutoEnqueueSet {
-		autoEnqueue := input.AutoEnqueueOnReady
-		request.AutoEnqueueOnReady = &autoEnqueue
+		request.AutoEnqueueOnReady = new(input.AutoEnqueueOnReady)
 	}
 	ownerChanged := cmd.Flags().Changed("owner-kind") || cmd.Flags().Changed("owner-ref")
 	if input.ClearOwner && ownerChanged {

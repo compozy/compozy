@@ -384,7 +384,7 @@ func TestCallWithContextCancellationReturnsPromptly(t *testing.T) {
 		DefaultHookTimeoutMS:  100,
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 	defer cancel()
 
 	startedAt := time.Now()
@@ -711,7 +711,7 @@ func TestStopHealthMonitorIsRaceFree(t *testing.T) {
 	t.Parallel()
 
 	for range 32 {
-		lifecycleCtx, cancel := context.WithCancel(context.Background())
+		lifecycleCtx, cancel := context.WithCancel(t.Context())
 		process := &Process{
 			lifecycleCtx:    lifecycleCtx,
 			cancelLifecycle: cancel,
@@ -735,7 +735,7 @@ func TestStopHealthMonitorIsRaceFree(t *testing.T) {
 func TestStopHealthMonitorCancelsInFlightProbe(t *testing.T) {
 	t.Parallel()
 
-	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	lifecycleCtx, cancel := context.WithCancel(t.Context())
 	process := &Process{
 		stdin:           discardWriteCloser{Writer: io.Discard},
 		lifecycleCtx:    lifecycleCtx,
@@ -1254,7 +1254,7 @@ func TestNilHelpersAndBufferUtilities(t *testing.T) {
 func testContext(t *testing.T) context.Context {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 	t.Cleanup(cancel)
 	return ctx
 }

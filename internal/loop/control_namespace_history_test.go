@@ -46,11 +46,9 @@ func testGenerationHistoryExternalizedOutputs(t *testing.T) {
 	bestPayload := json.RawMessage(`{"summary":"best"}`)
 	previousRef := OutputRefForPayload(previousPayload)
 	bestRef := OutputRefForPayload(bestPayload)
-	bestGeneration := int64(1)
-	bestScore := 0.91
 	run := Run{
 		ID: "run-history-payloads", WorkspaceID: "ws-history-payloads",
-		BestGeneration: &bestGeneration, BestScore: &bestScore,
+		BestGeneration: new(int64(1)), BestScore: new(0.91),
 	}
 	reader := generationHistoryReaderStub{
 		outputs: map[int][]GenerationOutput{
@@ -63,7 +61,7 @@ func testGenerationHistoryExternalizedOutputs(t *testing.T) {
 		},
 	}
 
-	history, err := ReadGenerationHistory(context.Background(), reader, run, 3)
+	history, err := ReadGenerationHistory(t.Context(), reader, run, 3)
 	if err != nil {
 		t.Fatalf("ReadGenerationHistory() error = %v", err)
 	}
@@ -101,7 +99,7 @@ func testGenerationHistoryOutputOwnership(t *testing.T) {
 		},
 	}
 
-	_, err := ReadGenerationHistory(context.Background(), reader, run, 3)
+	_, err := ReadGenerationHistory(t.Context(), reader, run, 3)
 	if !errors.Is(err, ErrOutputRefNotFound) {
 		t.Fatalf("ReadGenerationHistory() error = %v, want %v", err, ErrOutputRefNotFound)
 	}
@@ -125,7 +123,7 @@ func testGenerationHistoryRepairFailure(t *testing.T) {
 		},
 	}
 	history, err := ReadGenerationHistory(
-		context.Background(), reader, Run{ID: "run-repair", WorkspaceID: "workspace-1"}, 3,
+		t.Context(), reader, Run{ID: "run-repair", WorkspaceID: "workspace-1"}, 3,
 	)
 	if err != nil {
 		t.Fatalf("ReadGenerationHistory() error = %v", err)
@@ -161,7 +159,7 @@ func testGenerationHistoryRepairFailure(t *testing.T) {
 func testGenerationHistoryInitialGeneration(t *testing.T) {
 	t.Parallel()
 
-	history, err := ReadGenerationHistory(context.Background(), nil, Run{}, 1)
+	history, err := ReadGenerationHistory(t.Context(), nil, Run{}, 1)
 	if err != nil {
 		t.Fatalf("ReadGenerationHistory() error = %v", err)
 	}
@@ -270,7 +268,7 @@ func testGenerationHistoryPreviousGeneration(t *testing.T) {
 	}
 
 	history, err := ReadGenerationHistory(
-		context.Background(),
+		t.Context(),
 		reader,
 		Run{ID: "run-1", WorkspaceID: "workspace-1"},
 		3,
@@ -440,7 +438,7 @@ func testGenerationHistoryBestGeneration(t *testing.T) {
 	}
 
 	history, err := ReadGenerationHistory(
-		context.Background(),
+		t.Context(),
 		reader,
 		Run{
 			ID:             "run-1",
@@ -491,8 +489,6 @@ func testGenerationHistoryBestValidation(t *testing.T) {
 	t.Parallel()
 
 	validGeneration := int64(1)
-	invalidGeneration := int64(0)
-	validScore := 0.8
 	nonFiniteScore := math.Inf(1)
 	tests := []struct {
 		name string
@@ -504,7 +500,7 @@ func testGenerationHistoryBestValidation(t *testing.T) {
 		},
 		{
 			name: "Should reject best generation below one",
-			run:  Run{BestGeneration: &invalidGeneration, BestScore: &validScore},
+			run:  Run{BestGeneration: new(int64(0)), BestScore: new(0.8)},
 		},
 		{
 			name: "Should reject a non-finite best score",
@@ -527,11 +523,9 @@ func testGenerationHistoryBestValidation(t *testing.T) {
 func testGenerationHistoryScalarBestOutput(t *testing.T) {
 	t.Parallel()
 
-	bestGeneration := int64(1)
-	bestScore := 0.5
 	history, err := ProjectGenerationHistory(
 		2,
-		Run{BestGeneration: &bestGeneration, BestScore: &bestScore},
+		Run{BestGeneration: new(int64(1)), BestScore: new(0.5)},
 		nil,
 		nil,
 		nil,
@@ -564,7 +558,7 @@ func testGenerationHistoryContractVerdict(t *testing.T) {
 	}
 
 	history, err := ReadGenerationHistory(
-		context.Background(),
+		t.Context(),
 		reader,
 		Run{ID: "run-1", WorkspaceID: "workspace-1"},
 		3,
@@ -584,7 +578,7 @@ func testGenerationHistoryContractVerdict(t *testing.T) {
 func testGenerationHistoryNonPositiveGeneration(t *testing.T) {
 	t.Parallel()
 
-	_, err := ReadGenerationHistory(context.Background(), generationHistoryReaderStub{}, Run{}, 0)
+	_, err := ReadGenerationHistory(t.Context(), generationHistoryReaderStub{}, Run{}, 0)
 	if !errors.Is(err, ErrValidation) {
 		t.Fatalf("ReadGenerationHistory() error = %v, want ErrValidation", err)
 	}

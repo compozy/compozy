@@ -798,7 +798,7 @@ func TestWebhookRequestValidationRejectsInvalidScopeAndMalformedEndpointBeforeDi
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodPost,
 		"/api/webhooks/global/not-used",
 		http.NoBody,
@@ -2119,7 +2119,7 @@ func performAutomationCoreRequest(
 	t.Helper()
 
 	request := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		method,
 		path,
 		bytes.NewReader(body),

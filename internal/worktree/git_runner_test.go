@@ -102,7 +102,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		gate := NewCapabilityGateWithLookPath(&scriptedGitRunner{}, func(string) (string, error) {
 			return "", os.ErrNotExist
 		})
-		diagnostic, err := gate.Check(context.Background())
+		diagnostic, err := gate.Check(t.Context())
 		if !errors.Is(err, ErrGitUnavailable) || diagnostic.Code != ErrGitUnavailable.Error() {
 			t.Fatalf("Check() = (%#v, %v), want worktree_git_unavailable", diagnostic, err)
 		}
@@ -112,7 +112,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		t.Parallel()
 		var nilGate *CapabilityGate
 		if diagnostic, err := nilGate.Check(
-			context.Background(),
+			t.Context(),
 		); !errors.Is(err, ErrGitUnavailable) ||
 			diagnostic.Code == "" {
 			t.Fatalf("nil Check() = (%#v, %v), want unavailable", diagnostic, err)
@@ -133,7 +133,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		for _, testCase := range cases {
 			t.Run("Should reject missing "+testCase.name, func(t *testing.T) {
 				t.Parallel()
-				diagnostic, err := testCase.gate.Check(context.Background())
+				diagnostic, err := testCase.gate.Check(t.Context())
 				if !errors.Is(err, ErrGitUnavailable) || diagnostic.Code != ErrGitUnavailable.Error() {
 					t.Fatalf("Check() = (%#v, %v), want unavailable", diagnostic, err)
 				}
@@ -147,7 +147,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		gate := NewCapabilityGateWithLookPath(&scriptedGitRunner{}, func(string) (string, error) {
 			return "", errors.New("lookup failed with " + secret)
 		})
-		diagnostic, err := gate.Check(context.Background())
+		diagnostic, err := gate.Check(t.Context())
 		if !errors.Is(err, ErrGitUnavailable) || strings.Contains(diagnostic.Message, secret) ||
 			strings.Contains(err.Error(), secret) {
 			t.Fatalf("Check(secret) = (%#v, %v), want redacted unavailable diagnostic", diagnostic, err)
@@ -158,7 +158,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		t.Parallel()
 		runner := &scriptedGitRunner{stdout: []byte("git version 2.30.1\n")}
 		gate := NewCapabilityGateWithLookPath(runner, func(string) (string, error) { return "/usr/bin/git", nil })
-		diagnostic, err := gate.Check(context.Background())
+		diagnostic, err := gate.Check(t.Context())
 		if !errors.Is(err, ErrGitVersionUnsupported) || !strings.Contains(diagnostic.Message, "2.30.1") {
 			t.Fatalf("Check() = (%#v, %v), want unsupported 2.30.1", diagnostic, err)
 		}
@@ -173,7 +173,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 				gate := NewCapabilityGateWithLookPath(runner, func(string) (string, error) {
 					return "/usr/bin/git", nil
 				})
-				if _, err := gate.Check(context.Background()); !errors.Is(err, ErrGitVersionUnsupported) {
+				if _, err := gate.Check(t.Context()); !errors.Is(err, ErrGitVersionUnsupported) {
 					t.Fatalf("Check(%q) error = %v, want unsupported", output, err)
 				}
 			})
@@ -185,7 +185,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		runner := &scriptedGitRunner{stdout: []byte("git version 2.45.0\n")}
 		gate := NewCapabilityGateWithLookPath(runner, func(string) (string, error) { return "/usr/bin/git", nil })
 		for range 2 {
-			diagnostic, err := gate.Check(context.Background())
+			diagnostic, err := gate.Check(t.Context())
 			if err != nil || !diagnostic.Available {
 				t.Fatalf("Check() = (%#v, %v), want available", diagnostic, err)
 			}
@@ -199,12 +199,12 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		t.Parallel()
 		runner := &scriptedGitRunner{stdout: []byte("git version 2.45.0\n")}
 		gate := NewCapabilityGateWithLookPath(runner, func(string) (string, error) { return "/usr/bin/git", nil })
-		canceled, cancel := context.WithCancel(context.Background())
+		canceled, cancel := context.WithCancel(t.Context())
 		cancel()
 		if _, err := gate.Check(canceled); err == nil {
 			t.Fatal("Check(canceled) error = nil")
 		}
-		diagnostic, err := gate.Check(context.Background())
+		diagnostic, err := gate.Check(t.Context())
 		if err != nil || !diagnostic.Available || runner.callCount() != 2 {
 			t.Fatalf(
 				"Check(retry) = (%#v, %v), calls = %d; want available after two probes",
@@ -262,19 +262,19 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRealGitRunner() error = %v", err)
 		}
-		stdout, stderr, err := runner.Run(context.Background(), "", "--version")
+		stdout, stderr, err := runner.Run(t.Context(), "", "--version")
 		if err != nil || !strings.HasPrefix(string(stdout), "git version ") || len(stderr) != 0 {
 			t.Fatalf("Run(--version) = %q, %q, %v, want captured Git version", stdout, stderr, err)
 		}
 
 		failed := &RealGitRunner{executable: "/bin/sh", timeout: time.Second, environ: os.Environ}
-		_, stderr, err = failed.Run(context.Background(), "", "-c", "printf failed >&2; exit 7")
+		_, stderr, err = failed.Run(t.Context(), "", "-c", "printf failed >&2; exit 7")
 		if err == nil || string(stderr) != "failed" || !strings.Contains(err.Error(), "failed") {
 			t.Fatalf("Run(failure) stderr/error = %q / %v, want captured diagnostic", stderr, err)
 		}
 
 		var unavailable *RealGitRunner
-		if _, _, err := unavailable.Run(context.Background(), "", "--version"); !errors.Is(err, ErrGitUnavailable) {
+		if _, _, err := unavailable.Run(t.Context(), "", "--version"); !errors.Is(err, ErrGitUnavailable) {
 			t.Fatalf("nil Run() error = %v, want ErrGitUnavailable", err)
 		}
 	})
@@ -283,7 +283,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		t.Parallel()
 		runner := &RealGitRunner{executable: "/bin/sh", timeout: time.Second, environ: os.Environ}
 		stdout, stderr, err := runner.Run(
-			context.Background(),
+			t.Context(),
 			"",
 			"-c",
 			"yes x | head -c 1100000; yes e | head -c 1100000 >&2",
@@ -307,7 +307,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		var mu sync.Mutex
 		chunks := map[GitOutputStream]string{}
 		stdout, stderr, err := runner.RunStreaming(
-			context.Background(), "", func(output GitOutput) {
+			t.Context(), "", func(output GitOutput) {
 				mu.Lock()
 				chunks[output.Stream] += string(output.Chunk)
 				mu.Unlock()
@@ -327,7 +327,7 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 	t.Run("Should kill and wait for a command that exceeds its timeout", func(t *testing.T) {
 		t.Parallel()
 		runner := &RealGitRunner{executable: "/bin/sh", timeout: 250 * time.Millisecond, environ: os.Environ}
-		_, stderr, err := runner.Run(context.Background(), "", "-c", "echo timed-out >&2; sleep 5")
+		_, stderr, err := runner.Run(t.Context(), "", "-c", "echo timed-out >&2; sleep 5")
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("Run() error = %v, want context deadline exceeded", err)
 		}

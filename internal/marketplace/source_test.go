@@ -924,7 +924,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
-		document, err := source.Fetch(context.Background())
+		document, err := source.Fetch(t.Context())
 		if err != nil {
 			t.Fatalf("Fetch() error = %v", err)
 		}
@@ -992,7 +992,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
-		_, err = source.Fetch(context.Background())
+		_, err = source.Fetch(t.Context())
 		if !errors.Is(err, ErrResponseTooLarge) {
 			t.Fatalf("Fetch() error = %v, want ErrResponseTooLarge", err)
 		}
@@ -1021,9 +1021,9 @@ func TestCatalogSourceFetch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
-		_, err = source.Fetch(context.Background())
-		var statusErr *httpStatusError
-		if !errors.As(err, &statusErr) || !strings.Contains(err.Error(), "HTTP 503") {
+		_, err = source.Fetch(t.Context())
+		_, ok := errors.AsType[*httpStatusError](err)
+		if !ok || !strings.Contains(err.Error(), "HTTP 503") {
 			t.Fatalf("Fetch() error = %v, want HTTP 503 classification", err)
 		}
 	})
@@ -1065,7 +1065,7 @@ func TestCatalogSourceFetch(t *testing.T) {
 
 		var nilSource *HTTPSource
 
-		_, err := nilSource.Fetch(context.Background())
+		_, err := nilSource.Fetch(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "HTTP source is required") {
 			t.Fatalf("nil Fetch() error = %v, want source validation", err)
 		}

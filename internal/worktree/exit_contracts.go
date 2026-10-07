@@ -16,31 +16,31 @@ type ExitActionPlan struct {
 	Label         string     `json:"label"`
 	Enabled       bool       `json:"enabled"`
 	BlockedReason string     `json:"blocked_reason,omitempty"`
-	Publish       bool       `json:"publish,omitempty"`
+	Publish       bool       `json:"publish,omitzero"`
 	URL           string     `json:"url,omitempty"`
-	PRNumber      int        `json:"pr_number,omitempty"`
+	PRNumber      int        `json:"pr_number,omitzero"`
 }
 
 type ExitCommitScope struct {
 	IncludePaths       []string `json:"include_paths,omitempty"`
 	Fingerprint        string   `json:"fingerprint,omitempty"`
-	Complete           bool     `json:"complete,omitempty"`
+	Complete           bool     `json:"complete,omitzero"`
 	ChangedFiles       int      `json:"changed_files"`
 	Insertions         int      `json:"insertions"`
 	Deletions          int      `json:"deletions"`
 	UntrackedFiles     []string `json:"untracked_files"`
 	UntrackedTotal     int      `json:"untracked_total"`
-	UntrackedTruncated bool     `json:"untracked_truncated,omitempty"`
+	UntrackedTruncated bool     `json:"untracked_truncated,omitzero"`
 }
 
 type ExitCleanupEvidence struct {
 	ForgeState string `json:"forge_state,omitempty"`
-	Stale      bool   `json:"stale,omitempty"`
+	Stale      bool   `json:"stale,omitzero"`
 	Safe       bool   `json:"safe"`
 	Source     string `json:"source,omitempty"`
 	Summary    string `json:"summary,omitempty"`
 	Blocker    string `json:"blocker,omitempty"`
-	Downgraded bool   `json:"downgraded,omitempty"`
+	Downgraded bool   `json:"downgraded,omitzero"`
 }
 
 type ExitPRPrefill struct {
@@ -55,9 +55,9 @@ type ExitPlan struct {
 	GlobalPauseCause string              `json:"global_pause_cause,omitempty"`
 	CommitScope      ExitCommitScope     `json:"commit_scope"`
 	BrowserURL       string              `json:"browser_url,omitempty"`
-	Forge            *ForgeCapabilities  `json:"forge,omitempty"`
-	ForgeStatus      *ForgeStatus        `json:"forge_status,omitempty"`
-	PRPrefill        *ExitPRPrefill      `json:"pr_prefill,omitempty"`
+	Forge            *ForgeCapabilities  `json:"forge,omitzero"`
+	ForgeStatus      *ForgeStatus        `json:"forge_status,omitzero"`
+	PRPrefill        *ExitPRPrefill      `json:"pr_prefill,omitzero"`
 	Cleanup          ExitCleanupEvidence `json:"cleanup"`
 	Base             string              `json:"base,omitempty"`
 	RemoteURLs       []string            `json:"remote_urls,omitempty"`

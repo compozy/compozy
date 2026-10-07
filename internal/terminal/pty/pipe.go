@@ -282,12 +282,10 @@ func (p *pipeProc) pipeExit(err error) Exit {
 	}
 	p.mu.RUnlock()
 	if status, ok := errors.AsType[interp.ExitStatus](err); ok {
-		code := int(status)
-		return Exit{Cause: exitCauseExited, Code: &code}
+		return Exit{Cause: exitCauseExited, Code: new(int(status))}
 	}
 	if err == nil {
-		code := 0
-		return Exit{Cause: exitCauseExited, Code: &code}
+		return Exit{Cause: exitCauseExited, Code: new(0)}
 	}
 	return Exit{Cause: exitCauseUnknown}
 }
@@ -302,7 +300,7 @@ func (p *pipeProc) signalReady(err error) {
 }
 
 func normalizeExecWaitError(err error) error {
-	if errors.As(err, new(*exec.ExitError)) {
+	if _, ok := errors.AsType[*exec.ExitError](err); ok {
 		return nil
 	}
 	return err

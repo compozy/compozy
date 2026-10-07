@@ -109,7 +109,7 @@ func TestSchedulerIntegrationShutdownCancelsInflightDispatch(t *testing.T) {
 		t.Fatal("scheduled dispatch did not reach Prompt() in time")
 	}
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	stopCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	if err := scheduler.Stop(stopCtx); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -163,7 +163,6 @@ func TestSchedulerIntegrationRestartDowntimeRunsCatchUpExactlyOnce(t *testing.T)
 	})
 
 	baseTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	missedAt := baseTime.Add(time.Minute)
 	fakeClock := clockwork.NewFakeClockAt(baseTime)
 	job, err := db.CreateJob(ctx, testJob(AutomationScopeGlobal, "restart-catch-up", ""))
 	if err != nil {
@@ -181,7 +180,7 @@ func TestSchedulerIntegrationRestartDowntimeRunsCatchUpExactlyOnce(t *testing.T)
 	}
 	if _, err := db.SaveSchedulerState(ctx, SchedulerState{
 		JobID:               job.ID,
-		NextRunAt:           &missedAt,
+		NextRunAt:           new(baseTime.Add(time.Minute)),
 		ScheduleHash:        scheduleHash(job.Schedule),
 		CatchUpPolicy:       SchedulerCatchUpPolicyRunOnce,
 		MisfireGraceSeconds: 10 * 60,

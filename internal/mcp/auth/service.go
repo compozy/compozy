@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -428,15 +429,13 @@ func statusFromTokenWithDiagnostic(
 	status.Refreshable = strings.TrimSpace(token.RefreshToken) != ""
 	status.Issuer = strings.TrimSpace(token.Issuer)
 	if len(token.Scopes) > 0 {
-		status.Scopes = append([]string(nil), token.Scopes...)
+		status.Scopes = slices.Clone(token.Scopes)
 	}
 	if !token.ExpiresAt.IsZero() {
-		expiresAt := token.ExpiresAt.UTC()
-		status.ExpiresAt = &expiresAt
+		status.ExpiresAt = new(token.ExpiresAt.UTC())
 	}
 	if !token.UpdatedAt.IsZero() {
-		updatedAt := token.UpdatedAt.UTC()
-		status.UpdatedAt = &updatedAt
+		status.UpdatedAt = new(token.UpdatedAt.UTC())
 	}
 	switch {
 	case !status.TokenPresent:

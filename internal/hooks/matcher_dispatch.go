@@ -1,5 +1,7 @@
 package hooks
 
+import "slices"
+
 func selectMatchingHooks[P any](
 	snapshot []*ResolvedHook,
 	payload P,
@@ -30,12 +32,9 @@ func selectMatchingHooks[P any](
 }
 
 func hookWorkspaceShadowed[P any](decl HookDecl, payload P, match matcherFunc[P]) bool {
-	for _, workspaceID := range decl.PlacementWorkspaces() {
-		if match(HookMatcher{WorkspaceID: workspaceID}, payload) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(decl.PlacementWorkspaces(), func(workspaceID string) bool {
+		return match(HookMatcher{WorkspaceID: workspaceID}, payload)
+	})
 }
 
 type profileOwnedHookPayload interface {

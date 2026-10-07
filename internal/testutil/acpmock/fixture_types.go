@@ -33,14 +33,14 @@ type AgentFixture struct {
 	Permissions     string   `json:"permissions,omitempty"`
 	Tools           []string `json:"tools,omitempty"`
 	Prompt          string   `json:"prompt,omitempty"`
-	LoadSession     *bool    `json:"load_session,omitempty"`
+	LoadSession     *bool    `json:"load_session,omitzero"`
 	// ForkSession advertises the unstable ACP session/fork capability; the driver answers
 	// session/fork with a clone id after sending clone-id updates first (OpenCode shape).
-	ForkSession bool `json:"fork_session,omitempty"`
+	ForkSession bool `json:"fork_session,omitzero"`
 	// ForkError makes session/fork fail with this message.
 	ForkError string `json:"fork_error,omitempty"`
 	// LoadMissing makes session/load fail with ACP resource-not-found for any id.
-	LoadMissing   bool                         `json:"load_missing,omitempty"`
+	LoadMissing   bool                         `json:"load_missing,omitzero"`
 	ConfigOptions []SessionConfigOptionFixture `json:"config_options,omitempty"`
 	Turns         []TurnFixture                `json:"turns"`
 }
@@ -65,7 +65,7 @@ type SessionConfigOptionValueFixture struct {
 	Label string `json:"label,omitempty"`
 	// RejectSet makes session/set_config_option to this advertised value fail, which
 	// scripts a start that ACP accepted (session/new returned) and then failed.
-	RejectSet bool `json:"reject_set,omitempty"`
+	RejectSet bool `json:"reject_set,omitzero"`
 }
 
 // RejectsConfigValue reports whether the fixture scripts a set_config_option failure.
@@ -90,7 +90,7 @@ type TurnFixture struct {
 	Match        TurnMatch     `json:"match"`
 	Steps        []Step        `json:"steps"`
 	StopReason   string        `json:"stop_reason,omitempty"`
-	Usage        *TurnUsage    `json:"usage,omitempty"`
+	Usage        *TurnUsage    `json:"usage,omitzero"`
 }
 
 // TurnUsage scripts deterministic aggregate token usage for one ACP prompt response.
@@ -101,11 +101,11 @@ type UsageUpdate struct {
 }
 
 type TurnUsage struct {
-	CacheReadTokens  *int `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int `json:"cache_write_tokens,omitempty"`
+	CacheReadTokens  *int `json:"cache_read_tokens,omitzero"`
+	CacheWriteTokens *int `json:"cache_write_tokens,omitzero"`
 	InputTokens      int  `json:"input_tokens"`
 	OutputTokens     int  `json:"output_tokens"`
-	TotalTokens      *int `json:"total_tokens,omitempty"`
+	TotalTokens      *int `json:"total_tokens,omitzero"`
 }
 
 // TurnMatch routes a prompt to a turn fixture using stable prompt fields.
@@ -126,17 +126,17 @@ type TurnMatchGoal struct {
 	Kind          string `json:"kind,omitempty"`
 	RunID         string `json:"run_id,omitempty"`
 	NodeID        string `json:"node_id,omitempty"`
-	Generation    int64  `json:"generation,omitempty"`
-	ItemIndex     *int   `json:"item_index,omitempty"`
-	Turn          *int   `json:"turn,omitempty"`
-	PromptAttempt *int   `json:"prompt_attempt,omitempty"`
+	Generation    int64  `json:"generation,omitzero"`
+	ItemIndex     *int   `json:"item_index,omitzero"`
+	Turn          *int   `json:"turn,omitzero"`
+	PromptAttempt *int   `json:"prompt_attempt,omitzero"`
 	PromptID      string `json:"prompt_id,omitempty"`
 }
 
 // TurnMatchJudge captures exact daemon-owned judge prompt metadata fields.
 type TurnMatchJudge struct {
 	Role          string `json:"role,omitempty"`
-	Attempt       int    `json:"attempt,omitempty"`
+	Attempt       int    `json:"attempt,omitzero"`
 	CorrelationID string `json:"correlation_id,omitempty"`
 	GateID        string `json:"gate_id,omitempty"`
 	CriterionID   string `json:"criterion_id,omitempty"`
@@ -149,7 +149,7 @@ type Step struct {
 	Text   string   `json:"text,omitempty"`
 	Chunks []string `json:"chunks,omitempty"`
 	// BurstCount repeats Text without delivery pacing to exercise transport pressure.
-	BurstCount int `json:"burst_count,omitempty"`
+	BurstCount int `json:"burst_count,omitzero"`
 
 	ToolCallID  string          `json:"tool_call_id,omitempty"`
 	Title       string          `json:"title,omitempty"`
@@ -161,29 +161,29 @@ type Step struct {
 	RawOutput   json.RawMessage `json:"raw_output,omitempty"`
 
 	ExpectDecision string `json:"expect_decision,omitempty"`
-	EmitDecision   bool   `json:"emit_decision,omitempty"`
+	EmitDecision   bool   `json:"emit_decision,omitzero"`
 	EmitText       string `json:"emit_text,omitempty"`
 
 	Command              string             `json:"command,omitempty"`
 	Args                 []string           `json:"args,omitempty"`
 	Cwd                  string             `json:"cwd,omitempty"`
-	ExpectExitCode       *int               `json:"expect_exit_code,omitempty"`
+	ExpectExitCode       *int               `json:"expect_exit_code,omitzero"`
 	ExpectOutputContains string             `json:"expect_output_contains,omitempty"`
 	ExpectErrorContains  string             `json:"expect_error_contains,omitempty"`
-	EmitOutput           bool               `json:"emit_output,omitempty"`
-	DriverControl        *DriverControlStep `json:"driver_control,omitempty"`
+	EmitOutput           bool               `json:"emit_output,omitzero"`
+	DriverControl        *DriverControlStep `json:"driver_control,omitzero"`
 }
 
 // DriverControlStep injects driver-level protocol or lifecycle faults.
 type DriverControlStep struct {
 	Action     DriverControlAction `json:"action"`
 	RawJSONRPC string              `json:"raw_jsonrpc,omitempty"`
-	Async      bool                `json:"async,omitempty"`
-	DelayMS    int                 `json:"delay_ms,omitempty"`
+	Async      bool                `json:"async,omitzero"`
+	DelayMS    int                 `json:"delay_ms,omitzero"`
 	// ErrorMessage is the JSON-RPC error message fail_prompt answers session/prompt with.
 	ErrorMessage string `json:"error_message,omitempty"`
 	// ErrorCode is the optional JSON-RPC error code for fail_prompt (default -32603).
-	ErrorCode int `json:"error_code,omitempty"`
+	ErrorCode int `json:"error_code,omitzero"`
 }
 
 // DriverControlAction identifies one supported driver fault injection action.

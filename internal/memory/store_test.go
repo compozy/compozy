@@ -612,7 +612,7 @@ func TestStoreScanSkipsAtomicTempFiles(t *testing.T) {
 			t.Fatalf("headers[0].Filename = %q, want %q", got, want)
 		}
 
-		targets, err := env.store.ListTargets(context.Background(), memcontract.Candidate{
+		targets, err := env.store.ListTargets(t.Context(), memcontract.Candidate{
 			Scope:   memcontract.ScopeWorkspace,
 			Content: "new memory",
 		})
@@ -1050,7 +1050,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 
 		_, err := store.Search(
-			context.Background(),
+			t.Context(),
 			"!!!",
 			memcontract.SearchOptions{Workspace: workspaceRoot, Limit: maxSearchLimit + 25},
 		)
@@ -1091,7 +1091,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatalf("Store.Write(workspace) error = %v", err)
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		results, err := store.Search(
 			ctx,
 			"auth sessions concise",
@@ -1127,7 +1127,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 	t.Run("Should scope health operation stats to visible workspaces", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "global")
 		catalogPath := filepath.Join(baseDir, "compozy.db")
@@ -1247,7 +1247,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			}
 		}
 
-		results, err := store.Search(context.Background(), "common token", memcontract.SearchOptions{
+		results, err := store.Search(t.Context(), "common token", memcontract.SearchOptions{
 			Scope: memcontract.ScopeProfile,
 			Limit: maxSearchLimit + 25,
 		})
@@ -1263,7 +1263,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		t.Parallel()
 
 		baseDir := t.TempDir()
-		ctx := context.Background()
+		ctx := t.Context()
 		catalogPath := filepath.Join(baseDir, "compozy.db")
 		globalDir := filepath.Join(baseDir, "global")
 		seedWorkspace := filepath.Join(baseDir, "workspace-seed")
@@ -1349,7 +1349,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
 
-		results, err := store.Search(context.Background(), "auth", memcontract.SearchOptions{
+		results, err := store.Search(t.Context(), "auth", memcontract.SearchOptions{
 			Workspace: workspaceRoot,
 			Limit:     5,
 		})
@@ -1360,12 +1360,12 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatalf("len(results) = %d, want 0", len(results))
 		}
 
-		identity, err := compozyworkspace.EnsureIdentity(context.Background(), workspaceRoot)
+		identity, err := compozyworkspace.EnsureIdentity(t.Context(), workspaceRoot)
 		if err != nil {
 			t.Fatalf("workspace EnsureIdentity() error = %v", err)
 		}
 		workspaceReady, err := store.catalog.scopeReady(
-			context.Background(),
+			t.Context(),
 			"",
 			memcontract.ScopeWorkspace,
 			identity.WorkspaceID,
@@ -1377,7 +1377,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatal("catalog.scopeReady(workspace) = false, want true after empty reindex")
 		}
 		globalReady, err := store.catalog.scopeReady(
-			context.Background(),
+			t.Context(),
 			storepkg.DefaultProfileID,
 			memcontract.ScopeProfile,
 			"",
@@ -1389,7 +1389,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatal("catalog.scopeReady(global) = false, want true after empty reindex")
 		}
 
-		firstReindex, err := store.catalog.lastReindex(context.Background())
+		firstReindex, err := store.catalog.lastReindex(t.Context())
 		if err != nil {
 			t.Fatalf("catalog.lastReindex() error = %v", err)
 		}
@@ -1398,7 +1398,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			return
 		}
 
-		stats, err := store.HealthStats(context.Background(), []string{workspaceRoot})
+		stats, err := store.HealthStats(t.Context(), []string{workspaceRoot})
 		if err != nil {
 			t.Fatalf("Store.HealthStats() error = %v", err)
 		}
@@ -1406,7 +1406,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatalf("memcontract.HealthStats() = %#v, want indexed=0 orphaned=0 lastReindex set", stats)
 		}
 
-		secondReindex, err := store.catalog.lastReindex(context.Background())
+		secondReindex, err := store.catalog.lastReindex(t.Context())
 		if err != nil {
 			t.Fatalf("catalog.lastReindex() error = %v", err)
 		}
@@ -1499,7 +1499,7 @@ func TestStoreConcurrentMutationDerivedState(t *testing.T) {
 	t.Run("Should index and log every concurrent workspace write", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		totalWrites := 512
@@ -1579,7 +1579,7 @@ func TestStoreConcurrentMutationDerivedState(t *testing.T) {
 func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	baseDir := t.TempDir()
 	globalDir := filepath.Join(baseDir, "global")
 	workspaceRoot := filepath.Join(baseDir, "workspace")
@@ -1734,7 +1734,7 @@ func TestStoreOperationHistoryIsolatesWorkspaceDefaults(t *testing.T) {
 	t.Run("Should isolate history by workspace", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "global")
 		catalogPath := filepath.Join(baseDir, "compozy.db")
@@ -1840,7 +1840,7 @@ func TestStoreSearchTreatsFTSReservedWordsAsLiteralTerms(t *testing.T) {
 		}
 
 		results, err := store.Search(
-			context.Background(),
+			t.Context(),
 			"not",
 			memcontract.SearchOptions{Workspace: workspaceRoot, Limit: 5},
 		)
@@ -1982,7 +1982,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		assertMemoryCatalogIdentityReady(ctx, t, store, true)
 
 		logs.Reset()
-		canceledCtx, cancel := context.WithCancel(context.Background())
+		canceledCtx, cancel := context.WithCancel(t.Context())
 		cancel()
 		canceledContent := mustMemoryContent(t, testMemoryMeta{
 			Name: "Canceled Sync Memory",
@@ -2232,7 +2232,7 @@ func installMemoryCatalogAbortTrigger(
 
 	drop := func() {
 		t.Helper()
-		if _, err := db.ExecContext(ctx, dropStatement); err != nil {
+		if _, err := db.ExecContext(testutil.Context(t), dropStatement); err != nil {
 			t.Errorf("drop catalog %s abort trigger error = %v", operation, err)
 		}
 	}
@@ -2342,7 +2342,7 @@ func TestStoreNormalizesExplicitWorkspacePaths(t *testing.T) {
 				t.Fatalf("Store.Write(workspace) error = %v", err)
 			}
 
-			results, err := store.Search(context.Background(), "unique workspace signal", memcontract.SearchOptions{
+			results, err := store.Search(t.Context(), "unique workspace signal", memcontract.SearchOptions{
 				Scope:     memcontract.ScopeWorkspace,
 				Workspace: workspaceRoot,
 				Limit:     5,
@@ -2387,7 +2387,7 @@ func TestStoreNormalizesExplicitWorkspacePaths(t *testing.T) {
 			t.Fatalf("Store.Write(workspace) error = %v", err)
 		}
 
-		stats, err := store.HealthStats(context.Background(), []string{workspaceRoot})
+		stats, err := store.HealthStats(t.Context(), []string{workspaceRoot})
 		if err != nil {
 			t.Fatalf("Store.HealthStats() error = %v", err)
 		}

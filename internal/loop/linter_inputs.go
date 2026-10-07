@@ -2,8 +2,8 @@ package loop
 
 import (
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -45,11 +45,7 @@ func (c *lintContext) lintInputs() {
 }
 
 func (c *lintContext) lintInputExtras(path string, extras map[string]any) {
-	keys := make([]string, 0, len(extras))
-	for key := range extras {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(extras))
 	for _, key := range keys {
 		c.addPath(path+"."+key, CodeInputFieldUnknown, "input field %q is unknown", key)
 	}

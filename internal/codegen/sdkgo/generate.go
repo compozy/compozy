@@ -3,7 +3,7 @@ package sdkgo
 import (
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
@@ -92,10 +92,7 @@ func Generate() (Result, error) {
 
 // FileNames returns result paths in deterministic order.
 func (r Result) FileNames() []string {
-	names := make([]string, 0, len(r.Files))
-	for name := range r.Files {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.AppendSeq(make([]string, 0, len(r.Files)), maps.Keys(r.Files))
+	slices.Sort(names)
 	return names
 }

@@ -28,7 +28,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 
 		role := fallbackTestRole(nil)
 		var attempts []string
-		result, err := invokeRoleWithFallback(t.Context(), role, roleInvocationCorrelation{}, func(
+		result, err := role.invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			_ context.Context,
 			route roleAttemptRoute,
 		) (string, bool, error) {
@@ -57,7 +57,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		var active atomic.Int32
 		var maximum atomic.Int32
 		var attempts []string
-		_, err := invokeRoleWithFallback(t.Context(), role, roleInvocationCorrelation{}, func(
+		_, err := role.invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			_ context.Context,
 			route roleAttemptRoute,
 		) (struct{}, bool, error) {
@@ -85,7 +85,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 
 		lastCause := errors.New("tertiary unavailable")
 		attempt := 0
-		_, err := invokeRoleWithFallback(t.Context(), fallbackTestRole(nil), roleInvocationCorrelation{}, func(
+		_, err := fallbackTestRole(nil).invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			_ context.Context,
 			_ roleAttemptRoute,
 		) (struct{}, bool, error) {
@@ -108,7 +108,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 
 		acceptedErr := errors.New("accepted session failed during startup")
 		attempts := 0
-		value, err := invokeRoleWithFallback(t.Context(), fallbackTestRole(nil), roleInvocationCorrelation{}, func(
+		value, err := fallbackTestRole(nil).invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			_ context.Context,
 			_ roleAttemptRoute,
 		) (string, bool, error) {
@@ -136,7 +136,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		role.Fallbacks[1].Speed = speedpkg.SpeedFast
 		role.Fallbacks[1].ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(false)}}
 		var routes []roleAttemptRoute
-		_, err := invokeRoleWithFallback(t.Context(), role, roleInvocationCorrelation{}, func(
+		_, err := role.invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			_ context.Context,
 			route roleAttemptRoute,
 		) (struct{}, bool, error) {
@@ -191,7 +191,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		role.Fallbacks = nil
 		primaryErr := errors.New("primary rejected")
 		attempts := 0
-		_, err := invokeRoleWithFallback(t.Context(), role, roleInvocationCorrelation{}, func(
+		_, err := role.invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			_ context.Context,
 			_ roleAttemptRoute,
 		) (struct{}, bool, error) {
@@ -223,7 +223,7 @@ func TestInvokeRoleWithFallbackRouteAccounts(t *testing.T) {
 		t.Parallel()
 
 		var commands []string
-		_, err := invokeRoleWithFallback(t.Context(), accountRole(nil), roleInvocationCorrelation{}, func(
+		_, err := accountRole(nil).invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			_ context.Context,
 			route roleAttemptRoute,
 		) (struct{}, bool, error) {
@@ -242,7 +242,7 @@ func TestInvokeRoleWithFallbackRouteAccounts(t *testing.T) {
 		t.Parallel()
 
 		recorder := &roleEventRecorder{}
-		_, err := invokeRoleWithFallback(t.Context(), accountRole(recorder), roleInvocationCorrelation{}, func(
+		_, err := accountRole(recorder).invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			_ context.Context,
 			route roleAttemptRoute,
 		) (struct{}, bool, error) {
@@ -276,9 +276,7 @@ func TestInvokeRoleWithFallbackRouteAccounts(t *testing.T) {
 		writeErr := errors.New("ledger unavailable")
 		primaryErr := errors.New("primary refused")
 		attempts := 0
-		_, err := invokeRoleWithFallback(
-			t.Context(),
-			accountRole(failingRoleEventWriter{err: writeErr}),
+		_, err := accountRole(failingRoleEventWriter{err: writeErr}).invokeRoleWithFallback(t.Context(),
 			roleInvocationCorrelation{},
 			func(context.Context, roleAttemptRoute) (struct{}, bool, error) {
 				attempts++
@@ -296,7 +294,7 @@ func TestInvokeRoleWithFallbackRouteAccounts(t *testing.T) {
 		recorder := &roleEventRecorder{}
 		acceptedErr := &acp.AcceptedStartError{SessionID: "acp_1", Cause: errors.New("configure failed")}
 		attempts := 0
-		value, err := invokeRoleWithFallback(t.Context(), accountRole(recorder), roleInvocationCorrelation{}, func(
+		value, err := accountRole(recorder).invokeRoleWithFallback(t.Context(), roleInvocationCorrelation{}, func(
 			context.Context,
 			roleAttemptRoute,
 		) (*struct{}, bool, error) {
@@ -335,7 +333,7 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 			Event:       store.EventCorrelation{TaskID: "task-1", RunID: "run-1"},
 		}
 		attempts := 0
-		_, err := invokeRoleWithFallback(t.Context(), role, correlation, func(
+		_, err := role.invokeRoleWithFallback(t.Context(), correlation, func(
 			_ context.Context,
 			_ roleAttemptRoute,
 		) (struct{}, bool, error) {

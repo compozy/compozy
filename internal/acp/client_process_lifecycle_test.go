@@ -118,7 +118,7 @@ func TestDriverRejectsUninitializedProcessState(t *testing.T) {
 		t.Parallel()
 
 		proc := &AgentProcess{SessionID: "session-1"}
-		events, err := driver.Prompt(context.Background(), proc, PromptRequest{
+		events, err := driver.Prompt(t.Context(), proc, PromptRequest{
 			TurnID:  "turn-1",
 			Message: "hello",
 		})
@@ -145,7 +145,7 @@ func TestDriverRejectsUninitializedProcessState(t *testing.T) {
 			defer func() {
 				panicV = recover()
 			}()
-			err = driver.Cancel(context.Background(), proc)
+			err = driver.Cancel(t.Context(), proc)
 		}()
 
 		if panicV != nil {
@@ -159,7 +159,7 @@ func TestDriverRejectsUninitializedProcessState(t *testing.T) {
 	t.Run("Should stop requires lifecycle", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 		defer cancel()
 
 		err := driver.Stop(ctx, &AgentProcess{})
@@ -330,7 +330,7 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 		t.Parallel()
 
 		driver := New(WithStopTimeout(5 * time.Second))
-		managed, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+		managed, err := subprocess.Launch(t.Context(), subprocess.LaunchConfig{
 			Command:          "sh",
 			Args:             []string{"-c", "sleep 30"},
 			DisableTransport: true,
@@ -363,7 +363,7 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 			}
 		})
 
-		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+		stopCtx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 		defer cancel()
 
 		startedAt := time.Now()
@@ -390,7 +390,7 @@ func TestRegisterAgentProcessRetainsRegistryWithoutAgentPID(t *testing.T) {
 		driver := &Driver{processRegistry: registry}
 		process := &AgentProcess{PID: 0}
 
-		if err := driver.registerAgentProcess(context.Background(), process); err != nil {
+		if err := driver.registerAgentProcess(t.Context(), process); err != nil {
 			t.Fatalf("registerAgentProcess(PID=0) error = %v", err)
 		}
 		if process.processRegistry != registry {
@@ -452,7 +452,7 @@ func TestProcessRecordContext(t *testing.T) {
 	t.Run("Should detach cancellation while preserving a bounded deadline", func(t *testing.T) {
 		t.Parallel()
 
-		parent, cancelParent := context.WithCancel(context.Background())
+		parent, cancelParent := context.WithCancel(t.Context())
 		cancelParent()
 
 		ctx, cancel := processRecordContext(parent, 25*time.Millisecond)
@@ -476,7 +476,7 @@ func TestCheckpointProcessOwnerWrapsCheckpointErrors(t *testing.T) {
 
 		root := errors.New("checkpoint failed")
 		registry := toolruntime.NewRegistry(&failingToolRuntimeStore{updateErr: root})
-		handle, err := registry.Register(context.Background(), toolruntime.RegisterConfig{
+		handle, err := registry.Register(t.Context(), toolruntime.RegisterConfig{
 			Source:  toolruntime.ProcessSourceACPAgent,
 			Owner:   toolruntime.ProcessOwner{SessionID: "old-session"},
 			Command: "agent",
@@ -489,7 +489,7 @@ func TestCheckpointProcessOwnerWrapsCheckpointErrors(t *testing.T) {
 			processRecord: handle,
 		}
 
-		err = process.checkpointProcessOwner(context.Background())
+		err = process.checkpointProcessOwner(t.Context())
 		if !errors.Is(err, root) || !strings.Contains(err.Error(), "checkpoint process owner") {
 			t.Fatalf("checkpointProcessOwner() error = %v, want ACP context wrapping root", err)
 		}
@@ -532,9 +532,7 @@ func TestACPControlRequestDeadlines(t *testing.T) {
 		t.Cleanup(func() { stopProcess(t, driver, proc) })
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		_, err := sendControlRequest[acpsdk.NewSessionResponse](
-			ctx,
-			proc,
+		_, err := proc.sendControlRequest[acpsdk.NewSessionResponse](ctx,
 			acpsdk.AgentMethodSessionNew,
 			acpsdk.NewSessionRequest{},
 		)

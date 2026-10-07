@@ -1,9 +1,10 @@
 package cmdpalette
 
 import (
+	"cmp"
 	"context"
 	"errors"
-	"sort"
+	"slices"
 )
 
 // Clients returns the attached shells for a workspace in deterministic id order.
@@ -22,6 +23,8 @@ func (s *Service) Clients(ctx context.Context, workspaceID WorkspaceID) ([]Clien
 		return nil, err
 	}
 	result := append([]Client(nil), clients...)
-	sort.Slice(result, func(left, right int) bool { return result[left].ID < result[right].ID })
+	slices.SortFunc(result, func(a, b Client) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
 	return result, nil
 }

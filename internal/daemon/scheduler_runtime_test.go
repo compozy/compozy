@@ -837,7 +837,7 @@ func TestLoopRetryTimerShouldUseSharedWakeIdentity(t *testing.T) {
 	t.Run("Should fire through the epoch-fenced retry store after its due time", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 2, 20, 30, 0, 0, time.UTC)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 		store := &recordingLoopRetryTimerStore{calls: make(chan looppkg.RetryDueCell, 1)}
 		armer := newLoopRetryTimerArmer(ctx, store, discardLogger(), func() time.Time { return now })
@@ -851,7 +851,7 @@ func TestLoopRetryTimerShouldUseSharedWakeIdentity(t *testing.T) {
 			FireAt: cell.NextAttemptAt, IdempotencyKey: looppkg.RetryWakeIdempotencyKey(cell),
 		}
 		err := armer.ArmCoordinatorTimer(
-			context.Background(),
+			t.Context(),
 			spec,
 			schedulerCoordinatorActorContextForTest(t),
 		)

@@ -167,9 +167,7 @@ func recoveredCompactionBaseline(checkpoint Checkpoint) (*int64, *int64) {
 		checkpoint.CompactionBaselineUsed == nil {
 		return nil, nil
 	}
-	sequence := *checkpoint.UsageSequence
-	used := *checkpoint.CompactionBaselineUsed
-	return &sequence, &used
+	return new(*checkpoint.UsageSequence), new(*checkpoint.CompactionBaselineUsed)
 }
 
 func (e *Executor) recoveryPromptMessage(segment *segmentState, checkpoint Checkpoint) (string, error) {

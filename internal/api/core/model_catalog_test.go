@@ -815,7 +815,7 @@ func performModelCatalogRequest(
 	t.Helper()
 
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(), method, path, strings.NewReader(string(body)))
+	req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(string(body)))
 	engine.ServeHTTP(recorder, req)
 	return recorder
 }
@@ -829,7 +829,7 @@ func performModelCatalogRequestWithHeaders(
 ) *httptest.ResponseRecorder {
 	t.Helper()
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(), method, path, nil)
+	req := httptest.NewRequestWithContext(t.Context(), method, path, nil)
 	for name, value := range headers {
 		req.Header.Set(name, value)
 	}

@@ -164,7 +164,7 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/tasks", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/tasks", http.NoBody)
 		ctx.Request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
 		ctx.Request.Header.Set(agentidentity.HeaderAgent, "coder")
 		handlers := &BaseHandlers{
@@ -241,7 +241,7 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/tasks", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/tasks", http.NoBody)
 		ctx.Request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
 		ctx.Request.Header.Set(agentidentity.HeaderAgent, "reviewer")
 		var workspaceLookups int
@@ -292,7 +292,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&participation_channel=builders&limit=3",
 		http.NoBody,
@@ -303,7 +303,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		t.Fatalf("ParseTaskListQuery() error = %v", err)
 	}
 	query, err := handlers.taskListDomainQuery(
-		context.Background(), store.ReadScope{ProfileID: store.DefaultProfileID}, transportQuery,
+		t.Context(), store.ReadScope{ProfileID: store.DefaultProfileID}, transportQuery,
 	)
 	if err != nil {
 		t.Fatalf("taskListDomainQuery() error = %v", err)
@@ -316,7 +316,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	runRecorder := httptest.NewRecorder()
 	runCtx, _ := gin.CreateTestContext(runRecorder)
 	runCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/tasks/task-1/runs?status=running&session_id=sess-1&participation_channel=builders&limit=1",
 		http.NoBody,
@@ -383,7 +383,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	invalidRecorder := httptest.NewRecorder()
 	invalidCtx, _ := gin.CreateTestContext(invalidRecorder)
 	invalidCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/tasks?limit=bad",
 		http.NoBody,
@@ -400,7 +400,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		boundedRecorder := httptest.NewRecorder()
 		boundedCtx, _ := gin.CreateTestContext(boundedRecorder)
 		boundedCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/tasks?scope=workspace&workspace=missing&limit=-1",
 			http.NoBody,
@@ -415,7 +415,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	invalidRunRecorder := httptest.NewRecorder()
 	invalidRunCtx, _ := gin.CreateTestContext(invalidRunRecorder)
 	invalidRunCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/tasks/task-1/runs?limit=bad",
 		http.NoBody,
@@ -429,7 +429,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	decodeRecorder := httptest.NewRecorder()
 	decodeCtx, _ := gin.CreateTestContext(decodeRecorder)
 	decodeCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodPost,
 		"/tasks",
 		bytes.NewBufferString(`{"broken":`),
@@ -445,7 +445,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	unknownRecorder := httptest.NewRecorder()
 	unknownCtx, _ := gin.CreateTestContext(unknownRecorder)
 	unknownCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodPost,
 		"/tasks/task-1/runs",
 		bytes.NewBufferString(`{"unsupported_field":"builders"}`),

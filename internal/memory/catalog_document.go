@@ -1,12 +1,13 @@
 package memory
 
 import (
+	"cmp"
 	"crypto/sha256"
+	"slices"
 
 	"encoding/hex"
 
 	"fmt"
-	"sort"
 	"strings"
 
 	"unicode"
@@ -176,14 +177,20 @@ func fallbackSearchDocuments(query string, docs []catalogDocument, limit int) ([
 		})
 	}
 
-	sort.SliceStable(results, func(i, j int) bool {
-		if results[i].Score == results[j].Score {
-			if results[i].ModTime.Equal(results[j].ModTime) {
-				return results[i].Filename < results[j].Filename
+	slices.SortStableFunc(results, func(left, right memcontract.SearchResult) int {
+		if left.Score != right.Score {
+			if left.Score > right.Score {
+				return -1
 			}
-			return results[i].ModTime.After(results[j].ModTime)
+			if left.Score < right.Score {
+				return 1
+			}
+			return 0
 		}
-		return results[i].Score > results[j].Score
+		return cmp.Or(
+			right.ModTime.Compare(left.ModTime),
+			strings.Compare(left.Filename, right.Filename),
+		)
 	})
 
 	if len(results) > limit {

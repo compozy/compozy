@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -60,7 +59,7 @@ func TestCORSMiddlewareAllowsPatchPreflight(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodOptions,
 			"/api/settings/general",
 			http.NoBody,
@@ -123,7 +122,7 @@ func TestCORSMiddlewareRejectsReboundRequestHost(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"http://evil.example:2123/api/status",
 			http.NoBody,
@@ -159,7 +158,7 @@ func TestGatewayForwardedOriginProtection(t *testing.T) {
 		engine.Use(browserRequestProtectionMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
 		engine.POST("/api/action", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		request := httptest.NewRequestWithContext(
-			context.Background(), http.MethodPost, "https://gateway.example.test/api/action", http.NoBody,
+			t.Context(), http.MethodPost, "https://gateway.example.test/api/action", http.NoBody,
 		)
 		request.Host = "gateway.example.test"
 		request.Header.Set("Origin", "https://gateway.example.test")
@@ -182,7 +181,7 @@ func TestGatewayForwardedOriginProtection(t *testing.T) {
 		engine.Use(browserRequestProtectionMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
 		engine.POST("/api/action", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		request := httptest.NewRequestWithContext(
-			context.Background(), http.MethodPost, "https://gateway.example.test/api/action", http.NoBody,
+			t.Context(), http.MethodPost, "https://gateway.example.test/api/action", http.NoBody,
 		)
 		request.Host = "gateway.example.test"
 		request.Header.Set("Origin", "https://evil.example.test")
@@ -207,7 +206,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 		)
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"http://127.0.0.1/api/workspaces/resolve",
 			strings.NewReader(`{}`),
@@ -235,7 +234,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 		RegisterRoutes(engine, handlers)
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"http://evil.example/api/workspaces/resolve",
 			strings.NewReader(`{}`),
@@ -261,7 +260,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 		RegisterRoutes(engine, handlers)
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"http://127.0.0.1/api/workspaces/resolve",
 			strings.NewReader(`{}`),
@@ -286,7 +285,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 		RegisterRoutes(engine, handlers)
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"http://127.0.0.1/api/webhooks/global/missing",
 			http.NoBody,
@@ -311,7 +310,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 		engine.POST("/api/openai/v1/responses", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"http://127.0.0.1/api/openai/v1/responses",
 			http.NoBody,
@@ -366,7 +365,7 @@ func TestLoopbackGuardsHandleBoundHostPorts(t *testing.T) {
 			})
 
 			recorder := httptest.NewRecorder()
-			request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/guarded", http.NoBody)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/guarded", http.NoBody)
 			engine.ServeHTTP(recorder, request)
 
 			if recorder.Code != tt.wantStatus {

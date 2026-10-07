@@ -63,7 +63,7 @@ func TestUDSTransportSessionOwnerProjectionMatchesHTTP(t *testing.T) {
 			}},
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		sessionPayload, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -139,7 +139,7 @@ func TestUDSTransportSessionCommandsProjectionMatchesHTTP(t *testing.T) {
 			}},
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		created, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -400,7 +400,7 @@ func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		var httpDraining compozycontract.DrainStatusResponse
@@ -454,7 +454,7 @@ func TestUDSTransportRuntimeMemoryDoctorMatchesHTTPAndCLI(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		var httpPayload compozycontract.DoctorPayload
@@ -504,7 +504,7 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("TransportClients() error = %v", err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 			defer cancel()
 
 			basePath := "/api/workspaces/" + url.PathEscape(runtimeHarness.WorkspaceID) + "/window-manager"
@@ -1426,7 +1426,7 @@ func TestUDSTransportAutomaticSessionTitlePersistsAndMatchesHTTP(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	sessionPayload, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -1487,7 +1487,7 @@ func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -1576,7 +1576,7 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	var created compozycontract.SessionResponse
@@ -1894,7 +1894,7 @@ func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	var created compozycontract.SessionResponse
@@ -2016,7 +2016,7 @@ func TestUDSTransportProjectionParityMatchesHTTPAndCLI(t *testing.T) {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	trigger, endpoint := seedTransportWebhookTrigger(t, ctx, runtimeHarness)
@@ -2082,7 +2082,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	t.Run("Should return the same catalog payload over HTTP, UDS, and CLI", func(t *testing.T) {
@@ -2300,7 +2300,7 @@ func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -2355,7 +2355,7 @@ func TestUDSTransportTerminalProcessFailureRejectsAttachAndPromptBeforeACPResume
 			}},
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		created, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -2426,7 +2426,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -2554,7 +2554,7 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 
 	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	workspaceID := runtimeHarness.WorkspaceID
@@ -2693,7 +2693,7 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 			t.Fatalf("TransportClients() error = %v", err)
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		sampleStarted := time.Now()
@@ -2799,7 +2799,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	workspaceID := runtimeHarness.WorkspaceID

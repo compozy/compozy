@@ -21,8 +21,8 @@ type memoryListInput struct {
 	Type          string `json:"type,omitempty"`
 	Sort          string `json:"sort,omitempty"`
 	Cursor        string `json:"cursor,omitempty"`
-	Limit         int    `json:"limit,omitempty"`
-	IncludeSystem bool   `json:"include_system,omitempty"`
+	Limit         int    `json:"limit,omitzero"`
+	IncludeSystem bool   `json:"include_system,omitzero"`
 }
 
 func (n *daemonNativeTools) memoryList(

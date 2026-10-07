@@ -23,7 +23,7 @@ type taskAttentionWatchEventPayload struct {
 	At              time.Time         `json:"at,omitzero"`
 	BlockID         string            `json:"block_id,omitempty"`
 	BlockKind       taskpkg.BlockKind `json:"block_kind,omitempty"`
-	RecurrenceCount int               `json:"recurrence_count,omitempty"`
+	RecurrenceCount int               `json:"recurrence_count,omitzero"`
 }
 
 type taskRecoveredWatchEventPayload struct {

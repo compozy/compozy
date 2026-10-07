@@ -7,10 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"uuid"
+
 	"github.com/compozy/compozy/internal/fileutil"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/redact"
-	"github.com/google/uuid"
 )
 
 func (e *forkedMemoryExtractor) recordExtractionFailure(turn memcontract.TurnRecord, output string, cause error) error {
@@ -35,7 +36,7 @@ func (e *forkedMemoryExtractor) recordExtractionFailure(turn memcontract.TurnRec
 	if err != nil {
 		return fmt.Errorf("daemon: encode extraction failure: %w", err)
 	}
-	path := filepath.Join(e.failuresDir, "extraction-"+uuid.NewString()+".json")
+	path := filepath.Join(e.failuresDir, "extraction-"+uuid.NewV4().String()+".json")
 	if err := fileutil.AtomicWriteFile(path, append(data, '\n'), 0o600); err != nil {
 		return fmt.Errorf("daemon: write extraction failure: %w", err)
 	}

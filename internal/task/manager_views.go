@@ -181,8 +181,7 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 			continue
 		}
 		if current == nil || prefersActiveRun(run, *current) {
-			candidate := run
-			current = &candidate
+			current = new(run)
 		}
 	}
 	if current == nil {
@@ -292,24 +291,21 @@ func cloneOwnership(owner *Ownership) *Ownership {
 	if owner == nil {
 		return nil
 	}
-	cloned := *owner
-	return &cloned
+	return new(*owner)
 }
 
 func cloneActorIdentity(actor *ActorIdentity) *ActorIdentity {
 	if actor == nil {
 		return nil
 	}
-	cloned := *actor
-	return &cloned
+	return new(*actor)
 }
 
 func cloneNeedsAttention(attention *NeedsAttention) *NeedsAttention {
 	if attention == nil {
 		return nil
 	}
-	cloned := *attention
-	return &cloned
+	return new(*attention)
 }
 
 func sameOwnership(left *Ownership, right *Ownership) bool {
@@ -339,9 +335,7 @@ func cloneRawJSON(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
 	}
-	cloned := make(json.RawMessage, len(raw))
-	copy(cloned, raw)
-	return cloned
+	return json.RawMessage(bytes.Clone(raw))
 }
 
 func rawJSONValue(raw *json.RawMessage) json.RawMessage {

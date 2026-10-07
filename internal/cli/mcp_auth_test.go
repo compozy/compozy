@@ -92,7 +92,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 			if target.Name != "linear" || request.RedirectURL != wantRedirectURL {
 				t.Fatalf("exchange target/request = %#v / %#v", target, request)
 			}
-			return mcpAuthStatus("linear", "user", "", true, timePointer(time.Now())), nil
+			return mcpAuthStatus("linear", "user", "", true, new(time.Now())), nil
 		}
 
 		stdout, stderr, err := executeMCPAuthCommandWithInput(
@@ -376,8 +376,8 @@ func TestReadManualMCPAuthInputContext(t *testing.T) {
 		t.Cleanup(cancel)
 		passwordReadStarted := make(chan struct{})
 		allowPasswordReadReturn := make(chan struct{})
-		var releasePasswordRead sync.Once
-		t.Cleanup(func() { releasePasswordRead.Do(func() { close(allowPasswordReadReturn) }) })
+		releasePasswordRead := sync.OnceFunc(func() { close(allowPasswordReadReturn) })
+		t.Cleanup(releasePasswordRead)
 		results := make(chan error, 1)
 		go func() {
 			_, readErr := readManualMCPAuthInputContextWithTerminal(
@@ -414,7 +414,7 @@ func TestReadManualMCPAuthInputContext(t *testing.T) {
 			t.Fatalf("terminal input was closed before password read returned: %v", err)
 		}
 
-		releasePasswordRead.Do(func() { close(allowPasswordReadReturn) })
+		releasePasswordRead()
 		if readErr := <-results; !errors.Is(readErr, context.DeadlineExceeded) ||
 			!strings.Contains(readErr.Error(), "authorization timed out") {
 			t.Fatalf("readManualMCPAuthInputContextWithTerminal() error = %v, want authorization timeout", readErr)
@@ -593,7 +593,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 			if target.Owner != "extension:linear" || target.Name != "linear" {
 				t.Fatalf("command lost its definition owner: %#v", target)
 			}
-			return mcpAuthStatus("linear", "user", "", true, timePointer(time.Now())), nil
+			return mcpAuthStatus("linear", "user", "", true, new(time.Now())), nil
 		}
 		client := &stubClient{getSettingsMCPAuthStatusFn: read, logoutSettingsMCPAuthFn: read}
 		for _, action := range []string{"status", "logout"} {
@@ -672,7 +672,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 		t.Parallel()
 
 		workspaceID := "workspace-a"
-		wantStatus := mcpAuthStatus("linear", "workspace", workspaceID, true, timePointer(time.Now()))
+		wantStatus := mcpAuthStatus("linear", "workspace", workspaceID, true, new(time.Now()))
 		client := &stubClient{}
 		client.getSettingsMCPAuthStatusFn = func(
 			_ context.Context,
@@ -757,7 +757,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 					target.WorkspaceID != "" {
 					t.Fatalf("profile auth target = %#v", target)
 				}
-				return mcpAuthStatus("linear", "profile", "", true, timePointer(time.Now())), nil
+				return mcpAuthStatus("linear", "profile", "", true, new(time.Now())), nil
 			}}),
 			profileClientStub: &profileClientStub{profiles: []contract.Profile{
 				{Name: "default", State: "active"},
@@ -787,7 +787,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 				}
 				return mcpAuthStatus(
 					"linear", string(mcpauth.ScopeWorkspaceProfile), "workspace-a@pf:marketing", true,
-					timePointer(time.Now()),
+					new(time.Now()),
 				), nil
 			}}),
 			profileClientStub: &profileClientStub{profiles: []contract.Profile{
@@ -812,9 +812,9 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 	t.Run("Should keep an unqualified status list inside one profile", func(t *testing.T) {
 		t.Parallel()
 
-		marketingStatus := mcpAuthStatus("linear", "profile", "", true, timePointer(time.Now()))
+		marketingStatus := mcpAuthStatus("linear", "profile", "", true, new(time.Now()))
 		marketingStatus.Profile = "marketing"
-		salesStatus := mcpAuthStatus("github", "profile", "", true, timePointer(time.Now()))
+		salesStatus := mcpAuthStatus("github", "profile", "", true, new(time.Now()))
 		salesStatus.Profile = "sales"
 		servers := []contract.SettingsMCPServerItemPayload{
 			{
@@ -933,7 +933,7 @@ func TestMCPAuthLoginRequiresExplicitScopeEscalationApproval(t *testing.T) {
 				SettingsMCPAuthTarget,
 				SettingsMCPAuthExchangeRequest,
 			) (SettingsMCPAuthStatusRecord, error) {
-				return mcpAuthStatus("linear", "user", "", true, timePointer(time.Now())), nil
+				return mcpAuthStatus("linear", "user", "", true, new(time.Now())), nil
 			},
 		}
 		_, _, err := executeMCPAuthCommandWithInput(
@@ -957,7 +957,7 @@ func TestMCPAuthStatusBundlesRenderScopeAndTokenPresence(t *testing.T) {
 	t.Run("Should render scope and token presence in status bundles", func(t *testing.T) {
 		t.Parallel()
 
-		status := mcpAuthStatus("linear", "workspace", "workspace-a", true, timePointer(fixedTestNow))
+		status := mcpAuthStatus("linear", "workspace", "workspace-a", true, new(fixedTestNow))
 		human, err := mcpAuthStatusBundle(status).human()
 		if err != nil {
 			t.Fatalf("mcpAuthStatusBundle.human() error = %v", err)

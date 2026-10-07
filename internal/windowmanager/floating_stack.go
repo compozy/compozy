@@ -155,6 +155,5 @@ func nextActiveAfterRemoval(members []WindowID, removedIndex int) *WindowID {
 		return nil
 	}
 	index := min(removedIndex, len(members)-1)
-	active := members[index]
-	return &active
+	return new(members[index])
 }

@@ -420,7 +420,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		errorsCh := make(chan error, 3)
 
 		go func() {
-			errorsCh <- coordinator.withName(context.Background(), "alpha", func() error {
+			errorsCh <- coordinator.withName(t.Context(), "alpha", func() error {
 				close(firstEntered)
 				<-releaseFirst
 				return nil
@@ -429,13 +429,13 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		requireLifecycleSignal(t, firstEntered, "first alpha mutation")
 
 		go func() {
-			errorsCh <- coordinator.withName(context.Background(), "alpha", func() error {
+			errorsCh <- coordinator.withName(t.Context(), "alpha", func() error {
 				close(secondEntered)
 				return nil
 			})
 		}()
 		go func() {
-			errorsCh <- coordinator.withName(context.Background(), "beta", func() error {
+			errorsCh <- coordinator.withName(t.Context(), "beta", func() error {
 				close(otherEntered)
 				return nil
 			})
@@ -572,7 +572,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		releaseFirstMutation := newLifecycleRelease(t, releaseFirst)
 		firstDone := make(chan error, 1)
 		go func() {
-			firstDone <- coordinator.withName(context.Background(), "alpha", func() error {
+			firstDone <- coordinator.withName(t.Context(), "alpha", func() error {
 				close(firstEntered)
 				<-releaseFirst
 				return nil
@@ -580,7 +580,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}()
 		requireLifecycleSignal(t, firstEntered, "first alpha mutation")
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		ran := false
 		err := coordinator.withName(ctx, "alpha", func() error {
@@ -1783,7 +1783,7 @@ func TestDaemonExtensionInputLifecycle(t *testing.T) {
 			Registry: registry, Profiles: deps.ProfileManager, HomePaths: deps.HomePaths,
 			Logger: discardLogger(),
 		}, withDaemonExtensionWorkspaceResolver(&daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-install", RootDir: t.TempDir()}, WorkspaceID: "ws-install",
+			ID: "ws-install", RootDir: t.TempDir(), WorkspaceID: "ws-install",
 		}})).(*daemonExtensionService)
 		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "scope validation")
 		if err != nil {
@@ -2226,7 +2226,7 @@ func testDaemonScopedInstall(t *testing.T, scenario daemonScopedInstallCase) {
 	}, withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
 		withDaemonExtensionInputs(db.ExtensionInputs), withDaemonExtensionSecrets(db.ExtensionEnvRepo, secretVault),
 		withDaemonExtensionWorkspaceResolver(&daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-install", RootDir: workspaceRoot}, WorkspaceID: "ws-install",
+			ID: "ws-install", RootDir: workspaceRoot, WorkspaceID: "ws-install",
 		}}),
 	).(*daemonExtensionService)
 	sections := `[resources.mcp_servers.server]

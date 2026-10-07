@@ -30,7 +30,7 @@ type Event struct {
 	WorkspaceID     WorkspaceID `json:"workspace"`
 	CatalogRevision string      `json:"revision,omitempty"`
 	CommandID       CommandID   `json:"command_id,omitempty"`
-	Pinned          *bool       `json:"pinned,omitempty"`
+	Pinned          *bool       `json:"pinned,omitzero"`
 	Source          string      `json:"source,omitempty"`
 	ExecutionSite   ActionKind  `json:"exec_site,omitempty"`
 	Outcome         string      `json:"outcome,omitempty"`
@@ -140,15 +140,12 @@ func (s *Service) SubscribeCmdPaletteEvents(
 		updates:     updates,
 	}
 	s.eventMu.Unlock()
-	var once sync.Once
-	cancel := func() {
-		once.Do(func() {
-			s.eventMu.Lock()
-			delete(s.eventSubscribers, id)
-			close(updates)
-			s.eventMu.Unlock()
-		})
-	}
+	cancel := sync.OnceFunc(func() {
+		s.eventMu.Lock()
+		delete(s.eventSubscribers, id)
+		close(updates)
+		s.eventMu.Unlock()
+	})
 	return updates, cancel, nil
 }
 

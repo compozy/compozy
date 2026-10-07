@@ -26,11 +26,11 @@ type UIAgentEventPayload struct {
 	ResolvedBy       string                       `json:"resolved_by,omitempty"`
 	Error            string                       `json:"error,omitempty"`
 	Failure          *store.SessionFailure        `json:"failure,omitempty"`
-	ProviderError    *acp.ProviderErrorDiagnostic `json:"provider_error,omitempty"`
+	ProviderError    *acp.ProviderErrorDiagnostic `json:"provider_error,omitzero"`
 	Goal             *acp.GoalPromptMeta          `json:"goal,omitempty"`
-	Delivery         *acp.DeliveryManifest        `json:"delivery,omitempty"`
-	Usage            *UITokenUsagePayload         `json:"usage,omitempty"`
-	Runtime          *acp.RuntimeActivity         `json:"runtime,omitempty"`
+	Delivery         *acp.DeliveryManifest        `json:"delivery,omitzero"`
+	Usage            *UITokenUsagePayload         `json:"usage,omitzero"`
+	Runtime          *acp.RuntimeActivity         `json:"runtime,omitzero"`
 	Raw              json.RawMessage              `json:"raw,omitempty"`
 }
 

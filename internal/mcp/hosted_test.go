@@ -793,11 +793,11 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		releaseGeneration := make(chan struct{})
 		listStarted := make(chan struct{}, 1)
 		releaseList := make(chan struct{})
-		var releaseGenerationOnce sync.Once
-		var releaseListOnce sync.Once
+		releaseGenerationOnce := sync.OnceFunc(func() { close(releaseGeneration) })
+		releaseListOnce := sync.OnceFunc(func() { close(releaseList) })
 		t.Cleanup(func() {
-			releaseGenerationOnce.Do(func() { close(releaseGeneration) })
-			releaseListOnce.Do(func() { close(releaseList) })
+			releaseGenerationOnce()
+			releaseListOnce()
 		})
 		var gateGeneration atomic.Bool
 		var generation atomic.Uint64
@@ -846,13 +846,13 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 				t.Fatalf("concurrent projection did not reach generation lookup: %v", ctx.Err())
 			}
 		}
-		releaseGenerationOnce.Do(func() { close(releaseGeneration) })
+		releaseGenerationOnce()
 		select {
 		case <-listStarted:
 		case <-ctx.Done():
 			t.Fatalf("projection did not begin the registry list: %v", ctx.Err())
 		}
-		releaseListOnce.Do(func() { close(releaseList) })
+		releaseListOnce()
 
 		for range 2 {
 			select {
@@ -1494,12 +1494,10 @@ func (b *hostedApprovalBridge) RequestToolApproval(
 	defer b.mu.Unlock()
 	record := hostedApprovalRecord{scope: scope}
 	if call != nil {
-		cloned := *call
-		record.call = &cloned
+		record.call = new(*call)
 	}
 	if view != nil {
-		cloned := *view
-		record.view = &cloned
+		record.view = new(*view)
 	}
 	b.records = append(b.records, record)
 	return nil

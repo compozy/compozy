@@ -40,7 +40,7 @@ type SearchMatch struct {
 	Snippet  string `json:"snippet"`
 	// PartIndex and Field identify the first matching field in the projected message.
 	// They are additive navigation hints; older readers can continue using the entry cursor.
-	PartIndex *int   `json:"part_index,omitempty"`
+	PartIndex *int   `json:"part_index,omitzero"`
 	Field     string `json:"field,omitempty"`
 }
 

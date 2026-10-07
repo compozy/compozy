@@ -453,7 +453,7 @@ func TestCORSMiddlewareRejectsDisallowedOrigins(t *testing.T) {
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"http://127.0.0.1/api/sessions",
 		http.NoBody,
@@ -479,7 +479,7 @@ func TestCORSMiddlewareRejectsDifferentLoopbackOrigins(t *testing.T) {
 	}, stubObserver{}, homePaths))
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"http://127.0.0.1/api/sessions",
 		http.NoBody,
@@ -501,7 +501,7 @@ func TestRequestBodyLimitRejectsOversizedAPIRequests(t *testing.T) {
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodPost,
 		"http://127.0.0.1/api/sessions",
 		strings.NewReader(strings.Repeat("x", int(maxAPIRequestBodyBytes)+1)),

@@ -2,9 +2,11 @@ package modelcatalog
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -100,11 +102,8 @@ func decodeLiveRawModels(payload []byte) ([]liveRawModel, error) {
 	}
 	var objectMap map[string]liveRawModel
 	if err := json.Unmarshal(payload, &objectMap); err == nil && len(objectMap) > 0 {
-		keys := make([]string, 0, len(objectMap))
-		for key := range objectMap {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.AppendSeq(make([]string, 0, len(objectMap)), maps.Keys(objectMap))
+		slices.Sort(keys)
 		models := make([]liveRawModel, 0, len(keys))
 		for _, key := range keys {
 			model := objectMap[key]
@@ -216,14 +215,12 @@ func liveSupportsTools(raw *liveRawModel) *bool {
 	for _, parameter := range raw.SupportedParameters {
 		normalized := strings.ToLower(strings.TrimSpace(parameter))
 		if normalized == "tools" || normalized == "tool_choice" {
-			value := true
-			return &value
+			return new(true)
 		}
 	}
 	for _, method := range raw.SupportedGenerationMethods {
 		if strings.EqualFold(strings.TrimSpace(method), "generateContent") {
-			value := true
-			return &value
+			return new(true)
 		}
 	}
 	return nil
@@ -273,8 +270,7 @@ func livePricePerMillion(values ...json.RawMessage) *float64 {
 		if !ok {
 			continue
 		}
-		perMillion := value * 1_000_000
-		return &perMillion
+		return new(value * 1_000_000)
 	}
 	return nil
 }
@@ -306,7 +302,7 @@ func firstNonBlank(values ...string) string {
 }
 
 func sortModelRowsByID(rows []ModelRow) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		return rows[i].ModelID < rows[j].ModelID
+	slices.SortStableFunc(rows, func(a, b ModelRow) int {
+		return cmp.Compare(a.ModelID, b.ModelID)
 	})
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -52,7 +53,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	}
 	resolver := daemonWorktreeWorkspaceResolver{resolver: stub, homePaths: homePaths}
 
-	got, err := resolver.ResolveWorktreeWorkspace(context.Background(), resolved.ID)
+	got, err := resolver.ResolveWorktreeWorkspace(t.Context(), resolved.ID)
 	if err != nil {
 		t.Fatalf("ResolveWorktreeWorkspace() error = %v", err)
 	}
@@ -60,7 +61,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 		got.Worktrees.SetupCommand != "bun install" {
 		t.Fatalf("ResolveWorktreeWorkspace() = %#v, want resolved workspace overlay", got)
 	}
-	listed, err := resolver.ListWorktreeWorkspaces(context.Background())
+	listed, err := resolver.ListWorktreeWorkspaces(t.Context())
 	if err != nil {
 		t.Fatalf("ListWorktreeWorkspaces() error = %v", err)
 	}
@@ -69,7 +70,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	}
 
 	empty := daemonWorktreeWorkspaceResolver{homePaths: homePaths}
-	if _, err := empty.ResolveWorktreeWorkspace(context.Background(), "missing"); !errors.Is(
+	if _, err := empty.ResolveWorktreeWorkspace(t.Context(), "missing"); !errors.Is(
 		err, worktree.ErrNotFound,
 	) {
 		t.Fatalf("ResolveWorktreeWorkspace(nil) error = %v, want ErrNotFound", err)
@@ -82,7 +83,7 @@ func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
 	var current executionWorktreeService
 	resolver := daemonExecutionWorktrees{lookup: func() executionWorktreeService { return current }}
 	if _, err := resolver.MaterializeForRun(
-		context.Background(),
+		t.Context(),
 		"ws-late",
 		worktree.RunWorktreeRequest{TaskSlug: "late", RunID: "run-late"},
 	); !errors.Is(err, worktree.ErrPerRunMaterialization) {
@@ -94,7 +95,7 @@ func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
 	}}
 	current = backing
 	item, err := resolver.MaterializeForRun(
-		context.Background(),
+		t.Context(),
 		"ws-late",
 		worktree.RunWorktreeRequest{TaskSlug: "late", RunID: "run-late"},
 	)
@@ -166,7 +167,7 @@ func TestDaemonSessionWorktreeResolver(t *testing.T) {
 			)
 		}}
 
-		id, gotRoot, err := resolver.ResolveSessionWorktree(context.Background(), " ws-1 ", " wt-ref ")
+		id, gotRoot, err := resolver.ResolveSessionWorktree(t.Context(), " ws-1 ", " wt-ref ")
 		if err != nil {
 			t.Fatalf("ResolveSessionWorktree(ready) error = %v", err)
 		}
@@ -207,7 +208,7 @@ func TestDaemonSessionWorktreeResolver(t *testing.T) {
 					return &worktree.Worktree{ID: "wt-target", Path: test.path, State: test.state}, nil
 				})
 			}}
-			_, _, err := resolver.ResolveSessionWorktree(context.Background(), "ws-1", "target")
+			_, _, err := resolver.ResolveSessionWorktree(t.Context(), "ws-1", "target")
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("ResolveSessionWorktree(%s) error = %v, want %v", test.name, err, test.wantErr)
 			}
@@ -452,7 +453,7 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := db.Close(context.WithoutCancel(t.Context())); err != nil {
+				if err := db.Close(testutil.Context(t)); err != nil {
 					t.Errorf("close recovery fixture: %v", err)
 				}
 			})

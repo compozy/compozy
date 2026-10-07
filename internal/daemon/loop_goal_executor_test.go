@@ -30,7 +30,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 	t.Run("Should resolve the child executor without a parent package import", func(t *testing.T) {
 		t.Parallel()
 
-		store, err := openDaemonTestGlobalDBAtPath(context.Background(), filepath.Join(t.TempDir(), "compozy.db"))
+		store, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -53,7 +53,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 		if err != nil {
 			t.Fatalf("NewActionRegistry() error = %v", err)
 		}
-		executor, err := registry.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionGoal))
+		executor, err := registry.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionGoal))
 		if err != nil {
 			t.Fatalf("Resolve(goal) error = %v", err)
 		}
@@ -71,7 +71,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := store.Close(ctx); err != nil {
+			if err := store.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
@@ -80,7 +80,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			t.Fatalf("session.NewManager() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := manager.Shutdown(ctx); err != nil {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
 				t.Errorf("Manager.Shutdown() error = %v", err)
 			}
 		})

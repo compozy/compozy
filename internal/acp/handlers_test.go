@@ -153,7 +153,7 @@ func TestHandleInboundReadWriteFile(t *testing.T) {
 	target := filepath.Join(proc.Cwd, "notes.txt")
 
 	if _, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodFsWriteTextFile,
 		mustMarshalJSON(acpsdk.WriteTextFileRequest{
 			SessionId: "sess-direct",
@@ -165,7 +165,7 @@ func TestHandleInboundReadWriteFile(t *testing.T) {
 	}
 
 	response, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodFsReadTextFile,
 		mustMarshalJSON(acpsdk.ReadTextFileRequest{
 			SessionId: "sess-direct",
@@ -193,7 +193,7 @@ func TestHandleInboundWriteDenied(t *testing.T) {
 	target := filepath.Join(proc.Cwd, "notes.txt")
 
 	if _, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodFsWriteTextFile,
 		mustMarshalJSON(acpsdk.WriteTextFileRequest{
 			SessionId: "sess-direct",
@@ -216,7 +216,7 @@ func TestHandleWriteTextFileDeniedByToolGatewayPreventsSideEffect(t *testing.T) 
 	)
 
 	target := filepath.Join(proc.Cwd, "denied.txt")
-	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
+	if _, err := proc.handleWriteTextFile(t.Context(), acpsdk.WriteTextFileRequest{
 		SessionId: "sess-direct",
 		Path:      target,
 		Content:   "blocked",
@@ -244,7 +244,7 @@ func TestHandleWriteTextFileAppliesToolGatewayPatch(t *testing.T) {
 	)
 
 	originalPath := filepath.Join(proc.Cwd, "original.txt")
-	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
+	if _, err := proc.handleWriteTextFile(t.Context(), acpsdk.WriteTextFileRequest{
 		SessionId: "sess-direct",
 		Path:      originalPath,
 		Content:   "original",
@@ -301,7 +301,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	errCh := make(chan *acpsdk.RequestError, 1)
 	go func() {
 		response, reqErr := proc.handleInbound(
-			context.Background(),
+			t.Context(),
 			acpsdk.ClientMethodSessionRequestPermission,
 			mustMarshalJSON(request),
 		)
@@ -630,7 +630,7 @@ func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T
 	title := "Write"
 	kind := acpsdk.ToolKindEdit
 	response, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodSessionRequestPermission,
 		mustMarshalJSON(acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
@@ -686,7 +686,7 @@ func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testin
 	title := "Write"
 	kind := acpsdk.ToolKindEdit
 	response, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodSessionRequestPermission,
 		mustMarshalJSON(acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
@@ -891,7 +891,7 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 	title := "read file"
 	kind := acpsdk.ToolKindRead
 	response, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodSessionRequestPermission,
 		mustMarshalJSON(acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
@@ -938,7 +938,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	t.Cleanup(func() { proc.endPrompt(active) })
 
 	createResult, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalCreate,
 		mustMarshalJSON(acpsdk.CreateTerminalRequest{
 			SessionId: "sess-direct",
@@ -965,7 +965,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 
 	waitResult, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalWaitForExit,
 		mustMarshalJSON(acpsdk.WaitForTerminalExitRequest{
 			SessionId:  "sess-direct",
@@ -984,7 +984,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 
 	outputResult, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalOutput,
 		mustMarshalJSON(acpsdk.TerminalOutputRequest{
 			SessionId:  "sess-direct",
@@ -1003,7 +1003,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 
 	if _, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalKill,
 		mustMarshalJSON(acpsdk.KillTerminalRequest{
 			SessionId:  "sess-direct",
@@ -1014,7 +1014,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	}
 
 	if _, reqErr := proc.handleInbound(
-		context.Background(),
+		t.Context(),
 		acpsdk.ClientMethodTerminalRelease,
 		mustMarshalJSON(acpsdk.ReleaseTerminalRequest{
 			SessionId:  "sess-direct",
@@ -1124,7 +1124,7 @@ func TestHelperUtilities(t *testing.T) {
 func TestWithoutCancelPreservingDeadline(t *testing.T) {
 	t.Parallel()
 
-	parent, cancelParent := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
+	parent, cancelParent := context.WithDeadline(t.Context(), time.Now().Add(time.Minute))
 	child, cancelChild := withoutCancelPreservingDeadline(parent)
 	defer cancelParent()
 	defer cancelChild()
@@ -1175,7 +1175,7 @@ func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 		}
 		defer proc.endPrompt(active)
 
-		if _, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
+		if _, err := proc.handleCreateTerminal(t.Context(), acpsdk.CreateTerminalRequest{
 			SessionId: "sess-direct",
 			Command:   "printf",
 			Args:      []string{"ready"},
@@ -1695,7 +1695,7 @@ func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), ctxKey, "present")
+	ctx := context.WithValue(t.Context(), ctxKey, "present")
 	result, reqErr := proc.handleInbound(
 		ctx,
 		acpsdk.ClientMethodTerminalCreate,

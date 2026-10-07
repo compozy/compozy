@@ -13,7 +13,7 @@ import (
 
 type nativeSessionStopInput struct {
 	SessionID string `json:"session_id"`
-	Wait      *bool  `json:"wait,omitempty"`
+	Wait      *bool  `json:"wait,omitzero"`
 }
 
 type nativeSessionStopper interface {

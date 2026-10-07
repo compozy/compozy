@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -50,7 +50,7 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
-		sort.Strings(result.Indexed)
+		slices.Sort(result.Indexed)
 		if got, want := result.Indexed, []string{"sess-new"}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}
@@ -258,7 +258,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
-		sort.Strings(result.Indexed)
+		slices.Sort(result.Indexed)
 		if got, want := result.Indexed, []string{rootID, parentID, childID}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}
@@ -551,7 +551,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
-		sort.Strings(result.Orphaned)
+		slices.Sort(result.Orphaned)
 		if got, want := result.Orphaned, []string{"sess-orphan"}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("Orphaned = %#v, want %#v", got, want)
 		}
@@ -620,7 +620,7 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Reconcile() error = %v", err)
 		}
-		sort.Strings(result.Indexed)
+		slices.Sort(result.Indexed)
 		if got, want := result.Indexed, []string{"sess-valid"}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}

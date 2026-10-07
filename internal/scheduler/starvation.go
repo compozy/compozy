@@ -111,8 +111,7 @@ func (s *Scheduler) escalateSpawn(
 	case err != nil:
 		return []error{fmt.Errorf("scheduler: request worker spawn %q: %w", work.Run.ID, err)}
 	default:
-		at := now
-		mutation.SpawnRequestedAt = &at
+		mutation.SpawnRequestedAt = new(now)
 		result.SpawnRequested++
 		result.SpawnRequestedRunIDs = append(result.SpawnRequestedRunIDs, mutation.RunID)
 		return nil
@@ -134,8 +133,7 @@ func (s *Scheduler) escalateEvent(
 	if err := s.escalator.EmitRunStarved(ctx, work, queuedAge); err != nil {
 		return []error{fmt.Errorf("scheduler: emit run starved %q: %w", work.Run.ID, err)}
 	}
-	at := now
-	mutation.StarvedEventAt = &at
+	mutation.StarvedEventAt = new(now)
 	return nil
 }
 

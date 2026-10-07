@@ -1,7 +1,8 @@
 package config
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 
 	burnttoml "github.com/BurntSushi/toml"
@@ -76,8 +77,8 @@ func joinTOMLKeys(keys []burnttoml.Key) string {
 
 func sortedTOMLKeys(keys []burnttoml.Key) []burnttoml.Key {
 	sorted := append([]burnttoml.Key(nil), keys...)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].String() < sorted[j].String()
+	slices.SortFunc(sorted, func(left, right burnttoml.Key) int {
+		return cmp.Compare(left.String(), right.String())
 	})
 	return sorted
 }

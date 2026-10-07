@@ -174,8 +174,7 @@ func cloneAppTrackState(state *AppTrackState) *AppTrackState {
 	if state == nil {
 		return nil
 	}
-	cloned := *state
-	return &cloned
+	return new(*state)
 }
 
 func appStatus(app *AppTrackState) Status {

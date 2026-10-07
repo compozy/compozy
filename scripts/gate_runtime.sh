@@ -110,9 +110,10 @@ print_classification() {
 	if [ -n "$GO_SCOPES" ]; then
 		log "go scopes: $(normalized_go_scopes | tr '\n' ' ')"
   fi
-  if [ "$SDK_GO" -eq 1 ]; then
-    log "sdk/go lane: separate module (go -C sdk/go)"
+  if [ -n "$GO_MODULES" ]; then
+    log "go modules: $(printf '%s' "$GO_MODULES" | sort -u | tr '\n' ' ')"
   fi
+  if [ "$MAGE_LINT" -eq 1 ]; then log "mage lint: build tag mage"; fi
 	if [ -n "$JS_FILTERS" ]; then
 		log "js filters: $(printf '%s' "$JS_FILTERS" | sort -u | tr '\n' ' ')"
 	fi
@@ -128,5 +129,61 @@ print_classification() {
   if [ "$CATALOG_CHECK" -eq 1 ]; then log "catalog lanes: production installer + bridge runtime tests"; fi
   if [ "$NO_LANE_COUNT" -gt 0 ]; then
     log "no-lane (docs/instructions/CI): $NO_LANE_COUNT files"
+  fi
+}
+
+root_lint_covers_modules() {
+  normalized_go_scopes | grep -Fx './...' >/dev/null
+}
+
+# The tree fingerprint alone does not prove the cached command checked every module.
+root_lint_record_covers_modules() {
+  local rec="$1" scopes
+  record_current "$rec" || return 1
+  scopes="$(record_field "$rec" command | sed -n 's/^env COMPOZY_GO_LINT_SCOPES=\(.*\) make go-lint$/\1/p')"
+  printf '%s\n' "$scopes" | tr '[:space:]' '\n' | grep -Fx './...' >/dev/null
+}
+
+run_module_lint() {
+  local id="$1" module="$2" root_record
+  root_record="$(record_path go-lint)"
+  if root_lint_covers_modules && root_lint_record_covers_modules "$root_record"; then
+    write_record "$id" pass "covered by go-lint (./...)" "$(record_field "$root_record" log)" 0
+    log "SKIP $id — covered by current go-lint evidence"
+  else
+    run_lane "$id" env "COMPOZY_GO_LINT_SCOPES=./$module/..." make go-lint
+  fi
+}
+
+run_module_lanes() {
+  local module id
+  for module in $(printf '%s' "$GO_MODULES" | sort -u); do
+    id="$(printf '%s' "$module" | tr '/' '-')"
+    run_module_lint "$id-lint" "$module"
+    case "$module" in
+      internal/extension/testdata/*) run_lane "$id-build-vet" make go-fixture-check "GO_FIXTURE_MODULE=$module" ;;
+      *) run_lane "$id-test" env CGO_ENABLED=1 go -C "$module" test -race -p "$(go_test_p)" -parallel=4 ./... ;;
+    esac
+  done
+  if [ "$MAGE_LINT" -eq 1 ]; then
+    run_module_lint mage-lint magefiles
+  fi
+}
+
+plan_module_lanes() {
+  local module
+  for module in $(printf '%s' "$GO_MODULES" | sort -u); do
+    if root_lint_covers_modules; then
+      log "module lint covered by root go-lint: $module"
+    else
+      log "would run: env COMPOZY_GO_LINT_SCOPES='./$module/...' make go-lint"
+    fi
+    case "$module" in
+      internal/extension/testdata/*) log "would run: make go-fixture-check GO_FIXTURE_MODULE=$module (build + vet)" ;;
+      *) log "would run: CGO_ENABLED=1 go -C $module test -race -p $(go_test_p) -parallel=4 ./..." ;;
+    esac
+  done
+  if [ "$MAGE_LINT" -eq 1 ] && ! root_lint_covers_modules; then
+    log "would run: env COMPOZY_GO_LINT_SCOPES='./magefiles/...' make go-lint"
   fi
 }

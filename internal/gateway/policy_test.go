@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestPolicyAuthorityAndRefusals(t *testing.T) {
@@ -176,7 +178,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 			go func() {
 				ready.Done()
 				<-start
-				_, err := policy.Transition(context.Background(), providerRequest(DesiredEnabled, 0))
+				_, err := policy.Transition(t.Context(), providerRequest(DesiredEnabled, 0))
 				errs <- err
 			}()
 		}
@@ -371,7 +373,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		effects := newTestEffects(nil)
 		reconciler := NewReconciler(store, effects, WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond))
 		t.Cleanup(func() {
-			if err := reconciler.Close(testContext(t)); err != nil {
+			if err := reconciler.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
@@ -404,7 +406,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 			WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond),
 		)
 		t.Cleanup(func() {
-			if err := reconciler.Close(testContext(t)); err != nil {
+			if err := reconciler.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
@@ -482,7 +484,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		effects := newTestEffects(nil)
 		reconciler := NewReconciler(store, effects, WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond))
 		t.Cleanup(func() {
-			if err := reconciler.Close(testContext(t)); err != nil {
+			if err := reconciler.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
@@ -593,15 +595,15 @@ func TestPolicyDisableSemantics(t *testing.T) {
 			t.Fatalf("Acquire() error = %v", err)
 		}
 		released := make(chan struct{})
-		var releaseOnce sync.Once
+		releaseOnce := sync.OnceFunc(func() {
+			release()
+			close(released)
+		})
 		effects.onCall = func(call string) {
 			if call != "withdraw" {
 				return
 			}
-			releaseOnce.Do(func() {
-				release()
-				close(released)
-			})
+			releaseOnce()
 		}
 		if _, err := policy.Transition(testContext(t), TransitionRequest{
 			Target: TargetSurface, Tier: TierPrivate, Surface: SurfaceOperatorUI,
@@ -762,7 +764,7 @@ func providerRequest(desired DesiredState, expected uint64) TransitionRequest {
 
 func testContext(t *testing.T) context.Context {
 	t.Helper()
-	return context.Background()
+	return t.Context()
 }
 
 type preflightTestEffects struct {

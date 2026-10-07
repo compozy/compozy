@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -81,10 +82,7 @@ func resolveConfiguredClientTarget(
 	}
 	active := strings.TrimSpace(cfg.Gateway.ActiveConnection)
 	if active == "" {
-		socketPath := strings.TrimSpace(cfg.Daemon.Socket)
-		if socketPath == "" {
-			socketPath = homePaths.DaemonSocket
-		}
+		socketPath := cmp.Or(strings.TrimSpace(cfg.Daemon.Socket), homePaths.DaemonSocket)
 		if socketPath == "" {
 			return ClientTarget{}, errors.New("cli: daemon socket path is required")
 		}

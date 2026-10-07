@@ -564,7 +564,7 @@ func testConcurrentResumeSharesOneStart(t *testing.T) {
 	}
 	results := make(chan result, 2)
 	resume := func() {
-		resumed, err := h.manager.Resume(context.Background(), session.ID)
+		resumed, err := h.manager.Resume(t.Context(), session.ID)
 		results <- result{session: resumed, err: err}
 	}
 	go resume()
@@ -1028,10 +1028,10 @@ func TestAgentProcessHelpersAndAdapterUtilities(t *testing.T) {
 		t.Fatal("nativeProcess(unsupported process) error = nil, want non-nil")
 	}
 
-	if _, err := adapter.Start(context.Background(), acp.StartOpts{}); err == nil {
+	if _, err := adapter.Start(t.Context(), acp.StartOpts{}); err == nil {
 		t.Fatal("Start(invalid opts) error = nil, want non-nil")
 	}
-	if err := adapter.Cancel(context.Background(), wrapACPProcess(&acp.AgentProcess{})); err == nil {
+	if err := adapter.Cancel(t.Context(), wrapACPProcess(&acp.AgentProcess{})); err == nil {
 		t.Fatal("Cancel(empty session id) error = nil, want non-nil")
 	}
 }

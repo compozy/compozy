@@ -384,7 +384,7 @@ func actionExecutionInput(
 		ProvenanceParentSessionID: strings.TrimSpace(provenanceParentSessionID),
 		GoalContextNudgeRatio:     new(loopRun.GoalContextNudgeRatio),
 		GoalSegmentEpoch:          meta.GoalSegmentEpoch,
-		Environment:               cloneEnvironmentSpec(effective.Environment),
+		Environment:               new(effective.Environment),
 	}
 	input.SetOriginProvenance(
 		loopRun.Origin.CreationProfileRef,

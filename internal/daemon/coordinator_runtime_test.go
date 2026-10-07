@@ -63,7 +63,7 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), now)
 
 	info, created, err := runtime.bootstrapRun(
-		context.Background(),
+		t.Context(),
 		store.tasks["task-1"],
 		store.runs["run-1"],
 		coordinator.ReasonRunEnqueued,
@@ -229,7 +229,7 @@ func TestCoordinatorRuntimeBootstrapsWithTaskContextOverlay(t *testing.T) {
 	runtime.contextOverlay = overlay
 
 	_, created, err := runtime.bootstrapRun(
-		context.Background(),
+		t.Context(),
 		store.tasks["task-1"],
 		store.runs["run-1"],
 		coordinator.ReasonRunEnqueued,
@@ -304,7 +304,7 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 			runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, tc.cfg, time.Now().UTC())
 
 			_, created, err := runtime.bootstrapRun(
-				context.Background(),
+				t.Context(),
 				tc.task,
 				tc.run,
 				coordinator.ReasonRunEnqueued,
@@ -357,7 +357,7 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 	for range attempts {
 		go func() {
 			_, _, err := runtime.bootstrapRun(
-				context.Background(),
+				t.Context(),
 				store.tasks["task-1"],
 				store.runs["run-1"],
 				coordinator.ReasonRunEnqueued,
@@ -441,7 +441,7 @@ func TestCoordinatorRuntimeShutdownStopsPromptEventDrains(t *testing.T) {
 		time.Now().UTC(),
 	)
 	if err := runtime.promptCoordinator(
-		context.Background(),
+		t.Context(),
 		&session.Info{ID: "coord-drain"},
 		coordinator.Decision{TaskID: "task-1", RunID: "run-1"},
 		coordinator.ReasonRunEnqueued,
@@ -449,16 +449,16 @@ func TestCoordinatorRuntimeShutdownStopsPromptEventDrains(t *testing.T) {
 		t.Fatalf("promptCoordinator() error = %v", err)
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if err := runtime.shutdown(shutdownCtx); err != nil {
 		t.Fatalf("shutdown() error = %v", err)
 	}
-	if err := runtime.shutdown(context.Background()); err != nil {
+	if err := runtime.shutdown(t.Context()); err != nil {
 		t.Fatalf("shutdown(retry) error = %v", err)
 	}
 	if err := runtime.promptCoordinator(
-		context.Background(),
+		t.Context(),
 		&session.Info{ID: "coord-drain"},
 		coordinator.Decision{TaskID: "task-1", RunID: "run-2"},
 		coordinator.ReasonRunEnqueued,
@@ -487,7 +487,7 @@ func TestCoordinatorRuntimeObservesTaskRunEnqueuedButNotTaskCreation(t *testing.
 	if got := sessions.createCount(); got != 0 {
 		t.Fatalf("Create count before enqueue = %d, want 0", got)
 	}
-	runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+	runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 		TaskID: "task-1", RunID: "run-1",
 	})
 	if got := sessions.createCount(); got != 1 {
@@ -521,7 +521,7 @@ func TestCoordinatorRuntimeManualSessionsCoexist(t *testing.T) {
 	)
 
 	_, created, err := runtime.bootstrapRun(
-		context.Background(),
+		t.Context(),
 		store.tasks["task-1"],
 		store.runs["run-1"],
 		coordinator.ReasonRunEnqueued,
@@ -571,7 +571,7 @@ func TestCoordinatorRuntimePromptsExistingCoordinatorForQueuedRun(t *testing.T) 
 	)
 
 	info, created, err := runtime.bootstrapRun(
-		context.Background(),
+		t.Context(),
 		store.tasks["task-1"],
 		store.runs["run-1"],
 		coordinator.ReasonRecovery,
@@ -603,7 +603,7 @@ func TestCoordinatorRuntimePromptsExistingCoordinatorForQueuedRun(t *testing.T) 
 	nextRun.ID = "run-2"
 	store.runs[nextRun.ID] = nextRun
 	_, created, err = runtime.bootstrapRun(
-		context.Background(),
+		t.Context(),
 		store.tasks["task-1"],
 		nextRun,
 		coordinator.ReasonRunEnqueued,
@@ -628,7 +628,7 @@ func TestCoordinatorRuntimeRecoversWhenCoordinatorStopsWithExecutableWork(t *tes
 	hooks := &recordingCoordinatorHooks{}
 	runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), time.Now().UTC())
 
-	runtime.OnSessionStopped(context.Background(), &session.Session{
+	runtime.OnSessionStopped(t.Context(), &session.Session{
 		ID:          "coord-old",
 		AgentName:   "coordinator",
 		WorkspaceID: "ws-1",
@@ -653,7 +653,7 @@ func TestCoordinatorRuntimePreSpawnDeny(t *testing.T) {
 	runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), time.Now().UTC())
 
 	_, created, err := runtime.bootstrapRun(
-		context.Background(),
+		t.Context(),
 		store.tasks["task-1"],
 		store.runs["run-1"],
 		coordinator.ReasonRunEnqueued,
@@ -681,7 +681,7 @@ func TestCoordinatorRuntimePreSpawnDenyFromHookError(t *testing.T) {
 	runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), time.Now().UTC())
 
 	_, created, err := runtime.bootstrapRun(
-		context.Background(),
+		t.Context(),
 		store.tasks["task-1"],
 		store.runs["run-1"],
 		coordinator.ReasonRunEnqueued,
@@ -712,7 +712,7 @@ func TestHooksNotifierTaskRunEnqueuedObserversReceivePayload(t *testing.T) {
 	observer := &recordingTaskRunEnqueuedObserver{}
 	notifier.AddTaskRunEnqueuedObserver(observer)
 
-	_, err := notifier.DispatchTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+	_, err := notifier.DispatchTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 		TaskID:      "task-1",
 		RunID:       "run-1",
 		WorkspaceID: "ws-1",
@@ -739,7 +739,7 @@ func newCoordinatorRuntimeForTest(
 ) *coordinatorRuntime {
 	t.Helper()
 	runtime, err := newCoordinatorRuntime(
-		context.Background(),
+		t.Context(),
 		store,
 		sessions,
 		&staticCoordinatorRoleResolver{cfg: cfg},

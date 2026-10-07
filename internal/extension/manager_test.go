@@ -567,7 +567,7 @@ path = "skills/shared"
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := manager.Stop(context.WithoutCancel(t.Context())); err != nil {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
 			t.Error(err)
 		}
 	})
@@ -1573,10 +1573,8 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 
 		secondInitializeStarted := make(chan struct{})
 		releaseSecondInitialize := make(chan struct{})
-		var releaseOnce sync.Once
-		t.Cleanup(func() {
-			releaseOnce.Do(func() { close(releaseSecondInitialize) })
-		})
+		releaseSecond := sync.OnceFunc(func() { close(releaseSecondInitialize) })
+		t.Cleanup(releaseSecond)
 
 		firstProc := newFakeProcess(301)
 		secondProc := newFakeProcess(302)
@@ -1587,11 +1585,11 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 		thirdProc := newFakeProcess(303)
 		launcher := &fakeLauncher{queue: []*fakeProcess{firstProc, secondProc, thirdProc}}
 		thirdLaunchStarted := make(chan struct{})
-		var thirdLaunchOnce sync.Once
+		thirdLaunch := sync.OnceFunc(func() { close(thirdLaunchStarted) })
 		launch := func(ctx context.Context, cfg subprocess.LaunchConfig) (processHandle, error) {
 			process, err := launcher.launch(ctx, cfg)
 			if launcher.launchCount() >= 3 {
-				thirdLaunchOnce.Do(func() { close(thirdLaunchStarted) })
+				thirdLaunch()
 			}
 			return process, err
 		}
@@ -1634,7 +1632,7 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 		case <-time.After(100 * time.Millisecond):
 		}
 
-		releaseOnce.Do(func() { close(releaseSecondInitialize) })
+		releaseSecond()
 		for index, errCh := range []<-chan error{firstReloadErr, secondReloadErr} {
 			select {
 			case err := <-errCh:
@@ -1881,7 +1879,7 @@ func TestManagerResolveEnvMapUsesSafeBaselineOnly(t *testing.T) {
 		}
 	}))
 
-	env, cleanups, err := manager.resolveEnvMap(context.Background(), t.TempDir(), map[string]string{
+	env, cleanups, err := manager.resolveEnvMap(t.Context(), t.TempDir(), map[string]string{
 		"APP_MODE": "sandbox",
 		"PATH":     "/custom/bin",
 	}, nil)
@@ -2135,11 +2133,11 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	if err := manager.validateExtension(lite); err != nil {
 		t.Fatalf("validateExtension(lite) error = %v", err)
 	}
-	preparedLite, err := manager.prepareExtensionStartup(context.Background(), lite)
+	preparedLite, err := manager.prepareExtensionStartup(t.Context(), lite)
 	if err != nil {
 		t.Fatalf("prepareExtensionStartup(lite) error = %v", err)
 	}
-	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	lifecycleCtx, lifecycleCancel := context.WithCancel(t.Context())
 	t.Cleanup(lifecycleCancel)
 	manager.mu.Lock()
 	manager.started = true
@@ -2177,7 +2175,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			},
 		},
 	}
-	declarations, err := manager.stageExtensionDeclarations(context.Background(), skillExt)
+	declarations, err := manager.stageExtensionDeclarations(t.Context(), skillExt)
 	if err != nil {
 		t.Fatalf("stageExtensionDeclarations(skills) error = %v", err)
 	}
@@ -2199,7 +2197,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			return "ok", nil
 		},
 	)
-	result, err := allowed(context.Background(), json.RawMessage(`{}`))
+	result, err := allowed(t.Context(), json.RawMessage(`{}`))
 	if err != nil || result != "ok" {
 		t.Fatalf("wrapHostHandler allowed call = (%v, %v), want (ok, nil)", result, err)
 	}
@@ -2241,7 +2239,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			return "injected", nil
 		},
 	)
-	result, err = injected(context.Background(), json.RawMessage(`{}`))
+	result, err = injected(t.Context(), json.RawMessage(`{}`))
 	if err != nil || result != "injected" {
 		t.Fatalf("wrapHostHandler injected call = (%v, %v), want (injected, nil)", result, err)
 	}
@@ -2254,7 +2252,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			return "never", nil
 		},
 	)
-	if _, err := denied(context.Background(), nil); err == nil {
+	if _, err := denied(t.Context(), nil); err == nil {
 		t.Fatal("wrapHostHandler denied call error = nil, want capability denial")
 	}
 

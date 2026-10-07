@@ -5,8 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -264,11 +265,7 @@ func sortedIssues(issues map[string]BlockingIssue) []BlockingIssue {
 	if len(issues) == 0 {
 		return nil
 	}
-	ids := make([]string, 0, len(issues))
-	for id := range issues {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := slices.Sorted(maps.Keys(issues))
 	sorted := make([]BlockingIssue, 0, len(ids))
 	for _, id := range ids {
 		sorted = append(sorted, issues[id])
@@ -286,7 +283,7 @@ func sortedIssueIDs(issues []BlockingIssue) []string {
 			ids = append(ids, issue.ID)
 		}
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids
 }
 
@@ -294,11 +291,7 @@ func sortedWarnings(warnings map[string]DiagnosticWarning) []DiagnosticWarning {
 	if len(warnings) == 0 {
 		return nil
 	}
-	codes := make([]string, 0, len(warnings))
-	for code := range warnings {
-		codes = append(codes, code)
-	}
-	sort.Strings(codes)
+	codes := slices.Sorted(maps.Keys(warnings))
 	sorted := make([]DiagnosticWarning, 0, len(codes))
 	for _, code := range codes {
 		sorted = append(sorted, warnings[code])

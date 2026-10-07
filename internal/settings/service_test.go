@@ -33,7 +33,7 @@ import (
 func TestGetSectionBuildsSupportedSections(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+"\n[roles.dream]\nenabled = true\n")
 
@@ -370,7 +370,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 		workspaceService := testService(t, homePaths, Dependencies{
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
 				"ws-1": {
-					Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+					ID: "ws-1", RootDir: workspaceRoot,
 					WorkspaceID: "ws-1",
 				},
 			}},
@@ -410,7 +410,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 		}
 		workspaceService := testService(t, homePaths, Dependencies{
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
-				"ws-1": {Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()}, WorkspaceID: "ws-1"},
+				"ws-1": {ID: "ws-1", RootDir: t.TempDir(), WorkspaceID: "ws-1"},
 			}},
 			CmdPalette: palette,
 		})
@@ -435,7 +435,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 func TestInvalidScopeCombinationsReturnDescriptiveError(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	service := testService(t, homePaths, Dependencies{})
 
@@ -478,7 +478,7 @@ func TestInvalidScopeCombinationsReturnDescriptiveError(t *testing.T) {
 func TestListMCPServersIncludesPrecedenceMetadata(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 
@@ -512,7 +512,7 @@ command = "workspace-config"
 		WorkspaceResolver: fakeWorkspaceResolver{
 			resolved: map[string]workspacepkg.ResolvedWorkspace{
 				"ws-1": {
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+					ID: "ws-1", RootDir: workspaceRoot,
 				},
 			},
 		},
@@ -571,7 +571,7 @@ command = "workspace-config"
 func TestMCPTargetAutoSelectsExistingSourceAndDefaultsNewEntriesToSidecar(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
@@ -631,7 +631,7 @@ func TestProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t *testing.T
 func testProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t *testing.T) {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	secretStore := newFakeProviderSecretStore()
@@ -736,7 +736,7 @@ func TestCollectionProfileSelectorMustMatchScope(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
-		ctx := context.Background()
+		ctx := t.Context()
 		if _, err := service.ListCollection(ctx, CollectionRequest{
 			Collection: CollectionHooks, Scope: ScopeUser, ProfileName: "marketing",
 		}); err == nil || !errors.Is(err, ErrConflict) {
@@ -826,7 +826,7 @@ func TestUpdateSectionMarketplaceRuntimeSource(t *testing.T) {
 func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	service := testService(t, homePaths, Dependencies{})
@@ -918,7 +918,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Run("Should round-trip the complete validated global config", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -955,7 +955,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Run("Should leave config unchanged when validation fails", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		before := readFile(t, homePaths.ConfigFile)
@@ -986,7 +986,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Run("Should name the shortcut owner and transfer the chord only with overwrite", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -999,8 +999,8 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		}
 
 		_, err := service.UpdateSection(ctx, request)
-		var conflict *windowmanager.ShortcutConflictError
-		if !errors.As(err, &conflict) {
+		conflict, conflictOK := errors.AsType[*windowmanager.ShortcutConflictError](err)
+		if !conflictOK {
 			t.Fatalf("UpdateSection(conflict) error = %T %v, want ShortcutConflictError", err, err)
 		}
 		if conflict.Owner != "session.new" || conflict.Chord != "meta+KeyN" {
@@ -1028,7 +1028,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Run("Should transfer a desktop-global chord only through an atomic overwrite", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -1042,8 +1042,8 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		}
 
 		_, err := service.UpdateSection(ctx, request)
-		var conflict *windowmanager.ShortcutConflictError
-		if !errors.As(err, &conflict) {
+		conflict, conflictOK := errors.AsType[*windowmanager.ShortcutConflictError](err)
+		if !conflictOK {
 			t.Fatalf("UpdateSection(global conflict) error = %T %v, want ShortcutConflictError", err, err)
 		}
 		if conflict.Owner != windowmanager.DefaultGlobalSummonCommandID ||
@@ -1078,7 +1078,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Run("Should validate aliases and transfer ownership atomically", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -1096,8 +1096,8 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 			WindowManagerAliases: &conflictingAliases,
 		}
 		_, err := service.UpdateSection(ctx, request)
-		var conflict *AliasConflictError
-		if !errors.As(err, &conflict) {
+		conflict, conflictOK := errors.AsType[*AliasConflictError](err)
+		if !conflictOK {
 			t.Fatalf("UpdateSection(alias conflict) error = %T %v, want AliasConflictError", err, err)
 		}
 		if conflict.Owner != "session.new" || conflict.Alias != "new" {
@@ -1132,7 +1132,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Run("Should accept a workspace extension ID from the command catalog", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		workspaceRoot := t.TempDir()
@@ -1147,7 +1147,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		}}}
 		service := testService(t, homePaths, Dependencies{
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
-				"ws-1": {Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot}},
+				"ws-1": {ID: "ws-1", RootDir: workspaceRoot},
 			}},
 			CmdPalette: paletteEvents,
 		})
@@ -1255,7 +1255,7 @@ func TestUpdateSectionCmdPalette(t *testing.T) {
 	t.Run("Should persist both command palette controls as live scalar mutations [IT-015]", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -1288,7 +1288,7 @@ func TestUpdateSectionCmdPalette(t *testing.T) {
 	t.Run("Should preserve an omitted command palette control", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -1319,7 +1319,7 @@ func TestUpdateSectionAttention(t *testing.T) {
 	t.Run("Should round-trip the complete validated global config", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -1368,7 +1368,7 @@ func TestUpdateSectionAttention(t *testing.T) {
 	t.Run("Should leave config unchanged when validation fails", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		before := readFile(t, homePaths.ConfigFile)
@@ -1399,7 +1399,7 @@ func TestUpdateSectionAttention(t *testing.T) {
 	t.Run("Should restore delivery config when mute persistence fails", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		mutes := &settingsTestAttentionMuteStore{
@@ -1447,7 +1447,7 @@ func TestUpdateSectionShell(t *testing.T) {
 	t.Run("Should round-trip the complete validated global shell config", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -1479,7 +1479,7 @@ func TestUpdateSectionShell(t *testing.T) {
 	t.Run("Should leave config unchanged when a shell preference is invalid", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		before := readFile(t, homePaths.ConfigFile)
@@ -1509,7 +1509,7 @@ func TestUpdateSectionGeneralMemoryReportIntervalRequiresRestart(t *testing.T) {
 	t.Run("Should require a restart when disabling memory reports", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
@@ -1541,7 +1541,7 @@ func TestUpdateSectionGeneralMemoryReportIntervalRequiresRestart(t *testing.T) {
 func TestUpdateSectionSkillsAppliesDisabledSkillsNow(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	skillsRuntime := newFakeSkillsRuntime(
@@ -1586,7 +1586,7 @@ func TestUpdateSectionSkillsWithoutRuntimeDoesNotPersistChanges(t *testing.T) {
 	t.Run("Should leave config unchanged when disabled skills need a runtime apply", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		before := readFile(t, homePaths.ConfigFile)
@@ -1629,12 +1629,12 @@ func TestUpdateSectionSkillSourceScopesAndConcurrentWrites(t *testing.T) {
 		}
 		loaded.Skills.Sources = []string{"agnets"}
 
-		_, err = service.UpdateSection(context.Background(), SectionUpdateRequest{
+		_, err = service.UpdateSection(t.Context(), SectionUpdateRequest{
 			Section: SectionSkills, Scope: ScopeUser,
 			Skills: &loaded.Skills,
 		})
-		var validation *compozyconfig.SkillSourceValidationError
-		if !errors.Is(err, ErrValidation) || !errors.As(err, &validation) ||
+		validation, validationOK := errors.AsType[*compozyconfig.SkillSourceValidationError](err)
+		if !errors.Is(err, ErrValidation) || !validationOK ||
 			validation.Code != "unknown_skill_source" || validation.Suggestion != "agents" {
 			t.Fatalf("UpdateSection(invalid sources) error = %#v, want portable source validation", err)
 		}
@@ -1667,7 +1667,7 @@ Test agent.
 		}
 		sourceChange := loaded.Skills
 		sourceChange.Sources = []string{"claude"}
-		_, err = service.UpdateSection(context.Background(), SectionUpdateRequest{
+		_, err = service.UpdateSection(t.Context(), SectionUpdateRequest{
 			Section: SectionSkills, Scope: ScopeAgent, AgentName: "coder",
 			Skills: &sourceChange,
 		})
@@ -1678,7 +1678,7 @@ Test agent.
 
 		disabledChange := loaded.Skills
 		disabledChange.DisabledSkills = []string{"beta"}
-		result, err := service.UpdateSection(context.Background(), SectionUpdateRequest{
+		result, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
 			Section: SectionSkills, Scope: ScopeAgent, AgentName: "coder",
 			Skills: &disabledChange,
 		})
@@ -1698,7 +1698,7 @@ Test agent.
 			workspaceRoot := t.TempDir()
 			resolver := fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
 				"ws-alpha": {
-					Workspace:   workspacepkg.Workspace{ID: "ws-alpha", RootDir: workspaceRoot},
+					ID: "ws-alpha", RootDir: workspaceRoot,
 					WorkspaceID: "ws-alpha",
 				},
 			}}
@@ -1727,14 +1727,12 @@ Test agent.
 			var wait sync.WaitGroup
 			errorsByRequest := make([]error, len(requests))
 			for index := range requests {
-				wait.Add(1)
-				go func(requestIndex int) {
-					defer wait.Done()
-					_, errorsByRequest[requestIndex] = service.UpdateSection(
-						context.Background(),
-						requests[requestIndex],
+				wait.Go(func() {
+					_, errorsByRequest[index] = service.UpdateSection(
+						t.Context(),
+						requests[index],
 					)
-				}(index)
+				})
 			}
 			wait.Wait()
 			for index, updateErr := range errorsByRequest {
@@ -1931,7 +1929,7 @@ func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
 		catalog := &settingsModelCatalogStub{}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
 
-		if _, err := service.ListCollection(context.Background(), CollectionRequest{
+		if _, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		}); err != nil {
 			t.Fatalf("ListCollection(providers) error = %v", err)
@@ -1960,7 +1958,7 @@ func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
 			},
 		}}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -1973,7 +1971,7 @@ func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
 		before := readFile(t, homePaths.ConfigFile)
 		settings := claude.Settings
 		settings.ModelsSet = true
-		result, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		result, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "claude",
 			Provider:   &settings,
@@ -1987,7 +1985,7 @@ func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
 		if after := readFile(t, homePaths.ConfigFile); after != before {
 			t.Fatalf("unchanged builtin projection rewrote config:\n%s", after)
 		}
-		envelope, err = service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err = service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2039,7 +2037,7 @@ display_name = "Raw config row"
 			},
 		}}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2068,7 +2066,7 @@ display_name = "Raw config row"
 
 		settings := custom.Settings
 		settings.ModelsSet = true
-		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &settings,
@@ -2091,7 +2089,7 @@ display_name = "Raw config row"
 		}
 
 		defaultEffort := modelcatalog.ReasoningEffortMax
-		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &settings,
@@ -2114,7 +2112,7 @@ display_name = "Raw config row"
 			curated.SupportsReasoning != nil || curated.ReasoningEfforts != nil {
 			t.Fatalf("explicit curation materialized merged enrichment: %#v", curated)
 		}
-		envelope, err = service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err = service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2136,7 +2134,7 @@ display_name = "Raw config row"
 		updated.ReleaseDate = &updatedReleaseDate
 		catalog.models["custom"] = []modelcatalog.Model{updated}
 		catalog.mu.Unlock()
-		envelope, err = service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err = service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2172,7 +2170,7 @@ display_name = "Raw config row"
 			},
 		}}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2183,7 +2181,7 @@ display_name = "Raw config row"
 		settings.ModelsSet = true
 		settings.Models.Default = "grok-4.6"
 
-		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "cursor",
 			Provider:   &settings,
@@ -2241,7 +2239,7 @@ featured = true
 		}
 		beforeModels := cloneProviderModelsConfig(beforeConfig.Providers["custom"].Models)
 		service := testService(t, homePaths, Dependencies{})
-		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &ProviderSettings{Command: "custom-acp-v2"},
@@ -2283,7 +2281,7 @@ command = "custom-acp"
 			},
 		}}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2293,7 +2291,7 @@ command = "custom-acp"
 		settings := custom.Settings
 		settings.ModelsSet = true
 		settings.Models.Curated = settings.Models.Curated[1:]
-		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &settings,
@@ -2339,7 +2337,7 @@ deprecated = true
 			"custom": {{ProviderID: "custom", ModelID: "visible", Curated: true}},
 		}}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2352,7 +2350,7 @@ deprecated = true
 			settings.Models.Curated,
 			compozyconfig.ProviderModelConfig{ID: "excluded"},
 		)
-		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &settings,
@@ -2378,7 +2376,7 @@ deprecated = true
 		service := testService(t, homePaths, Dependencies{})
 		before := readFile(t, homePaths.ConfigFile)
 		defaultEffort := modelcatalog.ReasoningEffortMax
-		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "missing",
 			Provider: &ProviderSettings{
@@ -2430,7 +2428,7 @@ id = "custom-model"
 				Default: "custom-model",
 			},
 		}
-		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &settings,
@@ -2459,7 +2457,7 @@ id = "custom-model"
 			},
 		}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2495,7 +2493,7 @@ featured = true
 			},
 		}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2507,7 +2505,7 @@ featured = true
 		}
 		settings := custom.Settings
 		settings.ModelsSet = true
-		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &settings,
@@ -2558,7 +2556,7 @@ id = "raw-model"
 			},
 		}
 		before := readFile(t, homePaths.ConfigFile)
-		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &settings,
@@ -2596,7 +2594,7 @@ id = "raw-model"
 			},
 		}
 		before := readFile(t, homePaths.ConfigFile)
-		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+		_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			Collection: CollectionProviders,
 			Name:       "custom",
 			Provider:   &settings,
@@ -2621,7 +2619,7 @@ id = "raw-model"
 			"blackbox": {},
 		}}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -2680,7 +2678,7 @@ func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 	t.Run("Should accept native CLI Codex overlay from onboarding", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
 
@@ -2738,7 +2736,7 @@ func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 		t.Parallel()
 
 		const rawLoginCommand = "codex login --tenant corp --token raw-login-secret"
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
 
@@ -2779,7 +2777,7 @@ auth_login_command = "codex login --tenant corp --token raw-login-secret"
 func TestProviderSecretOnlyMutationStoresVaultSecret(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	secretStore := newFakeProviderSecretStore()
@@ -2819,7 +2817,7 @@ func TestProviderSecretOnlyMutationStoresVaultSecret(t *testing.T) {
 func TestProviderSecretMutationRejectsCrossProviderRefs(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	secretStore := newFakeProviderSecretStore()
@@ -2850,7 +2848,7 @@ func TestProviderSecretMutationRejectsInvalidProviderConfigWithoutStoringSecrets
 		func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			homePaths := testHomePaths(t)
 			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 			secretStore := newFakeProviderSecretStore()
@@ -2897,7 +2895,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 	t.Run("Should store stdio secret env values without writing plaintext config", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
@@ -3214,7 +3212,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 	t.Run("Should store OAuth client secret values without writing plaintext config", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
@@ -3339,7 +3337,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 	t.Run("Should preserve the complete OAuth contract in the config target", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
@@ -3394,7 +3392,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 	t.Run("Should replace a declared ref with the canonical ref for typed values", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
@@ -3429,7 +3427,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 	t.Run("Should reject invalid stdio auth config without storing secrets", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
@@ -3548,7 +3546,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				}
 				service := testService(t, homePaths, dependencies)
 
-				_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+				_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 					Collection: CollectionMCPServers,
 					Name:       tc.serverName,
 					MCPServer:  &tc.server,
@@ -3578,7 +3576,7 @@ func TestDeleteMCPServerAutoUsesHighestPrecedenceSourceInScope(t *testing.T) {
 	t.Run("Should delete the highest-precedence MCP source within each scope", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 
@@ -3608,7 +3606,7 @@ command = "workspace-config"
 			WorkspaceResolver: fakeWorkspaceResolver{
 				resolved: map[string]workspacepkg.ResolvedWorkspace{
 					"ws-1": {
-						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						ID: "ws-1", RootDir: workspaceRoot,
 					},
 				},
 			},
@@ -3693,7 +3691,7 @@ command = "workspace-config"
 func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	memoryHomePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-settings-home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -3711,15 +3709,15 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 		{
 			name: "memory",
 			request: SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionMemory},
-				Memory:         &memoryConfig,
+				Section: SectionMemory,
+				Memory:  &memoryConfig,
 			},
 			want: `global_dir = "/tmp/updated-memory"`,
 		},
 		{
 			name: "skills restart required",
 			request: SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionSkills},
+				Section: SectionSkills,
 				Skills: &compozyconfig.SkillsConfig{
 					Enabled:                 true,
 					DisabledSkills:          []string{"alpha", "beta"},
@@ -3732,7 +3730,7 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 		{
 			name: "automation",
 			request: SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionAutomation},
+				Section: SectionAutomation,
 				Automation: &AutomationSettings{
 					Enabled:           true,
 					Timezone:          "America/Sao_Paulo",
@@ -3748,7 +3746,7 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 		{
 			name: "observability",
 			request: SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionObservability},
+				Section: SectionObservability,
 				Observability: &compozyconfig.ObservabilityConfig{
 					Enabled:        true,
 					RetentionDays:  21,
@@ -3765,7 +3763,7 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 		{
 			name: "hooks extensions",
 			request: SectionUpdateRequest{
-				SectionRequest: SectionRequest{Section: SectionHooksExtensions},
+				Section: SectionHooksExtensions,
 				HooksExtensions: &compozyconfig.ExtensionsConfig{
 					Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true},
 					Sources: compozyconfig.ExtensionsSourcesConfig{
@@ -3931,7 +3929,7 @@ func TestHookDeclarationMapSerializesEnabledFlag(t *testing.T) {
 func TestUpdateSectionNoChangesReturnsWarning(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	service := testService(t, homePaths, Dependencies{})
@@ -3966,7 +3964,7 @@ func TestUpdateSectionNoChangesReturnsWarning(t *testing.T) {
 func TestSectionAndCollectionValidationErrors(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	service := testService(t, homePaths, Dependencies{})
@@ -4419,7 +4417,7 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 			EventSummaries: eventStore,
 		})
 
-		_, err = service.UpdateSection(WithMutationSource(context.Background(), "http"), SectionUpdateRequest{
+		_, err = service.UpdateSection(WithMutationSource(t.Context(), "http"), SectionUpdateRequest{
 			Section: SectionGeneral,
 			Scope:   ScopeUser,
 			General: &GeneralSettings{
@@ -4437,7 +4435,7 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 		}
 
 		summaries, err := eventStore.ListEventSummaries(
-			context.Background(),
+			t.Context(),
 			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
 		)
 		if err != nil {
@@ -4826,7 +4824,7 @@ func testSkill(name string, enabled bool) *skillspkg.Skill {
 func TestListCollectionBuildsProvidersAndHooks(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	workspaceRoot := filepath.Join(t.TempDir(), "hook-workspace")
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
@@ -4905,7 +4903,7 @@ command = "/bin/workspace-profile-ship"
 		WorkspaceResolver: fakeWorkspaceResolver{
 			resolved: map[string]workspacepkg.ResolvedWorkspace{
 				"ws-hooks": {
-					Workspace: workspacepkg.Workspace{ID: "ws-hooks", RootDir: workspaceRoot},
+					ID: "ws-hooks", RootDir: workspaceRoot,
 				},
 			},
 			listed: []workspacepkg.Workspace{},
@@ -4996,7 +4994,7 @@ command = "/bin/workspace-profile-ship"
 func TestCollectionMutationsProviderAndHook(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	service := testService(t, homePaths, Dependencies{

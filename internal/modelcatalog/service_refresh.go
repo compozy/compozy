@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -383,7 +383,7 @@ func refreshFlightScopeKey(providerKey string, opts RefreshOptions) string {
 	for sourceID, executionContext := range opts.SourceContexts {
 		contextParts = append(contextParts, sourceID+"="+executionContext.CommandFingerprint)
 	}
-	sort.Strings(contextParts)
+	slices.Sort(contextParts)
 	return fmt.Sprintf(
 		"%s\x00%s\x00%s\x00%s\x00%t\x00%s",
 		providerKey,

@@ -53,7 +53,7 @@ type rpcResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id"`
 	Result  any             `json:"result,omitempty"`
-	Error   *rpcError       `json:"error,omitempty"`
+	Error   *rpcError       `json:"error,omitzero"`
 }
 
 type rpcError struct {
@@ -222,9 +222,7 @@ func cloneRawMessage(src json.RawMessage) json.RawMessage {
 	if len(src) == 0 {
 		return nil
 	}
-	out := make(json.RawMessage, len(src))
-	copy(out, src)
-	return out
+	return slices.Clone(src)
 }
 
 func runtimeToolID(handler string) (toolspkg.ToolID, error) {

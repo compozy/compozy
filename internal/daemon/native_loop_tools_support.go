@@ -309,7 +309,7 @@ type nativeLoopWorkspaceInput struct {
 	Status      looppkg.Status      `json:"status,omitempty"`
 	Sort        string              `json:"sort,omitempty"`
 	Cursor      string              `json:"cursor,omitempty"`
-	Limit       int                 `json:"limit,omitempty"`
+	Limit       int                 `json:"limit,omitzero"`
 }
 
 type nativeLoopNameInput struct {
@@ -330,9 +330,9 @@ type nativeLoopValidateInput struct {
 
 type nativeLoopCreateInput struct {
 	WorkspaceID     string          `json:"workspace,omitempty"`
-	Definition      *dsl.Definition `json:"definition,omitempty"`
+	Definition      *dsl.Definition `json:"definition,omitzero"`
 	ForkFromName    string          `json:"fork_from_name,omitempty"`
-	ExpectedVersion *int            `json:"expected_version,omitempty"`
+	ExpectedVersion *int            `json:"expected_version,omitzero"`
 }
 
 type nativeLoopRunInput struct {
@@ -340,9 +340,9 @@ type nativeLoopRunInput struct {
 	Name            string              `json:"name"`
 	Inputs          map[string]any      `json:"inputs,omitempty"`
 	ParentLoopRunID string              `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides *looppkg.LoopConfig `json:"config_overrides,omitempty"`
+	ConfigOverrides *looppkg.LoopConfig `json:"config_overrides,omitzero"`
 
-	Dry bool `json:"dry,omitempty"`
+	Dry bool `json:"dry,omitzero"`
 }
 
 type nativeLoopRunsInput struct {
@@ -350,7 +350,7 @@ type nativeLoopRunsInput struct {
 	LoopName    string `json:"loop_name,omitempty"`
 	Status      string `json:"status,omitempty"`
 	Cursor      string `json:"cursor,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 }
 
 type nativeLoopConfigureInput struct {
@@ -372,7 +372,7 @@ type nativeLoopRequestsInput struct {
 	RunID       string `json:"run_id,omitempty"`
 	State       string `json:"state,omitempty"`
 	Cursor      string `json:"cursor,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 }
 
 type nativeLoopRequestInput struct {
@@ -380,7 +380,7 @@ type nativeLoopRequestInput struct {
 	RunID       string `json:"run_id"`
 	Generation  int    `json:"generation"`
 	NodeID      string `json:"node_id"`
-	ItemIndex   int    `json:"item_index,omitempty"`
+	ItemIndex   int    `json:"item_index,omitzero"`
 }
 
 type nativeLoopRespondInput struct {
@@ -388,7 +388,7 @@ type nativeLoopRespondInput struct {
 	RunID       string          `json:"run_id"`
 	Generation  int             `json:"generation"`
 	NodeID      string          `json:"node_id"`
-	ItemIndex   int             `json:"item_index,omitempty"`
+	ItemIndex   int             `json:"item_index,omitzero"`
 	Decision    string          `json:"decision,omitempty"`
 	Payload     json.RawMessage `json:"payload"`
 	Note        string          `json:"note,omitempty"`
@@ -398,7 +398,7 @@ type nativeLoopNodeAmendInput struct {
 	WorkspaceID string          `json:"workspace,omitempty"`
 	RunID       string          `json:"run_id"`
 	NodeID      string          `json:"node_id"`
-	ItemIndex   int             `json:"item_index,omitempty"`
+	ItemIndex   int             `json:"item_index,omitzero"`
 	Payload     json.RawMessage `json:"payload"`
 	Reason      string          `json:"reason,omitempty"`
 }
@@ -406,8 +406,8 @@ type nativeLoopNodeAmendInput struct {
 type nativeLoopDiffInput struct {
 	WorkspaceID       string `json:"workspace,omitempty"`
 	RunID             string `json:"run_id"`
-	Generation        int64  `json:"generation,omitempty"`
-	AgainstGeneration int64  `json:"against_generation,omitempty"`
+	Generation        int64  `json:"generation,omitzero"`
+	AgainstGeneration int64  `json:"against_generation,omitzero"`
 	AgainstRunID      string `json:"against_run,omitempty"`
 }
 
@@ -415,7 +415,7 @@ type nativeLoopRerunInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 	FromNode    string `json:"from_node"`
-	ItemIndex   *int   `json:"item_index,omitempty"`
+	ItemIndex   *int   `json:"item_index,omitzero"`
 	Reason      string `json:"reason,omitempty"`
 	RequestID   string `json:"request_id,omitempty"`
 }

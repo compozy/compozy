@@ -99,8 +99,8 @@ type MemorySessionLedgerResponse struct {
 
 // MemorySessionReplayRequest controls deterministic replay output.
 type MemorySessionReplayRequest struct {
-	IncludeToolEvents bool `json:"include_tool_events,omitempty"`
-	IncludeMemory     bool `json:"include_memory,omitempty"`
+	IncludeToolEvents bool `json:"include_tool_events,omitzero"`
+	IncludeMemory     bool `json:"include_memory,omitzero"`
 }
 
 // MemorySessionReplayResponse wraps replayable session ledger events.
@@ -112,14 +112,14 @@ type MemorySessionReplayResponse struct {
 // MemorySessionsPruneRequest asks the daemon to prune persisted ledger/session rows.
 type MemorySessionsPruneRequest struct {
 	OlderThanHours int  `json:"older_than_hours"`
-	DryRun         bool `json:"dry_run,omitempty"`
+	DryRun         bool `json:"dry_run,omitzero"`
 }
 
 // MemorySessionsPruneResponse reports ledger/session prune results.
 type MemorySessionsPruneResponse struct {
 	PrunedSessions int  `json:"pruned_sessions"`
 	PrunedEvents   int  `json:"pruned_events"`
-	DryRun         bool `json:"dry_run,omitempty"`
+	DryRun         bool `json:"dry_run,omitzero"`
 }
 
 // MemorySessionsRepairResponse reports session ledger repair work.

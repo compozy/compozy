@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -180,11 +181,9 @@ func TestManagerIntegrationWorkspaceExtensionCannotReceiveUserResourceScope(t *t
 	manager := NewManager(
 		env.registry,
 		WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      "ws-extension-grants",
-				RootDir: fixture.dir,
-				Name:    "extension-grants",
-			},
+			ID:          "ws-extension-grants",
+			RootDir:     fixture.dir,
+			Name:        "extension-grants",
 			WorkspaceID: "ws-extension-grants",
 		})),
 		WithHealthCheckTimeout(20*time.Millisecond),
@@ -476,10 +475,5 @@ func slicesEqualStrings(left []string, right []string) bool {
 }
 
 func slicesContainsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }

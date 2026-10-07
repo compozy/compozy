@@ -2120,7 +2120,7 @@ func TestHostAPIContextHelpersCloneResourceSession(t *testing.T) {
 	t.Run("Should isolate resource session snapshots", func(t *testing.T) {
 		t.Parallel()
 
-		baseCtx := context.Background()
+		baseCtx := t.Context()
 
 		if got := withHostAPIResourceSession(baseCtx, nil); got != baseCtx {
 			t.Fatalf("withHostAPIResourceSession(background, nil) = %#v, want background context", got)

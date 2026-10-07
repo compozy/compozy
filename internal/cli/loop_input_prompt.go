@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -124,7 +124,7 @@ func missingRequiredLoopInputs(definition dsl.Definition, values map[string]any)
 			fields = append(fields, field)
 		}
 	}
-	sort.Strings(fields)
+	slices.Sort(fields)
 	return fields
 }
 
@@ -423,6 +423,6 @@ func sortedUniqueStrings(values []string) []string {
 		seen[value] = struct{}{}
 		result = append(result, value)
 	}
-	sort.Strings(result)
+	slices.Sort(result)
 	return result
 }

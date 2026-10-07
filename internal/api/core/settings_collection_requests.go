@@ -17,8 +17,8 @@ import (
 func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
 	var body struct {
 		Server          *contract.SettingsMCPServerPayload             `json:"server"`
-		SecretValues    *contract.SettingsMCPSecretValuesPayload       `json:"secret_values,omitempty"`
-		PreserveSecrets *contract.SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitempty"`
+		SecretValues    *contract.SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
+		PreserveSecrets *contract.SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
 		PreserveEnv     []string                                       `json:"preserve_env,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {

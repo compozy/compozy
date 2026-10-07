@@ -146,7 +146,7 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 		t.Fatalf("waitForWriterExit(nil) error = %v", err)
 	}
 
-	writerCtx, cancelWriter := context.WithCancel(context.Background())
+	writerCtx, cancelWriter := context.WithCancel(t.Context())
 	writerStopped := make(chan struct{})
 	canceledWriter := &SessionDB{
 		writeCh:    make(chan sessionWriteRequest),

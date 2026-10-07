@@ -297,7 +297,7 @@ func TestExecuteWrite(t *testing.T) {
 		active := false
 		t.Cleanup(func() {
 			if active {
-				if _, err := conn.ExecContext(ctx, sqliteRollbackStatement); err != nil {
+				if _, err := conn.ExecContext(testutil.Context(t), sqliteRollbackStatement); err != nil {
 					t.Error(err)
 				}
 			}
@@ -449,12 +449,14 @@ func TestExecuteWrite(t *testing.T) {
 
 		releaseDone := make(chan error, 1)
 		timer := time.AfterFunc(10*time.Millisecond, func() {
-			_, commitErr := lockConn.ExecContext(ctx, sqliteCommitStatement)
+			releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 45*time.Second)
+			defer cancel()
+			_, commitErr := lockConn.ExecContext(releaseCtx, sqliteCommitStatement)
 			releaseDone <- commitErr
 		})
 		t.Cleanup(func() {
 			if timer.Stop() {
-				_, err := lockConn.ExecContext(ctx, sqliteCommitStatement)
+				_, err := lockConn.ExecContext(testutil.Context(t), sqliteCommitStatement)
 				if err != nil {
 					t.Fatalf("manual lock release error = %v", err)
 				}
@@ -651,7 +653,7 @@ func TestExecuteWrite(t *testing.T) {
 	t.Run("Should honor canceled retry waits", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		err := waitForWriteRetry(ctx, time.Hour)
 		if !errors.Is(err, context.Canceled) {

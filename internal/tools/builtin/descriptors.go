@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"encoding/json"
+	"slices"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -129,19 +130,19 @@ func cloneRawMessage(src json.RawMessage) json.RawMessage {
 	if len(src) == 0 {
 		return nil
 	}
-	return append(json.RawMessage(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneToolsets(src []toolspkg.ToolsetID) []toolspkg.ToolsetID {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]toolspkg.ToolsetID(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneStrings(src []string) []string {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]string(nil), src...)
+	return slices.Clone(src)
 }

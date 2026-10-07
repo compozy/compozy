@@ -99,9 +99,7 @@ func (m *Manager) loadProjectedJobDefinitionsFromStore(ctx context.Context) ([]J
 	jobs := make([]Job, 0, len(records))
 	var revision int64
 	for _, record := range records {
-		if record.Version > revision {
-			revision = record.Version
-		}
+		revision = max(revision, record.Version)
 		job := cloneJob(record.Spec)
 		job.ID = strings.TrimSpace(record.ID)
 		job.CreatedAt = record.CreatedAt.UTC()
@@ -121,9 +119,7 @@ func (m *Manager) loadProjectedTriggerDefinitionsFromStore(ctx context.Context) 
 	triggers := make([]Trigger, 0, len(records))
 	var revision int64
 	for _, record := range records {
-		if record.Version > revision {
-			revision = record.Version
-		}
+		revision = max(revision, record.Version)
 		trigger := cloneTrigger(record.Spec)
 		trigger.ID = strings.TrimSpace(record.ID)
 		trigger.CreatedAt = record.CreatedAt.UTC()

@@ -111,8 +111,8 @@ type Operation struct {
 	Targets       []Target               `json:"targets"`
 	ActiveTarget  Target                 `json:"active_target,omitempty"`
 	Percent       int                    `json:"percent"`
-	Runtime       *RuntimeOperationState `json:"runtime,omitempty"`
-	App           *AppOperationState     `json:"app,omitempty"`
+	Runtime       *RuntimeOperationState `json:"runtime,omitzero"`
+	App           *AppOperationState     `json:"app,omitzero"`
 	Holder        *Holder                `json:"holder"`
 	Waiting       WaitingState           `json:"waiting"`
 	Deadline      time.Time              `json:"deadline"`

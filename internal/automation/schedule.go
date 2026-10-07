@@ -57,10 +57,10 @@ type ScheduledJobState struct {
 	LastScheduledAt     *time.Time             `json:"last_scheduled_at,omitempty"`
 	LastFireID          string                 `json:"last_fire_id,omitempty"`
 	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitzero"`
 	LastMisfireAt       *time.Time             `json:"last_misfire_at,omitempty"`
-	MisfireCount        int                    `json:"misfire_count,omitempty"`
-	Durable             *SchedulerState        `json:"durable,omitempty"`
+	MisfireCount        int                    `json:"misfire_count,omitzero"`
+	Durable             *SchedulerState        `json:"durable,omitzero"`
 }
 
 // Scheduler owns durable cursor-driven scheduled-job dispatch.

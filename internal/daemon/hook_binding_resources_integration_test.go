@@ -114,7 +114,7 @@ args = ["-c", 'cat >/dev/null; printf "%%s\n" "$1" >> "$2"; printf "{}"', "hook"
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := manager.Stop(context.WithoutCancel(ctx)); err != nil {
+				if err := manager.Stop(testutil.Context(t)); err != nil {
 					t.Error(err)
 				}
 			})
@@ -157,17 +157,13 @@ args = ["-c", 'cat >/dev/null; printf "%%s\n" "$1" >> "$2"; printf "{}"', "hook"
 					t.Fatal(err)
 				}
 				_, err := runtime.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
-					PayloadBase: hookspkg.PayloadBase{
-						Event:     hookspkg.HookToolPreCall,
-						Timestamp: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
-					},
-					SessionContext: hookspkg.SessionContext{
-						SessionID:   "session-hooks",
-						ProfileID:   profileID,
-						WorkspaceID: workspaceID,
-						AgentName:   "default",
-					},
-					ToolCallRef: hookspkg.ToolCallRef{ToolCallID: "call-hooks", ToolID: "Read"},
+					Event:       hookspkg.HookToolPreCall,
+					Timestamp:   time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+					SessionID:   "session-hooks",
+					ProfileID:   profileID,
+					WorkspaceID: workspaceID,
+					AgentName:   "default",
+					ToolCallID:  "call-hooks", ToolID: "Read",
 				})
 				if err != nil {
 					t.Fatal(err)
@@ -472,15 +468,11 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 	}
 
 	if _, err := h.notifier.DispatchTaskRunEnqueued(testutil.Context(t), hookspkg.TaskRunEnqueuedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunEnqueued,
-			Timestamp: time.Date(2026, 4, 15, 11, 59, 0, 0, time.UTC),
-		},
-		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID:      "other-task",
-			RunID:       "run-other-task",
-			WorkspaceID: "ws-1",
-		},
+		Event:       hookspkg.HookTaskRunEnqueued,
+		Timestamp:   time.Date(2026, 4, 15, 11, 59, 0, 0, time.UTC),
+		TaskID:      "other-task",
+		RunID:       "run-other-task",
+		WorkspaceID: "ws-1",
 	}); err != nil {
 		t.Fatalf("DispatchTaskRunEnqueued(mismatched task) error = %v", err)
 	}
@@ -491,15 +483,11 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 	}
 
 	if _, err := h.notifier.DispatchTaskRunEnqueued(testutil.Context(t), hookspkg.TaskRunEnqueuedPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunEnqueued,
-			Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
-		},
-		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID:      "task-1",
-			RunID:       "run-1",
-			WorkspaceID: "ws-1",
-		},
+		Event:       hookspkg.HookTaskRunEnqueued,
+		Timestamp:   time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		WorkspaceID: "ws-1",
 	}); err != nil {
 		t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
 	}
@@ -547,17 +535,13 @@ func TestHookBindingResourceReconcileFiresTaskStatusChangedHookThroughDaemonBrid
 		}
 
 		if _, err := h.notifier.DispatchTaskStatusChanged(testutil.Context(t), hookspkg.TaskStatusChangedPayload{
-			PayloadBase: hookspkg.PayloadBase{
-				Event:     hookspkg.HookTaskStatusChanged,
-				Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
-			},
-			TaskContext: hookspkg.TaskContext{
-				TaskID:       "task-1",
-				ParentTaskID: "task-parent",
-				WorkspaceID:  "ws-1",
-			},
-			FromStatus: "ready",
-			ToStatus:   "blocked",
+			Event:        hookspkg.HookTaskStatusChanged,
+			Timestamp:    time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+			TaskID:       "task-1",
+			ParentTaskID: "task-parent",
+			WorkspaceID:  "ws-1",
+			FromStatus:   "ready",
+			ToStatus:     "blocked",
 		}); err != nil {
 			t.Fatalf("DispatchTaskStatusChanged() error = %v", err)
 		}

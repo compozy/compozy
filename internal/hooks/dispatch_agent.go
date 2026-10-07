@@ -4,9 +4,8 @@ import "context"
 
 // DispatchAgentPreStart runs the agent.pre_start hook pipeline.
 func (h *Hooks) DispatchAgentPreStart(ctx context.Context, payload AgentPreStartPayload) (AgentPreStartPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentPreStart,
 		payload,
 		dispatchConfig[AgentPreStartPayload, AgentStartPatch]{
@@ -22,9 +21,8 @@ func (h *Hooks) DispatchAgentPreStart(ctx context.Context, payload AgentPreStart
 
 // DispatchAgentSpawned runs the agent.spawned hook pipeline.
 func (h *Hooks) DispatchAgentSpawned(ctx context.Context, payload AgentSpawnedPayload) (AgentSpawnedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentSpawned,
 		payload,
 		dispatchConfig[AgentSpawnedPayload, AgentSpawnedPatch]{
@@ -36,9 +34,8 @@ func (h *Hooks) DispatchAgentSpawned(ctx context.Context, payload AgentSpawnedPa
 
 // DispatchAgentCrashed runs the agent.crashed hook pipeline.
 func (h *Hooks) DispatchAgentCrashed(ctx context.Context, payload AgentCrashedPayload) (AgentCrashedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentCrashed,
 		payload,
 		dispatchConfig[AgentCrashedPayload, AgentCrashedPatch]{
@@ -50,9 +47,8 @@ func (h *Hooks) DispatchAgentCrashed(ctx context.Context, payload AgentCrashedPa
 
 // DispatchAgentStopped runs the agent.stopped hook pipeline.
 func (h *Hooks) DispatchAgentStopped(ctx context.Context, payload AgentStoppedPayload) (AgentStoppedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentStopped,
 		payload,
 		dispatchConfig[AgentStoppedPayload, AgentStoppedPatch]{
@@ -67,9 +63,8 @@ func (h *Hooks) DispatchAgentSoulSnapshotResolved(
 	ctx context.Context,
 	payload AgentSoulSnapshotResolvedPayload,
 ) (AgentSoulSnapshotResolvedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentSoulSnapshotResolved,
 		payload,
 		dispatchConfig[AgentSoulSnapshotResolvedPayload, AuthoredContextObservationPatch]{
@@ -84,9 +79,8 @@ func (h *Hooks) DispatchAgentSoulMutationAfter(
 	ctx context.Context,
 	payload AgentSoulMutationAfterPayload,
 ) (AgentSoulMutationAfterPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentSoulMutationAfter,
 		payload,
 		dispatchConfig[AgentSoulMutationAfterPayload, AuthoredContextObservationPatch]{
@@ -101,9 +95,8 @@ func (h *Hooks) DispatchAgentHeartbeatPolicyResolved(
 	ctx context.Context,
 	payload AgentHeartbeatPolicyResolvedPayload,
 ) (AgentHeartbeatPolicyResolvedPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentHeartbeatPolicyResolved,
 		payload,
 		dispatchConfig[AgentHeartbeatPolicyResolvedPayload, AuthoredContextObservationPatch]{
@@ -118,9 +111,8 @@ func (h *Hooks) DispatchAgentHeartbeatWakeBefore(
 	ctx context.Context,
 	payload AgentHeartbeatWakeBeforePayload,
 ) (AgentHeartbeatWakeBeforePayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentHeartbeatWakeBefore,
 		payload,
 		dispatchConfig[AgentHeartbeatWakeBeforePayload, AuthoredContextObservationPatch]{
@@ -135,9 +127,8 @@ func (h *Hooks) DispatchAgentHeartbeatWakeAfter(
 	ctx context.Context,
 	payload AgentHeartbeatWakeAfterPayload,
 ) (AgentHeartbeatWakeAfterPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookAgentHeartbeatWakeAfter,
 		payload,
 		dispatchConfig[AgentHeartbeatWakeAfterPayload, AuthoredContextObservationPatch]{
@@ -152,9 +143,8 @@ func (h *Hooks) DispatchSessionHealthUpdateAfter(
 	ctx context.Context,
 	payload SessionHealthUpdateAfterPayload,
 ) (SessionHealthUpdateAfterPayload, error) {
-	return executeDispatch(
+	return h.executeDispatch(
 		ctx,
-		h,
 		HookSessionHealthUpdateAfter,
 		payload,
 		dispatchConfig[SessionHealthUpdateAfterPayload, AuthoredContextObservationPatch]{

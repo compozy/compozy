@@ -79,7 +79,7 @@ type RunReview struct {
 	Attempt           int              `json:"attempt"`
 	Status            RunReviewStatus  `json:"status"`
 	Outcome           RunReviewOutcome `json:"outcome,omitempty"`
-	Confidence        *float64         `json:"confidence,omitempty"`
+	Confidence        *float64         `json:"confidence,omitzero"`
 	Reason            string           `json:"reason,omitempty"`
 	DeliveryID        string           `json:"delivery_id,omitempty"`
 	MissingWork       json.RawMessage  `json:"missing_work,omitempty"`
@@ -101,8 +101,8 @@ type RunReview struct {
 type RunReviewRequest struct {
 	TaskID         string       `json:"task_id"`
 	RunID          string       `json:"run_id"`
-	ReviewRound    int          `json:"review_round,omitempty"`
-	Attempt        int          `json:"attempt,omitempty"`
+	ReviewRound    int          `json:"review_round,omitzero"`
+	Attempt        int          `json:"attempt,omitzero"`
 	Policy         ReviewPolicy `json:"policy,omitempty"`
 	ParentReviewID string       `json:"parent_review_id,omitempty"`
 	Reason         string       `json:"reason,omitempty"`
@@ -144,7 +144,7 @@ type RunReviewQuery struct {
 	RunID             string          `json:"run_id,omitempty"`
 	Status            RunReviewStatus `json:"status,omitempty"`
 	ReviewerSessionID string          `json:"reviewer_session_id,omitempty"`
-	Limit             int             `json:"limit,omitempty"`
+	Limit             int             `json:"limit,omitzero"`
 }
 
 // RunReviewVerdict captures the terminal reviewer payload persisted by the task domain.
@@ -168,8 +168,8 @@ type RecordRunReviewRequest struct {
 // RunReviewResult reports the stored verdict and optional rejected-review continuation run.
 type RunReviewResult struct {
 	Review          RunReview `json:"review"`
-	ContinuationRun *Run      `json:"continuation_run,omitempty"`
-	CircuitOpened   bool      `json:"circuit_opened,omitempty"`
+	ContinuationRun *Run      `json:"continuation_run,omitzero"`
+	CircuitOpened   bool      `json:"circuit_opened,omitzero"`
 }
 
 // Normalize returns the normalized review policy value.

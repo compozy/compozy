@@ -1,7 +1,6 @@
 package heartbeat
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -17,7 +16,7 @@ func TestHeartbeatPersistenceSnapshot(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content: []byte(`---

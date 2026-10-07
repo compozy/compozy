@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -56,11 +57,7 @@ func LoadAgentResources(rootDir string, paths []string) ([]StaticAgent, error) {
 		}
 	}
 
-	names := make([]string, 0, len(loaded))
-	for name := range loaded {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(loaded))
 	result := make([]StaticAgent, 0, len(names))
 	for _, name := range names {
 		result = append(result, cloneStaticAgent(loaded[name]))
@@ -223,12 +220,10 @@ func relativeResourcePath(rootDir, path string) (string, error) {
 func cloneStaticAgent(value StaticAgent) StaticAgent {
 	clone := StaticAgent{Agent: compozyconfig.CloneAgentDef(value.Agent)}
 	if value.Soul != nil {
-		sidecar := *value.Soul
-		clone.Soul = &sidecar
+		clone.Soul = new(*value.Soul)
 	}
 	if value.Heartbeat != nil {
-		sidecar := *value.Heartbeat
-		clone.Heartbeat = &sidecar
+		clone.Heartbeat = new(*value.Heartbeat)
 	}
 	return clone
 }

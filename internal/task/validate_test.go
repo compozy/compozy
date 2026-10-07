@@ -1452,8 +1452,6 @@ func TestRequestAndQueryValidation(t *testing.T) {
 	title := "Updated title"
 	metadata := json.RawMessage(`{"source":"web"}`)
 	priority := PriorityUrgent
-	maxAttempts := 5
-	approvalPolicy := ApprovalPolicyManual
 
 	tests := []struct {
 		name    string
@@ -1507,8 +1505,8 @@ func TestRequestAndQueryValidation(t *testing.T) {
 				return Patch{
 					Title:          &title,
 					Priority:       &priority,
-					MaxAttempts:    &maxAttempts,
-					ApprovalPolicy: &approvalPolicy,
+					MaxAttempts:    new(5),
+					ApprovalPolicy: new(ApprovalPolicyManual),
 					Metadata:       &metadata,
 				}.Validate("patch")
 			},
@@ -1516,16 +1514,14 @@ func TestRequestAndQueryValidation(t *testing.T) {
 		{
 			name: "task patch invalid max attempts",
 			run: func() error {
-				zero := 0
-				return Patch{MaxAttempts: &zero}.Validate("patch")
+				return Patch{MaxAttempts: new(0)}.Validate("patch")
 			},
 			wantErr: ErrValidation,
 		},
 		{
 			name: "task patch invalid priority",
 			run: func() error {
-				invalidPriority := Priority("rush")
-				return Patch{Priority: &invalidPriority}.Validate("patch")
+				return Patch{Priority: new(Priority("rush"))}.Validate("patch")
 			},
 			wantErr: ErrValidation,
 		},

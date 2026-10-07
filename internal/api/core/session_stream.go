@@ -176,9 +176,7 @@ func (h *BaseHandlers) writeRawCatchUp(
 		if len(page) > 0 && next <= cursor {
 			return cursor, terminal, fmt.Errorf("raw catch-up cursor did not advance beyond %d", cursor)
 		}
-		if next > cursor {
-			cursor = next
-		}
+		cursor = max(cursor, next)
 		if query.Limit <= 0 || len(page) < query.Limit || len(page) == 0 {
 			return cursor, terminal, nil
 		}
@@ -339,9 +337,7 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 			if err != nil {
 				return
 			}
-			if nextSequence > afterSequence {
-				afterSequence = nextSequence
-			}
+			afterSequence = max(afterSequence, nextSequence)
 			if event.Type == session.EventTypeSessionStopped {
 				return
 			}

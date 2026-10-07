@@ -29,8 +29,7 @@ func parkGateApprovalWait(
 		if err != nil {
 			return GenerationOutput{}, fmt.Errorf("%w: gate node %q expiry: %v", ErrValidation, node.ID, err)
 		}
-		next := now.Add(duration)
-		intent.NextEscalationAt = &next
+		intent.NextEscalationAt = new(now.Add(duration))
 	}
 	payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
 	if err != nil {

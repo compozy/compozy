@@ -216,9 +216,7 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 			Version: defaultClientVersion,
 		},
 	}
-	initializeResponse, err := sendControlRequest[acpsdk.InitializeResponse](
-		ctx,
-		process,
+	initializeResponse, err := process.sendControlRequest[acpsdk.InitializeResponse](ctx,
 		acpsdk.AgentMethodInitialize,
 		initRequest,
 	)

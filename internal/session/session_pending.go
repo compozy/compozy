@@ -1,10 +1,11 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -224,11 +225,8 @@ func (m *Manager) applyPendingInteractionCommit(
 	if !replaced && pendingInteractionIsActionable(interaction.Status) {
 		next = append(next, interaction)
 	}
-	sort.Slice(next, func(left, right int) bool {
-		if next[left].CreatedAt.Equal(next[right].CreatedAt) {
-			return next[left].InteractionID < next[right].InteractionID
-		}
-		return next[left].CreatedAt.Before(next[right].CreatedAt)
+	slices.SortFunc(next, func(a, b store.PendingInteraction) int {
+		return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.InteractionID, b.InteractionID))
 	})
 	active.PendingInteractions = clonePendingInteractions(next)
 	active.mu.Unlock()

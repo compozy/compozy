@@ -70,7 +70,7 @@ func (s *daemonCheckpointSummarizer) Summarize(
 	if err != nil {
 		return "", err
 	}
-	summarySession, err := invokeRoleWithFallback(ctx, &role, correlation, func(
+	summarySession, err := (&role).invokeRoleWithFallback(ctx, correlation, func(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {

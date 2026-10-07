@@ -2969,7 +2969,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 			LoopRunID: "looprun-revoke", TaskRunID: "taskrun-revoke", RunGeneration: 1,
 			ControlEpoch: 2, BindingEpoch: 3, PromptID: "goal-prompt-revoke", PromptKind: "work",
 		}
-		leaseCtx, cancelLease := context.WithCancel(context.Background())
+		leaseCtx, cancelLease := context.WithCancel(t.Context())
 		t.Cleanup(cancelLease)
 		if err := h.manager.registerManagedInputLease(owner, cancelLease); err != nil {
 			t.Fatalf("registerManagedInputLease() error = %v", err)
@@ -3008,16 +3008,13 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 			{
 				name: "Should reject negative total usage",
 				usage: func() *acp.TokenUsage {
-					total := int64(-1)
-					return &acp.TokenUsage{TotalTokens: &total}
+					return &acp.TokenUsage{TotalTokens: new(int64(-1))}
 				},
 			},
 			{
 				name: "Should reject overflowing component usage",
 				usage: func() *acp.TokenUsage {
-					input := int64(math.MaxInt64)
-					output := int64(1)
-					return &acp.TokenUsage{InputTokens: &input, OutputTokens: &output}
+					return &acp.TokenUsage{InputTokens: new(int64(math.MaxInt64)), OutputTokens: new(int64(1))}
 				},
 			},
 		}
@@ -3655,7 +3652,7 @@ func openManagerInputQueueStore(t *testing.T) *globaldb.GlobalDB {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := queueStore.Close(ctx); err != nil {
+		if err := queueStore.Close(testutil.Context(t)); err != nil {
 			t.Errorf("Close(globalDB) error = %v", err)
 		}
 	})

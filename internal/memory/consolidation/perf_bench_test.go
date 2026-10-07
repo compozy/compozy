@@ -1,7 +1,6 @@
 package consolidation
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -14,7 +13,7 @@ func BenchmarkResolveWorkspacesRecentSessions(b *testing.B) {
 
 	sessions := &fakeSessionManager{infos: benchmarkSessionInfos(lockTime)}
 	resolver := &fakeWorkspaceResolver{}
-	ctx := context.Background()
+	ctx := b.Context()
 
 	for b.Loop() {
 		workspaces, err := resolveWorkspaces(ctx, sessions, resolver, lockTime, "")

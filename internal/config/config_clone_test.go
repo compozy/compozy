@@ -111,9 +111,9 @@ func configCloneFixture() Config {
 		Memory: MemoryConfig{Controller: MemoryControllerConfig{
 			Policy: MemoryControllerPolicyConfig{AllowOrigins: []string{"agent"}},
 		}},
-		Roles: RolesConfig{Coordinator: CoordinatorRoleConfig{RoleConfig: RoleConfig{
+		Roles: RolesConfig{Coordinator: CoordinatorRoleConfig{
 			FallbackChain: []RoleFallback{{Provider: "codex", Model: "gpt-5.6"}},
-		}}},
+		}},
 		RoleSources: RoleFieldSources{
 			RoleCoordinator: {RoleFieldModel: RoleFieldSourceGlobal},
 		},

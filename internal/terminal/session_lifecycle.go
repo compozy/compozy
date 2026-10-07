@@ -166,6 +166,5 @@ func cloneExit(exit *Exit) *Exit {
 	if exit == nil {
 		return nil
 	}
-	copyOfExit := *exit
-	return &copyOfExit
+	return new(*exit)
 }

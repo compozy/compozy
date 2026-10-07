@@ -253,8 +253,11 @@ func startSSHGatewayE2EServer(t *testing.T, remoteBinaryDir string) *sshGatewayE
 }
 
 func isExpectedSSHGatewayE2EServerShutdown(err error) bool {
-	var exitErr *exec.ExitError
-	return errors.Is(err, context.Canceled) || errors.As(err, &exitErr)
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+	_, exitErrOK := errors.AsType[*exec.ExitError](err)
+	return exitErrOK
 }
 
 func generateSSHGatewayE2EKey(t *testing.T, path string) {
@@ -321,8 +324,8 @@ func verifySSHGatewayE2EAuthentication(
 ) {
 	t.Helper()
 	if _, err := executor.Run(t.Context(), target, []string{"true"}); err != nil {
-		var commandErr *sshCommandError
-		if errors.As(err, &commandErr) {
+		commandErr, commandErrOK := errors.AsType[*sshCommandError](err)
+		if commandErrOK {
 			t.Fatalf(
 				"authenticate SSH gateway fixture error = %v; output: %s; sshd: %s",
 				err,
@@ -472,8 +475,8 @@ func startSSHGatewayE2EConnectProcess(
 				t.Errorf("kill crash-test connect process cleanup error = %v", err)
 			}
 			if err := process.command.Wait(); err != nil {
-				var exitErr *exec.ExitError
-				if !errors.As(err, &exitErr) {
+				_, exitErrOK := errors.AsType[*exec.ExitError](err)
+				if !exitErrOK {
 					t.Errorf("wait crash-test connect process cleanup error = %v", err)
 				}
 			}
@@ -539,8 +542,8 @@ func (p *sshGatewayE2EConnectProcess) kill(t *testing.T) {
 	if err := p.command.Wait(); err == nil {
 		t.Fatal("crash-test connect process exited cleanly after SIGKILL")
 	} else {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
+		_, exitErrOK := errors.AsType[*exec.ExitError](err)
+		if !exitErrOK {
 			t.Fatalf("wait crash-test connect process error = %v", err)
 		}
 	}
@@ -880,8 +883,8 @@ func stopRemoteDaemonForSSHGatewayE2E(t *testing.T, executor sshExecutor, target
 		remoteCompozyCommand(remoteHome, "daemon", "stop", "-o", "json"),
 	)
 	if err != nil {
-		var commandErr *sshCommandError
-		if errors.As(err, &commandErr) && commandErr.exitCode() == 1 {
+		commandErr, commandErrOK := errors.AsType[*sshCommandError](err)
+		if commandErrOK && commandErr.exitCode() == 1 {
 			return
 		}
 		t.Errorf("stop remote daemon cleanup error = %v", err)

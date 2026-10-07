@@ -67,7 +67,7 @@ func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
 			Spec: testToolSpec("ext__linear__lookup"),
 		}}
 
-		plan, err := projector.Build(context.Background(), records)
+		plan, err := projector.Build(t.Context(), records)
 		if err != nil {
 			t.Fatalf("projector.Build() error = %v", err)
 		}
@@ -81,7 +81,7 @@ func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
 			t.Fatalf("plan.OperationCount() = %d, want %d", got, want)
 		}
 
-		if err := projector.Apply(context.Background(), plan); err != nil {
+		if err := projector.Apply(t.Context(), plan); err != nil {
 			t.Fatalf("projector.Apply() error = %v", err)
 		}
 		if got, want := catalog.Revision(), int64(3); got != want {
@@ -139,11 +139,11 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		if got := nilProjector.DependsOn(); got != nil {
 			t.Fatalf("nilProjector.DependsOn() = %#v, want nil", got)
 		}
-		if _, err := nilProjector.Build(context.Background(), nil); err == nil {
+		if _, err := nilProjector.Build(t.Context(), nil); err == nil {
 			t.Fatal("nilProjector.Build() error = nil, want non-nil")
 		}
 		if err := nilProjector.Apply(
-			context.Background(),
+			t.Context(),
 			&resourceCatalogProjectionPlan[toolspkg.Tool]{},
 		); err == nil {
 			t.Fatal("nilProjector.Apply() error = nil, want non-nil")
@@ -242,7 +242,7 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		t.Parallel()
 
 		var nilPublisher toolMCPPublisherFunc
-		if err := nilPublisher.Sync(context.Background()); err != nil {
+		if err := nilPublisher.Sync(t.Context()); err != nil {
 			t.Fatalf("nilPublisher.Sync() error = %v", err)
 		}
 		called := false
@@ -250,7 +250,7 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 			called = true
 			return nil
 		})
-		if err := publisher.Sync(context.Background()); err != nil {
+		if err := publisher.Sync(t.Context()); err != nil {
 			t.Fatalf("publisher.Sync() error = %v", err)
 		}
 		if !called {
@@ -279,7 +279,7 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		if !ok {
 			t.Fatalf("syncerWithNilLogger type = %T, want *toolMCPSourceSyncer", syncerWithNilLogger)
 		}
-		if err := concreteSyncer.Sync(context.Background()); err != nil {
+		if err := concreteSyncer.Sync(t.Context()); err != nil {
 			t.Fatalf("syncerWithNilLogger.Sync() error = %v", err)
 		}
 	})
@@ -292,7 +292,7 @@ func TestToolMCPSourceSyncerHandlesNilReceiverAndTriggerFailures(t *testing.T) {
 		t.Parallel()
 
 		var nilSyncer *toolMCPSourceSyncer
-		if err := nilSyncer.Sync(context.Background()); err != nil {
+		if err := nilSyncer.Sync(t.Context()); err != nil {
 			t.Fatalf("nilSyncer.Sync() error = %v", err)
 		}
 
@@ -319,7 +319,7 @@ func TestToolMCPSourceSyncerHandlesNilReceiverAndTriggerFailures(t *testing.T) {
 			},
 		)
 
-		err := syncer.Sync(context.Background())
+		err := syncer.Sync(t.Context())
 		if err == nil {
 			t.Fatal("syncer.Sync() error = nil, want trigger failure")
 		}
@@ -350,7 +350,7 @@ func TestToolMCPSourceSyncerSyncPropagatesProviderFailure(t *testing.T) {
 			},
 		)
 
-		err := syncer.Sync(context.Background())
+		err := syncer.Sync(t.Context())
 		if err == nil {
 			t.Fatal("syncer.Sync() error = nil, want provider failure")
 		}
@@ -401,7 +401,7 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 			},
 		)
 
-		if err := syncer.Sync(context.Background()); err != nil {
+		if err := syncer.Sync(t.Context()); err != nil {
 			t.Fatalf("Sync() error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 1)
@@ -409,7 +409,7 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 			t.Fatalf("triggered = %#v, want one trigger per resource kind", triggered)
 		}
 
-		if err := syncer.Sync(context.Background()); err != nil {
+		if err := syncer.Sync(t.Context()); err != nil {
 			t.Fatalf("second Sync() error = %v", err)
 		}
 		if triggered[toolspkg.ToolResourceKind] != 1 || triggered[compozyconfig.MCPServerResourceKind] != 1 {
@@ -418,7 +418,7 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 
 		desired.tools = nil
 		desired.mcpServers[0].spec.Command = "node"
-		if err := syncer.Sync(context.Background()); err != nil {
+		if err := syncer.Sync(t.Context()); err != nil {
 			t.Fatalf("third Sync() error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 0, 1)
@@ -443,7 +443,7 @@ func TestNewToolMCPPublisherFallsBackToNoopWithoutResourceRuntime(t *testing.T) 
 		if publisher == nil {
 			t.Fatal("newToolMCPPublisher(nil state) = nil, want no-op publisher")
 		}
-		if err := publisher.Sync(context.Background()); err != nil {
+		if err := publisher.Sync(t.Context()); err != nil {
 			t.Fatalf("publisher.Sync(nil state) error = %v", err)
 		}
 
@@ -454,7 +454,7 @@ func TestNewToolMCPPublisherFallsBackToNoopWithoutResourceRuntime(t *testing.T) 
 		if publisher == nil {
 			t.Fatal("newToolMCPPublisher(empty state) = nil, want no-op publisher")
 		}
-		if err := publisher.Sync(context.Background()); err != nil {
+		if err := publisher.Sync(t.Context()); err != nil {
 			t.Fatalf("publisher.Sync(empty state) error = %v", err)
 		}
 	})
@@ -501,7 +501,7 @@ func TestNewToolMCPPublisherBuildsSyncerWhenResourceRuntimeIsReady(t *testing.T)
 		if publisher == nil {
 			t.Fatal("newToolMCPPublisher(ready state) = nil, want syncer")
 		}
-		if err := publisher.Sync(context.Background()); err != nil {
+		if err := publisher.Sync(t.Context()); err != nil {
 			t.Fatalf("publisher.Sync(ready state) error = %v", err)
 		}
 	})
@@ -571,7 +571,7 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 		toolSpec := testToolSpec("ext__linear__lookup")
 		toolSpec.Description = " Search extension data "
 		toolSpec.InputSchema = json.RawMessage(`{"required":["query"],"type":"object"}`)
-		toolEncodedSpec, toolEncoded, err := validateAndEncodeTool(context.Background(), toolCodec, toolScope, toolSpec)
+		toolEncodedSpec, toolEncoded, err := validateAndEncodeTool(t.Context(), toolCodec, toolScope, toolSpec)
 		if err != nil {
 			t.Fatalf("validateAndEncodeTool(valid) error = %v", err)
 		}
@@ -602,7 +602,7 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 			t.Fatalf("toolPayload.ReadOnly = %#v, want %#v", got, want)
 		}
 
-		_, _, err = validateAndEncodeTool(context.Background(), toolCodec, toolScope, toolspkg.Tool{
+		_, _, err = validateAndEncodeTool(t.Context(), toolCodec, toolScope, toolspkg.Tool{
 			ID:          "ext__linear__lookup",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		})
@@ -622,7 +622,7 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 		}
 
 		mcpSpec, mcpEncoded, err := validateAndEncodeMCPServer(
-			context.Background(),
+			t.Context(),
 			mcpCodec,
 			toolScope,
 			compozyconfig.MCPServer{
@@ -655,7 +655,7 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 		}
 
 		_, _, err = validateAndEncodeMCPServer(
-			context.Background(),
+			t.Context(),
 			mcpCodec,
 			toolScope,
 			compozyconfig.MCPServer{Name: "git"},

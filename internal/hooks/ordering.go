@@ -3,7 +3,7 @@ package hooks
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 )
 
 var ErrInvalidHookSource = errors.New("hooks: invalid hook source")
@@ -29,8 +29,14 @@ func DefaultHookPriority(source HookSource) (int32, error) {
 // SortResolvedHooks sorts the slice in place using deterministic dispatch
 // precedence.
 func SortResolvedHooks(hooks []*ResolvedHook) {
-	sort.SliceStable(hooks, func(i, j int) bool {
-		return resolvedHookLess(hooks[i], hooks[j])
+	slices.SortStableFunc(hooks, func(left, right *ResolvedHook) int {
+		if resolvedHookLess(left, right) {
+			return -1
+		}
+		if resolvedHookLess(right, left) {
+			return 1
+		}
+		return 0
 	})
 }
 

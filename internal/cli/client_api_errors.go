@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -293,10 +294,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		}
 	}
 
-	message := strings.TrimSpace(string(body))
-	if message == "" {
-		message = status
-	}
+	message := cmp.Or(strings.TrimSpace(string(body)), status)
 	message = redactToolDiagnostic(message)
 	if strings.TrimSpace(status) != "" {
 		message = fmt.Sprintf("daemon api %s: %s", status, message)
@@ -356,8 +354,7 @@ func parseExtensionValidationAPIError(statusCode int, status string, body []byte
 		return false, nil
 	}
 	payload.Error = redactToolDiagnostic(payload.Error)
-	redactedDiagnostic := diagnosticspkg.RedactItem(*payload.Diagnostic)
-	payload.Diagnostic = &redactedDiagnostic
+	payload.Diagnostic = new(diagnosticspkg.RedactItem(*payload.Diagnostic))
 	for index := range payload.Issues {
 		payload.Issues[index].Path = redactToolDiagnostic(payload.Issues[index].Path)
 		payload.Issues[index].Scope = redactToolDiagnostic(payload.Issues[index].Scope)
@@ -389,8 +386,7 @@ func parseExtensionOperationAPIError(statusCode int, status string, body []byte)
 	}
 	extensionPayload.Error = redactToolDiagnostic(extensionPayload.Error)
 	if extensionPayload.Diagnostic != nil {
-		redacted := diagnosticspkg.RedactItem(*extensionPayload.Diagnostic)
-		extensionPayload.Diagnostic = &redacted
+		extensionPayload.Diagnostic = new(diagnosticspkg.RedactItem(*extensionPayload.Diagnostic))
 	}
 	return true, &extensionOperationAPIError{
 		statusCode: statusCode,
@@ -431,10 +427,7 @@ func parseMemoryAPIError(_ int, _ string, body []byte) (bool, error) {
 	if json.Unmarshal(body, &memoryPayload) != nil || strings.TrimSpace(memoryPayload.Code) == "" {
 		return false, nil
 	}
-	message := strings.TrimSpace(memoryPayload.Message)
-	if message == "" {
-		message = strings.TrimSpace(memoryPayload.Code)
-	}
+	message := cmp.Or(strings.TrimSpace(memoryPayload.Message), strings.TrimSpace(memoryPayload.Code))
 	return true, fmt.Errorf(
 		"%s: %s",
 		strings.TrimSpace(memoryPayload.Code),

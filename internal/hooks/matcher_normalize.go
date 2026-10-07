@@ -56,8 +56,7 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		CompactionMatcher: normalizeCompactionMatcher(matcher.CompactionMatcher),
 		Autonomy:          normalizeAutonomyMatcher(matcher.Autonomy)}
 	if matcher.ToolReadOnly != nil {
-		value := *matcher.ToolReadOnly
-		normalized.ToolReadOnly = &value
+		normalized.ToolReadOnly = new(*matcher.ToolReadOnly)
 	}
 	return normalized
 }

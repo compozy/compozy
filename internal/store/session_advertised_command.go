@@ -9,7 +9,7 @@ import (
 type SessionAdvertisedCommand struct {
 	Name        string                         `json:"name"`
 	Description string                         `json:"description"`
-	Input       *SessionAdvertisedCommandInput `json:"input,omitempty"`
+	Input       *SessionAdvertisedCommandInput `json:"input,omitzero"`
 }
 
 // SessionAdvertisedCommandInput describes the optional unstructured command argument.
@@ -34,8 +34,7 @@ func CloneSessionAdvertisedCommands(commands []SessionAdvertisedCommand) []Sessi
 	for _, command := range commands {
 		copyCommand := command
 		if command.Input != nil {
-			input := *command.Input
-			copyCommand.Input = &input
+			copyCommand.Input = new(*command.Input)
 		}
 		cloned = append(cloned, copyCommand)
 	}

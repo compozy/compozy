@@ -493,7 +493,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
 				workspaceID: {
-					Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot},
+					ID: workspaceID, RootDir: workspaceRoot,
 				},
 			}},
 		})
@@ -581,7 +581,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 	t.Run("Should return provider snapshots without shared nested state", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
 
@@ -1358,7 +1358,7 @@ func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 		t.Parallel()
 
 		service, _, _, _ := providerModelCurationTestService(t)
-		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
 			Collection: CollectionProviders,
 		})
 		if err != nil {
@@ -1384,7 +1384,7 @@ func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 	t.Run("Should persist explicit five-rate changes without catalog defaults", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		service, homePaths, catalog, _ := providerModelCurationTestService(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
 
@@ -1464,7 +1464,7 @@ default_reasoning_effort = "high"
 	t.Run("Should reject negative provider model pricing without mutating config", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		service, homePaths, _, _ := providerModelCurationTestService(t)
 		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
 		if err != nil {
@@ -1910,7 +1910,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 		defaultEffort := modelcatalog.ReasoningEffortMax
 		defaultSpeed := speedpkg.SpeedFast
 		result, err := service.ApplyProviderModelCuration(
-			WithMutationSource(context.Background(), "cli"),
+			WithMutationSource(t.Context(), "cli"),
 			ProviderModelCurationRequest{
 				ProviderID:             "codex",
 				ModelID:                "gpt-5.6-sol",
@@ -2031,7 +2031,7 @@ featured = true
 `)
 		hidden := true
 		if _, err := service.ApplyProviderModelCuration(
-			WithMutationSource(context.Background(), "cli"),
+			WithMutationSource(t.Context(), "cli"),
 			ProviderModelCurationRequest{
 				ProviderID: "codex",
 				ModelID:    "gpt-5.6-sol",
@@ -2074,7 +2074,7 @@ featured = true
 	t.Run("Should preserve pending restart-required provider fields while applying models live", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := WithMutationSource(context.Background(), "cli")
+		ctx := WithMutationSource(t.Context(), "cli")
 		service, homePaths, _, applier := providerModelCurationTestService(t)
 		initialActive, err := service.ActiveConfig(ctx)
 		if err != nil {
@@ -2178,7 +2178,7 @@ featured = true
 
 		service, homePaths, _, applier := providerModelCurationTestService(t)
 		before := readFile(t, homePaths.ConfigFile)
-		_, err := service.ApplyProviderModelCuration(context.Background(), ProviderModelCurationRequest{
+		_, err := service.ApplyProviderModelCuration(t.Context(), ProviderModelCurationRequest{
 			ProviderID: "codex",
 			ModelID:    "gpt-sol",
 		})
@@ -2203,7 +2203,7 @@ featured = true
 		service, homePaths, _, applier := providerModelCurationTestService(t)
 		before := readFile(t, homePaths.ConfigFile)
 		unsupported := modelcatalog.ReasoningEffortMinimal
-		_, err := service.ApplyProviderModelCuration(context.Background(), ProviderModelCurationRequest{
+		_, err := service.ApplyProviderModelCuration(t.Context(), ProviderModelCurationRequest{
 			ProviderID:             "codex",
 			ModelID:                "gpt-5.6-sol",
 			DefaultReasoningEffort: &unsupported,
@@ -2645,8 +2645,7 @@ func (a *providerModelCurationRuntimeApplier) ApplyActiveConfig(
 			}
 			models[index].Curated = !models[index].Hidden && !models[index].Deprecated
 			if curated.DefaultReasoningEffort != "" {
-				effort := modelcatalog.ReasoningEffort(curated.DefaultReasoningEffort)
-				models[index].DefaultReasoningEffort = &effort
+				models[index].DefaultReasoningEffort = new(modelcatalog.ReasoningEffort(curated.DefaultReasoningEffort))
 			}
 			if curated.CostInputPerMillion != nil {
 				models[index].CostInputPerMillion = cloneFloat64Ptr(curated.CostInputPerMillion)

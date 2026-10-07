@@ -36,7 +36,7 @@ func TestMCPAuthOwnerIsolation(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			if err := db.Close(ctx); err != nil {
+			if err := db.Close(testutil.Context(t)); err != nil {
 				t.Error(err)
 			}
 		})
@@ -321,7 +321,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := reopened.Close(ctx); err != nil {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
@@ -365,7 +365,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 			t.Fatalf("OpenGlobalDB(after rotation) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := reopenedAfterRotation.Close(ctx); err != nil {
+			if err := reopenedAfterRotation.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(reopened after rotation) error = %v", err)
 			}
 		})

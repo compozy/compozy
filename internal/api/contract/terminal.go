@@ -16,7 +16,7 @@ type TerminalCapabilitiesPayload struct {
 }
 
 type TerminalOutputShape struct {
-	MaxBytes int    `json:"max_bytes,omitempty"`
+	MaxBytes int    `json:"max_bytes,omitzero"`
 	Strategy string `json:"strategy,omitempty"`
 	Grep     string `json:"grep,omitempty"`
 }
@@ -34,8 +34,8 @@ type TerminalRunPayload struct {
 
 type TerminalExitPayload struct {
 	Cause  TerminalExitCause `json:"cause"`
-	Code   *int              `json:"code,omitempty"`
-	Signal *TerminalSignal   `json:"signal,omitempty"`
+	Code   *int              `json:"code,omitzero"`
+	Signal *TerminalSignal   `json:"signal,omitzero"`
 	At     time.Time         `json:"at"`
 }
 
@@ -53,7 +53,7 @@ type TerminalInfoPayload struct {
 	BoundRun     *TerminalRunPayload         `json:"bound_run"`
 	Capabilities TerminalCapabilitiesPayload `json:"capabilities"`
 	CreatedAt    time.Time                   `json:"created_at"`
-	Exit         *TerminalExitPayload        `json:"exit,omitempty"`
+	Exit         *TerminalExitPayload        `json:"exit,omitzero"`
 }
 
 func TerminalInfoPayloadFromDomain(info terminalpkg.Info, profileName string) TerminalInfoPayload {
@@ -100,7 +100,7 @@ type TerminalCommandRowPayload struct {
 	ProfileName string                      `json:"profile_name"`
 	Actor       TerminalCommandActorPayload `json:"actor"`
 	Command     string                      `json:"command"`
-	ArgvDigest  *string                     `json:"argv_digest,omitempty"`
+	ArgvDigest  *string                     `json:"argv_digest,omitzero"`
 	Cwd         string                      `json:"cwd"`
 	StartedAt   time.Time                   `json:"started_at"`
 	DurationMs  *int64                      `json:"duration_ms"`
@@ -111,7 +111,7 @@ type TerminalCommandRowPayload struct {
 	Approval    TerminalCommandApproval     `json:"approval"`
 	OutputBytes int64                       `json:"output_bytes"`
 	Truncated   bool                        `json:"truncated"`
-	RecordingID *string                     `json:"recording,omitempty"`
+	RecordingID *string                     `json:"recording,omitzero"`
 }
 
 func TerminalCommandRowPayloadFromDomain(row terminalpkg.CommandRow, profileName string) TerminalCommandRowPayload {
@@ -167,8 +167,8 @@ func TerminalCommandRowFromPayload(row TerminalCommandRowPayload) terminalpkg.Co
 type TerminalCreateRequest struct {
 	Cwd      string `json:"cwd,omitempty"`
 	Shell    string `json:"shell,omitempty"`
-	Cols     uint16 `json:"cols,omitempty"`
-	Rows     uint16 `json:"rows,omitempty"`
+	Cols     uint16 `json:"cols,omitzero"`
+	Rows     uint16 `json:"rows,omitzero"`
 	Title    string `json:"title,omitempty"`
 	ClientID string `json:"client_id,omitempty"`
 }
@@ -198,10 +198,10 @@ type TerminalExecResponse struct {
 	Output       string                `json:"output"`
 	Truncated    bool                  `json:"truncated"`
 	Untrusted    bool                  `json:"untrusted"`
-	Spill        *TerminalSpillPayload `json:"spill,omitempty"`
+	Spill        *TerminalSpillPayload `json:"spill,omitzero"`
 	DurationMs   int64                 `json:"duration_ms"`
 	CommandID    string                `json:"command_id"`
-	StillRunning bool                  `json:"still_running,omitempty"`
+	StillRunning bool                  `json:"still_running,omitzero"`
 	TerminalID   *TerminalID           `json:"terminal_id"`
 }
 
@@ -217,12 +217,12 @@ func TerminalExecResponseFromDomain(result terminalpkg.ExecResult) TerminalExecR
 type TerminalWaitRequest struct {
 	Until     string `json:"until"`
 	Pattern   string `json:"pattern,omitempty"`
-	TimeoutMs int    `json:"timeout_ms,omitempty"`
+	TimeoutMs int    `json:"timeout_ms,omitzero"`
 }
 
 type TerminalWaitResponse struct {
 	Reason    string `json:"reason"`
-	ExitCode  *int   `json:"exit_code,omitempty"`
+	ExitCode  *int   `json:"exit_code,omitzero"`
 	Screen    string `json:"screen"`
 	Untrusted bool   `json:"untrusted"`
 }
@@ -276,7 +276,7 @@ type TerminalReadResponse struct {
 	Truncated bool                  `json:"truncated"`
 	Busy      bool                  `json:"busy"`
 	Untrusted bool                  `json:"untrusted"`
-	Spill     *TerminalSpillPayload `json:"spill,omitempty"`
+	Spill     *TerminalSpillPayload `json:"spill,omitzero"`
 }
 
 func TerminalReadResponseFromDomain(result terminalpkg.ReadResult) TerminalReadResponse {

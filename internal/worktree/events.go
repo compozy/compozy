@@ -76,13 +76,13 @@ type ExitTerminalEventSink interface {
 }
 
 type ExitEventPayload struct {
-	CommitScope *ExitCommitScope  `json:"commit_scope,omitempty"`
+	CommitScope *ExitCommitScope  `json:"commit_scope,omitzero"`
 	OperationID string            `json:"op_id"`
 	Action      ExitAction        `json:"action"`
 	Phases      []ExitPhase       `json:"phases,omitempty"`
 	Phase       ExitPhase         `json:"phase,omitempty"`
 	State       string            `json:"state,omitempty"`
-	Result      *ExitActionResult `json:"result,omitempty"`
+	Result      *ExitActionResult `json:"result,omitzero"`
 	Message     string            `json:"message,omitempty"`
 	Cause       string            `json:"cause,omitempty"`
 	Stream      string            `json:"stream,omitempty"`

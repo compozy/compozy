@@ -24,7 +24,7 @@ func TestGenerate(t *testing.T) {
 		}
 		writeTestSpec(t, artifact.SpecPath)
 
-		if err := Generate(context.Background(), artifact); err != nil {
+		if err := Generate(t.Context(), artifact); err != nil {
 			t.Fatalf("Generate() error = %v", err)
 		}
 
@@ -78,7 +78,7 @@ func TestGenerate(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				err := Generate(context.Background(), tc.artifact)
+				err := Generate(t.Context(), tc.artifact)
 				if !errors.Is(err, ErrInvalidArtifact) {
 					t.Fatalf("Generate() error = %v, want ErrInvalidArtifact", err)
 				}
@@ -113,7 +113,7 @@ func TestGenerate(t *testing.T) {
 			}
 		})
 
-		err := generateWithRunner(context.Background(), artifact, runner)
+		err := generateWithRunner(t.Context(), artifact, runner)
 		if !errors.Is(err, formatErr) {
 			t.Fatalf("generateWithRunner() error = %v, want formatErr", err)
 		}
@@ -153,7 +153,7 @@ func TestGenerate(t *testing.T) {
 			}
 		})
 
-		if err := generateWithRunner(context.Background(), artifact, runner); err != nil {
+		if err := generateWithRunner(t.Context(), artifact, runner); err != nil {
 			t.Fatalf("generateWithRunner() error = %v", err)
 		}
 		content, err := os.ReadFile(artifact.OutputPath)
@@ -173,7 +173,7 @@ func TestCheck(t *testing.T) {
 	t.Run("Should reject invalid artifacts before regenerating output", func(t *testing.T) {
 		t.Parallel()
 
-		err := Check(context.Background(), Artifact{})
+		err := Check(t.Context(), Artifact{})
 		if !errors.Is(err, ErrInvalidArtifact) {
 			t.Fatalf("Check() error = %v, want ErrInvalidArtifact", err)
 		}
@@ -189,11 +189,11 @@ func TestCheck(t *testing.T) {
 		}
 		writeTestSpec(t, artifact.SpecPath)
 
-		if err := Generate(context.Background(), artifact); err != nil {
+		if err := Generate(t.Context(), artifact); err != nil {
 			t.Fatalf("Generate() error = %v", err)
 		}
 
-		if err := Check(context.Background(), artifact); err != nil {
+		if err := Check(t.Context(), artifact); err != nil {
 			t.Fatalf("Check() error = %v", err)
 		}
 	})
@@ -208,14 +208,14 @@ func TestCheck(t *testing.T) {
 		}
 		writeTestSpec(t, artifact.SpecPath)
 
-		if err := Generate(context.Background(), artifact); err != nil {
+		if err := Generate(t.Context(), artifact); err != nil {
 			t.Fatalf("Generate() error = %v", err)
 		}
 		if err := os.WriteFile(artifact.OutputPath, []byte("export type Broken = true;\n"), 0o644); err != nil {
 			t.Fatalf("os.WriteFile(%q) error = %v", artifact.OutputPath, err)
 		}
 
-		err := Check(context.Background(), artifact)
+		err := Check(t.Context(), artifact)
 		if !errors.Is(err, ErrStaleGeneratedFile) {
 			t.Fatalf("Check() error = %v, want ErrStaleGeneratedFile", err)
 		}
@@ -231,7 +231,7 @@ func TestCheck(t *testing.T) {
 		}
 		writeTestSpec(t, artifact.SpecPath)
 
-		err := Check(context.Background(), artifact)
+		err := Check(t.Context(), artifact)
 		if err == nil {
 			t.Fatal("Check() error = nil, want missing output error")
 		}
@@ -293,7 +293,7 @@ func TestRunCommand(t *testing.T) {
 		t.Parallel()
 
 		script := writeShellScript(t, "exit 0\n")
-		if err := runCommand(context.Background(), "/bin/sh", script); err != nil {
+		if err := runCommand(t.Context(), "/bin/sh", script); err != nil {
 			t.Fatalf("runCommand() error = %v", err)
 		}
 	})
@@ -302,7 +302,7 @@ func TestRunCommand(t *testing.T) {
 		t.Parallel()
 
 		script := writeShellScript(t, "echo 'stderr detail' >&2\nexit 1\n")
-		err := runCommand(context.Background(), "/bin/sh", script)
+		err := runCommand(t.Context(), "/bin/sh", script)
 		if err == nil {
 			t.Fatal("runCommand() error = nil, want non-nil")
 		}
@@ -315,7 +315,7 @@ func TestRunCommand(t *testing.T) {
 		t.Parallel()
 
 		script := writeShellScript(t, "echo 'stdout detail'\nexit 1\n")
-		err := runCommand(context.Background(), "/bin/sh", script)
+		err := runCommand(t.Context(), "/bin/sh", script)
 		if err == nil {
 			t.Fatal("runCommand() error = nil, want non-nil")
 		}
@@ -327,7 +327,7 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should report raw execution errors when the command cannot start", func(t *testing.T) {
 		t.Parallel()
 
-		err := runCommand(context.Background(), filepath.Join(t.TempDir(), "missing-command"))
+		err := runCommand(t.Context(), filepath.Join(t.TempDir(), "missing-command"))
 		if err == nil {
 			t.Fatal("runCommand() error = nil, want non-nil")
 		}
@@ -340,7 +340,7 @@ func TestRunCommand(t *testing.T) {
 		t.Parallel()
 
 		script := writeShellScript(t, "sleep 1\n")
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		err := runCommand(ctx, "/bin/sh", script)

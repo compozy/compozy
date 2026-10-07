@@ -125,8 +125,8 @@ type LoopDefinitionPayload struct {
 	Source             LoopSource                   `json:"source"`
 	Catalog            LoopCatalogResourceSpec      `json:"catalog"`
 	Definition         LoopDefinitionDocument       `json:"definition"`
-	EffectiveConfig    *LoopEffectiveConfig         `json:"effective_config,omitempty"`
-	EffectiveLifecycle *LoopResolvedLifecycleConfig `json:"effective_lifecycle,omitempty"`
+	EffectiveConfig    *LoopEffectiveConfig         `json:"effective_config,omitzero"`
+	EffectiveLifecycle *LoopResolvedLifecycleConfig `json:"effective_lifecycle,omitzero"`
 }
 
 // LoopResolvedLifecycleConfig reports effective node-family defaults and their source layer.
@@ -151,13 +151,13 @@ type LoopResponse struct {
 
 // CreateLoopRequest creates a writable Loop definition or forks a read-only Loop by name.
 type CreateLoopRequest struct {
-	Definition   *LoopDefinitionDocument `json:"definition,omitempty"`
+	Definition   *LoopDefinitionDocument `json:"definition,omitzero"`
 	ForkFromName string                  `json:"fork_from_name,omitempty"`
 }
 
 // PatchLoopRequest atomically lints, compiles, and publishes a Loop definition.
 type PatchLoopRequest struct {
-	ExpectedVersion *int                   `json:"expected_version,omitempty"`
+	ExpectedVersion *int                   `json:"expected_version,omitzero"`
 	Definition      LoopDefinitionDocument `json:"definition"`
 }
 
@@ -171,7 +171,7 @@ type LoopValidationResponse struct {
 	Valid             bool                               `json:"valid"`
 	Errors            []LoopLintErrorPayload             `json:"errors,omitempty"`
 	RuntimeValidation []LoopRuntimeValidationItemPayload `json:"runtime_validation,omitempty"`
-	InputValidation   *LoopInputValidationErrorPayload   `json:"input_validation,omitempty"`
+	InputValidation   *LoopInputValidationErrorPayload   `json:"input_validation,omitzero"`
 }
 
 // LoopInputValidationErrorPayload reports one field-addressed input failure.
@@ -189,8 +189,8 @@ type LoopUnprocessableResponse struct {
 	Error           string                           `json:"error,omitempty"`
 	Code            string                           `json:"code,omitempty"`
 	Details         map[string]string                `json:"details,omitempty"`
-	Valid           bool                             `json:"valid,omitempty"`
-	InputValidation *LoopInputValidationErrorPayload `json:"input_validation,omitempty"`
+	Valid           bool                             `json:"valid,omitzero"`
+	InputValidation *LoopInputValidationErrorPayload `json:"input_validation,omitzero"`
 }
 
 // LoopLintErrorPayload is the per-node 422 payload surfaced to authoring clients.
@@ -212,13 +212,13 @@ type LoopVersionConflictResponse struct {
 type RunLoopRequest struct {
 	Inputs          map[string]any `json:"inputs,omitempty"`
 	ParentLoopRunID string         `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides *LoopConfig    `json:"config_overrides,omitempty"`
+	ConfigOverrides *LoopConfig    `json:"config_overrides,omitzero"`
 }
 
 // RunLoopResponse returns either a persisted run or a dry-run plan preview.
 type RunLoopResponse struct {
-	Run    *LoopRunPayload  `json:"run,omitempty"`
-	DryRun *LoopPlanPayload `json:"dry_run,omitempty"`
+	Run    *LoopRunPayload  `json:"run,omitzero"`
+	DryRun *LoopPlanPayload `json:"dry_run,omitzero"`
 	WebURL string           `json:"web_url,omitempty"`
 }
 
@@ -285,19 +285,19 @@ type LoopEnvironment struct {
 
 // LoopConfig is the public per-loop or per-run override layer.
 type LoopConfig struct {
-	HumanGateEnabled  *bool                  `json:"human_gate_enabled,omitempty"`
-	ReattemptStrategy *LoopReattemptStrategy `json:"reattempt_strategy,omitempty"`
+	HumanGateEnabled  *bool                  `json:"human_gate_enabled,omitzero"`
+	ReattemptStrategy *LoopReattemptStrategy `json:"reattempt_strategy,omitzero"`
 	EnabledChecks     json.RawMessage        `json:"enabled_checks_json,omitempty"`
-	IterationCap      *int                   `json:"iteration_cap,omitempty"`
-	BudgetTokens      *int                   `json:"budget_tokens,omitempty"`
-	BudgetWallSec     *int                   `json:"budget_wall_sec,omitempty"`
-	BudgetOnExceeded  *LoopBudgetExceeded    `json:"budget_on_exceeded,omitempty"`
-	NoProgressWindow  *int                   `json:"no_progress_window,omitempty"`
-	FanOutWidth       *int                   `json:"fan_out_width,omitempty"`
-	GateMaxRevisions  *int                   `json:"gate_max_revisions,omitempty"`
-	RuntimeDefaults   *LoopRuntimeDefaults   `json:"runtime_defaults,omitempty"`
+	IterationCap      *int                   `json:"iteration_cap,omitzero"`
+	BudgetTokens      *int                   `json:"budget_tokens,omitzero"`
+	BudgetWallSec     *int                   `json:"budget_wall_sec,omitzero"`
+	BudgetOnExceeded  *LoopBudgetExceeded    `json:"budget_on_exceeded,omitzero"`
+	NoProgressWindow  *int                   `json:"no_progress_window,omitzero"`
+	FanOutWidth       *int                   `json:"fan_out_width,omitzero"`
+	GateMaxRevisions  *int                   `json:"gate_max_revisions,omitzero"`
+	RuntimeDefaults   *LoopRuntimeDefaults   `json:"runtime_defaults,omitzero"`
 	RuntimeRules      []LoopRuntimeRule      `json:"runtime_rules,omitempty"`
-	Environment       *LoopEnvironment       `json:"environment,omitempty"`
+	Environment       *LoopEnvironment       `json:"environment,omitzero"`
 }
 
 // LoopEffectiveConfig is the public fully resolved runtime config.
@@ -340,9 +340,9 @@ type PutLoopAnnotationsRequest struct {
 // LoopInput is the bounded input projection returned by the Loop catalog.
 type LoopInput struct {
 	Type        dsl.InputType `json:"type"`
-	Required    bool          `json:"required,omitempty"`
+	Required    bool          `json:"required,omitzero"`
 	Description string        `json:"description,omitempty"`
-	Ref         *LoopInputRef `json:"ref,omitempty"`
+	Ref         *LoopInputRef `json:"ref,omitzero"`
 	Enum        []string      `json:"enum,omitempty"`
 	Default     any           `json:"default,omitempty"`
 }
@@ -362,7 +362,7 @@ type LoopContract struct {
 	IterationCap     int                  `json:"iteration_cap"`
 	NoProgress       LoopNoProgress       `json:"no_progress"`
 	Budget           LoopBudget           `json:"budget"`
-	RuntimeDefaults  *LoopRuntimeDefaults `json:"runtime_defaults,omitempty"`
+	RuntimeDefaults  *LoopRuntimeDefaults `json:"runtime_defaults,omitzero"`
 	RuntimeRules     []LoopRuntimeRule    `json:"runtime_rules,omitempty"`
 	*LoopContractLifecycleState
 }
@@ -390,13 +390,13 @@ type LoopGateCriterion struct {
 	Prompt  string          `json:"prompt,omitempty"`
 	Tool    string          `json:"tool,omitempty"`
 	Inputs  map[string]any  `json:"inputs,omitempty"`
-	Metric  *LoopMetricSpec `json:"metric,omitempty"`
+	Metric  *LoopMetricSpec `json:"metric,omitzero"`
 }
 
 // LoopMetricSpec declares the score contract for one machine criterion.
 type LoopMetricSpec struct {
 	Direction LoopMetricDirection `json:"direction"`
-	MinDelta  *float64            `json:"min_delta,omitempty"`
+	MinDelta  *float64            `json:"min_delta,omitzero"`
 }
 
 // LoopStartBinding is the bounded start projection returned by the Loop catalog.

@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"os"
@@ -314,10 +315,7 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 }
 
 func (s *service) normalizeReadScope(scope ScopeKind, workspaceID string) (ScopeKind, string, error) {
-	normalized := scope
-	if normalized == "" {
-		normalized = ScopeUser
-	}
+	normalized := cmp.Or(scope, ScopeUser)
 	if err := normalized.Validate(); err != nil {
 		return "", "", validationError(err)
 	}

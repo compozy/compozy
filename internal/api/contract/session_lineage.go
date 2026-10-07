@@ -55,6 +55,5 @@ func cloneContractTimePtr(source *time.Time) *time.Time {
 	if source == nil {
 		return nil
 	}
-	value := source.UTC()
-	return &value
+	return new(source.UTC())
 }

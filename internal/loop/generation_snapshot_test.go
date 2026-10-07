@@ -21,7 +21,7 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 
 		tx := &generationSnapshotTx{rowsAffected: 1}
 		err := NewStoreFinalizer().WriteGenerationSnapshot(
-			context.Background(),
+			t.Context(),
 			tx,
 			task.GenerationSnapshot{
 				LoopRunID:  " loop-run-1 ",
@@ -77,7 +77,7 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 				output.ExpectedEpoch = &expectedEpoch
 			}
 			err := finalizer.WriteGenerationSnapshot(
-				context.Background(),
+				t.Context(),
 				tx,
 				task.GenerationSnapshot{
 					LoopRunID:  "loop-run-1",
@@ -136,7 +136,7 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 		expectedEpoch := int64(7)
 		tx := &generationSnapshotTx{rowsAffected: 1}
 		err := NewStoreFinalizer().WriteGenerationSnapshot(
-			context.Background(),
+			t.Context(),
 			tx,
 			task.GenerationSnapshot{
 				LoopRunID:  "loop-run-1",
@@ -180,7 +180,7 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 
 		tx := &generationSnapshotTx{}
 		err := NewStoreFinalizer().WriteGenerationSnapshot(
-			context.Background(),
+			t.Context(),
 			tx,
 			task.GenerationSnapshot{
 				LoopRunID:  "loop-run-1",
@@ -203,10 +203,9 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 		startedAt := time.Date(2026, time.August, 2, 16, 0, 0, 0, time.UTC)
 		endedAt := startedAt.Add(time.Second)
 		nextAttemptAt := endedAt.Add(5 * time.Second)
-		failureClass := FailureTransport
 		tx := &generationSnapshotTx{rowsAffected: 1}
 		err := NewStoreFinalizer().WriteGenerationSnapshot(
-			context.Background(),
+			t.Context(),
 			tx,
 			task.GenerationSnapshot{
 				LoopRunID:  "loop-run-1",
@@ -215,7 +214,7 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 					Generation:    4,
 					NodeID:        "worker",
 					Attempt:       2,
-					FailureClass:  &failureClass,
+					FailureClass:  new(FailureTransport),
 					FailureCode:   "provider_unavailable",
 					Cause:         "provider is unavailable",
 					Hint:          "retry later",
@@ -250,7 +249,7 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 
 		tx := &generationSnapshotTx{rowsAffected: 1}
 		err := NewStoreFinalizer().WriteGenerationSnapshot(
-			context.Background(),
+			t.Context(),
 			tx,
 			task.GenerationSnapshot{
 				LoopRunID:  "loop-run-1",

@@ -8,7 +8,7 @@ type ProviderModelListResponse struct {
 // ProviderModelRefreshRequest captures one provider model catalog refresh request.
 type ProviderModelRefreshRequest struct {
 	SourceID  string `json:"source_id,omitempty"`
-	Force     bool   `json:"force,omitempty"`
+	Force     bool   `json:"force,omitzero"`
 	RequestID string `json:"request_id,omitempty"`
 }
 
@@ -21,11 +21,11 @@ type ProviderModelRefreshResponse struct {
 // ProviderModelCurationRequest captures one model-only provider config mutation.
 type ProviderModelCurationRequest struct {
 	ModelID                string           `json:"model_id"`
-	Hidden                 *bool            `json:"hidden,omitempty"`
-	Featured               *bool            `json:"featured,omitempty"`
-	Deprecated             *bool            `json:"deprecated,omitempty"`
-	DefaultReasoningEffort *ReasoningEffort `json:"default_effort,omitempty"`
-	DefaultSpeed           *Speed           `json:"default_speed,omitempty"`
+	Hidden                 *bool            `json:"hidden,omitzero"`
+	Featured               *bool            `json:"featured,omitzero"`
+	Deprecated             *bool            `json:"deprecated,omitzero"`
+	DefaultReasoningEffort *ReasoningEffort `json:"default_effort,omitzero"`
+	DefaultSpeed           *Speed           `json:"default_speed,omitzero"`
 }
 
 // ProviderModelCurationResponse reports the effective model and live config-apply result.

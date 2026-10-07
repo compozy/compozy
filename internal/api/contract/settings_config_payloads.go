@@ -12,7 +12,7 @@ type SettingsBusyInputPayload struct {
 }
 
 type SettingsGeneralConfigPayload struct {
-	BusyInput      *SettingsBusyInputPayload  `json:"busy_input,omitempty"`
+	BusyInput      *SettingsBusyInputPayload  `json:"busy_input,omitzero"`
 	Limits         SettingsLimitsPayload      `json:"limits"`
 	Permissions    SettingsPermissionsPayload `json:"permissions"`
 	SessionTimeout string                     `json:"session_timeout"`
@@ -156,7 +156,7 @@ type SettingsRoleConfigPayload struct {
 	Provider        string                        `json:"provider"`
 	Model           string                        `json:"model"`
 	ReasoningEffort string                        `json:"reasoning_effort"`
-	Speed           *Speed                        `json:"speed,omitempty"`
+	Speed           *Speed                        `json:"speed,omitzero"`
 	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
 	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
 }
@@ -173,7 +173,7 @@ type SettingsMemoryControllerRoleConfigPayload struct {
 	Provider        string                        `json:"provider"`
 	Model           string                        `json:"model"`
 	ReasoningEffort string                        `json:"reasoning_effort"`
-	Speed           *Speed                        `json:"speed,omitempty"`
+	Speed           *Speed                        `json:"speed,omitzero"`
 	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
 	Timeout         string                        `json:"timeout"`
 	TopK            int                           `json:"top_k"`
@@ -186,7 +186,7 @@ type SettingsRoleFallbackPayload struct {
 	Provider        string                    `json:"provider"`
 	Model           string                    `json:"model"`
 	ReasoningEffort string                    `json:"reasoning_effort"`
-	Speed           *Speed                    `json:"speed,omitempty"`
+	Speed           *Speed                    `json:"speed,omitzero"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
 	// Command is the route account; always present on the settings surface, empty inherits.
 	Command string `json:"command"`
@@ -331,12 +331,12 @@ type SettingsConfigPathsPayload struct {
 type SettingsDaemonRuntimePayload struct {
 	Available      bool       `json:"available"`
 	Status         string     `json:"status,omitempty"`
-	PID            int        `json:"pid,omitempty"`
+	PID            int        `json:"pid,omitzero"`
 	StartedAt      *time.Time `json:"started_at,omitempty"`
 	UptimeSeconds  int64      `json:"uptime_seconds"`
 	Socket         string     `json:"socket,omitempty"`
 	HTTPHost       string     `json:"http_host,omitempty"`
-	HTTPPort       int        `json:"http_port,omitempty"`
+	HTTPPort       int        `json:"http_port,omitzero"`
 	ActiveSessions int        `json:"active_sessions"`
 	ActiveAgents   int        `json:"active_agents"`
 	TotalSessions  int        `json:"total_sessions"`
@@ -415,7 +415,7 @@ type SettingsInstalledExtensionPayload struct {
 	LastError     string                                    `json:"last_error,omitempty"`
 	RequiresEnv   []string                                  `json:"requires_env,omitempty"`
 	MissingEnv    []string                                  `json:"missing_env,omitempty"`
-	Palette       *SettingsInstalledExtensionPalettePayload `json:"palette,omitempty"`
+	Palette       *SettingsInstalledExtensionPalettePayload `json:"palette,omitzero"`
 }
 
 type SettingsInstalledExtensionPalettePayload struct {

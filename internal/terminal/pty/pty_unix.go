@@ -325,7 +325,7 @@ func signalName(signal syscall.Signal) string {
 }
 
 func waitError(err error) error {
-	if errors.As(err, new(*exec.ExitError)) {
+	if _, ok := errors.AsType[*exec.ExitError](err); ok {
 		return nil
 	}
 	return err

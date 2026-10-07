@@ -248,8 +248,7 @@ func (h *BaseHandlers) UpdateExtensions(c *gin.Context) {
 	}
 	items, err := service.UpdateBatch(c.Request.Context(), req, actor)
 	if err != nil {
-		var batchErr *extensionpkg.MarketplaceUpdateBatchError
-		if !errors.As(err, &batchErr) || len(items) == 0 {
+		if _, ok := errors.AsType[*extensionpkg.MarketplaceUpdateBatchError](err); !ok || len(items) == 0 {
 			h.respondExtensionError(c, ExtensionStatusCode(err), err)
 			return
 		}

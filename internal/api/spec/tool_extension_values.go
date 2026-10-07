@@ -1,7 +1,7 @@
 package spec
 
 import (
-	"sort"
+	"slices"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 
@@ -54,6 +54,6 @@ func hostAPIMethodValues() []string {
 	for _, spec := range specs {
 		values = append(values, string(spec.Method))
 	}
-	sort.Strings(values)
+	slices.Sort(values)
 	return values
 }

@@ -309,8 +309,7 @@ func newWindowFocusCommand(deps commandDeps) *cobra.Command {
 			}
 			var windowIDPtr *windowmanager.WindowID
 			if byID {
-				value := windowmanager.WindowID(strings.TrimSpace(windowID))
-				windowIDPtr = &value
+				windowIDPtr = new(windowmanager.WindowID(strings.TrimSpace(windowID)))
 			}
 			focusDirection := windowmanager.FocusDirection(strings.TrimSpace(direction))
 			if byDirection && !isWindowManagerFocusDirection(focusDirection) {

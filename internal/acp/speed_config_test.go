@@ -28,7 +28,7 @@ func TestMatchSpeedConfig(t *testing.T) {
 		Label:       "Fast Mode",
 		Category:    "model_config",
 		Kind:        SessionConfigOptionKindBoolean,
-		CurrentBool: boolPointer(false),
+		CurrentBool: new(false),
 	}
 
 	tests := []struct {
@@ -49,7 +49,7 @@ func TestMatchSpeedConfig(t *testing.T) {
 			name:      "Should match a boolean speed option",
 			requested: speedpkg.SpeedFast,
 			options:   []SessionConfigOption{booleanOption},
-			wantBool:  boolPointer(true),
+			wantBool:  new(true),
 		},
 		{
 			name:      "Should reject a missing model config category",
@@ -211,7 +211,7 @@ func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 			Label:       "Fast Mode",
 			Category:    "model_config",
 			Kind:        SessionConfigOptionKindBoolean,
-			CurrentBool: boolPointer(false),
+			CurrentBool: new(false),
 		}
 		match, reason := matchSpeedConfig(speedpkg.SpeedFast, []SessionConfigOption{option})
 		if match == nil || reason != "" {
@@ -235,7 +235,7 @@ func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 		assertConfigOptionRequestJSON(t, request, "boolean", true)
 
 		confirmed := option
-		confirmed.CurrentBool = boolPointer(true)
+		confirmed.CurrentBool = new(true)
 		if !match.confirmed([]SessionConfigOption{confirmed}) {
 			t.Fatal("confirmed() = false, want true")
 		}

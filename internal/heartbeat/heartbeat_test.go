@@ -47,7 +47,7 @@ context:
 Inspect context first, then use compozy task next before doing task work.
 `)
 
-		first, err := Parse(context.Background(), ParseRequest{
+		first, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       content,
@@ -56,7 +56,7 @@ Inspect context first, then use compozy task next before doing task work.
 		if err != nil {
 			t.Fatalf("Parse(first) error = %v", err)
 		}
-		second, err := Parse(context.Background(), ParseRequest{
+		second, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       content,
@@ -119,7 +119,7 @@ Inspect context first, then use compozy task next before doing task work.
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte("Inspect context and then use official Compozy task APIs.\n\n"),
@@ -149,7 +149,7 @@ func TestHeartbeatPreferences(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content: []byte(`---
@@ -175,7 +175,7 @@ Wake gently.
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.AllowActiveHoursPreferences = false
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content: []byte(`---
@@ -210,7 +210,7 @@ Wake gently.
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content: []byte(`---
@@ -237,7 +237,7 @@ Wake gently.
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content: []byte(`---
@@ -329,7 +329,7 @@ liveness: alive
 			t.Parallel()
 
 			workspaceRoot, sourcePath := heartbeatWorkspace(t)
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath:    sourcePath,
 				WorkspaceRoot: workspaceRoot,
 				Content:       []byte(tt.content),
@@ -353,7 +353,7 @@ func TestResolveHeartbeatPolicy(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot, agentPath := agentWorkspace(t)
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
 			Config:        compozyconfig.DefaultHeartbeatConfig(),
@@ -387,7 +387,7 @@ func TestResolveHeartbeatPolicy(t *testing.T) {
 			t.Fatalf("write HEARTBEAT.md: %v", err)
 		}
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
 			Config:        compozyconfig.DefaultHeartbeatConfig(),
@@ -421,7 +421,7 @@ summary: "ok"
 ---
 Wake gently.
 `)
-		first, err := Parse(context.Background(), ParseRequest{
+		first, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       content,
@@ -432,7 +432,7 @@ Wake gently.
 		}
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.DefaultInterval = 45 * time.Minute
-		second, err := Parse(context.Background(), ParseRequest{
+		second, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       content,
@@ -457,7 +457,7 @@ Wake gently.
 		cfg.MaxBodyBytes = 32
 		cfg.ContextProjectionBytes = 16
 		secretBody := strings.Repeat("x", 40) + " token=super-secret-token-123456"
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte(secretBody),
@@ -480,7 +480,7 @@ Wake gently.
 		cleanup := diagnostics.RegisterDynamicSecret(secret)
 		t.Cleanup(cleanup)
 
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content: []byte(`---
@@ -503,7 +503,7 @@ Wake gently.
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content: []byte(`---
@@ -619,7 +619,7 @@ Wake gently.
 			t.Parallel()
 
 			workspaceRoot, sourcePath := heartbeatWorkspace(t)
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath:    sourcePath,
 				WorkspaceRoot: workspaceRoot,
 				Content:       []byte(tt.content),
@@ -650,7 +650,7 @@ func TestHeartbeatRuntimeBoundaries(t *testing.T) {
 
 		workspaceRoot := t.TempDir()
 		sourcePath := filepath.Join(t.TempDir(), FileName)
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte("Wake gently."),
@@ -665,7 +665,7 @@ func TestHeartbeatRuntimeBoundaries(t *testing.T) {
 	t.Run("Should report empty resolve source path as diagnostic error", func(t *testing.T) {
 		t.Parallel()
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     "",
 			WorkspaceRoot: t.TempDir(),
 			Config:        compozyconfig.DefaultHeartbeatConfig(),
@@ -685,7 +685,7 @@ func TestHeartbeatRuntimeBoundaries(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err := Parse(ctx, ParseRequest{
 			SourcePath:    sourcePath,
@@ -763,7 +763,7 @@ func TestHeartbeatPromptProjection(t *testing.T) {
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.ContextProjectionBytes = 256
 		body := "Wake guidance. " + strings.Repeat("Keep inspecting context. ", 80)
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte(body),

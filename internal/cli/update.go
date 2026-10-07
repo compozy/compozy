@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -40,15 +41,15 @@ type updateManager interface {
 type updateRecord struct {
 	Status    compozyupdate.Status            `json:"status"`
 	Runtime   compozyupdate.RuntimeTrackState `json:"runtime"`
-	App       *compozyupdate.AppTrackState    `json:"app,omitempty"`
-	Operation *compozyupdate.OperationView    `json:"operation,omitempty"`
+	App       *compozyupdate.AppTrackState    `json:"app,omitzero"`
+	Operation *compozyupdate.OperationView    `json:"operation,omitzero"`
 }
 
 type updateCancelRecord struct {
 	Status      compozyupdate.Status  `json:"status"`
 	OperationID string                `json:"operation_id,omitempty"`
 	Message     string                `json:"message"`
-	Holder      *compozyupdate.Holder `json:"holder,omitempty"`
+	Holder      *compozyupdate.Holder `json:"holder,omitzero"`
 }
 
 func newUpdateCommand(deps commandDeps) *cobra.Command {
@@ -376,10 +377,7 @@ func waitForSettingsRestart(
 			case restartStatusReady:
 				return status, true, nil
 			case restartStatusFailed:
-				reason := strings.TrimSpace(status.FailureReason)
-				if reason == "" {
-					reason = "daemon restart failed"
-				}
+				reason := cmp.Or(strings.TrimSpace(status.FailureReason), "daemon restart failed")
 				return status, true, errors.New("cli: " + reason)
 			default:
 				return SettingsRestartStatusRecord{}, false, nil

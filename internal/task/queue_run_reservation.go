@@ -11,7 +11,7 @@ import (
 type QueueRunReservation struct {
 	TaskID               string          `json:"task_id"`
 	RunID                string          `json:"run_id"`
-	RunKind              RunKind         `json:"run_kind,omitempty"`
+	RunKind              RunKind         `json:"run_kind,omitzero"`
 	LoopRunID            string          `json:"loop_run_id,omitempty"`
 	IdempotencyKey       string          `json:"idempotency_key,omitempty"`
 	Origin               Origin          `json:"origin"`

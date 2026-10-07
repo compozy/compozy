@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"maps"
 
 	"errors"
 	"fmt"
@@ -86,7 +87,7 @@ func (e *TriggerEngine) claimPersistentWebhookDelivery(
 		FireID:    webhookDeliveryFireID(trigger.ID, deliveryID),
 		Status:    RunScheduled,
 		Attempt:   1,
-		StartedAt: timePointer(now),
+		StartedAt: new(now),
 		Metadata: map[string]any{
 			triggerDeliveryIDKey: strings.TrimSpace(deliveryID),
 		},
@@ -145,11 +146,9 @@ func (e *TriggerEngine) releaseWebhookDelivery(ctx context.Context, claim webhoo
 }
 
 func (e *TriggerEngine) purgeDeliveriesLocked(now time.Time) {
-	for key, expiresAt := range e.deliveries {
-		if !expiresAt.After(now) {
-			delete(e.deliveries, key)
-		}
-	}
+	maps.DeleteFunc(e.deliveries, func(_ string, expiresAt time.Time) bool {
+		return !expiresAt.After(now)
+	})
 }
 
 func webhookDeliveryKey(triggerID string, deliveryID string) string {

@@ -2,11 +2,11 @@ package loop
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -166,7 +166,7 @@ func normalizeLoopSchema(schema dsl.Schema) (map[string]any, error) {
 		properties[key] = shorthandPropertySchema(value)
 		required = append(required, key)
 	}
-	sort.Strings(required)
+	slices.Sort(required)
 	return map[string]any{
 		jsonSchemaTypeKey:       jsonSchemaObjectType,
 		jsonSchemaPropertiesKey: properties,
@@ -314,8 +314,8 @@ func extractJSONObjectCandidates(text string) []json.RawMessage {
 	}
 	collected = append(collected, extractFencedJSONObjects(text)...)
 	collected = append(collected, extractBalancedJSONObjects(text)...)
-	sort.SliceStable(collected, func(left, right int) bool {
-		return collected[left].offset < collected[right].offset
+	slices.SortStableFunc(collected, func(a, b jsonObjectCandidate) int {
+		return cmp.Compare(a.offset, b.offset)
 	})
 	seen := make(map[string]struct{})
 	candidates := make([]json.RawMessage, 0, len(collected))

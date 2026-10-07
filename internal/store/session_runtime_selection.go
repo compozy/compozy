@@ -18,7 +18,7 @@ type SessionRuntimeSelection struct {
 
 // SessionRuntimeSelectionState keeps a selected runtime and its revision together.
 type SessionRuntimeSelectionState struct {
-	Selected *SessionRuntimeSelection `json:"selected,omitempty"`
+	Selected *SessionRuntimeSelection `json:"selected,omitzero"`
 	Revision int64                    `json:"revision"`
 }
 

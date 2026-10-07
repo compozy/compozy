@@ -22,7 +22,7 @@ func TestWatcherSidecarSnapshotsContract(t *testing.T) {
 			return nil
 		})
 
-		if err := watcher.pollOnce(context.Background()); err != nil {
+		if err := watcher.pollOnce(t.Context()); err != nil {
 			t.Fatalf("pollOnce() error = %v", err)
 		}
 		if refreshes != 0 {
@@ -34,7 +34,7 @@ func TestWatcherSidecarSnapshotsContract(t *testing.T) {
 		t.Parallel()
 
 		mcpPath, watcher := newWatcherWithSidecarSkillContract(t)
-		if err := watcher.pollOnce(context.Background()); err != nil {
+		if err := watcher.pollOnce(t.Context()); err != nil {
 			t.Fatalf("initial pollOnce() error = %v", err)
 		}
 
@@ -51,7 +51,7 @@ func TestWatcherSidecarSnapshotsContract(t *testing.T) {
 			refreshes++
 			return nil
 		})
-		if err := watcher.pollOnce(context.Background()); err != nil {
+		if err := watcher.pollOnce(t.Context()); err != nil {
 			t.Fatalf("sidecar pollOnce() error = %v", err)
 		}
 		if refreshes != 1 {
@@ -83,7 +83,7 @@ func newWatcherWithSidecarSkillContract(t *testing.T) (string, *Watcher) {
 	registry := newTestRegistry(t, RegistryConfig{
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 

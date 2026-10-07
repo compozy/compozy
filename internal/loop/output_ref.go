@@ -29,10 +29,10 @@ func OutputRefForPayload(payload json.RawMessage) string {
 // OutputRefLooksContentAddressed reports whether a ref uses Compozy's loop output hash form.
 func OutputRefLooksContentAddressed(ref string) bool {
 	trimmed := strings.TrimSpace(ref)
-	if !strings.HasPrefix(trimmed, outputRefSHA256Prefix) {
+	digest, found := strings.CutPrefix(trimmed, outputRefSHA256Prefix)
+	if !found {
 		return false
 	}
-	digest := strings.TrimPrefix(trimmed, outputRefSHA256Prefix)
 	if len(digest) != sha256.Size*2 {
 		return false
 	}

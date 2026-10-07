@@ -1,6 +1,7 @@
 package cmdpalette
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,7 +9,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 )
 
 type structuralCatalog struct {
@@ -106,7 +106,9 @@ func (s *Service) Catalog(
 		}
 	}
 	commands := resolveCatalogCommands(descriptors, bindings, aliases, globalBindings, globalStatuses, snapshot)
-	sort.Slice(commands, func(left, right int) bool { return commands[left].ID < commands[right].ID })
+	slices.SortFunc(commands, func(a, b ResolvedCommand) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
 	revision, err := structuralRevision(request.ProfileLens, commands, sources)
 	if err != nil {
 		return Catalog{}, err
@@ -133,7 +135,7 @@ func resolveCatalogCommands(
 	for _, descriptor := range descriptors {
 		available, reason := resolveAvailability(descriptor, snapshot)
 		resolvedBindings := append([]string(nil), bindings[descriptor.ID]...)
-		sort.Strings(resolvedBindings)
+		slices.Sort(resolvedBindings)
 		var alias *string
 		if value, exists := aliases[descriptor.ID]; exists {
 			cloned := value
@@ -247,7 +249,9 @@ func (s *Service) collectDescriptors(
 			commands = append(commands, cloneDescriptor(descriptor))
 		}
 	}
-	sort.Slice(sources, func(left, right int) bool { return sources[left].Source < sources[right].Source })
+	slices.SortFunc(sources, func(a, b SourceStatus) int {
+		return cmp.Compare(a.Source, b.Source)
+	})
 	return commands, sources, defaults, nil
 }
 
@@ -389,6 +393,5 @@ func cloneString(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

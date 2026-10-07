@@ -52,9 +52,9 @@ type LoopRunPayload struct {
 	Historical        bool                  `json:"historical"`
 	CompletionState   LoopCompletionState   `json:"completion_state"`
 	Generation        int64                 `json:"generation"`
-	BestGeneration    *int64                `json:"best_generation,omitempty"`
-	BestScore         *float64              `json:"best_score,omitempty"`
-	ForkedFrom        *LoopForkRef          `json:"forked_from,omitempty"`
+	BestGeneration    *int64                `json:"best_generation,omitzero"`
+	BestScore         *float64              `json:"best_score,omitzero"`
+	ForkedFrom        *LoopForkRef          `json:"forked_from,omitzero"`
 	Forks             []LoopForkRef         `json:"forks"`
 	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
 	CreatedAt         time.Time             `json:"created_at"`
@@ -68,7 +68,7 @@ type LoopRunPayload struct {
 	DefinitionVersion int                   `json:"definition_version"`
 	DefinitionDigest  string                `json:"definition_digest,omitempty"`
 	ActiveGateID      string                `json:"active_gate_id,omitempty"`
-	BudgetApprovalSeq int                   `json:"budget_approval_seq,omitempty"`
+	BudgetApprovalSeq int                   `json:"budget_approval_seq,omitzero"`
 	StartMetadata     map[string]any        `json:"start_metadata,omitempty"`
 	IterationCap      int                   `json:"iteration_cap"`
 	BudgetTokens      int                   `json:"budget_tokens"`
@@ -78,7 +78,7 @@ type LoopRunPayload struct {
 	ParentLoopRunID   string                `json:"parent_loop_run_id,omitempty"`
 	PauseRequested    bool                  `json:"pause_requested"`
 	Inputs            map[string]any        `json:"inputs,omitempty"`
-	Attention         *LoopRunAttention     `json:"attention,omitempty"`
+	Attention         *LoopRunAttention     `json:"attention,omitzero"`
 	Progress          LoopRunProgress       `json:"progress"`
 }
 
@@ -116,7 +116,7 @@ type LoopRunsAggregatePayload struct {
 // LoopRunResponse returns one run with generation detail.
 type LoopRunResponse struct {
 	Run                  LoopRunPayload             `json:"run"`
-	ExecutedDefinition   *LoopDefinitionDocument    `json:"executed_definition,omitempty"`
+	ExecutedDefinition   *LoopDefinitionDocument    `json:"executed_definition,omitzero"`
 	MaterializedContract LoopContract               `json:"materialized_contract"`
 	EffectiveConfig      LoopEffectiveConfig        `json:"effective_config"`
 	Generations          []LoopGenerationPayload    `json:"generations,omitempty"`
@@ -125,7 +125,7 @@ type LoopRunResponse struct {
 	Requests             []LoopRequestPayload       `json:"requests"`
 	Amendments           []LoopNodeAmendmentPayload `json:"amendments"`
 	// WatchEvents is the parked watch-events read-model (present only while dormant).
-	WatchEvents *LoopWatchEventsState `json:"watch_events,omitempty"`
+	WatchEvents *LoopWatchEventsState `json:"watch_events,omitzero"`
 }
 
 // LoopGenerationPayload groups durable provenance, verdicts, and node state by generation.
@@ -145,7 +145,7 @@ type LoopRouteCausePayload struct {
 	Route       string    `json:"route"`
 	Cause       string    `json:"cause"`
 	MatchedWhen string    `json:"matched_when,omitempty"`
-	Default     bool      `json:"default,omitempty"`
+	Default     bool      `json:"default,omitzero"`
 	At          time.Time `json:"at"`
 }
 
@@ -154,8 +154,8 @@ type LoopGateVerdictPayload struct {
 	GateID         string                           `json:"gate_id"`
 	ItemIndex      int                              `json:"item_index"`
 	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
-	Score          *float64                         `json:"score,omitempty"`
-	RouteCauseRank *int                             `json:"route_cause_rank,omitempty"`
+	Score          *float64                         `json:"score,omitzero"`
+	RouteCauseRank *int                             `json:"route_cause_rank,omitzero"`
 	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
 	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
 }
@@ -167,11 +167,11 @@ type LoopGateCriterionDetailPayload struct {
 	Prompt         string                         `json:"prompt,omitempty"`
 	Outcome        LoopGateVerdictOutcome         `json:"outcome"`
 	Passed         bool                           `json:"passed"`
-	Broken         bool                           `json:"broken,omitempty"`
-	ExitCode       *int                           `json:"exit_code,omitempty"`
+	Broken         bool                           `json:"broken,omitzero"`
+	ExitCode       *int                           `json:"exit_code,omitzero"`
 	Stdout         string                         `json:"stdout,omitempty"`
 	Stderr         string                         `json:"stderr,omitempty"`
-	Score          *float64                       `json:"score,omitempty"`
+	Score          *float64                       `json:"score,omitzero"`
 	Evidence       json.RawMessage                `json:"evidence,omitempty"`
 	BlockingIssues []LoopGateBlockingIssuePayload `json:"blocking_issues,omitempty"`
 	Warnings       []LoopGateDiagnosticWarning    `json:"warnings,omitempty"`
@@ -186,16 +186,16 @@ type LoopGateDiagnosticWarning struct {
 
 // LoopGenerationOutput is one public generation output row.
 type LoopGenerationOutput struct {
-	Generation      int64                `json:"generation,omitempty"`
+	Generation      int64                `json:"generation,omitzero"`
 	NodeID          string               `json:"node_id"`
-	ItemIndex       int                  `json:"item_index,omitempty"`
+	ItemIndex       int                  `json:"item_index,omitzero"`
 	Status          string               `json:"status"`
 	OutputRef       string               `json:"output_ref,omitempty"`
 	TaskRunID       string               `json:"task_run_id,omitempty"`
 	SessionID       string               `json:"session_id,omitempty"`
 	ChildLoopRunID  string               `json:"child_loop_run_id,omitempty"`
-	ResolvedRuntime *LoopResolvedRuntime `json:"resolved_runtime,omitempty"`
-	Attempt         int                  `json:"attempt,omitempty"`
+	ResolvedRuntime *LoopResolvedRuntime `json:"resolved_runtime,omitzero"`
+	Attempt         int                  `json:"attempt,omitzero"`
 	NextAttemptAt   *time.Time           `json:"next_attempt_at,omitempty"`
 	FailureClass    string               `json:"failure_class,omitempty"`
 	Disposition     string               `json:"disposition,omitempty"`
@@ -265,8 +265,8 @@ type LoopGateVerdictEventPayload struct {
 	Route          string                          `json:"route"`
 	BlockingIssues []LoopGateBlockingIssuePayload  `json:"blocking_issues"`
 	Criteria       []LoopGateCriterionEventPayload `json:"criteria"`
-	Score          *float64                        `json:"score,omitempty"`
-	BestGeneration *int64                          `json:"best_generation,omitempty"`
+	Score          *float64                        `json:"score,omitzero"`
+	BestGeneration *int64                          `json:"best_generation,omitzero"`
 }
 
 // LoopRouteTakenEventPayload is the exact route_taken SSE payload.
@@ -277,7 +277,7 @@ type LoopRouteTakenEventPayload struct {
 	Route       string `json:"route"`
 	Cause       string `json:"cause"`
 	MatchedWhen string `json:"matched_when,omitempty"`
-	Default     bool   `json:"default,omitempty"`
+	Default     bool   `json:"default,omitzero"`
 }
 
 // LoopGateBlockingIssuePayload is one sanitized gate_verdict blocker.
@@ -292,7 +292,7 @@ type LoopGateCriterionEventPayload struct {
 	Type   string   `json:"type"`
 	Status string   `json:"status"`
 	Note   string   `json:"note"`
-	Score  *float64 `json:"score,omitempty"`
+	Score  *float64 `json:"score,omitzero"`
 }
 
 // ApproveLoopRunRequest applies a human-gate decision.

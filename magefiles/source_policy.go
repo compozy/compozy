@@ -3,6 +3,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -10,7 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -67,14 +68,8 @@ func inspectSourcePolicies(root string) ([]sourcePolicyViolation, error) {
 		}
 		violations = append(violations, fileViolations...)
 	}
-	sort.Slice(violations, func(i, j int) bool {
-		if violations[i].path == violations[j].path {
-			if violations[i].line == violations[j].line {
-				return violations[i].message < violations[j].message
-			}
-			return violations[i].line < violations[j].line
-		}
-		return violations[i].path < violations[j].path
+	slices.SortFunc(violations, func(a, b sourcePolicyViolation) int {
+		return cmp.Or(cmp.Compare(a.path, b.path), cmp.Compare(a.line, b.line), cmp.Compare(a.message, b.message))
 	})
 	return violations, nil
 }
@@ -109,7 +104,7 @@ func policyGoFiles(root string) ([]string, error) {
 			return nil, fmt.Errorf("walk source policy root %q: %w", path, err)
 		}
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 	return files, nil
 }
 

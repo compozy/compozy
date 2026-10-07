@@ -362,6 +362,6 @@ type HookRunRecord struct {
 	DispatchDepth int             `json:"dispatch_depth"`
 	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
 	Error         string          `json:"error,omitempty"`
-	Required      bool            `json:"required,omitempty"`
+	Required      bool            `json:"required,omitzero"`
 	RecordedAt    time.Time       `json:"recorded_at"`
 }

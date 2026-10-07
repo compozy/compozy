@@ -15,7 +15,7 @@ import (
 type ACPOptionSelection struct {
 	ID        string `json:"id"`
 	ValueID   string `json:"value_id,omitempty"`
-	BoolValue *bool  `json:"bool_value,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitzero"`
 }
 
 func normalizeProfileRuntime(

@@ -2,7 +2,7 @@ package loop
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
@@ -23,7 +23,7 @@ func planOperatorRerun(
 	for key := range rerun {
 		labels = append(labels, generationOutputLabel(key))
 	}
-	sort.Strings(labels)
+	slices.Sort(labels)
 	return next, labels, nil
 }
 

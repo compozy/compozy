@@ -80,9 +80,7 @@ func (t *daemonMemoryControllerTiebreaker) BreakTie(
 		Speed:           prepared.options.resolvedRole.speedValue(),
 		ACPOptions:      compozyconfig.CloneACPOptionSelections(prepared.options.resolvedRole.acpOptionsValue()),
 	}
-	invocation, invokeErr := invokeRoleWithFallback(
-		callCtx,
-		&prepared.options.resolvedRole,
+	invocation, invokeErr := (&prepared.options.resolvedRole).invokeRoleWithFallback(callCtx,
 		memoryControllerCorrelation(request.Candidate),
 		func(attemptCtx context.Context, route roleAttemptRoute) (memoryControllerInvocation, bool, error) {
 			lastRoute = route

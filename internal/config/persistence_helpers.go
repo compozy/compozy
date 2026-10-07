@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"maps"
 
-	"sort"
+	"slices"
 	"strings"
 
 	tomlast "github.com/pelletier/go-toml/v2/unstable"
@@ -107,11 +107,8 @@ func unsupportedTOMLMutation(path []string, reason string) error {
 }
 
 func sortedStringKeys(values map[string]any) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(values)), maps.Keys(values))
+	slices.Sort(keys)
 	return keys
 }
 

@@ -407,6 +407,6 @@ func terminalExpectedSocketError(err error) bool {
 		errors.Is(err, net.ErrClosed) {
 		return true
 	}
-	var closeErr *websocket.CloseError
-	return errors.As(err, &closeErr) && closeErr.Code == websocket.CloseNormalClosure
+	closeErr, ok := errors.AsType[*websocket.CloseError](err)
+	return ok && closeErr.Code == websocket.CloseNormalClosure
 }

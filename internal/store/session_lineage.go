@@ -85,8 +85,7 @@ func CloneSessionLineage(lineage *SessionLineage) *SessionLineage {
 	}
 	cloned := *lineage
 	if lineage.TTLExpiresAt != nil {
-		ttl := lineage.TTLExpiresAt.UTC()
-		cloned.TTLExpiresAt = &ttl
+		cloned.TTLExpiresAt = new(lineage.TTLExpiresAt.UTC())
 	}
 	cloned.PermissionPolicy = NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	return &cloned
@@ -106,8 +105,7 @@ func NormalizeSessionLineage(sessionID string, lineage *SessionLineage) *Session
 	normalized.OriginMessageID = strings.TrimSpace(normalized.OriginMessageID)
 	normalized.OriginAgentName = strings.TrimSpace(normalized.OriginAgentName)
 	if normalized.TTLExpiresAt != nil {
-		ttl := normalized.TTLExpiresAt.UTC()
-		normalized.TTLExpiresAt = &ttl
+		normalized.TTLExpiresAt = new(normalized.TTLExpiresAt.UTC())
 	}
 	normalized.PermissionPolicy = NormalizeSessionPermissionPolicy(normalized.PermissionPolicy)
 

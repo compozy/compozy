@@ -3,7 +3,8 @@ package config
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -51,11 +52,7 @@ func normalizeMCPServerResourceSpec(spec MCPServer) MCPServer {
 	}
 	normalized.Auth = normalizeMCPAuthConfig(normalized.Auth)
 	if len(normalized.Env) > 0 {
-		keys := make([]string, 0, len(normalized.Env))
-		for key := range normalized.Env {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(normalized.Env))
 		canonicalEnv := make(map[string]string, len(keys))
 		for _, key := range keys {
 			trimmedKey := strings.TrimSpace(key)
@@ -71,11 +68,7 @@ func normalizeMCPServerResourceSpec(spec MCPServer) MCPServer {
 		}
 	}
 	if len(normalized.SecretEnv) > 0 {
-		keys := make([]string, 0, len(normalized.SecretEnv))
-		for key := range normalized.SecretEnv {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(normalized.SecretEnv))
 		canonicalSecretEnv := make(map[string]string, len(keys))
 		for _, key := range keys {
 			trimmedKey := strings.TrimSpace(key)

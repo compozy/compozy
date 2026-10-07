@@ -151,8 +151,7 @@ func needsAttentionBy(attention *taskpkg.NeedsAttention) *taskpkg.ActorIdentity 
 	if attention == nil || attention.By.IsZero() {
 		return nil
 	}
-	actor := attention.By
-	return &actor
+	return new(attention.By)
 }
 
 // TaskBlockPayloadsFromBlocks converts task-block records into shared payloads.
@@ -256,8 +255,7 @@ func optionalTaskRunPayload(run *taskpkg.Run) *contract.TaskRunPayload {
 	if run == nil {
 		return nil
 	}
-	payload := TaskRunPayloadFromRun(run)
-	return &payload
+	return new(TaskRunPayloadFromRun(run))
 }
 
 // TaskEventPayloadsFromEvents converts task events into shared payloads.

@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 )
 
@@ -147,8 +148,8 @@ func (s *Scheduler) States() []ScheduledJobState {
 	for jobID, registration := range s.registrations {
 		states = append(states, s.snapshotLocked(jobID, registration))
 	}
-	sort.Slice(states, func(i, j int) bool {
-		return states[i].JobID < states[j].JobID
+	slices.SortFunc(states, func(a, b ScheduledJobState) int {
+		return cmp.Compare(a.JobID, b.JobID)
 	})
 	return states
 }
@@ -217,7 +218,7 @@ func (s *Scheduler) snapshotLocked(jobID string, registration scheduledRegistrat
 	if state.NextRun == nil {
 		predicted := predictNextRun(registration.definition, registration.registeredAt, s.location)
 		if !predicted.IsZero() {
-			state.NextRun = timePointer(predicted)
+			state.NextRun = new(predicted)
 		}
 	}
 	return state
@@ -238,8 +239,7 @@ func stateFromDurableState(durable SchedulerState, registered bool) ScheduledJob
 	}
 	if strings.TrimSpace(durable.JobID) != "" {
 		state.JobID = durable.JobID
-		durableCopy := durable
-		state.Durable = &durableCopy
+		state.Durable = new(durable)
 	}
 	return state
 }

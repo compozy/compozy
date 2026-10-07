@@ -1,9 +1,10 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -47,14 +48,12 @@ func (b *harnessReentryBridge) loadRecoveredDetachedHarnessRuns(
 		})
 	}
 
-	sort.SliceStable(recovered, func(i, j int) bool {
-		if !recovered[i].completedAt.Equal(recovered[j].completedAt) {
-			return recovered[i].completedAt.Before(recovered[j].completedAt)
-		}
-		if recovered[i].completionSeq != recovered[j].completionSeq {
-			return recovered[i].completionSeq < recovered[j].completionSeq
-		}
-		return recovered[i].run.ID < recovered[j].run.ID
+	slices.SortStableFunc(recovered, func(a, b recoveredDetachedHarnessRun) int {
+		return cmp.Or(
+			a.completedAt.Compare(b.completedAt),
+			cmp.Compare(a.completionSeq, b.completionSeq),
+			strings.Compare(a.run.ID, b.run.ID),
+		)
 	})
 
 	return recovered, nil

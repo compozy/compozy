@@ -23,9 +23,8 @@ type globalHookDispatchEventEmitter struct {
 
 var _ hookspkg.DispatchEventEmitter = globalHookDispatchEventEmitter{}
 
-func withGlobalHookDispatchEventEmitter[P any](
+func (notifier *hooksNotifier) withGlobalHookDispatchEventEmitter[P any](
 	ctx context.Context,
-	notifier *hooksNotifier,
 	payload P,
 ) context.Context {
 	if ctx == nil || notifier == nil {

@@ -49,8 +49,7 @@ func sanitizeToolErrorResponse(response ToolErrorResponseRecord) ToolErrorRespon
 	response.Error.Message = redactToolDiagnostic(response.Error.Message)
 	response.Error.Details = contract.FilterToolOperatorFailureDetails(response.Error.Details)
 	if response.Error.PartialResult != nil {
-		partial := sanitizeToolResult(*response.Error.PartialResult)
-		response.Error.PartialResult = &partial
+		response.Error.PartialResult = new(sanitizeToolResult(*response.Error.PartialResult))
 	}
 	return response
 }

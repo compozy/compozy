@@ -10,8 +10,7 @@ func cloneAutomationTaskConfig(config *automationpkg.JobTaskConfig) *automationp
 	}
 	cloned := *config
 	if config.Owner != nil {
-		owner := *config.Owner
-		cloned.Owner = &owner
+		cloned.Owner = new(*config.Owner)
 	}
 	return &cloned
 }

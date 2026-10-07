@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"cmp"
+
+	"github.com/spf13/cobra"
+)
 
 type profileResolutionFrame struct {
 	Kind      string `json:"kind"`
@@ -22,10 +26,7 @@ func writeAggregateReadResolutionFrame(cmd *cobra.Command) error {
 		return nil
 	}
 	if workspace, found := commandWorkspaceResolution(cmd); found {
-		name := workspace.Detail.Workspace.Name
-		if name == "" {
-			name = workspace.ID
-		}
+		name := cmp.Or(workspace.Detail.Workspace.Name, workspace.ID)
 		return writeJSONLineWithoutWorkspaceResolution(cmd, aggregateWorkspaceResolutionFrame{
 			Kind: "workspace_resolution", Workspace: name, Source: workspace.Source,
 		})
@@ -40,10 +41,7 @@ func writeProfileResolutionFrame(cmd *cobra.Command) error {
 	if !ok {
 		return nil
 	}
-	workspace := resolution.WorkspaceName
-	if workspace == "" {
-		workspace = resolution.WorkspaceID
-	}
+	workspace := cmp.Or(resolution.WorkspaceName, resolution.WorkspaceID)
 	err := writeJSONLineWithoutWorkspaceResolution(cmd, profileResolutionFrame{
 		Kind: "profile_resolution", Profile: resolution.Profile.Name, Source: resolution.Source,
 		Note: resolution.Note, Workspace: workspace,

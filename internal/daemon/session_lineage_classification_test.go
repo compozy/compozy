@@ -63,14 +63,14 @@ func TestSessionLineageClassificationUsesSessionType(t *testing.T) {
 			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
 		}}}
 		kind, err := native.memoryCallerActorKind(
-			context.Background(), toolspkg.Scope{SessionID: info.ID}, toolspkg.CallRequest{},
+			t.Context(), toolspkg.Scope{SessionID: info.ID}, toolspkg.CallRequest{},
 		)
 		if err != nil || kind != nativeMemoryActorKindRoot {
 			t.Fatalf("memoryCallerActorKind(system provenance) = %q, %v, want root", kind, err)
 		}
 		info.Type = session.SessionTypeSpawned
 		kind, err = native.memoryCallerActorKind(
-			context.Background(), toolspkg.Scope{SessionID: info.ID}, toolspkg.CallRequest{},
+			t.Context(), toolspkg.Scope{SessionID: info.ID}, toolspkg.CallRequest{},
 		)
 		if err != nil || kind != nativeMemoryActorKindSubagent {
 			t.Fatalf("memoryCallerActorKind(spawned) = %q, %v, want subagent", kind, err)

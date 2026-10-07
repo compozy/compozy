@@ -3,8 +3,9 @@
 package lifecycle
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -204,8 +205,8 @@ func NextActionForLifecycle(lifecycle Lifecycle, status Status) NextAction {
 // SortedMatrix returns a stable copy for docs and tests.
 func SortedMatrix() []Rule {
 	rules := append([]Rule(nil), Matrix...)
-	sort.Slice(rules, func(i, j int) bool {
-		return rules[i].Pattern < rules[j].Pattern
+	slices.SortFunc(rules, func(left, right Rule) int {
+		return cmp.Compare(left.Pattern, right.Pattern)
 	})
 	return rules
 }

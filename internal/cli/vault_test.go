@@ -102,7 +102,7 @@ func TestVaultCommands(t *testing.T) {
 			"json",
 		})
 
-		if err := cmd.ExecuteContext(context.Background()); err != nil {
+		if err := cmd.ExecuteContext(t.Context()); err != nil {
 			t.Fatalf("vault put error = %v", err)
 		}
 		if captured.Ref != "vault:sessions/sess-1/github-token" ||

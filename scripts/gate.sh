@@ -25,7 +25,8 @@ LOG_DIR="$GATE_DIR/logs"
 CURRENT_FINGERPRINT=""
 CI_FULL_REASONS=""
 GO_SCOPES=""
-SDK_GO=0
+GO_MODULES=""
+MAGE_LINT=0
 JS_FILTERS=""
 JS_ALL=0
 CODEGEN_CHECK=0
@@ -135,6 +136,10 @@ classify() {
   case "$path" in
     catalog/icons/*) CATALOG_CHECK=1; JS_FILTERS="${JS_FILTERS}./web"$'\n' ;;
     catalog/*) CATALOG_CHECK=1 ;;
+    internal/extension/testdata/*-fixture-go/*)
+      pkg="${path#internal/extension/testdata/}"
+      GO_MODULES="${GO_MODULES}internal/extension/testdata/${pkg%%/*}"$'\n'
+      ;;
     internal/*/*)
       pkg="${path#internal/}"
       GO_SCOPES="${GO_SCOPES}./internal/${pkg%%/*}/..."$'\n'
@@ -144,12 +149,21 @@ classify() {
     extensions/*) GO_SCOPES="${GO_SCOPES}./extensions/..."$'\n' ;;
     skills/*) GO_SCOPES="${GO_SCOPES}./skills/..."$'\n' ;;
     tests/*) GO_SCOPES="${GO_SCOPES}./tests/..."$'\n' ;;
-    sdk/go/*) SDK_GO=1 ;;
+    sdk/go/*) GO_MODULES="${GO_MODULES}sdk/go"$'\n' ;;
     sdk/typescript/*) JS_FILTERS="${JS_FILTERS}./sdk/typescript"$'\n' ;;
     sdk/react/*) JS_FILTERS="${JS_FILTERS}./sdk/react"$'\n' ;;
     sdk/examples/*/*)
       pkg="${path#sdk/examples/}"
-      JS_FILTERS="${JS_FILTERS}./sdk/examples/${pkg%%/*}"$'\n'
+      pkg="sdk/examples/${pkg%%/*}"
+      case "$path" in
+        *.go | */go.mod | */go.sum) GO_MODULES="${GO_MODULES}${pkg}"$'\n' ;;
+        *)
+          if [ ! -f "$pkg/package.json" ] && [ -f "$pkg/go.mod" ]; then
+            GO_MODULES="${GO_MODULES}${pkg}"$'\n'
+          fi
+          ;;
+      esac
+      if [ -f "$pkg/package.json" ]; then JS_FILTERS="${JS_FILTERS}./${pkg}"$'\n'; fi
       ;;
     web/*) JS_FILTERS="${JS_FILTERS}./web"$'\n' ;;
     lint-plugins/*) JS_FILTERS="${JS_FILTERS}./lint-plugins"$'\n' ;;
@@ -161,7 +175,8 @@ classify() {
       JS_FILTERS="${JS_FILTERS}./packages/${pkg%%/*}"$'\n'
       ;;
 		desktop/*) JS_FILTERS="${JS_FILTERS}./desktop"$'\n' ;;
-		magefiles/* | scripts/* | .air.toml) : ;;
+		magefiles/*) MAGE_LINT=1 ;;
+		scripts/* | .air.toml) : ;;
 		*.go) GO_SCOPES="${GO_SCOPES}./..."$'\n' ;;
 		*)
 			if ! is_ci_full_trigger "$path"; then
@@ -313,9 +328,7 @@ run_go_lanes() {
 		# shellcheck disable=SC2086
 		run_lane go-test env -u COMPOZY_HOME -u COMPOZY_CONFIG_HOME -u COMPOZY_HTTP_PORT -u COMPOZY_UDS_PATH -u COMPOZY_WEB_API_PROXY_TARGET -u COMPOZY_WEB_DIST_DIR -u TMUX_BRIDGE_SOCKET -u PROVIDER_HOME -u PROVIDER_CODEX_HOME CGO_ENABLED=1 go test -race $gcflags -p "$(go_test_p)" -parallel "$(go_test_parallel)" -timeout 45m $scope_args
   fi
-  if [ "$SDK_GO" -eq 1 ]; then
-    run_lane sdk-go-test env CGO_ENABLED=1 go -C sdk/go test -race -parallel=4 ./...
-  fi
+  run_module_lanes
 }
 
 run_js_lanes() {
@@ -359,15 +372,15 @@ cmd_auto() {
 	if [ "$UNCLASSIFIED_COUNT" -gt 0 ]; then
 		die "cannot safely classify $UNCLASSIFIED_COUNT changed path(s); add an affected-lane mapping"
 	fi
-	if [ -n "$GO_SCOPES" ] || [ -n "$JS_FILTERS" ] || [ "$JS_ALL" -eq 1 ] || [ "$SDK_GO" -eq 1 ] || [ "$CODEGEN_CHECK" -eq 1 ] || [ "$TOOLING_TEST" -eq 1 ] || [ "$CATALOG_CHECK" -eq 1 ]; then
+	if [ -n "$GO_SCOPES" ] || [ -n "$JS_FILTERS" ] || [ "$JS_ALL" -eq 1 ] || [ -n "$GO_MODULES" ] || [ "$MAGE_LINT" -eq 1 ] || [ "$CODEGEN_CHECK" -eq 1 ] || [ "$TOOLING_TEST" -eq 1 ] || [ "$CATALOG_CHECK" -eq 1 ]; then
 		acquire_gate_slot
 	fi
 	run_support_lanes
-	if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$JS_ALL" -eq 0 ] && [ "$SDK_GO" -eq 0 ] && [ "$CODEGEN_CHECK" -eq 0 ] && [ "$TOOLING_TEST" -eq 0 ] && [ "$CATALOG_CHECK" -eq 0 ]; then
+	if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$JS_ALL" -eq 0 ] && [ -z "$GO_MODULES" ] && [ "$MAGE_LINT" -eq 0 ] && [ "$CODEGEN_CHECK" -eq 0 ] && [ "$TOOLING_TEST" -eq 0 ] && [ "$CATALOG_CHECK" -eq 0 ]; then
 		log "docs/instructions only — no gate required"
 		return 0
   fi
-  if [ -n "$GO_SCOPES" ] || [ "$SDK_GO" -eq 1 ]; then
+  if [ -n "$GO_SCOPES" ] || [ -n "$GO_MODULES" ] || [ "$MAGE_LINT" -eq 1 ]; then
     run_go_lanes
   fi
 	if [ -n "$JS_FILTERS" ] || [ "$JS_ALL" -eq 1 ]; then
@@ -421,9 +434,7 @@ cmd_plan() {
 		gcflags="$(go_race_gcflags)"
 		log "would run: env COMPOZY_GO_LINT_SCOPES='$scopes' make go-lint && CGO_ENABLED=1 go test -race $gcflags -p $(go_test_p) -parallel $(go_test_parallel) -timeout 45m $scopes"
   fi
-  if [ "$SDK_GO" -eq 1 ]; then
-    log "would run: CGO_ENABLED=1 go -C sdk/go test -race -parallel=4 ./..."
-  fi
+  plan_module_lanes
 	if [ "$JS_ALL" -eq 1 ]; then
 		log "would run: TURBO_CONCURRENCY=$(turbo_concurrency) bunx turbo run lint typecheck test"
 	elif [ -n "$JS_FILTERS" ]; then
@@ -432,7 +443,7 @@ cmd_plan() {
       log "would run: TURBO_CONCURRENCY=$(turbo_concurrency) bunx turbo run lint typecheck test --filter=$filter"
     done
   fi
-	if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$JS_ALL" -eq 0 ] && [ "$SDK_GO" -eq 0 ] && [ "$CODEGEN_CHECK" -eq 0 ] && [ "$TOOLING_TEST" -eq 0 ] && [ "$CATALOG_CHECK" -eq 0 ]; then
+	if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$JS_ALL" -eq 0 ] && [ -z "$GO_MODULES" ] && [ "$MAGE_LINT" -eq 0 ] && [ "$CODEGEN_CHECK" -eq 0 ] && [ "$TOOLING_TEST" -eq 0 ] && [ "$CATALOG_CHECK" -eq 0 ]; then
     log "would run: nothing (docs/instructions only)"
   fi
 }

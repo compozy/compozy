@@ -63,8 +63,7 @@ func terminalSignalFromContract(signal *contract.TerminalSignal) (*string, error
 	if !slices.Contains(contract.TerminalSignalValues(), string(*signal)) {
 		return nil, fmt.Errorf("terminal response contains unsupported signal %q", *signal)
 	}
-	value := string(*signal)
-	return &value, nil
+	return new(string(*signal)), nil
 }
 
 func terminalIDFromContract(id *contract.TerminalID) (*terminalpkg.ID, error) {
@@ -75,8 +74,7 @@ func terminalIDFromContract(id *contract.TerminalID) (*terminalpkg.ID, error) {
 	if value == "" {
 		return nil, fmt.Errorf("terminal response contains an empty terminal_id")
 	}
-	result := terminalpkg.ID(value)
-	return &result, nil
+	return new(terminalpkg.ID(value)), nil
 }
 
 func terminalSpillFromContractStrict(spill *contract.TerminalSpillPayload) (*terminalpkg.SpillRef, error) {

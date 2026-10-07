@@ -1,8 +1,8 @@
 package modelcatalog
 
 import (
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -106,10 +106,7 @@ func normalizedProviderIDs(providerIDs []string) []string {
 			providerSet[trimmed] = struct{}{}
 		}
 	}
-	providers := make([]string, 0, len(providerSet))
-	for providerID := range providerSet {
-		providers = append(providers, providerID)
-	}
-	sort.Strings(providers)
+	providers := slices.AppendSeq(make([]string, 0, len(providerSet)), maps.Keys(providerSet))
+	slices.Sort(providers)
 	return providers
 }

@@ -105,40 +105,35 @@ type agentSkillPublisherResources struct {
 func resolveAgentSkillPublisherResources(state *bootState) (agentSkillPublisherResources, error) {
 	var resolved agentSkillPublisherResources
 	var err error
-	resolved.agentCodec, resolved.agentStore, err = resolveDaemonResourceStore[compozyconfig.AgentDef](
-		state,
+	resolved.agentCodec, resolved.agentStore, err = state.resolveDaemonResourceStore[compozyconfig.AgentDef](
 		compozyconfig.AgentResourceKind,
 		"agent",
 	)
 	if err != nil {
 		return agentSkillPublisherResources{}, err
 	}
-	resolved.skillCodec, resolved.skillStore, err = resolveDaemonResourceStore[skillspkg.SkillResourceSpec](
-		state,
+	resolved.skillCodec, resolved.skillStore, err = state.resolveDaemonResourceStore[skillspkg.SkillResourceSpec](
 		skillspkg.SkillResourceKind,
 		"skill",
 	)
 	if err != nil {
 		return agentSkillPublisherResources{}, err
 	}
-	resolved.mcpCodec, resolved.mcpStore, err = resolveDaemonResourceStore[compozyconfig.MCPServer](
-		state,
+	resolved.mcpCodec, resolved.mcpStore, err = state.resolveDaemonResourceStore[compozyconfig.MCPServer](
 		compozyconfig.MCPServerResourceKind,
 		"mcp server",
 	)
 	if err != nil {
 		return agentSkillPublisherResources{}, err
 	}
-	resolved.soulCodec, resolved.soulStore, err = resolveDaemonResourceStore[soul.ResourceSpec](
-		state,
+	resolved.soulCodec, resolved.soulStore, err = state.resolveDaemonResourceStore[soul.ResourceSpec](
 		soul.ResourceKind,
 		"extension soul",
 	)
 	if err != nil {
 		return agentSkillPublisherResources{}, err
 	}
-	resolved.heartbeatCodec, resolved.heartbeatStore, err = resolveDaemonResourceStore[heartbeat.ResourceSpec](
-		state,
+	resolved.heartbeatCodec, resolved.heartbeatStore, err = state.resolveDaemonResourceStore[heartbeat.ResourceSpec](
 		heartbeat.ResourceKind,
 		"extension heartbeat",
 	)

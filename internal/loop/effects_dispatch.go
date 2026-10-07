@@ -73,7 +73,7 @@ type RenderedEffectIntent struct {
 	Trigger    EffectTrigger   `json:"trigger"`
 	Generation int             `json:"generation"`
 	NodeID     NodeID          `json:"node_id,omitempty"`
-	ItemIndex  int             `json:"item_index,omitempty"`
+	ItemIndex  int             `json:"item_index,omitzero"`
 	EntryIndex int             `json:"entry_index"`
 	Entry      json.RawMessage `json:"entry"`
 }
@@ -137,8 +137,8 @@ type renderedEffectEntry struct {
 	Kind        string         `json:"kind"`
 	Tool        string         `json:"tool,omitempty"`
 	With        map[string]any `json:"with,omitempty"`
-	Emit        *dsl.EmitSpec  `json:"emit,omitempty"`
-	RenderError bool           `json:"render_error,omitempty"`
+	Emit        *dsl.EmitSpec  `json:"emit,omitzero"`
+	RenderError bool           `json:"render_error,omitzero"`
 	Diagnostic  string         `json:"diagnostic,omitempty"`
 }
 

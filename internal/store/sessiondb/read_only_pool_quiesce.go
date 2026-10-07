@@ -278,12 +278,9 @@ func (p *ReadOnlyPool) deferQuiescenceToExecutingClose(
 }
 
 func (p *ReadOnlyPool) newQuiescenceRelease(key readOnlyPoolKey, state *readOnlyPoolQuiescence) func() {
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			p.releaseQuiescence(key, state)
-		})
-	}
+	return sync.OnceFunc(func() {
+		p.releaseQuiescence(key, state)
+	})
 }
 
 func (p *ReadOnlyPool) completeQuiescence(state *readOnlyPoolQuiescence, err error) {

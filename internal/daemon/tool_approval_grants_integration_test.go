@@ -53,7 +53,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 	homePaths := first.HomePaths
 	binaryPath := first.BinaryPath
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
 	firstSession := createBoundFixtureBackedSession(
@@ -123,7 +123,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		t.Fatalf("grants before restart total = %d, want %d; grants=%#v", got, want, beforeRestart.Grants)
 	}
 
-	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 	if err := first.Stop(stopCtx); err != nil {
 		stopCancel()
 		t.Fatalf("Stop(first runtime harness) error = %v", err)

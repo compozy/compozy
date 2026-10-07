@@ -150,17 +150,11 @@ func normalizeLogsReplayLimit(limit int) int {
 	if limit <= 0 {
 		return logsStreamReplayDefaultLimit
 	}
-	if limit > logsStreamReplayMaxLimit {
-		return logsStreamReplayMaxLimit
-	}
-	return limit
+	return min(limit, logsStreamReplayMaxLimit)
 }
 
 func logsStreamPollInterval(interval time.Duration) time.Duration {
-	if interval < logsStreamMinimumPoll {
-		return logsStreamMinimumPoll
-	}
-	return interval
+	return max(interval, logsStreamMinimumPoll)
 }
 
 func streamContextDone(c *gin.Context, done <-chan struct{}, allowInitial bool) bool {

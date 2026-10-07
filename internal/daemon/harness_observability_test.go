@@ -54,7 +54,7 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 		t.Fatalf("startup summaries written before session creation = %#v, want queued only", got)
 	}
 
-	recorder.OnSessionCreated(context.Background(), &session.Session{
+	recorder.OnSessionCreated(t.Context(), &session.Session{
 		ID: startup.SessionID, ProfileID: startup.ProfileID,
 	})
 
@@ -147,7 +147,7 @@ func TestPromptInputCompositeRecordsHarnessAugmenterObservability(t *testing.T) 
 		t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 	}
 
-	_, err = augmenter(context.Background(), newPromptInputTestSession(""), "base")
+	_, err = augmenter(t.Context(), newPromptInputTestSession(""), "base")
 	if err == nil {
 		t.Fatal("Augment() error = nil, want deadline-exceeded abort")
 	}
@@ -230,7 +230,7 @@ func TestPromptInputCompositeRecordsWarningAndContinuationSummaries(t *testing.T
 		t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 	}
 
-	got, err := augmenter(context.Background(), newPromptInputTestSession(""), "base")
+	got, err := augmenter(t.Context(), newPromptInputTestSession(""), "base")
 	if err != nil {
 		t.Fatalf("Augment() error = %v, want warning-only continuation", err)
 	}

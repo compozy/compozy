@@ -124,7 +124,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		}}
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		writer := &streamTestFlushWriter{}
 		cancelCalls := 0
 
@@ -201,7 +201,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		}
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		writer := &streamTestFlushWriter{}
 
 		handlers.pushAndStreamSessionTranscript(
@@ -246,7 +246,7 @@ func TestTranscriptStreamErrorHandling(t *testing.T) {
 		}
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		writer := &streamTestFlushWriter{}
 
 		handlers.streamTranscriptSessionEvents(
@@ -297,7 +297,7 @@ func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
 			handlers.SetStreamDone(streamDone)
 			gin.SetMode(gin.TestMode)
 			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-			ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+			ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 			writer := &streamTestFlushWriter{}
 
 			events := make(chan store.SessionEvent, 1)
@@ -306,12 +306,9 @@ func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
 			}
 			close(events)
 			canceled := make(chan struct{})
-			var cancelOnce sync.Once
 			subscription := sessionEventStreamSubscription{
 				events: events,
-				cancel: func() {
-					cancelOnce.Do(func() { close(canceled) })
-				},
+				cancel: sync.OnceFunc(func() { close(canceled) }),
 			}
 
 			done := make(chan struct{})
@@ -349,7 +346,7 @@ func TestSubscribeSessionEventStreamMode(t *testing.T) {
 		handlers := &BaseHandlers{Sessions: manager}
 
 		subscription, err := handlers.subscribeSessionEventStream(
-			context.Background(),
+			t.Context(),
 			"sess-a",
 			99,
 			contract.SessionStreamFrameTranscript,
@@ -376,7 +373,7 @@ func TestSubscribeSessionEventStreamMode(t *testing.T) {
 		handlers := &BaseHandlers{Sessions: manager}
 
 		subscription, err := handlers.subscribeSessionEventStream(
-			context.Background(),
+			t.Context(),
 			"sess-a",
 			99,
 			contract.SessionStreamFrameTranscript,
@@ -401,7 +398,7 @@ func TestSubscribeSessionEventStreamMode(t *testing.T) {
 		handlers := &BaseHandlers{Sessions: manager}
 
 		subscription, err := handlers.subscribeSessionEventStream(
-			context.Background(),
+			t.Context(),
 			"sess-a",
 			99,
 			contract.SessionStreamFrameRaw,
@@ -463,7 +460,7 @@ func TestTranscriptPushTreatsRawSequenceAsWakeOnly(t *testing.T) {
 		handlers.SetStreamDone(streamDone)
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		eventWake := make(chan store.SessionEvent, 1)
 		eventWake <- store.SessionEvent{Sequence: 1}
 		writer := &streamTestFlushWriter{}
@@ -554,7 +551,7 @@ func TestTranscriptPushDrainsPersistedEventsBeforeStopping(t *testing.T) {
 		}
 		gin.SetMode(gin.TestMode)
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 		wakes := make(chan store.SessionEvent, 3)
 		wakes <- store.SessionEvent{Sequence: 7, Type: "agent_message"}
 		wakes <- store.SessionEvent{Sequence: 8, Type: "transcript_marker.created"}
@@ -663,7 +660,7 @@ func TestTranscriptReconnectFence(t *testing.T) {
 		{
 			name:               "Should reset an epoch mismatch",
 			cursor:             7,
-			expectedEpoch:      int64TestPointer(2),
+			expectedEpoch:      new(int64(2)),
 			expectedGeneration: &generation,
 			want:               contract.TranscriptSnapshotReasonEpochMismatch,
 		},
@@ -671,7 +668,7 @@ func TestTranscriptReconnectFence(t *testing.T) {
 			name:               "Should reset a generation mismatch",
 			cursor:             7,
 			expectedEpoch:      &epoch,
-			expectedGeneration: int64TestPointer(3),
+			expectedGeneration: new(int64(3)),
 			want:               contract.TranscriptSnapshotReasonGenerationMismatch,
 		},
 		{
@@ -826,7 +823,7 @@ func TestInitializeTranscriptStream(t *testing.T) {
 			wantGeneration := int64(4)
 
 			state, err := handlers.initializeTranscriptStream(
-				context.Background(),
+				t.Context(),
 				writer,
 				"sess-a",
 				streamTestSessionInfo("sess-a"),
@@ -894,7 +891,7 @@ func TestWriteGoalSnapshotChangedEvents(t *testing.T) {
 		writer := &streamTestFlushWriter{}
 
 		if err := handlers.writeGoalSnapshotChangedEvents(
-			context.Background(),
+			t.Context(),
 			writer,
 			"sess-a",
 			11,
@@ -1070,7 +1067,7 @@ func TestWriteTranscriptChangePages(t *testing.T) {
 		writer := &streamTestFlushWriter{}
 
 		cursor, generation, err := handlers.writeTranscriptChangePages(
-			context.Background(),
+			t.Context(),
 			writer,
 			"sess-a",
 			streamTestSessionInfo("sess-a"),
@@ -1133,7 +1130,7 @@ func TestWriteTranscriptChangePages(t *testing.T) {
 		}}
 
 		_, _, err := handlers.writeTranscriptChangePages(
-			context.Background(),
+			t.Context(),
 			&streamTestFlushWriter{},
 			"sess-a",
 			streamTestSessionInfo("sess-a"),
@@ -1145,10 +1142,6 @@ func TestWriteTranscriptChangePages(t *testing.T) {
 			t.Fatalf("writeTranscriptChangePages() error = %v, want projection incompatibility", err)
 		}
 	})
-}
-
-func int64TestPointer(value int64) *int64 {
-	return new(value)
 }
 
 func waitForStreamTestSignal(t *testing.T, signal <-chan struct{}, label string) {

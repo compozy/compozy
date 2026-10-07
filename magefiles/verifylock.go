@@ -132,7 +132,7 @@ func writeVerifyLockHolder(lockPath string) {
 
 func describeVerifyLockHolder(lockPath string) string {
 	data, err := os.ReadFile(lockPath)
-	if err != nil || len(strings.TrimSpace(string(data))) == 0 {
+	if err != nil || strings.TrimSpace(string(data)) == "" {
 		return "another make verify run"
 	}
 	var holder verifyLockHolder

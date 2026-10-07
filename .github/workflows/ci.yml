@@ -107,7 +107,7 @@ jobs:
               [[ -z "$file" ]] && continue
 
               case "$file" in
-                *.go|go.mod|go.sum|Makefile|.golangci.yml|.goreleaser.yml|.pr-release|cliff.toml|RELEASE_BODY.md|RELEASE_NOTES.md)
+                *.go|go.mod|go.sum|*/go.mod|*/go.sum|Makefile|.golangci.yml|.goreleaser.yml|.pr-release|cliff.toml|RELEASE_BODY.md|RELEASE_NOTES.md)
                   backend=true
                   ;;
               esac
@@ -270,9 +270,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.cache/compozy-dev/golangci-lint
-          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('go.sum', '.golangci.yml') }}-
+            ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-
             ${{ runner.os }}-golangci-v2.13.1-
 
       - name: Run Go static verification
@@ -286,7 +286,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ~/.cache/compozy-dev/golangci-lint
-          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-${{ github.run_id }}
 
   go-test:
     name: Go (race test shard ${{ matrix.shard_label }})

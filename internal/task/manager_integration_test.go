@@ -10,7 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -760,7 +760,7 @@ func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {
 				ProfileID:   store.DefaultProfileID,
 				Scope:       taskpkg.ScopeGlobal,
 				Title:       "Bad attempts",
-				MaxAttempts: intPtr(0),
+				MaxAttempts: new(0),
 			},
 		},
 		{
@@ -1036,7 +1036,7 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -1135,7 +1135,7 @@ func TestTaskManagerTriageMutationsRemainActorScopedAfterReload(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -1174,7 +1174,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		Scope:          taskpkg.ScopeGlobal,
 		Title:          "Approval-gated task",
 		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
-		MaxAttempts:    intPtr(1),
+		MaxAttempts:    new(1),
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -1381,12 +1381,11 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
-		maxAttempts := 2
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
 			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeGlobal,
 			Title:       "Bound expired lease recovery",
-			MaxAttempts: &maxAttempts,
+			MaxAttempts: new(2),
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -1700,9 +1699,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 			var wg sync.WaitGroup
 			errCh := make(chan error, len(claims))
 			for _, c := range claims {
-				wg.Add(1)
-				go func(c leaseClaim) {
-					defer wg.Done()
+				wg.Go(func() {
 					if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 						RunID:      c.runID,
 						ClaimToken: c.token,
@@ -1710,7 +1707,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 					}, c.actor); err != nil {
 						errCh <- err
 					}
-				}(c)
+				})
 			}
 			wg.Wait()
 			close(errCh)
@@ -2065,13 +2062,11 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		var wg sync.WaitGroup
 		errCh := make(chan error, len(claims))
 		for _, claim := range claims {
-			wg.Add(1)
-			go func(claim claimedCompletion) {
-				defer wg.Done()
+			wg.Go(func() {
 				if _, err := manager.CompleteRunLease(ctx, claim.completion, claim.worker); err != nil {
 					errCh <- err
 				}
-			}(claim)
+			})
 		}
 		wg.Wait()
 		close(errCh)
@@ -2168,7 +2163,6 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		taskpkg.TaskRunStatusFailed,
 		taskpkg.TaskRunStatusCanceled,
 	} {
-		terminalStatus := terminalStatus
 		t.Run("Should keep parent nonterminal when child is "+terminalStatus.String(), func(t *testing.T) {
 			t.Parallel()
 
@@ -2886,7 +2880,7 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeGlobal,
 			Title:       "Boot recovery integration",
-			MaxAttempts: intPtr(2),
+			MaxAttempts: new(2),
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -3029,7 +3023,6 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		}
 
 		for _, testCase := range testCases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -3507,7 +3500,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := sessionDB.Close(ctx); err != nil {
+		if err := sessionDB.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("SessionDB.Close() error = %v", err)
 		}
 	})
@@ -3556,11 +3549,11 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 		{
 			SessionID:    run.SessionID,
 			AgentName:    "codex",
-			InputTokens:  int64Ptr(10),
-			OutputTokens: int64Ptr(6),
-			TotalTokens:  int64Ptr(16),
-			CostAmount:   float64Ptr(0.2),
-			CostCurrency: stringPtr("USD"),
+			InputTokens:  new(int64(10)),
+			OutputTokens: new(int64(6)),
+			TotalTokens:  new(int64(16)),
+			CostAmount:   new(0.2),
+			CostCurrency: new("USD"),
 			CostStatus:   "actual",
 			CostSource:   "agent_reported",
 			Turns:        1,
@@ -3569,10 +3562,10 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 		{
 			SessionID:    run.SessionID,
 			AgentName:    "reviewer",
-			InputTokens:  int64Ptr(4),
-			TotalTokens:  int64Ptr(4),
-			CostAmount:   float64Ptr(0.1),
-			CostCurrency: stringPtr("USD"),
+			InputTokens:  new(int64(4)),
+			TotalTokens:  new(int64(4)),
+			CostAmount:   new(0.1),
+			CostCurrency: new("USD"),
 			CostStatus:   "actual",
 			CostSource:   "agent_reported",
 			Turns:        2,
@@ -4520,16 +4513,12 @@ func registerTaskManagerWorkspace(t *testing.T, db *globaldb.GlobalDB, name stri
 	return workspace.ID
 }
 
-func intPtr(value int) *int {
-	return &value
-}
-
 func sortedEventTypes(events []taskpkg.Event) []string {
 	types := make([]string, 0, len(events))
 	for _, event := range events {
 		types = append(types, event.EventType)
 	}
-	sort.Strings(types)
+	slices.Sort(types)
 	return types
 }
 
@@ -4734,18 +4723,6 @@ func assertIntegrationPayloadOmitsRawValue(t *testing.T, event taskpkg.Event, ra
 	if strings.Contains(string(event.Payload), raw) {
 		t.Fatalf("event %s payload leaked raw value %q: %s", event.EventType, raw, string(event.Payload))
 	}
-}
-
-func int64Ptr(value int64) *int64 {
-	return &value
-}
-
-func float64Ptr(value float64) *float64 {
-	return &value
-}
-
-func stringPtr(value string) *string {
-	return &value
 }
 
 func incrementingClock(start time.Time, step time.Duration) func() time.Time {
@@ -5507,12 +5484,11 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 			t.Fatal("TaskWakeEventExists(delivered) = false, want true")
 		}
 
-		wakeDisabled := false
 		suppressedTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
 			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeGlobal,
 			Title:       "Coverage matrix wake suppressed",
-			WakeCreator: &wakeDisabled,
+			WakeCreator: new(false),
 		}, creator)
 		if err != nil {
 			t.Fatalf("CreateTask(wake suppressed) error = %v", err)
@@ -5588,7 +5564,7 @@ func TestTaskManagerNeedsAttentionDurableAcrossRestartIntegration(t *testing.T) 
 		if _, err := firstManager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor); err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		for idx := 0; idx < 3; idx++ {
+		for idx := range 3 {
 			block, err := firstManager.BlockTask(ctx, taskpkg.BlockRequest{
 				TaskID: taskRecord.ID,
 				Kind:   taskpkg.BlockKindNeedsInput,
@@ -5612,7 +5588,7 @@ func TestTaskManagerNeedsAttentionDurableAcrossRestartIntegration(t *testing.T) 
 			t.Fatalf("OpenGlobalDB(second) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := secondDB.Close(ctx); err != nil {
+			if err := secondDB.Close(testutil.Context(t)); err != nil {
 				t.Fatalf("Close(second) error = %v", err)
 			}
 		})
@@ -5701,9 +5677,7 @@ func TestTaskManagerSubprocessHealthEscalationIntegration(t *testing.T) {
 		errs := make(chan error, callers)
 		var wg sync.WaitGroup
 		for range callers {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				updated, markErr := manager.MarkRunNeedsAttention(
 					ctx,
 					run.ID,
@@ -5712,7 +5686,7 @@ func TestTaskManagerSubprocessHealthEscalationIntegration(t *testing.T) {
 				)
 				results <- updated
 				errs <- markErr
-			}()
+			})
 		}
 		wg.Wait()
 		close(results)
@@ -5861,7 +5835,7 @@ func testReserveDuringBlockedRecovery(
 	locked := true
 	defer func() {
 		if locked {
-			if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+			if _, err := writer.ExecContext(t.Context(), "ROLLBACK"); err != nil {
 				t.Error(err)
 			}
 		}

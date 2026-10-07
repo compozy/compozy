@@ -44,7 +44,7 @@ type NodeAttempt struct {
 	NodeID        NodeID             `json:"node_id"`
 	ItemIndex     int                `json:"item_index"`
 	Attempt       int                `json:"attempt"`
-	FailureClass  *FailureClass      `json:"failure_class,omitempty"`
+	FailureClass  *FailureClass      `json:"failure_class,omitzero"`
 	FailureCode   string             `json:"failure_code,omitempty"`
 	Cause         string             `json:"cause,omitempty"`
 	Hint          string             `json:"hint,omitempty"`
@@ -68,12 +68,10 @@ func (a NodeAttempt) normalized(loopRunID RunID) NodeAttempt {
 		a.StartedAt = a.StartedAt.UTC()
 	}
 	if a.EndedAt != nil {
-		value := a.EndedAt.UTC()
-		a.EndedAt = &value
+		a.EndedAt = new(a.EndedAt.UTC())
 	}
 	if a.NextAttemptAt != nil {
-		value := a.NextAttemptAt.UTC()
-		a.NextAttemptAt = &value
+		a.NextAttemptAt = new(a.NextAttemptAt.UTC())
 	}
 	return a
 }

@@ -20,8 +20,7 @@ func CloneToolPresentation(p *ToolPresentation) *ToolPresentation {
 	if p == nil {
 		return nil
 	}
-	cloned := *p
-	return &cloned
+	return new(*p)
 }
 
 func presentationValue(p *ToolPresentation) ToolPresentation {

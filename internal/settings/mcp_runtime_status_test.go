@@ -73,7 +73,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 	t.Run("Should attach daemon-backed runtime status to configured MCP servers", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, strings.Join([]string{
 			"[[mcp_servers]]",
@@ -198,7 +198,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 	t.Run("Should pass the effective workspace source target to the runtime", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		workspaceRoot := t.TempDir()
 		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName), `
@@ -221,7 +221,7 @@ command = "docs-mcp"
 			MCPRuntime: runtime,
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
 				"ws-runtime": {
-					Workspace: workspacepkg.Workspace{ID: "ws-runtime", RootDir: workspaceRoot},
+					ID: "ws-runtime", RootDir: workspaceRoot,
 				},
 			}},
 		})
@@ -271,7 +271,7 @@ func TestMCPServerCollectionBoundsRuntimeProbes(t *testing.T) {
 		results := make(chan listResult, 1)
 		go func() {
 			envelope, err := service.ListCollection(
-				context.Background(),
+				t.Context(),
 				CollectionRequest{Collection: CollectionMCPServers},
 			)
 			results <- listResult{envelope: envelope, err: err}
@@ -339,7 +339,7 @@ func TestMCPServerCollectionBoundsRuntimeProbes(t *testing.T) {
 		results := make(chan listResult, 1)
 		go func() {
 			envelope, err := service.ListCollection(
-				context.Background(),
+				t.Context(),
 				CollectionRequest{Collection: CollectionMCPServers},
 			)
 			results <- listResult{envelope: envelope, err: err}
@@ -429,7 +429,7 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	t.Run("Should resolve the exact workspace sidecar target for every auth operation", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		workspaceRoot := t.TempDir()
 		writeFile(t, homePaths.ConfigFile, strings.Join([]string{
@@ -461,7 +461,7 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			WorkspaceResolver: fakeWorkspaceResolver{
 				resolved: map[string]workspacepkg.ResolvedWorkspace{
 					"workspace-a": {
-						Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: workspaceRoot},
+						ID: "workspace-a", RootDir: workspaceRoot,
 					},
 				},
 			},
@@ -555,7 +555,7 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	t.Run("Should resolve the exact workspace-profile sidecar target", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		workspaceRoot := t.TempDir()
 		writeFile(
@@ -573,7 +573,7 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
 				"workspace-a": {
-					Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: workspaceRoot},
+					ID: "workspace-a", RootDir: workspaceRoot,
 				},
 			}},
 			MCPAuth: runtime,

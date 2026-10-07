@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ type profileListRecord struct {
 	State                  string                                  `json:"state"`
 	Current                bool                                    `json:"current"`
 	WorkItems              int                                     `json:"work_items"`
-	NeedsSetup             bool                                    `json:"needs_setup,omitempty"`
+	NeedsSetup             bool                                    `json:"needs_setup,omitzero"`
 	CredentialRequirements []contract.ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
@@ -91,10 +92,7 @@ func profileCountLabel(count int, singular string) string {
 }
 
 func profileCurrentBundle(resolution profileResolution) outputBundle {
-	workspace := resolution.WorkspaceName
-	if workspace == "" {
-		workspace = resolution.WorkspaceID
-	}
+	workspace := cmp.Or(resolution.WorkspaceName, resolution.WorkspaceID)
 	record := profileCurrentRecord{
 		Profile: resolution.Profile.Name, Source: resolution.Source, Note: resolution.Note, Workspace: workspace,
 	}
@@ -131,10 +129,7 @@ func profileUseBundle(
 ) outputBundle {
 	message := "Active global profile: " + selection.Profile + "."
 	if hasWorkspace {
-		name := workspace.Detail.Workspace.Name
-		if name == "" {
-			name = workspace.ID
-		}
+		name := cmp.Or(workspace.Detail.Workspace.Name, workspace.ID)
 		message = "Active profile for workspace " + name + ": " + selection.Profile + "."
 	}
 	return simpleProfileBundle(selection, message)

@@ -252,8 +252,7 @@ func (m *parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookM
 		matcher.Autonomy = &autonomy
 	}
 	if m.ToolReadOnly != nil {
-		value := *m.ToolReadOnly
-		matcher.ToolReadOnly = &value
+		matcher.ToolReadOnly = new(*m.ToolReadOnly)
 	}
 
 	if scopeAgentName == "" {
@@ -303,8 +302,7 @@ func parsedHookDeclarationFromHookDecl(
 
 	var priority *int
 	if decl.PrioritySet || decl.Priority != 0 {
-		value := int(decl.Priority)
-		priority = &value
+		priority = new(int(decl.Priority))
 	}
 
 	executor := parsedHookExecutor{}
@@ -420,16 +418,13 @@ func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 func cloneHookMatcher(src hookspkg.HookMatcher) hookspkg.HookMatcher {
 	cloned := src
 	if src.CompactionMatcher != nil {
-		value := *src.CompactionMatcher
-		cloned.CompactionMatcher = &value
+		cloned.CompactionMatcher = new(*src.CompactionMatcher)
 	}
 	if src.Autonomy != nil {
-		value := *src.Autonomy
-		cloned.Autonomy = &value
+		cloned.Autonomy = new(*src.Autonomy)
 	}
 	if src.ToolReadOnly != nil {
-		value := *src.ToolReadOnly
-		cloned.ToolReadOnly = &value
+		cloned.ToolReadOnly = new(*src.ToolReadOnly)
 	}
 	return cloned
 }
@@ -438,6 +433,5 @@ func cloneBoolPtr(src *bool) *bool {
 	if src == nil {
 		return nil
 	}
-	value := *src
-	return &value
+	return new(*src)
 }

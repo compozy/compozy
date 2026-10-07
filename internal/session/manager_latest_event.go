@@ -28,6 +28,5 @@ func (m *Manager) LatestSessionEventByType(
 	if len(events) == 0 {
 		return nil, nil
 	}
-	event := events[0]
-	return &event, nil
+	return new(events[0]), nil
 }

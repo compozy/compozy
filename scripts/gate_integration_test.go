@@ -3,6 +3,7 @@
 package scripts
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -377,6 +378,290 @@ exit 0
 					t.Fatalf("expected %q for %s, got:\n%s", tc.want, tc.path, output)
 				}
 			})
+		}
+	})
+
+	t.Run("Should select the owning Go lanes for nested module changes", func(t *testing.T) {
+		t.Parallel()
+		for _, module := range []string{
+			"sdk/go", "sdk/examples/notes-commands", "sdk/examples/clarify-tool",
+			"internal/extension/testdata/command-fixture-go",
+			"internal/extension/testdata/palette-fixture-go", "magefiles",
+		} {
+			for _, name := range []string{"main.go", "go.mod", "go.sum"} {
+				t.Run("Should classify "+module+"/"+name, func(t *testing.T) {
+					t.Parallel()
+					repo := newGateTestRepo(t)
+					dir := filepath.Join(repo, module)
+					if err := os.MkdirAll(dir, 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(filepath.Join(dir, name), []byte("changed\n"), 0o644); err != nil {
+						t.Fatal(err)
+					}
+					output, err := runGate(t, repo, nil, "plan")
+					if err != nil {
+						t.Fatalf("plan: %v\n%s", err, output)
+					}
+					want := "COMPOZY_GO_LINT_SCOPES='./" + module + "/...' make go-lint"
+					if !strings.Contains(output, want) {
+						t.Fatalf("missing %q:\n%s", want, output)
+					}
+					switch {
+					case module == "magefiles":
+						want = "-tags=mage ./magefiles"
+					case strings.HasPrefix(module, "internal/"):
+						want = "make go-fixture-check GO_FIXTURE_MODULE=" + module
+						if strings.Contains(output, "./internal/extension/...") {
+							t.Fatalf("fixture selected unrelated extension tests:\n%s", output)
+						}
+					default:
+						want = "go -C " + module + " test -race"
+					}
+					if !strings.Contains(output, want) {
+						t.Fatalf("missing tests %q:\n%s", want, output)
+					}
+					if strings.Contains(output, "js filters:") || strings.Contains(output, "would stop:") {
+						t.Fatalf("Go-only change misclassified:\n%s", output)
+					}
+				})
+			}
+		}
+	})
+
+	t.Run("Should reuse root lint evidence for module and Mage lanes", func(t *testing.T) {
+		t.Parallel()
+		repo := newGateTestRepo(t)
+		for _, path := range []string{".golangci.yml", "sdk/go/main.go", "magefiles/main.go", "internal/extension/testdata/command-fixture-go/main.go"} {
+			dest := filepath.Join(repo, path)
+			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(dest, []byte("changed\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		fakeBin := t.TempDir()
+		calls := filepath.Join(t.TempDir(), "calls")
+		writeExecutable(t, fakeBin, "make", `#!/bin/sh
+printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
+`)
+		writeExecutable(t, fakeBin, "go", "#!/bin/sh\nexit 0\n")
+		output, err := runGate(
+			t,
+			repo,
+			[]string{"PATH=" + fakeBin + ":" + os.Getenv("PATH"), "GATE_TEST_CALLS=" + calls},
+			"auto",
+		)
+		if err != nil {
+			t.Fatalf("gate: %v\n%s", err, output)
+		}
+		if got := strings.Count(readFile(t, calls), "go-lint"); got != 1 {
+			t.Fatalf("lint calls = %d, want 1:\n%s", got, output)
+		}
+		if !strings.Contains(readFile(t, calls), "go-fixture-check") {
+			t.Fatal("fixture build/vet was skipped with duplicate lint")
+		}
+		readRecord := func(id string) map[string]any {
+			t.Helper()
+			var record map[string]any
+			if err := json.Unmarshal(
+				[]byte(readFile(t, filepath.Join(repo, ".cache/gate", id+".json"))),
+				&record,
+			); err != nil {
+				t.Fatal(err)
+			}
+			return record
+		}
+		root := readRecord("go-lint")
+		for _, id := range []string{"sdk-go-lint", "mage-lint", "internal-extension-testdata-command-fixture-go-lint"} {
+			record := readRecord(id)
+			if record["result"] != "pass" || record["fingerprint"] != root["fingerprint"] ||
+				record["log"] != root["log"] {
+				t.Fatalf("%s evidence does not reference successful root lint: %v; root %v", id, record, root)
+			}
+		}
+	})
+
+	t.Run("Should verify recorded root scopes before reusing module lint evidence", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, scope string
+			wantCalls   int
+		}{
+			{"Should run module lint after a narrow root run", "./internal/api/...", 2},
+			{"Should reuse a recorded full root run", "./...", 0},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				repo := newGateTestRepo(t)
+				for _, path := range []string{".golangci.yml", "sdk/go/main.go", "magefiles/main.go", ".gitignore"} {
+					dest := filepath.Join(repo, path)
+					if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(dest, []byte("/.cache/\n"), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				fingerprint, err := runGate(t, repo, nil, "fingerprint")
+				if err != nil {
+					t.Fatalf("fingerprint: %v\n%s", err, fingerprint)
+				}
+				logPath := filepath.Join(t.TempDir(), "root-lint.log")
+				if err := os.WriteFile(logPath, []byte("0 issues.\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				record := map[string]any{
+					"gate": "go-lint", "fingerprint": strings.TrimSpace(fingerprint), "result": "pass",
+					"command": "env COMPOZY_GO_LINT_SCOPES=" + tc.scope + "  make go-lint", "log": logPath,
+				}
+				data, err := json.MarshalIndent(record, "", "  ")
+				if err != nil {
+					t.Fatal(err)
+				}
+				recordDir := filepath.Join(repo, ".cache/gate")
+				if err := os.MkdirAll(recordDir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(recordDir, "go-lint.json"), data, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				fakeBin := t.TempDir()
+				calls := filepath.Join(t.TempDir(), "calls")
+				if err := os.WriteFile(calls, nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				writeExecutable(t, fakeBin, "make", `#!/bin/sh
+printf '%s %s\n' "$COMPOZY_GO_LINT_SCOPES" "$*" >> "$GATE_TEST_CALLS"
+`)
+				writeExecutable(t, fakeBin, "go", "#!/bin/sh\nexit 0\n")
+				output, err := runGate(
+					t,
+					repo,
+					[]string{"PATH=" + fakeBin + ":" + os.Getenv("PATH"), "GATE_TEST_CALLS=" + calls},
+					"auto",
+				)
+				if err != nil {
+					t.Fatalf("gate: %v\n%s", err, output)
+				}
+				if !strings.Contains(output, "SKIP go-lint") {
+					t.Fatalf("root record was not current:\n%s", output)
+				}
+				actualCalls := readFile(t, calls)
+				if got := strings.Count(actualCalls, "go-lint"); got != tc.wantCalls {
+					t.Fatalf("lint calls = %d, want %d:\n%s", got, tc.wantCalls, output)
+				}
+				for _, module := range []string{"sdk/go", "magefiles"} {
+					id := strings.ReplaceAll(module, "/", "-") + "-lint"
+					if module == "magefiles" {
+						id = "mage-lint"
+					}
+					var inherited map[string]any
+					if err := json.Unmarshal(
+						[]byte(readFile(t, filepath.Join(recordDir, id+".json"))),
+						&inherited,
+					); err != nil {
+						t.Fatal(err)
+					}
+					if tc.wantCalls == 0 {
+						if inherited["log"] != logPath {
+							t.Fatalf("full-scope evidence not reused for %s: %v", module, inherited)
+						}
+					} else if !strings.Contains(actualCalls, "./"+module+"/... go-lint") || inherited["log"] == logPath {
+						t.Fatalf(
+							"narrow evidence propagated to %s: calls %s, record %v",
+							module,
+							actualCalls,
+							inherited,
+						)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Should route Go-only example assets to Go lanes", func(t *testing.T) {
+		t.Parallel()
+		repo := newGateTestRepo(t)
+		module := "sdk/examples/notes-commands"
+		dir := filepath.Join(repo, module)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "go.mod"),
+			[]byte("module example\n\ngo 1.26.4\n"),
+			0o644,
+		); err != nil {
+			t.Fatal(err)
+		}
+		runCommand(t, repo, "git", "add", "sdk")
+		runCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"user.name=Gate Test",
+			"-c",
+			"user.email=gate-test@example.com",
+			"commit",
+			"--quiet",
+			"-m",
+			"seed Go example",
+		)
+		if err := os.WriteFile(filepath.Join(dir, "template.html"), []byte("embedded template"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		output, err := runGate(t, repo, nil, "plan")
+		if err != nil {
+			t.Fatalf("plan: %v\n%s", err, output)
+		}
+		for _, want := range []string{"COMPOZY_GO_LINT_SCOPES='./" + module + "/...'", "go -C " + module + " test -race"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("missing %q:\n%s", want, output)
+			}
+		}
+		if strings.Contains(output, "js filters:") {
+			t.Fatalf("Go asset selected nonexistent JS package:\n%s", output)
+		}
+	})
+
+	t.Run("Should retain JavaScript lanes for a mixed SDK example", func(t *testing.T) {
+		t.Parallel()
+		repo := newGateTestRepo(t)
+		dir := filepath.Join(repo, "sdk/examples/notes-commands")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		runCommand(t, repo, "git", "add", "sdk")
+		runCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"user.name=Gate Test",
+			"-c",
+			"user.email=gate-test@example.com",
+			"commit",
+			"--quiet",
+			"-m",
+			"seed mixed example",
+		)
+		if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		output, err := runGate(t, repo, nil, "plan")
+		if err != nil {
+			t.Fatalf("plan: %v\n%s", err, output)
+		}
+		for _, want := range []string{"js filters: ./sdk/examples/notes-commands", "COMPOZY_GO_LINT_SCOPES='./sdk/examples/notes-commands/...'"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("missing %q:\n%s", want, output)
+			}
 		}
 	})
 

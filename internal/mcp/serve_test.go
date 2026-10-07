@@ -135,7 +135,7 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		bound, err := bindHostAPIParams(
-			context.Background(),
+			t.Context(),
 			json.RawMessage(`{"session_id":"sess-1"}`),
 			workspaceBindingID,
 			"ws-1",
@@ -158,7 +158,7 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		_, err := bindHostAPIParams(
-			context.Background(),
+			t.Context(),
 			json.RawMessage(`{"workspace_id":"ws-2"}`),
 			workspaceBindingID,
 			"ws-1",
@@ -174,7 +174,7 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		bound, err := bindHostAPIParams(
-			context.Background(),
+			t.Context(),
 			json.RawMessage(`{"workspace":"alpha"}`),
 			workspaceBindingPath,
 			"ws-1",
@@ -197,7 +197,7 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		_, err := bindHostAPIParams(
-			context.Background(),
+			t.Context(),
 			json.RawMessage(`{"workspace":"beta"}`),
 			workspaceBindingPath,
 			"ws-1",
@@ -213,7 +213,7 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		bound, err := bindHostAPIParams(
-			context.Background(),
+			t.Context(),
 			json.RawMessage(`{"title":"Ship"}`),
 			workspaceBindingTask,
 			"ws-1",
@@ -236,7 +236,7 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		bound, err := bindHostAPIParams(
-			context.Background(),
+			t.Context(),
 			json.RawMessage(`{"name":"daily"}`),
 			workspaceBindingAutomation,
 			"ws-1",
@@ -278,7 +278,7 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		bound, err := bindHostAPIParams(
-			context.Background(),
+			t.Context(),
 			json.RawMessage(`{"records":[{"kind":"tool","id":"a","spec":{}}]}`),
 			workspaceBindingResource,
 			"ws-1",
@@ -299,7 +299,7 @@ func TestHostAPIBinding(t *testing.T) {
 
 		resolver := &recordingMCPBindingWorkspaceResolver{}
 		_, err := bindHostAPIParams(
-			context.Background(),
+			t.Context(),
 			json.RawMessage(`{"scope":{"kind":"workspace","id":"  "}}`),
 			workspaceBindingResource,
 			"ws-1",

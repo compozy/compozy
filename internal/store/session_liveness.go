@@ -27,12 +27,12 @@ const (
 // SessionLivenessMeta is the persisted runtime supervision state for one
 // ACP-backed session.
 type SessionLivenessMeta struct {
-	SubprocessPID       int                  `json:"subprocess_pid,omitempty"`
+	SubprocessPID       int                  `json:"subprocess_pid,omitzero"`
 	SubprocessStartedAt *time.Time           `json:"subprocess_started_at,omitempty"`
 	LastUpdateAt        *time.Time           `json:"last_update_at,omitempty"`
 	StallState          string               `json:"stall_state,omitempty"`
 	StallReason         string               `json:"stall_reason,omitempty"`
-	Activity            *SessionActivityMeta `json:"activity,omitempty"`
+	Activity            *SessionActivityMeta `json:"activity,omitzero"`
 }
 
 // SessionActivityMeta is the persisted prompt/runtime activity snapshot for one
@@ -47,9 +47,9 @@ type SessionActivityMeta struct {
 	CurrentTool        string     `json:"current_tool,omitempty"`
 	ToolCallID         string     `json:"tool_call_id,omitempty"`
 	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current,omitempty"`
-	IterationMax       int        `json:"iteration_max,omitempty"`
-	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
+	IterationCurrent   int        `json:"iteration_current,omitzero"`
+	IterationMax       int        `json:"iteration_max,omitzero"`
+	IdleSeconds        int64      `json:"idle_seconds,omitzero"`
 }
 
 // Validate ensures the liveness payload remains internally consistent.
@@ -107,12 +107,10 @@ func CloneSessionLivenessMeta(meta *SessionLivenessMeta) *SessionLivenessMeta {
 		Activity:      CloneSessionActivityMeta(meta.Activity),
 	}
 	if meta.SubprocessStartedAt != nil {
-		startedAt := meta.SubprocessStartedAt.UTC()
-		cloned.SubprocessStartedAt = &startedAt
+		cloned.SubprocessStartedAt = new(meta.SubprocessStartedAt.UTC())
 	}
 	if meta.LastUpdateAt != nil {
-		lastUpdateAt := meta.LastUpdateAt.UTC()
-		cloned.LastUpdateAt = &lastUpdateAt
+		cloned.LastUpdateAt = new(meta.LastUpdateAt.UTC())
 	}
 	return cloned
 }
@@ -135,16 +133,13 @@ func CloneSessionActivityMeta(meta *SessionActivityMeta) *SessionActivityMeta {
 		IdleSeconds:        meta.IdleSeconds,
 	}
 	if meta.TurnStartedAt != nil {
-		turnStartedAt := meta.TurnStartedAt.UTC()
-		cloned.TurnStartedAt = &turnStartedAt
+		cloned.TurnStartedAt = new(meta.TurnStartedAt.UTC())
 	}
 	if meta.LastActivityAt != nil {
-		lastActivityAt := meta.LastActivityAt.UTC()
-		cloned.LastActivityAt = &lastActivityAt
+		cloned.LastActivityAt = new(meta.LastActivityAt.UTC())
 	}
 	if meta.LastProgressAt != nil {
-		lastProgressAt := meta.LastProgressAt.UTC()
-		cloned.LastProgressAt = &lastProgressAt
+		cloned.LastProgressAt = new(meta.LastProgressAt.UTC())
 	}
 	return cloned
 }

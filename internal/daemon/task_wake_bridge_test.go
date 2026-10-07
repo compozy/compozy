@@ -52,7 +52,7 @@ func TestTaskWakeBridgeShutdownClosesAdmissionAndJoinsDrains(t *testing.T) {
 
 	events := make(chan acp.AgentEvent)
 	sessions := &taskWakeBridgeSessions{events: events}
-	bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
+	bridge, err := newTaskWakeBridge(t.Context(), sessions, nil)
 	if err != nil {
 		t.Fatalf("newTaskWakeBridge() error = %v", err)
 	}
@@ -63,16 +63,16 @@ func TestTaskWakeBridgeShutdownClosesAdmissionAndJoinsDrains(t *testing.T) {
 		Reason:      taskpkg.WakeReasonTerminal,
 		Summary:     "Task completed",
 	}
-	if err := bridge.WakeCreator(context.Background(), "sess-creator", wake); err != nil {
+	if err := bridge.WakeCreator(t.Context(), "sess-creator", wake); err != nil {
 		t.Fatalf("WakeCreator() error = %v", err)
 	}
-	if err := bridge.shutdown(context.Background()); err != nil {
+	if err := bridge.shutdown(t.Context()); err != nil {
 		t.Fatalf("shutdown() error = %v", err)
 	}
-	if err := bridge.shutdown(context.Background()); err != nil {
+	if err := bridge.shutdown(t.Context()); err != nil {
 		t.Fatalf("shutdown(retry) error = %v", err)
 	}
-	if err := bridge.WakeCreator(context.Background(), "sess-creator", wake); err == nil {
+	if err := bridge.WakeCreator(t.Context(), "sess-creator", wake); err == nil {
 		t.Fatal("WakeCreator(after shutdown) error = nil, want admission failure")
 	}
 	if got, want := len(sessions.calls), 1; got != want {
@@ -91,7 +91,7 @@ func TestTaskWakeBridgeWakeCreatorPromptsSyntheticQueueMode(t *testing.T) {
 		t.Parallel()
 
 		sessions := &taskWakeBridgeSessions{}
-		bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
+		bridge, err := newTaskWakeBridge(t.Context(), sessions, nil)
 		if err != nil {
 			t.Fatalf("newTaskWakeBridge() error = %v", err)
 		}
@@ -104,7 +104,7 @@ func TestTaskWakeBridgeWakeCreatorPromptsSyntheticQueueMode(t *testing.T) {
 			Summary:     "Task completed",
 		}
 
-		if err := bridge.WakeCreator(context.Background(), "sess-creator", event); err != nil {
+		if err := bridge.WakeCreator(t.Context(), "sess-creator", event); err != nil {
 			t.Fatalf("WakeCreator() error = %v", err)
 		}
 
@@ -159,12 +159,12 @@ func TestTaskWakeBridgeWakeCreatorMapsDeadSessions(t *testing.T) {
 			t.Parallel()
 
 			sessions := &taskWakeBridgeSessions{err: tc.err}
-			bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
+			bridge, err := newTaskWakeBridge(t.Context(), sessions, nil)
 			if err != nil {
 				t.Fatalf("newTaskWakeBridge() error = %v", err)
 			}
 
-			wakeErr := bridge.WakeCreator(context.Background(), "sess-dead", taskpkg.WakeEvent{
+			wakeErr := bridge.WakeCreator(t.Context(), "sess-dead", taskpkg.WakeEvent{
 				WakeEventID: "wake-terminal-task-1-run-1-completed",
 				TaskID:      "task-1",
 				RunID:       "run-1",
@@ -189,12 +189,12 @@ func TestTaskWakeBridgeWakeCreatorRedactsRawClaimTokens(t *testing.T) {
 
 		rawToken := "compozy_claim_secret123"
 		sessions := &taskWakeBridgeSessions{}
-		bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
+		bridge, err := newTaskWakeBridge(t.Context(), sessions, nil)
 		if err != nil {
 			t.Fatalf("newTaskWakeBridge() error = %v", err)
 		}
 
-		if err := bridge.WakeCreator(context.Background(), "sess-creator", taskpkg.WakeEvent{
+		if err := bridge.WakeCreator(t.Context(), "sess-creator", taskpkg.WakeEvent{
 			WakeEventID: "wake-terminal-task-1-run-1-failed",
 			TaskID:      "task-1",
 			RunID:       "run-1",

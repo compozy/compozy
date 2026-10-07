@@ -28,7 +28,7 @@ func TestDispatchEventEmitterContextRoundTrip(t *testing.T) {
 
 	emitter := &recordingDispatchEventEmitter{}
 
-	ctx := WithDispatchEventEmitter(context.Background(), emitter)
+	ctx := WithDispatchEventEmitter(t.Context(), emitter)
 	got := DispatchEventEmitterFromContext(ctx)
 	if got != emitter {
 		t.Fatalf("DispatchEventEmitterFromContext() = %#v, want %#v", got, emitter)
@@ -47,12 +47,12 @@ func TestDispatchEventEmitterContextRoundTrip(t *testing.T) {
 		t.Fatalf("emitter calls = %d, want 1", emitter.calls)
 	}
 
-	baseCtx := context.Background()
+	baseCtx := t.Context()
 	if got := WithDispatchEventEmitter(baseCtx, nil); got != baseCtx {
 		t.Fatalf("WithDispatchEventEmitter(ctx, nil) returned different context")
 	}
 	if got := DispatchEventEmitterFromContext(
-		context.WithValue(context.Background(), dispatchEventEmitterContextKey{}, "bad"),
+		context.WithValue(t.Context(), dispatchEventEmitterContextKey{}, "bad"),
 	); got != nil {
 		t.Fatalf("DispatchEventEmitterFromContext(non-emitter) = %#v, want nil", got)
 	}
@@ -68,57 +68,57 @@ func TestTurnIDFromPayloadTrimsSupportedPayloads(t *testing.T) {
 	}{
 		{
 			name:    "Should return turn ID for input payload",
-			payload: InputPreSubmitPayload{TurnContext: TurnContext{TurnID: " turn-input "}},
+			payload: InputPreSubmitPayload{TurnID: " turn-input "},
 			want:    "turn-input",
 		},
 		{
 			name:    "Should return turn ID for prompt payload",
-			payload: PromptPayload{TurnContext: TurnContext{TurnID: " turn-prompt "}},
+			payload: PromptPayload{TurnID: " turn-prompt "},
 			want:    "turn-prompt",
 		},
 		{
 			name:    "Should return turn ID for event payload",
-			payload: EventRecordPayload{TurnContext: TurnContext{TurnID: " turn-event "}},
+			payload: EventRecordPayload{TurnID: " turn-event "},
 			want:    "turn-event",
 		},
 		{
 			name:    "Should return turn ID for turn payload",
-			payload: TurnPayload{TurnContext: TurnContext{TurnID: " turn "}},
+			payload: TurnPayload{TurnID: " turn "},
 			want:    "turn",
 		},
 		{
 			name:    "Should return turn ID for message payload",
-			payload: MessagePayload{TurnContext: TurnContext{TurnID: " turn-message "}},
+			payload: MessagePayload{TurnID: " turn-message "},
 			want:    "turn-message",
 		},
 		{
 			name:    "Should return turn ID for tool pre-call payload",
-			payload: ToolPreCallPayload{TurnContext: TurnContext{TurnID: " turn-tool-pre "}},
+			payload: ToolPreCallPayload{TurnID: " turn-tool-pre "},
 			want:    "turn-tool-pre",
 		},
 		{
 			name:    "Should return turn ID for tool post-call payload",
-			payload: ToolPostCallPayload{TurnContext: TurnContext{TurnID: " turn-tool-post "}},
+			payload: ToolPostCallPayload{TurnID: " turn-tool-post "},
 			want:    "turn-tool-post",
 		},
 		{
 			name:    "Should return turn ID for tool error payload",
-			payload: ToolPostErrorPayload{TurnContext: TurnContext{TurnID: " turn-tool-error "}},
+			payload: ToolPostErrorPayload{TurnID: " turn-tool-error "},
 			want:    "turn-tool-error",
 		},
 		{
 			name:    "Should return turn ID for permission request payload",
-			payload: PermissionRequestPayload{TurnContext: TurnContext{TurnID: " turn-permission-request "}},
+			payload: PermissionRequestPayload{TurnID: " turn-permission-request "},
 			want:    "turn-permission-request",
 		},
 		{
 			name:    "Should return turn ID for permission resolution payload",
-			payload: PermissionResolutionPayload{TurnContext: TurnContext{TurnID: " turn-permission-resolution "}},
+			payload: PermissionResolutionPayload{TurnID: " turn-permission-resolution "},
 			want:    "turn-permission-resolution",
 		},
 		{
 			name:    "Should return turn ID for context compact payload",
-			payload: ContextCompactPayload{TurnContext: TurnContext{TurnID: " turn-compact "}},
+			payload: ContextCompactPayload{TurnID: " turn-compact "},
 			want:    "turn-compact",
 		},
 	}
@@ -244,12 +244,10 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name: "Should map coordinator pre-spawn payload into session context",
-			payload: CoordinatorPreSpawnPayload{CoordinatorContext: CoordinatorContext{
-				CoordinatorSessionID: "coord-session",
-				AgentName:            "coord-agent",
-				WorkspaceID:          "coord-workspace",
-				Workspace:            "/coord",
-			}},
+			payload: CoordinatorPreSpawnPayload{CoordinatorSessionID: "coord-session",
+				AgentName:   "coord-agent",
+				WorkspaceID: "coord-workspace",
+				Workspace:   "/coord"},
 			expected: SessionContext{
 				SessionID:   "coord-session",
 				AgentName:   "coord-agent",
@@ -259,12 +257,10 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name: "Should map coordinator lifecycle payload into session context",
-			payload: CoordinatorLifecyclePayload{CoordinatorContext: CoordinatorContext{
-				CoordinatorSessionID: "coord-life-session",
-				AgentName:            "coord-life-agent",
-				WorkspaceID:          "coord-life-workspace",
-				Workspace:            "/coord-life",
-			}},
+			payload: CoordinatorLifecyclePayload{CoordinatorSessionID: "coord-life-session",
+				AgentName:   "coord-life-agent",
+				WorkspaceID: "coord-life-workspace",
+				Workspace:   "/coord-life"},
 			expected: SessionContext{
 				SessionID:   "coord-life-session",
 				AgentName:   "coord-life-agent",
@@ -274,13 +270,11 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name: "Should return session context for task-enqueued payload",
-			payload: TaskRunEnqueuedPayload{TaskRunContext: TaskRunContext{
-				SessionID:      "task-session",
+			payload: TaskRunEnqueuedPayload{SessionID: "task-session",
 				AgentName:      "task-agent",
 				WorkspaceID:    "task-workspace",
 				SoulSnapshotID: "snap-task",
-				SoulDigest:     "digest-task",
-			}},
+				SoulDigest:     "digest-task"},
 			expected: SessionContext{
 				SessionID:          "task-session",
 				AgentName:          "task-agent",
@@ -290,10 +284,8 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name: "Should return session context for task block payload",
-			payload: TaskBlockedPayload{TaskContext: TaskContext{
-				AgentName:   "task-agent",
-				WorkspaceID: "task-workspace",
-			}},
+			payload: TaskBlockedPayload{AgentName: "task-agent",
+				WorkspaceID: "task-workspace"},
 			expected: SessionContext{
 				AgentName:   "task-agent",
 				WorkspaceID: "task-workspace",
@@ -301,10 +293,8 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name: "Should return session context for task attention payload",
-			payload: TaskNeedsAttentionPayload{TaskContext: TaskContext{
-				AgentName:   "attention-agent",
-				WorkspaceID: "attention-workspace",
-			}},
+			payload: TaskNeedsAttentionPayload{AgentName: "attention-agent",
+				WorkspaceID: "attention-workspace"},
 			expected: SessionContext{
 				AgentName:   "attention-agent",
 				WorkspaceID: "attention-workspace",
@@ -312,10 +302,8 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name: "Should return session context for task status-changed payload",
-			payload: TaskStatusChangedPayload{TaskContext: TaskContext{
-				AgentName:   "status-agent",
-				WorkspaceID: "status-workspace",
-			}},
+			payload: TaskStatusChangedPayload{AgentName: "status-agent",
+				WorkspaceID: "status-workspace"},
 			expected: SessionContext{
 				AgentName:   "status-agent",
 				WorkspaceID: "status-workspace",
@@ -328,24 +316,22 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name:     "Should return session context for task post-claim payload",
-			payload:  TaskRunPostClaimPayload{TaskRunContext: TaskRunContext{SessionID: "task-post"}},
+			payload:  TaskRunPostClaimPayload{SessionID: "task-post"},
 			expected: SessionContext{SessionID: "task-post"},
 		},
 		{
 			name:     "Should return session context for task lease payload",
-			payload:  TaskRunLeasePayload{TaskRunContext: TaskRunContext{SessionID: "task-lease"}},
+			payload:  TaskRunLeasePayload{SessionID: "task-lease"},
 			expected: SessionContext{SessionID: "task-lease"},
 		},
 		{
 			name: "Should return session context for spawn pre-create payload",
-			payload: SpawnPreCreatePayload{SpawnContext: SpawnContext{
-				ChildSessionID: "child-session",
+			payload: SpawnPreCreatePayload{ChildSessionID: "child-session",
 				AgentName:      "child-agent",
 				WorkspaceID:    "spawn-workspace",
 				Workspace:      "/spawn",
 				SoulSnapshotID: "snap-spawn",
-				SoulDigest:     "digest-spawn",
-			}},
+				SoulDigest:     "digest-spawn"},
 			expected: SessionContext{
 				SessionID:          "child-session",
 				AgentName:          "child-agent",
@@ -356,7 +342,7 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name:     "Should return session context for spawn lifecycle payload",
-			payload:  SpawnLifecyclePayload{SpawnContext: SpawnContext{ChildSessionID: "child-life"}},
+			payload:  SpawnLifecyclePayload{ChildSessionID: "child-life"},
 			expected: SessionContext{SessionID: "child-life"},
 		},
 		{
@@ -385,10 +371,8 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 	}{
 		{
 			name: "Should derive correlation from coordinator pre-spawn payload",
-			payload: CoordinatorPreSpawnPayload{CoordinatorContext: CoordinatorContext{
-				CoordinatorSessionID: " coord-session ",
-				WorkflowID:           " workflow ",
-			}},
+			payload: CoordinatorPreSpawnPayload{CoordinatorSessionID: " coord-session ",
+				WorkflowID: " workflow "},
 			expected: DispatchCorrelation{
 				CoordinatorSessionID: "coord-session",
 				WorkflowID:           "workflow",
@@ -398,10 +382,8 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		},
 		{
 			name: "Should derive correlation from coordinator lifecycle payload",
-			payload: CoordinatorLifecyclePayload{CoordinatorContext: CoordinatorContext{
-				CoordinatorSessionID: " coord-life ",
-				WorkflowID:           " workflow-life ",
-			}},
+			payload: CoordinatorLifecyclePayload{CoordinatorSessionID: " coord-life ",
+				WorkflowID: " workflow-life "},
 			expected: DispatchCorrelation{
 				CoordinatorSessionID: "coord-life",
 				WorkflowID:           "workflow-life",
@@ -440,7 +422,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		},
 		{
 			name:     "Should derive correlation from task pre-claim payload",
-			payload:  TaskRunPreClaimPayload{TaskRunContext: taskRunCorrelationContextPtr()},
+			payload:  TaskRunPreClaimPayload{TaskRunContext: new(taskRunCorrelationContext())},
 			expected: taskRunDispatchCorrelation(),
 		},
 		{
@@ -455,8 +437,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		},
 		{
 			name: "Should derive correlation from loop terminal payload",
-			payload: LoopTerminalPayload{LoopContext: LoopContext{
-				TaskID:     " task-loop ",
+			payload: LoopTerminalPayload{TaskID: " task-loop ",
 				RunID:      " run-loop ",
 				LoopRunID:  " loop-run ",
 				LoopName:   " daily-review ",
@@ -464,8 +445,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 				WorkflowID: " workflow-loop ",
 				ActorKind:  " daemon ",
 				ActorID:    " loop-hook ",
-				SessionID:  " coordinator-session ",
-			}},
+				SessionID:  " coordinator-session "},
 			expected: DispatchCorrelation{
 				TaskID:               "task-loop",
 				RunID:                "run-loop",
@@ -480,13 +460,11 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		},
 		{
 			name: "Should derive correlation from spawn pre-create payload",
-			payload: SpawnPreCreatePayload{SpawnContext: SpawnContext{
-				TaskID:          " task-spawn ",
+			payload: SpawnPreCreatePayload{TaskID: " task-spawn ",
 				RunID:           " run-spawn ",
 				WorkflowID:      " workflow-spawn ",
 				ChildSessionID:  " child ",
-				ParentSessionID: " parent ",
-			}},
+				ParentSessionID: " parent "},
 			expected: DispatchCorrelation{
 				TaskID:     "task-spawn",
 				RunID:      "run-spawn",
@@ -497,12 +475,10 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		},
 		{
 			name: "Should fall back to the parent session for spawn lifecycle correlation",
-			payload: SpawnLifecyclePayload{SpawnContext: SpawnContext{
-				TaskID:          " task-parent ",
+			payload: SpawnLifecyclePayload{TaskID: " task-parent ",
 				RunID:           " run-parent ",
 				WorkflowID:      " workflow-parent ",
-				ParentSessionID: " parent-only ",
-			}},
+				ParentSessionID: " parent-only "},
 			expected: DispatchCorrelation{
 				TaskID:     "task-parent",
 				RunID:      "run-parent",
@@ -513,7 +489,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		},
 		{
 			name:    "Should fall back to session context when no specialized actor exists",
-			payload: PromptPayload{SessionContext: SessionContext{SessionID: " prompt-session "}},
+			payload: PromptPayload{SessionID: " prompt-session "},
 			expected: DispatchCorrelation{
 				ActorKind: "agent_session",
 				ActorID:   "prompt-session",
@@ -712,11 +688,6 @@ func taskRunCorrelationContext() TaskRunContext {
 		ReleaseReason: " completed ",
 		SessionID:     " coordinator-session ",
 	}
-}
-
-func taskRunCorrelationContextPtr() *TaskRunContext {
-	contextSnapshot := taskRunCorrelationContext()
-	return &contextSnapshot
 }
 
 func taskRunDispatchCorrelation() DispatchCorrelation {

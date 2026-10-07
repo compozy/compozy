@@ -450,8 +450,7 @@ func TestPermissionPipelineRejectsDenyToAllowAndLogs(t *testing.T) {
 			return []*ResolvedHook{
 				testPipelineHook(HookPermissionRequest, "hook-1", false, 0, NewTypedNativeExecutor(
 					func(_ context.Context, _ RegisteredHook, _ PermissionRequestPayload) (PermissionRequestPatch, error) {
-						allow := "allow"
-						return PermissionRequestPatch{Decision: &allow}, nil
+						return PermissionRequestPatch{Decision: new("allow")}, nil
 					},
 				)),
 				testPipelineHook(HookPermissionRequest, "hook-2", false, 0, NewTypedNativeExecutor(
@@ -489,8 +488,7 @@ func TestPermissionPipelineAllowToDenyIsAllowed(t *testing.T) {
 			return []*ResolvedHook{
 				testPipelineHook(HookPermissionRequest, "hook-1", false, 0, NewTypedNativeExecutor(
 					func(_ context.Context, _ RegisteredHook, _ PermissionRequestPayload) (PermissionRequestPatch, error) {
-						deny := "deny"
-						return PermissionRequestPatch{Decision: &deny}, nil
+						return PermissionRequestPatch{Decision: new("deny")}, nil
 					},
 				)),
 				testPipelineHook(HookPermissionRequest, "hook-2", false, 0, NewTypedNativeExecutor(

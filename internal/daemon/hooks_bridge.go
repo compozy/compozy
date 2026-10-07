@@ -53,9 +53,8 @@ func (n *hooksNotifier) timestamp() time.Time {
 
 type runtimeDispatchFunc[P any] func(hookRuntime, context.Context, P) (P, error)
 
-func dispatchRuntime[P any](
+func (n *hooksNotifier) dispatchRuntime[P any](
 	ctx context.Context,
-	n *hooksNotifier,
 	event hookspkg.HookEvent,
 	payload P,
 	dispatch runtimeDispatchFunc[P],
@@ -67,7 +66,7 @@ func dispatchRuntime[P any](
 	if ctx == nil {
 		return payload, fmt.Errorf("daemon: dispatch %s requires a non-nil context", event)
 	}
-	ctx = withGlobalHookDispatchEventEmitter(ctx, n, payload)
+	ctx = n.withGlobalHookDispatchEventEmitter(ctx, payload)
 	return dispatch(hooks, ctx, payload)
 }
 

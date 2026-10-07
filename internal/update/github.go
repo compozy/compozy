@@ -1,6 +1,7 @@
 package update
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -205,10 +206,7 @@ func (m *Manager) downloadFile(ctx context.Context, url string, path string, max
 }
 
 func (m *Manager) userAgent() string {
-	version := strings.TrimSpace(m.currentVersion)
-	if version == "" {
-		version = githubDevKey
-	}
+	version := cmp.Or(strings.TrimSpace(m.currentVersion), githubDevKey)
 	return "compozy/" + version
 }
 

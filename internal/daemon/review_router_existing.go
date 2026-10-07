@@ -1,12 +1,12 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
@@ -47,11 +47,11 @@ func (r *reviewRouter) selectExistingRoute(
 	if len(candidates) == 0 {
 		return nil, nil
 	}
-	sort.SliceStable(candidates, func(i int, j int) bool {
-		if candidates[i].score != candidates[j].score {
-			return candidates[i].score > candidates[j].score
-		}
-		return strings.TrimSpace(candidates[i].info.ID) < strings.TrimSpace(candidates[j].info.ID)
+	slices.SortStableFunc(candidates, func(a, b existingReviewCandidate) int {
+		return cmp.Or(
+			cmp.Compare(b.score, a.score),
+			strings.Compare(strings.TrimSpace(a.info.ID), strings.TrimSpace(b.info.ID)),
+		)
 	})
 	return candidates[0].info, nil
 }

@@ -48,7 +48,7 @@ type Page struct {
 	Generation         int64   `json:"generation"`
 	MaxSequence        int64   `json:"max_sequence"`
 	HasOlder           bool    `json:"has_older"`
-	NextBeforeSequence int64   `json:"next_before_sequence,omitempty"`
+	NextBeforeSequence int64   `json:"next_before_sequence,omitzero"`
 }
 
 // ChangeQuery selects materialized entries updated after an event cursor.
@@ -78,7 +78,7 @@ type ChangePage struct {
 	Generation  int64   `json:"generation"`
 	MaxSequence int64   `json:"max_sequence"`
 	HasMore     bool    `json:"has_more"`
-	NextAfter   int64   `json:"next_after_sequence,omitempty"`
+	NextAfter   int64   `json:"next_after_sequence,omitzero"`
 }
 
 // Reader exposes proportional transcript page and change reads.

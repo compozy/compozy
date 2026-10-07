@@ -34,7 +34,7 @@ type AgentDef struct {
 	MCPServers            []MCPServer          `json:"mcp_servers,omitempty"      yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
 	Hooks                 []hookspkg.HookDecl  `json:"hooks,omitempty"            yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
 	FallbackChain         []RoleFallback       `json:"fallback_chain,omitempty"   yaml:"fallback_chain,omitempty"   toml:"fallback_chain,omitempty"`
-	Capabilities          *CapabilityCatalog   `json:"capabilities,omitempty"     yaml:"-"                          toml:"-"`
+	Capabilities          *CapabilityCatalog   `json:"capabilities,omitzero"      yaml:"-"                          toml:"-"`
 	Prompt                string               `json:"prompt,omitempty"           yaml:"-"`
 	SourcePath            string               `json:"-"                          yaml:"-"                          toml:"-"`
 	SourceLayer           string               `json:"-"                          yaml:"-"                          toml:"-"`

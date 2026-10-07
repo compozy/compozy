@@ -970,8 +970,6 @@ func TestHooksBridgeHelperCloningAndTimestamp(t *testing.T) {
 		if got.Before(before) || got.After(after) {
 			t.Fatalf("timestamp() = %s, want current time between %s and %s", got, before, after)
 		}
-
-		readOnly := true
 		original := hookspkg.HookDecl{
 			Name:     "config-hook",
 			Source:   hookspkg.HookSourceConfig,
@@ -979,7 +977,7 @@ func TestHooksBridgeHelperCloningAndTimestamp(t *testing.T) {
 			Env:      map[string]string{"KEY": "value"},
 			Metadata: map[string]string{"note": "keep"},
 			Matcher: hookspkg.HookMatcher{
-				ToolReadOnly: &readOnly,
+				ToolReadOnly: new(true),
 			},
 		}
 
@@ -1170,9 +1168,7 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 			func() time.Time { return time.Date(2026, 4, 9, 16, 0, 0, 0, time.UTC) },
 		)
 		var nilCtx context.Context
-		payload, err := dispatchRuntime(
-			nilCtx,
-			notifier,
+		payload, err := notifier.dispatchRuntime(nilCtx,
 			hookspkg.HookSessionPostCreate,
 			"seed",
 			func(_ hookRuntime, _ context.Context, item string) (string, error) {
@@ -1189,9 +1185,7 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		runtime := &fakeHookRuntime{}
 		notifier.setRuntime(runtime, nil)
 
-		result, err := dispatchRuntime(
-			context.Background(),
-			notifier,
+		result, err := notifier.dispatchRuntime(t.Context(),
 			hookspkg.HookEventPreRecord,
 			"seed",
 			func(_ hookRuntime, _ context.Context, item string) (string, error) {
@@ -1205,9 +1199,7 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 			t.Fatalf("dispatchRuntime(rebuild false) result = %q, want %q", result, "seed-ok")
 		}
 
-		result, err = dispatchRuntime(
-			context.Background(),
-			notifier,
+		result, err = notifier.dispatchRuntime(t.Context(),
 			hookspkg.HookSessionPostCreate,
 			"seed",
 			func(_ hookRuntime, _ context.Context, item string) (string, error) {
@@ -1221,9 +1213,7 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 			t.Fatalf("dispatchRuntime() result = %q, want %q", result, "seed-dispatched")
 		}
 
-		_, err = dispatchRuntime(
-			nilCtx,
-			notifier,
+		_, err = notifier.dispatchRuntime(nilCtx,
 			hookspkg.HookSessionPostCreate,
 			"seed",
 			func(_ hookRuntime, _ context.Context, item string) (string, error) {
@@ -1710,7 +1700,7 @@ func TestHooksNotifierShouldFenceTerminalRuntimeRecoveryGeneration(t *testing.T)
 		RunID:      "run-a",
 		Generation: 2,
 	}
-	if _, err := notifier.DispatchSessionRuntimeRecoveryStarted(context.Background(), payload); err != nil {
+	if _, err := notifier.DispatchSessionRuntimeRecoveryStarted(t.Context(), payload); err != nil {
 		t.Fatalf("DispatchSessionRuntimeRecoveryStarted() error = %v", err)
 	}
 	if got, want := len(spy.calls), 1; got != want {
@@ -1732,7 +1722,7 @@ func TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration(t *te
 			return &session.Info{ID: id, RuntimeGeneration: 7}, nil
 		}},
 	}
-	err := observer.OnTaskRunTerminal(context.Background(), hookspkg.TaskRunLeasePayload{
+	err := observer.OnTaskRunTerminal(t.Context(), hookspkg.TaskRunLeasePayload{
 		WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", RunID: "run-a",
 	})
 	if err != nil {

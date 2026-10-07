@@ -809,7 +809,7 @@ func TestMemoryWrapperExports(t *testing.T) {
 	t.Parallel()
 
 	workspace := t.TempDir()
-	if _, err := workspacepkg.EnsureIdentity(context.Background(), workspace); err != nil {
+	if _, err := workspacepkg.EnsureIdentity(t.Context(), workspace); err != nil {
 		t.Fatalf("EnsureIdentity(%q) error = %v", workspace, err)
 	}
 	req := contract.MemoryWriteRequest{
@@ -855,7 +855,7 @@ func TestMemoryWrapperExports(t *testing.T) {
 	if _, err := fixture.Handlers.ResolveMemoryLocation("note.md", "workspace", workspace); err != nil {
 		t.Fatalf("ResolveMemoryLocation() error = %v", err)
 	}
-	workspacesOut, err := fixture.Handlers.MemoryHealthWorkspaces(context.Background(), "")
+	workspacesOut, err := fixture.Handlers.MemoryHealthWorkspaces(t.Context(), "")
 	if err != nil || len(workspacesOut) != 1 {
 		t.Fatalf("MemoryHealthWorkspaces() = %#v, %v", workspacesOut, err)
 	}

@@ -90,7 +90,7 @@ func (e staticPolicyEvaluator) Evaluate(_ context.Context, _ Scope, _ Descriptor
 func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should reject invalid descriptors introduced by a dynamic provider reindex", func(t *testing.T) {
 		t.Parallel()
@@ -406,7 +406,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 	t.Run("Should keep operator diagnostics broader than session projection", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		skillView := validDescriptor()
 		taskUpdate := validDescriptor()
 		taskUpdate.ID = "compozy__task_update"
@@ -477,7 +477,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 	t.Run("Should defer remote discovery from the bootstrap projection", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		local := descriptorWithID(ToolIDTaskRunClaimNext, "Claim Task Run", ToolsetIDAutonomy)
 		secondLocal := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
 		remote := mcpDescriptor("mcp__github__search", "github", "search")
@@ -541,7 +541,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 	t.Run("Should discover a deferred tool required by the agent policy during bootstrap", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
 		remote := mcpDescriptor("mcp__github__search", "github", "search")
 		remotePattern, err := ParseToolPattern(remote.ID.String())
@@ -670,7 +670,7 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 	t.Run("Should search and get through a custom evaluator", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		skillView := validDescriptor()
 		skillView.Tags = []string{"skills"}
 		taskRead := validDescriptor()
@@ -720,7 +720,7 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 }
 
 func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	toolList := descriptorWithID(ToolIDToolList, "Tool List", ToolsetIDBootstrap)
 	toolInfo := descriptorWithID(ToolIDToolInfo, "Tool Info", ToolsetIDBootstrap)
 	skillView := descriptorWithID(ToolIDSkillView, "Skill View", ToolsetIDCatalog)
@@ -831,7 +831,7 @@ func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 }
 
 func TestRuntimeRegistryResolverRevalidatesProjectionAndDispatch(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	descriptor := descriptorWithID(ToolIDSkillView, "Skill View", ToolsetIDCatalog)
 	handle := &registryTestHandle{
 		descriptor: descriptor,
@@ -1089,7 +1089,7 @@ func TestRuntimeRegistryCallDispatchesRegisteredTool(t *testing.T) {
 	t.Run("Should call provider handle after policy passes", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		descriptor := validDescriptor()
 		called := false
 		provider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor)
@@ -1129,7 +1129,7 @@ func TestRuntimeRegistryCallReturnsPolicyDenialsBeforeDispatch(t *testing.T) {
 	t.Run("Should return denied instead of not found for registered denied tools", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		descriptor := validDescriptor()
 		denyPattern, err := ParseToolPattern(descriptor.ID.String())
 		if err != nil {

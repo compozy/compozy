@@ -149,7 +149,7 @@ type ApprovalGrant struct {
 	ProfileColor    string                `json:"profile_color,omitempty"`
 	ProfileIcon     string                `json:"profile_icon,omitempty"`
 	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
-	ProfileArchived bool                  `json:"profile_archived,omitempty"`
+	ProfileArchived bool                  `json:"profile_archived,omitzero"`
 	Decision        ApprovalGrantDecision `json:"decision"`
 	CreatedAt       time.Time             `json:"created_at"`
 	LastUsedAt      time.Time             `json:"last_used_at"`

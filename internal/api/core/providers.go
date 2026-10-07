@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -307,11 +308,8 @@ func providerInventoryNames(cfg *compozyconfig.Config) []string {
 			}
 		}
 	}
-	names := make([]string, 0, len(seen))
-	for name := range seen {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.AppendSeq(make([]string, 0, len(seen)), maps.Keys(seen))
+	slices.Sort(names)
 	return names
 }
 

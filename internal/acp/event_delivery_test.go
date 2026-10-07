@@ -123,7 +123,7 @@ func TestIngestGate(t *testing.T) {
 		gate := NewIngestGate(2, 4096)
 		results := make(chan error, 4)
 		for range 4 {
-			go func() { _, err := gate.Next(context.Background()); results <- err }()
+			go func() { _, err := gate.Next(t.Context()); results <- err }()
 		}
 		gate.Close(ErrIngestSaturated)
 		for range 4 {

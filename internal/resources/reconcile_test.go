@@ -408,11 +408,11 @@ func TestReconcileDriverWaitForIdle(t *testing.T) {
 		releaseFirst := make(chan struct{})
 		secondStarted := make(chan struct{})
 		releaseSecond := make(chan struct{})
-		var releaseFirstOnce sync.Once
-		var releaseSecondOnce sync.Once
+		releaseFirstOnce := sync.OnceFunc(func() { close(releaseFirst) })
+		releaseSecondOnce := sync.OnceFunc(func() { close(releaseSecond) })
 		t.Cleanup(func() {
-			releaseFirstOnce.Do(func() { close(releaseFirst) })
-			releaseSecondOnce.Do(func() { close(releaseSecond) })
+			releaseFirstOnce()
+			releaseSecondOnce()
 		})
 		firstErr := errors.New("first projection failed")
 		var calls atomic.Int32
@@ -461,7 +461,7 @@ func TestReconcileDriverWaitForIdle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Trigger(second) error = %v", err)
 		}
-		releaseFirstOnce.Do(func() { close(releaseFirst) })
+		releaseFirstOnce()
 		if err := <-firstWait; !errors.Is(err, firstErr) {
 			t.Fatalf("WaitForIdle(first generation) error = %v, want %v", err, firstErr)
 		}
@@ -473,7 +473,7 @@ func TestReconcileDriverWaitForIdle(t *testing.T) {
 			t.Fatalf("WaitForIdle(second generation) returned before settle: %v", err)
 		case <-time.After(25 * time.Millisecond):
 		}
-		releaseSecondOnce.Do(func() { close(releaseSecond) })
+		releaseSecondOnce()
 		if err := <-secondWait; err != nil {
 			t.Fatalf("WaitForIdle(second generation) error = %v", err)
 		}
@@ -578,7 +578,7 @@ func TestReconcileDriverPropagatesTimeoutToProjectorContexts(t *testing.T) {
 			}
 		})
 
-		err = driver.RunBoot(context.Background())
+		err = driver.RunBoot(t.Context())
 		if errors.Is(err, errMissingListRawDeadline) {
 			t.Fatalf("RunBoot() error = %v, raw input loading was not deadline-bound", err)
 		}
@@ -1022,7 +1022,7 @@ func TestReconcileDriverValidationAndLifecycleErrors(t *testing.T) {
 			t.Fatalf("NewReconcileDriver() error = %v", err)
 		}
 
-		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		closeCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		if err := driver.Close(closeCtx); err != nil {
 			t.Fatalf("Close() error = %v", err)

@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -173,7 +173,7 @@ func discoverReviewRounds(root *reviewArtifactRoot) ([]int, error) {
 			rounds = append(rounds, round)
 		}
 	}
-	sort.Ints(rounds)
+	slices.Sort(rounds)
 	return rounds, nil
 }
 

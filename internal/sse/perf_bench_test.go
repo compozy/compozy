@@ -1,7 +1,6 @@
 package sse
 
 import (
-	"context"
 	"io"
 	"strings"
 	"testing"
@@ -42,7 +41,7 @@ func benchmarkDecode(b *testing.B, benchCase benchmarkDecodeCase) {
 	b.Helper()
 	b.ReportAllocs()
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	for b.Loop() {
 		events := 0

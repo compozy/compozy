@@ -63,7 +63,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 		resolve := func(t *testing.T, key InstanceKey) []string {
 			t.Helper()
 			env, cleanups, err := manager.resolveInstanceEnvMap(
-				context.Background(),
+				t.Context(),
 				key,
 				[]string{"SHARED", "BOUND_ONLY"},
 				t.TempDir(),
@@ -148,7 +148,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 		)
 
 		_, cleanups, err := manager.resolveInstanceEnvMap(
-			context.Background(),
+			t.Context(),
 			InstanceKey{Name: "demo"},
 			[]string{"B_BROKEN", "A_OK"},
 			t.TempDir(),
@@ -186,7 +186,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 		)
 
 		env, cleanups, err := manager.resolveInstanceEnvMap(
-			context.Background(),
+			t.Context(),
 			InstanceKey{Name: "demo"},
 			[]string{"ACTIVE_KEY"},
 			t.TempDir(),

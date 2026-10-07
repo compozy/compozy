@@ -443,7 +443,7 @@ func testDaemonCatalogPublication(t *testing.T) {
 }
 
 func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	defer cancel()
 
 	const publishCredential = "distribution-e2e-publish-token"

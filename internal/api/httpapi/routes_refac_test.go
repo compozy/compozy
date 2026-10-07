@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -49,7 +48,7 @@ func TestServerHandlerConfigIncludesCoordinatorRole(t *testing.T) {
 			t.Fatal("handlers.CoordinatorRole is nil, want configured resolver")
 		}
 
-		cfg, err := handlers.CoordinatorRole.ResolveCoordinatorRole(context.Background(), "ws-1")
+		cfg, err := handlers.CoordinatorRole.ResolveCoordinatorRole(t.Context(), "ws-1")
 		if err != nil {
 			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
 		}
@@ -66,7 +65,7 @@ func registeredHTTPAgentKernelRoutes(routes gin.RoutesInfo) []string {
 			filtered = append(filtered, route.Method+" "+route.Path)
 		}
 	}
-	sort.Strings(filtered)
+	slices.Sort(filtered)
 	return filtered
 }
 
@@ -81,7 +80,7 @@ func documentedHTTPAgentKernelRoutes() []string {
 		}
 		routes = append(routes, operation.Method+" "+normalizeHTTPAgentSpecRoutePath(operation.Path))
 	}
-	sort.Strings(routes)
+	slices.Sort(routes)
 	return routes
 }
 

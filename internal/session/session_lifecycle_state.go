@@ -150,16 +150,14 @@ func stringPointer(value string) *string {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
-	copyValue := value
-	return &copyValue
+	return new(value)
 }
 
 func stopReasonPointer(value store.StopReason) *store.StopReason {
 	if strings.TrimSpace(string(value)) == "" {
 		return nil
 	}
-	copyValue := value
-	return &copyValue
+	return new(value)
 }
 
 func sessionMetaStopReason(meta *store.SessionMeta) store.StopReason {

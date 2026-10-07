@@ -100,7 +100,7 @@ func TestEvaluatorExtensionGateIntegration(t *testing.T) {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
 		evaluator := NewEvaluator(WithToolCaller(registry))
-		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+		verdict, err := evaluator.Evaluate(t.Context(), Gate{
 			ID:            "extension_gate",
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{{

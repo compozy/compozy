@@ -74,9 +74,7 @@ func benchmarkTerminalRuns(count int) []Run {
 }
 
 func benchmarkRawJSONWithWhitespace(size int) json.RawMessage {
-	if size < 16 {
-		size = 16
-	}
+	size = max(size, 16)
 	payload := `{"value":"` + strings.Repeat("x", size-12) + `"}`
 	return json.RawMessage(" \n\t" + payload + "\n\t ")
 }

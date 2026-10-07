@@ -141,12 +141,9 @@ func (r *Reconciler) Acquire(tier Tier, surface Surface) (func(), error) {
 	}
 	state.inFlight.Add(1)
 	r.mu.Unlock()
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			state.inFlight.Add(-1)
-		})
-	}, nil
+	return sync.OnceFunc(func() {
+		state.inFlight.Add(-1)
+	}), nil
 }
 
 // Reconcile applies each tier independently in deterministic order.
@@ -225,8 +222,7 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 	if err := r.markProviderEstablishing(ctx, plan, state, hadAdvertisement); err != nil {
 		return err
 	}
-	providerCopy := provider
-	state.provider = &providerCopy
+	state.provider = new(provider)
 	reachability, err := r.effects.Establish(ctx, provider, bound)
 	if err != nil {
 		return errors.Join(

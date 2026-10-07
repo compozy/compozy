@@ -25,11 +25,11 @@ type taskCreateInput struct {
 	Title          string             `json:"title"`
 	Description    string             `json:"description,omitempty"`
 	Priority       string             `json:"priority,omitempty"`
-	MaxAttempts    *int               `json:"max_attempts,omitempty"`
-	Draft          bool               `json:"draft,omitempty"`
+	MaxAttempts    *int               `json:"max_attempts,omitzero"`
+	Draft          bool               `json:"draft,omitzero"`
 	ApprovalPolicy string             `json:"approval_policy,omitempty"`
 	Owner          *taskpkg.Ownership `json:"owner,omitempty"`
-	WakeCreator    *bool              `json:"wake_creator,omitempty"`
+	WakeCreator    *bool              `json:"wake_creator,omitzero"`
 	Metadata       json.RawMessage    `json:"metadata,omitempty"`
 }
 
@@ -71,15 +71,15 @@ func (i taskChildCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 
 type taskUpdateInput struct {
 	TaskID         string           `json:"task_id"`
-	Title          *string          `json:"title,omitempty"`
-	Description    *string          `json:"description,omitempty"`
-	Priority       *string          `json:"priority,omitempty"`
-	MaxAttempts    *int             `json:"max_attempts,omitempty"`
-	ApprovalPolicy *string          `json:"approval_policy,omitempty"`
-	Metadata       *json.RawMessage `json:"metadata,omitempty"`
+	Title          *string          `json:"title,omitzero"`
+	Description    *string          `json:"description,omitzero"`
+	Priority       *string          `json:"priority,omitzero"`
+	MaxAttempts    *int             `json:"max_attempts,omitzero"`
+	ApprovalPolicy *string          `json:"approval_policy,omitzero"`
+	Metadata       *json.RawMessage `json:"metadata,omitzero"`
 
 	Owner      *taskpkg.Ownership `json:"owner,omitempty"`
-	ClearOwner bool               `json:"clear_owner,omitempty"`
+	ClearOwner bool               `json:"clear_owner,omitzero"`
 }
 
 func (i taskUpdateInput) patch() taskpkg.Patch {
@@ -126,7 +126,7 @@ type taskUnblockInput struct {
 
 type taskBlocksInput struct {
 	TaskID         string `json:"task_id"`
-	IncludeCleared bool   `json:"include_cleared,omitempty"`
+	IncludeCleared bool   `json:"include_cleared,omitzero"`
 }
 
 type taskRecoverInput struct {
@@ -139,12 +139,12 @@ type taskFanOutRunsInput struct {
 
 	Designations   []contract.TaskFanOutRunDesignationRequest `json:"designations"`
 	IdempotencyKey string                                     `json:"idempotency_key,omitempty"`
-	WorktreePerRun bool                                       `json:"worktree_per_run,omitempty"`
+	WorktreePerRun bool                                       `json:"worktree_per_run,omitzero"`
 }
 
 type autonomyHeartbeatInput struct {
 	RunID        string `json:"run_id"`
-	LeaseSeconds int64  `json:"lease_seconds,omitempty"`
+	LeaseSeconds int64  `json:"lease_seconds,omitzero"`
 }
 
 type autonomyCompleteInput struct {

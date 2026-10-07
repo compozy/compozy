@@ -87,12 +87,12 @@ type RosterNode struct {
 	Attempts       []NodeAttemptView `json:"attempts"`
 	NextRetryAt    *time.Time        `json:"next_retry_at,omitempty"`
 	ChildLoopRunID string            `json:"child_loop_run_id,omitempty"`
-	Cancellation   *NodeCancellation `json:"cancellation,omitempty"`
+	Cancellation   *NodeCancellation `json:"cancellation,omitzero"`
 	StartedAt      *time.Time        `json:"started_at,omitempty"`
 	EndedAt        *time.Time        `json:"ended_at,omitempty"`
 	SessionID      string            `json:"session_id,omitempty"`
 	CellTaskID     string            `json:"cell_task_id,omitempty"`
-	Usage          *NodeUsage        `json:"usage,omitempty"`
+	Usage          *NodeUsage        `json:"usage,omitzero"`
 	Action         bool              `json:"-"`
 }
 
@@ -341,8 +341,7 @@ func applyRosterOutput(view *RosterNode, runID RunID, output GenerationOutput) {
 	view.SessionID = output.SessionID
 	view.CellTaskID = NodeCellTaskID(runID, view.Generation, string(view.NodeID), view.ItemIndex)
 	if output.FirstScheduledAt != nil {
-		started := output.FirstScheduledAt.UTC()
-		view.StartedAt = &started
+		view.StartedAt = new(output.FirstScheduledAt.UTC())
 	}
 	if output.NextAttemptAt != nil {
 		view.State = NodeStateRetrying

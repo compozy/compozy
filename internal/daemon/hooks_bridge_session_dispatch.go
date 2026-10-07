@@ -53,9 +53,7 @@ func (n *hooksNotifier) DispatchSessionPreCreate(
 	ctx context.Context,
 	payload hookspkg.SessionPreCreatePayload,
 ) (hookspkg.SessionPreCreatePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSessionPreCreate,
 		payload,
 		hookRuntime.DispatchSessionPreCreate,
@@ -66,9 +64,7 @@ func (n *hooksNotifier) DispatchSessionPostCreate(
 	ctx context.Context,
 	payload hookspkg.SessionPostCreatePayload,
 ) (hookspkg.SessionPostCreatePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSessionPostCreate,
 		payload,
 		hookRuntime.DispatchSessionPostCreate,
@@ -79,9 +75,7 @@ func (n *hooksNotifier) DispatchSessionPreResume(
 	ctx context.Context,
 	payload hookspkg.SessionPreResumePayload,
 ) (hookspkg.SessionPreResumePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSessionPreResume,
 		payload,
 		hookRuntime.DispatchSessionPreResume,
@@ -92,9 +86,7 @@ func (n *hooksNotifier) DispatchSessionPostResume(
 	ctx context.Context,
 	payload hookspkg.SessionPostResumePayload,
 ) (hookspkg.SessionPostResumePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSessionPostResume,
 		payload,
 		hookRuntime.DispatchSessionPostResume,
@@ -105,9 +97,7 @@ func (n *hooksNotifier) DispatchSessionPreStop(
 	ctx context.Context,
 	payload hookspkg.SessionPreStopPayload,
 ) (hookspkg.SessionPreStopPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSessionPreStop,
 		payload,
 		hookRuntime.DispatchSessionPreStop,
@@ -118,9 +108,7 @@ func (n *hooksNotifier) DispatchSessionPostStop(
 	ctx context.Context,
 	payload hookspkg.SessionPostStopPayload,
 ) (hookspkg.SessionPostStopPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSessionPostStop,
 		payload,
 		hookRuntime.DispatchSessionPostStop,
@@ -140,8 +128,7 @@ func (n *hooksNotifier) DispatchSessionRuntimeRecoveryStarted(
 		current.Generation = payload.Generation
 		terminals.RuntimeRecovered(ctx, payload.WorkspaceID, previous, current)
 	}
-	return dispatchRuntime(
-		ctx, n, hookspkg.HookSessionRuntimeRecoveryStarted, payload,
+	return n.dispatchRuntime(ctx, hookspkg.HookSessionRuntimeRecoveryStarted, payload,
 		hookRuntime.DispatchSessionRuntimeRecoveryStarted,
 	)
 }
@@ -150,8 +137,7 @@ func (n *hooksNotifier) DispatchSessionRuntimeRecoverySucceeded(
 	ctx context.Context,
 	payload hookspkg.SessionRuntimeRecoverySucceededPayload,
 ) (hookspkg.SessionRuntimeRecoverySucceededPayload, error) {
-	return dispatchRuntime(
-		ctx, n, hookspkg.HookSessionRuntimeRecoverySucceeded, payload,
+	return n.dispatchRuntime(ctx, hookspkg.HookSessionRuntimeRecoverySucceeded, payload,
 		hookRuntime.DispatchSessionRuntimeRecoverySucceeded,
 	)
 }
@@ -160,8 +146,7 @@ func (n *hooksNotifier) DispatchSessionRuntimeRecoveryExhausted(
 	ctx context.Context,
 	payload hookspkg.SessionRuntimeRecoveryExhaustedPayload,
 ) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error) {
-	return dispatchRuntime(
-		ctx, n, hookspkg.HookSessionRuntimeRecoveryExhausted, payload,
+	return n.dispatchRuntime(ctx, hookspkg.HookSessionRuntimeRecoveryExhausted, payload,
 		hookRuntime.DispatchSessionRuntimeRecoveryExhausted,
 	)
 }
@@ -170,9 +155,7 @@ func (n *hooksNotifier) DispatchInputPreSubmit(
 	ctx context.Context,
 	payload hookspkg.InputPreSubmitPayload,
 ) (hookspkg.InputPreSubmitPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookInputPreSubmit,
 		payload,
 		hookRuntime.DispatchInputPreSubmit,
@@ -183,9 +166,7 @@ func (n *hooksNotifier) DispatchPromptPostAssemble(
 	ctx context.Context,
 	payload hookspkg.PromptPayload,
 ) (hookspkg.PromptPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookPromptPostAssemble,
 		payload,
 		hookRuntime.DispatchPromptPostAssemble,
@@ -196,9 +177,7 @@ func (n *hooksNotifier) DispatchEventPreRecord(
 	ctx context.Context,
 	payload hookspkg.EventPreRecordPayload,
 ) (hookspkg.EventPreRecordPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookEventPreRecord,
 		payload,
 		hookRuntime.DispatchEventPreRecord,

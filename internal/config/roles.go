@@ -186,7 +186,7 @@ func DefaultResolvedCoordinatorRole() ResolvedCoordinatorRole {
 func DefaultRolesConfig() RolesConfig {
 	return RolesConfig{
 		Coordinator: CoordinatorRoleConfig{
-			RoleConfig:                    RoleConfig{Enabled: false},
+			Enabled:                       false,
 			TTL:                           DefaultCoordinatorTTL,
 			MaxChildren:                   DefaultCoordinatorMaxChildren,
 			MaxActiveSessionsPerWorkspace: DefaultCoordinatorMaxActiveSessionsPerWorkspace,

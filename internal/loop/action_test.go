@@ -36,7 +36,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 			string(dsl.ActionRunLoop),
 			string(dsl.ActionTransform),
 		} {
-			executor, err := actions.Resolve(context.Background(), tools.Scope{}, kind)
+			executor, err := actions.Resolve(t.Context(), tools.Scope{}, kind)
 			if err != nil {
 				t.Fatalf("Resolve(%q) error = %v", kind, err)
 			}
@@ -102,7 +102,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 		}}
 		actions := newActionRegistryForTest(t, registry)
 
-		executor, err := actions.Resolve(context.Background(), tools.Scope{WorkspaceID: "ws-1"}, toolID.String())
+		executor, err := actions.Resolve(t.Context(), tools.Scope{WorkspaceID: "ws-1"}, toolID.String())
 		if err != nil {
 			t.Fatalf("Resolve(%q) error = %v", toolID, err)
 		}
@@ -133,7 +133,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 		}
 
 		executor, err := actions.ResolvePinned(
-			context.Background(),
+			t.Context(),
 			tools.Scope{WorkspaceID: "ws-1"},
 			toolID.String(),
 			expected,
@@ -165,7 +165,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 		}
 
 		_, err := actions.ResolvePinned(
-			context.Background(),
+			t.Context(),
 			tools.Scope{WorkspaceID: "ws-1"},
 			toolID.String(),
 			expected,
@@ -188,7 +188,7 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{})
 
-		_, err := actions.Resolve(context.Background(), tools.Scope{}, "compozy__missing")
+		_, err := actions.Resolve(t.Context(), tools.Scope{}, "compozy__missing")
 		if !errors.Is(err, loop.ErrActionUnknownKind) {
 			t.Fatalf("Resolve() error = %v, want ErrActionUnknownKind", err)
 		}
@@ -370,7 +370,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 			},
 		}
 		actions := newActionRegistryForTest(t, registry)
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, toolID.String())
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, toolID.String())
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
@@ -383,7 +383,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 				"id": "{{ .inputs.task_id }}",
 			},
 		}
-		raw, err := executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+		raw, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			Namespace: map[string]any{
 				"inputs": map[string]any{"task_id": "task-1"},
@@ -406,7 +406,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 			t.Fatalf("call input id = %#v, want task-1", input["id"])
 		}
 
-		output, err := executor.Harvest(context.Background(), raw, node)
+		output, err := executor.Harvest(t.Context(), raw, node)
 		if err != nil {
 			t.Fatalf("Harvest() error = %v", err)
 		}
@@ -425,7 +425,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 			callResult: tools.ToolResult{Structured: json.RawMessage(`{"ok":true}`)},
 		}
 		actions := newActionRegistryForTest(t, registry)
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, toolID.String())
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, toolID.String())
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
@@ -433,7 +433,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 			ID: "read", Class: dsl.NodeClassAction, Kind: toolID.String(),
 			Params: dsl.NodeParams{"id": "{{ .inputs.task_id }}"},
 		}
-		_, err = executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+		_, err = executor.Execute(t.Context(), node, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			Namespace:   map[string]any{"inputs": map[string]any{"task_id": "task-1"}},
 			AdmittedParams: dsl.NodeParams{
@@ -523,7 +523,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 			}},
 		}
 		actions := newActionRegistryForTest(t, registry, loop.WithActionEventRangeReader(reader))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, toolID.String())
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, toolID.String())
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
@@ -534,11 +534,11 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 			Harvest: &dsl.HarvestSpec{Kind: "event_range"},
 		}
 
-		raw, err := executor.Execute(context.Background(), node, loop.ActionExecutionInput{})
+		raw, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
-		output, err := executor.Harvest(context.Background(), raw, node)
+		output, err := executor.Harvest(t.Context(), raw, node)
 		if err != nil {
 			t.Fatalf("Harvest() error = %v", err)
 		}
@@ -629,7 +629,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			string(dsl.ActionRunLoop),
 			string(dsl.ActionTransform),
 		} {
-			executor, err := actions.Resolve(context.Background(), tools.Scope{}, kind)
+			executor, err := actions.Resolve(t.Context(), tools.Scope{}, kind)
 			if err != nil {
 				t.Fatalf("Resolve(%q) error = %v", kind, err)
 			}
@@ -639,7 +639,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				Kind:    kind,
 				Harvest: &dsl.HarvestSpec{Kind: "unsupported"},
 			}
-			_, err = executor.Harvest(context.Background(), loop.ActionRawResult{}, node)
+			_, err = executor.Harvest(t.Context(), loop.ActionRawResult{}, node)
 			if !errors.Is(err, loop.ErrValidation) {
 				t.Fatalf("Harvest(%q) error = %v, want ErrValidation", kind, err)
 			}
@@ -661,13 +661,13 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			},
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
 		reportedTokens := []int64{}
 		ctx := loop.ContextWithActionUsageReporter(
-			context.Background(),
+			t.Context(),
 			loop.ActionUsageReporterFunc(func(tokensUsed int64) {
 				reportedTokens = append(reportedTokens, tokensUsed)
 			}),
@@ -713,7 +713,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
-		output, err := executor.Harvest(context.Background(), raw, node)
+		output, err := executor.Harvest(t.Context(), raw, node)
 		if err != nil {
 			t.Fatalf("Harvest() error = %v", err)
 		}
@@ -799,7 +799,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			promptResults: []loop.ActionPromptResult{{Text: "done"}},
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
@@ -810,7 +810,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				"runtime": "{{ .inputs.worker_runtime }}",
 			},
 		}
-		raw, err := executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+		raw, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			Namespace: map[string]any{"inputs": map[string]any{
 				"worker_runtime": map[string]any{
@@ -854,7 +854,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			&fakeActionToolRegistry{},
 			loop.WithActionSessionBinder(binder),
 		)
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
@@ -868,7 +868,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				},
 			},
 		}
-		_, err = executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+		_, err = executor.Execute(t.Context(), node, loop.ActionExecutionInput{
 			Namespace: map[string]any{"inputs": map[string]any{"topic": "delivery"}},
 		})
 		if err == nil || !strings.Contains(err.Error(), ".inputs.missing") {
@@ -887,7 +887,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			promptResults: []loop.ActionPromptResult{{Text: "done"}},
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
@@ -897,7 +897,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			Hint:          "Review the action timeout and target health before retrying.",
 			RetryEligible: true,
 		}
-		_, err = executor.Execute(context.Background(), dsl.Node{
+		_, err = executor.Execute(t.Context(), dsl.Node{
 			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
 			Params: dsl.NodeParams{"agent": "planner", "prompt": "Resume the work"},
 		}, loop.ActionExecutionInput{
@@ -923,11 +923,11 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			promptResults: []loop.ActionPromptResult{{Text: "done"}},
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
-		_, err = executor.Execute(context.Background(), dsl.Node{
+		_, err = executor.Execute(t.Context(), dsl.Node{
 			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
 			Params: dsl.NodeParams{"agent": "planner", "prompt": "Continue the delivery"},
 		}, loop.ActionExecutionInput{
@@ -963,11 +963,11 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			promptResults: []loop.ActionPromptResult{{Text: "done"}},
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
-		_, err = executor.Execute(context.Background(), dsl.Node{
+		_, err = executor.Execute(t.Context(), dsl.Node{
 			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
 			Params: dsl.NodeParams{"agent": "planner", "prompt": "Repair the generation"},
 		}, loop.ActionExecutionInput{
@@ -1015,11 +1015,11 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			promptResults: []loop.ActionPromptResult{{Text: "done"}},
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
-		raw, err := executor.Execute(context.Background(), dsl.Node{
+		raw, err := executor.Execute(t.Context(), dsl.Node{
 			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
 			Params: dsl.NodeParams{"agent": "planner", "prompt": "Work"},
 		}, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
@@ -1041,7 +1041,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			blockPrompt: true,
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
@@ -1057,7 +1057,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			},
 		}
 
-		_, err = executor.Execute(context.Background(), node, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
+		_, err = executor.Execute(t.Context(), node, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
 		if !errors.Is(err, loop.ErrActionTimeout) {
 			t.Fatalf("Execute() error = %v, want ErrActionTimeout", err)
 		}
@@ -1081,7 +1081,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			promptResults: []loop.ActionPromptResult{{Text: "done"}},
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
@@ -1095,7 +1095,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			},
 		}
 
-		_, err = executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+		_, err = executor.Execute(t.Context(), node, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			RuntimeSelection: &loop.ActionRuntimeSelection{
 				Defaults: loop.RuntimeDefaults{
@@ -1125,7 +1125,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		) + `"}`
 		starter := &fakeActionLoopStarter{returnRun: &loop.Run{ID: "child-1"}}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionLoopStarter(starter))
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunLoop))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunLoop))
 		if err != nil {
 			t.Fatalf("Resolve(run-loop) error = %v", err)
 		}
@@ -1141,7 +1141,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				},
 			},
 		}
-		raw, err := executor.Execute(context.Background(), awaitNode, loop.ActionExecutionInput{
+		raw, err := executor.Execute(t.Context(), awaitNode, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			LoopRunID:   "parent-1",
 			ToolScope:   tools.Scope{ProfileID: "profile-marketing"},
@@ -1180,7 +1180,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 
 		detachNode := awaitNode
 		detachNode.Params["mode"] = string(dsl.RunLoopDetach)
-		raw, err = executor.Execute(context.Background(), detachNode, loop.ActionExecutionInput{
+		raw, err = executor.Execute(t.Context(), detachNode, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			LoopRunID:   "parent-1",
 			ToolScope:   tools.Scope{ProfileID: "profile-marketing"},
@@ -1392,7 +1392,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		t.Parallel()
 
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{})
-		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionTransform))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionTransform))
 		if err != nil {
 			t.Fatalf("Resolve(transform) error = %v", err)
 		}
@@ -1409,7 +1409,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				},
 			},
 		}
-		raw, err := executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+		raw, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{
 			Namespace: map[string]any{
 				"inputs": map[string]any{"ticket": "T-1"},
 				"nodes": map[string]any{
@@ -1422,7 +1422,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute(transform) error = %v", err)
 		}
-		output, err := executor.Harvest(context.Background(), raw, node)
+		output, err := executor.Harvest(t.Context(), raw, node)
 		if err != nil {
 			t.Fatalf("Harvest(transform) error = %v", err)
 		}
@@ -1916,7 +1916,7 @@ func TestActionTimeoutShouldCompleteQuickly(t *testing.T) {
 	t.Run("Should return timeout within parent deadline", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
 		binder := &fakeActionSessionBinder{
@@ -1946,7 +1946,7 @@ func TestActionTimeoutShouldCompleteQuickly(t *testing.T) {
 	t.Run("Should cancel the bound session when the runtime supplies the deadline", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 		defer cancel()
 
 		binder := &fakeActionSessionBinder{
@@ -1981,7 +1981,7 @@ func TestActionTimeoutShouldCompleteQuickly(t *testing.T) {
 	t.Run("Should bound run-loop start by node timeout", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
 		starter := &fakeActionLoopStarter{blockUntilContextDone: true}

@@ -73,7 +73,7 @@ type CoordinatorDependencySpec struct {
 type EnqueueSpec struct {
 	TaskID             string          `json:"task_id"`
 	RunID              string          `json:"run_id,omitempty"`
-	RunKind            RunKind         `json:"run_kind,omitempty"`
+	RunKind            RunKind         `json:"run_kind,omitzero"`
 	LoopRunID          string          `json:"loop_run_id,omitempty"`
 	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
 	DesignationGroupID string          `json:"designation_group_id,omitempty"`
@@ -113,7 +113,7 @@ type CoordinatorWakeSpec struct {
 // GenerationSnapshot is opaque to internal/task; internal/loop owns its payload schema.
 type GenerationSnapshot struct {
 	LoopRunID  string `json:"loop_run_id,omitempty"`
-	Generation int    `json:"generation,omitempty"`
+	Generation int    `json:"generation,omitzero"`
 	Payload    any    `json:"-"`
 }
 
@@ -146,10 +146,10 @@ type CoordinatorCompletionResult struct {
 	EnqueuedRuns    []Run                   `json:"enqueued_runs,omitempty"`
 	LoopRunID       string                  `json:"loop_run_id,omitempty"`
 	Context         json.RawMessage         `json:"context,omitempty"`
-	Paused          bool                    `json:"paused,omitempty"`
-	Terminal        bool                    `json:"terminal,omitempty"`
-	PlanSuperseded  bool                    `json:"plan_superseded,omitempty"`
-	TokensUsed      int64                   `json:"tokens_used,omitempty"`
+	Paused          bool                    `json:"paused,omitzero"`
+	Terminal        bool                    `json:"terminal,omitzero"`
+	PlanSuperseded  bool                    `json:"plan_superseded,omitzero"`
+	TokensUsed      int64                   `json:"tokens_used,omitzero"`
 	Settlement      *CompletedRunSettlement `json:"-"`
 	CompletionEvent Event                   `json:"-"`
 }
@@ -335,12 +335,10 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 		normalized.PostCommitTimers[idx] = normalized.PostCommitTimers[idx].Normalize()
 	}
 	if normalized.NextCoordinator != nil {
-		next := normalized.NextCoordinator.Normalize()
-		normalized.NextCoordinator = &next
+		normalized.NextCoordinator = new(normalized.NextCoordinator.Normalize())
 	}
 	if normalized.Terminal != nil {
-		terminal := normalized.Terminal.Normalize()
-		normalized.Terminal = &terminal
+		normalized.Terminal = new(normalized.Terminal.Normalize())
 	}
 	return normalized
 }

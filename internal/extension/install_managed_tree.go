@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -67,7 +68,7 @@ func copyInstallDirectoryContents(
 	if err != nil {
 		return err
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		if hasPackageManifest && name == "node_modules" {
 			if err := copyInstallNodeModules(source, target, active, runtimeDeps); err != nil {
@@ -159,11 +160,7 @@ func copyInstallNodeModules(
 		}
 	}()
 
-	names := make([]string, 0, len(runtimeDeps))
-	for name := range runtimeDeps {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(runtimeDeps))
 	for _, name := range names {
 		if err := copyInstallRuntimeDependency(entry.directory, targetModules, name, active); err != nil {
 			return err

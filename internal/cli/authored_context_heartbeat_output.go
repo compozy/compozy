@@ -2,8 +2,7 @@ package cli
 
 func agentHeartbeatBundle(record *AgentHeartbeatRecord) outputBundle {
 	if record == nil {
-		empty := AgentHeartbeatRecord{}
-		record = &empty
+		record = new(AgentHeartbeatRecord{})
 	}
 	return outputBundle{
 		jsonValue: record,
@@ -49,8 +48,7 @@ func agentHeartbeatBundle(record *AgentHeartbeatRecord) outputBundle {
 
 func agentHeartbeatMutationBundle(record *AgentHeartbeatMutationRecord) outputBundle {
 	if record == nil {
-		empty := AgentHeartbeatMutationRecord{}
-		record = &empty
+		record = new(AgentHeartbeatMutationRecord{})
 	}
 	return outputBundle{
 		jsonValue: record,

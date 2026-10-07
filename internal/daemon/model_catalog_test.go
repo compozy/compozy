@@ -207,9 +207,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveProvider(cursor) error = %v", err)
 		}
-		enabled := true
 		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
-			Enabled: &enabled,
+			Enabled: new(true),
 			Command: "cursor-old",
 			Timeout: "2s",
 		}
@@ -336,10 +335,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if !ok || status.RefreshState != modelcatalog.RefreshStateFailed {
 			t.Fatalf("offline live source status = %#v, want failed", status)
 		}
-
-		disabled := false
 		provider = next.Providers["cursor"]
-		provider.Models.Discovery.Enabled = &disabled
+		provider.Models.Discovery.Enabled = new(false)
 		next.Providers["cursor"] = provider
 		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
 			t.Fatalf("ReconcileConfig(disabled discovery) error = %v", err)
@@ -378,10 +375,9 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveProvider(cursor) error = %v", err)
 		}
-		enabled := true
 		provider.Models.Default = "config-a"
 		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
-			Enabled: &enabled,
+			Enabled: new(true),
 			Command: "cursor-a",
 			Timeout: "2s",
 		}
@@ -566,9 +562,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveProvider(cursor) error = %v", err)
 		}
-		enabled := true
 		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
-			Enabled: &enabled,
+			Enabled: new(true),
 			Command: "cursor-a",
 			Timeout: "2s",
 		}
@@ -784,9 +779,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveProvider(cursor) error = %v", err)
 		}
-		enabled := true
 		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
-			Enabled: &enabled,
+			Enabled: new(true),
 			Command: "cursor-old",
 			Timeout: "2s",
 		}
@@ -1406,7 +1400,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if runtime.timeout != defaultModelCatalogRefreshTimeout {
 			t.Fatalf("runtime timeout = %s, want %s", runtime.timeout, defaultModelCatalogRefreshTimeout)
 		}
-		if err := runtime.Shutdown(context.Background()); err != nil {
+		if err := runtime.Shutdown(t.Context()); err != nil {
 			t.Fatalf("Shutdown(context.Background()) error = %v", err)
 		}
 		var missingContext context.Context
@@ -1414,7 +1408,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatal("Shutdown(nil context) error = nil, want validation error")
 		}
 		var nilRuntime *modelCatalogRuntime
-		if err := nilRuntime.Shutdown(context.Background()); err != nil {
+		if err := nilRuntime.Shutdown(t.Context()); err != nil {
 			t.Fatalf("Shutdown(nil runtime) error = %v", err)
 		}
 		unavailable := &modelCatalogRuntime{}
@@ -1519,8 +1513,7 @@ func bootModelCatalogTestDaemonWithSetup(
 	cfg := testConfig(t, homePaths)
 	cfg.Memory.Enabled = false
 	cfg.Skills.Enabled = false
-	modelsDevEnabled := false
-	cfg.ModelCatalog.Sources.ModelsDev.Enabled = &modelsDevEnabled
+	cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
 	if mutate != nil {
 		mutate(&cfg)
 	}
@@ -1638,7 +1631,6 @@ func seedPreExplicitCurationRows(
 				RefreshedAt: refreshedAt,
 			},
 		})
-	available := true
 	liveSourceID := modelcatalog.SourceKindProviderLiveID("codex")
 	persist(
 		liveSourceID,
@@ -1651,7 +1643,7 @@ func seedPreExplicitCurationRows(
 				SourceID:    liveSourceID,
 				SourceKind:  modelcatalog.SourceKindProviderLive,
 				Priority:    modelcatalog.PriorityProviderLive,
-				Available:   &available,
+				Available:   new(true),
 				RefreshedAt: refreshedAt,
 			},
 		},

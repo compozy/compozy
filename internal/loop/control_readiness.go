@@ -195,8 +195,7 @@ func appendReadyNodeRunsControlAware(
 		output.Status = generationOutputEnqueued
 		output.TaskRunID = runID
 		if output.FirstScheduledAt == nil {
-			firstScheduledAt := scheduledAt.UTC()
-			output.FirstScheduledAt = &firstScheduledAt
+			output.FirstScheduledAt = new(scheduledAt.UTC())
 		}
 		key := generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}
 		if idx, exists := indexes[key]; exists {

@@ -2,9 +2,11 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -35,10 +37,7 @@ type mcpJSONServer struct {
 // ParseMCPServersJSON parses an MCP JSON document into canonical MCP server values.
 // The document may use either `mcpServers` or `mcp_servers` as the top-level key.
 func ParseMCPServersJSON(content []byte, source string) ([]MCPServer, error) {
-	sourceName := strings.TrimSpace(source)
-	if sourceName == "" {
-		sourceName = MCPJSONName
-	}
+	sourceName := cmp.Or(strings.TrimSpace(source), MCPJSONName)
 
 	decoder := json.NewDecoder(bytes.NewReader(content))
 	var root map[string]json.RawMessage
@@ -124,11 +123,7 @@ func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {
 		return nil
 	}
 
-	names := make([]string, 0, len(values))
-	for name := range values {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(values))
 
 	servers := make([]MCPServer, 0, len(names))
 	for _, name := range names {

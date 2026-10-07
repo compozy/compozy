@@ -281,7 +281,7 @@ func TestInstallerVerifiesPinnedArchiveDigestBeforeExtraction(t *testing.T) {
 		}
 
 		result, err := NewInstaller(downloader).Install(
-			context.Background(),
+			t.Context(),
 			"acme/digest-ext",
 			DownloadOpts{ExpectedSHA256: expected},
 			filepath.Join(t.TempDir(), "digest-ext"),
@@ -313,7 +313,7 @@ func TestInstallerVerifiesPinnedArchiveDigestBeforeExtraction(t *testing.T) {
 		}
 
 		_, err := NewInstaller(downloader).Install(
-			context.Background(),
+			t.Context(),
 			"acme/digest-ext",
 			DownloadOpts{ExpectedSHA256: strings.Repeat("0", sha256.Size*2)},
 			target,
@@ -528,7 +528,7 @@ func testInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
 		t.Fatalf("Mkdir(install parent) error = %v", err)
 	}
 	targetDir := filepath.Join(installParent, "demo-ext")
-	result, err := NewInstaller(downloader).Install(context.Background(), "acme/demo-ext", DownloadOpts{}, targetDir)
+	result, err := NewInstaller(downloader).Install(t.Context(), "acme/demo-ext", DownloadOpts{}, targetDir)
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
@@ -594,7 +594,7 @@ func TestInstallerInstallKeepsTheHeldTargetParentAfterPathReplacement(t *testing
 		}
 
 		_, err := NewInstaller(downloader).Install(
-			context.Background(),
+			t.Context(),
 			"acme/demo-ext",
 			DownloadOpts{},
 			filepath.Join(liveParent, "demo-ext"),
@@ -623,7 +623,7 @@ func TestInstallerSpoolInstallArchiveEnforcesExactCompressedLimit(t *testing.T) 
 		directory := openArchiveTestRoot(t, t.TempDir())
 		installer := NewInstaller(nil, WithInstallerMaxArchiveSize(4))
 		archive, digest, err := installer.spoolInstallArchive(
-			context.Background(),
+			t.Context(),
 			io.NopCloser(strings.NewReader("four")),
 			directory,
 			"",
@@ -646,7 +646,7 @@ func TestInstallerSpoolInstallArchiveEnforcesExactCompressedLimit(t *testing.T) 
 		directory := openArchiveTestRoot(t, t.TempDir())
 		installer := NewInstaller(nil, WithInstallerMaxArchiveSize(4))
 		_, _, err := installer.spoolInstallArchive(
-			context.Background(),
+			t.Context(),
 			io.NopCloser(strings.NewReader("five!")),
 			directory,
 			"",
@@ -662,7 +662,7 @@ func TestInstallerSpoolInstallArchiveEnforcesExactCompressedLimit(t *testing.T) 
 		directory := openArchiveTestRoot(t, t.TempDir())
 		installer := NewInstaller(nil, WithInstallerMaxArchiveSize(math.MaxInt64))
 		archive, _, err := installer.spoolInstallArchive(
-			context.Background(),
+			t.Context(),
 			io.NopCloser(strings.NewReader("archive")),
 			directory,
 			"",
@@ -705,7 +705,7 @@ func testInstallerInstallSkillArchiveReturnsResult(t *testing.T) {
 		t.Fatalf("Mkdir(install parent) error = %v", err)
 	}
 	targetDir := filepath.Join(installParent, "review")
-	result, err := NewInstaller(downloader).Install(context.Background(), "@acme/review", DownloadOpts{}, targetDir)
+	result, err := NewInstaller(downloader).Install(t.Context(), "@acme/review", DownloadOpts{}, targetDir)
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
@@ -739,7 +739,7 @@ func testInstallerInstallRejectsCompressedArchiveOverLimit(t *testing.T) {
 	_, err := NewInstaller(
 		downloader,
 		WithInstallerMaxArchiveSize(64),
-	).Install(context.Background(), "acme/demo-ext", DownloadOpts{}, filepath.Join(t.TempDir(), "demo-ext"))
+	).Install(t.Context(), "acme/demo-ext", DownloadOpts{}, filepath.Join(t.TempDir(), "demo-ext"))
 	if !errors.Is(err, errArchiveTooLargeCompressed) {
 		t.Fatalf("Install() error = %v, want %v", err, errArchiveTooLargeCompressed)
 	}
@@ -764,7 +764,7 @@ func testInstallerInstallRejectsDecompressedArchiveOverLimit(t *testing.T) {
 	_, err := NewInstaller(
 		downloader,
 		WithInstallerMaxDecompressedSize(32),
-	).Install(context.Background(), "acme/demo-ext", DownloadOpts{}, filepath.Join(t.TempDir(), "demo-ext"))
+	).Install(t.Context(), "acme/demo-ext", DownloadOpts{}, filepath.Join(t.TempDir(), "demo-ext"))
 	if !errors.Is(err, errArchiveTooLarge) {
 		t.Fatalf("Install() error = %v, want %v", err, errArchiveTooLarge)
 	}
@@ -787,7 +787,7 @@ func testInstallerInstallRequiresManifestAtRoot(t *testing.T) {
 
 	_, err := NewInstaller(
 		downloader,
-	).Install(context.Background(), "acme/missing", DownloadOpts{}, filepath.Join(t.TempDir(), "missing"))
+	).Install(t.Context(), "acme/missing", DownloadOpts{}, filepath.Join(t.TempDir(), "missing"))
 	if !errors.Is(err, errInstallMissingManifest) {
 		t.Fatalf("Install() error = %v, want %v", err, errInstallMissingManifest)
 	}
@@ -811,7 +811,7 @@ func testInstallerInstallCleansUpTempDirOnFailure(t *testing.T) {
 
 	_, err := NewInstaller(
 		downloader,
-	).Install(context.Background(), "acme/missing", DownloadOpts{}, filepath.Join(parent, "missing"))
+	).Install(t.Context(), "acme/missing", DownloadOpts{}, filepath.Join(parent, "missing"))
 	if err == nil {
 		t.Fatal("Install() error = nil, want failure")
 	}
@@ -823,7 +823,7 @@ func testInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testi
 	t.Helper()
 
 	parent := t.TempDir()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	reader := &blockingReadCloser{
 		readStarted: make(chan struct{}),
 		unblockRead: make(chan struct{}),
@@ -874,7 +874,7 @@ func testInstallerInstallRejectsUnexpectedContentType(t *testing.T) {
 
 	_, err := NewInstaller(
 		downloader,
-	).Install(context.Background(), "acme/html", DownloadOpts{}, filepath.Join(t.TempDir(), "html"))
+	).Install(t.Context(), "acme/html", DownloadOpts{}, filepath.Join(t.TempDir(), "html"))
 	if !errors.Is(err, errUnexpectedContentType) {
 		t.Fatalf("Install() error = %v, want %v", err, errUnexpectedContentType)
 	}
@@ -916,7 +916,7 @@ func testInstallerCleansStaleTempDirs(t *testing.T) {
 	_, err := NewInstaller(
 		downloader,
 		WithInstallerNow(func() time.Time { return now }),
-	).Install(context.Background(), "acme/demo-ext", DownloadOpts{}, filepath.Join(parent, "demo-ext"))
+	).Install(t.Context(), "acme/demo-ext", DownloadOpts{}, filepath.Join(parent, "demo-ext"))
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
@@ -966,7 +966,7 @@ func testInstallerReportsStaleTempCleanupRemoveFailures(t *testing.T) {
 	}
 
 	targetDir := filepath.Join(parent, "demo-ext")
-	result, err := installer.Install(context.Background(), "acme/demo-ext", DownloadOpts{}, targetDir)
+	result, err := installer.Install(t.Context(), "acme/demo-ext", DownloadOpts{}, targetDir)
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
@@ -1110,7 +1110,7 @@ func TestInstallerInstallPreservesExistingTargetWhenChecksumFails(t *testing.T) 
 		writeTestFile(t, filepath.Join(targetDir, "extension.toml"), "name = \"demo-ext\"\nversion = \"1.0.0\"\n")
 		writeTestFile(t, filepath.Join(targetDir, "README.md"), "existing package content")
 
-		_, err := NewInstaller(downloader).Install(context.Background(), "acme/demo-ext", DownloadOpts{}, targetDir)
+		_, err := NewInstaller(downloader).Install(t.Context(), "acme/demo-ext", DownloadOpts{}, targetDir)
 		if err == nil {
 			t.Fatal("Install() error = nil, want checksum failure")
 		}
@@ -1163,7 +1163,7 @@ func testInstallerInstallBlocksCriticalVerificationContent(t *testing.T) {
 
 	_, err := NewInstaller(
 		downloader,
-	).Install(context.Background(), "@acme/review", DownloadOpts{}, filepath.Join(t.TempDir(), "review"))
+	).Install(t.Context(), "@acme/review", DownloadOpts{}, filepath.Join(t.TempDir(), "review"))
 	if !errors.Is(err, errVerificationBlocked) {
 		t.Fatalf("Install() error = %v, want %v", err, errVerificationBlocked)
 	}

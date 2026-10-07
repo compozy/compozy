@@ -52,7 +52,7 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 		actor := validActorContext()
 		_, run := enqueueRunForPostCommitHookTest(t, manager, actor)
 
-		started, err := manager.StartRun(context.Background(), run.ID, StartRun{}, actor)
+		started, err := manager.StartRun(t.Context(), run.ID, StartRun{}, actor)
 		if err != nil {
 			t.Fatalf("StartRun(direct) error = %v", err)
 		}
@@ -83,7 +83,7 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 		actor := validActorContext()
 		taskRecord, run := enqueueRunForPostCommitHookTest(t, manager, actor)
 
-		claimed, err := claimExactRunForTest(context.Background(), manager, run.ID, actor)
+		claimed, err := claimExactRunForTest(t.Context(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("claimExactRunForTest() error = %v", err)
 		}
@@ -110,7 +110,7 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 		taskRecord, _ := enqueueRunForPostCommitHookTest(t, manager, actor)
 		claimed := claimNextRunForPostCommitHookTest(t, manager, agent, time.Date(2026, 5, 16, 16, 0, 0, 0, time.UTC))
 
-		heartbeat, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+		heartbeat, err := manager.HeartbeatRunLease(t.Context(), LeaseHeartbeat{
 			RunID:         claimed.Run.ID,
 			ClaimToken:    claimed.ClaimToken,
 			LeaseDuration: 2 * time.Minute,
@@ -147,7 +147,7 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 			time.Date(2026, 5, 16, 16, 30, 0, 0, time.UTC),
 		)
 
-		released, err := manager.ReleaseRunLease(context.Background(), LeaseRelease{
+		released, err := manager.ReleaseRunLease(t.Context(), LeaseRelease{
 			RunID:      claimed.Run.ID,
 			ClaimToken: claimed.ClaimToken,
 			Reason:     "handoff",
@@ -184,7 +184,7 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 			time.Date(2026, 5, 16, 16, 45, 0, 0, time.UTC),
 		)
 
-		failed, err := manager.FailRunLease(context.Background(), LeaseFailure{
+		failed, err := manager.FailRunLease(t.Context(), LeaseFailure{
 			RunID:      claimed.Run.ID,
 			ClaimToken: claimed.ClaimToken,
 			Failure:    RunFailure{Error: "worker failed"},
@@ -216,7 +216,7 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 		taskRecord, _ := enqueueRunForPostCommitHookTest(t, manager, actor)
 		claimed := claimNextRunForPostCommitHookTest(t, manager, agent, time.Date(2026, 5, 16, 17, 0, 0, 0, time.UTC))
 
-		completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		completed, err := manager.CompleteRunLease(t.Context(), LeaseCompletion{
 			RunID:      claimed.Run.ID,
 			ClaimToken: claimed.ClaimToken,
 			Result:     RunResult{},
@@ -239,7 +239,7 @@ func enqueueRunForPostCommitHookTest(
 ) (*Task, *Run) {
 	t.Helper()
 
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
 		Scope:     ScopeGlobal,
 		Title:     "Post-commit hook task",
@@ -247,7 +247,7 @@ func enqueueRunForPostCommitHookTest(
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, actor)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
@@ -262,7 +262,7 @@ func claimNextRunForPostCommitHookTest(
 ) *ClaimResult {
 	t.Helper()
 
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+	claim, err := manager.ClaimNextRun(t.Context(), ClaimCriteria{
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-post-commit-hooks",
 		LeaseDuration:    2 * time.Minute,
@@ -291,7 +291,7 @@ func assertTaskRunEventExists(
 ) {
 	t.Helper()
 
-	events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskID, RunID: runID})
+	events, err := store.ListTaskEvents(t.Context(), EventQuery{TaskID: taskID, RunID: runID})
 	if err != nil {
 		t.Fatalf("ListTaskEvents() error = %v", err)
 	}

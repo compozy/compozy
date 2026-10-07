@@ -32,6 +32,5 @@ func CloneSessionAcceptedRoute(route *SessionAcceptedRoute) *SessionAcceptedRout
 	if route == nil {
 		return nil
 	}
-	normalized := route.Normalize()
-	return &normalized
+	return new(route.Normalize())
 }

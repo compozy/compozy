@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -59,7 +59,7 @@ func uniqueDependentTaskIDs(dependents []Dependency) []string {
 		ids = append(ids, taskID)
 	}
 
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids
 }
 
@@ -112,7 +112,7 @@ func (m *Service) unresolvedDependencyTaskIDsReadOnlyWithStore(
 			unresolved = append(unresolved, dependencyTaskID)
 		}
 	}
-	sort.Strings(unresolved)
+	slices.Sort(unresolved)
 	return unresolved, nil
 }
 

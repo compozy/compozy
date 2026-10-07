@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -51,7 +50,7 @@ func TestSessionAttachmentRequestBodyLimitUsesConfiguredFileCeiling(t *testing.T
 			)
 
 			req := httptest.NewRequestWithContext(
-				context.Background(),
+				t.Context(),
 				http.MethodPost,
 				"http://127.0.0.1/api/workspaces/ws-workspace/sessions/sess-123/attachments",
 				strings.NewReader(strings.Repeat("x", int(tt.bodyBytes))),
@@ -89,7 +88,7 @@ func TestRequestBodyLimitRejectsOversizedChunkedAPIRequestsContract(t *testing.T
 			strings.NewReader(`"}`),
 		)
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"http://127.0.0.1/api/workspaces/ws-workspace/sessions/sess-123/prompt",
 			body,

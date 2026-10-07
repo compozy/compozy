@@ -107,7 +107,7 @@ func TestAutomationLoopStarterDefaultCatchUpPolicyShouldCoalesceWatchLoops(t *te
 			),
 		}
 
-		policy, err := starter.DefaultLoopCatchUpPolicy(context.Background(), automationpkg.LoopCatchUpPolicyRequest{
+		policy, err := starter.DefaultLoopCatchUpPolicy(t.Context(), automationpkg.LoopCatchUpPolicyRequest{
 			WorkspaceID: "ws-1",
 			LoopName:    "watch-loop",
 			Kind:        automationpkg.LoopStartKindSchedule,

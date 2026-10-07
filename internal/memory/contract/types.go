@@ -24,7 +24,7 @@ type Header struct {
 	WorkspaceID string      `json:"workspace_id,omitempty" yaml:"-"`
 	AgentName   string      `json:"agent_name,omitempty"   yaml:"agent,omitempty"`
 	AgentTier   AgentTier   `json:"agent_tier,omitempty"   yaml:"agent_tier,omitempty"`
-	Provenance  *Provenance `json:"provenance,omitempty"   yaml:"provenance,omitempty"`
+	Provenance  *Provenance `json:"provenance,omitzero"    yaml:"provenance,omitempty"`
 }
 
 // Normalize trims and normalizes the parsed memory header metadata in place.
@@ -239,7 +239,7 @@ type Decision struct {
 	Confidence      float32        `json:"confidence"`
 	Source          DecisionSource `json:"source"`
 	RuleTrace       []RuleHit      `json:"rule_trace,omitempty"`
-	LLMTrace        *LLMCall       `json:"llm_trace,omitempty"`
+	LLMTrace        *LLMCall       `json:"llm_trace,omitzero"`
 	Reason          string         `json:"reason,omitempty"`
 	PromptVersion   string         `json:"prompt_version,omitempty"`
 	DecidedAt       time.Time      `json:"decided_at"`
@@ -260,12 +260,12 @@ type Query struct {
 
 // RecallOptions controls deterministic recall packaging.
 type RecallOptions struct {
-	TopK                   int      `json:"top_k,omitempty"`
-	RawCandidates          int      `json:"raw_candidates,omitempty"`
-	IncludeAlreadySurfaced bool     `json:"include_already_surfaced,omitempty"`
-	IncludeSystem          bool     `json:"include_system,omitempty"`
+	TopK                   int      `json:"top_k,omitzero"`
+	RawCandidates          int      `json:"raw_candidates,omitzero"`
+	IncludeAlreadySurfaced bool     `json:"include_already_surfaced,omitzero"`
+	IncludeSystem          bool     `json:"include_system,omitzero"`
 	AlreadySurfaced        []string `json:"already_surfaced,omitempty"`
-	AllowTrivialQuery      bool     `json:"allow_trivial_query,omitempty"`
+	AllowTrivialQuery      bool     `json:"allow_trivial_query,omitzero"`
 }
 
 // CacheStableHeader identifies the prompt-cache-stable header for a recall package.

@@ -32,7 +32,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should expose and clear a clarification through catalog, status, and CLI", func(t *testing.T) {
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		target := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "clarify-attention")
@@ -93,7 +93,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should expire a pre-restart permission and reject a late answer", func(t *testing.T) {
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		target := createFixtureBackedSession(t, ctx, harness, "attention-agent", "permission-attention")
@@ -109,7 +109,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		waitForAttentionStatus(t, ctx, harness, target.ID, session.BadgeWaitingForAuth)
 		awaitAttentionCatalogObservation(t, ctx, catalog)
 
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stopCtx, stopCancel := context.WithTimeout(t.Context(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
 			stopCancel()
 			t.Fatalf("Stop(before attention restart) error = %v", err)
@@ -152,7 +152,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should keep done across status reads until presence marks the session seen", func(t *testing.T) {
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		target := createFixtureBackedSession(t, ctx, harness, "attention-agent", "done-attention")
@@ -173,7 +173,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should expose every bounded wait CLI outcome [E2E-004]", func(t *testing.T) {
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		target := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "wait-journey")
@@ -263,7 +263,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should cancel one prompt and report nothing in flight on replay [E2E-005]", func(t *testing.T) {
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		target := createFixtureBackedSession(t, ctx, harness, "attention-agent", "prompt-cancel-journey")
@@ -306,7 +306,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should complete the zero-polling spawn wake journey [E2E-006]", func(t *testing.T) {
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 		for _, toolID := range []toolspkg.ToolID{
 			toolspkg.ToolIDSessionSpawn,
@@ -426,7 +426,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should keep a native-waiting agent supervision-green [E2E-008]", func(t *testing.T) {
 		options := attentionOrchestrationRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		caller := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "native-wait-caller")
@@ -485,7 +485,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should report truthful notify CLI outcomes and rate-limit a burst", func(t *testing.T) {
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		noClientSender := createFixtureBackedSession(

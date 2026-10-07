@@ -3,8 +3,8 @@ package modelcatalog
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -98,11 +98,8 @@ func (s *ProviderConfigSource) ListModels(
 }
 
 func providerConfigIDs(providers map[string]compozyconfig.ProviderConfig) []string {
-	ids := make([]string, 0, len(providers))
-	for providerID := range providers {
-		ids = append(ids, providerID)
-	}
-	sort.Strings(ids)
+	ids := slices.AppendSeq(make([]string, 0, len(providers)), maps.Keys(providers))
+	slices.Sort(ids)
 	return ids
 }
 

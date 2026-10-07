@@ -65,7 +65,7 @@ func tableColumns(
 
 func assertTableHasColumns(t *testing.T, db *sql.DB, table string, want []string) {
 	t.Helper()
-	columns, err := tableColumns(context.Background(), db, table)
+	columns, err := tableColumns(t.Context(), db, table)
 	if err != nil {
 		t.Fatalf("tableColumns(%q) error = %v", table, err)
 	}

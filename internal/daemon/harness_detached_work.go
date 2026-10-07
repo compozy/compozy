@@ -55,7 +55,7 @@ type detachedHarnessRunMetadata struct {
 	OwnerSessionType     string                    `json:"owner_session_type,omitempty"`
 	OwnerWorkspaceID     string                    `json:"owner_workspace_id,omitempty"`
 	WakeTarget           detachedHarnessWakeTarget `json:"wake_target"`
-	Reentry              *detachedHarnessReentry   `json:"reentry,omitempty"`
+	Reentry              *detachedHarnessReentry   `json:"reentry,omitzero"`
 }
 
 type detachedHarnessReentry struct {

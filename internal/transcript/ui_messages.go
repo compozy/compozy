@@ -56,24 +56,24 @@ type UIMessagePart struct {
 	Output      json.RawMessage `json:"output,omitempty"`
 	ErrorText   string          `json:"errorText,omitempty"`
 	Data        json.RawMessage `json:"data,omitempty"`
-	Preliminary bool            `json:"preliminary,omitempty"`
+	Preliminary bool            `json:"preliminary,omitzero"`
 }
 
 // UITokenUsagePayload mirrors the prompt-stream token usage payload.
 type UITokenUsagePayload struct {
 	Meta             map[string]any `json:"meta,omitempty"`
-	Sequence         *int64         `json:"sequence,omitempty"`
+	Sequence         *int64         `json:"sequence,omitzero"`
 	TurnID           string         `json:"turn_id,omitempty"`
-	InputTokens      *int64         `json:"input_tokens,omitempty"`
-	OutputTokens     *int64         `json:"output_tokens,omitempty"`
-	TotalTokens      *int64         `json:"total_tokens,omitempty"`
-	ThoughtTokens    *int64         `json:"thought_tokens,omitempty"`
-	CacheReadTokens  *int64         `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int64         `json:"cache_write_tokens,omitempty"`
-	ContextUsed      *int64         `json:"context_used,omitempty"`
-	ContextSize      *int64         `json:"context_size,omitempty"`
-	CostAmount       *float64       `json:"cost_amount,omitempty"`
-	CostCurrency     *string        `json:"cost_currency,omitempty"`
+	InputTokens      *int64         `json:"input_tokens,omitzero"`
+	OutputTokens     *int64         `json:"output_tokens,omitzero"`
+	TotalTokens      *int64         `json:"total_tokens,omitzero"`
+	ThoughtTokens    *int64         `json:"thought_tokens,omitzero"`
+	CacheReadTokens  *int64         `json:"cache_read_tokens,omitzero"`
+	CacheWriteTokens *int64         `json:"cache_write_tokens,omitzero"`
+	ContextUsed      *int64         `json:"context_used,omitzero"`
+	ContextSize      *int64         `json:"context_size,omitzero"`
+	CostAmount       *float64       `json:"cost_amount,omitzero"`
+	CostCurrency     *string        `json:"cost_currency,omitzero"`
 	Timestamp        string         `json:"timestamp,omitempty"`
 }
 

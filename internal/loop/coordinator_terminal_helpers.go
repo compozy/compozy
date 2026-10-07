@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -63,8 +64,7 @@ func (r *CoordinatorRunner) terminalForFailedGeneration(
 		return nil, err
 	}
 	if run.IterationCap <= 0 && graphHasWatchSource(graph) && failedGenerationLimitReached(history) {
-		breaker := circuitBreakerTerminal()
-		return &breaker, nil
+		return new(circuitBreakerTerminal()), nil
 	}
 	return &terminal, nil
 }
@@ -228,11 +228,8 @@ func blockingIssueSignature(outputs []GenerationOutput) []string {
 	if len(seen) == 0 {
 		return nil
 	}
-	ids := make([]string, 0, len(seen))
-	for id := range seen {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := slices.AppendSeq(make([]string, 0, len(seen)), maps.Keys(seen))
+	slices.Sort(ids)
 	return ids
 }
 
@@ -258,7 +255,7 @@ func blockingIssueIDs(value string) []string {
 		seen[id] = struct{}{}
 		ids = append(ids, id)
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids
 }
 

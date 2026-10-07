@@ -1500,7 +1500,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 	webhookUpdate := createdWebhook
 	webhookUpdate.Prompt = `Updated payload {{ index .Data "payload" }}`
 	webhookUpdate.EndpointSlug = "deploy-review-updated"
-	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, webhookSecretWritePtr("secret-v2"))
+	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, new(webhookSecretWrite("secret-v2")))
 	if err != nil {
 		t.Fatalf("manager.UpdateTrigger(webhook) error = %v", err)
 	}
@@ -1861,7 +1861,7 @@ func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
 	webhookUpdate.Filter = map[string]string{"data.payload": "deploy"}
 	webhookUpdate.EndpointSlug = "transition-trigger"
 	webhookUpdate.Prompt = `Webhook {{ index .Data "payload" }}`
-	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, webhookSecretWritePtr("transition-secret"))
+	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, new(webhookSecretWrite("transition-secret")))
 	if err != nil {
 		t.Fatalf("manager.UpdateTrigger(webhook) error = %v", err)
 	}
@@ -2671,13 +2671,7 @@ func managerConfigTrigger(
 }
 
 func webhookSecretWrite(value string) WebhookSecretWrite {
-	trimmed := strings.TrimSpace(value)
-	return WebhookSecretWrite{Value: &trimmed}
-}
-
-func webhookSecretWritePtr(value string) *WebhookSecretWrite {
-	write := webhookSecretWrite(value)
-	return &write
+	return WebhookSecretWrite{Value: new(strings.TrimSpace(value))}
 }
 
 func findJobByID(jobs []Job, id string) *Job {

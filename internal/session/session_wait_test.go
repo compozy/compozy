@@ -465,7 +465,7 @@ func TestWaitForBadgeEnforcesBoundsAndGaplessResume(t *testing.T) {
 		awaitWaitTimerCount(t, clock, 1)
 		clock.Advance(time.Minute)
 		timedOut := awaitWaitCall(t, result)
-		for index := 0; index <= WaitEdgeBufferSize; index++ {
+		for index := range WaitEdgeBufferSize + 1 {
 			badge := BadgeRunning
 			if index%2 == 1 {
 				badge = BadgeHung
@@ -541,7 +541,7 @@ func TestWaitForBadgeEmitsCompletionObservability(t *testing.T) {
 		if timedOut.err != nil || timedOut.outcome.Outcome != WaitResultTimeout {
 			t.Fatalf("WaitForBadge(timeout) = %#v, error = %v", timedOut.outcome, timedOut.err)
 		}
-		for index := 0; index <= WaitEdgeBufferSize; index++ {
+		for range WaitEdgeBufferSize + 1 {
 			h.manager.publishWaitBadgeEdge(session.Info(), BadgeRunning)
 		}
 		resumed, err := h.manager.WaitForBadge(testutil.Context(t), WaitRequest{

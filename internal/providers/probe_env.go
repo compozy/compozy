@@ -147,8 +147,7 @@ func cloneExecutableResolution(
 	if resolution == nil {
 		return nil
 	}
-	clone := resolution.Clone()
-	return &clone
+	return new(resolution.Clone())
 }
 
 func (e *ProbeEnv) launchResolution() subprocess.ExecutableResolution {

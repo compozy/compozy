@@ -1,10 +1,11 @@
 package cli
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -35,8 +36,8 @@ func normalizeLoopReadError(runID string, err error) error {
 	if err == nil {
 		return nil
 	}
-	var apiErr *daemonAPIError
-	if !errors.As(err, &apiErr) {
+	apiErr, apiErrOK := errors.AsType[*daemonAPIError](err)
+	if !apiErrOK {
 		return err
 	}
 	switch strings.TrimSpace(apiErr.payload.Code) {
@@ -307,8 +308,8 @@ func loadLoopTimeline(
 }
 
 func sortTimelineEntries(entries []looppkg.TimelineEntry) {
-	sort.SliceStable(entries, func(i, j int) bool {
-		return entries[i].Seq < entries[j].Seq
+	slices.SortStableFunc(entries, func(left, right looppkg.TimelineEntry) int {
+		return cmp.Compare(left.Seq, right.Seq)
 	})
 }
 

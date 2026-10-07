@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
@@ -242,10 +243,7 @@ func loopRunNodeHumanRow(item looppkg.RosterNode) []string {
 	if item.StartedAt != nil && item.EndedAt != nil {
 		duration = formatLoopReadDuration(item.EndedAt.Sub(*item.StartedAt))
 	}
-	sessionID := item.SessionID
-	if sessionID == "" {
-		sessionID = "—"
-	}
+	sessionID := cmp.Or(item.SessionID, "—")
 	return []string{
 		"g" + strconv.Itoa(item.Generation),
 		string(item.NodeID),

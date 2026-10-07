@@ -496,8 +496,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		}
 		mapped := nativeLoopReasonToolError(toolspkg.ToolIDLoopNodeRequeue, lifecycleErr)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(mapped, &toolErr) || toolErr.Code != toolspkg.ErrorCodeConflict ||
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](mapped)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeConflict ||
 			!errors.Is(mapped, toolspkg.ErrToolConflict) ||
 			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonLoopAlreadyDecided) ||
 			toolErr.PartialResult == nil {

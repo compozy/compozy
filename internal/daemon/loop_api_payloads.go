@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -207,14 +209,12 @@ func loopLintErrorsPayload(errors []looppkg.LintError) []contract.LoopLintErrorP
 			Severity: contract.LoopLintSeverity(item.Severity),
 		})
 	}
-	sort.SliceStable(payloads, func(left, right int) bool {
-		if payloads[left].NodeID != payloads[right].NodeID {
-			return payloads[left].NodeID < payloads[right].NodeID
-		}
-		if payloads[left].Path != payloads[right].Path {
-			return payloads[left].Path < payloads[right].Path
-		}
-		return payloads[left].Code < payloads[right].Code
+	slices.SortStableFunc(payloads, func(a, b contract.LoopLintErrorPayload) int {
+		return cmp.Or(
+			strings.Compare(a.NodeID, b.NodeID),
+			strings.Compare(a.Path, b.Path),
+			strings.Compare(a.Code, b.Code),
+		)
 	})
 	return payloads
 }

@@ -103,16 +103,14 @@ func cloneBoolPtr(value *bool) *bool {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneEffortPtr(value *ReasoningEffort) *ReasoningEffort {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 // cloneStringPtr prevents merged optional metadata from aliasing source-owned storage.
@@ -120,8 +118,7 @@ func cloneStringPtr(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 // hasACPModelOptions recognizes a complete selected-model observation, even when effort is absent.

@@ -40,7 +40,7 @@ type MemoryDreamTriggerRequest struct {
 	WorkspaceID string                `json:"workspace_id,omitempty"`
 	AgentName   string                `json:"agent_name,omitempty"`
 	AgentTier   memcontract.AgentTier `json:"agent_tier,omitempty"`
-	Force       bool                  `json:"force,omitempty"`
+	Force       bool                  `json:"force,omitzero"`
 }
 
 // MemoryDreamTriggerResponse reports the requested dreaming run.
@@ -53,7 +53,7 @@ type MemoryDreamTriggerResponse struct {
 // MemoryDreamRetryRequest asks the daemon to retry a failed dreaming run.
 type MemoryDreamRetryRequest struct {
 	FailureID string `json:"failure_id,omitempty"`
-	Force     bool   `json:"force,omitempty"`
+	Force     bool   `json:"force,omitzero"`
 }
 
 // MemoryDreamRetryResponse reports the retried dreaming run.

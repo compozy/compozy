@@ -348,7 +348,7 @@ func (s *Service) readOriginRemoteURLs(ctx context.Context, path string) ([]stri
 	stdout, stderr, err := s.runner.Run(ctx, path, "remote", "get-url", "--all", "origin")
 	if err != nil {
 		var exitError interface{ ExitCode() int }
-		if errors.As(err, &exitError) && exitError.ExitCode() == 2 {
+		if errors.As(err, &exitError) && exitError.ExitCode() == 2 { //nolint:forbidigo // ExitCode is not error.
 			return nil, nil
 		}
 		safe := diagnostics.RedactAndBound(exitCommandOutput(stdout, stderr, err), 2048)

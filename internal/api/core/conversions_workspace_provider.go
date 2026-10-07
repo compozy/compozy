@@ -3,9 +3,10 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -126,11 +127,7 @@ func sortSessionProviderOptionPayloads(
 	values map[string]contract.SessionProviderOptionPayload,
 	defaultProvider string,
 ) []contract.SessionProviderOptionPayload {
-	names := make([]string, 0, len(values))
-	for name := range values {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(values))
 	defaultProvider = compozyconfig.CanonicalProviderName(defaultProvider)
 	if defaultProvider != "" {
 		for i, name := range names {

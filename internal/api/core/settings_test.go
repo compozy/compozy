@@ -4622,7 +4622,7 @@ func TestStreamSettingsObservabilityLogTailEmitsSSEEvent(t *testing.T) {
 	server := httptest.NewServer(fixture.Engine)
 	defer server.Close()
 
-	reqCtx, cancel := context.WithCancel(context.Background())
+	reqCtx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(

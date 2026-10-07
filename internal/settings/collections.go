@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -167,7 +167,7 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *compozyconfig.Con
 		}
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	items := make([]ProviderItem, 0, len(names))
 	for _, name := range names {

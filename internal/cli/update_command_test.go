@@ -494,13 +494,11 @@ func TestLocalRestartStatusDuringBoot(t *testing.T) {
 			}
 			if phase == compozydaemon.RestartStatusFailed {
 				record.FailureReason = "replacement exited"
-				completed := fixedTestNow
-				record.CompletedAt = &completed
+				record.CompletedAt = new(fixedTestNow)
 			}
 			if phase == compozydaemon.RestartStatusReady {
 				record.NewPID = 2
-				completed := fixedTestNow
-				record.CompletedAt = &completed
+				record.CompletedAt = new(fixedTestNow)
 			}
 			data, err := json.Marshal(record)
 			if err != nil {

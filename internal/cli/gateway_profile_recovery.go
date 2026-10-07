@@ -259,8 +259,8 @@ func newGatewayPairingRecoveryPendingError(cause error) error {
 }
 
 func isGatewayPairingRecoveryPending(err error) bool {
-	var clientErr *gatewayClientError
-	return errors.As(err, &clientErr) && clientErr.code == gatewayPairingRecoveryPendingCode
+	clientErr, clientErrOK := errors.AsType[*gatewayClientError](err)
+	return clientErrOK && clientErr.code == gatewayPairingRecoveryPendingCode
 }
 
 func probePendingGatewayPairing(
@@ -343,7 +343,7 @@ func gatewayPairingCredentialRejected(err error) bool {
 		return false
 	}
 	var payloadError interface{ errorPayload() contract.ErrorPayload }
-	return errors.As(err, &payloadError) &&
+	return errors.As(err, &payloadError) && //nolint:forbidigo // Target only has errorPayload, not Error.
 		payloadError.errorPayload().Code == gatewayDeviceUnauthenticatedCode
 }
 

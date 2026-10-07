@@ -116,15 +116,15 @@ func (o *boundedCommandOutput) Write(chunk []byte) (int, error) {
 }
 
 func parseLoginShellPath(output []byte) (string, error) {
-	end := bytes.LastIndexByte(output, 0)
-	if end < 0 {
+	before, _, found := bytes.CutLast(output, []byte{0})
+	if !found {
 		return "", errors.New("procutil: login shell PATH terminator is missing")
 	}
-	start := bytes.LastIndexByte(output[:end], 0)
-	if start < 0 {
+	_, path, found := bytes.CutLast(before, []byte{0})
+	if !found {
 		return "", errors.New("procutil: login shell PATH delimiter is missing")
 	}
-	return string(output[start+1 : end]), nil
+	return string(path), nil
 }
 
 func validateLoginShellPath(path string) (string, error) {

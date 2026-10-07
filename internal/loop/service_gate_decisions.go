@@ -3,7 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,6 +69,6 @@ func activeHumanCriterionIDs(raw json.RawMessage) ([]string, error) {
 		seen[id] = struct{}{}
 		ids = append(ids, id)
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids, nil
 }

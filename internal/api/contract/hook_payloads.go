@@ -41,7 +41,7 @@ type HookCatalogPayload struct {
 	Mode         string               `json:"mode"`
 	Required     bool                 `json:"required"`
 	Priority     int                  `json:"priority"`
-	TimeoutMS    int64                `json:"timeout_ms,omitempty"`
+	TimeoutMS    int64                `json:"timeout_ms,omitzero"`
 	ExecutorKind string               `json:"executor_kind,omitempty"`
 	Matcher      hookspkg.HookMatcher `json:"matcher"`
 	Metadata     map[string]string    `json:"metadata,omitempty"`
@@ -58,7 +58,7 @@ type HookRunPayload struct {
 	DispatchDepth int             `json:"dispatch_depth"`
 	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
 	Error         string          `json:"error,omitempty"`
-	Required      bool            `json:"required,omitempty"`
+	Required      bool            `json:"required,omitzero"`
 	RecordedAt    time.Time       `json:"recorded_at"`
 }
 

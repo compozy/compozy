@@ -1,8 +1,6 @@
 package e2e
 
 import (
-	"context"
-
 	"errors"
 	"fmt"
 
@@ -71,7 +69,7 @@ func buildCompozyBinary(t testing.TB) string {
 
 	binaryPath := filepath.Join(os.TempDir(), fmt.Sprintf("compozy-e2e-%d", os.Getpid()))
 	// #nosec G204 -- test harness builds the local compozy binary from the checked-out repository.
-	cmd := execabs.CommandContext(context.Background(), "go", "build", "-o", binaryPath, "./cmd/compozy")
+	cmd := execabs.CommandContext(t.Context(), "go", "build", "-o", binaryPath, "./cmd/compozy")
 	cmd.Dir = repoRoot
 	output, err := cmd.CombinedOutput()
 	if err != nil {

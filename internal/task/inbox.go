@@ -76,7 +76,7 @@ type InboxItem struct {
 	ApprovalState    ApprovalState  `json:"approval_state,omitempty"`
 	BlockingReason   string         `json:"blocking_reason,omitempty"`
 	LatestActivityAt time.Time      `json:"latest_activity_at"`
-	Run              *RunSummary    `json:"run,omitempty"`
+	Run              *RunSummary    `json:"run,omitzero"`
 	Triage           TriageState    `json:"triage"`
 }
 

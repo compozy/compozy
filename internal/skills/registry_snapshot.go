@@ -59,25 +59,12 @@ func mergedSkillList(globalSkills, workspaceSkills map[string]*Skill) []*Skill {
 		return cloneSortedSkillList(workspaceSkills)
 	}
 
-	names := make([]string, 0, len(globalSkills)+len(workspaceSkills))
-	for name := range globalSkills {
-		names = append(names, name)
-	}
-	for name := range workspaceSkills {
-		names = append(names, name)
-	}
+	names := slices.AppendSeq(make([]string, 0, len(globalSkills)+len(workspaceSkills)), maps.Keys(globalSkills))
+	names = slices.AppendSeq(names, maps.Keys(workspaceSkills))
 	slices.Sort(names)
 
 	skills := make([]*Skill, 0, len(names))
-	previous := ""
-	havePrevious := false
-	for _, name := range names {
-		if havePrevious && name == previous {
-			continue
-		}
-		havePrevious = true
-		previous = name
-
+	for _, name := range slices.Compact(names) {
 		if skill, ok := workspaceSkills[name]; ok {
 			cloned := cloneSkill(skill)
 			if global := globalSkills[name]; global != nil {
@@ -156,11 +143,7 @@ func cloneSortedSkillList(skillsByName map[string]*Skill) []*Skill {
 		return nil
 	}
 
-	names := make([]string, 0, len(skillsByName))
-	for name := range skillsByName {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(skillsByName))
 
 	cloned := make([]*Skill, 0, len(names))
 	for _, name := range names {
@@ -188,8 +171,7 @@ func cloneSkill(skill *Skill) *Skill {
 			cloned.SecretEnv = cloneStringMap(decl.SecretEnv)
 			cloned.Metadata = cloneStringMap(decl.Metadata)
 			if decl.Matcher.ToolReadOnly != nil {
-				value := *decl.Matcher.ToolReadOnly
-				cloned.Matcher.ToolReadOnly = &value
+				cloned.Matcher.ToolReadOnly = new(*decl.Matcher.ToolReadOnly)
 			}
 			clone.Hooks = append(clone.Hooks, normalizeSkillHookDecl(skill, cloned, idx, len(skill.Hooks)))
 		}
@@ -254,14 +236,7 @@ func cloneMCPServerDecls(decls []MCPServerDecl) []MCPServerDecl {
 }
 
 func cloneStringMap(input map[string]string) map[string]string {
-	if input == nil {
-		return nil
-	}
-
-	clone := make(map[string]string, len(input))
-	maps.Copy(clone, input)
-
-	return clone
+	return maps.Clone(input)
 }
 
 func cloneProvenance(provenance *Provenance) *Provenance {
@@ -269,8 +244,7 @@ func cloneProvenance(provenance *Provenance) *Provenance {
 		return nil
 	}
 
-	clone := *provenance
-	return &clone
+	return new(*provenance)
 }
 
 func (r *Registry) globalSnapshotState() (map[string]filesnap.Snapshot, bool) {

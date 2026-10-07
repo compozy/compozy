@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -266,12 +267,9 @@ func SecretLikeEnvName(name string) bool {
 	if nonCredentialEnvName(normalized) {
 		return false
 	}
-	for _, needle := range secretLikeEnvNeedles {
-		if strings.Contains(normalized, needle) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(secretLikeEnvNeedles, func(needle string) bool {
+		return strings.Contains(normalized, needle)
+	})
 }
 
 func nonCredentialEnvName(name string) bool {

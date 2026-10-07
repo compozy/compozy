@@ -50,9 +50,8 @@ func classifyExit(err error, command *exec.Cmd) Exit {
 	if signal := processSignal(command.ProcessState); signal != "" {
 		return Exit{Cause: "signaled", Signal: &signal}
 	}
-	if err == nil || errors.As(err, new(*exec.ExitError)) {
-		code := command.ProcessState.ExitCode()
-		return Exit{Cause: exitCauseExited, Code: &code}
+	if _, ok := errors.AsType[*exec.ExitError](err); err == nil || ok {
+		return Exit{Cause: exitCauseExited, Code: new(command.ProcessState.ExitCode())}
 	}
 	return Exit{Cause: exitCauseUnknown}
 }

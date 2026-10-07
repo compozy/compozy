@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,7 +43,7 @@ func TestActiveSkillsForHookDeclarations(t *testing.T) {
 		}
 
 		activeSkills, err := activeSkillsForHookDeclarations(
-			context.Background(),
+			t.Context(),
 			registry,
 			resolved,
 			"broken-agent",

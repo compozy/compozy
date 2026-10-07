@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	mcpgo "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -42,7 +43,7 @@ func ServeHTTP(
 	if logger == nil {
 		logger = slog.Default()
 	}
-	serveSessionID := uuid.NewString()
+	serveSessionID := uuid.NewV4().String()
 	mcpServer, err := newHostAPIMCPServer(invoker, serveSessionID, workspace)
 	if err != nil {
 		return err
