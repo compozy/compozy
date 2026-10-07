@@ -1351,8 +1351,8 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 	t.Run("Should run the same preflight before dry-run and tag publication", func(t *testing.T) {
 		t.Parallel()
 		releasePRTrigger := "startsWith(github.event.pull_request.title, 'build: release ')"
-		if got := strings.Count(workflow, releasePRTrigger); got != 5 {
-			t.Fatalf("semantic release PR trigger count = %d, want 5", got)
+		if got := strings.Count(workflow, releasePRTrigger); got != 6 {
+			t.Fatalf("semantic release PR trigger count = %d, want 6", got)
 		}
 		assertContainsText(
 			t,
