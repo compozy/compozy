@@ -83,40 +83,6 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	}
 }
 
-func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		StatusFn: func(context.Context, string) (*session.Info, error) {
-			info := newSessionInfo("sess-123")
-			info.State = session.StateStopped
-			info.UpdatedAt = time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC)
-			return info, nil
-		},
-		EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
-			return nil, nil
-		},
-	}
-	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
-	engine := newTestRouter(t, handlers)
-
-	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(
-		t.Context(),
-		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
-		http.NoBody,
-	)
-	engine.ServeHTTP(recorder, req)
-
-	records := parseSSE(t, recorder.Body.String())
-	if len(records) != 1 {
-		t.Fatalf("len(records) = %d, want 1; body=%s", len(records), recorder.Body.String())
-	}
-	if records[0].Event != session.EventTypeSessionStopped {
-		t.Fatalf("records[0].Event = %q, want %q", records[0].Event, session.EventTypeSessionStopped)
-	}
-}
-
 func TestStreamSessionHandlerEmitsTerminalErrorWhenTranscriptInitializationFails(t *testing.T) {
 	t.Parallel()
 

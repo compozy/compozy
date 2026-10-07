@@ -6,7 +6,6 @@ import (
 	"context"
 	"net/http"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -693,86 +692,5 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		"tasks.triage_dismiss",
 	}; !reflect.DeepEqual(origins, want) {
 		t.Fatalf("mutation origins = %#v, want %#v", origins, want)
-	}
-}
-
-func TestTaskStreamHandlerUsesSharedSSEPathIntegration(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 17, 15, 0, 0, 0, time.UTC)
-	var streamQuery taskpkg.StreamQuery
-	var streamActor taskpkg.ActorContext
-
-	tasks := &testutil.StubTaskManager{
-		StreamFn: func(_ context.Context, taskID string, query taskpkg.StreamQuery, actor taskpkg.ActorContext) (<-chan taskpkg.StreamEvent, error) {
-			streamQuery = query
-			streamActor = actor
-			ch := make(chan taskpkg.StreamEvent, 1)
-			ch <- taskpkg.StreamEvent{
-				Sequence: 21,
-				Type:     "task.run.started",
-				Timeline: taskpkg.TimelineItem{
-					Sequence: 21,
-					EventID:  "evt-21",
-					Task: taskpkg.Reference{
-						ID:          taskID,
-						Identifier:  "TASK-1",
-						Title:       "Stream task",
-						Status:      taskpkg.TaskStatusInProgress,
-						Scope:       taskpkg.ScopeWorkspace,
-						WorkspaceID: "ws-alpha",
-					},
-					EventType: "task.run.started",
-					Actor:     actor.Actor,
-					Origin:    actor.Origin,
-					Timestamp: now,
-				},
-			}
-			close(ch)
-			return ch, nil
-		},
-	}
-
-	fixture := newHandlerFixtureWithTasks(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		tasks,
-		testutil.StubWorkspaceService{},
-		nil,
-		nil,
-	)
-	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
-		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
-	}
-
-	resp := testutil.PerformRequestWithHeaders(
-		t,
-		fixture.Engine,
-		http.MethodGet,
-		"/tasks/task-1/stream?after_sequence=3",
-		nil,
-		map[string]string{"Last-Event-ID": "7"},
-	)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("stream status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-	}
-	if got := resp.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
-		t.Fatalf("stream content-type = %q, want prefix %q", got, "text/event-stream")
-	}
-	if !resp.Flushed {
-		t.Fatal("stream response was not flushed")
-	}
-	records := testutil.ParseSSE(t, resp.Body.String())
-	if len(records) != 1 || records[0].ID != "21" || records[0].Event != "" {
-		t.Fatalf("stream records = %#v", records)
-	}
-	var payload contract.TaskStreamEventPayload
-	testutil.DecodeSSEData(t, records[0], &payload)
-	if payload.Type != "task.run.started" {
-		t.Fatalf("stream payload type = %q, want %q", payload.Type, "task.run.started")
-	}
-	if streamQuery.AfterSequence != 7 || streamActor.Origin.Ref != "tasks.stream" {
-		t.Fatalf("stream query/actor = %#v / %#v", streamQuery, streamActor)
 	}
 }

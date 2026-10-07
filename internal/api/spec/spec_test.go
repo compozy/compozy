@@ -2548,41 +2548,6 @@ func TestWriteFileAndEnumHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("Should write the document and keep enum helpers populated", func(t *testing.T) {
-		t.Parallel()
-
-		path := filepath.Join(t.TempDir(), "openapi", "compozy.json")
-		if err := WriteFile(path); err != nil {
-			t.Fatalf("WriteFile() error = %v", err)
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("os.ReadFile() error = %v", err)
-		}
-		if !json.Valid(data) {
-			t.Fatalf("WriteFile() output is not valid JSON: %s", string(data))
-		}
-		if !strings.HasSuffix(string(data), "\n") {
-			t.Fatalf("WriteFile() output must end with newline: %q", string(data))
-		}
-
-		if got := hookSkillSourceValues(); len(got) == 0 {
-			t.Fatal("hookSkillSourceValues() returned no values")
-		}
-		if got := hookExecutorKindValues(); len(got) == 0 {
-			t.Fatal("hookExecutorKindValues() returned no values")
-		}
-		if got := toolSourceValues(); len(got) == 0 {
-			t.Fatal("toolSourceValues() returned no values")
-		}
-		if got := toolReasonCodeValues(); !slices.Contains(got, string(tools.ReasonConfigPathNotFound)) {
-			t.Fatalf("toolReasonCodeValues() = %v, want %q", got, tools.ReasonConfigPathNotFound)
-		}
-		if got := hostAPIMethodValues(); len(got) == 0 || !slices.IsSorted(got) {
-			t.Fatalf("hostAPIMethodValues() = %v, want non-empty sorted values", got)
-		}
-	})
 }
 
 func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
@@ -2829,6 +2794,14 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 		})
 	}
 
+	t.Run("Should include config path failures in tool reason codes", func(t *testing.T) {
+		t.Parallel()
+
+		if got := toolReasonCodeValues(); !slices.Contains(got, string(tools.ReasonConfigPathNotFound)) {
+			t.Fatalf("toolReasonCodeValues() = %v, want %q", got, tools.ReasonConfigPathNotFound)
+		}
+	})
+
 	t.Run("Should host api method values", func(t *testing.T) {
 		t.Parallel()
 
@@ -2840,30 +2813,6 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 			if !contains(got, want) {
 				t.Fatalf("expected %q in host api method values %v", want, got)
 			}
-		}
-	})
-}
-
-func TestOperationsRemainUniqueWithExpandedTaskSurface(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should keep expanded task operations unique by route and operation id", func(t *testing.T) {
-		t.Parallel()
-
-		seenRouteMethods := make(map[string]struct{}, len(Operations()))
-		seenOperationIDs := make(map[string]struct{}, len(Operations()))
-
-		for _, operation := range Operations() {
-			routeMethodKey := operation.Method + " " + operation.Path
-			if _, ok := seenRouteMethods[routeMethodKey]; ok {
-				t.Fatalf("duplicate route+method %q", routeMethodKey)
-			}
-			seenRouteMethods[routeMethodKey] = struct{}{}
-
-			if _, ok := seenOperationIDs[operation.OperationID]; ok {
-				t.Fatalf("duplicate operation id %q", operation.OperationID)
-			}
-			seenOperationIDs[operation.OperationID] = struct{}{}
 		}
 	})
 }

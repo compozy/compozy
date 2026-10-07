@@ -9,12 +9,13 @@ import (
 
 func TestMarketplaceOperations(t *testing.T) {
 	t.Parallel()
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
 	t.Run("Should publish experimental source operations with complete diagnostic arrays", func(t *testing.T) {
 		t.Parallel()
-		doc, err := Document()
-		if err != nil {
-			t.Fatal(err)
-		}
+
 		for _, request := range []struct{ path, method string }{
 			{"/api/marketplace/sources", "GET"}, {"/api/marketplace/sources", "POST"},
 			{"/api/marketplace/sources/{name}", "PATCH"}, {"/api/marketplace/sources/{name}", "DELETE"},
@@ -97,11 +98,6 @@ func TestMarketplaceOperations(t *testing.T) {
 	t.Run("Should expose truthful stale state on browse and refresh responses", func(t *testing.T) {
 		t.Parallel()
 
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
-
 		browse := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace", "GET"), 200)
 		assertRequired(t, browse, "total", "revision", "sources", "stale", "items")
 		assertNotRequired(t, browse, "next_cursor", "error_class", "error")
@@ -117,11 +113,6 @@ func TestMarketplaceOperations(t *testing.T) {
 
 	t.Run("Should own marketplace parameters and response statuses", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 
 		type parameterExpectation struct {
 			name     string

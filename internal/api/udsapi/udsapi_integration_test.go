@@ -578,6 +578,62 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		listed.Records[0].Version != updated.Record.Version {
 		t.Fatalf("listed records = %#v, want updated demo record", listed.Records)
 	}
+
+	staleDelete := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		"http://unix/api/resources/integration.fixture/demo",
+		[]byte(fmt.Sprintf(`{"expected_version":%d}`, created.Record.Version)),
+		nil,
+	)
+	if staleDelete.StatusCode != http.StatusConflict {
+		body := readAndCloseHTTPBody(t, staleDelete)
+		t.Fatalf(
+			"stale delete status = %d, want %d; body=%s",
+			staleDelete.StatusCode,
+			http.StatusConflict,
+			string(body),
+		)
+	}
+	closeHTTPBody(t, staleDelete.Body)
+
+	deleteResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		"http://unix/api/resources/integration.fixture/demo",
+		[]byte(fmt.Sprintf(`{"expected_version":%d}`, updated.Record.Version)),
+		nil,
+	)
+	if deleteResp.StatusCode != http.StatusNoContent {
+		body := readAndCloseHTTPBody(t, deleteResp)
+		t.Fatalf(
+			"delete resource status = %d, want %d; body=%s",
+			deleteResp.StatusCode,
+			http.StatusNoContent,
+			string(body),
+		)
+	}
+	closeHTTPBody(t, deleteResp.Body)
+
+	getResp = mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/resources/integration.fixture/demo",
+		nil,
+		nil,
+	)
+	if getResp.StatusCode != http.StatusNotFound {
+		body := readAndCloseHTTPBody(t, getResp)
+		t.Fatalf(
+			"get deleted resource status = %d, want %d; body=%s",
+			getResp.StatusCode,
+			http.StatusNotFound,
+			string(body),
+		)
+	}
 }
 
 func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
@@ -711,106 +767,6 @@ func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
 			t.Fatalf("projected tool description = %q, want %q", got, want)
 		}
 	})
-}
-
-func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-
-	createResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPut,
-		"http://unix/api/resources/integration.fixture/demo",
-		[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
-		nil,
-	)
-	if createResp.StatusCode != http.StatusCreated {
-		body := readAndCloseHTTPBody(t, createResp)
-		t.Fatalf(
-			"create resource status = %d, want %d; body=%s",
-			createResp.StatusCode,
-			http.StatusCreated,
-			string(body),
-		)
-	}
-	var created contract.ResourceResponse
-	decodeHTTPJSON(t, createResp, &created)
-
-	updateResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPut,
-		"http://unix/api/resources/integration.fixture/demo",
-		[]byte(
-			fmt.Sprintf(
-				`{"scope":{"kind":"user"},"expected_version":%d,"spec":{"enabled":false}}`,
-				created.Record.Version,
-			),
-		),
-		nil,
-	)
-	if updateResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, updateResp)
-		t.Fatalf("update resource status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
-	}
-	var updated contract.ResourceResponse
-	decodeHTTPJSON(t, updateResp, &updated)
-
-	staleDelete := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodDelete,
-		"http://unix/api/resources/integration.fixture/demo",
-		[]byte(fmt.Sprintf(`{"expected_version":%d}`, created.Record.Version)),
-		nil,
-	)
-	if staleDelete.StatusCode != http.StatusConflict {
-		body := readAndCloseHTTPBody(t, staleDelete)
-		t.Fatalf(
-			"stale delete status = %d, want %d; body=%s",
-			staleDelete.StatusCode,
-			http.StatusConflict,
-			string(body),
-		)
-	}
-	closeHTTPBody(t, staleDelete.Body)
-
-	deleteResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodDelete,
-		"http://unix/api/resources/integration.fixture/demo",
-		[]byte(fmt.Sprintf(`{"expected_version":%d}`, updated.Record.Version)),
-		nil,
-	)
-	if deleteResp.StatusCode != http.StatusNoContent {
-		body := readAndCloseHTTPBody(t, deleteResp)
-		t.Fatalf(
-			"delete resource status = %d, want %d; body=%s",
-			deleteResp.StatusCode,
-			http.StatusNoContent,
-			string(body),
-		)
-	}
-	closeHTTPBody(t, deleteResp.Body)
-
-	getResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		"http://unix/api/resources/integration.fixture/demo",
-		nil,
-		nil,
-	)
-	if getResp.StatusCode != http.StatusNotFound {
-		body := readAndCloseHTTPBody(t, getResp)
-		t.Fatalf(
-			"get deleted resource status = %d, want %d; body=%s",
-			getResp.StatusCode,
-			http.StatusNotFound,
-			string(body),
-		)
-	}
 }
 
 func TestUDSAutomationJobsRoundTrip(t *testing.T) {

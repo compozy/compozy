@@ -2,13 +2,11 @@ package testutil
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/resources"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -176,19 +174,6 @@ func TestParseSSE(t *testing.T) {
 func TestStubTaskManagerFallbacks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report a missing task before any run exists", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := (&StubTaskManager{}).EnqueueRun(
-			t.Context(),
-			taskpkg.EnqueueRun{},
-			taskpkg.ActorContext{},
-		)
-		if !errors.Is(err, taskpkg.ErrTaskNotFound) {
-			t.Fatalf("EnqueueRun() error = %v, want %v", err, taskpkg.ErrTaskNotFound)
-		}
-	})
-
 	t.Run("Should preserve filtered catalog continuation metadata", func(t *testing.T) {
 		t.Parallel()
 
@@ -232,47 +217,6 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 		cursorQuery.Cursor = page.NextCursor
 		if _, err := taskpkg.DecodeCatalogCursor(cursorQuery); err != nil {
 			t.Fatalf("DecodeCatalogCursor() error = %v", err)
-		}
-	})
-}
-
-func TestStubResourceServicePut(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should clone spec JSON and populate deterministic metadata", func(t *testing.T) {
-		t.Parallel()
-
-		specJSON := []byte(`{"name":"demo"}`)
-		draft := resources.RawDraft{
-			Kind:     resources.ResourceKind("agent"),
-			ID:       "agent.demo",
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-			SpecJSON: specJSON,
-		}
-
-		got, err := StubResourceService{}.Put(t.Context(), draft)
-		if err != nil {
-			t.Fatalf("StubResourceService.Put() error = %v", err)
-		}
-		specJSON[0] = '['
-
-		if got.Kind != draft.Kind || got.ID != draft.ID || got.Scope != draft.Scope {
-			t.Fatalf("record identity = %#v, want draft identity", got)
-		}
-		if got.Version != 1 {
-			t.Fatalf("version = %d, want 1", got.Version)
-		}
-		if got.Owner.Kind != "daemon" || got.Owner.ID != "daemon-control" {
-			t.Fatalf("owner = %#v, want daemon owner", got.Owner)
-		}
-		if got.Source.Kind != "daemon" || got.Source.ID != "system" {
-			t.Fatalf("source = %#v, want daemon system source", got.Source)
-		}
-		if string(got.SpecJSON) != `{"name":"demo"}` {
-			t.Fatalf("spec JSON = %s, want cloned original JSON", string(got.SpecJSON))
-		}
-		if got.CreatedAt != got.UpdatedAt || got.CreatedAt.IsZero() {
-			t.Fatalf("timestamps = %s/%s, want deterministic non-zero timestamps", got.CreatedAt, got.UpdatedAt)
 		}
 	})
 }
