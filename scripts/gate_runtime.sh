@@ -136,11 +136,18 @@ root_lint_covers_modules() {
   normalized_go_scopes | grep -Fx './...' >/dev/null
 }
 
+# The tree fingerprint alone does not prove the cached command checked every module.
+root_lint_record_covers_modules() {
+  local rec="$1" scopes
+  record_current "$rec" || return 1
+  scopes="$(record_field "$rec" command | sed -n 's/^env COMPOZY_GO_LINT_SCOPES=\(.*\) make go-lint$/\1/p')"
+  printf '%s\n' "$scopes" | tr '[:space:]' '\n' | grep -Fx './...' >/dev/null
+}
+
 run_module_lint() {
   local id="$1" module="$2" root_record
-  if root_lint_covers_modules; then
-    root_record="$(record_path go-lint)"
-    record_current "$root_record" || die "root lint coverage requires current passing evidence"
+  root_record="$(record_path go-lint)"
+  if root_lint_covers_modules && root_lint_record_covers_modules "$root_record"; then
     write_record "$id" pass "covered by go-lint (./...)" "$(record_field "$root_record" log)" 0
     log "SKIP $id — covered by current go-lint evidence"
   else
