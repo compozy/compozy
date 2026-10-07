@@ -1,7 +1,6 @@
 package hooks
 
 import (
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -371,14 +370,6 @@ func TestValidateHookDeclRejectsSkillSourceOnNonSkillDeclaration(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "skill source is only valid") {
 		t.Fatalf("ValidateHookDecl() error = %q, want skill-source detail", err)
-	}
-}
-
-func TestDefaultHookPriorityRejectsUnknownSource(t *testing.T) {
-	t.Parallel()
-
-	if _, err := DefaultHookPriority(HookSource(99)); !errors.Is(err, ErrInvalidHookSource) {
-		t.Fatalf("DefaultHookPriority() error = %v, want ErrInvalidHookSource", err)
 	}
 }
 

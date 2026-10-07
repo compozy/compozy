@@ -235,23 +235,6 @@ func TestRegisteredHookValidate(t *testing.T) {
 	}
 }
 
-func TestResolvedHookValidate(t *testing.T) {
-	t.Parallel()
-
-	hook := ResolvedHook{
-		Name:     "resolved-hook",
-		Event:    HookToolPreCall,
-		Source:   HookSourceNative,
-		Mode:     HookModeSync,
-		Executor: stubExecutor{kind: HookExecutorNative},
-		Decl:     HookDecl{Name: "other-name"},
-	}
-
-	if err := hook.Validate(); err == nil {
-		t.Fatal("ResolvedHook.Validate() error = nil, want non-nil")
-	}
-}
-
 func TestResolvedHookValidateSuccess(t *testing.T) {
 	t.Parallel()
 

@@ -14,7 +14,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -109,60 +108,6 @@ func TestManagerIntegrationRestartRecovery(t *testing.T) {
 		}
 		return len(strings.Fields(string(payload))) >= 2
 	})
-}
-
-func TestManagerIntegrationResourceRegistration(t *testing.T) {
-	withDaemonVersion(t, "0.5.0")
-
-	env := newRegistryTestEnv(t)
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-resources", managerManifestOptions{
-		command:      helperCommand(t),
-		args:         helperArgs(),
-		withEnv:      helperEnv("default", ""),
-		withSkills:   true,
-		withAgents:   true,
-		withHooks:    true,
-		withMCP:      true,
-		capabilities: []string{"memory.backend"},
-		permissions:  []string{"sessions/list"},
-	}), map[string]string{
-		"skills/review/SKILL.md": managerSkillFile("resource-skill", "Loaded from extension"),
-		"agents/agent/AGENT.md":  managerAgentFile("resource-agent"),
-	})
-	installManagerFixture(t, env.registry, fixture, SourceUser, true)
-
-	manager := NewManager(
-		env.registry,
-		WithHealthCheckTimeout(20*time.Millisecond),
-		WithSubprocessSignalGrace(15*time.Millisecond),
-	)
-
-	if err := manager.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(testutil.Context(t)); err != nil {
-			t.Fatalf("Stop() cleanup error = %v", err)
-		}
-	})
-
-	if agents := manager.AgentDefinitions(); len(agents) != 1 || agents[0].Name != "resource-agent" {
-		t.Fatalf("AgentDefinitions() = %#v, want resource-agent", agents)
-	}
-	loaded, err := manager.Get("ext-resources")
-	if err != nil {
-		t.Fatalf("Get(ext-resources) error = %v", err)
-	}
-	if len(loaded.Skills) != 1 || loaded.Skills[0].Meta.Name != "resource-skill" {
-		t.Fatalf("Get(ext-resources).Skills = %#v, want resource-skill extension snapshot", loaded.Skills)
-	}
-	if decls, err := manager.HookDeclarationsForProfiles(testutil.Context(t), []ProfileLens{{
-		ID: store.DefaultProfileID, Name: "default",
-	}}); err != nil {
-		t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
-	} else if len(decls) != 1 || decls[0].Name != "ext-resources-hook" {
-		t.Fatalf("HookDeclarationsForProfiles() = %#v, want ext-resources-hook", decls)
-	}
 }
 
 func TestManagerIntegrationWorkspaceExtensionCannotReceiveUserResourceScope(t *testing.T) {

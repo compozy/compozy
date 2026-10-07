@@ -878,16 +878,6 @@ func TestParseSkillFileDefaultsMinimalHookFields(t *testing.T) {
 	}
 }
 
-func TestSkillHooksFieldUsesInternalHooksDeclarations(t *testing.T) {
-	t.Parallel()
-
-	got := reflect.TypeFor[[]hookspkg.HookDecl]()
-	want := reflect.TypeFor[[]hookspkg.HookDecl]()
-	if got != want {
-		t.Fatalf("reflect.TypeOf(Skill{}.Hooks) = %v, want %v", got, want)
-	}
-}
-
 func TestSnapshotFile(t *testing.T) {
 	t.Parallel()
 

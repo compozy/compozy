@@ -18,50 +18,6 @@ import (
 func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should project the extension catalog through HTTP and SQLite", func(t *testing.T) {
-		t.Parallel()
-
-		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			writer.Header().Set("Content-Type", "application/json")
-			if request.URL.Path != "/v3/extensions.json" {
-				http.NotFound(writer, request)
-				return
-			}
-			body := validExtensionDocumentJSON()
-			if _, err := writer.Write([]byte(body)); err != nil {
-				t.Errorf("write feed response: %v", err)
-			}
-		}))
-		t.Cleanup(server.Close)
-
-		client := &http.Client{Timeout: time.Second}
-		source, err := NewHTTPSource(server.URL, client)
-		if err != nil {
-			t.Fatal(err)
-		}
-		service, err := NewService(
-			t.Context(),
-			openMarketplaceTestStore(t),
-			marketplaceTestBindings(t, source),
-			time.Hour,
-			time.Minute,
-		)
-		if err != nil {
-			t.Fatalf("NewService() error = %v", err)
-		}
-		ctx := testutil.Context(t)
-		if _, err := service.Refresh(ctx); err != nil {
-			t.Fatalf("Refresh(source) error = %v", err)
-		}
-		result, err := service.Browse(ctx, "", 0, 10)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(result.Entries) != 1 || result.Entries[0].EntryID != "github-tools" {
-			t.Fatalf("Browse() = %#v, want the published extension", result)
-		}
-	})
-
 	// Invariant: an independent source failure cannot hide another flight or restart it during backoff.
 	// Owner: service refresh publication; canonical HTTP/SQLite integration suite.
 	t.Run("Should finish a healthy source beside a failed source without polling retries", func(t *testing.T) {
@@ -168,6 +124,12 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			}
 			assertProjectedExtensionIDs(t, ctx, store, "pulled", "stable")
 
+			fresh, err := service.Browse(ctx, "", 0, 10)
+			if err != nil || fresh.Stale || len(fresh.Entries) != 2 ||
+				fresh.Entries[0].EntryID != "pulled" || fresh.Entries[1].EntryID != "stable" {
+				t.Fatalf("Browse(fresh HTTP projection) = %#v, %v", fresh, err)
+			}
+
 			feed.setBody(validExtensionFeed("stable", "Stable extension"))
 			if _, err := service.Refresh(ctx); err != nil {
 				t.Fatalf("Refresh(kill switch) error = %v", err)
@@ -219,7 +181,11 @@ type mutableCatalogFeed struct {
 	body string
 }
 
-func (f *mutableCatalogFeed) ServeHTTP(writer http.ResponseWriter, _ *http.Request) {
+func (f *mutableCatalogFeed) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if request.URL.Path != "/v3/extensions.json" {
+		http.NotFound(writer, request)
+		return
+	}
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	writer.Header().Set("Content-Type", "application/json")

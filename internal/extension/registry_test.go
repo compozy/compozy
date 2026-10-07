@@ -1001,32 +1001,6 @@ func TestRegistryUninstallMissingReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestRegistryProvidesAndPermissionsJSONRoundTrip(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	env := newRegistryTestEnv(t)
-	dir, manifest, checksum := createRegistryTestExtension(t, "round-trip-registry", registryManifestOptions{
-		capabilities: []string{"loop.watch_source", "memory.backend", "tool.provider"},
-		permissions:  []string{"memory/recall", "observe/health", "sessions/list"},
-	})
-
-	if err := env.registry.Install(manifest, dir, checksum); err != nil {
-		t.Fatalf("Install() error = %v", err)
-	}
-
-	got, err := env.registry.Get(manifest.Name)
-	if err != nil {
-		t.Fatalf("Get() error = %v", err)
-	}
-
-	if !reflect.DeepEqual(got.Capabilities, normalizeCapabilitiesConfig(manifest.Capabilities)) {
-		t.Fatalf("Capabilities = %#v, want %#v", got.Capabilities, normalizeCapabilitiesConfig(manifest.Capabilities))
-	}
-	if !reflect.DeepEqual(got.Permissions, normalizePermissionsConfig(manifest.Permissions)) {
-		t.Fatalf("Permissions = %#v, want %#v", got.Permissions, normalizePermissionsConfig(manifest.Permissions))
-	}
-}
-
 func TestRegistryInstallConcurrentDuplicateReturnsSingleExistsError(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 

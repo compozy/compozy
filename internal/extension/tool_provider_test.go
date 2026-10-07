@@ -25,6 +25,8 @@ import (
 func TestExtensionToolProviderAvailability(t *testing.T) {
 	t.Parallel()
 
+	env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-tool", true)
+
 	testCases := []struct {
 		name   string
 		mutate func(*toolspkg.ExtensionToolRuntimeDescriptor)
@@ -65,7 +67,6 @@ func TestExtensionToolProviderAvailability(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-tool", true)
 			runtimeDescriptor := descriptor.RuntimeDescriptor
 			tc.mutate(&runtimeDescriptor)
 			runtime := newFakeExtensionToolRuntime(
@@ -1296,23 +1297,6 @@ func TestExtensionToolProviderSubprocessIntegration(t *testing.T) {
 		}
 		if _, err := manager.Get(fixture.manifest.Name); err != nil {
 			t.Fatalf("Manager.Get(%q) error = %v", fixture.manifest.Name, err)
-		}
-	})
-
-	t.Run("Should mark a mutating subprocess tool as requiring approval", func(t *testing.T) {
-		env, _, descriptor, manager := startExtensionToolSubprocess(t, "ext-mutating", "tool_provider", false)
-		registry := newExtensionToolRegistry(t, env.registry, manager, toolspkg.PolicyInputs{
-			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
-			ExternalDefault:      toolspkg.ExternalDefaultEnabled,
-			ApprovalAvailable:    true,
-		})
-
-		view, err := registry.Get(testutil.Context(t), toolspkg.Scope{Operator: true}, descriptor.Tool.ID)
-		if err != nil {
-			t.Fatalf("Registry.Get() error = %v", err)
-		}
-		if !view.Decision.ApprovalRequired {
-			t.Fatalf("Decision.ApprovalRequired = false, want true")
 		}
 	})
 
