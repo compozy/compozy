@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-06
+## 0.3.0 - 2026-10-07
 
 ### ♻️ Refactoring
 
@@ -290,6 +290,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve profile recovery guidance and repair browser validation (#695)
 - Preserve SQLite commit outcomes during cancellation (#696)
 - Preserve profile entry across query reconciliation (#697)
+- Apply the chosen runtime to continued sessions and keep continue/fork top-level (#702)
+- Keep live model catalogs current without releases (#701)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -318,6 +320,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Await completed automation run before daemon cleanup
 - Wait for terminal command output before detaching
 - Refresh credential assertions context after migration
+- Cover inactive loop routes with automatic approval (#703)
 
 ## 0.2.15 - 2026-07-17
 
