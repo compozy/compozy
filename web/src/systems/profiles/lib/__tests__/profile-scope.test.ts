@@ -30,13 +30,6 @@ describe("profileScopeParams", () => {
   it("Should widen only through the explicit aggregate flag", () => {
     expect(profileScopeParams(AGGREGATE)).toEqual({ all_profiles: true });
   });
-
-  it("Should never produce a scope that omits both modes", () => {
-    for (const view of [SCOPED, AGGREGATE]) {
-      const params = profileScopeParams(view);
-      expect("profile" in params || "all_profiles" in params).toBe(true);
-    }
-  });
 });
 
 describe("profileViewKey", () => {

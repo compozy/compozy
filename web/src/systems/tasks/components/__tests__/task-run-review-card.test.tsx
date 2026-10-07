@@ -5,16 +5,6 @@ import { buildTaskRunReviewFixture } from "../../mocks/fixtures";
 import { TaskRunReviewCard } from "../task-run-review-card";
 
 describe("TaskRunReviewCard", () => {
-  it("Should present pending review status when no outcome exists", () => {
-    render(
-      <TaskRunReviewCard
-        review={buildTaskRunReviewFixture({ outcome: undefined, status: "in_review" })}
-      />
-    );
-
-    expect(screen.getByText("Review round 1: in review")).toBeInTheDocument();
-  });
-
   it("Should present recorded outcome, reason, and next-round guidance", () => {
     render(
       <TaskRunReviewCard

@@ -81,7 +81,9 @@ afterEach(() => {
 });
 
 describe("useSettingsObservabilityPage", () => {
-  it("loads the envelope and seeds the draft", async () => {
+  it("surfaces the save error when the mutation rejects", async () => {
+    vi.mocked(updateSettingsObservability).mockRejectedValue(new Error("rejected by service"));
+
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsObservabilityPage(), { wrapper });
 
@@ -89,15 +91,6 @@ describe("useSettingsObservabilityPage", () => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(envelope.config);
     });
-  });
-
-  it("surfaces the save error when the mutation rejects", async () => {
-    vi.mocked(updateSettingsObservability).mockRejectedValue(new Error("rejected by service"));
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsObservabilityPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.setDraft({

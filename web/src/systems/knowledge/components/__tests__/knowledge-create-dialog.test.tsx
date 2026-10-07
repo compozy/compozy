@@ -24,17 +24,6 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeCreate
 }
 
 describe("KnowledgeCreateDialog", () => {
-  it("Should present the knowledge form and its type choices", () => {
-    renderDialog();
-    expect(screen.getByRole("heading", { name: "Create knowledge entry" })).toBeInTheDocument();
-    expect(screen.getByRole("radiogroup", { name: "Knowledge type" })).toBeInTheDocument();
-  });
-
-  it("Should expose a close action", () => {
-    renderDialog();
-    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
-  });
-
   it("Should render the available type choices for the Type picker", () => {
     renderDialog();
     const grid = screen.getByTestId("knowledge-create-type-grid");

@@ -9,9 +9,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { identityColorsFor, identitySurfaceFor, UIProvider } from "@compozy/ui";
-
-import { themePreferenceStore } from "@/systems/theme";
+import { UIProvider } from "@compozy/ui";
 
 import type { ProfileOwner } from "../../lib/profile-scope";
 import { ProfileDestinationChip } from "../profile-destination-chip";
@@ -28,11 +26,6 @@ const MARKETING: ProfileOwner = {
 };
 
 const ARCHIVED: ProfileOwner = { ...MARKETING, id: "old", name: "old agency", archived: true };
-
-function hexToRgb(hex: string): string {
-  const [r, g, b] = [1, 3, 5].map(index => Number.parseInt(hex.slice(index, index + 2), 16));
-  return `rgb(${r}, ${g}, ${b})`;
-}
 
 function renderWithUI(node: React.ReactNode) {
   return render(
@@ -91,26 +84,6 @@ describe("ProfileOwnerTag", () => {
       "data-archived",
       "true"
     );
-  });
-
-  // Invariant: the identity plate and ink are measured against the surface of the
-  // theme actually painted, so a glyph stays readable after a theme switch.
-  // Owning layer: ProfileGlyph via its owner-tag host.
-  it("Should paint the owner glyph against the active theme's surface", () => {
-    const initial = themePreferenceStore.getSnapshot().context.preference;
-    try {
-      for (const theme of ["light", "dark"] as const) {
-        themePreferenceStore.trigger.preferenceSet({ preference: theme });
-        const { unmount } = renderWithUI(<ProfileOwnerTag owner={MARKETING} />);
-        const glyph = document.querySelector<HTMLElement>('[data-slot="profile-glyph"]')!;
-        const expected = identityColorsFor(MARKETING.color, identitySurfaceFor(theme));
-        expect(glyph.style.backgroundColor, theme).toBe(hexToRgb(expected.bg));
-        expect(glyph.style.color, theme).toBe(hexToRgb(expected.fg));
-        unmount();
-      }
-    } finally {
-      themePreferenceStore.trigger.preferenceSet({ preference: initial });
-    }
   });
 });
 

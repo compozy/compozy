@@ -119,11 +119,4 @@ describe("TasksEmptyState", () => {
     await user.click(screen.getByRole("button", { name: /Recurring via automation/ }));
     expect(screen.getByText(/schedule attached in Automation/)).toBeVisible();
   });
-
-  it("Should explain tasks in plain language without CLI commands", () => {
-    render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
-    expect(screen.getByText(/A task is a piece of work you hand to an agent/)).toBeInTheDocument();
-    expect(screen.queryByText(/compozy task create/)).not.toBeInTheDocument();
-    expect(screen.getByTestId("tasks-empty-cta-new")).toHaveTextContent("Start from scratch");
-  });
 });

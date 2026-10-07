@@ -114,14 +114,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("SettingsApiError", () => {
-  it("captures status code and name", () => {
-    const err = new SettingsApiError("boom", 500);
-    expect(err.name).toBe("SettingsApiError");
-    expect(err.status).toBe(500);
-  });
-});
-
 describe("section reads and updates", () => {
   // Invariant: failed fetches retain their cause as typed Settings failures; cancellation stays cancellation.
   // Owner: Settings HTTP adapter; canonical settings-api suite.

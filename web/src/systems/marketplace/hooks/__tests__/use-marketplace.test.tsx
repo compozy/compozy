@@ -84,19 +84,25 @@ describe("one catalog query lifecycle", () => {
       refreshing: true,
       sources: [{ name: "compozy-catalog", kind: "feed", state, count: 1 }],
     };
+    vi.useFakeTimers();
     const refreshed = page("new");
     mocks.catalog.mockResolvedValueOnce(pending).mockResolvedValue(refreshed);
     const { client, wrapper } = setup();
     const { result, unmount } = renderHook(() => useMarketplaceCatalog(), { wrapper });
     try {
-      await waitFor(() => expect(result.current.data?.pages).toEqual([pending]));
-      await waitFor(() => expect(result.current.data?.pages).toEqual([refreshed]), {
-        timeout: 3000,
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
       });
+      expect(result.current.data?.pages).toEqual([pending]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(result.current.data?.pages).toEqual([refreshed]);
       expect(mocks.catalog).toHaveBeenCalledTimes(2);
     } finally {
       unmount();
       client.clear();
+      vi.useRealTimers();
     }
   });
 
@@ -111,20 +117,28 @@ describe("one catalog query lifecycle", () => {
         { name: "team", kind: "custom", state: "never", count: 0 },
       ],
     };
+    vi.useFakeTimers();
     const settled = { ...pending, ...page("new"), stale: true, refreshing: false };
     mocks.catalog.mockResolvedValueOnce(pending).mockResolvedValue(settled);
     const { client, wrapper } = setup();
     const { result, unmount } = renderHook(() => useMarketplaceCatalog(), { wrapper });
     try {
-      await waitFor(() => expect(result.current.data?.pages).toEqual([pending]));
-      await waitFor(() => expect(result.current.data?.pages).toEqual([settled]), { timeout: 3000 });
       await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 1200));
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(result.current.data?.pages).toEqual([pending]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(result.current.data?.pages).toEqual([settled]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1200);
       });
       expect(mocks.catalog).toHaveBeenCalledTimes(2);
     } finally {
       unmount();
       client.clear();
+      vi.useRealTimers();
     }
   });
 

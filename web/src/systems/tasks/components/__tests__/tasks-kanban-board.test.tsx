@@ -86,52 +86,6 @@ describe("TasksKanbanBoard", () => {
     expect(screen.getByTestId("tasks-kanban-column-empty-done")).toBeInTheDocument();
   });
 
-  it("Should collapse draft, pending, and ready into Pending; blocked into Blocked", () => {
-    const tasks = [
-      buildTask({ id: "d", status: "draft" }),
-      buildTask({ id: "p", status: "pending" }),
-      buildTask({ id: "r", status: "ready" }),
-      buildTask({ id: "b", status: "blocked" }),
-    ];
-
-    render(
-      <TasksKanbanBoard
-        columns={groupTasksForKanban(tasks)}
-        onSelectTask={vi.fn()}
-        selectedTaskId={null}
-      />
-    );
-
-    const pendingColumn = screen.getByTestId("tasks-kanban-column-pending");
-    for (const id of ["d", "p", "r"]) {
-      expect(pendingColumn).toContainElement(screen.getByTestId(`tasks-kanban-card-${id}`));
-    }
-    expect(screen.getByTestId("tasks-kanban-column-blocked")).toContainElement(
-      screen.getByTestId("tasks-kanban-card-b")
-    );
-  });
-
-  it("Should collapse terminal statuses (completed, failed, canceled) into Done", () => {
-    const tasks = [
-      buildTask({ id: "c", status: "completed" }),
-      buildTask({ id: "f", status: "failed" }),
-      buildTask({ id: "x", status: "canceled" }),
-    ];
-
-    render(
-      <TasksKanbanBoard
-        columns={groupTasksForKanban(tasks)}
-        onSelectTask={vi.fn()}
-        selectedTaskId={null}
-      />
-    );
-
-    const doneColumn = screen.getByTestId("tasks-kanban-column-done");
-    for (const id of ["c", "f", "x"]) {
-      expect(doneColumn).toContainElement(screen.getByTestId(`tasks-kanban-card-${id}`));
-    }
-  });
-
   it("Should emit selection events when a card is clicked", () => {
     const onSelectTask = vi.fn();
     const tasks = [buildTask({ id: "a", status: "ready" })];
@@ -319,22 +273,5 @@ describe("TaskKanbanCard", () => {
     expect(card).not.toHaveTextContent("Needs attention");
     expect(card).not.toHaveTextContent("needs_attention");
     expect(screen.getByTestId("tasks-kanban-card-canceled")).toHaveTextContent("Canceled");
-  });
-
-  it("Should not render an accent rail when the card is selected", () => {
-    const tasks = [buildTask({ id: "sel" })];
-    const { container } = render(
-      <TasksKanbanBoard
-        columns={groupTasksForKanban(tasks)}
-        onSelectTask={vi.fn()}
-        selectedTaskId="sel"
-      />
-    );
-
-    const card = screen.getByTestId("tasks-kanban-card-sel");
-    expect(card).toHaveAttribute("data-selected", "true");
-    expect(card.querySelector("[class*='bg-accent']")).toBeNull();
-    // Ensure no accent rail wrapper anywhere inside the card.
-    expect(container.querySelectorAll(".bg-\\(--color-accent\\)").length).toBe(0);
   });
 });

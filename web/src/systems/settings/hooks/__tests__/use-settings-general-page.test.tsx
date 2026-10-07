@@ -143,21 +143,14 @@ afterEach(() => {
 });
 
 describe("useSettingsGeneralPage", () => {
-  it("loads the envelope and seeds the draft", async () => {
+  it("clears a dirty draft when the active workspace changes", async () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(envelope.config);
     });
-  });
-
-  it("clears a dirty draft when the active workspace changes", async () => {
-    const { wrapper } = createWrapper();
-    const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.setDraft({

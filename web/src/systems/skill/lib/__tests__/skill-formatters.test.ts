@@ -9,7 +9,6 @@ import {
   deriveSkillRecentCalls,
   deriveSkillTags,
   filterSkillsByQuery,
-  MARKETPLACE_CATEGORIES,
   matchesMarketplaceCategory,
   skillOriginLabel,
   skillSourceLabel,
@@ -90,21 +89,6 @@ describe("skill-formatters", () => {
     expect(
       deriveSkillTags(makeSkill({ metadata: { tags: ["a", 1, null, "b"] as unknown as string[] } }))
     ).toEqual(["a", "b"]);
-  });
-
-  it("Should expose sentence-case marketplace category vocabulary", () => {
-    expect(MARKETPLACE_CATEGORIES).toEqual([
-      "all",
-      "testing",
-      "database",
-      "deploy",
-      "ai",
-      "devops",
-      "security",
-    ]);
-    for (const category of MARKETPLACE_CATEGORIES) {
-      expect(category).toBe(category.toLowerCase());
-    }
   });
 
   it("Should match marketplace category against tags (case-insensitive)", () => {

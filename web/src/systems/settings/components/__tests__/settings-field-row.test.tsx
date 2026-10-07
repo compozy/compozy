@@ -144,6 +144,7 @@ describe("SettingsFieldRow", () => {
     const group = screen.getByRole("group", { name: "Session timeout" });
     expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("description"));
     expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("error"));
+    expect(group).toHaveAccessibleDescription("Ends inactive sessions Enter a whole number.");
     expect(group).not.toHaveAttribute("aria-invalid");
   });
 });

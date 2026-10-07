@@ -138,7 +138,7 @@ describe("useSettingsSkillsPage", () => {
     });
   });
 
-  it("loads the envelope and seeds the draft with the current config", async () => {
+  it("marks disabled dirty independently from policy dirty when toggling a disabled skill", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
 
@@ -146,13 +146,6 @@ describe("useSettingsSkillsPage", () => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(skillsEnvelope.config);
     });
-  });
-
-  it("marks disabled dirty independently from policy dirty when toggling a disabled skill", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.toggleDisabled("beta");

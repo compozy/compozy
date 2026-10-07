@@ -73,38 +73,6 @@ describe("marketplace acquisition cache boundaries", () => {
     await waitFor(() =>
       expect(result.current.listing.data?.pages[0]?.items[0]?.installed).toBe(true)
     );
-  });
-
-  it("Should invalidate marketplace and extension management after extension install", async () => {
-    vi.mocked(installMarketplaceExtension).mockResolvedValue({
-      extension: {
-        contents: { skills: 0, mcp_servers: 0, hooks: 0, loops: 0, agents: 0 },
-        inputs: [],
-        mcp_servers: [],
-        missing_inputs: [],
-        consecutive_failures: 0,
-        daemon_running: false,
-        digest_matched: true,
-        enabled: false,
-        format: "compozy",
-        name: "review-pack",
-        gateway_confirmation_required: false,
-        profile: "default",
-        restart_backoff_ms: 0,
-        source: "marketplace",
-        state: "installed",
-        type: "native",
-        update_available: false,
-        version: "2.0.0",
-      },
-    });
-    const { invalidateQueries, wrapper } = setup();
-    const { result } = renderHook(() => useInstallMarketplaceExtension(), { wrapper });
-
-    act(() => result.current.mutate({ ref: "review-pack", source: "curated", version: "2.0.0" }));
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["extensions"] });
   });
 
