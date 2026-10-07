@@ -167,3 +167,29 @@ func goWorkspaceVersion(members []string) (string, error) {
 	}
 	return selected, nil
 }
+
+// GoFixtureCheck builds and vets an extension fixture against the local SDK.
+func GoFixtureCheck(module string) error {
+	if !slices.Contains(goLintModules, module) || !strings.HasPrefix(module, "internal/extension/testdata/") {
+		return fmt.Errorf("unsupported Go fixture module %q", module)
+	}
+	root, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	env, cleanup, err := goLintModuleEnv(root, module, nil)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	output := filepath.Join(filepath.Dir(env["GOWORK"]), "fixture")
+	for _, args := range [][]string{
+		{"build", "-p", "2", "-o", output, "./..."},
+		{"vet", "-p", "2", "./..."},
+	} {
+		if err := runCommandInDirWithEnv(context.Background(), filepath.Join(root, module), env, "go", args...); err != nil {
+			return fmt.Errorf("%s fixture %s: %w", args[0], module, err)
+		}
+	}
+	return nil
+}

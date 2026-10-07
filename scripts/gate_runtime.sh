@@ -138,7 +138,7 @@ run_module_lanes() {
     id="$(printf '%s' "$module" | tr '/' '-')"
     run_lane "$id-lint" env "COMPOZY_GO_LINT_SCOPES=./$module/..." make go-lint
     case "$module" in
-      internal/extension/testdata/*) : ;;
+      internal/extension/testdata/*) run_lane "$id-build-vet" make go-fixture-check "GO_FIXTURE_MODULE=$module" ;;
       *) run_lane "$id-test" env CGO_ENABLED=1 go -C "$module" test -race -p "$(go_test_p)" -parallel=4 ./... ;;
     esac
   done
@@ -152,7 +152,7 @@ plan_module_lanes() {
   for module in $(printf '%s' "$GO_MODULES" | sort -u); do
     log "would run: env COMPOZY_GO_LINT_SCOPES='./$module/...' make go-lint"
     case "$module" in
-      internal/extension/testdata/*) : ;;
+      internal/extension/testdata/*) log "would run: make go-fixture-check GO_FIXTURE_MODULE=$module (build + vet)" ;;
       *) log "would run: CGO_ENABLED=1 go -C $module test -race -p $(go_test_p) -parallel=4 ./..." ;;
     esac
   done

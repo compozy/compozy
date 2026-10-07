@@ -410,7 +410,10 @@ exit 0
 					case module == "magefiles":
 						want = "-tags=mage ./magefiles"
 					case strings.HasPrefix(module, "internal/"):
-						want = "./internal/extension/..."
+						want = "make go-fixture-check GO_FIXTURE_MODULE=" + module
+						if strings.Contains(output, "./internal/extension/...") {
+							t.Fatalf("fixture selected unrelated extension tests:\n%s", output)
+						}
 					default:
 						want = "go -C " + module + " test -race"
 					}

@@ -55,7 +55,11 @@ The default is `run` in CI and `split` locally.
 module lint and race tests. Go source, `go.mod`, and `go.sum` changes under SDK
 examples select that module's Go lanes; examples with `package.json` also retain
 JavaScript lanes. Fixture changes select fixture lint and
-`./internal/extension/...` tests. Mage changes select tagged lint plus the existing
+`make go-fixture-check GO_FIXTURE_MODULE=<module>` (build + vet against the local
+SDK, with a disposable binary). Their runtime consumers are
+`internal/daemon/daemon_extension_commands_e2e_integration_test.go`
+(`integration && !windows`) and `desktop/e2e/_electron/__tests__/shell.spec.ts`;
+those heavy E2E journeys remain owned by CI. Mage changes select tagged lint plus the existing
 Mage/script tests. Each module lane keeps its own content-keyed evidence record.
 CI classifies nested module manifests as backend changes, and its lint cache key
 includes every module manifest and sum file.

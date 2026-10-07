@@ -139,7 +139,6 @@ classify() {
     internal/extension/testdata/*-fixture-go/*)
       pkg="${path#internal/extension/testdata/}"
       GO_MODULES="${GO_MODULES}internal/extension/testdata/${pkg%%/*}"$'\n'
-      GO_SCOPES="${GO_SCOPES}./internal/extension/..."$'\n'
       ;;
     internal/*/*)
       pkg="${path#internal/}"
