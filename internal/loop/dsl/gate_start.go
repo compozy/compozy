@@ -13,7 +13,7 @@ type GateCriterion struct {
 	Prompt   string         `json:"prompt,omitempty"   yaml:"prompt,omitempty"`
 	Tool     string         `json:"tool,omitempty"     yaml:"tool,omitempty"`
 	Inputs   map[string]any `json:"inputs,omitempty"   yaml:"inputs,omitempty"`
-	Metric   *MetricSpec    `json:"metric,omitempty"   yaml:"metric,omitempty"`
+	Metric   *MetricSpec    `json:"metric,omitzero"    yaml:"metric,omitempty"`
 	Extra    map[string]any `json:"-"                  yaml:",inline"`
 }
 

@@ -39,9 +39,9 @@ type PredicateDiagnostic struct {
 	Predicate string               `json:"predicate"`
 	Cause     string               `json:"cause,omitempty"`
 	Outcome   PredicateErrorPolicy `json:"outcome,omitempty"`
-	Cost      uint64               `json:"cost,omitempty"`
-	CostLimit uint64               `json:"cost_limit,omitempty"`
-	Warning   bool                 `json:"warning,omitempty"`
+	Cost      uint64               `json:"cost,omitzero"`
+	CostLimit uint64               `json:"cost_limit,omitzero"`
+	Warning   bool                 `json:"warning,omitzero"`
 }
 
 // ApplyPredicateFailurePolicy maps a broken predicate to its deterministic policy result.

@@ -116,7 +116,7 @@ type MarketplaceUpdateResult struct {
 	Path           string                              `json:"path"`
 	Status         string                              `json:"status"`
 	Warnings       []diagnosticcontract.DiagnosticItem `json:"warnings,omitempty"`
-	Error          *diagnosticcontract.DiagnosticItem  `json:"error,omitempty"`
+	Error          *diagnosticcontract.DiagnosticItem  `json:"error,omitzero"`
 }
 
 type stagedExtensionDirChange struct {

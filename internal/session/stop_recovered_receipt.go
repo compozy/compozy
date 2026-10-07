@@ -23,7 +23,7 @@ type recoveredStopReceipt struct {
 	ActorID           string              `json:"actor_id,omitempty"`
 	Outcome           StopOutcome         `json:"outcome"`
 	Detail            string              `json:"detail,omitempty"`
-	TerminalEvent     *store.SessionEvent `json:"terminal_event,omitempty"`
+	TerminalEvent     *store.SessionEvent `json:"terminal_event,omitzero"`
 }
 
 func (m *Manager) recoveredStopReceiptPath(id string) string {

@@ -25,8 +25,8 @@ type canonicalEventPayload struct {
 	ToolKind          string                           `json:"tool_kind,omitempty"`
 	ToolCallID        string                           `json:"tool_call_id,omitempty"`
 	ToolInput         json.RawMessage                  `json:"tool_input,omitempty"`
-	ToolResult        *ToolResult                      `json:"tool_result,omitempty"`
-	ToolError         bool                             `json:"tool_error,omitempty"`
+	ToolResult        *ToolResult                      `json:"tool_result,omitzero"`
+	ToolError         bool                             `json:"tool_error,omitzero"`
 	StopReason        string                           `json:"stop_reason,omitempty"`
 	PromptStopReason  acp.PromptStopReason             `json:"prompt_stop_reason,omitempty"`
 	Action            string                           `json:"action,omitempty"`
@@ -35,15 +35,15 @@ type canonicalEventPayload struct {
 	ResolvedBy        string                           `json:"resolved_by,omitempty"`
 	Error             string                           `json:"error,omitempty"`
 	Failure           *store.SessionFailure            `json:"failure,omitempty"`
-	ProviderError     *acp.ProviderErrorDiagnostic     `json:"provider_error,omitempty"`
+	ProviderError     *acp.ProviderErrorDiagnostic     `json:"provider_error,omitzero"`
 	Synthetic         *acp.PromptSyntheticMeta         `json:"synthetic,omitempty"`
 	Goal              *acp.GoalPromptMeta              `json:"goal,omitempty"`
 	AvailableCommands []store.SessionAdvertisedCommand `json:"available_commands,omitempty"`
 	SkillInvocations  []commandpkg.Invocation          `json:"skill_invocations,omitempty"`
 	Attachments       []acp.EventAttachment            `json:"attachments,omitempty"`
-	Delivery          *acp.DeliveryManifest            `json:"delivery,omitempty"`
+	Delivery          *acp.DeliveryManifest            `json:"delivery,omitzero"`
 	Usage             *acp.TokenUsage                  `json:"usage,omitempty"`
-	Runtime           *acp.RuntimeActivity             `json:"runtime,omitempty"`
-	PromptRuntime     *acp.PromptRuntime               `json:"prompt_runtime,omitempty"`
+	Runtime           *acp.RuntimeActivity             `json:"runtime,omitzero"`
+	PromptRuntime     *acp.PromptRuntime               `json:"prompt_runtime,omitzero"`
 	Raw               json.RawMessage                  `json:"raw,omitempty"`
 }

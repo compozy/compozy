@@ -31,7 +31,7 @@ type RunResultPage struct {
 	Bytes      int64  `json:"bytes"`
 	TotalBytes int64  `json:"total_bytes"`
 	DataBase64 string `json:"data_base64"`
-	NextOffset int64  `json:"next_offset,omitempty"`
+	NextOffset int64  `json:"next_offset,omitzero"`
 	EOF        bool   `json:"eof"`
 }
 

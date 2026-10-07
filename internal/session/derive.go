@@ -224,8 +224,8 @@ func deriveRequestFingerprint(spec deriveSpec) (string, error) {
 		Workspace string         `json:"workspace_id"`
 		Profile   string         `json:"profile_id"`
 		Agent     string         `json:"agent_name,omitempty"`
-		Runtime   *DeriveRuntime `json:"runtime,omitempty"`
-		Route     int            `json:"route,omitempty"`
+		Runtime   *DeriveRuntime `json:"runtime,omitzero"`
+		Route     int            `json:"route,omitzero"`
 		Name      string         `json:"name,omitempty"`
 		Message   string         `json:"message,omitempty"`
 		MessageID string         `json:"message_id,omitempty"`

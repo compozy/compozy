@@ -41,7 +41,7 @@ var (
 
 // DotEnvDiagnostic describes one .env parse or repair issue without exposing values.
 type DotEnvDiagnostic struct {
-	Line    int    `json:"line,omitempty"`
+	Line    int    `json:"line,omitzero"`
 	Key     string `json:"key,omitempty"`
 	Code    string `json:"code"`
 	Message string `json:"message"`

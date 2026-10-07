@@ -35,8 +35,8 @@ type EventAttachment struct {
 	Bytes    int64  `json:"bytes"`
 	SHA256   string `json:"sha256"`
 	Kind     string `json:"kind"`
-	Width    int    `json:"width,omitempty"`
-	Height   int    `json:"height,omitempty"`
+	Width    int    `json:"width,omitzero"`
+	Height   int    `json:"height,omitzero"`
 }
 
 func (e AgentEvent) clonePayload() *agentEventPayload {

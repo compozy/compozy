@@ -21,7 +21,7 @@ type legacyDesktopV3 struct {
 	Name           string          `json:"name"`
 	Order          int             `json:"order"`
 	Purpose        string          `json:"purpose"`
-	FocusOwner     *WindowID       `json:"focus_owner,omitempty"`
+	FocusOwner     *WindowID       `json:"focus_owner,omitzero"`
 	Groups         []LayoutGroup   `json:"groups"`
 	Floating       []WindowID      `json:"floating"`
 	FloatingStacks []FloatingStack `json:"floating_stacks"`

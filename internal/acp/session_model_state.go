@@ -12,8 +12,8 @@ import (
 type wireSessionSetupResponse struct {
 	SessionID     acpsdk.SessionId             `json:"sessionId,omitempty"`
 	ConfigOptions []acpsdk.SessionConfigOption `json:"configOptions,omitempty"`
-	Modes         *acpsdk.SessionModeState     `json:"modes,omitempty"`
-	Models        *wireSessionModelState       `json:"models,omitempty"`
+	Modes         *acpsdk.SessionModeState     `json:"modes,omitzero"`
+	Models        *wireSessionModelState       `json:"models,omitzero"`
 }
 
 type wireSessionModelState struct {

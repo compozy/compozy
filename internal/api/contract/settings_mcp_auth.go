@@ -16,7 +16,7 @@ const (
 type SettingsMCPAuthBeginRequest struct {
 	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
 	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
-	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitempty"`
+	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitzero"`
 }
 
 // SettingsMCPAuthBeginResponse returns the verifier-free PKCE handoff.

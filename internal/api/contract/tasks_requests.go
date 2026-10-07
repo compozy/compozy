@@ -21,7 +21,7 @@ type TaskTimelineQuery struct {
 
 // TaskStreamQuery captures the shared task stream replay filters.
 type TaskStreamQuery struct {
-	AfterSequence int64 `json:"after_sequence,omitempty"`
+	AfterSequence int64 `json:"after_sequence,omitzero"`
 }
 
 // TaskDashboardQuery captures the shared observer-backed task dashboard filters.
@@ -61,12 +61,12 @@ type CreateTaskChildRequest struct {
 	Title              string                 `json:"title"`
 	Description        string                 `json:"description,omitempty"`
 	Priority           taskpkg.Priority       `json:"priority,omitempty"`
-	MaxAttempts        *int                   `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Draft              bool                   `json:"draft,omitempty"`
+	MaxAttempts        *int                   `json:"max_attempts,omitzero"`
+	AutoEnqueueOnReady bool                   `json:"auto_enqueue_on_ready,omitzero"`
+	Draft              bool                   `json:"draft,omitzero"`
 	ApprovalPolicy     taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
 	Owner              *taskpkg.Ownership     `json:"owner,omitempty"`
-	WakeCreator        *bool                  `json:"wake_creator,omitempty"`
+	WakeCreator        *bool                  `json:"wake_creator,omitzero"`
 	Metadata           json.RawMessage        `json:"metadata,omitempty"`
 }
 

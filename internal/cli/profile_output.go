@@ -17,7 +17,7 @@ type profileListRecord struct {
 	State                  string                                  `json:"state"`
 	Current                bool                                    `json:"current"`
 	WorkItems              int                                     `json:"work_items"`
-	NeedsSetup             bool                                    `json:"needs_setup,omitempty"`
+	NeedsSetup             bool                                    `json:"needs_setup,omitzero"`
 	CredentialRequirements []contract.ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 

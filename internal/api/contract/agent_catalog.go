@@ -16,7 +16,7 @@ type AgentSessionMetricsPayload struct {
 // temporarily unavailable.
 type AgentCatalogItemPayload struct {
 	Agent    AgentPayload                `json:"agent"`
-	Sessions *AgentSessionMetricsPayload `json:"sessions,omitempty"`
+	Sessions *AgentSessionMetricsPayload `json:"sessions,omitzero"`
 }
 
 // AgentCatalogFacetsPayload contains fleet-wide values before search, filters,

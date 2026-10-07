@@ -425,14 +425,14 @@ type nativeGoalControlInput struct {
 	Operation     string                                  `json:"operation"`
 	Objective     string                                  `json:"objective,omitempty"`
 	ExpectedRunID string                                  `json:"expected_run_id,omitempty"`
-	Runtime       *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	Runtime       *contract.PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
 }
 
 type nativeLoopTurnsInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 	NodeID      string `json:"node,omitempty"`
-	ItemIndex   *int   `json:"item,omitempty"`
-	AfterSeq    int64  `json:"after_seq,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	ItemIndex   *int   `json:"item,omitzero"`
+	AfterSeq    int64  `json:"after_seq,omitzero"`
+	Limit       int    `json:"limit,omitzero"`
 }

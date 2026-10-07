@@ -22,12 +22,12 @@ type ResponderSpec struct {
 
 // AskParams is the canonical schema for control kind ask.
 type AskParams struct {
-	Prompt     string         `json:"prompt"               yaml:"prompt"`
-	Context    map[string]any `json:"context,omitempty"    yaml:"context,omitempty"`
-	Expect     Schema         `json:"expect"               yaml:"expect"`
-	Responders *ResponderSpec `json:"responders,omitempty" yaml:"responders,omitempty"`
-	Expires    *WaitExpiry    `json:"expires,omitempty"    yaml:"expires,omitempty"`
-	Extra      map[string]any `json:"-"                    yaml:",inline"`
+	Prompt     string         `json:"prompt"              yaml:"prompt"`
+	Context    map[string]any `json:"context,omitempty"   yaml:"context,omitempty"`
+	Expect     Schema         `json:"expect"              yaml:"expect"`
+	Responders *ResponderSpec `json:"responders,omitzero" yaml:"responders,omitempty"`
+	Expires    *WaitExpiry    `json:"expires,omitzero"    yaml:"expires,omitempty"`
+	Extra      map[string]any `json:"-"                   yaml:",inline"`
 }
 
 // ReviewDecision is one allowed pre-execution review outcome.
@@ -58,13 +58,13 @@ type RejectPolicy struct {
 
 // ReviewSpec gates an action before its task run is created.
 type ReviewSpec struct {
-	Decisions  []ReviewDecision `json:"decisions,omitempty"  yaml:"decisions,omitempty"`
-	When       string           `json:"when,omitempty"       yaml:"when,omitempty"`
-	Prompt     string           `json:"prompt,omitempty"     yaml:"prompt,omitempty"`
-	Responders *ResponderSpec   `json:"responders,omitempty" yaml:"responders,omitempty"`
-	OnReject   *RejectPolicy    `json:"on_reject,omitempty"  yaml:"on_reject,omitempty"`
-	Expires    *WaitExpiry      `json:"expires,omitempty"    yaml:"expires,omitempty"`
-	Extra      map[string]any   `json:"-"                    yaml:",inline"`
+	Decisions  []ReviewDecision `json:"decisions,omitempty" yaml:"decisions,omitempty"`
+	When       string           `json:"when,omitempty"      yaml:"when,omitempty"`
+	Prompt     string           `json:"prompt,omitempty"    yaml:"prompt,omitempty"`
+	Responders *ResponderSpec   `json:"responders,omitzero" yaml:"responders,omitempty"`
+	OnReject   *RejectPolicy    `json:"on_reject,omitzero"  yaml:"on_reject,omitempty"`
+	Expires    *WaitExpiry      `json:"expires,omitzero"    yaml:"expires,omitempty"`
+	Extra      map[string]any   `json:"-"                   yaml:",inline"`
 }
 
 // EffectiveDecisions returns the authored allowlist or the safe default.
@@ -83,21 +83,21 @@ type RunAgentParams struct {
 	Environment  EnvironmentSpec `json:"environment,omitzero"    yaml:"environment,omitempty"`
 	Runtime      RuntimeSpec     `json:"runtime,omitzero"        yaml:"runtime,omitempty"`
 	AllowedTools []string        `json:"allowed_tools,omitempty" yaml:"allowed_tools,omitempty"`
-	MaxTurns     int             `json:"max_turns,omitempty"     yaml:"max_turns,omitempty"`
+	MaxTurns     int             `json:"max_turns,omitzero"      yaml:"max_turns,omitempty"`
 	Extra        map[string]any  `json:"-"                       yaml:",inline"`
 }
 
 // GoalParams is the canonical schema for action kind goal.
 type GoalParams struct {
-	Agent        string          `json:"agent"                   yaml:"agent"`
-	Objective    string          `json:"objective"               yaml:"objective"`
-	Judge        []GateCriterion `json:"judge"                   yaml:"judge"`
-	MaxTurns     int             `json:"max_turns"               yaml:"max_turns"`
-	OnExhausted  string          `json:"on_exhausted,omitempty"  yaml:"on_exhausted,omitempty"`
-	OutputSchema *Schema         `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
-	Environment  EnvironmentSpec `json:"environment,omitzero"    yaml:"environment,omitempty"`
-	Runtime      RuntimeSpec     `json:"runtime,omitzero"        yaml:"runtime,omitempty"`
-	Extra        map[string]any  `json:"-"                       yaml:",inline"`
+	Agent        string          `json:"agent"                  yaml:"agent"`
+	Objective    string          `json:"objective"              yaml:"objective"`
+	Judge        []GateCriterion `json:"judge"                  yaml:"judge"`
+	MaxTurns     int             `json:"max_turns"              yaml:"max_turns"`
+	OnExhausted  string          `json:"on_exhausted,omitempty" yaml:"on_exhausted,omitempty"`
+	OutputSchema *Schema         `json:"output_schema,omitzero" yaml:"output_schema,omitempty"`
+	Environment  EnvironmentSpec `json:"environment,omitzero"   yaml:"environment,omitempty"`
+	Runtime      RuntimeSpec     `json:"runtime,omitzero"       yaml:"runtime,omitempty"`
+	Extra        map[string]any  `json:"-"                      yaml:",inline"`
 }
 
 // EnvironmentMode selects the execution root for one agent action.
@@ -156,17 +156,17 @@ type TransformMapping struct {
 
 // SessionSpec configures action session binding.
 type SessionSpec struct {
-	Handle   string         `json:"handle,omitempty"   yaml:"handle,omitempty"`
-	Isolated bool           `json:"isolated,omitempty" yaml:"isolated,omitempty"`
-	Mode     string         `json:"mode,omitempty"     yaml:"mode,omitempty"`
-	Extra    map[string]any `json:"-"                  yaml:",inline"`
+	Handle   string         `json:"handle,omitempty"  yaml:"handle,omitempty"`
+	Isolated bool           `json:"isolated,omitzero" yaml:"isolated,omitempty"`
+	Mode     string         `json:"mode,omitempty"    yaml:"mode,omitempty"`
+	Extra    map[string]any `json:"-"                 yaml:",inline"`
 }
 
 // RetrySpec configures node retry policy.
 type RetrySpec struct {
-	MaxAttempts  int            `json:"max_attempts,omitempty"  yaml:"max_attempts,omitempty"`
+	MaxAttempts  int            `json:"max_attempts,omitzero"   yaml:"max_attempts,omitempty"`
 	OnFailure    string         `json:"on_failure,omitempty"    yaml:"on_failure,omitempty"`
-	Backoff      *BackoffSpec   `json:"backoff,omitempty"       yaml:"backoff,omitempty"`
+	Backoff      *BackoffSpec   `json:"backoff,omitzero"        yaml:"backoff,omitempty"`
 	NonRetryable []string       `json:"non_retryable,omitempty" yaml:"non_retryable,omitempty"`
 	Extra        map[string]any `json:"-"                       yaml:",inline"`
 }

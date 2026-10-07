@@ -110,7 +110,7 @@ type PromoteSessionInputRequest = contract.PromoteSessionInputRequest
 // SessionPromptRecord wraps prompt outcomes that may either stream events or return a busy-input decision.
 type SessionPromptRecord struct {
 	Prompt SessionPromptResultRecord   `json:"prompt"`
-	Goal   *contract.GoalCommandResult `json:"goal,omitempty"`
+	Goal   *contract.GoalCommandResult `json:"goal,omitzero"`
 	Events []AgentEventRecord          `json:"events,omitempty"`
 }
 

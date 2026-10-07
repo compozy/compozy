@@ -130,7 +130,7 @@ type rpcEnvelope struct {
 	Method  string          `json:"method,omitempty"`
 	Params  json.RawMessage `json:"params,omitempty"`
 	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *RPCError       `json:"error,omitempty"`
+	Error   *RPCError       `json:"error,omitzero"`
 }
 
 type rpcRequest struct {
@@ -144,7 +144,7 @@ type rpcResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id"`
 	Result  any             `json:"result,omitempty"`
-	Error   *RPCError       `json:"error,omitempty"`
+	Error   *RPCError       `json:"error,omitzero"`
 }
 
 type rpcCancelParams struct {

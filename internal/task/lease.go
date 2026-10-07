@@ -42,13 +42,13 @@ type ClaimCriteria struct {
 	RunID                string               `json:"run_id,omitempty"`
 	Scope                Scope                `json:"scope,omitempty"`
 	WorkspaceID          string               `json:"workspace_id,omitempty"`
-	RunKind              RunKind              `json:"run_kind,omitempty"`
+	RunKind              RunKind              `json:"run_kind,omitzero"`
 	ClaimerSessionID     string               `json:"claimer_session_id"`
 	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
 	AgentName            string               `json:"agent_name,omitempty"`
 	RequiredCapabilities []string             `json:"required_capabilities,omitempty"`
-	PriorityMin          int                  `json:"priority_min,omitempty"`
-	Soul                 *SoulClaimProvenance `json:"soul,omitempty"`
+	PriorityMin          int                  `json:"priority_min,omitzero"`
+	Soul                 *SoulClaimProvenance `json:"soul,omitzero"`
 	// WorkspaceActiveRunCap is trusted Service policy and never caller-controlled wire input.
 	WorkspaceActiveRunCap int           `json:"-"`
 	LeaseDuration         time.Duration `json:"lease_duration"`
@@ -65,7 +65,7 @@ type SoulClaimProvenance struct {
 
 // ClaimResult is the successful synchronous claim result. ClaimToken is raw and must not cross public surfaces.
 type ClaimResult struct {
-	Task       *Task     `json:"task,omitempty"`
+	Task       *Task     `json:"task,omitzero"`
 	Run        Run       `json:"run"`
 	ClaimToken string    `json:"claim_token"`
 	LeaseUntil time.Time `json:"lease_until"`
@@ -77,7 +77,7 @@ type LeaseHeartbeat struct {
 	ClaimToken    string        `json:"claim_token"`
 	LeaseDuration time.Duration `json:"lease_duration"`
 	Now           time.Time     `json:"now"`
-	TokensUsed    int64         `json:"tokens_used,omitempty"`
+	TokensUsed    int64         `json:"tokens_used,omitzero"`
 	Actor         ActorContext  `json:"-"`
 }
 
@@ -105,7 +105,7 @@ type LeaseCompletion struct {
 	ClaimToken           string    `json:"claim_token"`
 	Result               RunResult `json:"result"`
 	CreatedTaskIDs       []string  `json:"created_task_ids,omitempty"`
-	TokensUsed           int64     `json:"tokens_used,omitempty"`
+	TokensUsed           int64     `json:"tokens_used,omitzero"`
 	Now                  time.Time `json:"now"`
 	Actor                ActorContext
 	actionResultMaxBytes int
@@ -116,7 +116,7 @@ type LeaseFailure struct {
 	RunID      string     `json:"run_id"`
 	ClaimToken string     `json:"claim_token"`
 	Failure    RunFailure `json:"failure"`
-	TokensUsed int64      `json:"tokens_used,omitempty"`
+	TokensUsed int64      `json:"tokens_used,omitzero"`
 	Now        time.Time  `json:"now"`
 	Actor      ActorContext
 }
@@ -125,7 +125,7 @@ type LeaseFailure struct {
 type ExpiredLeaseRecovery struct {
 	Now    time.Time    `json:"now"`
 	Reason string       `json:"reason,omitempty"`
-	Limit  int          `json:"limit,omitempty"`
+	Limit  int          `json:"limit,omitzero"`
 	Actor  ActorContext `json:"-"`
 }
 
@@ -137,7 +137,7 @@ type ExpiredLeaseRecoveryResult struct {
 	PreviousLeaseUntil     time.Time `json:"previous_lease_until"`
 	PreviousClaimTokenHash string    `json:"previous_claim_token_hash,omitempty"`
 	Reason                 string    `json:"reason,omitempty"`
-	Exhausted              bool      `json:"exhausted,omitempty"`
+	Exhausted              bool      `json:"exhausted,omitzero"`
 }
 
 // SessionLeaseRelease captures a daemon-owned structural release for all active

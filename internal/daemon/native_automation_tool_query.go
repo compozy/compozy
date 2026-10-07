@@ -25,7 +25,7 @@ type automationRunQueryInput struct {
 	Status      string `json:"status,omitempty"`
 	Since       string `json:"since,omitempty"`
 	Until       string `json:"until,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Limit       int    `json:"limit,omitzero"`
 }
 
 func (i automationRunQueryInput) query(id toolspkg.ToolID) (automationpkg.RunQuery, error) {

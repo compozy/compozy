@@ -11,7 +11,7 @@ type taskRunListInput struct {
 	Status    string `json:"status,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
 
-	Limit int `json:"limit,omitempty"`
+	Limit int `json:"limit,omitzero"`
 }
 
 func (i taskRunListInput) query() taskpkg.RunQuery {

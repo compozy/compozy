@@ -23,8 +23,8 @@ type PayloadDiagnostic struct {
 
 // PayloadInspection is the pure result of inspecting a successful transport body.
 type PayloadInspection struct {
-	Failure    *ActionFailure     `json:"failure,omitempty"`
-	Diagnostic *PayloadDiagnostic `json:"diagnostic,omitempty"`
+	Failure    *ActionFailure     `json:"failure,omitzero"`
+	Diagnostic *PayloadDiagnostic `json:"diagnostic,omitzero"`
 }
 
 // InspectPayloadFailure applies a custom result contract or the built-in v0 truth table.

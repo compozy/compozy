@@ -23,7 +23,7 @@ type CreateTaskBlockMutation struct {
 type BlockMutationResult struct {
 	Block         TaskBlock       `json:"block"`
 	Recurrence    BlockRecurrence `json:"recurrence"`
-	EscalatedTask *Task           `json:"escalated_task,omitempty"`
+	EscalatedTask *Task           `json:"escalated_task,omitzero"`
 }
 
 // BlockRecurrence stores breaker accounting for one task and block kind.
@@ -86,7 +86,7 @@ type BlockTaskAndReleaseRunResult struct {
 	Block          TaskBlock       `json:"block"`
 	Run            Run             `json:"run"`
 	Recurrence     BlockRecurrence `json:"recurrence"`
-	EscalatedTask  *Task           `json:"escalated_task,omitempty"`
+	EscalatedTask  *Task           `json:"escalated_task,omitzero"`
 	ReleaseReason  string          `json:"release_reason"`
 	PreviousRun    Run             `json:"previous_run"`
 	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`

@@ -100,11 +100,11 @@ type SettingsWindowManagerBindingPayload struct {
 
 type UpdateSettingsWindowManagerRequest struct {
 	PreserveShortcuts bool                                      `json:"preserve_shortcuts,omitzero"`
-	Config            *SettingsWindowManagerConfigPayload       `json:"config,omitempty"`
-	Shortcuts         *map[string]windowmanager.ShortcutBinding `json:"shortcuts,omitempty"`
-	Aliases           *map[string]string                        `json:"aliases,omitempty"`
-	GlobalShortcuts   *map[string]string                        `json:"global_shortcuts,omitempty"`
-	Overwrite         bool                                      `json:"overwrite,omitempty"`
+	Config            *SettingsWindowManagerConfigPayload       `json:"config,omitzero"`
+	Shortcuts         *map[string]windowmanager.ShortcutBinding `json:"shortcuts,omitzero"`
+	Aliases           *map[string]string                        `json:"aliases,omitzero"`
+	GlobalShortcuts   *map[string]string                        `json:"global_shortcuts,omitzero"`
+	Overwrite         bool                                      `json:"overwrite,omitzero"`
 }
 
 type SettingsWindowManagerResponse struct {

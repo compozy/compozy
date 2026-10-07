@@ -9,7 +9,7 @@ import (
 type SessionAdvertisedCommand struct {
 	Name        string                         `json:"name"`
 	Description string                         `json:"description"`
-	Input       *SessionAdvertisedCommandInput `json:"input,omitempty"`
+	Input       *SessionAdvertisedCommandInput `json:"input,omitzero"`
 }
 
 // SessionAdvertisedCommandInput describes the optional unstructured command argument.

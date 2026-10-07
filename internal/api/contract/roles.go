@@ -43,7 +43,7 @@ type RoleStatus struct {
 	ReasoningEffort *string                   `json:"reasoning_effort"`
 	Speed           *Speed                    `json:"speed"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
-	Timeout         *string                   `json:"timeout,omitempty"`
+	Timeout         *string                   `json:"timeout,omitzero"`
 	FallbackChain   []RoleFallbackStatus      `json:"fallback_chain"`
 	Provenance      map[string]string         `json:"provenance"`
 	Diagnostics     []RoleDiagnostic          `json:"diagnostics"`

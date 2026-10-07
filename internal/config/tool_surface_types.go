@@ -48,6 +48,6 @@ type DiffEntry struct {
 	Path           string `json:"path"`
 	Before         any    `json:"before,omitempty"`
 	After          any    `json:"after,omitempty"`
-	BeforeRedacted bool   `json:"before_redacted,omitempty"`
-	AfterRedacted  bool   `json:"after_redacted,omitempty"`
+	BeforeRedacted bool   `json:"before_redacted,omitzero"`
+	AfterRedacted  bool   `json:"after_redacted,omitzero"`
 }

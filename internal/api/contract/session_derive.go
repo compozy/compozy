@@ -5,14 +5,14 @@ package contract
 // optional and must be sent together.
 type ContinueSessionRequest struct {
 	AgentName           string                         `json:"agent_name"`
-	Runtime             *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
-	Route               int                            `json:"route,omitempty"`
+	Runtime             *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
+	Route               int                            `json:"route,omitzero"`
 	Name                string                         `json:"name,omitempty"`
 	Message             string                         `json:"message,omitempty"`
 	IdempotencyKey      string                         `json:"idempotency_key"`
-	ExpectedEpoch       *int64                         `json:"expected_epoch,omitempty"`
-	ExpectedGeneration  *int64                         `json:"expected_generation,omitempty"`
-	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitempty"`
+	ExpectedEpoch       *int64                         `json:"expected_epoch,omitzero"`
+	ExpectedGeneration  *int64                         `json:"expected_generation,omitzero"`
+	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitzero"`
 }
 
 // ForkSessionRequest forks a user session with the same agent, runtime, and account.
@@ -22,9 +22,9 @@ type ForkSessionRequest struct {
 	MessageID           string `json:"message_id,omitempty"`
 	Name                string `json:"name,omitempty"`
 	IdempotencyKey      string `json:"idempotency_key"`
-	ExpectedEpoch       *int64 `json:"expected_epoch,omitempty"`
-	ExpectedGeneration  *int64 `json:"expected_generation,omitempty"`
-	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitempty"`
+	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
+	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
 }
 
 // SessionDerivedPayload is the recorded outcome of one continue or fork.
@@ -38,14 +38,14 @@ type SessionDerivedPayload struct {
 	NativeState          string `json:"native_state,omitempty"`
 	ACPSessionID         string `json:"acp_session_id,omitempty"`
 	NativeForkError      string `json:"native_fork_error,omitempty"`
-	ReplayMessageCount   *int   `json:"replay_message_count,omitempty"`
-	ReplayBytes          *int   `json:"replay_bytes,omitempty"`
+	ReplayMessageCount   *int   `json:"replay_message_count,omitzero"`
+	ReplayBytes          *int   `json:"replay_bytes,omitzero"`
 	Truncated            bool   `json:"truncated"`
 	OmittedCount         int    `json:"omitted_count"`
 	SourceTurnInProgress bool   `json:"source_turn_in_progress"`
 	FirstPrompt          string `json:"first_prompt"`
 	Replayed             bool   `json:"replayed"`
-	ChildDeleted         bool   `json:"child_deleted,omitempty"`
+	ChildDeleted         bool   `json:"child_deleted,omitzero"`
 	// ChildSessionID names the derived session; it stays set after the child was deleted.
 	ChildSessionID string `json:"child_session_id"`
 }
@@ -53,7 +53,7 @@ type SessionDerivedPayload struct {
 // SessionDeriveResponse returns the derived session and the derive outcome. Session
 // is omitted when the child was deleted since the recorded derivation.
 type SessionDeriveResponse struct {
-	Session *SessionPayload       `json:"session,omitempty"`
+	Session *SessionPayload       `json:"session,omitzero"`
 	Derived SessionDerivedPayload `json:"derived"`
 }
 
@@ -82,7 +82,7 @@ type SessionDerivePreviewResponse struct {
 	OmittedCount         int                      `json:"omitted_count"`
 	SourceTurnInProgress bool                     `json:"source_turn_in_progress"`
 	NativeForkPossible   bool                     `json:"native_fork_possible"`
-	Cut                  *SessionDeriveCutPayload `json:"cut,omitempty"`
+	Cut                  *SessionDeriveCutPayload `json:"cut,omitzero"`
 	Transcript           SessionTranscriptFences  `json:"transcript"`
 }
 

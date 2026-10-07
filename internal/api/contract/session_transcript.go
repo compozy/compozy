@@ -26,7 +26,7 @@ type SessionTranscriptResponse struct {
 	Generation         int64              `json:"generation"`
 	MaxSequence        int64              `json:"max_sequence"`
 	HasOlder           bool               `json:"has_older"`
-	NextBeforeSequence int64              `json:"next_before_sequence,omitempty"`
+	NextBeforeSequence int64              `json:"next_before_sequence,omitzero"`
 	Limit              int                `json:"limit"`
 }
 
@@ -40,7 +40,7 @@ type TranscriptSnapshotPayload struct {
 	Entries            []transcript.Entry `json:"entries"`
 	MaxSequence        int64              `json:"max_sequence"`
 	HasOlder           bool               `json:"has_older"`
-	NextBeforeSequence int64              `json:"next_before_sequence,omitempty"`
+	NextBeforeSequence int64              `json:"next_before_sequence,omitzero"`
 	Reset              bool               `json:"reset"`
 	Reason             string             `json:"reason,omitempty"`
 }
@@ -66,13 +66,13 @@ type SessionCommandsChangedPayload struct {
 
 // SessionStreamPayload documents the possible SSE frame payloads.
 type SessionStreamPayload struct {
-	UsageChanged        *SessionUsageChangedPayload     `json:"session_usage_changed,omitempty"`
-	ConsumerDegraded    *SessionConsumerDegradedPayload `json:"consumer_degraded,omitempty"`
+	UsageChanged        *SessionUsageChangedPayload     `json:"session_usage_changed,omitzero"`
+	ConsumerDegraded    *SessionConsumerDegradedPayload `json:"consumer_degraded,omitzero"`
 	Raw                 *SessionEventPayload            `json:"raw,omitempty"`
-	TranscriptSnapshot  *TranscriptSnapshotPayload      `json:"transcript_snapshot,omitempty"`
-	TranscriptDelta     *TranscriptDeltaPayload         `json:"transcript_delta,omitempty"`
-	GoalSnapshotChanged *GoalSnapshotChangedPayload     `json:"goal_snapshot_changed,omitempty"`
-	CommandsChanged     *SessionCommandsChangedPayload  `json:"session_commands_changed,omitempty"`
+	TranscriptSnapshot  *TranscriptSnapshotPayload      `json:"transcript_snapshot,omitzero"`
+	TranscriptDelta     *TranscriptDeltaPayload         `json:"transcript_delta,omitzero"`
+	GoalSnapshotChanged *GoalSnapshotChangedPayload     `json:"goal_snapshot_changed,omitzero"`
+	CommandsChanged     *SessionCommandsChangedPayload  `json:"session_commands_changed,omitzero"`
 	SessionStopped      *SessionEventPayload            `json:"session_stopped,omitempty"`
 }
 

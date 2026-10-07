@@ -147,7 +147,7 @@ func runAgentPromptWithDeathResume(
 		Kind               string                 `json:"kind"`
 		SourceTaskRunID    string                 `json:"source_task_run_id"`
 		SourceSessionID    string                 `json:"source_session_id"`
-		ProgressCheckpoint *DeathResumeCheckpoint `json:"progress_checkpoint,omitempty"`
+		ProgressCheckpoint *DeathResumeCheckpoint `json:"progress_checkpoint,omitzero"`
 	}{
 		Kind:               deathResumeContinuationKind,
 		SourceTaskRunID:    resume.SourceTaskRunID,

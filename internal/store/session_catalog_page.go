@@ -18,7 +18,7 @@ const (
 
 // SessionCatalogPosition is the stable keyset anchor used by bounded catalog reads.
 type SessionCatalogPosition struct {
-	NavigatorBand *int                        `json:"navigator_band,omitempty"`
+	NavigatorBand *int                        `json:"navigator_band,omitzero"`
 	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
 	PrimaryAt     time.Time                   `json:"primary_at"`
 	SecondaryAt   time.Time                   `json:"secondary_at"`

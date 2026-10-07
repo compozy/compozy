@@ -28,7 +28,7 @@ type memorySearchInput struct {
 	Workspace string `json:"workspace,omitempty"`
 	AgentName string `json:"agent_name,omitempty"`
 	AgentTier string `json:"agent_tier,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+	Limit     int    `json:"limit,omitzero"`
 }
 
 type memoryNoteInput struct {
@@ -75,10 +75,10 @@ type logQueryInput struct {
 	Provider      string `json:"provider,omitempty"`
 	Outcome       string `json:"outcome,omitempty"`
 	Component     string `json:"component,omitempty"`
-	ErrorOnly     bool   `json:"error_only,omitempty"`
-	AfterSequence int64  `json:"after_seq,omitempty"`
+	ErrorOnly     bool   `json:"error_only,omitzero"`
+	AfterSequence int64  `json:"after_seq,omitzero"`
 	Since         string `json:"since,omitempty"`
-	Limit         int    `json:"limit,omitempty"`
+	Limit         int    `json:"limit,omitzero"`
 }
 
 func (i logQueryInput) eventSummaryQuery(

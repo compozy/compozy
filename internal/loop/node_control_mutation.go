@@ -25,7 +25,7 @@ type NodeControlMutation struct {
 	Kind             NodeControlMutationKind `json:"kind"`
 	NodeID           NodeID                  `json:"node_id"`
 	ExpectedRevision int64                   `json:"expected_revision"`
-	ExpectExisting   bool                    `json:"expect_existing,omitempty"`
+	ExpectExisting   bool                    `json:"expect_existing,omitzero"`
 	QuarantineEntry  json.RawMessage         `json:"quarantine_entry,omitempty"`
 	AttentionFlag    string                  `json:"attention_flag,omitempty"`
 	AttentionReason  string                  `json:"attention_reason,omitempty"`

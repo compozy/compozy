@@ -117,8 +117,8 @@ type BulkForceTaskRunRequest struct {
 type BulkForceTaskRunItemPayload struct {
 	RunID string          `json:"run_id"`
 	OK    bool            `json:"ok"`
-	Run   *TaskRunPayload `json:"run,omitempty"`
-	Error *ErrorPayload   `json:"error,omitempty"`
+	Run   *TaskRunPayload `json:"run,omitzero"`
+	Error *ErrorPayload   `json:"error,omitzero"`
 }
 
 // CancelTaskRunRequest is the shared run-cancel request payload.

@@ -19,21 +19,21 @@ type LiveService interface {
 
 // TimelineQuery captures reconnect-friendly task timeline windowing semantics.
 type TimelineQuery struct {
-	AfterSequence int64 `json:"after_sequence,omitempty"`
-	Limit         int   `json:"limit,omitempty"`
+	AfterSequence int64 `json:"after_sequence,omitzero"`
+	Limit         int   `json:"limit,omitzero"`
 }
 
 // StreamQuery captures reconnect-friendly task stream replay semantics.
 type StreamQuery struct {
-	AfterSequence int64 `json:"after_sequence,omitempty"`
+	AfterSequence int64 `json:"after_sequence,omitzero"`
 }
 
 // EventRecordQuery captures low-level task event record reads that include a stable sequence.
 type EventRecordQuery struct {
 	TaskID        string `json:"task_id,omitempty"`
-	AfterSequence int64  `json:"after_sequence,omitempty"`
-	Limit         int    `json:"limit,omitempty"`
-	Descending    bool   `json:"descending,omitempty"`
+	AfterSequence int64  `json:"after_sequence,omitzero"`
+	Limit         int    `json:"limit,omitzero"`
+	Descending    bool   `json:"descending,omitzero"`
 	AllTasks      bool   `json:"-"`
 }
 
@@ -48,7 +48,7 @@ type TimelineItem struct {
 	Sequence  int64           `json:"sequence"`
 	EventID   string          `json:"event_id"`
 	Task      Reference       `json:"task"`
-	Run       *RunSummary     `json:"run,omitempty"`
+	Run       *RunSummary     `json:"run,omitzero"`
 	EventType string          `json:"event_type"`
 	Reason    string          `json:"reason,omitempty"`
 	Actor     ActorIdentity   `json:"actor"`
@@ -80,16 +80,16 @@ type TreeNode struct {
 	Task           Reference   `json:"task"`
 	ParentTaskID   string      `json:"parent_task_id,omitempty"`
 	Depth          int         `json:"depth"`
-	ChildCount     int         `json:"child_count,omitempty"`
-	ActiveRun      *RunSummary `json:"active_run,omitempty"`
+	ChildCount     int         `json:"child_count,omitzero"`
+	ActiveRun      *RunSummary `json:"active_run,omitzero"`
 	LastActivityAt time.Time   `json:"last_activity_at"`
 }
 
 // RunDetailView is one run detail payload with an optional task anchor.
 type RunDetailView struct {
 	Run     Run                   `json:"run"`
-	Task    *Reference            `json:"task,omitempty"`
-	Session *RunSessionRef        `json:"session,omitempty"`
+	Task    *Reference            `json:"task,omitzero"`
+	Session *RunSessionRef        `json:"session,omitzero"`
 	Summary RunOperationalSummary `json:"summary"`
 }
 
@@ -108,13 +108,13 @@ type RunSessionRef struct {
 type RunOperationalSummary struct {
 	LastActivityAt time.Time `json:"last_activity_at"`
 	LastEventType  string    `json:"last_event_type,omitempty"`
-	ToolCallCount  *int64    `json:"tool_call_count,omitempty"`
-	TurnCount      *int64    `json:"turn_count,omitempty"`
-	InputTokens    *int64    `json:"input_tokens,omitempty"`
-	OutputTokens   *int64    `json:"output_tokens,omitempty"`
-	TotalTokens    *int64    `json:"total_tokens,omitempty"`
-	TotalCost      *float64  `json:"total_cost,omitempty"`
-	CostCurrency   *string   `json:"cost_currency,omitempty"`
+	ToolCallCount  *int64    `json:"tool_call_count,omitzero"`
+	TurnCount      *int64    `json:"turn_count,omitzero"`
+	InputTokens    *int64    `json:"input_tokens,omitzero"`
+	OutputTokens   *int64    `json:"output_tokens,omitzero"`
+	TotalTokens    *int64    `json:"total_tokens,omitzero"`
+	TotalCost      *float64  `json:"total_cost,omitzero"`
+	CostCurrency   *string   `json:"cost_currency,omitzero"`
 	CostStatus     string    `json:"cost_status,omitempty"`
 	CostSource     string    `json:"cost_source,omitempty"`
 }
@@ -158,8 +158,8 @@ type InspectRunSummary struct {
 	ClaimTokenHashTruncated string    `json:"claim_token_hash_truncated,omitempty"`
 	LeaseUntil              time.Time `json:"lease_until"`
 	HeartbeatAt             time.Time `json:"heartbeat_at"`
-	HeartbeatAgeSeconds     *int64    `json:"heartbeat_age_seconds,omitempty"`
-	Retries                 int       `json:"retries,omitempty"`
+	HeartbeatAgeSeconds     *int64    `json:"heartbeat_age_seconds,omitzero"`
+	Retries                 int       `json:"retries,omitzero"`
 	LastErrorSummary        string    `json:"last_error_summary,omitempty"`
 	FailureKind             string    `json:"failure_kind,omitempty"`
 	BoundSessionID          string    `json:"bound_session_id,omitempty"`
@@ -200,8 +200,8 @@ type InspectEventSummary struct {
 type InspectView struct {
 	Target                InspectTarget                       `json:"target"`
 	Task                  Summary                             `json:"task"`
-	CurrentRun            *InspectRunSummary                  `json:"current_run,omitempty"`
-	BoundSession          *InspectSessionSummary              `json:"bound_session,omitempty"`
+	CurrentRun            *InspectRunSummary                  `json:"current_run,omitzero"`
+	BoundSession          *InspectSessionSummary              `json:"bound_session,omitzero"`
 	RecentRuns            []InspectRunSummary                 `json:"recent_runs,omitempty"`
 	RecentEvents          []InspectEventSummary               `json:"recent_events,omitempty"`
 	Scheduler             InspectSchedulerState               `json:"scheduler"`

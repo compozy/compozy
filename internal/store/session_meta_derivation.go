@@ -22,8 +22,8 @@ type SessionDerivation struct {
 	SourceSessionID string                  `json:"source_session_id"`
 	IdempotencyKey  string                  `json:"idempotency_key"`
 	Seed            string                  `json:"seed"`
-	Native          *SessionNativeBootstrap `json:"native,omitempty"`
-	PendingRoute    *SessionPendingRoute    `json:"pending_route,omitempty"`
+	Native          *SessionNativeBootstrap `json:"native,omitzero"`
+	PendingRoute    *SessionPendingRoute    `json:"pending_route,omitzero"`
 	FirstPrompt     SessionFirstPrompt      `json:"first_prompt"`
 	CreatedAt       time.Time               `json:"created_at"`
 }
@@ -77,7 +77,7 @@ type SessionImportedContext struct {
 	SourceEpoch          int64                              `json:"source_epoch"`
 	SourceGeneration     int64                              `json:"source_generation"`
 	SourceMaxSequence    int64                              `json:"source_max_sequence"`
-	Consumed             *SessionImportedContextConsumption `json:"consumed,omitempty"`
+	Consumed             *SessionImportedContextConsumption `json:"consumed,omitzero"`
 	CreatedAt            time.Time                          `json:"created_at"`
 }
 

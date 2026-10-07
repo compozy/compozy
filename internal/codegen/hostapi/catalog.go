@@ -27,7 +27,7 @@ type method struct {
 	Family         string    `json:"family"`
 	Params         namedType `json:"params"`
 	Result         namedType `json:"result"`
-	OptionalParams bool      `json:"optional_params,omitempty"`
+	OptionalParams bool      `json:"optional_params,omitzero"`
 }
 
 func loadCatalog() ([]method, error) {

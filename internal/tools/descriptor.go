@@ -49,7 +49,7 @@ type Descriptor struct {
 	OpenWorld           bool            `json:"open_world"`
 	RequiresInteraction bool            `json:"requires_interaction"`
 	ConcurrencySafe     bool            `json:"concurrency_safe"`
-	MaxResultBytes      int64           `json:"max_result_bytes,omitempty"`
+	MaxResultBytes      int64           `json:"max_result_bytes,omitzero"`
 	Toolsets            []ToolsetID     `json:"toolsets,omitempty"`
 	Tags                []string        `json:"tags,omitempty"`
 	SearchHints         []string        `json:"search_hints,omitempty"`

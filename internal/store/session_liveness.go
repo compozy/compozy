@@ -27,12 +27,12 @@ const (
 // SessionLivenessMeta is the persisted runtime supervision state for one
 // ACP-backed session.
 type SessionLivenessMeta struct {
-	SubprocessPID       int                  `json:"subprocess_pid,omitempty"`
+	SubprocessPID       int                  `json:"subprocess_pid,omitzero"`
 	SubprocessStartedAt *time.Time           `json:"subprocess_started_at,omitempty"`
 	LastUpdateAt        *time.Time           `json:"last_update_at,omitempty"`
 	StallState          string               `json:"stall_state,omitempty"`
 	StallReason         string               `json:"stall_reason,omitempty"`
-	Activity            *SessionActivityMeta `json:"activity,omitempty"`
+	Activity            *SessionActivityMeta `json:"activity,omitzero"`
 }
 
 // SessionActivityMeta is the persisted prompt/runtime activity snapshot for one
@@ -47,9 +47,9 @@ type SessionActivityMeta struct {
 	CurrentTool        string     `json:"current_tool,omitempty"`
 	ToolCallID         string     `json:"tool_call_id,omitempty"`
 	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current,omitempty"`
-	IterationMax       int        `json:"iteration_max,omitempty"`
-	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
+	IterationCurrent   int        `json:"iteration_current,omitzero"`
+	IterationMax       int        `json:"iteration_max,omitzero"`
+	IdleSeconds        int64      `json:"idle_seconds,omitzero"`
 }
 
 // Validate ensures the liveness payload remains internally consistent.

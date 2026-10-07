@@ -43,7 +43,7 @@ type LoopRequestsResponse struct {
 
 type RespondLoopRequest struct {
 	Generation int             `json:"generation"`
-	ItemIndex  int             `json:"item_index,omitempty"`
+	ItemIndex  int             `json:"item_index,omitzero"`
 	Decision   string          `json:"decision,omitempty"`
 	Payload    json.RawMessage `json:"payload"`
 	Note       string          `json:"note,omitempty"`

@@ -15,13 +15,13 @@ type Dependency struct {
 
 // RunReviewLineage captures review-gate fields attached to a task run.
 type RunReviewLineage struct {
-	Required           bool            `json:"required,omitempty"`
-	RequestRound       int             `json:"request_round,omitempty"`
+	Required           bool            `json:"required,omitzero"`
+	RequestRound       int             `json:"request_round,omitzero"`
 	PolicySnapshot     ReviewPolicy    `json:"policy_snapshot,omitempty"`
 	RequestID          string          `json:"request_id,omitempty"`
 	ParentRunID        string          `json:"parent_run_id,omitempty"`
 	ReviewID           string          `json:"review_id,omitempty"`
-	ReviewRound        int             `json:"review_round,omitempty"`
+	ReviewRound        int             `json:"review_round,omitzero"`
 	ContinuationReason string          `json:"continuation_reason,omitempty"`
 	MissingWork        json.RawMessage `json:"missing_work,omitempty"`
 	NextRoundGuidance  string          `json:"next_round_guidance,omitempty"`
@@ -37,12 +37,12 @@ type RunWorktreeState struct {
 // RunResultDescriptor keeps optional external-result metadata off the hot Run value.
 type RunResultDescriptor struct {
 	ResultRef   string `json:"result_ref,omitempty"`
-	ResultBytes int64  `json:"result_bytes,omitempty"`
+	ResultBytes int64  `json:"result_bytes,omitzero"`
 }
 
 // RunResultState carries either the inline terminal result or its external descriptor.
 type RunResultState struct {
-	Result *json.RawMessage `json:"result,omitempty"`
+	Result *json.RawMessage `json:"result,omitzero"`
 	RunResultDescriptor
 }
 
@@ -54,7 +54,7 @@ type Run struct {
 	WorkspaceID    string         `json:"workspace_id,omitempty"`
 	Attempt        int32          `json:"attempt"`
 	RecoveryCount  int32          `json:"recovery_count"`
-	RunKind        RunKind        `json:"run_kind,omitempty"`
+	RunKind        RunKind        `json:"run_kind,omitzero"`
 	Status         RunStatus      `json:"status"`
 	LoopRunID      string         `json:"loop_run_id,omitempty"`
 	PreviousRunID  string         `json:"previous_run_id,omitempty"`
@@ -70,13 +70,13 @@ type Run struct {
 	HeartbeatAt           time.Time         `json:"heartbeat_at"`
 	RequiredCapabilities  []string          `json:"required_capabilities,omitempty"`
 	PreferredCapabilities []string          `json:"preferred_capabilities,omitempty"`
-	Review                *RunReviewLineage `json:"review,omitempty"`
+	Review                *RunReviewLineage `json:"review,omitzero"`
 	Metadata              json.RawMessage   `json:"metadata,omitempty"`
 	QueuedAt              time.Time         `json:"queued_at"`
 	ClaimedAt             time.Time         `json:"claimed_at"`
 	StartedAt             time.Time         `json:"started_at"`
 	EndedAt               time.Time         `json:"ended_at"`
-	TokensUsed            int64             `json:"tokens_used,omitempty"`
+	TokensUsed            int64             `json:"tokens_used,omitzero"`
 	Error                 string            `json:"error,omitempty"`
 	*RunResultState
 }
@@ -123,8 +123,8 @@ type Summary struct {
 	Title           string                `json:"title"`
 	Priority        Priority              `json:"priority,omitempty"`
 	Status          Status                `json:"status"`
-	BlockedReasons  *[]BlockedReason      `json:"blocked_reasons,omitempty"`
-	NeedsAttention  *NeedsAttention       `json:"needs_attention,omitempty"`
+	BlockedReasons  *[]BlockedReason      `json:"blocked_reasons,omitzero"`
+	NeedsAttention  *NeedsAttention       `json:"needs_attention,omitzero"`
 	ApprovalPolicy  ApprovalPolicy        `json:"approval_policy,omitempty"`
 	ApprovalState   ApprovalState         `json:"approval_state,omitempty"`
 	CurrentRunID    string                `json:"current_run_id,omitempty"`
@@ -135,17 +135,17 @@ type Summary struct {
 	Origin          Origin                `json:"origin"`
 	Owner           *Ownership            `json:"owner,omitempty"`
 	Dependencies    []DependencyReference `json:"dependencies,omitempty"`
-	ActiveRun       *RunSummary           `json:"active_run,omitempty"`
-	RunProvenance   *RunProvenance        `json:"run_provenance,omitempty"`
-	MaxAttempts     int                   `json:"max_attempts,omitempty"`
+	ActiveRun       *RunSummary           `json:"active_run,omitzero"`
+	RunProvenance   *RunProvenance        `json:"run_provenance,omitzero"`
+	MaxAttempts     int                   `json:"max_attempts,omitzero"`
 	LatestEventSeq  int64                 `json:"latest_event_seq"`
-	ChildCount      int32                 `json:"child_count,omitempty"`
-	DependencyCount int32                 `json:"dependency_count,omitempty"`
+	ChildCount      int32                 `json:"child_count,omitzero"`
+	DependencyCount int32                 `json:"dependency_count,omitzero"`
 	// Bool fields are clustered to keep Summary within the 512-byte gocritic copy threshold.
-	AutoEnqueueOnReady bool      `json:"auto_enqueue_on_ready,omitempty"`
+	AutoEnqueueOnReady bool      `json:"auto_enqueue_on_ready,omitzero"`
 	Draft              bool      `json:"draft"`
-	Paused             bool      `json:"paused,omitempty"`
-	EffectivePaused    bool      `json:"effective_paused,omitempty"`
+	Paused             bool      `json:"paused,omitzero"`
+	EffectivePaused    bool      `json:"effective_paused,omitzero"`
 	WakeCreator        bool      `json:"wake_creator"`
 	PausedAt           time.Time `json:"paused_at,omitzero"`
 	CreatedAt          time.Time `json:"created_at"`

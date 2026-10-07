@@ -25,7 +25,7 @@ const (
 // NodeWaitIntent persists one wait in the same transaction as its waiting cell.
 type NodeWaitIntent struct {
 	NodeID           NodeID          `json:"node_id"`
-	ItemIndex        int             `json:"item_index,omitempty"`
+	ItemIndex        int             `json:"item_index,omitzero"`
 	Kind             string          `json:"kind"`
 	ResumeAt         *time.Time      `json:"resume_at,omitempty"`
 	NextEscalationAt *time.Time      `json:"next_escalation_at,omitempty"`

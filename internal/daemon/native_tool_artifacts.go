@@ -11,8 +11,8 @@ import (
 
 type nativeToolArtifactReadInput struct {
 	ArtifactURI string `json:"artifact_uri"`
-	Offset      int64  `json:"offset,omitempty"`
-	Limit       int64  `json:"limit,omitempty"`
+	Offset      int64  `json:"offset,omitzero"`
+	Limit       int64  `json:"limit,omitzero"`
 }
 
 func (n *daemonNativeTools) toolArtifactBindings(

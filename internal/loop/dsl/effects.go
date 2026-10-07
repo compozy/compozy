@@ -2,7 +2,7 @@ package dsl
 
 // EffectSpec describes one emitted event or tool call. Lint enforces the XOR.
 type EffectSpec struct {
-	Emit *EmitSpec      `json:"emit,omitempty" yaml:"emit,omitempty"`
+	Emit *EmitSpec      `json:"emit,omitzero"  yaml:"emit,omitempty"`
 	Tool string         `json:"tool,omitempty" yaml:"tool,omitempty"`
 	With map[string]any `json:"with,omitempty" yaml:"with,omitempty"`
 }

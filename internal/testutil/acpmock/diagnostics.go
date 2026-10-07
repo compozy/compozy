@@ -81,7 +81,7 @@ type DiagnosticsStep struct {
 	Decision     string              `json:"decision,omitempty"`
 	Command      string              `json:"command,omitempty"`
 	Args         []string            `json:"args,omitempty"`
-	ExitCode     *int                `json:"exit_code,omitempty"`
+	ExitCode     *int                `json:"exit_code,omitzero"`
 	Output       string              `json:"output,omitempty"`
 	Error        string              `json:"error,omitempty"`
 	DriverAction DriverControlAction `json:"driver_action,omitempty"`

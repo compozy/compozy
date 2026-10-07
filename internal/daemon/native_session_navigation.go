@@ -13,7 +13,7 @@ type sessionSearchInput struct {
 	Workspace string `json:"workspace"`
 	SessionID string `json:"session_id"`
 	Query     string `json:"q"`
-	Limit     int    `json:"limit,omitempty"`
+	Limit     int    `json:"limit,omitzero"`
 }
 
 func (n *daemonNativeTools) sessionSearch(

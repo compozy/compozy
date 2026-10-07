@@ -29,8 +29,8 @@ type Reference struct {
 	Scope           Scope      `json:"scope"`
 	WorkspaceID     string     `json:"workspace_id,omitempty"`
 	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitempty"`
-	EffectivePaused bool       `json:"effective_paused,omitempty"`
+	Paused          bool       `json:"paused,omitzero"`
+	EffectivePaused bool       `json:"effective_paused,omitzero"`
 	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
 }
 
@@ -47,7 +47,7 @@ type DependencyReference struct {
 type RunSummary struct {
 	ID                   string                 `json:"id"`
 	TaskID               string                 `json:"task_id"`
-	RunKind              RunKind                `json:"run_kind,omitempty"`
+	RunKind              RunKind                `json:"run_kind,omitzero"`
 	LoopRunID            string                 `json:"loop_run_id,omitempty"`
 	Status               RunStatus              `json:"status"`
 	Attempt              int                    `json:"attempt"`
@@ -64,12 +64,12 @@ type RunSummary struct {
 	LeaseUntil           time.Time              `json:"lease_until"`
 	HeartbeatAt          time.Time              `json:"heartbeat_at"`
 	DesignationGroupID   string                 `json:"designation_group_id,omitempty"`
-	Designation          *RunDesignationSummary `json:"designation,omitempty"`
+	Designation          *RunDesignationSummary `json:"designation,omitzero"`
 	QueuedAt             time.Time              `json:"queued_at"`
 	ClaimedAt            time.Time              `json:"claimed_at"`
 	StartedAt            time.Time              `json:"started_at"`
 	EndedAt              time.Time              `json:"ended_at"`
-	TokensUsed           int64                  `json:"tokens_used,omitempty"`
+	TokensUsed           int64                  `json:"tokens_used,omitzero"`
 	Error                string                 `json:"error,omitempty"`
 }
 

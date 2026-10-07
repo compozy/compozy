@@ -51,7 +51,7 @@ var (
 type RequestIntent struct {
 	WorkspaceID     WorkspaceID              `json:"workspace_id"`
 	NodeID          NodeID                   `json:"node_id"`
-	ItemIndex       int                      `json:"item_index,omitempty"`
+	ItemIndex       int                      `json:"item_index,omitzero"`
 	Kind            string                   `json:"kind"`
 	Prompt          string                   `json:"prompt"`
 	Context         json.RawMessage          `json:"context"`

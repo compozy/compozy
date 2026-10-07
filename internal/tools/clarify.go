@@ -105,7 +105,7 @@ type ClarifyAnswerResult struct {
 
 // ClarifyAnswerRequest is the public answer mutation payload.
 type ClarifyAnswerRequest struct {
-	ChoiceIndex *int   `json:"choice_index,omitempty"`
+	ChoiceIndex *int   `json:"choice_index,omitzero"`
 	Text        string `json:"text,omitempty"`
 }
 
@@ -164,7 +164,7 @@ func (p ClarifyPending) Clone() ClarifyPending {
 type ClarifyEvent struct {
 	Status     ClarifyStatus  `json:"status"`
 	Request    ClarifyPending `json:"request"`
-	Answer     *ClarifyAnswer `json:"answer,omitempty"`
+	Answer     *ClarifyAnswer `json:"answer,omitzero"`
 	ResolvedBy string         `json:"resolved_by,omitempty"`
 	At         time.Time      `json:"at"`
 }

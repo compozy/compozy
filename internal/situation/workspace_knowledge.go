@@ -36,14 +36,14 @@ const (
 type workspaceKnowledgeSnapshot struct {
 	Revision       string                   `json:"revision"`
 	Files          []workspaceKnowledgeFile `json:"files"`
-	Truncated      bool                     `json:"truncated,omitempty"`
-	OmittedEntries int                      `json:"omitted_entries,omitempty"`
+	Truncated      bool                     `json:"truncated,omitzero"`
+	OmittedEntries int                      `json:"omitted_entries,omitzero"`
 }
 
 type workspaceKnowledgeFile struct {
 	Path      string `json:"path"`
 	Content   string `json:"content"`
-	Truncated bool   `json:"truncated,omitempty"`
+	Truncated bool   `json:"truncated,omitzero"`
 }
 
 type workspaceKnowledgeCollector struct {

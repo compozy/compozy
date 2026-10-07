@@ -314,11 +314,11 @@ type RuntimeActivity struct {
 	CurrentTool        string     `json:"current_tool,omitempty"`
 	ToolCallID         string     `json:"tool_call_id,omitempty"`
 	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current,omitempty"`
-	IterationMax       int        `json:"iteration_max,omitempty"`
-	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
-	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
-	ElapsedMS          int64      `json:"elapsed_ms,omitempty"`
+	IterationCurrent   int        `json:"iteration_current,omitzero"`
+	IterationMax       int        `json:"iteration_max,omitzero"`
+	IdleSeconds        int64      `json:"idle_seconds,omitzero"`
+	ElapsedSeconds     int64      `json:"elapsed_seconds,omitzero"`
+	ElapsedMS          int64      `json:"elapsed_ms,omitzero"`
 }
 
 // Merge overlays non-nil usage fields from other into the receiver.

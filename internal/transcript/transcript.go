@@ -52,7 +52,7 @@ type Message struct {
 	ThinkingComplete bool                  `json:"thinking_complete"`
 	ToolName         string                `json:"tool_name,omitempty"`
 	ToolInput        json.RawMessage       `json:"tool_input,omitempty"`
-	ToolResult       *ToolResult           `json:"tool_result,omitempty"`
+	ToolResult       *ToolResult           `json:"tool_result,omitzero"`
 	ToolError        bool                  `json:"tool_error"`
 	Timestamp        time.Time             `json:"timestamp"`
 }

@@ -6,5 +6,5 @@ type ErrorPayload struct {
 	Code          string            `json:"code,omitempty"`
 	CurrentTurnID string            `json:"current_turn_id,omitempty"`
 	Details       map[string]string `json:"details,omitempty"`
-	Diagnostic    *DiagnosticItem   `json:"diagnostic,omitempty"`
+	Diagnostic    *DiagnosticItem   `json:"diagnostic,omitzero"`
 }

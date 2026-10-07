@@ -23,11 +23,11 @@ type SessionEventPayload struct {
 	RootSessionID   string                       `json:"root_session_id,omitempty"`
 	SpawnDepth      int                          `json:"spawn_depth"`
 	Content         json.RawMessage              `json:"content"`
-	Goal            *GoalPromptMeta              `json:"goal,omitempty"`
+	Goal            *GoalPromptMeta              `json:"goal,omitzero"`
 	StopReason      store.StopReason             `json:"stop_reason,omitempty"`
 	StopDetail      string                       `json:"stop_detail,omitempty"`
-	Failure         *SessionFailurePayload       `json:"failure,omitempty"`
-	ProviderError   *acp.ProviderErrorDiagnostic `json:"provider_error,omitempty"`
+	Failure         *SessionFailurePayload       `json:"failure,omitzero"`
+	ProviderError   *acp.ProviderErrorDiagnostic `json:"provider_error,omitzero"`
 	Timestamp       time.Time                    `json:"timestamp"`
 }
 

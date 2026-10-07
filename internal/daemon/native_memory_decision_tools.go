@@ -18,7 +18,7 @@ type memoryAdminDecisionListInput struct {
 	TargetFilename string `json:"filename,omitempty"`
 	Since          string `json:"since,omitempty"`
 	Reason         string `json:"reason,omitempty"`
-	Limit          int    `json:"limit,omitempty"`
+	Limit          int    `json:"limit,omitzero"`
 }
 
 type memoryAdminDecisionIDInput struct {
@@ -28,7 +28,7 @@ type memoryAdminDecisionIDInput struct {
 type memoryAdminDecisionRevertInput struct {
 	DecisionID string `json:"decision_id"`
 	Reason     string `json:"reason,omitempty"`
-	DryRun     bool   `json:"dry_run,omitempty"`
+	DryRun     bool   `json:"dry_run,omitzero"`
 }
 
 func (n *daemonNativeTools) memoryAdminDecisionsList(

@@ -12,8 +12,8 @@ type Profile struct {
 	State                  string                         `json:"state"`
 	CreatedAt              time.Time                      `json:"created_at"`
 	ArchivedAt             *time.Time                     `json:"archived_at,omitempty"`
-	WorkItems              int                            `json:"work_items,omitempty"`
-	NeedsSetup             bool                           `json:"needs_setup,omitempty"`
+	WorkItems              int                            `json:"work_items,omitzero"`
+	NeedsSetup             bool                           `json:"needs_setup,omitzero"`
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
@@ -43,18 +43,18 @@ type ProfileSelection struct {
 
 // CreateProfileRequest creates one profile and may activate it immediately.
 type CreateProfileRequest struct {
-	Name     string            `json:"name"               binding:"required"`
+	Name     string            `json:"name"              binding:"required"`
 	Color    string            `json:"color,omitempty"`
 	Icon     string            `json:"icon,omitempty"`
 	Emoji    string            `json:"emoji,omitempty"`
-	Activate *ProfileSelection `json:"activate,omitempty"`
+	Activate *ProfileSelection `json:"activate,omitzero"`
 }
 
 // UpdateProfileRequest changes mutable profile identity fields.
 type UpdateProfileRequest struct {
-	Color *string `json:"color,omitempty"`
-	Icon  *string `json:"icon,omitempty"`
-	Emoji *string `json:"emoji,omitempty"`
+	Color *string `json:"color,omitzero"`
+	Icon  *string `json:"icon,omitzero"`
+	Emoji *string `json:"emoji,omitzero"`
 }
 
 // RenameProfileRequest requests a profile rename using a prepared plan.

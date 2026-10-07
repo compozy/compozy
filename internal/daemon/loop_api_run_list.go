@@ -20,7 +20,7 @@ type loopRunListCursor struct {
 	Status        string    `json:"status,omitempty"`
 	Origin        string    `json:"origin,omitempty"`
 	OriginSession string    `json:"origin_session,omitempty"`
-	Live          *bool     `json:"live,omitempty"`
+	Live          *bool     `json:"live,omitzero"`
 	Rank          int       `json:"rank"`
 	CreatedAt     time.Time `json:"created_at"`
 	ID            string    `json:"id"`

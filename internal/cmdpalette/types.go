@@ -120,7 +120,7 @@ type Descriptor struct {
 	Action                    Action          `json:"action"`
 	Arguments                 []Argument      `json:"arguments"`
 	Destructive               bool            `json:"destructive"`
-	Confirmation              *Confirmation   `json:"confirmation,omitempty"`
+	Confirmation              *Confirmation   `json:"confirmation,omitzero"`
 	When                      []Predicate     `json:"when,omitempty"`
 	AvailabilityExempt        bool            `json:"availability_exempt"`
 	Policy                    ExecutionPolicy `json:"execution"`
@@ -148,7 +148,7 @@ type ResolvedCommand struct {
 	UnavailableReason string          `json:"reason,omitempty"`
 	Bindings          []string        `json:"bindings"`
 	Alias             *string         `json:"alias"`
-	GlobalShortcut    *GlobalShortcut `json:"global_shortcut,omitempty"`
+	GlobalShortcut    *GlobalShortcut `json:"global_shortcut,omitzero"`
 }
 
 // GlobalShortcut projects daemon-owned intent and one shell client's registration truth.

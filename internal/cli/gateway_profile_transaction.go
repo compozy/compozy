@@ -39,10 +39,10 @@ type gatewayProfileTransactionJournal struct {
 	Version                  int                                    `json:"version"`
 	Profile                  string                                 `json:"profile"`
 	Operation                gatewayProfileTransactionOperation     `json:"operation"`
-	DesiredProfile           *compozyconfig.GatewayConnectionConfig `json:"desired_profile,omitempty"`
+	DesiredProfile           *compozyconfig.GatewayConnectionConfig `json:"desired_profile,omitzero"`
 	DesiredActive            string                                 `json:"desired_active"`
 	CredentialSHA256         string                                 `json:"credential_sha256,omitempty"`
-	PreviousProfile          *compozyconfig.GatewayConnectionConfig `json:"previous_profile,omitempty"`
+	PreviousProfile          *compozyconfig.GatewayConnectionConfig `json:"previous_profile,omitzero"`
 	PreviousActive           string                                 `json:"previous_active"`
 	PreviousCredentialSHA256 string                                 `json:"previous_credential_sha256,omitempty"`
 	PreviousCredentialBackup string                                 `json:"previous_credential_backup,omitempty"`

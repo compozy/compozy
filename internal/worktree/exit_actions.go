@@ -35,7 +35,7 @@ type ExitActionRequest struct {
 	Message       string     `json:"message,omitempty"`
 	Title         string     `json:"title,omitempty"`
 	Body          string     `json:"body,omitempty"`
-	Draft         bool       `json:"draft,omitempty"`
+	Draft         bool       `json:"draft,omitzero"`
 	Base          string     `json:"base,omitempty"`
 }
 
@@ -48,7 +48,7 @@ type ExitStepResult struct {
 	SHA          string    `json:"sha,omitempty"`
 	Upstream     string    `json:"upstream,omitempty"`
 	PRStatus     string    `json:"pr_status,omitempty"`
-	PRNumber     int       `json:"pr_number,omitempty"`
+	PRNumber     int       `json:"pr_number,omitzero"`
 	URL          string    `json:"url,omitempty"`
 }
 
@@ -62,7 +62,7 @@ type ExitActionResult struct {
 	OperationID string           `json:"op_id"`
 	Action      ExitAction       `json:"action"`
 	Steps       []ExitStepResult `json:"steps"`
-	CTA         *ExitCTA         `json:"cta,omitempty"`
+	CTA         *ExitCTA         `json:"cta,omitzero"`
 }
 
 type exitExecutionError struct {

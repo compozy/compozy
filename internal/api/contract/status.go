@@ -28,7 +28,7 @@ type DaemonStatusPayload struct {
 	TotalSessions  int                   `json:"total_sessions"`
 	Version        string                `json:"version,omitempty"`
 	MinAppVersion  string                `json:"min_app_version"`
-	Gateway        *GatewayStatusPayload `json:"gateway,omitempty"`
+	Gateway        *GatewayStatusPayload `json:"gateway,omitzero"`
 	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`
 }
 
@@ -92,7 +92,7 @@ type MCPServerStatusPayload struct {
 	Initialized   bool   `json:"initialized"`
 	State         string `json:"state"`
 	Probe         string `json:"probe,omitempty"`
-	ToolCount     int    `json:"tool_count,omitempty"`
+	ToolCount     int    `json:"tool_count,omitzero"`
 	Reason        string `json:"reason,omitempty"`
 	Diagnostic    string `json:"diagnostic,omitempty"`
 	Transport     string `json:"transport,omitempty"`

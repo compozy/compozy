@@ -22,7 +22,7 @@ type DuplicateAgentRequest struct {
 	Name      string                   `json:"name"`
 	Scope     AgentCreateScope         `json:"scope,omitempty"`
 	Workspace string                   `json:"workspace,omitempty"`
-	Overrides *DuplicateAgentOverrides `json:"overrides,omitempty"`
+	Overrides *DuplicateAgentOverrides `json:"overrides,omitzero"`
 }
 
 // DuplicateAgentOverrides captures caller-editable fields applied to a clone.
@@ -33,14 +33,14 @@ type DuplicateAgentOverrides struct {
 	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
 	Speed           Speed                     `json:"speed,omitempty"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	ClearSpeed      bool                      `json:"clear_speed,omitempty"`
-	ClearACPOptions bool                      `json:"clear_acp_options,omitempty"`
+	ClearSpeed      bool                      `json:"clear_speed,omitzero"`
+	ClearACPOptions bool                      `json:"clear_acp_options,omitzero"`
 	Tools           []string                  `json:"tools,omitempty"`
 	Toolsets        []string                  `json:"toolsets,omitempty"`
 	DenyTools       []string                  `json:"deny_tools,omitempty"`
 	Permissions     SettingsPermissionMode    `json:"permissions,omitempty"`
 	CategoryPath    []string                  `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig  `json:"skills,omitempty"`
+	Skills          *CreateAgentSkillsConfig  `json:"skills,omitzero"`
 	Prompt          string                    `json:"prompt,omitempty"`
 }
 
@@ -106,10 +106,10 @@ type AgentPayload struct {
 	WorkspaceID      string                         `json:"workspace_id,omitempty"`
 	Layer            string                         `json:"layer,omitempty"`
 	Shadows          []AgentDefinitionShadowPayload `json:"shadows,omitempty"`
-	Skills           *CreateAgentSkillsConfig       `json:"skills,omitempty"`
+	Skills           *CreateAgentSkillsConfig       `json:"skills,omitzero"`
 	FallbackChain    []RoleFallbackStatus           `json:"fallback_chain,omitempty"`
 	DefinitionDigest string                         `json:"definition_digest"`
 	Prompt           string                         `json:"prompt"`
 	Diagnostics      []AgentDiagnosticPayload       `json:"diagnostics,omitempty"`
-	EffectiveRuntime *AgentEffectiveRuntimePayload  `json:"effective_runtime,omitempty"`
+	EffectiveRuntime *AgentEffectiveRuntimePayload  `json:"effective_runtime,omitzero"`
 }

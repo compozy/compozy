@@ -57,8 +57,8 @@ type persistedEffectEntry struct {
 	Emit *struct {
 		Kind    string         `json:"kind"`
 		Payload map[string]any `json:"payload,omitempty"`
-	} `json:"emit,omitempty"`
-	RenderError bool   `json:"render_error,omitempty"`
+	} `json:"emit,omitzero"`
+	RenderError bool   `json:"render_error,omitzero"`
 	Diagnostic  string `json:"diagnostic,omitempty"`
 }
 

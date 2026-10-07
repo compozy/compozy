@@ -188,8 +188,8 @@ type Diagnostic struct {
 	Field      string `json:"field,omitempty"`
 	Section    string `json:"section,omitempty"`
 	SourcePath string `json:"source_path,omitempty"`
-	Line       int    `json:"line,omitempty"`
-	Column     int    `json:"column,omitempty"`
+	Line       int    `json:"line,omitzero"`
+	Column     int    `json:"column,omitzero"`
 }
 
 // DiagnosticError carries structured diagnostics for invalid authored content.

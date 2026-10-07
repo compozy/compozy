@@ -51,9 +51,9 @@ type lifecycleRecord struct {
 	HomeDir        string   `json:"home_dir,omitempty"`
 	Message        string   `json:"message"`
 	Recommendation string   `json:"recommendation,omitempty"`
-	DaemonStopped  bool     `json:"daemon_stopped,omitempty"`
+	DaemonStopped  bool     `json:"daemon_stopped,omitzero"`
 	Removed        []string `json:"removed,omitempty"`
-	Purged         bool     `json:"purged,omitempty"`
+	Purged         bool     `json:"purged,omitzero"`
 }
 
 func detectManagedState(deps commandDeps) managedState {

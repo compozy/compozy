@@ -8,9 +8,9 @@ type LoopBackoffSpec struct {
 
 // LoopRetrySpec configures node retry policy.
 type LoopRetrySpec struct {
-	MaxAttempts  int              `json:"max_attempts,omitempty"`
+	MaxAttempts  int              `json:"max_attempts,omitzero"`
 	OnFailure    string           `json:"on_failure,omitempty"`
-	Backoff      *LoopBackoffSpec `json:"backoff,omitempty"`
+	Backoff      *LoopBackoffSpec `json:"backoff,omitzero"`
 	NonRetryable []string         `json:"non_retryable,omitempty"`
 }
 
@@ -28,7 +28,7 @@ type LoopEmitSpec struct {
 
 // LoopEffectSpec describes one emitted event or tool call.
 type LoopEffectSpec struct {
-	Emit *LoopEmitSpec  `json:"emit,omitempty"`
+	Emit *LoopEmitSpec  `json:"emit,omitzero"`
 	Tool string         `json:"tool,omitempty"`
 	With map[string]any `json:"with,omitempty"`
 }
@@ -36,7 +36,7 @@ type LoopEffectSpec struct {
 // LoopErrorPolicy combines error flow with observational effects.
 type LoopErrorPolicy struct {
 	Route     string           `json:"route,omitempty"`
-	AllowFail bool             `json:"allow_fail,omitempty"`
+	AllowFail bool             `json:"allow_fail,omitzero"`
 	Effects   []LoopEffectSpec `json:"effects,omitempty"`
 }
 
@@ -50,8 +50,8 @@ type LoopWaitExpiry struct {
 // LoopNodeLifecycleState carries optional node reliability fields.
 type LoopNodeLifecycleState struct {
 	Deadline       string                `json:"deadline,omitempty"`
-	ResultContract *LoopResultContract   `json:"result_contract,omitempty"`
-	OnError        *LoopErrorPolicy      `json:"on_error,omitempty"`
+	ResultContract *LoopResultContract   `json:"result_contract,omitzero"`
+	OnError        *LoopErrorPolicy      `json:"on_error,omitzero"`
 	OnRetry        []LoopEffectSpec      `json:"on_retry,omitempty"`
 	OnSuccess      []LoopEffectSpec      `json:"on_success,omitempty"`
 	OnPause        []LoopEffectSpec      `json:"on_pause,omitempty"`
@@ -59,7 +59,7 @@ type LoopNodeLifecycleState struct {
 	OnCancel       []LoopEffectSpec      `json:"on_cancel,omitempty"`
 	OnQuarantine   []LoopEffectSpec      `json:"on_quarantine,omitempty"`
 	OnParentClose  LoopParentClosePolicy `json:"on_parent_close,omitempty"`
-	Expires        *LoopWaitExpiry       `json:"expires,omitempty"`
+	Expires        *LoopWaitExpiry       `json:"expires,omitzero"`
 }
 
 // LoopContractLifecycleState carries optional terminal reactions.

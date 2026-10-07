@@ -25,8 +25,8 @@ type SessionAdvertisedCommandState struct {
 // SessionRuntimeBindingState keeps optional runtime failure and selection state compact inside SessionMeta.
 // Embedding preserves the flat session metadata JSON contract.
 type SessionRuntimeBindingState struct {
-	RuntimeFailure   *string                       `json:"runtime_failure,omitempty"`
-	RuntimeSelection *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
+	RuntimeFailure   *string                       `json:"runtime_failure,omitzero"`
+	RuntimeSelection *SessionRuntimeSelectionState `json:"runtime_selection,omitzero"`
 }
 
 // SessionProviderExecutionState keeps resolved provider execution settings compact inside SessionMeta.
@@ -46,10 +46,10 @@ type SessionMeta struct {
 	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
 	Speed           speedpkg.Speed `json:"speed,omitempty"`
 	*SessionRuntimeDetails
-	SpeedResolution   *speedpkg.Resolution     `json:"speed_resolution,omitempty"`
+	SpeedResolution   *speedpkg.Resolution     `json:"speed_resolution,omitzero"`
 	RuntimeStatus     SessionRuntimeStatus     `json:"runtime_status"`
 	RuntimeTransition SessionRuntimeTransition `json:"runtime_transition,omitempty"`
-	RuntimeGeneration int64                    `json:"runtime_generation,omitempty"`
+	RuntimeGeneration int64                    `json:"runtime_generation,omitzero"`
 	*SessionRuntimeBindingState
 	*SessionProviderExecutionState
 	ProfileID   string `json:"profile_id"`
@@ -57,24 +57,24 @@ type SessionMeta struct {
 	*SessionExecutionLocationState
 
 	SessionType            string          `json:"session_type,omitempty"`
-	Lineage                *SessionLineage `json:"lineage,omitempty"`
+	Lineage                *SessionLineage `json:"lineage,omitzero"`
 	State                  string          `json:"state"`
-	StopReason             *StopReason     `json:"stop_reason,omitempty"`
-	StopEscalated          bool            `json:"stop_escalated,omitempty"`
-	StopVerificationFailed bool            `json:"stop_verification_failed,omitempty"`
+	StopReason             *StopReason     `json:"stop_reason,omitzero"`
+	StopEscalated          bool            `json:"stop_escalated,omitzero"`
+	StopVerificationFailed bool            `json:"stop_verification_failed,omitzero"`
 	StopDetail             string          `json:"stop_detail,omitempty"`
 	Failure                *SessionFailure `json:"failure,omitempty"`
-	ACPSessionID           *string         `json:"acp_session_id,omitempty"`
+	ACPSessionID           *string         `json:"acp_session_id,omitzero"`
 	// AcceptedRoute is the binding ACP accepted; it is written with ACPSessionID and
 	// cleared with it, and drives resume affinity.
-	AcceptedRoute *SessionAcceptedRoute `json:"accepted_route,omitempty"`
-	Liveness      *SessionLivenessMeta  `json:"liveness,omitempty"`
+	AcceptedRoute *SessionAcceptedRoute `json:"accepted_route,omitzero"`
+	Liveness      *SessionLivenessMeta  `json:"liveness,omitzero"`
 	// Derivation and ImportedContext are present only on continued or forked children.
-	Derivation      *SessionDerivation      `json:"derivation,omitempty"`
-	ImportedContext *SessionImportedContext `json:"imported_context,omitempty"`
+	Derivation      *SessionDerivation      `json:"derivation,omitzero"`
+	ImportedContext *SessionImportedContext `json:"imported_context,omitzero"`
 
-	CreationProfile    *SessionCreationProfile `json:"creation_profile,omitempty"`
-	CreationOptions    *SessionCreationOptions `json:"creation_options,omitempty"`
+	CreationProfile    *SessionCreationProfile `json:"creation_profile,omitzero"`
+	CreationOptions    *SessionCreationOptions `json:"creation_options,omitzero"`
 	CreationProfileRef string                  `json:"creation_profile_ref,omitempty"`
 	PolicySpecDigest   string                  `json:"policy_spec_digest,omitempty"`
 	CreationDigest     string                  `json:"creation_digest,omitempty"`
