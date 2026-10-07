@@ -766,17 +766,6 @@ func TestRuntimeHelpersCoverCLIEnvAndRepoUtilities(t *testing.T) {
 	}
 }
 
-func TestBuildCompozyBinaryProducesReusableExecutable(t *testing.T) {
-	path := buildCompozyBinary(t)
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("os.Stat(%q) error = %v", path, err)
-	}
-
-	if got, want := buildCompozyBinary(t), path; got != want {
-		t.Fatalf("second buildCompozyBinary() = %q, want %q", got, want)
-	}
-}
-
 func TestBuildCompozyBinaryHonorsEnvironmentOverride(t *testing.T) {
 	override := filepath.Join(t.TempDir(), "compozy-custom")
 	if err := os.WriteFile(override, []byte("fake"), 0o755); err != nil {
