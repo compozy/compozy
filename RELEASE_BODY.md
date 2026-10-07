@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-10-06
+## 0.3.0 - 2026-10-07
 
 ### ♻️ Refactoring
 
@@ -283,6 +283,8 @@
 - Preserve profile recovery guidance and repair browser validation (#695)
 - Preserve SQLite commit outcomes during cancellation (#696)
 - Preserve profile entry across query reconciliation (#697)
+- Apply the chosen runtime to continued sessions and keep continue/fork top-level (#702)
+- Keep live model catalogs current without releases (#701)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -311,6 +313,7 @@
 - Await completed automation run before daemon cleanup
 - Wait for terminal command output before detaching
 - Refresh credential assertions context after migration
+- Cover inactive loop routes with automatic approval (#703)
 
 ### Release Notes
 
