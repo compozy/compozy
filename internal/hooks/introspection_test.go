@@ -405,7 +405,7 @@ func TestHookTelemetryHelpersExposeSessionIDAndSink(t *testing.T) {
 		}
 
 		writer := &captureHookRunWriter{}
-		ctx := WithHookRunWriter(context.Background(), writer)
+		ctx := WithHookRunWriter(t.Context(), writer)
 		if HookRunWriterFromContext(ctx) != writer {
 			t.Fatal("HookRunWriterFromContext() did not return attached writer")
 		}

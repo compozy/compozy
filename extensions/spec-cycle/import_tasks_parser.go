@@ -3,6 +3,7 @@ package speccycle
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -393,11 +394,7 @@ func parseCompozyTaskFile(content []byte) (compozyTaskFrontmatter, string, error
 	meta.Complexity = strings.TrimSpace(meta.Complexity)
 	if meta.Runtime != nil {
 		if len(meta.Runtime.Extra) > 0 {
-			keys := make([]string, 0, len(meta.Runtime.Extra))
-			for key := range meta.Runtime.Extra {
-				keys = append(keys, key)
-			}
-			slices.Sort(keys)
+			keys := slices.Sorted(maps.Keys(meta.Runtime.Extra))
 			return compozyTaskFrontmatter{}, "", fmt.Errorf(
 				"runtime.%s is unknown; see MIGRATION_GUIDE.md#per-task-runtime-selection",
 				keys[0],

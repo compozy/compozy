@@ -103,8 +103,7 @@ func selectReleaseDownload(release *release, requestedAsset string) (releaseSele
 			if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(asset.Name)), ".tar.gz") {
 				return releaseSelection{}, fmt.Errorf("asset %q is not a .tar.gz archive", requestedAsset)
 			}
-			selected := asset
-			return releaseSelection{asset: &selected}, nil
+			return releaseSelection{asset: new(asset)}, nil
 		}
 		return releaseSelection{}, fmt.Errorf(
 			"asset %q not found; available assets: %s",
@@ -120,8 +119,7 @@ func selectReleaseDownload(release *release, requestedAsset string) (releaseSele
 		}
 		return releaseSelection{useTarball: true}, nil
 	case 1:
-		selected := candidates[0]
-		return releaseSelection{asset: &selected}, nil
+		return releaseSelection{asset: new(candidates[0])}, nil
 	default:
 		return releaseSelection{}, fmt.Errorf(
 			"multiple .tar.gz assets found: %s; specify one with --asset",

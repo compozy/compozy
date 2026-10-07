@@ -40,7 +40,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 	"github.com/kballard/go-shellquote"
@@ -463,7 +462,7 @@ func (h *referenceHarness) installExtension(t *testing.T, relativePath string) c
 	if !filepath.IsAbs(root) {
 		root = filepath.Join(h.repoRoot, relativePath)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	record, err := h.client.InstallExtension(ctx, cli.InstallExtensionRequest{
@@ -542,7 +541,7 @@ func (h *referenceHarness) waitForDaemonReady(t *testing.T) cli.DaemonStatus {
 			}
 			t.Fatal("timed out waiting for daemon ready after 10s without a completed probe")
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 			current, err := h.client.DaemonStatus(ctx)
 			cancel()
 			if err != nil {
@@ -560,7 +559,7 @@ func (h *referenceHarness) waitForDaemonReady(t *testing.T) cli.DaemonStatus {
 func (h *referenceHarness) hookCatalog(t *testing.T) []cli.HookCatalogRecord {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	hooks, err := h.client.HookCatalog(ctx, cli.HookCatalogQuery{})
@@ -573,7 +572,7 @@ func (h *referenceHarness) hookCatalog(t *testing.T) []cli.HookCatalogRecord {
 func (h *referenceHarness) createSession(t *testing.T) cli.SessionRecord {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	session, err := h.client.CreateSession(ctx, cli.CreateSessionRequest{
@@ -599,7 +598,7 @@ func (h *referenceHarness) createSession(t *testing.T) cli.SessionRecord {
 
 func (h *referenceHarness) assertClarificationRoundTrip(t *testing.T, session cli.SessionRecord) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	view, err := h.client.GetTool(ctx, "ext__clarify_tool__ask", cli.ToolQuery{
 		WorkspaceID: session.WorkspaceID,
 		SessionID:   session.ID,
@@ -626,7 +625,7 @@ func (h *referenceHarness) assertClarificationRoundTrip(t *testing.T, session cl
 		choices:  []string{"Stable", "Canary"},
 		request:  cli.ClarificationAnswerRequest{ChoiceIndex: &choice},
 		want: cli.ClarificationAnswerRecord{
-			ClarifyAnswer: toolspkg.ClarifyAnswer{Choice: &choice},
+			Choice: &choice,
 		},
 	})
 	h.assertOneClarificationRoundTrip(t, session, referenceClarificationCase{
@@ -634,7 +633,7 @@ func (h *referenceHarness) assertClarificationRoundTrip(t *testing.T, session cl
 		question: "What deployment label?",
 		request:  cli.ClarificationAnswerRequest{Text: " canary-42 "},
 		want: cli.ClarificationAnswerRecord{
-			ClarifyAnswer: toolspkg.ClarifyAnswer{Text: "canary-42"},
+			Text: "canary-42",
 		},
 		viaHTTP: true,
 	})
@@ -662,7 +661,7 @@ func (h *referenceHarness) assertOneClarificationRoundTrip(
 	}
 	resultCh := make(chan invokeResult, 1)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 		response, err := h.client.InvokeTool(ctx, "ext__clarify_tool__ask", cli.ToolInvokeRequest{
 			SessionID: session.ID,
@@ -681,7 +680,7 @@ func (h *referenceHarness) assertOneClarificationRoundTrip(
 			t.Fatalf("InvokeTool(clarify before pending) returned %#v", result.response)
 		default:
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		response, err := h.client.ListSessionClarifications(ctx, session.ID)
 		if err != nil || len(response.Clarifications) != 1 {
@@ -705,7 +704,7 @@ func (h *referenceHarness) assertOneClarificationRoundTrip(
 	if testCase.viaHTTP {
 		answer = h.answerSessionClarificationHTTP(t, session, pending.RequestID, testCase.request)
 	} else {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		var err error
 		answer, err = h.client.AnswerSessionClarification(ctx, session.ID, pending.RequestID, testCase.request)
 		cancel()
@@ -729,7 +728,7 @@ func (h *referenceHarness) assertOneClarificationRoundTrip(
 		t.Fatal("InvokeTool(clarify) did not resume after answer")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	remaining, err := h.client.ListSessionClarifications(ctx, session.ID)
 	if err != nil {
@@ -798,7 +797,7 @@ func (h *referenceHarness) referenceHTTPJSON(
 	if payload != nil {
 		body = bytes.NewReader(payload)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, method, h.httpBaseURL+path, body)
 	if err != nil {
@@ -831,7 +830,7 @@ func (h *referenceHarness) promptSession(
 ) ([]cli.AgentEventRecord, error) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	return h.client.PromptSession(ctx, sessionID, message)
 }
@@ -876,7 +875,7 @@ func (h *referenceHarness) ensurePromptEntryCount(t *testing.T, want int, durati
 func (h *referenceHarness) hookRuns(t *testing.T, sessionID string, last int) []cli.HookRunRecord {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	runs, err := h.client.HookRuns(ctx, h.workspace.WorkspaceID, cli.HookRunsQuery{
@@ -1051,7 +1050,7 @@ func buildReferenceArtifacts(t *testing.T, repoRoot string) string {
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@compozy/extension-sdk")
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@compozy/example-prompt-enhancer")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	result, err := extensionpkg.BuildBundle(ctx, extensionpkg.BuildRequest{
 		SourceDir: filepath.Join(repoRoot, "sdk", "examples", "clarify-tool"),
@@ -1137,7 +1136,7 @@ func copyFileWithMode(sourcePath string, targetPath string, mode os.FileMode) er
 func runCommand(t *testing.T, dir string, name string, args ...string) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)

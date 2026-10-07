@@ -1,9 +1,10 @@
 package extensionpkg
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -72,12 +73,8 @@ func (r *Registry) PlacementsForProfile(
 		}
 		appendManifest(link.ExtensionName, manifest)
 	}
-	sort.Slice(placements, func(i, j int) bool {
-		left, right := placements[i], placements[j]
-		if left.Extension != right.Extension {
-			return left.Extension < right.Extension
-		}
-		return left.Resource < right.Resource
+	slices.SortFunc(placements, func(left, right profilepkg.PlacementRef) int {
+		return cmp.Or(cmp.Compare(left.Extension, right.Extension), cmp.Compare(left.Resource, right.Resource))
 	})
 	return placements, nil
 }

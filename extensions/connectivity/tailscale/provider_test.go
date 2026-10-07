@@ -382,7 +382,7 @@ func TestBundledProviderFailureBounds(t *testing.T) {
 		established := make(chan error, 1)
 		go func() {
 			_, err := provider.Establish(
-				context.Background(),
+				t.Context(),
 				compozysdk.ExtensionContext{},
 				establishRequest(tierPrivate),
 			)
@@ -392,7 +392,7 @@ func TestBundledProviderFailureBounds(t *testing.T) {
 		deadline := time.Now().Add(25 * time.Millisecond)
 		started := time.Now()
 		_, err := provider.Teardown(
-			context.Background(),
+			t.Context(),
 			compozysdk.ExtensionContext{},
 			compozysdk.ConnectivityTeardownRequest{Tier: tierPrivate, Deadline: deadline},
 		)

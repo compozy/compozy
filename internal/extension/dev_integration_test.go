@@ -1460,7 +1460,6 @@ func TestManagerStartDevelopmentLinks(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1761,11 +1760,9 @@ func TestVerifyDevGeneration(t *testing.T) {
 func newDevTestWorkspace(t *testing.T, id string) *workspacepkg.ResolvedWorkspace {
 	t.Helper()
 	return &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      id,
-			Name:    id,
-			RootDir: t.TempDir(),
-		},
+		ID:          id,
+		Name:        id,
+		RootDir:     t.TempDir(),
 		WorkspaceID: id,
 	}
 }

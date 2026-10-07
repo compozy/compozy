@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"maps"
 	"slices"
 	"strings"
 )
@@ -79,10 +80,7 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 
 // ProvideCapabilities returns every daemon-recognized provide capability in stable order.
 func ProvideCapabilities() []string {
-	provides := make([]string, 0, len(capabilityServiceMethods))
-	for provide := range capabilityServiceMethods {
-		provides = append(provides, provide)
-	}
+	provides := slices.AppendSeq(make([]string, 0, len(capabilityServiceMethods)), maps.Keys(capabilityServiceMethods))
 	slices.Sort(provides)
 	return provides
 }

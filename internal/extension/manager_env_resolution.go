@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"context"
+	"maps"
 
 	"errors"
 	"fmt"
@@ -69,11 +70,7 @@ func (m *Manager) resolveInstanceEnvMap(
 		order = append(order, key)
 	}
 
-	keys := make([]string, 0, len(resolvedMap))
-	for key := range resolvedMap {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(resolvedMap))
 
 	for _, key := range keys {
 		if _, exists := valuesMap[key]; !exists {
@@ -81,22 +78,14 @@ func (m *Manager) resolveInstanceEnvMap(
 		}
 		valuesMap[key] = resolvedMap[key]
 	}
-	secretKeys := make([]string, 0, len(secretMap))
-	for key := range secretMap {
-		secretKeys = append(secretKeys, key)
-	}
-	slices.Sort(secretKeys)
+	secretKeys := slices.Sorted(maps.Keys(secretMap))
 	for _, key := range secretKeys {
 		if _, exists := valuesMap[key]; !exists {
 			order = append(order, key)
 		}
 		valuesMap[key] = secretMap[key]
 	}
-	bindingKeys := make([]string, 0, len(bindingMap))
-	for key := range bindingMap {
-		bindingKeys = append(bindingKeys, key)
-	}
-	slices.Sort(bindingKeys)
+	bindingKeys := slices.Sorted(maps.Keys(bindingMap))
 	for _, key := range bindingKeys {
 		if _, exists := valuesMap[key]; !exists {
 			order = append(order, key)

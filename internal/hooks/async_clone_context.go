@@ -1,13 +1,13 @@
 package hooks
 
+import "slices"
+
 func cloneSessionContext(payload SessionContext) SessionContext {
 	if payload.SessionRuntimeContext != nil {
-		runtimeContext := *payload.SessionRuntimeContext
-		payload.SessionRuntimeContext = &runtimeContext
+		payload.SessionRuntimeContext = new(*payload.SessionRuntimeContext)
 	}
 	if payload.SessionSoulContext != nil {
-		soul := *payload.SessionSoulContext
-		payload.SessionSoulContext = &soul
+		payload.SessionSoulContext = new(*payload.SessionSoulContext)
 	}
 	return payload
 }
@@ -17,8 +17,7 @@ func cloneAutomationSchedulePayload(payload *AutomationSchedulePayload) *Automat
 		return nil
 	}
 
-	cloned := *payload
-	return &cloned
+	return new(*payload)
 }
 
 func clonePermissionToolCall(call PermissionToolCall) PermissionToolCall {
@@ -31,9 +30,7 @@ func clonePermissionOptions(options []PermissionOption) []PermissionOption {
 		return nil
 	}
 
-	cloned := make([]PermissionOption, len(options))
-	copy(cloned, options)
-	return cloned
+	return slices.Clone(options)
 }
 
 func cloneToolLocations(locations []ToolLocation) []ToolLocation {
@@ -41,9 +38,7 @@ func cloneToolLocations(locations []ToolLocation) []ToolLocation {
 		return nil
 	}
 
-	cloned := make([]ToolLocation, len(locations))
-	copy(cloned, locations)
-	return cloned
+	return slices.Clone(locations)
 }
 
 func cloneStringSlice(values []string) []string {
@@ -51,9 +46,7 @@ func cloneStringSlice(values []string) []string {
 		return nil
 	}
 
-	cloned := make([]string, len(values))
-	copy(cloned, values)
-	return cloned
+	return slices.Clone(values)
 }
 
 func cloneAnyMap(src map[string]any) map[string]any {

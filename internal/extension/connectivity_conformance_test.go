@@ -221,7 +221,7 @@ func TestConnectivityProviderSubprocessConformance(t *testing.T) {
 			extension, getErr := manager.Get("connectivity-crash")
 			return markerLineCount(marker) >= 3 && getErr == nil && extension.Status.Active && extension.Status.Healthy
 		})
-		stopCtx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		stopCtx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
 		defer cancel()
 		if err := source.Teardown(stopCtx, gateway.TierPrivate, time.Now().Add(200*time.Millisecond)); err != nil {
 			t.Fatalf("Teardown(after restart) error = %v", err)
@@ -240,7 +240,7 @@ func TestConnectivityProviderSubprocessConformance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveConnectivitySource() error = %v", err)
 		}
-		teardownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+		teardownCtx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 		started := time.Now()
 		err = source.Teardown(teardownCtx, gateway.TierPrivate, time.Now().Add(25*time.Millisecond))
 		cancel()

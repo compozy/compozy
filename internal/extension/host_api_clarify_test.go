@@ -153,7 +153,7 @@ func TestHostAPIClarifyAskCancelsWithOriginatingToolCall(t *testing.T) {
 	result := make(chan callResult, 1)
 	go func() {
 		value, callErr := handler.Handle(
-			context.Background(),
+			t.Context(),
 			"question-tool",
 			hostAPIClarifyAskPath,
 			raw,
@@ -257,7 +257,7 @@ func callHostAPIClarify(
 	if err != nil {
 		return nil, err
 	}
-	return handler.Handle(context.Background(), extensionName, hostAPIClarifyAskPath, raw)
+	return handler.Handle(t.Context(), extensionName, hostAPIClarifyAskPath, raw)
 }
 
 type hostAPIClarifyBrokerStub struct {

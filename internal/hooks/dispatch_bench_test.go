@@ -17,7 +17,7 @@ func BenchmarkDispatchInputPreSubmitSync(b *testing.B) {
 	)
 
 	payload := benchmarkInputPayload()
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ReportAllocs()
 
@@ -60,12 +60,12 @@ func BenchmarkSubmitAsyncHookInputPreSubmit(b *testing.B) {
 	}
 	hook := benchmarkAsyncResolvedHook("bench-async-submit")
 	payload := benchmarkInputPayload()
-	parent := context.Background()
+	parent := b.Context()
 
 	b.ReportAllocs()
 
 	for b.Loop() {
-		submitAsyncHook(parent, runtime, payload, 0, nil, hook, pipe)
+		runtime.submitAsyncHook(parent, payload, 0, nil, hook, pipe)
 	}
 	b.StopTimer()
 
@@ -125,7 +125,7 @@ func newBenchmarkHooksRuntime(
 	hooks := NewHooks(baseOpts...)
 	tb.Cleanup(hooks.Close)
 
-	if err := hooks.Rebuild(context.Background()); err != nil {
+	if err := hooks.Rebuild(tb.Context()); err != nil {
 		tb.Fatalf("Rebuild() error = %v", err)
 	}
 

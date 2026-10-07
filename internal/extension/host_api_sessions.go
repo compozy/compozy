@@ -379,8 +379,7 @@ func hostAPISessionPromptResultFromSubmission(
 		CanceledQueuedEntries: admission.CanceledQueuedEntries,
 	}
 	if admission.EstimatedSendAt != nil {
-		estimated := admission.EstimatedSendAt.UTC()
-		result.EstimatedSendAt = &estimated
+		result.EstimatedSendAt = new(admission.EstimatedSendAt.UTC())
 	}
 	return result
 }

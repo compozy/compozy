@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 )
@@ -149,27 +150,22 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 			continue
 		}
 
-		stopWG.Add(1)
-		go func(item *managedExtension) {
-			defer stopWG.Done()
-
-			if err := m.stopManagedExtension(ctx, item); err != nil {
+		stopWG.Go(func() {
+			if err := m.stopManagedExtension(ctx, ext); err != nil {
 				errCh <- err
 			}
-		}(ext)
+		})
 	}
 	for _, key := range instanceKeys {
 		ext, ok := m.lookupInstance(key)
 		if !ok {
 			continue
 		}
-		stopWG.Add(1)
-		go func(item *managedExtension) {
-			defer stopWG.Done()
-			if err := m.stopManagedExtension(ctx, item); err != nil {
+		stopWG.Go(func() {
+			if err := m.stopManagedExtension(ctx, ext); err != nil {
 				errCh <- err
 			}
-		}(ext)
+		})
 	}
 	stopWG.Wait()
 	close(errCh)
@@ -196,10 +192,7 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 func (m *Manager) stopTargets() ([]string, []InstanceKey) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	names := make([]string, 0, len(m.extensions))
-	for name := range m.extensions {
-		names = append(names, name)
-	}
+	names := slices.AppendSeq(make([]string, 0, len(m.extensions)), maps.Keys(m.extensions))
 	slices.Sort(names)
 	instanceKeys := make([]InstanceKey, 0, len(m.devExtensions)+len(m.scopedExtensions))
 	for key := range m.devExtensions {

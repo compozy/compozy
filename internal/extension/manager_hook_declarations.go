@@ -67,8 +67,7 @@ func hookConfigMatcher(cfg HookMatcherConfig) hookspkg.HookMatcher {
 			Strategy: strings.TrimSpace(cfg.CompactionStrategy),
 		}}
 	if cfg.ToolReadOnly != nil {
-		value := *cfg.ToolReadOnly
-		matcher.ToolReadOnly = &value
+		matcher.ToolReadOnly = new(*cfg.ToolReadOnly)
 	}
 	return matcher
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -228,11 +229,7 @@ func (r *MemoryProviderRegistry) List() []MemoryProviderRegistration {
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	names := make([]string, 0, len(r.providers))
-	for name := range r.providers {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(r.providers))
 	registrations := make([]MemoryProviderRegistration, 0, len(names))
 	for _, name := range names {
 		registrations = append(registrations, cloneMemoryProviderRegistration(r.providers[name]))
@@ -352,10 +349,7 @@ func normalizeMemoryProviderToolNames(names []string) []string {
 		}
 		normalized[toolName] = struct{}{}
 	}
-	out := make([]string, 0, len(normalized))
-	for name := range normalized {
-		out = append(out, name)
-	}
+	out := slices.AppendSeq(make([]string, 0, len(normalized)), maps.Keys(normalized))
 	slices.Sort(out)
 	return out
 }

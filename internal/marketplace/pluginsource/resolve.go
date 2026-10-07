@@ -100,11 +100,11 @@ func (r *Resolver) prepare(
 	}
 	version := strings.TrimSpace(plugin.Version)
 	if version == "" {
-		separator := strings.LastIndexByte(resolved, '@')
-		if separator < 0 || len(resolved)-separator-1 < 12 {
+		_, revision, found := strings.CutLast(resolved, "@")
+		if !found || len(revision) < 12 {
 			return record, archive, errors.New("pluginsource: package has no resolved revision")
 		}
-		version = resolved[separator+1 : separator+13]
+		version = revision[:12]
 	}
 	return AcquisitionRecord{
 		SourceRef: doc.SourceRef, EntryID: plugin.Name, ResolvedRef: resolved,

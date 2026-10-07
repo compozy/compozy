@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -89,7 +88,7 @@ func TestClientDownloadArchiveLimitContract(t *testing.T) {
 		})
 
 		result, err := NewClient(server.URL).Download(
-			context.Background(),
+			t.Context(),
 			"acme/demo",
 			registry.DownloadOpts{MaxArchiveSize: limit},
 		)
@@ -119,7 +118,7 @@ func TestClientDownloadArchiveLimitContract(t *testing.T) {
 		})
 
 		result, err := NewClient(server.URL).Download(
-			context.Background(),
+			t.Context(),
 			"acme/demo",
 			registry.DownloadOpts{MaxArchiveSize: limit},
 		)
@@ -153,7 +152,7 @@ func TestClientInfoMissingRepositoryContract(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		_, err := NewClient(server.URL).Info(context.Background(), "acme/missing")
+		_, err := NewClient(server.URL).Info(t.Context(), "acme/missing")
 		if !errors.Is(err, registry.ErrPackageNotFound) {
 			t.Fatalf("Info() error = %v, want registry.ErrPackageNotFound", err)
 		}

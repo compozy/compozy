@@ -64,7 +64,7 @@ func TestBuildBundle(t *testing.T) {
 
 				dir := t.TempDir()
 				testCase.prepare(t, dir)
-				runner := newBuildTestRunner(validDescribePayloadPointer())
+				runner := newBuildTestRunner(new(validDescribePayload()))
 				if _, err := buildBundle(testutil.Context(t), testCase.request(dir), runner); err != nil {
 					t.Fatalf("buildBundle() error = %v", err)
 				}
@@ -132,7 +132,7 @@ permissions = ["gateway.private"]
 [[resources.skills]]
 path = "skills"
 `)
-		runner := newBuildTestRunner(validDescribePayloadPointer())
+		runner := newBuildTestRunner(new(validDescribePayload()))
 
 		result, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
@@ -366,7 +366,7 @@ path = "skills"
 				result, err := buildBundle(testutil.Context(t), BuildRequest{
 					SourceDir: dir,
 					BuildCmd:  testCase.buildCmd,
-				}, newBuildTestRunner(validDescribePayloadPointer()))
+				}, newBuildTestRunner(new(validDescribePayload())))
 				if err == nil || result != nil {
 					t.Fatalf("buildBundle() = %#v, %v; want rejection", result, err)
 				}
@@ -374,8 +374,8 @@ path = "skills"
 					t.Fatalf("buildBundle() error = %v, want %q", err, testCase.wantError)
 				}
 				if testCase.wantField != "" {
-					var validationErr *ManifestValidationError
-					if !errors.As(err, &validationErr) || validationErr.Field != testCase.wantField {
+					validationErr, ok := errors.AsType[*ManifestValidationError](err)
+					if !ok || validationErr.Field != testCase.wantField {
 						t.Fatalf("buildBundle() error = %#v, want validation field %q", err, testCase.wantField)
 					}
 				}
@@ -395,7 +395,7 @@ path = "skills"
 
 		dir := t.TempDir()
 		writeGoBuildFixture(t, dir)
-		runner := newBuildTestRunner(validDescribePayloadPointer())
+		runner := newBuildTestRunner(new(validDescribePayload()))
 		first, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
 			t.Fatalf("buildBundle(first) error = %v", err)
@@ -577,7 +577,7 @@ expr = "not-a-cron"
 
 		dir := t.TempDir()
 		writeGoBuildFixture(t, dir)
-		runner := newBuildTestRunner(validDescribePayloadPointer())
+		runner := newBuildTestRunner(new(validDescribePayload()))
 		runner.blockDescribe = true
 		_, err := buildBundle(testutil.Context(t), BuildRequest{
 			SourceDir: dir,
@@ -659,7 +659,7 @@ min_compozy_version = "9.9.9"
 		_, err := buildBundle(testutil.Context(t), BuildRequest{
 			SourceDir: sourceDir,
 			OutputDir: root,
-		}, newBuildTestRunner(validDescribePayloadPointer()))
+		}, newBuildTestRunner(new(validDescribePayload())))
 		if err == nil || !strings.Contains(err.Error(), "must not contain the source") {
 			t.Fatalf("buildBundle() error = %v, want overlapping output rejection", err)
 		}
@@ -1091,11 +1091,6 @@ type buildTestRunner struct {
 
 func newBuildTestRunner(payload *extensioncontract.DescribePayload) *buildTestRunner {
 	return &buildTestRunner{payload: *payload}
-}
-
-func validDescribePayloadPointer() *extensioncontract.DescribePayload {
-	payload := validDescribePayload()
-	return &payload
 }
 
 func (r *buildTestRunner) LookPath(file string) (string, error) {

@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -26,11 +27,7 @@ func ResolveManifestToolDescriptors(manifest *Manifest) ([]ManifestToolDescripto
 		return nil, nil
 	}
 
-	names := make([]string, 0, len(manifest.Resources.Tools))
-	for name := range manifest.Resources.Tools {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(manifest.Resources.Tools))
 
 	descriptors := make([]ManifestToolDescriptor, 0, len(names))
 	for _, name := range names {

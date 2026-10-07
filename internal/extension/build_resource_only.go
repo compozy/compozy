@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 )
 
 func buildResourceOnlyBundle(ctx context.Context, req BuildRequest) (*BuildResult, error) {
@@ -69,10 +70,7 @@ func resourceOnlyManifestRequiresToolchain(manifest *Manifest) bool {
 }
 
 func hasStaticResourcePaths(resources ResourcesConfig) bool {
-	for _, group := range staticResourcePathGroups(resources) {
-		if len(group.paths) > 0 {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(staticResourcePathGroups(resources), func(group staticResourcePathGroup) bool {
+		return len(group.paths) > 0
+	})
 }

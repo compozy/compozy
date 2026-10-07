@@ -80,10 +80,7 @@ func executeWindowManagerDispatch(
 	event HookEvent,
 	payload WindowManagerPayload,
 ) (WindowManagerPayload, error) {
-	return executeDispatch(
-		ctx,
-		hooks,
-		event,
+	return hooks.executeDispatch(ctx, event,
 		payload,
 		dispatchConfig[WindowManagerPayload, WindowManagerObservationPatch]{
 			match: matchWindowManager,

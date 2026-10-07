@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 const maxDispatchDepth = 3
@@ -56,7 +57,5 @@ func currentDispatchChain(ctx context.Context) []HookEvent {
 		return nil
 	}
 
-	cloned := make([]HookEvent, len(chain))
-	copy(cloned, chain)
-	return cloned
+	return slices.Clone(chain)
 }

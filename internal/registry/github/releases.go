@@ -60,8 +60,7 @@ func (c *Client) fetchLatestRelease(ctx context.Context, repo repoSlug) (_ *rele
 		if len(releases) == 0 {
 			return nil, fmt.Errorf("github: repository %q has no published releases", repo.full)
 		}
-		latest := releases[0]
-		return &latest, nil
+		return new(releases[0]), nil
 	default:
 		err := responseError(response, "latest release", repo.full)
 		return nil, joinErrors(

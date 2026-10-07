@@ -78,8 +78,8 @@ func importTasksToolError(id toolspkg.ToolID, input importTasksInput, err error)
 
 func operatorTaskPattern(pattern string) string {
 	clean := filepath.ToSlash(filepath.Clean(strings.TrimSpace(pattern)))
-	if index := strings.LastIndex(clean, "/.compozy/"); index >= 0 {
-		return clean[index+1:]
+	if _, suffix, found := strings.CutLast(clean, "/.compozy/"); found {
+		return ".compozy/" + suffix
 	}
 	if !filepath.IsAbs(clean) {
 		return clean

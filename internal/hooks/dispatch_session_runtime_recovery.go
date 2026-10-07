@@ -28,10 +28,7 @@ func (h *Hooks) dispatchSessionRuntimeRecovery(
 	event HookEvent,
 	payload SessionRuntimeRecoveryPayload,
 ) (SessionRuntimeRecoveryPayload, error) {
-	return executeDispatch(
-		ctx,
-		h,
-		event,
+	return h.executeDispatch(ctx, event,
 		payload,
 		dispatchConfig[SessionRuntimeRecoveryPayload, AuthoredContextObservationPatch]{
 			match: matchSessionRuntimeRecovery,

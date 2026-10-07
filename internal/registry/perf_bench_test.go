@@ -47,7 +47,7 @@ func BenchmarkMultiRegistrySearch(b *testing.B) {
 		},
 	)
 
-	ctx := context.Background()
+	ctx := b.Context()
 	opts := SearchOpts{Limit: 100}
 
 	for b.Loop() {
@@ -86,7 +86,7 @@ func BenchmarkMultiRegistryResolveSource(b *testing.B) {
 		},
 	)
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	for b.Loop() {
 		source, detail, err := registry.resolveSource(ctx, "shared")
@@ -152,12 +152,10 @@ func BenchmarkComputeInstallChecksum(b *testing.B) {
 }
 
 func benchmarkListings(source string, count int, shared int) []Listing {
-	if count < shared {
-		shared = count
-	}
+	shared = min(shared, count)
 
 	listings := make([]Listing, 0, count)
-	for i := 0; i < shared; i++ {
+	for i := range shared {
 		listings = append(listings, Listing{
 			Slug:        fmt.Sprintf("shared-%03d", i),
 			Name:        fmt.Sprintf("%s-shared-%03d", source, i),

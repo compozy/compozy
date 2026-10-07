@@ -1074,8 +1074,8 @@ func TestCatalogServiceSources(t *testing.T) {
 		replacement := team
 		replacement.Config.Ref = "github:other/plugins"
 		err = service.SetSources(ctx, append(slices.Clone(feed), replacement))
-		var retained *SourceNameRetainedError
-		if !errors.Is(err, ErrSourceNameRetained) || !errors.As(err, &retained) ||
+		retained, ok := errors.AsType[*SourceNameRetainedError](err)
+		if !errors.Is(err, ErrSourceNameRetained) || !ok ||
 			retained.Name != "team" || !slices.Equal(retained.RetainedBy, []string{"first", "second"}) {
 			t.Fatalf("retained name = %v", err)
 		}

@@ -180,11 +180,9 @@ func TestManagerIntegrationWorkspaceExtensionCannotReceiveUserResourceScope(t *t
 	manager := NewManager(
 		env.registry,
 		WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      "ws-extension-grants",
-				RootDir: fixture.dir,
-				Name:    "extension-grants",
-			},
+			ID:          "ws-extension-grants",
+			RootDir:     fixture.dir,
+			Name:        "extension-grants",
 			WorkspaceID: "ws-extension-grants",
 		})),
 		WithHealthCheckTimeout(20*time.Millisecond),

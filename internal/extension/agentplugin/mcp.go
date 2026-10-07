@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/mcppolicy"
@@ -38,11 +39,7 @@ func loadMCP(root string, dataDir string, manifestSchema string, pkg *Package) {
 		pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{Scope: scopeMCP, Message: err.Error()})
 		return
 	}
-	names := make([]string, 0, len(servers))
-	for name := range servers {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(servers))
 	for _, name := range names {
 		server, err := decodeServer(name, servers[name], root, dataDir)
 		if err != nil {
