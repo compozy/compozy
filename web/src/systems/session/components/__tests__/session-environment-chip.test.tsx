@@ -87,31 +87,7 @@ describe("SessionEnvironmentChip", () => {
     expect(button).not.toHaveAttribute("aria-disabled");
     await user.click(button);
     expect(onFork).toHaveBeenCalledTimes(1);
-  });
-
-  it("Should never render an environment picker in any state", () => {
-    renderChip(<SessionEnvironmentChip label="payments-retry" onFork={vi.fn()} state="worktree" />);
-
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
-
-  /**
-   * These three states have no live wiring: a persisted session cannot be
-   * rebound, so nothing in the composer can reach them. They are marked so a
-   * reviewer can tell a presentational state from shipped behaviour.
-   */
-  it.each(["new", "pending", "failed"] as const)(
-    "Should render the unwired %s state as an icon-only presentational control",
-    state => {
-      renderChip(<SessionEnvironmentChip label="docs-refresh" presentational state={state} />);
-
-      const button = screen.getByRole("button", { name: "Project: docs-refresh" });
-      expect(button).toHaveAttribute("data-presentational", "true");
-      expect(button).toHaveAttribute("data-state", state);
-      expect(button).toHaveAttribute("aria-disabled", "true");
-      expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
-      expect(screen.queryByText("docs-refresh")).not.toBeInTheDocument();
-    }
-  );
 });

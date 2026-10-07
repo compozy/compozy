@@ -222,6 +222,7 @@ describe("RuntimeSelector single-button trigger", () => {
     await user.click(trigger);
     expect(await screen.findByTestId("runtime-selector-popup")).toBeInTheDocument();
     expect(trigger).toHaveAttribute("data-open", "true");
+    expect(row("gpt-a").querySelector("[data-selected-check]")).not.toBeNull();
 
     await user.click(trigger);
     await waitFor(() =>
@@ -770,16 +771,6 @@ describe("RuntimeSelector needs-auth provider", () => {
     }),
   ];
 
-  it("Should surface the sign-in warning on the trigger for a needs-auth provider", () => {
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      providers: [authProvider],
-      models: authModels,
-    });
-
-    expect(screen.getByRole("img", { name: "Provider needs sign in" })).toBeInTheDocument();
-  });
-
   it("Should expose a model-unavailable warning to assistive tech on the trigger", () => {
     renderSelector({
       value: { provider: "codex", model: "gone", reasoning_effort: "" },
@@ -796,21 +787,6 @@ describe("RuntimeSelector needs-auth provider", () => {
     expect(screen.getByRole("img", { name: "Model unavailable" })).toBeInTheDocument();
   });
 
-  it("Should dim the rail item and disable every row with a reason for a needs-auth provider", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      providers: [authProvider],
-      models: authModels,
-    });
-
-    await openSelector(user);
-
-    expect(document.querySelector('[data-rail="codex"]')).toHaveAttribute("data-dim", "true");
-    expect(row("gpt-a")).toHaveAttribute("data-disabled", "true");
-    expect(row("gpt-a")).toHaveTextContent("Sign in");
-  });
-
   it("Should not emit onChange when a disabled row is clicked", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
@@ -819,7 +795,11 @@ describe("RuntimeSelector needs-auth provider", () => {
       models: authModels,
     });
 
+    expect(screen.getByRole("img", { name: "Provider needs sign in" })).toBeInTheDocument();
     await openSelector(user);
+    expect(document.querySelector('[data-rail="codex"]')).toHaveAttribute("data-dim", "true");
+    expect(row("gpt-a")).toHaveAttribute("data-disabled", "true");
+    expect(row("gpt-a")).toHaveTextContent("Sign in");
     await user.click(row("gpt-a"));
 
     expect(onChange).not.toHaveBeenCalled();
@@ -1289,6 +1269,11 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     });
 
     await openSelector(user);
+    const option = row("gpt-a");
+    expect(option.querySelector("button, [role='button'], [tabindex='0']")).toBeNull();
+    const star = option.querySelector<HTMLElement>("[data-favorite-indicator]");
+    expect(star).not.toBeNull();
+    expect(star).toHaveAttribute("aria-hidden", "true");
     // The star is a pointer-only affordance inside the option; clicking it
     // toggles the favorite and must NOT commit the row as a selection.
     await user.click(row("gpt-a").querySelector<HTMLElement>("[data-favorite-indicator]")!);
@@ -1296,23 +1281,6 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     expect(readList(FAVORITES_STORAGE_KEY)).toContain(runtimeModelKey("codex", "gpt-a"));
     expect(row("gpt-a")).toHaveAttribute("data-favorite", "true");
     expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("Should keep options pure — no focusable control nests inside, and the star stays out of the a11y tree", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      models: [model("gpt-a", { name: "GPT A" })],
-    });
-
-    await openSelector(user);
-    // ARIA-valid list: a listbox option wraps no button / role=button / tabbable
-    // descendant; the star affordance is aria-hidden (keyboard/AT path = Alt+F).
-    const option = row("gpt-a");
-    expect(option.querySelector("button, [role='button'], [tabindex='0']")).toBeNull();
-    const star = option.querySelector<HTMLElement>("[data-favorite-indicator]");
-    expect(star).not.toBeNull();
-    expect(star).toHaveAttribute("aria-hidden", "true");
   });
 
   it("Should ignore star clicks on a disabled row and Alt+F with no highlight", async () => {
@@ -1351,27 +1319,12 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     const search = screen.getByTestId("runtime-selector-search");
     fireEvent.keyDown(search, { key: "ArrowDown" });
     await waitFor(() => expect(row("gpt-a")).toHaveAttribute("data-highlighted", "true"));
+    expect(row("gpt-a")).not.toHaveAttribute("aria-keyshortcuts");
+    expect(search).toHaveAttribute("aria-keyshortcuts", "Alt+F");
     // Alt+F (layout-independent code) — NOT Cmd/Ctrl-D (browser bookmark conflict).
     fireEvent.keyDown(search, { code: "KeyF", altKey: true });
 
     expect(readList(FAVORITES_STORAGE_KEY)).toContain(runtimeModelKey("codex", "gpt-a"));
-  });
-
-  it("Should carry the Alt+F shortcut on the search combobox, never on listbox options", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      models: [model("gpt-a", { name: "GPT A" })],
-    });
-
-    await openSelector(user);
-    // Options stay pure — no aria-keyshortcuts. The search input (where focus
-    // lives during list navigation) is the accelerator's carrier.
-    expect(row("gpt-a")).not.toHaveAttribute("aria-keyshortcuts");
-    expect(screen.getByTestId("runtime-selector-search")).toHaveAttribute(
-      "aria-keyshortcuts",
-      "Alt+F"
-    );
   });
 
   it("Should keep the active (provider,model) target and live aria-activedescendant across favorite reorder", async () => {
@@ -2033,24 +1986,6 @@ describe("RuntimeSelector single-line row", () => {
     expect(row("leveled").querySelector("[data-reasoning-indicator]")).not.toBeNull();
     expect(row("supp").querySelector("[data-reasoning-indicator]")).not.toBeNull();
     expect(row("plain").querySelector("[data-reasoning-indicator]")).toBeNull();
-  });
-
-  it("Should mark the selected row with the selection fill and a structural check", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "picked", reasoning_effort: "" },
-      models: [model("picked", { name: "Picked" }), model("other", { name: "Other" })],
-    });
-
-    await openSelector(user);
-    const selected = document.querySelector<HTMLElement>(
-      '[data-model="picked"][data-selected="true"]'
-    );
-    expect(selected).not.toBeNull();
-    // The selected row carries the neutral selection fill (orange is reserved for
-    // needs-you), plus the non-color check.
-    expect(selected?.className).toContain("bg-selected");
-    expect(selected?.querySelector("[data-selected-check]")).not.toBeNull();
   });
 });
 

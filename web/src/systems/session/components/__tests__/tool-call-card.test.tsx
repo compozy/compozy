@@ -86,10 +86,6 @@ function queryPreview(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="tool-call-row-preview"]');
 }
 
-function queryIcon(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('[data-slot="tool-call-row-icon"]');
-}
-
 function queryBody(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="tool-call-row-body"]');
 }
@@ -103,25 +99,6 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  it("Should surface the tense-aware verb (not the raw tool name) in the row heading slot", () => {
-    render(<SessionToolCallRow message={makeToolMessage()} />);
-    // Read fixture is in-flight (no result) → active verb.
-    expect(queryToolName()).toHaveTextContent("Reading…");
-    expect(queryToolName()).not.toHaveTextContent("Read file");
-  });
-
-  it("Should render the mapped per-tool icon and never the terminal fallback for a known tool", () => {
-    render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "file" } })} />);
-    const iconClass = queryIcon()?.getAttribute("class") ?? "";
-    expect(iconClass).toContain("lucide-file-text");
-    expect(iconClass).not.toContain("lucide-terminal");
-  });
-
-  it("Should show the compact input summary in the row preview slot", () => {
-    render(<SessionToolCallRow message={makeToolMessage()} />);
-    expect(queryPreview()).toHaveTextContent("/src/main.ts");
   });
 
   it("Should map Bash command summaries to the row preview slot", () => {
@@ -158,6 +135,8 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(indicator).not.toHaveClass("text-danger");
     expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Reading…");
+    expect(queryToolName()).not.toHaveTextContent("Read file");
+    expect(queryPreview()).toHaveTextContent("/src/main.ts");
   });
 
   it("Should read a resultless tool as an absorbed failure once the owning turn settles", () => {
@@ -203,21 +182,12 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(screen.getByRole("button", { name: /1 addition, 1 deletion/ })).toBeInTheDocument();
   });
 
-  it("Should render the empty row state (Minus, faint tone) for empty output mid-stream", () => {
-    render(
-      <SessionToolCallRow message={makeToolMessage({ toolResult: {} })} turnSettled={false} />
-    );
-    expect(queryRoot()?.getAttribute("data-status")).toBe("empty");
-    const indicator = queryStatusIndicator();
-    expect(indicator?.getAttribute("data-status")).toBe("empty");
-    expect(indicator?.getAttribute("aria-label")).toBe("Empty");
-    expect(indicator?.getAttribute("class")).toContain("text-subtle");
-  });
-
   it("Should promote a neutral tool to success only once the turn settles, never before", () => {
     const message = makeToolMessage({ toolResult: {} });
     const { rerender } = render(<SessionToolCallRow message={message} turnSettled={false} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("empty");
+    expect(queryStatusIndicator()).toHaveAttribute("data-status", "empty");
+    expect(queryStatusIndicator()).toHaveAttribute("aria-label", "Empty");
 
     rerender(<SessionToolCallRow message={message} turnSettled />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("success");

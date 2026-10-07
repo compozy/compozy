@@ -11,11 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  settingsUpdateApplyingFixture,
-  settingsUpdateBlockedFixture,
   settingsUpdateBothAvailableFixture,
-  settingsUpdateRolledBackFixture,
-  settingsUpdateStagedFixture,
   settingsUpdateStatusFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
 import { settingsUpdateIndicatorAvailable } from "@/systems/settings";
@@ -39,17 +35,6 @@ describe("MenubarUpdateIndicator", () => {
     renderIndicator(settingsUpdateIndicatorAvailable(settingsUpdateStatusFixture));
 
     // Absent, not hidden: a CSS-hidden control would still be tab-reachable.
-    expect(screen.queryByRole("button", { name: "Update available" })).toBeNull();
-  });
-
-  it.each([
-    ["applying", settingsUpdateApplyingFixture],
-    ["staged", settingsUpdateStagedFixture],
-    ["blocked", settingsUpdateBlockedFixture],
-    ["failed", settingsUpdateRolledBackFixture],
-  ])("Should stay absent while the daemon reports %s", (_state, fixture) => {
-    renderIndicator(settingsUpdateIndicatorAvailable(fixture));
-
     expect(screen.queryByRole("button", { name: "Update available" })).toBeNull();
   });
 

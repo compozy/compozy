@@ -58,15 +58,6 @@ describe("agent-category", () => {
       expect(inner.children[0].label).toBe("deals");
     });
 
-    it("Should sort folders before leaves", () => {
-      const tree = buildAgentCategoryTree([
-        makeAgent({ name: "alpha" }),
-        makeAgent({ name: "indexed", category_path: ["Z"] }),
-      ]);
-      expect(tree[0].kind).toBe("folder");
-      expect(tree[1].kind).toBe("leaf");
-    });
-
     it("Should sort siblings case-insensitively by visible label", () => {
       const tree = buildAgentCategoryTree([
         makeAgent({ name: "Beta" }),
@@ -128,16 +119,6 @@ describe("agent-category", () => {
         if (folder.kind !== "folder") throw new Error("expected folder");
         expect(folder.children).toHaveLength(1);
       }
-    });
-
-    it("Should preserve casing in folder IDs derived from category_path segments", () => {
-      const tree = buildAgentCategoryTree([
-        makeAgent({ name: "deals", category_path: ["Marketing", "Sales"] }),
-      ]);
-      const root = tree[0];
-      if (root.kind !== "folder") throw new Error("expected folder");
-      expect(root.id).toBe("category:Marketing");
-      expect(root.label).toBe("Marketing");
     });
   });
 

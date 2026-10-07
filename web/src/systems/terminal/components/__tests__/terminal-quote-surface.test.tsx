@@ -217,19 +217,13 @@ describe("SessionTerminalBlock", () => {
 });
 
 describe("TerminalQuoteBlock", () => {
-  it("Should show the terminal and the lines the excerpt was true for", () => {
-    render(<TerminalQuoteBlock onRemove={vi.fn()} quote={QUOTE} />);
-
-    const block = screen.getByTestId("terminal-quote-block");
-    expect(block).toHaveTextContent(DEV_SERVER_TERMINAL.id);
-    // Scrollback numbering shifts as old output is trimmed, which is exactly
-    // why the block records the range it was taken from.
-    expect(block).toHaveTextContent("214");
-  });
-
   it("Should let the excerpt be taken back out", async () => {
     const onRemove = vi.fn();
     render(<TerminalQuoteBlock onRemove={onRemove} quote={QUOTE} />);
+
+    const block = screen.getByTestId("terminal-quote-block");
+    expect(block).toHaveTextContent(DEV_SERVER_TERMINAL.id);
+    expect(block).toHaveTextContent("214");
 
     await userEvent.click(screen.getByRole("button", { name: /remove/i }));
 

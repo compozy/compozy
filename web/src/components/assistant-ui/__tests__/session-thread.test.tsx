@@ -1799,16 +1799,6 @@ describe("SessionThread transcript states", () => {
     );
   });
 
-  it("Should render rows for success with transcript messages", async () => {
-    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
-
-    renderThreadState({ status: "success", messages });
-
-    expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
-    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
-    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
-  });
-
   it("Should offer rewind only for a durable user message when session input is idle", async () => {
     const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
 
@@ -3535,6 +3525,8 @@ describe("SessionThread transcript states", () => {
     renderThreadState({ status: "success", messages });
 
     expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
+    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
     const viewport = screen.getByTestId("chat-view");
     const pill = screen.getByTestId("scroll-to-bottom-pill");
     // Following the live edge: the pill is hidden and non-interactive.
@@ -4135,40 +4127,6 @@ describe("SessionThread composer running semantics", () => {
     expect(native.querySelector("[data-slot='composer-command-origin']")).toBeNull();
   });
 
-  it("Should execute the worktree command without leaving it in the prompt", async () => {
-    const user = userEvent.setup();
-    const onCommandAction = vi.fn((token: string) => token === "/worktree");
-    renderComposer({
-      onCommandAction,
-      commandCatalog: {
-        standaloneSections: [
-          {
-            id: "built-in",
-            label: "Built-in",
-            commands: [
-              {
-                id: "worktree",
-                token: "/worktree",
-                label: "Worktree",
-                lane: "builtin" as const,
-              },
-            ],
-          },
-        ],
-        inlineSkills: [],
-      },
-    });
-
-    await screen.findByTestId("composer-input");
-    await setComposerText("/ keep this draft");
-    await placeComposerCursor(1);
-    const menu = await screen.findByTestId("composer-command-menu");
-    await user.click(within(menu).getByRole("option", { name: /Worktree/i }));
-
-    expect(onCommandAction).toHaveBeenCalledWith("/worktree");
-    await waitFor(() => expect(composerText()).toBe(" keep this draft"));
-  });
-
   it("Should remove the selected action token without deleting an earlier mention", async () => {
     const user = userEvent.setup();
     const onCommandAction = vi.fn((token: string) => token === "/worktree");
@@ -4199,6 +4157,7 @@ describe("SessionThread composer running semantics", () => {
     const menu = await screen.findByTestId("composer-command-menu");
     await user.click(within(menu).getByRole("option", { name: /Worktree/i }));
 
+    expect(onCommandAction).toHaveBeenCalledWith("/worktree");
     await waitFor(() => expect(composerText()).toBe(" keep the existing /worktree mention"));
   });
 
@@ -5735,18 +5694,8 @@ describe("SessionThread composer attachments", () => {
       await add;
     });
     await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
-  });
-
-  it("Should enable image-only send when every tile is ready", async () => {
-    renderComposer({ promptImageCapability: "supported" });
-    await screen.findByTestId("composer-input");
-    await act(async () => {
-      await requireComposerAui().composer.addAttachment(pngFile());
-    });
-    const tile = await screen.findByTestId("composer-attachment-tile");
-    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
     expect(composerText()).toBe("");
-    expect(screen.getByTestId("composer-send-button")).toBeEnabled();
+    expect(send).toBeEnabled();
   });
 
   it("Should refuse unsupported files in place and keep send disabled", async () => {

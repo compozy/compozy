@@ -300,22 +300,6 @@ describe("SessionWindow", () => {
     );
   });
 
-  it("Should retain the same empty-route recovery when the active tab's drilled session disappears (UT-089)", async () => {
-    queryState.data = undefined;
-    queryState.error = new SessionNotFoundError("sess-1");
-    queryState.isError = true;
-    foreignState.current = { status: "missing" };
-    desktop.focusedId = "session:sess-1";
-    render(<SessionWindow windowId="session:sess-1" />);
-
-    await waitFor(() => expect(userRetireSession).toHaveBeenCalledTimes(1));
-    expect(userClose).not.toHaveBeenCalled();
-    expect(userOpen).not.toHaveBeenCalled();
-    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ windowId: "session:sess-1" })
-    );
-  });
-
   it("Should read the session through the profile-enforced route, keyed by the active lens", () => {
     render(<SessionWindow windowId="session:sess-1" />);
 

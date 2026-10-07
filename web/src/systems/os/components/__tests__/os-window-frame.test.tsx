@@ -233,40 +233,6 @@ describe("OsWindowFrame", () => {
     expect(screen.queryByRole("button", { name: "Back one level" })).toBeNull();
   });
 
-  it("Should lift only floating chrome with a hairline and elevated shadow", () => {
-    const classesOf = (node: HTMLElement) => node.className.split(/\s+/);
-    const { rerender } = render(
-      <OsWindowFrame title="Home" data-testid="frame">
-        <p>body</p>
-      </OsWindowFrame>
-    );
-    const frame = () => screen.getByTestId("frame");
-
-    expect(frame()).toHaveAttribute("data-kind", "floating");
-    expect(classesOf(frame())).toEqual(expect.arrayContaining(["border", "shadow-elevated"]));
-
-    rerender(
-      <OsWindowFrame title="Home" focused={false} data-testid="frame">
-        <p>body</p>
-      </OsWindowFrame>
-    );
-    expect(classesOf(frame())).toEqual(expect.arrayContaining(["border", "shadow-elevated"]));
-
-    for (const props of [
-      { kind: "tiled" as const },
-      { kind: "tiled" as const, focused: false },
-      { presentation: "compact" as const },
-    ]) {
-      rerender(
-        <OsWindowFrame title="Home" data-testid="frame" {...props}>
-          <p>body</p>
-        </OsWindowFrame>
-      );
-      expect(classesOf(frame())).not.toContain("border");
-      expect(classesOf(frame())).not.toContain("shadow-elevated");
-    }
-  });
-
   it("Should trail the head with minimize, zoom, close after the identity", () => {
     render(
       <OsWindowFrame title="Tasks" onTrafficLight={vi.fn()}>

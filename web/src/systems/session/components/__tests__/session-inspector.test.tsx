@@ -70,6 +70,10 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
     expect(screen.getByTestId("session-inspector-usage-tokens-out")).toHaveTextContent("24,900");
     expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("$18.42");
+    expect(screen.getByTestId("session-inspector-usage-cost")).not.toHaveTextContent("≈");
+    expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent(
+      "Reported by agent"
+    );
     expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent(
       "across 12 turns"
     );
@@ -140,21 +144,6 @@ describe("SessionInspector — Usage tab cost provenance (W4)", () => {
   function renderUsage(usage: InspectorUsage) {
     render(<SessionInspector usage={usage} />);
   }
-
-  it("Should render actual cost as measured spend without an estimate glyph", () => {
-    renderUsage({
-      tokensIn: 1_000,
-      costUsd: 18.42,
-      costCurrency: "USD",
-      costStatus: "actual",
-      costSource: "agent_reported",
-      turnCount: 3,
-    });
-    const cell = screen.getByTestId("session-inspector-usage-cost");
-    expect(cell).toHaveTextContent("$18.42");
-    expect(cell).not.toHaveTextContent("≈");
-    expect(cell).toHaveTextContent("Reported by agent");
-  });
 
   it("Should mark estimated cost with the ≈ cue and source, never as measured spend", () => {
     renderUsage({
