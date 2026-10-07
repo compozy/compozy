@@ -128,14 +128,6 @@ describe("Combobox", () => {
           .sort()
       ).toEqual(["albuquerque", "berlin"])
     );
-  });
-
-  it("Should render a chip per selected item in multi-select mode", async () => {
-    const user = userEvent.setup();
-    render(<MultiExample />);
-    const input = screen.getByLabelText("Tags");
-    await user.click(input);
-    await user.click(within(document.body).getByText("Berlin"));
     await waitFor(() => {
       const chip = document.querySelector("[data-slot=combobox-chip]");
       expect(chip).not.toBeNull();

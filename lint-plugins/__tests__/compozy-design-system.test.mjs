@@ -753,16 +753,20 @@ describe("compozy-design-system lint plugin", () => {
     // Invariant: the rule only suggests a bare utility that Tailwind v4 can resolve.
     // `min-w-*` reads `--min-width-*`, so `min-w-(--width-x)` has no bare form and
     // the suggested `min-w-x` would be a class that generates no CSS.
-    it("allows a sizing token read by a utility from another namespace", async () => {
+    it("allows foreign sizing namespaces, runtime variables, internal tokens, and explicit length syntax", async () => {
       await expectAllowed({
         filename: "web/src/foo.tsx",
         rule,
         source: `
           export function View() {
             return (
-              <div className="min-w-(--width-worktree-submenu) max-w-(--width-message-bubble-max) basis-(--min-width-search-input)">
-                x
-              </div>
+              <>
+                <div className="min-w-(--width-worktree-submenu) max-w-(--width-message-bubble-max) basis-(--min-width-search-input)">x</div>
+                <div className="w-(--anchor-width) max-h-(--available-height)">x</div>
+                <div className="h-(--collapsible-panel-height)">x</div>
+                <div className="w-(--width-modal-md) min-h-(--height-pill-group-segment-md)">x</div>
+                <span className="text-(length:--text-eyebrow)">x</span>
+              </>
             );
           }
         `,
@@ -770,61 +774,26 @@ describe("compozy-design-system lint plugin", () => {
     });
 
     it("flags a sizing token read by a utility from its own namespace", async () => {
-      for (const full of [
+      const utilities = [
         "w-(--width-worktree-submenu)",
         "min-w-(--min-width-search-input)",
         "max-h-(--height-worktree-submenu-max)",
         "mt-(--spacing-count-chip)",
-      ]) {
-        await expectViolation(
-          {
-            filename: "web/src/foo.tsx",
-            rule,
-            source: `
-              export function View() {
-                return <div className="${full}">x</div>;
-              }
-            `,
-          },
-          full
-        );
+      ];
+      const result = await runOxlint({
+        filename: "web/src/foo.tsx",
+        rule,
+        source: `
+          export function View() {
+            return <>${utilities.map(full => `<div className="${full}">x</div>`).join("")}</>;
+          }
+        `,
+      });
+      expect(result.exitCode).not.toBe(0);
+      expect(result.messages).toHaveLength(utilities.length);
+      for (const full of utilities) {
+        expect(result.messages.join("\n")).toContain(full);
       }
-    });
-
-    it("allows runtime vars injected by Radix (anchor-width, available-height)", async () => {
-      await expectAllowed({
-        filename: "web/src/foo.tsx",
-        rule,
-        source: `
-          export function View() {
-            return <div className="w-(--anchor-width) max-h-(--available-height)">x</div>;
-          }
-        `,
-      });
-    });
-
-    it("allows the panel height injected by Base UI Collapsible", async () => {
-      await expectAllowed({
-        filename: "web/src/foo.tsx",
-        rule,
-        source: `
-          export function View() {
-            return <div className="h-(--collapsible-panel-height)">x</div>;
-          }
-        `,
-      });
-    });
-
-    it("allows component-internal tokens kept in :root (modal width, PillGroup heights)", async () => {
-      await expectAllowed({
-        filename: "web/src/foo.tsx",
-        rule,
-        source: `
-          export function View() {
-            return <div className="w-(--width-modal-md) min-h-(--height-pill-group-segment-md)">x</div>;
-          }
-        `,
-      });
     });
 
     it("does not run inside test or story files", async () => {
@@ -834,18 +803,6 @@ describe("compozy-design-system lint plugin", () => {
         source: `
           export function View() {
             return <div className="text-(--muted)">x</div>;
-          }
-        `,
-      });
-    });
-
-    it("allows the eyebrow utility's internal length:--text-eyebrow syntax", async () => {
-      await expectAllowed({
-        filename: "web/src/foo.tsx",
-        rule,
-        source: `
-          export function View() {
-            return <span className="text-(length:--text-eyebrow)">x</span>;
           }
         `,
       });

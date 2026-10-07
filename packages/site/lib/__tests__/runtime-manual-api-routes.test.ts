@@ -121,7 +121,13 @@ function implementedRoutes(): APIRoute[] {
   ].flatMap(sourcePath => extractRegisteredRoutes(sourcePath));
 }
 
+// The full docs scan compares each registered route many times; compile each pattern once.
+const routePatterns = new Map<string, RegExp>();
+
 function routePattern(route: string): RegExp {
+  const cached = routePatterns.get(route);
+  if (cached) return cached;
+
   const escaped = route
     .split("/")
     .map(part => {
@@ -134,7 +140,9 @@ function routePattern(route: string): RegExp {
       return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     })
     .join("/");
-  return new RegExp(`^${escaped}$`);
+  const pattern = new RegExp(`^${escaped}$`);
+  routePatterns.set(route, pattern);
+  return pattern;
 }
 
 function normalizeDocumentedRoute(raw: string): string {
