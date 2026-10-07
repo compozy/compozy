@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import {
   deleteExposeLink,
@@ -312,7 +312,13 @@ test.describe("skill sources", () => {
 async function createMockSession(appPage: import("@playwright/test").Page): Promise<string> {
   const ui = sessionLifecycleSelectors(appPage);
   await completeOnboardingIfPrompted(ui);
-  const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+  // The Dock restores the previous agent detail after the first picker check.
+  // Enter the fleet route explicitly before selecting an agent for a new session.
+  await appPage.goto(new URL("/agents", appPage.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  const agentsWin = appWindow(appPage, "agents");
+  await expect(agentsWin).toBeVisible();
   const fleet = sessionLifecycleSelectors(agentsWin);
   await fleet.agentRow(MOCK_AGENT).click();
   await expect(fleet.agentPageNewSession).toBeVisible();
