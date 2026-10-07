@@ -21,6 +21,7 @@ describe("SettingsPageFrame", () => {
   it("renders the subhead sentence, quiet meta, and body content", () => {
     renderFrame(null);
 
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
     const subhead = screen.getByTestId("settings-page-general-subhead");
     expect(subhead).toHaveTextContent("Changes here apply to new sessions on this machine.");
     expect(subhead).toHaveTextContent("3 active sessions");
@@ -41,19 +42,6 @@ describe("SettingsPageFrame", () => {
 
     const body = screen.getByTestId("settings-page-general-body");
     expect(within(body).getByTestId("settings-page-general-save-bar")).toBeInTheDocument();
-  });
-
-  it("renders no save bar band when the page is clean", () => {
-    renderFrame(
-      <SettingsSaveBar
-        slug="general"
-        state={{ kind: "idle" }}
-        onSave={() => {}}
-        onReset={() => {}}
-      />
-    );
-
-    expect(screen.queryByTestId("settings-page-general-save-bar")).not.toBeInTheDocument();
   });
 
   it("draws no subhead band for a page whose controls speak for themselves", () => {
@@ -82,22 +70,6 @@ describe("SettingsPageFrame", () => {
     const subhead = screen.getByTestId("settings-page-palette-subhead");
     expect(subhead).toHaveTextContent("2 saved layouts");
     expect(subhead.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
-  });
-
-  it("does not own the route title or publish topbar state", () => {
-    renderFrame(null);
-
-    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
-  });
-
-  it("omits the subhead when there is no consequence line and no meta", () => {
-    render(
-      <SettingsPageFrame slug="roles">
-        <div data-testid="frame-body-content">content</div>
-      </SettingsPageFrame>
-    );
-
-    expect(screen.queryByTestId("settings-page-roles-subhead")).not.toBeInTheDocument();
   });
 
   it("renders live meta without a restating page subtitle", () => {

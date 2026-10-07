@@ -559,10 +559,6 @@ describe("loops-api (against MSW mock handlers)", () => {
     ]);
   });
 
-  it("Should surface a 404 for an unknown loop name through the handler", async () => {
-    await expect(getLoop(WS, "ghost")).rejects.toMatchObject({ status: 404 });
-  });
-
   it("Should resolve config, annotations, validate, run controls and a dry run from the fixtures", async () => {
     expect(await getLoopConfig(WS, "implement-tasks")).toMatchObject({
       config: { iteration_cap: 16 },

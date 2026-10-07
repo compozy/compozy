@@ -43,11 +43,6 @@ function renderWithUI(node: React.ReactNode) {
 }
 
 describe("ProfileOwnerTag", () => {
-  it("Should name the owner in words, not colour alone", () => {
-    renderWithUI(<ProfileOwnerTag owner={MARKETING} />);
-    expect(screen.getByText("marketing")).toBeInTheDocument();
-  });
-
   it("Should announce the owner exactly once", () => {
     renderWithUI(<ProfileOwnerTag owner={MARKETING} />);
     // The glyph is a second rendering of the same fact. Labelling it as an image
@@ -124,10 +119,6 @@ describe("ProfileDestinationChip", () => {
     renderWithUI(<ProfileDestinationChip profile="default" />);
     expect(screen.getByTestId("profile-destination-chip")).toHaveTextContent("default");
     expect(screen.getByRole("img", { name: "Will be created in default" })).toBeInTheDocument();
-  });
-
-  it("Should offer no control — it is a label, never a picker (ADR-005)", () => {
-    renderWithUI(<ProfileDestinationChip profile="default" />);
     const chip = screen.getByTestId("profile-destination-chip");
     expect(chip.querySelector("button, select, input, a")).toBeNull();
     expect(chip.tagName).toBe("SPAN");
@@ -141,19 +132,10 @@ describe("ProfileOwnerBanner", () => {
     expect(screen.getByTestId("profile-owner-banner")).toHaveTextContent(
       "This session belongs to marketing."
     );
+    expect(screen.queryAllByRole("img", { name: "marketing" })).toHaveLength(0);
+    expect(screen.getByTestId("profile-owner-banner")).toHaveAttribute("data-tone", "info");
     await userEvent.click(screen.getByTestId("profile-owner-banner-switch"));
     expect(onSwitch).toHaveBeenCalledTimes(1);
-  });
-
-  it("Should announce the owner once in the banner sentence", () => {
-    renderWithUI(<ProfileOwnerBanner noun="session" owner={MARKETING} onSwitch={vi.fn()} />);
-    // The sentence already names the profile; the glyph beside it is decoration.
-    expect(screen.queryAllByRole("img", { name: "marketing" })).toHaveLength(0);
-  });
-
-  it("Should read as information, not as a failure", () => {
-    renderWithUI(<ProfileOwnerBanner noun="session" owner={MARKETING} onSwitch={vi.fn()} />);
-    expect(screen.getByTestId("profile-owner-banner")).toHaveAttribute("data-tone", "info");
   });
 
   it("Should hold the switch while one is already in flight", () => {

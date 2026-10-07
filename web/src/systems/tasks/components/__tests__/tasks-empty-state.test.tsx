@@ -17,11 +17,8 @@ describe("TasksEmptyState", () => {
     expect(screen.getByTestId("tasks-empty-templates")).toBeInTheDocument();
     expect(screen.getByRole("list")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-  });
-
-  it("Should keep template rows neutral so no benign template reads as a warning", () => {
-    render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
-
+    expect(screen.getByRole("heading", { name: /Start from a template/i })).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
     const expected: Record<string, string> = {
       one_shot: "neutral",
       recurring: "neutral",
@@ -34,13 +31,6 @@ describe("TasksEmptyState", () => {
         tone
       );
     }
-  });
-
-  it("Should label the templates panel with a live count", () => {
-    render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
-
-    expect(screen.getByRole("heading", { name: /Start from a template/i })).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
   it("Should fall back to a generic headline when no workspace is provided", () => {

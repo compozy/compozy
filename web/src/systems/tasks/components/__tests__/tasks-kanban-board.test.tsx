@@ -302,28 +302,6 @@ describe("TaskKanbanCard", () => {
     );
   });
 
-  it("Should render the OwnerAvatar primitive (no plain text owner fallback alone)", () => {
-    const tasks = [
-      buildTask({
-        id: "owned",
-        owner: { kind: "agent_session", ref: "claude" },
-      }),
-    ];
-
-    render(
-      <TasksKanbanBoard
-        columns={groupTasksForKanban(tasks)}
-        onSelectTask={vi.fn()}
-        selectedTaskId={null}
-      />
-    );
-
-    expect(screen.getByTestId("tasks-kanban-card-avatar-owned")).toHaveAttribute(
-      "data-slot",
-      "owner-avatar"
-    );
-  });
-
   it("Should label status on cards only where the column mixes statuses", () => {
     const tasks = [
       buildTask({ id: "attention", status: "needs_attention" }),

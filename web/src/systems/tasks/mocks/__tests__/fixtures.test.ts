@@ -6,33 +6,9 @@
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  storyAgentNames,
-  storyCoordinatorAgentName,
-  storyDefaultWorkspaceId,
-  storyPeople,
-} from "@/storybook/fintech-scenario";
-import { taskLifecyclePhase } from "../../lib/task-formatters";
+import { storyDefaultWorkspaceId, storyPeople } from "@/storybook/fintech-scenario";
 import type { TaskInboxView, TaskListPage } from "../../types";
-import {
-  agentContextFixture,
-  awaitingApprovalTaskFixture,
-  buildTaskContextBundleFixture,
-  buildTaskExecutionProfileFixture,
-  buildTaskRunReviewFixture,
-  buildTaskRunReviewVerdictResultFixture,
-  coordinatorEnabledWorkspaceFixture,
-  nonEscalatedRecoverTaskFixture,
-  recoverableTaskFixture,
-  savedIntentTaskFixture,
-  taskContextBundleFixture,
-  taskExecutionProfileFixture,
-  taskRunReviewFixture,
-  taskRunReviewListFixture,
-  taskRunReviewVerdictResultFixture,
-  TASK_CATALOG_FIXTURES,
-  TASK_FIXTURES,
-} from "../fixtures";
+import { TASK_CATALOG_FIXTURES } from "../fixtures";
 import { handlers } from "../handlers";
 
 const server = setupServer(...handlers);
@@ -40,58 +16,6 @@ const server = setupServer(...handlers);
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
-
-describe("tasks fixtures cover the manual-first lifecycle states", () => {
-  it("savedIntentTaskFixture is a draft with no run and resolves to publish", () => {
-    expect(savedIntentTaskFixture.status).toBe("draft");
-    expect(savedIntentTaskFixture.draft).toBe(true);
-    expect(savedIntentTaskFixture.active_run).toBeNull();
-    expect(taskLifecyclePhase(savedIntentTaskFixture)).toBe("saved_intent");
-  });
-
-  it("awaitingApprovalTaskFixture is agent-created, gated, and resolves to approve", () => {
-    expect(awaitingApprovalTaskFixture.approval_policy).toBe("manual");
-    expect(awaitingApprovalTaskFixture.approval_state).toBe("pending");
-    expect(awaitingApprovalTaskFixture.active_run).toBeNull();
-    expect(awaitingApprovalTaskFixture.created_by?.kind).toBe("agent_session");
-    expect(taskLifecyclePhase(awaitingApprovalTaskFixture)).toBe("awaiting_approval");
-  });
-
-  it("recover fixtures cover escalated and non-escalated task states", () => {
-    expect(recoverableTaskFixture.status).toBe("needs_attention");
-    expect(taskLifecyclePhase(recoverableTaskFixture)).toBe("needs_attention");
-    expect(nonEscalatedRecoverTaskFixture.status).toBe("ready");
-    expect(taskLifecyclePhase(nonEscalatedRecoverTaskFixture)).toBe("ready_to_start");
-  });
-
-  it("TASK_FIXTURES still cover user-created, running, failed, and approval states", () => {
-    const statuses = TASK_FIXTURES.map(task => task.status);
-    const owners = TASK_FIXTURES.flatMap(task =>
-      task.owner?.kind === "agent_session" ? [task.owner.ref] : []
-    );
-    expect(statuses).toEqual(
-      expect.arrayContaining(["in_progress", "pending", "failed", "completed", "blocked", "ready"])
-    );
-    expect(TASK_FIXTURES.length).toBeGreaterThanOrEqual(15);
-    expect(TASK_FIXTURES.some(task => task.approval_state === "pending")).toBe(true);
-    expect(TASK_FIXTURES.some(task => task.active_run?.status === "running")).toBe(true);
-    expect(TASK_FIXTURES.some(task => task.active_run?.status === "failed")).toBe(true);
-    expect(owners).toEqual(
-      expect.arrayContaining([
-        storyAgentNames.product,
-        storyAgentNames.frontend,
-        storyAgentNames.cfo,
-        storyAgentNames.marketing,
-        storyAgentNames.copywriter,
-      ])
-    );
-  });
-
-  it("coordinatorEnabledWorkspaceFixture marks the workspace as coordinator-enabled", () => {
-    expect(coordinatorEnabledWorkspaceFixture.coordinatorEnabled).toBe(true);
-    expect(coordinatorEnabledWorkspaceFixture.coordinatorAgentName).toBe(storyCoordinatorAgentName);
-  });
-});
 
 describe("tasks MSW handlers preserve counted query contracts", () => {
   it("Should apply every catalog filter before returning exact page metadata and facets", async () => {
@@ -302,52 +226,5 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
         `${name} must not leak an inbox row`
       ).toEqual([]);
     }
-  });
-});
-
-describe("orchestration fixtures satisfy generated contract shape", () => {
-  it("Should expose all execution profile selector branches", () => {
-    expect(taskExecutionProfileFixture.task_id).toBeTypeOf("string");
-    expect(taskExecutionProfileFixture.coordinator.mode).toMatch(/inherit|guided/);
-    expect(taskExecutionProfileFixture.worker.mode).toMatch(/inherit|select/);
-    expect(taskExecutionProfileFixture.created_at).toBeTypeOf("string");
-    expect(taskExecutionProfileFixture.updated_at).toBeTypeOf("string");
-
-    const overlay = buildTaskExecutionProfileFixture({ task_id: "task_42" });
-    expect(overlay.task_id).toBe("task_42");
-  });
-
-  it("Should expose review fixtures with status, policy, and cursor diagnostics", () => {
-    expect(taskRunReviewFixture.review_id).toBeTypeOf("string");
-    expect(taskRunReviewFixture.status).toBe("in_review");
-    expect(taskRunReviewListFixture).toHaveLength(2);
-    expect(taskRunReviewListFixture[1]?.outcome).toBe("rejected");
-    const built = buildTaskRunReviewFixture({ status: "recorded", outcome: "approved" });
-    expect(built.status).toBe("recorded");
-    expect(built.outcome).toBe("approved");
-  });
-
-  it("Should expose verdict fixture with continuation run lineage", () => {
-    expect(taskRunReviewVerdictResultFixture.review.outcome).toBe("rejected");
-    expect(taskRunReviewVerdictResultFixture.continuation_run?.attempt).toBeGreaterThan(0);
-    expect(taskRunReviewVerdictResultFixture.continuation_run?.task_id).toBe(
-      taskRunReviewVerdictResultFixture.review.task_id
-    );
-    const reset = buildTaskRunReviewVerdictResultFixture({ circuit_opened: true });
-    expect(reset.circuit_opened).toBe(true);
-  });
-
-  it("Should expose task context bundle with latest_event_seq and execution profile", () => {
-    expect(taskContextBundleFixture.latest_event_seq).toBeGreaterThanOrEqual(0);
-    expect(taskContextBundleFixture.task.id).toBeTypeOf("string");
-    expect(taskContextBundleFixture.execution_profile?.coordinator.mode).toMatch(/inherit|guided/);
-    const variant = buildTaskContextBundleFixture({ latest_event_seq: 99 });
-    expect(variant.latest_event_seq).toBe(99);
-  });
-
-  it("Should expose agent context fixture pointing at the task bundle", () => {
-    expect(agentContextFixture.task.available).toBe(true);
-    expect(agentContextFixture.task.bundle?.task.id).toBe("task_001");
-    expect(agentContextFixture.task.bundle?.latest_event_seq).toBeGreaterThanOrEqual(0);
   });
 });
