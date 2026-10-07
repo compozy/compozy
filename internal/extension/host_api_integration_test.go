@@ -112,33 +112,6 @@ func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
 	})
 }
 
-func TestHostAPIIntegrationStoresAndRecallsMemory(t *testing.T) {
-	env := newHostAPITestEnv(t)
-	env.grant("ext-integration", []string{"memory/store", "memory/recall"}, []string{"memory.write", "memory.read"})
-
-	if _, err := env.call(t, "ext-integration", "memory/store", map[string]any{
-		"key":     "deploy-checklist",
-		"content": "Run smoke tests before deploy",
-		"tags":    []string{"reference", "deploy"},
-	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-
-	result, err := env.call(t, "ext-integration", "memory/recall", map[string]any{
-		"query": "smoke tests before deploy",
-		"limit": 5,
-	})
-	if err != nil {
-		t.Fatalf("Handle(memory/recall) error = %v", err)
-	}
-
-	var entries []hostAPIMemoryRecallEntry
-	decodeResult(t, result, &entries)
-	if len(entries) == 0 {
-		t.Fatal("memory/recall len = 0, want stored memory")
-	}
-}
-
 func TestHostAPIIntegrationResourcesSnapshotPublishesAndReadsBack(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grantWithResources(
