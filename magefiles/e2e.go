@@ -68,7 +68,7 @@ func runE2ELane(lane e2elane.Lane) (runErr error) {
 		}
 	}
 
-	laneEnv, err := prepareE2ELaneEnv(len(plan.GoSuites) > 0)
+	laneEnv, err := prepareE2ELaneEnv(len(plan.GoSuites) > 0, plan.RequiresDaemonServedBrowser)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (env e2eLaneEnv) Cleanup() error {
 	return env.cleanup()
 }
 
-func prepareE2ELaneEnv(needStampedDaemon bool) (e2eLaneEnv, error) {
+func prepareE2ELaneEnv(needStampedDaemon, needDatabaseSeeder bool) (e2eLaneEnv, error) {
 	var cleanups []func() error
 	daemonPath, cleanup, err := resolveOrBuildLaneBinary(daemonBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
@@ -148,6 +148,23 @@ func prepareE2ELaneEnv(needStampedDaemon bool) (e2eLaneEnv, error) {
 	values := map[string]string{
 		daemonBinaryEnvVar: daemonPath,
 		driverBinaryEnvVar: driverPath,
+	}
+	if needDatabaseSeeder {
+		seederPath, seederCleanup, seedErr := resolveOrBuildLaneBinary(
+			dbSeederBinaryEnvVar,
+			func(outputPath string) error {
+				return runCommandInDir(
+					context.Background(), ".", "go", "build", "-p", "2",
+					"-o", outputPath, "./web/e2e/fixtures/runtime-database-seeder",
+				)
+			},
+			"runtime-database-seeder",
+		)
+		if seedErr != nil {
+			return e2eLaneEnv{}, errors.Join(seedErr, runCleanups(cleanups))
+		}
+		cleanups = append(cleanups, seederCleanup)
+		values[dbSeederBinaryEnvVar] = seederPath
 	}
 	if needStampedDaemon {
 		stampedPath, stampedCleanup, stampErr := resolveOrBuildLaneBinary(

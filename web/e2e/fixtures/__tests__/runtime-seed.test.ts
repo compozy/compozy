@@ -1130,6 +1130,8 @@ describe("browser runtime seed helpers", () => {
 describe("runtime database seed", () => {
   // Invariant: each runtime owns a writable database; neither sibling copies nor
   // later copies inherit writes. Owner: real SQLite, canonical runtime seed suite.
+  // This real Go/SQLite boundary test compiles storeseed and globaldb on cold
+  // CI runners; allow three minutes for that build without raising other budgets.
   it("keeps concurrent and later database copies independent", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-database-test-"));
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -1162,5 +1164,5 @@ describe("runtime database seed", () => {
       for (const db of databases) db.close();
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 180_000);
 });
