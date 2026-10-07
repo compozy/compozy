@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -20,9 +21,40 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+var automationTestStoreSeed *globalseed.Seed
+
+func TestMain(m *testing.M) {
+	os.Exit(runAutomationTests(m))
+}
+
+func runAutomationTests(m *testing.M) (code int) {
+	seed, err := globalseed.New(context.Background())
+	if err != nil {
+		reportAutomationTestMainError("create store seed: %v", err)
+		return 1
+	}
+	defer func() {
+		if err := seed.Close(); err != nil {
+			reportAutomationTestMainError("close store seed: %v", err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
+	automationTestStoreSeed = seed
+	return m.Run()
+}
+
+func reportAutomationTestMainError(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, "automation tests: "+format+"\n", args...); err != nil {
+		panic(err)
+	}
+}
 
 func TestCloneAutomationModels(t *testing.T) {
 	t.Parallel()
@@ -2346,6 +2378,11 @@ func newManagerHarness(t *testing.T) *managerHarness {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
+	// The harness owns automation behavior, not migration replay. Each test gets
+	// its own writable clone and still opens it through the production database API.
+	if err := automationTestStoreSeed.Clone(homePaths.DatabaseFile); err != nil {
+		t.Fatalf("Clone(global store seed) error = %v", err)
+	}
 	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)

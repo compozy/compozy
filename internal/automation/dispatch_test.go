@@ -849,6 +849,9 @@ func TestDispatchFireLimitPersistsAcrossDispatcherRecreation(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	if err := automationTestStoreSeed.Clone(dbPath); err != nil {
+		t.Fatalf("Clone(global store seed) error = %v", err)
+	}
 	db, err := globaldb.OpenGlobalDB(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
