@@ -44,8 +44,8 @@ func CodeOf(err error) ErrorCode {
 }
 
 func operatorErrorFrom(err error) *OperatorError {
-	var operatorError *OperatorError
-	if !errors.As(err, &operatorError) {
+	operatorError, matched := errors.AsType[*OperatorError](err)
+	if !matched {
 		return nil
 	}
 	return operatorError

@@ -565,7 +565,7 @@ func TestObserverSessionSnapshotRequiresContext(t *testing.T) {
 			name: "Should panic on a cached live session with nil context",
 			call: func(observer *Observer) {
 				info := &session.Info{ID: "sess-cached-context", AgentName: "coder"}
-				observer.trackLiveSession(context.Background(), info)
+				observer.trackLiveSession(t.Context(), info)
 				observer.trackLiveSession(nilContext(), info)
 			},
 		},
@@ -1823,7 +1823,11 @@ func newHarness(t *testing.T) *harness {
 func observeTestContext(t testing.TB) context.Context {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	parent := t.Context()
+	if parent.Err() != nil {
+		parent = context.WithoutCancel(parent)
+	}
+	ctx, cancel := context.WithTimeout(parent, 3*time.Minute)
 	t.Cleanup(cancel)
 	return ctx
 }

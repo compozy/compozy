@@ -1,10 +1,11 @@
 package modelcatalog
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -233,21 +234,15 @@ func (s *refreshPlanStore) ListSourceStatus(
 			result = append(result, replacement.Status)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].ProviderID != result[j].ProviderID {
-			return result[i].ProviderID < result[j].ProviderID
-		}
-		return result[i].SourceID < result[j].SourceID
+	slices.SortFunc(result, func(a, b SourceStatus) int {
+		return cmp.Or(cmp.Compare(a.ProviderID, b.ProviderID), cmp.Compare(a.SourceID, b.SourceID))
 	})
 	return cloneSourceStatuses(result), nil
 }
 
 func (s *refreshPlanStore) snapshot() []SourceRowsReplacement {
-	keys := make([]string, 0, len(s.replacements))
-	for key := range s.replacements {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.AppendSeq(make([]string, 0, len(s.replacements)), maps.Keys(s.replacements))
+	slices.Sort(keys)
 	replacements := make([]SourceRowsReplacement, 0, len(keys))
 	for _, key := range keys {
 		replacement := s.replacements[key]

@@ -81,7 +81,7 @@ func TestResolveRoutesByIdentifierType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			homePaths := newTestHomePaths(t)
 			root := t.TempDir()
 			ws := Workspace{ID: "ws_route", RootDir: mustCanonicalRoot(t, root), Name: "repo"}
@@ -112,7 +112,7 @@ func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
 	t.Run("Should choose the nearest registered root for a nested directory", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		outerRoot := t.TempDir()
 		innerRoot := filepath.Join(outerRoot, "packages", "inner")
@@ -141,7 +141,7 @@ func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
 	t.Run("Should choose the nearest registered root across filesystem case aliases", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		outerRoot := t.TempDir()
 		innerRoot := filepath.Join(outerRoot, "packages", "inner")
@@ -174,7 +174,7 @@ func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
 	t.Run("Should reject path-prefix collisions and not treat AdditionalDirs as CWD roots", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		parent := t.TempDir()
 		root := filepath.Join(parent, "alpha")
@@ -209,7 +209,7 @@ func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
 	t.Run("Should preserve symlink canonicalization for nested directories", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		nested := filepath.Join(root, "src", "nested")
@@ -237,7 +237,7 @@ func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
 	t.Run("Should serialize ancestor registration with child auto-registration", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		ancestorRoot := t.TempDir()
 		childRoot := filepath.Join(ancestorRoot, "packages", "child")
@@ -303,7 +303,7 @@ func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
 func TestResolveFallsBackToNameForWSLikeIdentifier(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	ws := Workspace{ID: "ws_real", RootDir: mustCanonicalRoot(t, root), Name: "ws_alpha"}
@@ -399,13 +399,13 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 			t.Fatal("checkContext(nil) error = nil, want non-nil")
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		if err := checkContext(ctx); !errors.Is(err, context.Canceled) {
 			t.Fatalf("checkContext(canceled) error = %v, want %v", err, context.Canceled)
 		}
 
-		if err := checkContext(context.Background()); err != nil {
+		if err := checkContext(t.Context()); err != nil {
 			t.Fatalf("checkContext(background) error = %v, want nil", err)
 		}
 	})

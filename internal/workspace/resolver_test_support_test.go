@@ -50,7 +50,7 @@ func symlinkWorkspaceRootForTest(t *testing.T, target string) string {
 func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	workspaceConfig := filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName)
@@ -863,7 +863,7 @@ func assertResolveCancellationRollback(
 ) {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	store := &cancelOnInsertStore{
@@ -888,7 +888,7 @@ func assertResolveCancellationRollback(
 	if !store.deleteHasDeadline {
 		t.Fatal("DeleteWorkspace() context deadline missing, want bounded rollback timeout")
 	}
-	if _, err := store.GetWorkspace(context.Background(), workspaceID); !errors.Is(err, ErrWorkspaceNotFound) {
+	if _, err := store.GetWorkspace(t.Context(), workspaceID); !errors.Is(err, ErrWorkspaceNotFound) {
 		t.Fatalf("GetWorkspace(rolled back after cancellation) error = %v, want %v", err, ErrWorkspaceNotFound)
 	}
 }

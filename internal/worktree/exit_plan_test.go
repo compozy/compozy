@@ -20,7 +20,7 @@ func TestExitPlan(t *testing.T) {
 			ID: "wt-unreadable", WorkspaceID: "ws-a", Name: "unreadable",
 			Branch: "feature/unreadable", Path: "/repo/unreadable", State: StateReady,
 		}
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		runner := &recordingGitRunner{responses: []gitResponse{{
@@ -28,7 +28,7 @@ func TestExitPlan(t *testing.T) {
 		}}}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
 
-		plan, err := service.ExitPlan(context.Background(), item.WorkspaceID, item.Name)
+		plan, err := service.ExitPlan(t.Context(), item.WorkspaceID, item.Name)
 		if err != nil {
 			t.Fatalf("ExitPlan() error = %v", err)
 		}
@@ -173,7 +173,7 @@ func TestExitPlan(t *testing.T) {
 		absent := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: []gitResponse{{
 			err: gitExitCodeError(2),
 		}}})
-		urls, err := absent.readOriginRemoteURLs(context.Background(), "/repo")
+		urls, err := absent.readOriginRemoteURLs(t.Context(), "/repo")
 		if err != nil || len(urls) != 0 {
 			t.Fatalf("absent origin = %#v, %v, want empty success", urls, err)
 		}
@@ -181,7 +181,7 @@ func TestExitPlan(t *testing.T) {
 		unreadable := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: []gitResponse{{
 			stderr: []byte("credential=secret"), err: gitExitCodeError(128),
 		}}})
-		_, err = unreadable.readOriginRemoteURLs(context.Background(), "/repo")
+		_, err = unreadable.readOriginRemoteURLs(t.Context(), "/repo")
 		if err == nil || strings.Contains(err.Error(), "secret") {
 			t.Fatalf("unreadable origin error = %v, want redacted failure", err)
 		}
@@ -197,7 +197,7 @@ func TestExitPlan(t *testing.T) {
 		service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: []gitResponse{{
 			stdout: []byte(fixture.String()),
 		}}})
-		scope, err := service.readExitCommitScope(context.Background(), Worktree{Path: "/repo"}, &Status{})
+		scope, err := service.readExitCommitScope(t.Context(), Worktree{Path: "/repo"}, &Status{})
 		if err != nil {
 			t.Fatalf("readExitCommitScope() error = %v", err)
 		}
@@ -227,7 +227,7 @@ func TestExitPlan(t *testing.T) {
 					t.Parallel()
 					service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: testCase.responses})
 					got := service.exitCleanupEvidence(
-						context.Background(),
+						t.Context(),
 						Worktree{Path: "/repo", Branch: "feature"},
 						nil,
 					)
@@ -312,7 +312,7 @@ func TestExitPlan(t *testing.T) {
 					WithClock(func() time.Time { return fetchedAt.Add(29 * time.Second) }),
 				)
 				got := service.exitCleanupEvidence(
-					context.Background(), Worktree{Path: "/repo", Branch: "feature"}, testCase.forge,
+					t.Context(), Worktree{Path: "/repo", Branch: "feature"}, testCase.forge,
 				)
 				if got != testCase.want {
 					t.Fatalf("cleanup = %#v, want %#v", got, testCase.want)
@@ -331,7 +331,7 @@ func TestExitPlan(t *testing.T) {
 			WithClock(func() time.Time { return fetchedAt.Add(exitForgeFreshness) }),
 		)
 		got := service.exitCleanupEvidence(
-			context.Background(),
+			t.Context(),
 			Worktree{Path: "/repo", Branch: "feature"},
 			&ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
 		)
@@ -371,7 +371,7 @@ func TestExitPlan(t *testing.T) {
 				t.Parallel()
 				service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: testCase.responses})
 				got := service.resolveExitBase(
-					context.Background(), Worktree{Path: "/repo", Branch: "feature", BaseRef: "main"},
+					t.Context(), Worktree{Path: "/repo", Branch: "feature", BaseRef: "main"},
 					testCase.status, testCase.forge,
 				)
 				if got != testCase.want {
@@ -419,7 +419,7 @@ func TestExitPlan(t *testing.T) {
 		}
 		newStore := func() *memoryWorktreeStore {
 			store := newMemoryWorktreeStore()
-			if err := store.Insert(context.Background(), item); err != nil {
+			if err := store.Insert(t.Context(), item); err != nil {
 				t.Fatalf("seed worktree: %v", err)
 			}
 			return store
@@ -432,7 +432,7 @@ func TestExitPlan(t *testing.T) {
 			newStore(), newRunner(), WithCapabilityGate(readyCapabilityGate()),
 			WithForge(&recordingExitForge{capabilities: capabilities}),
 		)
-		plan, err := withForge.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		plan, err := withForge.ExitPlan(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil {
 			t.Fatalf("ExitPlan() error = %v", err)
 		}
@@ -442,7 +442,7 @@ func TestExitPlan(t *testing.T) {
 		}
 
 		withoutForge := NewService(newStore(), newRunner(), WithCapabilityGate(readyCapabilityGate()))
-		plan, err = withoutForge.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		plan, err = withoutForge.ExitPlan(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil {
 			t.Fatalf("ExitPlan(without forge) error = %v", err)
 		}

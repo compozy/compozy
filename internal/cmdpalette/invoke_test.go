@@ -61,8 +61,8 @@ func TestRegistryInvoke(t *testing.T) {
 			t.Context(),
 			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
 		)
-		var unavailable *UnavailableError
-		if !errors.As(err, &unavailable) {
+		unavailable, matched := errors.AsType[*UnavailableError](err)
+		if !matched {
 			t.Fatalf("Invoke() error = %v, want UnavailableError", err)
 		}
 		if unavailable.Reason != catalog.Commands[0].UnavailableReason {
@@ -84,8 +84,8 @@ func TestRegistryInvoke(t *testing.T) {
 			t.Context(),
 			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
 		)
-		var invalid *InvalidArgumentsError
-		if !errors.As(err, &invalid) || invalid.Fields["title"] != "required" {
+		invalid, matched := errors.AsType[*InvalidArgumentsError](err)
+		if !matched || invalid.Fields["title"] != "required" {
 			t.Fatalf("Invoke() error = %#v, want required title field", err)
 		}
 		if executor.callCount() != 0 {

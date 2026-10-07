@@ -1,11 +1,12 @@
 package observe
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -109,18 +110,12 @@ func filterRegistryMemoryEvents(events []store.EventSummary) []store.EventSummar
 }
 
 func sortEventSummaries(events []store.EventSummary) {
-	sort.SliceStable(events, func(i, j int) bool {
-		left := events[i]
-		right := events[j]
-		leftAt := left.Timestamp.UTC()
-		rightAt := right.Timestamp.UTC()
-		if !leftAt.Equal(rightAt) {
-			return leftAt.Before(rightAt)
-		}
-		if left.Sequence != right.Sequence {
-			return left.Sequence < right.Sequence
-		}
-		return left.ID < right.ID
+	slices.SortStableFunc(events, func(a, b store.EventSummary) int {
+		return cmp.Or(
+			a.Timestamp.UTC().Compare(b.Timestamp.UTC()),
+			cmp.Compare(a.Sequence, b.Sequence),
+			cmp.Compare(a.ID, b.ID),
+		)
 	})
 }
 

@@ -2,7 +2,7 @@ package sdkts
 
 import (
 	"reflect"
-	"sort"
+	"slices"
 
 	"strings"
 
@@ -87,7 +87,7 @@ func hostAPIMethodValues() []string {
 	for _, spec := range specs {
 		values = append(values, string(spec.Method))
 	}
-	sort.Strings(values)
+	slices.Sort(values)
 	return values
 }
 

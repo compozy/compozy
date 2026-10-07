@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -32,7 +31,7 @@ func TestRuntimeHarnessHTTPUntilContract(t *testing.T) {
 			HTTPClient:  server.Client(),
 		}
 
-		records, err := harness.PromptSessionHTTPUntil(context.Background(), "sess-1", "hello", nil)
+		records, err := harness.PromptSessionHTTPUntil(t.Context(), "sess-1", "hello", nil)
 		if err == nil || !strings.Contains(err.Error(), "SSE predicate is required") {
 			t.Fatalf("PromptSessionHTTPUntil(nil predicate) error = %v, want SSE predicate validation", err)
 		}
@@ -63,7 +62,7 @@ func TestRuntimeHarnessHTTPUntilContract(t *testing.T) {
 			HTTPClient:  server.Client(),
 		}
 
-		records, err := harness.StreamSessionHTTPUntil(context.Background(), "sess-1", nil)
+		records, err := harness.StreamSessionHTTPUntil(t.Context(), "sess-1", nil)
 		if err == nil || !strings.Contains(err.Error(), "SSE predicate is required") {
 			t.Fatalf("StreamSessionHTTPUntil(nil predicate) error = %v, want SSE predicate validation", err)
 		}
@@ -96,7 +95,7 @@ func TestRuntimeHarnessHTTPUntilContract(t *testing.T) {
 		}
 
 		records, err := harness.StreamSessionRawHTTPUntil(
-			context.Background(),
+			t.Context(),
 			"sess-1",
 			func(event SSEEvent) bool {
 				return event.Event == "runtime_progress"

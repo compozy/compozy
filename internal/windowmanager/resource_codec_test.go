@@ -6,7 +6,6 @@ package windowmanager
 // Boundary OUT: resource persistence/reconcile, owned by internal/resources and daemon.
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -30,7 +29,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatalf("Encode() error = %v", err)
 		}
 		got, err := codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			encoded,
 		)
@@ -53,7 +52,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatalf("Encode() error = %v", err)
 		}
 		_, err = codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			encoded,
 		)
@@ -69,7 +68,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			`"document":{"version":2,"workspace_id":"","desktops":[],"windows":{},"overrides":{}},` +
 			`"legacy":true}`)
 		_, err := codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			raw,
 		)
@@ -87,7 +86,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatalf("Encode() error = %v", err)
 		}
 		_, err = codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
 			encoded,
 		)

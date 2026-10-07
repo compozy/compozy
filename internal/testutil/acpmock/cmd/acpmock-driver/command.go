@@ -75,14 +75,11 @@ func (a *mockAgent) executeDriverControl(
 	control := *step.DriverControl
 	if control.Async {
 		lifecycleCtx := a.lifecycleContext()
-		a.asyncWG.Add(1)
-		go func(promptCtx context.Context, lifetimeCtx context.Context, control acpmock.DriverControlStep) {
-			defer a.asyncWG.Done()
-
-			if err := waitDriverControlDelay(promptCtx, lifetimeCtx, control.DelayMS); err != nil {
+		a.asyncWG.Go(func() {
+			if err := waitDriverControlDelay(ctx, lifecycleCtx, control.DelayMS); err != nil {
 				return
 			}
-			if err := a.performDriverControl(promptCtx, control); err != nil {
+			if err := a.performDriverControl(ctx, control); err != nil {
 				if _, printErr := fmt.Fprintf(
 					os.Stderr,
 					"acpmock async driver_control %s error: %v\n",
@@ -92,7 +89,7 @@ func (a *mockAgent) executeDriverControl(
 					return
 				}
 			}
-		}(ctx, lifecycleCtx, control)
+		})
 		return diagnostics, nil
 	}
 	if control.Action == acpmock.DriverControlHoldIgnoringCancel {

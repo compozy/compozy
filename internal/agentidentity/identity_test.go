@@ -147,7 +147,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 				return tt.session, nil
 			}
 
-			caller, err := Resolve(context.Background(), ResolveOptions{
+			caller, err := Resolve(t.Context(), ResolveOptions{
 				Credentials:         tt.credentials,
 				Lookup:              lookup,
 				ExpectedWorkspaceID: tt.expectedWorkspace,
@@ -400,12 +400,12 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 		},
 		{
 			name:    "Should reject nil lookup",
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			wantErr: ErrIdentityLookupUnavailable,
 		},
 		{
 			name: "Should reject empty returned session id",
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ProfileID: store.DefaultProfileID,
@@ -417,7 +417,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 		},
 		{
 			name: "Should reject different returned session id",
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ID:        "sess-2",
@@ -430,7 +430,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 		},
 		{
 			name: "Should reject empty returned profile id",
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ID:        "sess-1",
@@ -442,7 +442,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 		},
 		{
 			name: "Should classify backend lookup failures as unavailable",
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{}, fmt.Errorf("read session metadata: %w", os.ErrPermission)
 			},
@@ -477,7 +477,7 @@ func TestResolveDefaultsAgentSessionOrigin(t *testing.T) {
 	t.Run("Should default to agent session origin", func(t *testing.T) {
 		t.Parallel()
 
-		caller, err := Resolve(context.Background(), ResolveOptions{
+		caller, err := Resolve(t.Context(), ResolveOptions{
 			Credentials: Credentials{
 				SessionID: "sess-1",
 				AgentName: "coder",

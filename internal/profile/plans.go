@@ -1,13 +1,14 @@
 package profile
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -78,15 +79,12 @@ func (m *Manager) renamePlan(
 		if err != nil {
 			return RenamePlan{}, fmt.Errorf("profile: list extension placements: %w", err)
 		}
-		sort.Slice(plan.DormantPlacements, func(i, j int) bool {
-			left, right := plan.DormantPlacements[i], plan.DormantPlacements[j]
-			if left.Extension != right.Extension {
-				return left.Extension < right.Extension
-			}
-			if left.Resource != right.Resource {
-				return left.Resource < right.Resource
-			}
-			return left.ProfileName < right.ProfileName
+		slices.SortFunc(plan.DormantPlacements, func(a, b PlacementRef) int {
+			return cmp.Or(
+				cmp.Compare(a.Extension, b.Extension),
+				cmp.Compare(a.Resource, b.Resource),
+				cmp.Compare(a.ProfileName, b.ProfileName),
+			)
 		})
 	}
 	dirDigest, err := directoryDigest(oldDir)
@@ -350,7 +348,7 @@ func directoryDigest(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("profile: fingerprint directory %q: %w", path, err)
 	}
-	sort.Strings(entries)
+	slices.Sort(entries)
 	return fingerprint(entries)
 }
 

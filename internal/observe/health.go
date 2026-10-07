@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -241,8 +241,8 @@ func (o *Observer) collectFailureHealth(ctx context.Context) (FailureHealth, err
 		if degradedTotal > 0 {
 			health.Status = observeHealthStatusDegraded
 		}
-		sort.SliceStable(recent, func(i, j int) bool {
-			return recent[i].UpdatedAt.After(recent[j].UpdatedAt)
+		slices.SortStableFunc(recent, func(a, b SessionFailureHealth) int {
+			return b.UpdatedAt.Compare(a.UpdatedAt)
 		})
 		if len(recent) > 10 {
 			recent = recent[:10]

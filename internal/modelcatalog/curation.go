@@ -1,8 +1,9 @@
 package modelcatalog
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -74,27 +75,32 @@ func normalizeCatalogView(view CatalogView) (CatalogView, error) {
 }
 
 func sortCatalogModels(models []Model) {
-	sort.SliceStable(models, func(i, j int) bool {
-		left := models[i]
-		right := models[j]
-		if left.ProviderID != right.ProviderID {
-			return left.ProviderID < right.ProviderID
+	slices.SortStableFunc(models, func(a, b Model) int {
+		if a.ProviderID != b.ProviderID {
+			return cmp.Compare(a.ProviderID, b.ProviderID)
 		}
-		if left.Curated != right.Curated {
-			return left.Curated
+		if a.Curated != b.Curated {
+			if a.Curated {
+				return -1
+			}
+			return 1
 		}
-		if left.Deprecated != right.Deprecated {
-			return !left.Deprecated
+		if a.Deprecated != b.Deprecated {
+			if a.Deprecated {
+				return 1
+			}
+			return -1
 		}
-		if left.Featured != right.Featured {
-			return left.Featured
+		if a.Featured != b.Featured {
+			if a.Featured {
+				return -1
+			}
+			return 1
 		}
-		leftDate := releaseDateValue(left.ReleaseDate)
-		rightDate := releaseDateValue(right.ReleaseDate)
-		if leftDate != rightDate {
-			return leftDate > rightDate
-		}
-		return left.ModelID < right.ModelID
+		return cmp.Or(
+			cmp.Compare(releaseDateValue(b.ReleaseDate), releaseDateValue(a.ReleaseDate)),
+			cmp.Compare(a.ModelID, b.ModelID),
+		)
 	})
 }
 

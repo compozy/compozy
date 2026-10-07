@@ -1,12 +1,13 @@
 package observe
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
@@ -40,7 +41,7 @@ func (o *Observer) Reconcile(ctx context.Context) (store.ReconcileResult, error)
 		return store.ReconcileResult{}, fmt.Errorf("observe: reconcile sessions: %w", err)
 	}
 	result.Indexed = append(result.Indexed, creationIndexed...)
-	sort.Strings(result.Indexed)
+	slices.Sort(result.Indexed)
 
 	return result, nil
 }
@@ -106,8 +107,8 @@ func (o *Observer) loadSessionMetadata(ctx context.Context) ([]recoveredSession,
 		}
 	}
 
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].ID < sessions[j].ID
+	slices.SortFunc(sessions, func(a, b recoveredSession) int {
+		return cmp.Compare(a.ID, b.ID)
 	})
 
 	return sessions, nil

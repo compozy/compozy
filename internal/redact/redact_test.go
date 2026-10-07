@@ -784,7 +784,7 @@ func testProcessEnabledSnapshot(t *testing.T) {
 	}
 
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestProcessEnabledSnapshot$")
 	cmd.Env = append(os.Environ(), redactionSnapshotHelperEnv+"=1")

@@ -78,33 +78,31 @@ func stripKnownPromptAugmentation(prompt string) string {
 func stripTrailingLoopOutputContract(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
 	marker := "\n\n" + loopOutputContractPrefix
-	markerIndex := strings.LastIndex(trimmed, marker)
-	if markerIndex < 0 {
+	before, after, found := strings.CutLast(trimmed, marker)
+	if !found {
 		return trimmed
 	}
-	schema := strings.TrimSpace(trimmed[markerIndex+len(marker):])
+	schema := strings.TrimSpace(after)
 	if !strings.HasPrefix(schema, "{") || !json.Valid([]byte(schema)) {
 		return trimmed
 	}
-	return strings.TrimSpace(trimmed[:markerIndex])
+	return strings.TrimSpace(before)
 }
 
 func stripTrailingRunAgentPromptContract(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
-	if index := strings.LastIndex(trimmed, schemaRetryPromptMarker); index >= 0 {
-		retry := trimmed[index+len(schemaRetryPromptMarker):]
-		instructionIndex := strings.LastIndex(retry, schemaRetryInstructionMarker)
-		if instructionIndex >= 0 {
-			schema := strings.TrimSpace(retry[instructionIndex+len(schemaRetryInstructionMarker):])
+	if before, retry, found := strings.CutLast(trimmed, schemaRetryPromptMarker); found {
+		if _, after, found := strings.CutLast(retry, schemaRetryInstructionMarker); found {
+			schema := strings.TrimSpace(after)
 			if json.Valid([]byte(schema)) {
-				trimmed = strings.TrimSpace(trimmed[:index])
+				trimmed = strings.TrimSpace(before)
 			}
 		}
 	}
-	if index := strings.LastIndex(trimmed, outputContractPromptMarker); index >= 0 {
-		schema := strings.TrimSpace(trimmed[index+len(outputContractPromptMarker):])
+	if before, after, found := strings.CutLast(trimmed, outputContractPromptMarker); found {
+		schema := strings.TrimSpace(after)
 		if json.Valid([]byte(schema)) {
-			trimmed = strings.TrimSpace(trimmed[:index])
+			trimmed = strings.TrimSpace(before)
 		}
 	}
 	return trimmed

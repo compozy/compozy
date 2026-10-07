@@ -1,7 +1,8 @@
 package modelcatalog
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -24,11 +25,8 @@ func MergeRows(rows []ModelRow, opts MergeOptions) []Model {
 		sortModelRows(group)
 		models = append(models, mergeModelGroup(group, opts))
 	}
-	sort.SliceStable(models, func(i, j int) bool {
-		if models[i].ProviderID != models[j].ProviderID {
-			return models[i].ProviderID < models[j].ProviderID
-		}
-		return models[i].ModelID < models[j].ModelID
+	slices.SortStableFunc(models, func(a, b Model) int {
+		return cmp.Or(cmp.Compare(a.ProviderID, b.ProviderID), cmp.Compare(a.ModelID, b.ModelID))
 	})
 	return models
 }
@@ -169,16 +167,14 @@ func availabilityAuthority(kind SourceKind) bool {
 }
 
 func sortModelRows(rows []ModelRow) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		left := rows[i]
-		right := rows[j]
-		if left.Priority != right.Priority {
-			return left.Priority > right.Priority
+	slices.SortStableFunc(rows, func(a, b ModelRow) int {
+		if a.Priority != b.Priority {
+			return cmp.Compare(b.Priority, a.Priority)
 		}
-		if !left.RefreshedAt.Equal(right.RefreshedAt) {
-			return left.RefreshedAt.After(right.RefreshedAt)
+		if !a.RefreshedAt.Equal(b.RefreshedAt) {
+			return b.RefreshedAt.Compare(a.RefreshedAt)
 		}
-		return left.SourceID < right.SourceID
+		return cmp.Compare(a.SourceID, b.SourceID)
 	})
 }
 

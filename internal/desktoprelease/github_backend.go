@@ -336,8 +336,8 @@ func (e *githubHTTPError) Error() string {
 }
 
 func isGitHubStatus(err error, status int) bool {
-	var githubError *githubHTTPError
-	return errors.As(err, &githubError) && githubError.Status == status
+	githubError, ok := errors.AsType[*githubHTTPError](err)
+	return ok && githubError.Status == status
 }
 
 func (b *GitHubBackend) get(ctx context.Context, endpoint string, output any) error {

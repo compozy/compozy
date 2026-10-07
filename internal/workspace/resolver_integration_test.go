@@ -21,7 +21,7 @@ import (
 )
 
 func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newIntegrationHomePaths(t)
 	t.Setenv("COMPOZY_HOME", homePaths.HomeDir)
 
@@ -148,7 +148,7 @@ func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
 }
 
 func TestResolverIntegrationResolveUpdatesStaleSymlinkRegistration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newIntegrationHomePaths(t)
 	t.Setenv("COMPOZY_HOME", homePaths.HomeDir)
 

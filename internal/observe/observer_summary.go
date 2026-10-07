@@ -88,6 +88,5 @@ func stringPointer(value string) *string {
 		return nil
 	}
 
-	copyValue := value
-	return &copyValue
+	return new(value)
 }

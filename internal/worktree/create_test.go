@@ -129,7 +129,7 @@ func TestServiceCreate(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		item, err := fixture.service.Create(
-			context.Background(), fixture.workspace.ID,
+			t.Context(), fixture.workspace.ID,
 			CreateOptions{ProfileID: testNonDefaultWorktreeProfileID, Name: "Non-default Owner"},
 		)
 		if err != nil {
@@ -138,7 +138,7 @@ func TestServiceCreate(t *testing.T) {
 		if item.ProfileID != testNonDefaultWorktreeProfileID {
 			t.Fatalf("created ProfileID = %q, want %q", item.ProfileID, testNonDefaultWorktreeProfileID)
 		}
-		persisted, err := fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID)
+		persisted, err := fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID)
 		if err != nil {
 			t.Fatalf("Get(non-default owner) error = %v", err)
 		}
@@ -151,14 +151,14 @@ func TestServiceCreate(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		fixture.failWorktreeAdd.Store(true)
-		events, cancel, err := fixture.service.SubscribeWorktreeCatalogEvents(context.Background())
+		events, cancel, err := fixture.service.SubscribeWorktreeCatalogEvents(t.Context())
 		if err != nil {
 			t.Fatalf("SubscribeWorktreeCatalogEvents() error = %v", err)
 		}
 		defer cancel()
 
 		item, err := fixture.service.CreateAccepted(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Async Failure"},
 		)
@@ -191,7 +191,7 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("catalog failure = %#v, want scoped accepted failure", failed)
 		}
 		if _, getErr := fixture.store.Get(
-			context.Background(), fixture.workspace.ID, item.ID,
+			t.Context(), fixture.workspace.ID, item.ID,
 		); !errors.Is(getErr, ErrNotFound) {
 			t.Fatalf("Get(rolled back) error = %v, want ErrNotFound", getErr)
 		}
@@ -201,7 +201,7 @@ func TestServiceCreate(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		request := RunWorktreeRequest{ProfileID: testWorktreeProfileID, TaskSlug: "Review Docs", RunID: "run-123"}
-		item, err := fixture.service.MaterializeForRun(context.Background(), fixture.workspace.ID, request)
+		item, err := fixture.service.MaterializeForRun(t.Context(), fixture.workspace.ID, request)
 		if err != nil {
 			t.Fatalf("MaterializeForRun() error = %v", err)
 		}
@@ -216,23 +216,23 @@ func TestServiceCreate(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		request := RunWorktreeRequest{ProfileID: testWorktreeProfileID, TaskSlug: "Review Docs", RunID: "run-rollback"}
-		item, err := fixture.service.MaterializeForRun(context.Background(), fixture.workspace.ID, request)
+		item, err := fixture.service.MaterializeForRun(t.Context(), fixture.workspace.ID, request)
 		if err != nil {
 			t.Fatalf("MaterializeForRun() error = %v", err)
 		}
 		if err := fixture.service.RollbackRunMaterialization(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			item.ID,
 			"different-run",
 		); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("RollbackRunMaterialization(different run) error = %v, want ErrNotFound", err)
 		}
-		if _, err := fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID); err != nil {
+		if _, err := fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID); err != nil {
 			t.Fatalf("Get() after rejected rollback error = %v", err)
 		}
 		if err := fixture.service.RollbackRunMaterialization(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			item.ID,
 			request.RunID,
@@ -240,7 +240,7 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("RollbackRunMaterialization() error = %v", err)
 		}
 		if got, err := fixture.store.Get(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			item.ID,
 		); !errors.Is(err, ErrNotFound) ||
@@ -264,7 +264,7 @@ func TestServiceCreate(t *testing.T) {
 		events := &recordingEventSink{}
 		fixture.service.events = events
 		item, err := fixture.service.Create(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Docs Refresh"},
 		)
@@ -307,7 +307,7 @@ func TestServiceCreate(t *testing.T) {
 			}
 			return baseRun(call)
 		}
-		requestContext, cancelRequest := context.WithCancel(context.Background())
+		requestContext, cancelRequest := context.WithCancel(t.Context())
 		item, err := fixture.service.CreateAccepted(
 			requestContext,
 			fixture.workspace.ID,
@@ -325,7 +325,7 @@ func TestServiceCreate(t *testing.T) {
 		if item.State != StatePending {
 			t.Fatalf("CreateAccepted() state = %q, want pending", item.State)
 		}
-		persisted, err := fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID)
+		persisted, err := fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID)
 		if err != nil || persisted.State != StatePending {
 			t.Fatalf("pending row = %#v, %v, want durable pending", persisted, err)
 		}
@@ -339,7 +339,7 @@ func TestServiceCreate(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("detached materialization did not complete")
 		}
-		persisted, err = fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID)
+		persisted, err = fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID)
 		if err != nil || persisted.State != StateReady {
 			t.Fatalf("completed row = %#v, %v, want ready after request cancellation", persisted, err)
 		}
@@ -362,7 +362,7 @@ func TestServiceCreate(t *testing.T) {
 		errResult := make(chan error, 1)
 		go func() {
 			item, err := fixture.service.CreateReady(
-				context.Background(),
+				t.Context(),
 				fixture.workspace.ID,
 				CreateOptions{ProfileID: testWorktreeProfileID, Name: "Ready Create"},
 			)
@@ -374,7 +374,7 @@ func TestServiceCreate(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("ready materialization did not start")
 		}
-		rows, err := fixture.store.List(context.Background(), fixture.workspace.ID)
+		rows, err := fixture.store.List(t.Context(), fixture.workspace.ID)
 		if err != nil || len(rows) != 1 || rows[0].State != StatePending {
 			t.Fatalf("rows while CreateReady waits = %#v, %v, want one pending row", rows, err)
 		}
@@ -400,7 +400,7 @@ func TestServiceCreate(t *testing.T) {
 			}
 			return baseRun(call)
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		errResult := make(chan error, 1)
 		go func() {
 			_, err := fixture.service.CreateReady(
@@ -415,7 +415,7 @@ func TestServiceCreate(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("cancelable materialization did not start")
 		}
-		rows, err := fixture.store.List(context.Background(), fixture.workspace.ID)
+		rows, err := fixture.store.List(t.Context(), fixture.workspace.ID)
 		if err != nil || len(rows) != 1 {
 			t.Fatalf("rows before CreateReady cancellation = %#v, %v", rows, err)
 		}
@@ -426,7 +426,7 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("CreateReady() error = %v, want context.Canceled", err)
 		}
 		if _, err := fixture.store.Get(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			rows[0].ID,
 		); !errors.Is(
@@ -457,7 +457,7 @@ func TestServiceCreate(t *testing.T) {
 				return baseRun(call)
 			}
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		result := make(chan *Worktree, 1)
 		errResult := make(chan error, 1)
 		go func() {
@@ -475,7 +475,7 @@ func TestServiceCreate(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for completed creation event")
 		}
-		rows, err := fixture.store.List(context.Background(), fixture.workspace.ID)
+		rows, err := fixture.store.List(t.Context(), fixture.workspace.ID)
 		if err != nil || len(rows) != 1 || rows[0].State != StateReady {
 			t.Fatalf("rows before delivery cancellation = %#v, %v, want one ready row", rows, err)
 		}
@@ -505,7 +505,7 @@ func TestServiceCreate(t *testing.T) {
 		if !errors.Is(createErr, context.Canceled) {
 			t.Fatalf("CreateReady() error = %v, want context.Canceled", createErr)
 		}
-		stored, err := fixture.store.Get(context.Background(), fixture.workspace.ID, rows[0].ID)
+		stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, rows[0].ID)
 		if err != nil || stored.State != StateRemoved {
 			t.Fatalf(
 				"worktree after delivery cancellation = %#v, %v (create error %v), want removed tombstone",
@@ -519,7 +519,7 @@ func TestServiceCreate(t *testing.T) {
 	t.Run("Should reuse an existing branch without minting or configuring it", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
-		item, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+		item, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Existing", ExistingBranch: "feature/existing",
 		})
 		if err != nil {
@@ -540,7 +540,7 @@ func TestServiceCreate(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		now := time.Date(2026, 8, 12, 11, 0, 0, 0, time.UTC)
-		if err := fixture.store.Insert(context.Background(), Worktree{
+		if err := fixture.store.Insert(t.Context(), Worktree{
 			ID: "wt-existing", WorkspaceID: fixture.workspace.ID, Name: "docs-refresh",
 			Path: filepath.Join(fixture.worktreesRoot, "existing"), State: StateReady,
 			Origin: OriginManual, SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
@@ -548,7 +548,7 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		_, err := fixture.service.Create(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Docs Refresh"},
 		)
@@ -584,7 +584,7 @@ func TestServiceCreate(t *testing.T) {
 					err:                 testCase.err,
 				}
 				_, err := fixture.service.Create(
-					context.Background(), fixture.workspace.ID,
+					t.Context(), fixture.workspace.ID,
 					CreateOptions{ProfileID: testWorktreeProfileID, Name: "Insert Conflict"},
 				)
 				if testCase.want != nil {
@@ -610,7 +610,7 @@ func TestServiceCreate(t *testing.T) {
 			group.Go(func() {
 				<-start
 				_, err := fixture.service.Create(
-					context.Background(), fixture.workspace.ID,
+					t.Context(), fixture.workspace.ID,
 					CreateOptions{ProfileID: testWorktreeProfileID, Name: "Concurrent"},
 				)
 				results <- err
@@ -638,7 +638,7 @@ func TestServiceCreate(t *testing.T) {
 	t.Run("Should classify branches held by the root or another worktree", func(t *testing.T) {
 		t.Parallel()
 		rootFixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
-		if _, err := rootFixture.service.Create(context.Background(), rootFixture.workspace.ID, CreateOptions{
+		if _, err := rootFixture.service.Create(t.Context(), rootFixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Root Branch", Branch: "main",
 		}); !errors.Is(err, ErrBranchCheckedOutAtRoot) {
 			t.Fatalf("Create(root branch) error = %v, want ErrBranchCheckedOutAtRoot", err)
@@ -649,7 +649,7 @@ func TestServiceCreate(t *testing.T) {
 			linkedFixture.listOutput,
 			[]byte("worktree /linked\x00HEAD held\x00branch refs/heads/feature/held\x00\x00")...,
 		)
-		if _, err := linkedFixture.service.Create(context.Background(), linkedFixture.workspace.ID, CreateOptions{
+		if _, err := linkedFixture.service.Create(t.Context(), linkedFixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Held Branch", Branch: "feature/held",
 		}); !errors.Is(err, ErrBranchHeld) {
 			t.Fatalf("Create(held branch) error = %v, want ErrBranchHeld", err)
@@ -659,7 +659,7 @@ func TestServiceCreate(t *testing.T) {
 	t.Run("Should reject missing refs and repositories without commits before mutation", func(t *testing.T) {
 		t.Parallel()
 		existingFixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
-		if _, err := existingFixture.service.Create(context.Background(), existingFixture.workspace.ID, CreateOptions{
+		if _, err := existingFixture.service.Create(t.Context(), existingFixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Missing Existing", ExistingBranch: "feature/missing",
 		}); !errors.Is(err, ErrBaseRefNotFound) {
 			t.Fatalf("Create(missing existing branch) error = %v, want ErrBaseRefNotFound", err)
@@ -673,19 +673,19 @@ func TestServiceCreate(t *testing.T) {
 			}
 			return baseRun(call)
 		}
-		if _, err := baseFixture.service.Create(context.Background(), baseFixture.workspace.ID, CreateOptions{
+		if _, err := baseFixture.service.Create(t.Context(), baseFixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Missing Base", BaseRef: "missing",
 		}); !errors.Is(err, ErrBaseRefNotFound) {
 			t.Fatalf("Create(missing base) error = %v, want ErrBaseRefNotFound", err)
 		}
 		if item, err := baseFixture.service.CreateAccepted(
-			context.Background(),
+			t.Context(),
 			baseFixture.workspace.ID,
 			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Missing Accepted Base", BaseRef: "missing"},
 		); !errors.Is(err, ErrBaseRefNotFound) || item != nil {
 			t.Fatalf("CreateAccepted(missing base) = %#v, %v, want nil ErrBaseRefNotFound", item, err)
 		}
-		rows, err := baseFixture.store.List(context.Background(), baseFixture.workspace.ID)
+		rows, err := baseFixture.store.List(t.Context(), baseFixture.workspace.ID)
 		if err != nil || len(rows) != 0 {
 			t.Fatalf("List() after rejected acceptance = %#v, %v, want no durable row", rows, err)
 		}
@@ -698,7 +698,7 @@ func TestServiceCreate(t *testing.T) {
 			}
 			return unbornRun(call)
 		}
-		if _, err := unbornFixture.service.Create(context.Background(), unbornFixture.workspace.ID, CreateOptions{
+		if _, err := unbornFixture.service.Create(t.Context(), unbornFixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Unborn",
 		}); !errors.Is(err, ErrRepoHasNoCommits) {
 			t.Fatalf("Create(unborn) error = %v, want ErrRepoHasNoCommits", err)
@@ -709,14 +709,14 @@ func TestServiceCreate(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		fixture.failWorktreeAdd.Store(true)
-		_, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+		_, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Retry Me",
 		})
 		if err == nil || !strings.Contains(err.Error(), "checkout failed") {
 			t.Fatalf("Create(failing checkout) error = %v, want checkout failure", err)
 		}
 		if item, getErr := fixture.store.Get(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			"retry-me",
 		); !errors.Is(getErr, ErrNotFound) ||
@@ -729,7 +729,7 @@ func TestServiceCreate(t *testing.T) {
 		}
 		fixture.failWorktreeAdd.Store(false)
 		if _, retryErr := fixture.service.Create(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Retry Me"},
 		); retryErr != nil {
@@ -746,7 +746,7 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("write bootstrap source: %v", err)
 		}
 		item, err := fixture.service.Create(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Bootstrap"},
 		)
@@ -788,14 +788,14 @@ func TestServiceCreate(t *testing.T) {
 			Origin: OriginManual, SetupState: SetupNone, CreatedBranch: true, CreatedHead: "created-head",
 			CreatedAt: now, UpdatedAt: now,
 		}
-		if err := fixture.store.Insert(context.Background(), pending); err != nil {
+		if err := fixture.store.Insert(t.Context(), pending); err != nil {
 			t.Fatalf("seed pending worktree: %v", err)
 		}
-		if err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, pending.Name); err != nil {
+		if err := fixture.service.CancelCreate(t.Context(), fixture.workspace.ID, pending.Name); err != nil {
 			t.Fatalf("CancelCreate() error = %v", err)
 		}
 		if _, err := fixture.store.Get(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			pending.ID,
 		); !errors.Is(
@@ -812,11 +812,11 @@ func TestServiceCreate(t *testing.T) {
 			fixture.worktreesRoot,
 			"ready",
 		), StateReady
-		if err := fixture.store.Insert(context.Background(), ready); err != nil {
+		if err := fixture.store.Insert(t.Context(), ready); err != nil {
 			t.Fatalf("seed ready worktree: %v", err)
 		}
 		if err := fixture.service.CancelCreate(
-			context.Background(),
+			t.Context(),
 			fixture.workspace.ID,
 			ready.ID,
 		); !errors.Is(
@@ -826,7 +826,7 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("CancelCreate(ready) error = %v, want ErrNotPending", err)
 		}
 		if err := fixture.service.CancelCreate(
-			context.Background(),
+			t.Context(),
 			"ws-other",
 			ready.ID,
 		); !errors.Is(
@@ -854,7 +854,7 @@ func TestServiceCreate(t *testing.T) {
 				State: StatePending, PendingPhase: PhaseCheckout, Origin: OriginManual,
 				SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
 			}
-			if err := fixture.store.Insert(context.Background(), pending); err != nil {
+			if err := fixture.store.Insert(t.Context(), pending); err != nil {
 				t.Fatalf("seed pending worktree: %v", err)
 			}
 			storeErr := errors.New("read unavailable")
@@ -864,7 +864,7 @@ func TestServiceCreate(t *testing.T) {
 				successReads:        tc.successReads,
 			}
 
-			err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, pending.Name)
+			err := fixture.service.CancelCreate(t.Context(), fixture.workspace.ID, pending.Name)
 			if !errors.Is(err, storeErr) || errors.Is(err, ErrNotFound) {
 				t.Fatalf("CancelCreate() error = %v, want wrapped store error", err)
 			}
@@ -905,7 +905,7 @@ func TestServiceCreate(t *testing.T) {
 				&recordingGitRunner{},
 				WithConfig(worktreesConfig, t.TempDir()),
 			)
-			state, detail := service.runSetup(context.Background(), workspace, item, true)
+			state, detail := service.runSetup(t.Context(), workspace, item, true)
 			if state != SetupFailed || detail == "" || !strings.Contains(detail, context.DeadlineExceeded.Error()) {
 				t.Fatalf("runSetup(timeout) = (%q, %q), want readable failed timeout", state, detail)
 			}
@@ -915,26 +915,26 @@ func TestServiceCreate(t *testing.T) {
 	t.Run("Should reject explicit paths that overlap workspace or live worktree roots", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
-		if _, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+		if _, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Inside", Path: filepath.Join(fixture.workspace.Root, "nested"),
 		}); !errors.Is(err, ErrPathExists) {
 			t.Fatalf("Create(overlapping workspace) error = %v, want ErrPathExists", err)
 		}
 		now := time.Date(2026, 8, 12, 11, 0, 0, 0, time.UTC)
 		existingPath := filepath.Join(fixture.worktreesRoot, "existing")
-		if err := fixture.store.Insert(context.Background(), Worktree{
+		if err := fixture.store.Insert(t.Context(), Worktree{
 			ID: "wt-existing-path", WorkspaceID: fixture.workspace.ID, Name: "existing-path",
 			Path: existingPath, State: StateReady, Origin: OriginManual, SetupState: SetupNone,
 			CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("seed live path: %v", err)
 		}
-		if _, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+		if _, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Overlap", Path: filepath.Join(existingPath, "nested"),
 		}); !errors.Is(err, ErrPathExists) {
 			t.Fatalf("Create(overlapping worktree) error = %v, want ErrPathExists", err)
 		}
-		if _, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+		if _, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Ancestor", Path: filepath.Dir(existingPath),
 		}); !errors.Is(err, ErrPathExists) {
 			t.Fatalf("Create(ancestor of worktree) error = %v, want ErrPathExists", err)
@@ -942,7 +942,7 @@ func TestServiceCreate(t *testing.T) {
 
 		otherWorkspace := Workspace{ID: "ws-other", Name: "Other", Root: t.TempDir()}
 		otherPath := filepath.Join(fixture.worktreesRoot, "other-existing")
-		if err := fixture.store.Insert(context.Background(), Worktree{
+		if err := fixture.store.Insert(t.Context(), Worktree{
 			ID: "wt-other-path", WorkspaceID: otherWorkspace.ID, Name: "other-path",
 			Path: otherPath, State: StateReady, Origin: OriginManual, SetupState: SetupNone,
 			CreatedAt: now, UpdatedAt: now,
@@ -953,7 +953,7 @@ func TestServiceCreate(t *testing.T) {
 			fixture.workspace.ID: fixture.workspace,
 			otherWorkspace.ID:    otherWorkspace,
 		}}
-		if _, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+		if _, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Cross Workspace", Path: filepath.Join(otherPath, "nested"),
 		}); !errors.Is(err, ErrPathExists) {
 			t.Fatalf("Create(cross-workspace overlap) error = %v, want ErrPathExists", err)
@@ -970,7 +970,7 @@ func TestServiceCreate(t *testing.T) {
 				inserted = true
 				now := time.Date(2026, 8, 12, 11, 0, 0, 0, time.UTC)
 				candidate := filepath.Join(fixture.worktreesRoot, "create-workspace", "race-revalidation")
-				if err := fixture.store.Insert(context.Background(), Worktree{
+				if err := fixture.store.Insert(t.Context(), Worktree{
 					ID: "wt-racing-path", WorkspaceID: fixture.workspace.ID, Name: "racing-path",
 					Path: filepath.Dir(candidate), State: StateReady, Origin: OriginManual,
 					SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
@@ -981,7 +981,7 @@ func TestServiceCreate(t *testing.T) {
 			return baseRun(call)
 		}
 		_, err := fixture.service.Create(
-			context.Background(), fixture.workspace.ID,
+			t.Context(), fixture.workspace.ID,
 			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Race Revalidation"},
 		)
 		if !errors.Is(err, ErrPathExists) {
@@ -1012,7 +1012,7 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("Symlink(replaced root) error = %v", err)
 		}
 		if err := fixture.service.revalidateMutationPath(
-			context.Background(), fixture.workspace, item, rootLink, false,
+			t.Context(), fixture.workspace, item, rootLink, false,
 		); !errors.Is(err, ErrConfigInvalid) {
 			t.Fatalf("revalidateMutationPath(derived escape) error = %v, want ErrConfigInvalid", err)
 		}
@@ -1057,7 +1057,7 @@ func TestServiceCreate(t *testing.T) {
 		service.environ = func() []string {
 			return []string{"PATH=/bin", "BOUND_SECRET=" + secret, "CLAIM_TOKEN=compozy_claim_" + secret}
 		}
-		state, detail := service.runSetup(context.Background(), workspace, item, true)
+		state, detail := service.runSetup(t.Context(), workspace, item, true)
 		if state != SetupFailed || strings.Contains(detail, secret) || !strings.Contains(detail, "[REDACTED]") {
 			t.Fatalf("runSetup(secret) = (%q, %q), want redacted failure", state, detail)
 		}
@@ -1093,13 +1093,13 @@ func TestServiceCreate(t *testing.T) {
 		}
 		fixture.service.Reconfigure(config.DefaultWorktreesConfig(), blockedRoot)
 
-		_, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+		_, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "blocked",
 		})
 		if !errors.Is(err, ErrConfigInvalid) {
 			t.Fatalf("Create() error = %v, want ErrConfigInvalid", err)
 		}
-		got, getErr := fixture.store.Get(context.Background(), fixture.workspace.ID, "blocked")
+		got, getErr := fixture.store.Get(t.Context(), fixture.workspace.ID, "blocked")
 		if !errors.Is(getErr, ErrNotFound) || got != nil {
 			t.Fatalf("registry row = %#v, want rollback deletion", got)
 		}

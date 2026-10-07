@@ -23,7 +23,7 @@ func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {
 	t.Run("Should invalidate resolver cache when workspace dotenv appears", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		workspaceConfig := filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName)
@@ -69,7 +69,7 @@ func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {
 	t.Run("Should invalidate resolver cache when agent capability catalog appears", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		workspaceConfig := filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName)

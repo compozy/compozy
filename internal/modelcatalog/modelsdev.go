@@ -1,13 +1,14 @@
 package modelcatalog
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -128,11 +129,8 @@ func (s *ModelsDevSource) Timeout() time.Duration {
 }
 
 func (s *ModelsDevSource) ProviderIDs() []string {
-	providers := make([]string, 0, len(s.providerIDs))
-	for providerID := range s.providerIDs {
-		providers = append(providers, providerID)
-	}
-	sort.Strings(providers)
+	providers := slices.AppendSeq(make([]string, 0, len(s.providerIDs)), maps.Keys(s.providerIDs))
+	slices.Sort(providers)
 	return providers
 }
 
@@ -223,11 +221,8 @@ func (s *ModelsDevSource) parsePayload(payload modelsDevPayload, now time.Time) 
 		if providerID == "" || len(provider.Models) == 0 {
 			continue
 		}
-		modelKeys := make([]string, 0, len(provider.Models))
-		for modelKey := range provider.Models {
-			modelKeys = append(modelKeys, modelKey)
-		}
-		sort.Strings(modelKeys)
+		modelKeys := slices.AppendSeq(make([]string, 0, len(provider.Models)), maps.Keys(provider.Models))
+		slices.Sort(modelKeys)
 		for _, modelKey := range modelKeys {
 			row, ok := modelsDevRow(providerID, modelKey, provider.Models[modelKey], now)
 			if ok {
@@ -235,11 +230,8 @@ func (s *ModelsDevSource) parsePayload(payload modelsDevPayload, now time.Time) 
 			}
 		}
 	}
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].ProviderID != rows[j].ProviderID {
-			return rows[i].ProviderID < rows[j].ProviderID
-		}
-		return rows[i].ModelID < rows[j].ModelID
+	slices.SortStableFunc(rows, func(a, b ModelRow) int {
+		return cmp.Or(cmp.Compare(a.ProviderID, b.ProviderID), cmp.Compare(a.ModelID, b.ModelID))
 	})
 	return rows
 }
@@ -437,6 +429,5 @@ func cloneModelRowPointer[T any](value *T) *T {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

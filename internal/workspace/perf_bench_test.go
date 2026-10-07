@@ -21,7 +21,7 @@ type benchmarkResolverFixture struct {
 func newBenchmarkResolverFixture(tb testing.TB) benchmarkResolverFixture {
 	tb.Helper()
 
-	ctx := context.Background()
+	ctx := tb.Context()
 	homePaths := newTestHomePaths(tb)
 	rootDir := tb.TempDir()
 	additionalDir := tb.TempDir()
@@ -149,7 +149,7 @@ func BenchmarkResolverWorkspaceIdentity(b *testing.B) {
 }
 
 func BenchmarkResolverList(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	rootPrefix := filepath.Join(string(filepath.Separator), "tmp", "workspace")
 	newID := func(prefix string) string {
 		id, err := generateID(prefix)

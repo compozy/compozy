@@ -339,7 +339,7 @@ func openObserverHookSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, 
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}); err != nil {
-		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		closeCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		if closeErr := db.Close(closeCtx); closeErr != nil {
 			t.Fatalf("WriteSessionMeta(%q) error = %v; Close() error = %v", sessionID, err, closeErr)
@@ -377,7 +377,7 @@ func registerObserverHookSessionOwner(
 func closeObserverHookSessionDB(t *testing.T, db *sessiondb.SessionDB) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	if err := db.Close(ctx); err != nil {
 		t.Fatalf("SessionDB.Close() error = %v", err)

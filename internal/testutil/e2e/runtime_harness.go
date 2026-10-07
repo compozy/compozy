@@ -141,7 +141,7 @@ func StartRuntimeHarness(t testing.TB, opts *RuntimeHarnessOptions) *RuntimeHarn
 	harness := newRuntimeHarness(t, &layout, binaryPath)
 	startRuntimeProcess(t, harness, layout.Env, opts)
 
-	workspace, err := harness.ResolveWorkspace(context.Background(), layout.WorkspaceRoot)
+	workspace, err := harness.ResolveWorkspace(t.Context(), layout.WorkspaceRoot)
 	if err != nil {
 		if stopErr := harness.Stop(context.Background()); stopErr != nil {
 			t.Fatalf("stop runtime harness after workspace resolve failure error = %v", stopErr)
@@ -181,7 +181,7 @@ func startRuntimeProcess(
 	for attempt := 1; attempt <= maxStartAttempts; attempt++ {
 		startDaemonProcess(t, harness, env)
 
-		readyCtx, cancel := context.WithTimeout(context.Background(), startTimeout)
+		readyCtx, cancel := context.WithTimeout(t.Context(), startTimeout)
 		err := harness.waitForReady(readyCtx, pollInterval)
 		cancel()
 		if err == nil {

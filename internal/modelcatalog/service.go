@@ -1,9 +1,11 @@
 package modelcatalog
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -75,11 +77,11 @@ func NewService(store Store, sources []Source, mergeOptions MergeOptions) (*Cata
 		normalizedSources = append(normalizedSources, source)
 		sourceByID[source.ID()] = source
 	}
-	sort.SliceStable(normalizedSources, func(i, j int) bool {
-		if normalizedSources[i].Priority() != normalizedSources[j].Priority() {
-			return normalizedSources[i].Priority() > normalizedSources[j].Priority()
+	slices.SortStableFunc(normalizedSources, func(a, b Source) int {
+		if a.Priority() != b.Priority() {
+			return cmp.Compare(b.Priority(), a.Priority())
 		}
-		return normalizedSources[i].ID() < normalizedSources[j].ID()
+		return cmp.Compare(a.ID(), b.ID())
 	})
 	return &CatalogService{
 		store:            store,
@@ -370,11 +372,8 @@ func (s *CatalogService) storedProvidersForSource(
 			providerSet[providerID] = struct{}{}
 		}
 	}
-	providers := make([]string, 0, len(providerSet))
-	for providerID := range providerSet {
-		providers = append(providers, providerID)
-	}
-	sort.Strings(providers)
+	providers := slices.AppendSeq(make([]string, 0, len(providerSet)), maps.Keys(providerSet))
+	slices.Sort(providers)
 	return providers, nil
 }
 
@@ -486,10 +485,7 @@ func groupRowsByProvider(source Source, rows []ModelRow) map[string][]ModelRow {
 }
 
 func providerKeys(grouped map[string][]ModelRow) []string {
-	providers := make([]string, 0, len(grouped))
-	for providerID := range grouped {
-		providers = append(providers, providerID)
-	}
-	sort.Strings(providers)
+	providers := slices.AppendSeq(make([]string, 0, len(grouped)), maps.Keys(grouped))
+	slices.Sort(providers)
 	return providers
 }

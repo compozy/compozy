@@ -1,12 +1,13 @@
 package profile
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -147,7 +148,9 @@ func (m *Manager) applyRepoRenames(
 		}
 		results = append(results, outcome)
 	}
-	sort.Slice(results, func(i, j int) bool { return results[i].WorkspaceID < results[j].WorkspaceID })
+	slices.SortFunc(results, func(a, b RepoRenameOutcome) int {
+		return cmp.Compare(a.WorkspaceID, b.WorkspaceID)
+	})
 	return results
 }
 

@@ -72,20 +72,17 @@ func (s *Service) SubscribeSessionFrames(
 	replay := cloneViewFrame(session.lastFrame)
 	s.viewSessionMu.Unlock()
 
-	var once sync.Once
-	cancel := func() {
-		once.Do(func() {
-			s.viewSessionMu.Lock()
-			current := s.viewSessions[session.id]
-			if current == session {
-				if subscriber, exists := session.subscribers[id]; exists {
-					delete(session.subscribers, id)
-					close(subscriber)
-				}
+	cancel := sync.OnceFunc(func() {
+		s.viewSessionMu.Lock()
+		current := s.viewSessions[session.id]
+		if current == session {
+			if subscriber, exists := session.subscribers[id]; exists {
+				delete(session.subscribers, id)
+				close(subscriber)
 			}
-			s.viewSessionMu.Unlock()
-		})
-	}
+		}
+		s.viewSessionMu.Unlock()
+	})
 	return replay, frames, cancel, nil
 }
 

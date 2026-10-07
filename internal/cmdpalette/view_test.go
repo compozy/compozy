@@ -154,8 +154,8 @@ func TestViewPayloadValidation(t *testing.T) {
 	t.Run("Should return an honest unknown kind error", func(t *testing.T) {
 		t.Parallel()
 		_, err := ValidateViewPayload(ViewKind("canvas"), ViewPayload{View: ViewContractVersion}, nil, nil)
-		var kindErr *UnknownViewKindError
-		if !errors.As(err, &kindErr) || kindErr.Kind != "canvas" {
+		kindErr, matched := errors.AsType[*UnknownViewKindError](err)
+		if !matched || kindErr.Kind != "canvas" {
 			t.Fatalf("ValidateViewPayload() error = %#v, want canvas UnknownViewKindError", err)
 		}
 	})
@@ -223,8 +223,8 @@ func TestViewPatchApplication(t *testing.T) {
 			ViewKindList, "vr_2", current,
 			ViewPatch{ViewID: "ext.notes.recent", From: "vr_1", To: "vr_3"}, nil, nil,
 		)
-		var mismatch *ViewRevisionMismatchError
-		if !errors.As(err, &mismatch) || !resync {
+		_, matched := errors.AsType[*ViewRevisionMismatchError](err)
+		if !matched || !resync {
 			t.Fatalf("ApplyViewPatch() = revision %q resync %t error %#v, want fenced resync", revision, resync, err)
 		}
 		if revision != "vr_2" || patched.Sections[0].Rows[0].Title != current.Sections[0].Rows[0].Title {
@@ -1062,8 +1062,8 @@ func viewProgramFrame(sessionID, revision string, generation uint64, reply int64
 
 func requireViewValidationPath(t *testing.T, err error, path string) {
 	t.Helper()
-	var validation *ViewValidationError
-	if !errors.As(err, &validation) {
+	validation, matched := errors.AsType[*ViewValidationError](err)
+	if !matched {
 		t.Fatalf("error = %#v, want ViewValidationError for %q", err, path)
 	}
 	if validation.Path != path {

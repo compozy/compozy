@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"context"
 	"maps"
 	"os"
 	"path/filepath"
@@ -81,7 +80,7 @@ func testResolveGlobalHomeWorkspaceProfileResources(t *testing.T) {
 }
 
 func testResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	firstRoot := t.TempDir()
 	secondRoot := t.TempDir()
@@ -369,7 +368,7 @@ func declarationNames(values []ProfileDeclaration) []string {
 func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 
@@ -473,7 +472,7 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 		store := newMockWorkspaceStore(Workspace{ID: "ws_reserved_agents", RootDir: root, Name: "repo"})
 		loader := &countingConfigLoader{cfg: validConfig(homePaths)}
 		resolver := newTestResolver(t, store, WithHomePaths(homePaths), WithConfigLoader(loader.Load))
-		resolved, err := resolver.Resolve(context.Background(), "ws_reserved_agents")
+		resolved, err := resolver.Resolve(t.Context(), "ws_reserved_agents")
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
@@ -506,7 +505,7 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 }
 
 func TestResolveConfigFromRootOnly(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	additional := t.TempDir()
