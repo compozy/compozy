@@ -14,6 +14,10 @@ import (
 
 func TestLoopOpenAPIContract(t *testing.T) {
 	t.Parallel()
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
 
 	t.Run("Should register the complete typed input vocabularies", func(t *testing.T) {
 		t.Parallel()
@@ -37,11 +41,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should keep zero-omitted Loop fields optional", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 		loopOperation := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}", "GET")
 		loopSchema := jsonResponseSchema(t, loopOperation, 200)
 		definition := propertySchema(t, propertySchema(t, loopSchema, "loop"), "definition")
@@ -64,11 +63,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should expose only current config scopes for Loop input defaults", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 		operation := operationFor(
 			t,
 			doc,
@@ -80,11 +74,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should expose every Loop route with expected status bodies", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 
 		tests := []struct {
 			name       string
@@ -423,11 +412,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 	t.Run("Should co-ship automation Loop target additions", func(t *testing.T) {
 		t.Parallel()
 
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
-
 		for _, op := range []*openapi3.Operation{
 			operationFor(t, doc, "/api/automation/jobs", "GET"),
 			operationFor(t, doc, "/api/automation/triggers", "GET"),
@@ -456,11 +440,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should expose watch-events subscriptions in Loop authoring requests", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 		validate := operationFor(
 			t,
 			doc,
@@ -490,11 +469,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should expose metric graph criteria through the custom schema", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 		validate := operationFor(
 			t,
 			doc,
@@ -526,11 +500,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should expose typed generation and gate verdict SSE payloads", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 		operation := operationFor(
 			t,
 			doc,
@@ -576,11 +545,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should describe Goal prompt outcomes inside the durable prompt envelope", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 		operation := operationFor(
 			t,
 			doc,
@@ -624,11 +588,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should close Goal turn result, verdict, and ACP stop vocabularies", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 		operation := operationFor(
 			t,
 			doc,
@@ -651,11 +610,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should expose every authored graph field through OpenAPI", func(t *testing.T) {
 		t.Parallel()
-
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
 		validate := operationFor(
 			t,
 			doc,
@@ -712,10 +666,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 	t.Run("Should publish closed run-read filters and an int64 timeline sequence", func(t *testing.T) {
 		t.Parallel()
-		doc, err := Document()
-		if err != nil {
-			t.Fatalf("Document() error = %v", err)
-		}
+
 		nodes := operationFor(t, doc, "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes", "GET")
 		assertEnumValues(t, parameterSchema(t, nodes, "state", openapi3.ParameterInQuery),
 			"all", "running", "queued", "waiting", "retrying", "paused", "quarantined",

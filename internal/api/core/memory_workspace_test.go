@@ -518,7 +518,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("Should write workspace memory", func(t *testing.T) {
+	t.Run("Should write and delete workspace memory", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, _ := setup(t)
@@ -555,32 +555,6 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 				t.Fatalf("write response leaked %q in body %s", leaked, writeResp.Body.String())
 			}
 		}
-	})
-
-	t.Run("Should delete workspace memory", func(t *testing.T) {
-		t.Parallel()
-
-		fixture, workspace, _ := setup(t)
-		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
-			WorkspaceID: workspace,
-			Type:        memcontract.TypeProject,
-			Name:        "Delete Me",
-			Content:     "updated",
-		})
-		if err != nil {
-			t.Fatalf("json.Marshal(write request) error = %v", err)
-		}
-		writeResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory", writeBody)
-		if writeResp.Code != http.StatusOK {
-			t.Fatalf(
-				"write memory status = %d, want %d; body=%s",
-				writeResp.Code,
-				http.StatusOK,
-				writeResp.Body.String(),
-			)
-		}
-		var writePayload contract.MemoryMutationDecisionResponse
-		testutil.DecodeJSONResponse(t, writeResp, &writePayload)
 
 		query := url.Values{}
 		query.Set("scope", "workspace")
@@ -589,17 +563,17 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodDelete,
-			"/memory/"+writePayload.Decision.TargetFilename+"?"+query.Encode(),
+			"/memory/"+payload.Decision.TargetFilename+"?"+query.Encode(),
 			nil,
 		)
 		if deleteResp.Code != http.StatusOK {
 			t.Fatalf("delete memory status = %d, want %d", deleteResp.Code, http.StatusOK)
 		}
 
-		var payload contract.MemoryDeleteResponse
-		testutil.DecodeJSONResponse(t, deleteResp, &payload)
-		if !payload.Applied {
-			t.Fatalf("delete payload = %#v, want applied=true", payload)
+		var deletePayload contract.MemoryDeleteResponse
+		testutil.DecodeJSONResponse(t, deleteResp, &deletePayload)
+		if !deletePayload.Applied {
+			t.Fatalf("delete payload = %#v, want applied=true", deletePayload)
 		}
 	})
 

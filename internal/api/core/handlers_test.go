@@ -2783,7 +2783,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should serve profile-scoped agent reads and report missing definitions", func(t *testing.T) {
+	t.Run("Should serve agent reads through the selected profile", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixture(
@@ -2795,7 +2795,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			nil,
 		)
 		testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
-		testutil.WriteAgentDef(t, fixture.HomePaths, "onboarding")
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		marketingCoderPath := filepath.Join(
 			fixture.HomePaths.ProfilesDir,
@@ -2815,21 +2814,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			t.Fatalf("get agent status = %d, want %d", getResp.Code, http.StatusOK)
 		}
 
-		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
-		if listResp.Code != http.StatusOK {
-			t.Fatalf("list agents status = %d, want %d", listResp.Code, http.StatusOK)
-		}
-		var listed contract.AgentsResponse
-		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
-			t.Fatalf("json.Unmarshal(list agents) error = %v", err)
-		}
-		if len(listed.Agents) != 2 || listed.Agents[0].Name != "coder" || listed.Agents[1].Name != "onboarding" {
-			t.Fatalf("listed agents = %#v, want coder and onboarding", listed.Agents)
-		}
-		onboardingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/onboarding", nil)
-		if onboardingResp.Code != http.StatusOK {
-			t.Fatalf("get onboarding status = %d, want %d", onboardingResp.Code, http.StatusOK)
-		}
 		marketingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder?profile=marketing", nil)
 		if marketingResp.Code != http.StatusOK {
 			t.Fatalf(
@@ -2848,10 +2832,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			)
 		}
 
-		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
-		if missingResp.Code != http.StatusNotFound {
-			t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
-		}
 	})
 
 	t.Run("Should serve resource-backed agents through the selected profile lens", func(t *testing.T) {

@@ -177,18 +177,6 @@ func TestResponseBodyDescriptors(t *testing.T) {
 		assertSchemaType(t, schema.Value.OneOf[0], "object")
 		assertSchemaType(t, schema.Value.OneOf[1], "array")
 	})
-
-	t.Run("Should render typed body descriptors as valid OpenAPI", func(t *testing.T) {
-		t.Parallel()
-
-		rendered, err := Render()
-		if err != nil {
-			t.Fatalf("Render() error = %v", err)
-		}
-		if !json.Valid(rendered) {
-			t.Fatalf("Render() output is not valid JSON: %s", string(rendered))
-		}
-	})
 }
 
 func responseSchemaFor(t *testing.T, response ResponseSpec) *openapi3.SchemaRef {

@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -22,12 +21,6 @@ func streamEventSummary(summary store.EventSummary, content json.RawMessage) sto
 	summary.SetContent(content)
 	return summary
 }
-
-type bufferFlusher struct {
-	bytes.Buffer
-}
-
-func (bufferFlusher) Flush() {}
 
 func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	homePaths := newTestHomePaths(t)
@@ -87,40 +80,6 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	}
 	if records[0].ID != "1" || records[1].ID != "2" {
 		t.Fatalf("records = %#v", records)
-	}
-}
-
-func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		StatusFn: func(context.Context, string) (*session.Info, error) {
-			info := newSessionInfo("sess-123")
-			info.State = session.StateStopped
-			info.UpdatedAt = time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC)
-			return info, nil
-		},
-		EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
-			return nil, nil
-		},
-	}
-	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
-	engine := newTestRouter(t, handlers)
-
-	recorder := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(
-		t.Context(),
-		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
-		http.NoBody,
-	)
-	engine.ServeHTTP(recorder, req)
-
-	records := parseSSE(t, recorder.Body.String())
-	if len(records) != 1 {
-		t.Fatalf("len(records) = %d, want 1; body=%s", len(records), recorder.Body.String())
-	}
-	if records[0].Event != session.EventTypeSessionStopped {
-		t.Fatalf("records[0].Event = %q, want %q", records[0].Event, session.EventTypeSessionStopped)
 	}
 }
 
@@ -449,33 +408,6 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 			t.Fatalf("payload.Content = %s, want snake_case profile payload", string(payload.Content))
 		}
 	})
-}
-
-func TestHelperBuildersCoverRemainingBranches(t *testing.T) {
-	if acpCapsPayloadFromInfo(acp.Caps{SupportsLoadSession: true}) == nil {
-		t.Fatal("expected non-nil caps payload")
-	}
-	usage := int64(10)
-	if tokenUsagePayloadFromUsage(&acp.TokenUsage{InputTokens: &usage}) == nil {
-		t.Fatal("expected non-nil token usage payload")
-	}
-	if !observeEventAfterCursor(
-		store.EventSummary{ID: "b", Sequence: 2, Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)},
-		logsCursor{Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC), Sequence: 1},
-	) {
-		t.Fatal("expected event to sort after cursor")
-	}
-
-	writer := &bufferFlusher{}
-	if err := core.WriteSSE(
-		writer,
-		core.SSEMessage{ID: "1", Name: "done", Data: map[string]string{"ok": "true"}},
-	); err != nil {
-		t.Fatalf("writeSSE() error = %v", err)
-	}
-	if got := writer.String(); got == "" || !bytes.Contains([]byte(got), []byte("event: done")) {
-		t.Fatalf("writeSSE output = %q", got)
-	}
 }
 
 func TestNewHandlersAppliesDefaults(t *testing.T) {

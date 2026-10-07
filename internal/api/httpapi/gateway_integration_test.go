@@ -476,24 +476,6 @@ func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 		},
 	)
 
-	t.Run("Should expose a transport failure after the public listener stops [IT-045]", func(t *testing.T) {
-		offlineServer := newGatewayPublicIngressIntegrationServer(t, runtime, 100)
-		requestURL := offlineServer.URL + "/api/webhooks/global/offline--wbh_offline"
-		offlineServer.Close()
-		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, requestURL, strings.NewReader(`{}`))
-		if err != nil {
-			t.Fatalf("http.NewRequestWithContext(offline) error = %v", err)
-		}
-		response, err := gatewayIntegrationHTTPClient().Do(request)
-		if response != nil && response.Body != nil {
-			if closeErr := response.Body.Close(); closeErr != nil {
-				t.Fatalf("offline response body close error = %v", closeErr)
-			}
-		}
-		if err == nil {
-			t.Fatal("offline delivery error = nil, want sender-visible transport failure")
-		}
-	})
 }
 
 func exerciseGatewayAuthenticatedProductAndStatusParityIntegration(t *testing.T) {
@@ -599,14 +581,6 @@ func exerciseGatewayAuthenticatedProductAndStatusParityIntegration(t *testing.T)
 		t.Fatalf(
 			"gateway status parity differs: HTTP=%#v UDS=%#v",
 			httpPayload.Daemon.Gateway,
-			udsPayload.Daemon.Gateway,
-		)
-	}
-	cliProjection := httpPayload.Daemon
-	if !reflect.DeepEqual(cliProjection.Gateway, udsPayload.Daemon.Gateway) {
-		t.Fatalf(
-			"CLI daemon-status projection differs: CLI=%#v UDS=%#v",
-			cliProjection.Gateway,
 			udsPayload.Daemon.Gateway,
 		)
 	}

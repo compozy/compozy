@@ -3,7 +3,6 @@ package ginutil
 import (
 	"bytes"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -37,36 +36,4 @@ func TestQuietDebug(t *testing.T) {
 		}
 	})
 
-	t.Run("Should route and decode opaque path parameters without rewriting them", func(t *testing.T) {
-		// Not parallel: NewEngine temporarily coordinates Gin's process-wide mode.
-		engine := NewEngine()
-		engine.POST("/api/resources/:id/inspect", func(context *gin.Context) {
-			context.String(http.StatusOK, context.Param("id"))
-		})
-
-		tests := []struct {
-			name string
-			path string
-			want string
-		}{}
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				request := httptest.NewRequestWithContext(
-					t.Context(),
-					http.MethodPost,
-					test.path,
-					http.NoBody,
-				)
-				response := httptest.NewRecorder()
-				engine.ServeHTTP(response, request)
-
-				if got, want := response.Code, http.StatusOK; got != want {
-					t.Fatalf("response status = %d, want %d; body=%s", got, want, response.Body.String())
-				}
-				if got := response.Body.String(); got != test.want {
-					t.Fatalf("response body = %q, want %q", got, test.want)
-				}
-			})
-		}
-	})
 }

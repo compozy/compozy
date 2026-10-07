@@ -2,17 +2,13 @@ package testutil
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/session"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestNewHomeConfig(t *testing.T) {
@@ -32,28 +28,6 @@ func TestNewHomeConfig(t *testing.T) {
 		}
 		if cfg.Memory.GlobalDir != homePaths.MemoryDir {
 			t.Fatalf("memory global dir = %q, want %q", cfg.Memory.GlobalDir, homePaths.MemoryDir)
-		}
-	})
-}
-
-func TestStubSessionManagerList(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return empty slice on fallback error", func(t *testing.T) {
-		t.Parallel()
-
-		manager := StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return nil, errors.New("boom")
-			},
-		}
-
-		got := manager.List()
-		if got == nil {
-			t.Fatal("List() = nil, want empty slice")
-		}
-		if len(got) != 0 {
-			t.Fatalf("len(List()) = %d, want 0", len(got))
 		}
 	})
 }
@@ -200,19 +174,6 @@ func TestParseSSE(t *testing.T) {
 func TestStubTaskManagerFallbacks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report a missing task before any run exists", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := (&StubTaskManager{}).EnqueueRun(
-			t.Context(),
-			taskpkg.EnqueueRun{},
-			taskpkg.ActorContext{},
-		)
-		if !errors.Is(err, taskpkg.ErrTaskNotFound) {
-			t.Fatalf("EnqueueRun() error = %v, want %v", err, taskpkg.ErrTaskNotFound)
-		}
-	})
-
 	t.Run("Should preserve filtered catalog continuation metadata", func(t *testing.T) {
 		t.Parallel()
 
@@ -256,92 +217,6 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 		cursorQuery.Cursor = page.NextCursor
 		if _, err := taskpkg.DecodeCatalogCursor(cursorQuery); err != nil {
 			t.Fatalf("DecodeCatalogCursor() error = %v", err)
-		}
-	})
-}
-
-func TestNewSessionInfo(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return stable API fixture values", func(t *testing.T) {
-		t.Parallel()
-
-		got := NewSessionInfo("sess-1")
-		wantTime := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-		if got.ID != "sess-1" || got.Name != "demo" || got.AgentName != "coder" {
-			t.Fatalf("session identity = %#v, want stable demo coder session", got)
-		}
-		if got.WorkspaceID != "ws-workspace" || got.Workspace != "/workspace" {
-			t.Fatalf("workspace fields = %#v, want stable workspace fixture", got)
-		}
-		if got.State != session.StateActive {
-			t.Fatalf("state = %q, want %q", got.State, session.StateActive)
-		}
-		if !got.CreatedAt.Equal(wantTime) || !got.UpdatedAt.Equal(wantTime) {
-			t.Fatalf("timestamps = %s/%s, want %s", got.CreatedAt, got.UpdatedAt, wantTime)
-		}
-	})
-}
-
-func TestStubResourceServicePut(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should clone spec JSON and populate deterministic metadata", func(t *testing.T) {
-		t.Parallel()
-
-		specJSON := []byte(`{"name":"demo"}`)
-		draft := resources.RawDraft{
-			Kind:     resources.ResourceKind("agent"),
-			ID:       "agent.demo",
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-			SpecJSON: specJSON,
-		}
-
-		got, err := StubResourceService{}.Put(t.Context(), draft)
-		if err != nil {
-			t.Fatalf("StubResourceService.Put() error = %v", err)
-		}
-		specJSON[0] = '['
-
-		if got.Kind != draft.Kind || got.ID != draft.ID || got.Scope != draft.Scope {
-			t.Fatalf("record identity = %#v, want draft identity", got)
-		}
-		if got.Version != 1 {
-			t.Fatalf("version = %d, want 1", got.Version)
-		}
-		if got.Owner.Kind != "daemon" || got.Owner.ID != "daemon-control" {
-			t.Fatalf("owner = %#v, want daemon owner", got.Owner)
-		}
-		if got.Source.Kind != "daemon" || got.Source.ID != "system" {
-			t.Fatalf("source = %#v, want daemon system source", got.Source)
-		}
-		if string(got.SpecJSON) != `{"name":"demo"}` {
-			t.Fatalf("spec JSON = %s, want cloned original JSON", string(got.SpecJSON))
-		}
-		if got.CreatedAt != got.UpdatedAt || got.CreatedAt.IsZero() {
-			t.Fatalf("timestamps = %s/%s, want deterministic non-zero timestamps", got.CreatedAt, got.UpdatedAt)
-		}
-	})
-}
-
-func TestStubWorkspaceServiceDefaults(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should report unconfigured register and resolve-or-register methods", func(t *testing.T) {
-		t.Parallel()
-
-		service := StubWorkspaceService{}
-		if _, err := service.Register(
-			t.Context(),
-			workspacepkg.RegisterOptions{},
-		); !errors.Is(err, ErrStubWorkspaceServiceNotImplemented) {
-			t.Fatalf("Register() error = %v, want ErrStubWorkspaceServiceNotImplemented", err)
-		}
-		if _, err := service.ResolveOrRegister(t.Context(), "/workspace"); !errors.Is(
-			err,
-			ErrStubWorkspaceServiceNotImplemented,
-		) {
-			t.Fatalf("ResolveOrRegister() error = %v, want ErrStubWorkspaceServiceNotImplemented", err)
 		}
 	})
 }

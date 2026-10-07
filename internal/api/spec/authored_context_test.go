@@ -7,9 +7,10 @@ import (
 )
 
 func TestAuthoredContextOpenAPIContracts(t *testing.T) {
+	doc := authoredContextDocument(t)
+
 	t.Run("Should select one optional profile on every authored agent operation", func(t *testing.T) {
 		t.Parallel()
-		doc := authoredContextDocument(t)
 		for _, sidecar := range []string{"soul", "heartbeat"} {
 			endpoints := []struct{ suffix, method string }{
 				{"", "GET"},
@@ -43,7 +44,6 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 	t.Run("Should register shared Soul Heartbeat health and wake operations", func(t *testing.T) {
 		t.Parallel()
 
-		doc := authoredContextDocument(t)
 		for _, target := range []struct {
 			path   string
 			method string
@@ -66,7 +66,6 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 	t.Run("Should keep compact agent context Soul projection body-free", func(t *testing.T) {
 		t.Parallel()
 
-		doc := authoredContextDocument(t)
 		contextOperation := operationFor(t, doc, "/api/agent/context", "GET")
 		contextSchema := jsonResponseSchema(t, contextOperation, 200)
 		contextPayloadSchema := propertySchema(t, contextSchema, "context")
@@ -86,7 +85,6 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 	t.Run("Should keep path-bound Soul request identity path-only", func(t *testing.T) {
 		t.Parallel()
 
-		doc := authoredContextDocument(t)
 		validateSoul := operationFor(t, doc, "/api/agents/{name}/soul/validate", "POST")
 		validateSoulSchema := jsonRequestSchema(t, validateSoul)
 		assertNotRequired(t, validateSoulSchema, "workspace_id", "body")
@@ -116,7 +114,6 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 	t.Run("Should keep path-bound Heartbeat request identity path-only", func(t *testing.T) {
 		t.Parallel()
 
-		doc := authoredContextDocument(t)
 		validateHeartbeat := operationFor(t, doc, "/api/agents/{name}/heartbeat/validate", "POST")
 		validateHeartbeatSchema := jsonRequestSchema(t, validateHeartbeat)
 		assertRequired(t, validateHeartbeatSchema, "body")
@@ -153,7 +150,6 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 	t.Run("Should describe closed diagnostics health and wake enums", func(t *testing.T) {
 		t.Parallel()
 
-		doc := authoredContextDocument(t)
 		getSoul := operationFor(t, doc, "/api/agent/soul", "GET")
 		soulSchema := jsonResponseSchema(t, getSoul, 200)
 		assertEnumValues(t, propertySchema(t, soulSchema, "validation_status"),
@@ -272,7 +268,6 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 	t.Run("Should expose HTTP and UDS transport parity on new operations", func(t *testing.T) {
 		t.Parallel()
 
-		doc := authoredContextDocument(t)
 		for _, target := range []struct {
 			path   string
 			method string

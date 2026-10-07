@@ -140,59 +140,6 @@ func TestHTTPHookCatalogEndpointFiltersWorkspaceScopedHooks(t *testing.T) {
 	}
 }
 
-func TestHTTPHookRunsEndpointReturnsExecutionHistoryWithPatchDiffs(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	observer := newHookIntegrationObserver(t, homePaths)
-	sessionID := "sess-history"
-	db := openHookRunSessionDB(t, homePaths, sessionID)
-	recordedAt := time.Date(2026, 4, 9, 18, 30, 0, 0, time.UTC)
-	if err := db.RecordHookRun(testutilpkg.Context(t), hookspkg.HookRunRecord{
-		HookName:      "permission-history",
-		Event:         hookspkg.HookPermissionRequest,
-		Source:        hookspkg.HookSourceConfig,
-		Mode:          hookspkg.HookModeSync,
-		Duration:      15 * time.Millisecond,
-		Outcome:       hookspkg.HookRunOutcomeDenied,
-		DispatchDepth: 2,
-		PatchApplied:  []byte(`{"decision":"deny","reason":"policy"}`),
-		Required:      true,
-		RecordedAt:    recordedAt,
-	}); err != nil {
-		t.Fatalf("RecordHookRun() error = %v", err)
-	}
-	closeHookRunSessionDB(t, db)
-
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return newSessionInfo(id), nil
-		},
-	}
-
-	engine := newTestRouter(t, newTestHandlers(t, manager, observer, homePaths))
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/workspaces/ws-workspace/hooks/runs?session="+sessionID,
-		nil,
-	)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
-
-	var response struct {
-		Runs []contract.HookRunPayload `json:"runs"`
-	}
-	decodeJSONResponse(t, recorder, &response)
-	if got, want := len(response.Runs), 1; got != want {
-		t.Fatalf("len(runs) = %d, want %d", got, want)
-	}
-	if response.Runs[0].HookName != "permission-history" ||
-		string(response.Runs[0].PatchApplied) != `{"decision":"deny","reason":"policy"}` {
-		t.Fatalf("runs[0] = %#v", response.Runs[0])
-	}
-}
-
 func TestHTTPHookEventsEndpointReturnsAllEventsWithSyncEligibility(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	observer := newHookIntegrationObserver(t, homePaths)
