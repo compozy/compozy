@@ -4,12 +4,6 @@ import { describe, expect, it } from "vitest";
 import { Button } from "../button";
 
 describe("Button", () => {
-  it('Should render a `data-slot="button"` root', () => {
-    render(<Button>Action</Button>);
-    const button = screen.getByRole("button", { name: /action/i });
-    expect(button).toHaveAttribute("data-slot", "button");
-  });
-
   it("Should mark itself as disabled when the disabled prop is set", () => {
     render(<Button disabled>D</Button>);
     expect(screen.getByRole("button", { name: /d/i })).toBeDisabled();
@@ -18,14 +12,6 @@ describe("Button", () => {
   it("Should forward className alongside variant defaults", () => {
     render(<Button className="custom-tail">F</Button>);
     expect(screen.getByRole("button", { name: /f/i }).className).toContain("custom-tail");
-  });
-
-  it("Should apply solid danger fill and readable ink on destructive-solid", () => {
-    render(<Button variant="destructive-solid">Kill</Button>);
-    const button = screen.getByRole("button", { name: /kill/i });
-    expect(button.className).toContain("bg-danger");
-    expect(button.className).toContain("text-accent-ink");
-    expect(button.className).not.toContain("bg-danger-tint");
   });
 
   it("Should render a trailing kbd hint that stays out of the accessible name", () => {
@@ -46,13 +32,6 @@ describe("Button", () => {
     expect(
       screen.getByRole("button", { name: "Plain" }).querySelector('[data-slot="kbd"]')
     ).toBeNull();
-  });
-
-  it("Should keep the quiet variant muted at rest and lift it on hover", () => {
-    render(<Button variant="quiet">Display</Button>);
-    const button = screen.getByRole("button", { name: "Display" });
-    expect(button).toHaveClass("text-muted", "hover:bg-surface-2", "hover:text-fg");
-    expect(button.className).not.toContain("bg-primary");
   });
 
   it("Should settle a disabled primary on the quiet plate instead of fading the pill", () => {

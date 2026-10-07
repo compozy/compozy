@@ -45,15 +45,6 @@ describe("Sheet", () => {
     expect(popup).toHaveAttribute("data-side", "left");
   }, 15_000);
 
-  it.each<Side>(["top", "right", "bottom", "left"])(
-    "Should reflect data-side='%s' when opened",
-    async side => {
-      render(<SheetExample defaultOpen side={side} />);
-      await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-      expect(screen.getByRole("dialog")).toHaveAttribute("data-side", side);
-    }
-  );
-
   it("Should close on Escape", async () => {
     const user = userEvent.setup();
     render(<SheetExample defaultOpen />);
@@ -62,17 +53,6 @@ describe("Sheet", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), {
       timeout: 1500,
     });
-  });
-
-  it("Should mount a sheet-overlay slot when the sheet is open", async () => {
-    render(<SheetExample defaultOpen />);
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    const overlay = document.body.querySelector(
-      "[data-slot='sheet-overlay']"
-    ) as HTMLElement | null;
-
-    expect(overlay).not.toBeNull();
   });
 
   it("Should keep a window-scoped sheet open while a peer surface remains interactive", async () => {

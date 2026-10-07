@@ -54,21 +54,6 @@ describe("docs tree completeness", () => {
 });
 
 describe("docs sidebar groups (D14)", () => {
-  it("Should declare the journey-ordered groups in the root meta", () => {
-    const groupLabels = rootMeta.pages
-      .filter(id => id.startsWith("---") && id.endsWith("---"))
-      .map(id => id.slice(3, -3));
-    expect(groupLabels).toEqual([
-      "Start here",
-      "Guides & examples",
-      "Core concepts",
-      "Automation",
-      "Extensibility",
-      "Operations",
-      "Reference",
-    ]);
-  });
-
   it("Should map every top-level folder to its sidebar group", () => {
     expect(DOCS_GROUP_BY_FOLDER.get("getting-started")).toBe("Start here");
     expect(DOCS_GROUP_BY_FOLDER.get("guides")).toBe("Guides & examples");

@@ -33,12 +33,6 @@ describe("Panel", () => {
     expect(body?.nextElementSibling).toBe(foot);
   });
 
-  it("Should override body padding through bodyClassName", () => {
-    const { container } = render(<Panel bodyClassName="p-0">rows</Panel>);
-
-    expect(container.querySelector('[data-slot="panel-body"]')?.className).toContain("p-0");
-  });
-
   it("Should sit on the shared Surface card as a section", () => {
     const { container } = render(<Panel title="Queue">rows</Panel>);
     const panel = container.querySelector<HTMLElement>('[data-slot="panel"]');

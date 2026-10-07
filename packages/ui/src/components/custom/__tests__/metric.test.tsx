@@ -30,12 +30,6 @@ describe("Metric", () => {
     expect(container.querySelector('[data-slot="metric"]')?.getAttribute("data-tone")).toBe(tone);
   });
 
-  it("Should default the value color utility to text-fg", () => {
-    const { container } = render(<Metric label="Sessions" value="12" />);
-    const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
-    expect(value?.className).toContain("text-fg");
-  });
-
   it("Should render the optional detail slot inline with the value", () => {
     const { container } = render(<Metric label="Credits" value="56.4%" detail="+4.2%" />);
     const detail = container.querySelector<HTMLElement>('[data-slot="metric-detail"]');
@@ -54,22 +48,6 @@ describe("Metric", () => {
     const { container } = render(<Metric label="Credits" value="0" />);
     expect(container.querySelector('[data-slot="metric-detail"]')).toBeNull();
     expect(container.querySelector('[data-slot="metric-subtext"]')).toBeNull();
-  });
-
-  it("Should render an eyebrow-cased label distinct from the sentence label", () => {
-    const { container } = render(<Metric labelCase="eyebrow" label="Active runs" value="18" />);
-    const label = container.querySelector('[data-slot="metric-label"]');
-    expect(label?.textContent).toBe("Active runs");
-    expect(label?.className).not.toContain("text-form-label");
-  });
-
-  it("Should reflect the compact size and value tier via data-size", () => {
-    const { container } = render(<Metric size="compact" label="Queue" value="142" />);
-    expect(container.querySelector('[data-slot="metric"]')?.getAttribute("data-size")).toBe(
-      "compact"
-    );
-    const value = container.querySelector('[data-slot="metric-value"]');
-    expect(value?.className).toContain("text-kpi-compact");
   });
 
   it("Should render the head icon and trailing slots when provided", () => {

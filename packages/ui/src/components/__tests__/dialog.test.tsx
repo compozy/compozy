@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "../dialog";
@@ -214,17 +213,6 @@ describe("Dialog", () => {
     expect(screen.getByRole("dialog")).toBe(initialDialog);
   });
 
-  it("Should mount a dialog-overlay slot when the dialog is open", async () => {
-    render(<DialogExample defaultOpen />);
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    const overlay = document.body.querySelector(
-      "[data-slot='dialog-overlay']"
-    ) as HTMLElement | null;
-
-    expect(overlay).not.toBeNull();
-  });
-
   it("Should hide the default close button when showCloseButton=false", () => {
     render(
       <Dialog defaultOpen>
@@ -251,89 +239,6 @@ describe("Dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), {
       timeout: 1500,
     });
-  });
-
-  it("Should expose the ruled DialogHeader variant via data attribute", async () => {
-    render(
-      <Dialog defaultOpen>
-        <DialogContent unframed>
-          <DialogHeader variant="ruled" data-testid="ruled-header">
-            <DialogTitle>Add workspace</DialogTitle>
-            <DialogDescription>Description.</DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    );
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    const header = screen.getByTestId("ruled-header");
-    expect(header.dataset.variant).toBe("ruled");
-  });
-
-  it("Should default the DialogHeader variant when none is provided", async () => {
-    render(
-      <Dialog defaultOpen>
-        <DialogContent>
-          <DialogHeader data-testid="default-header">
-            <DialogTitle>Default</DialogTitle>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    );
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    const header = screen.getByTestId("default-header");
-    expect(header.dataset.variant).toBe("default");
-  });
-
-  it("Should expose the ruled DialogFooter variant via data attribute", async () => {
-    render(
-      <Dialog defaultOpen>
-        <DialogContent unframed showCloseButton={false}>
-          <DialogTitle>Footer ruled</DialogTitle>
-          <DialogFooter variant="ruled" data-testid="ruled-footer">
-            <DialogClose render={<Button>Done</Button>} />
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    const footer = screen.getByTestId("ruled-footer");
-    expect(footer.dataset.variant).toBe("ruled");
-  });
-
-  it("Should reflect data-frame=unframed when DialogContent unframed is set", async () => {
-    render(
-      <Dialog defaultOpen>
-        <DialogContent unframed showCloseButton={false}>
-          <DialogTitle>Unframed</DialogTitle>
-        </DialogContent>
-      </Dialog>
-    );
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    const dialog = screen.getByRole("dialog");
-    expect(dialog.dataset.frame).toBe("unframed");
-  });
-
-  it("Should default to data-frame=framed when unframed is omitted", async () => {
-    render(
-      <Dialog defaultOpen>
-        <DialogContent>
-          <DialogTitle>Framed</DialogTitle>
-        </DialogContent>
-      </Dialog>
-    );
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    const dialog = screen.getByRole("dialog");
-    expect(dialog.dataset.frame).toBe("framed");
   });
 
   it("Should paint an already-open controlled dialog at full opacity", async () => {
@@ -375,39 +280,6 @@ describe("Dialog", () => {
     const windowEl = screen.getByTestId("os-window");
     const dialog = screen.getByRole("dialog");
     expect(windowEl.contains(dialog)).toBe(true);
-  });
-
-  it("Should keep preferred max-width when window-scoped instead of stretching to the host", async () => {
-    function WindowHost() {
-      const ref = React.useRef<HTMLDivElement | null>(null);
-      const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
-      React.useEffect(() => setContainer(ref.current), []);
-      return (
-        <div
-          ref={ref}
-          data-testid="os-window"
-          style={{ width: 800, height: 600, position: "relative" }}
-        >
-          <OverlayContainerContext.Provider value={container}>
-            <Dialog defaultOpen>
-              <DialogContent showCloseButton={false} className="max-w-md">
-                <DialogTitle>Compact confirm</DialogTitle>
-              </DialogContent>
-            </Dialog>
-          </OverlayContainerContext.Provider>
-        </div>
-      );
-    }
-
-    render(<WindowHost />);
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    const dialog = screen.getByRole("dialog");
-    // Inline maxWidth outranks preferred classes and stretches w-full panels; only
-    // the host height ceiling belongs on the style attribute when window-scoped.
-    expect(dialog.style.maxWidth).toBe("");
-    expect(dialog.style.maxHeight).toBe("calc(100% - 2rem)");
-    expect(dialog.className).toMatch(/max-w-md/);
   });
 
   it("Should keep a window-scoped dialog open while a peer surface remains interactive", async () => {

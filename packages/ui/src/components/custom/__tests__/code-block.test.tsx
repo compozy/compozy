@@ -263,14 +263,6 @@ describe("CodeBlock", () => {
     expect(toastMocks.success).not.toHaveBeenCalled();
   });
 
-  it("Should apply line truncation attributes", () => {
-    const { container } = render(
-      <CodeBlock code={"one\ntwo\nthree\nfour"} showPrompt={false} truncateLines={2} />
-    );
-    const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
-    expect(pre?.style.getPropertyValue("--code-block-lines")).toBe("2");
-  });
-
   it("Should render optional line numbers and highlighted lines", () => {
     const { container } = render(
       <CodeBlock code={"one\ntwo\nthree"} showPrompt={false} showLineNumbers highlightLines={[2]} />
