@@ -215,7 +215,10 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 	})
 }
 
-func TestCatalogServiceRefreshErrorClasses(t *testing.T) {
+// Invariant: fetch error identity determines the refresh error class.
+// Owner: pure fetch-error classification; canonical suite: service_test.go.
+// Refresh persistence and notification wiring remain in the lifecycle and stale-fallback suites.
+func TestClassifyFetchError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -277,17 +280,8 @@ func TestCatalogServiceRefreshErrorClasses(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			store := openMarketplaceTestStore(t)
-			source := &recordingSource{fetch: func(context.Context) (*Document, error) {
-				return nil, tc.fetchErr
-			}}
-			service := newMarketplaceTestService(t, store, source, time.Now().UTC(), nil)
-			report, err := service.Refresh(testutil.Context(t))
-			if err == nil {
-				t.Fatal("Refresh() error = nil, want source failure")
-			}
-			if got := report.Outcomes[0].ErrorClass; got != tc.wantClass {
-				t.Fatalf("Refresh().ErrorClass = %q, want %q", got, tc.wantClass)
+			if got := classifyFetchError(tc.fetchErr); got != tc.wantClass {
+				t.Fatalf("classifyFetchError(%v) = %q, want %q", tc.fetchErr, got, tc.wantClass)
 			}
 		})
 	}
