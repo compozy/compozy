@@ -49,7 +49,7 @@ func golangciLintTargets(raw string) []goLintTarget {
 		}
 	}
 	if len(root.scopes) > 0 {
-		targets = append(targets, root)
+		targets = append(targets, root, goLintTarget{dir: ".", scopes: slices.Clone(root.scopes), tags: "integration"})
 	}
 	for _, module := range modules {
 		target := goLintTarget{dir: module}
@@ -86,7 +86,9 @@ func runGolangciTarget(root string, env map[string]string, target goLintTarget, 
 	if target.tags != "" {
 		args = append(args, "--build-tags", target.tags)
 	}
-	if !formatters {
+	if target.tags == "integration" {
+		args = append(args, "--enable-only", "modernize,forbidigo,depguard,copyloopvar")
+	} else if !formatters {
 		linters, err := golangciEnabledLinters(filepath.Join(root, golangciConfigPath))
 		if err != nil {
 			return err
@@ -99,7 +101,7 @@ func runGolangciTarget(root string, env map[string]string, target goLintTarget, 
 		return err
 	}
 	defer cleanup()
-	fmt.Printf("go-lint module: %s (%s)\n", target.dir, strings.Join(target.scopes, " "))
+	fmt.Printf("go-lint module: %s (%s), build tags: %q\n", target.dir, strings.Join(target.scopes, " "), target.tags)
 	if err := runGolangciCommandInDir(filepath.Join(root, target.dir), targetEnv, args...); err != nil {
 		return fmt.Errorf("lint %s: %w", target.dir, err)
 	}
@@ -187,7 +189,9 @@ func GoFixtureCheck(module string) error {
 		{"build", "-p", "2", "-o", output, "./..."},
 		{"vet", "-p", "2", "./..."},
 	} {
-		if err := runCommandInDirWithEnv(context.Background(), filepath.Join(root, module), env, "go", args...); err != nil {
+		if err := runCommandInDirWithEnv(
+			context.Background(), filepath.Join(root, module), env, "go", args...,
+		); err != nil {
 			return fmt.Errorf("%s fixture %s: %w", args[0], module, err)
 		}
 	}

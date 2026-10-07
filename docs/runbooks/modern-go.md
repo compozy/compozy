@@ -10,7 +10,7 @@ so adding a module requires updating lint coverage.
 
 | Directory | Declared Go version | Package scope / build tag |
 | --- | --- | --- |
-| Repository root | 1.27.1 | `./...` |
+| Repository root | 1.27.1 | `./...`, default and `integration` |
 | `magefiles` | 1.27.1 (root module) | `./...`, `mage` |
 | `sdk/go` | 1.26.4 | `./...` |
 | `sdk/examples/notes-commands` | 1.26.4 | `./...` |
@@ -43,7 +43,12 @@ COMPOZY_GO_LINT_SCOPES='./magefiles/...' mise exec -- make go-lint
 Scopes are space-separated repository-relative package patterns. A nested-module
 scope is translated to a pattern relative to that module. A root package scope
 stays narrow; a recursive ancestor also selects supported modules below it.
-The first failing module returns a nonzero exit status.
+Root scopes run both the full default-tag lint set and an `integration`-tag pass
+restricted to `modernize,forbidigo,depguard,copyloopvar` with `--enable-only`.
+This includes integration-tagged tests and `scripts/gate_integration_test.go`
+when their root scopes are selected; default `./...` covers them in CI.
+Nested modules and Mage retain their existing tag sets (no integration-only
+source files exist there). The first failing pass returns a nonzero exit status.
 
 `COMPOZY_GO_LINT_CONCURRENCY` applies to each sequential invocation. The existing
 cache override remains supported, including relative paths resolved from the

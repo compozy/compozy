@@ -252,6 +252,7 @@ func TestGolangciLintTargets(t *testing.T) {
 	}{
 		{name: "Should cover all supported modules by default", want: []goLintTarget{
 			{dir: ".", scopes: []string{"./..."}},
+			{dir: ".", scopes: []string{"./..."}, tags: "integration"},
 			{dir: "sdk/go", scopes: []string{"./..."}},
 			{dir: "sdk/examples/notes-commands", scopes: []string{"./..."}},
 			{dir: "sdk/examples/clarify-tool", scopes: []string{"./..."}},
@@ -263,7 +264,10 @@ func TestGolangciLintTargets(t *testing.T) {
 			{dir: "sdk/examples/notes-commands", scopes: []string{"./..."}},
 			{dir: "sdk/examples/clarify-tool", scopes: []string{"./..."}},
 		}},
-		{name: "Should keep a scoped root check narrow", raw: "./internal/config/...", want: []goLintTarget{{dir: ".", scopes: []string{"./internal/config/..."}}}},
+		{name: "Should keep a scoped root check narrow", raw: "./internal/config/...", want: []goLintTarget{
+			{dir: ".", scopes: []string{"./internal/config/..."}},
+			{dir: ".", scopes: []string{"./internal/config/..."}, tags: "integration"},
+		}},
 		{name: "Should resolve nested scopes relative to their module", raw: "./sdk/go/... ./magefiles/...", want: []goLintTarget{
 			{dir: "sdk/go", scopes: []string{"./..."}}, {dir: "magefiles", scopes: []string{"./..."}, tags: "mage"},
 		}},
@@ -356,7 +360,7 @@ func TestGoLintModuleCoverage(t *testing.T) {
 			t.Fatalf("list tracked modules: %v\n%s", err, output)
 		}
 		var tracked []string
-		for _, path := range strings.Fields(string(output)) {
+		for path := range strings.FieldsSeq(string(output)) {
 			if path != "go.mod" {
 				tracked = append(tracked, filepath.ToSlash(filepath.Dir(path)))
 			}
