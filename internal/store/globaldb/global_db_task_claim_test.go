@@ -1187,7 +1187,7 @@ func TestGlobalDBClaimNextRunPersistsSoulProvenanceMetadata(t *testing.T) {
 			if globalDB == nil {
 				return
 			}
-			if err := globalDB.Close(ctx); err != nil {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
 				t.Fatalf("Close() error = %v", err)
 			}
 		})

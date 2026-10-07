@@ -2232,7 +2232,7 @@ func installMemoryCatalogAbortTrigger(
 
 	drop := func() {
 		t.Helper()
-		if _, err := db.ExecContext(ctx, dropStatement); err != nil {
+		if _, err := db.ExecContext(testutil.Context(t), dropStatement); err != nil {
 			t.Errorf("drop catalog %s abort trigger error = %v", operation, err)
 		}
 	}

@@ -83,7 +83,7 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -193,7 +193,7 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(third) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := third.Close(ctx); err != nil {
+		if err := third.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(third) error = %v", err)
 		}
 	})
@@ -296,7 +296,7 @@ func TestGlobalDBTaskSearchFiltersAndOrderingSurviveReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})

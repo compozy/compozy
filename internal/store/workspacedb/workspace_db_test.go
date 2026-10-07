@@ -183,7 +183,7 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("NewPool() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := pool.Close(ctx); err != nil {
+			if err := pool.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Pool.Close() error = %v", err)
 			}
 		})
@@ -369,7 +369,7 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("NewPool() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := pool.Close(ctx); err != nil {
+			if err := pool.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Pool.Close() error = %v", err)
 			}
 		})
@@ -409,7 +409,7 @@ func openWorkspaceTestDB(ctx context.Context, t *testing.T, workspaceRoot string
 		t.Fatalf("Open() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(ctx); err != nil {
+		if err := db.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("DB.Close() error = %v", err)
 		}
 	})

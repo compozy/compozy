@@ -232,7 +232,7 @@ func TestGlobalDBSchedulerCatchUpPolicyMigration(t *testing.T) {
 		}
 		ctx = testutil.Context(t)
 		t.Cleanup(func() {
-			if err := globalDB.Close(ctx); err != nil {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
 				t.Errorf("GlobalDB.Close() error = %v", err)
 			}
 		})

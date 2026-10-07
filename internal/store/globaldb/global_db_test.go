@@ -502,7 +502,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			closed := false
 			t.Cleanup(func() {
 				if !closed {
-					if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
+					if err := upgraded.Close(testutil.Context(t)); err != nil {
 						t.Errorf("Close(upgraded) error = %v", err)
 					}
 				}

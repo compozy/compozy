@@ -73,7 +73,7 @@ func TestGlobalDBAutomationPersistenceSurvivesReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -166,7 +166,7 @@ func TestGlobalDBRunWindowQueriesSurviveReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -207,7 +207,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := first.Close(ctx); err != nil {
+			if err := first.Close(testutil.Context(t)); err != nil {
 				t.Fatalf("Close(first) error = %v", err)
 			}
 		})
@@ -230,7 +230,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(second) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := second.Close(ctx); err != nil {
+			if err := second.Close(testutil.Context(t)); err != nil {
 				t.Fatalf("Close(second) error = %v", err)
 			}
 		})

@@ -2052,7 +2052,7 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 			if sessionDB == nil {
 				return closeSessionDBErr
 			}
-			closeSessionDBErr = sessionDB.Close(ctx)
+			closeSessionDBErr = sessionDB.Close(testutil.Context(t))
 			sessionDB = nil
 			return closeSessionDBErr
 		}

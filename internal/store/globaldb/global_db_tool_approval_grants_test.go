@@ -271,7 +271,7 @@ func TestGlobalDBToolApprovalGrantMigration(t *testing.T) {
 		}
 		ctx = testutil.Context(t)
 		t.Cleanup(func() {
-			if err := reopened.Close(ctx); err != nil {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
 				t.Errorf("reopened.Close() error = %v", err)
 			}
 		})

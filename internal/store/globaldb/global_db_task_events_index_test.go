@@ -45,7 +45,7 @@ func TestTaskEventsTypeSeqIndexReopenAfterRestart(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := second.Close(ctx); err != nil {
+			if err := second.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close(second) error = %v", err)
 			}
 		})
