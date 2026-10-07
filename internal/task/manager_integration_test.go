@@ -741,6 +741,8 @@ func TestTaskManagerCrossWorkspaceClaimPropagationIntegration(t *testing.T) {
 func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {
 	t.Parallel()
 
+	db := openTaskManagerGlobalDB(t)
+
 	tests := []struct {
 		name string
 		spec taskpkg.CreateTask
@@ -779,7 +781,6 @@ func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t)
-			db := openTaskManagerGlobalDB(t)
 			manager := newTaskManagerIntegration(t, db)
 
 			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
@@ -849,104 +850,6 @@ func TestTaskManagerCreateTaskPersistsAutomationLinkedAgentOrigin(t *testing.T) 
 	}
 }
 
-func TestTaskManagerPublishTaskReconcilesDraftLifecycleIntegration(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t)
-	db := openTaskManagerGlobalDB(t)
-	executor := &integrationSessionExecutor{}
-	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(executor))
-
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task publish")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-
-	blocker, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		ProfileID: store.DefaultProfileID,
-		Scope:     taskpkg.ScopeGlobal,
-		Title:     "Blocker",
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask(blocker) error = %v", err)
-	}
-	target, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		ProfileID: store.DefaultProfileID,
-		Scope:     taskpkg.ScopeGlobal,
-		Title:     "Draft target",
-		Draft:     true,
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask(target) error = %v", err)
-	}
-	if err := manager.AddDependency(ctx, taskpkg.AddDependency{
-		TaskID:          target.ID,
-		DependsOnTaskID: blocker.ID,
-		Kind:            taskpkg.DependencyKindBlocks,
-	}, actor); err != nil {
-		t.Fatalf("AddDependency() error = %v", err)
-	}
-
-	if _, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: target.ID}, actor); !errors.Is(
-		err,
-		taskpkg.ErrInvalidStatusTransition,
-	) {
-		t.Fatalf("EnqueueRun(draft) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
-	}
-
-	if _, err := manager.PublishTask(ctx, target.ID, taskpkg.ExecutionRequest{}, actor); !errors.Is(
-		err,
-		taskpkg.ErrInvalidStatusTransition,
-	) {
-		t.Fatalf("PublishTask(blocked) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
-	}
-
-	blockerRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blocker.ID}, actor)
-	if err != nil {
-		t.Fatalf("EnqueueRun(blocker) error = %v", err)
-	}
-	blockerRun, err = seedNonLeasedClaimedRunIntegration(ctx, manager, db, blockerRun.ID, actor)
-	if err != nil {
-		t.Fatalf("ClaimNextRun(blocker) error = %v", err)
-	}
-	blockerRun, err = manager.StartRun(ctx, blockerRun.ID, taskpkg.StartRun{}, actor)
-	if err != nil {
-		t.Fatalf("StartRun(blocker) error = %v", err)
-	}
-	if _, err := manager.CompleteRun(ctx, blockerRun.ID, taskpkg.RunResult{
-		Value: json.RawMessage(`{"ok":true}`),
-	}, actor); err != nil {
-		t.Fatalf("CompleteRun(blocker) error = %v", err)
-	}
-
-	reloadedTarget, err := db.GetTask(ctx, target.ID)
-	if err != nil {
-		t.Fatalf("GetTask(target) error = %v", err)
-	}
-	if got, want := reloadedTarget.Status, taskpkg.TaskStatusDraft; got != want {
-		t.Fatalf("reloadedTarget.Status = %q, want %q", got, want)
-	}
-
-	published, err := manager.PublishTask(ctx, target.ID, taskpkg.ExecutionRequest{}, actor)
-	if err != nil {
-		t.Fatalf("PublishTask(unblocked) error = %v", err)
-	}
-	if got, want := published.Task.Status, taskpkg.TaskStatusReady; got != want {
-		t.Fatalf("published.Task.Status = %q, want %q", got, want)
-	}
-	if got, want := published.Run.Status, taskpkg.TaskRunStatusQueued; got != want {
-		t.Fatalf("published.Run.Status = %q, want %q", got, want)
-	}
-
-	events, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: target.ID})
-	if err != nil {
-		t.Fatalf("ListTaskEvents(target) error = %v", err)
-	}
-	if !containsEventType(events, "task.published") {
-		t.Fatalf("event types = %#v, want task.published", sortedEventTypes(events))
-	}
-}
-
 func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T) {
 	t.Parallel()
 
@@ -991,6 +894,13 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 	}, actor); err != nil {
 		t.Fatalf("AddDependency() error = %v", err)
 	}
+	if _, err := firstManager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: target.ID}, actor); !errors.Is(
+		err,
+		taskpkg.ErrInvalidStatusTransition,
+	) {
+		t.Fatalf("EnqueueRun(draft) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+	}
+
 	if _, err := firstManager.PublishTask(ctx, target.ID, taskpkg.ExecutionRequest{}, actor); !errors.Is(
 		err,
 		taskpkg.ErrInvalidStatusTransition,
@@ -1014,6 +924,14 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 		Value: json.RawMessage(`{"ok":true}`),
 	}, actor); err != nil {
 		t.Fatalf("CompleteRun(blocker) error = %v", err)
+	}
+
+	reloadedTarget, err := first.GetTask(ctx, target.ID)
+	if err != nil {
+		t.Fatalf("GetTask(target) error = %v", err)
+	}
+	if got, want := reloadedTarget.Status, taskpkg.TaskStatusDraft; got != want {
+		t.Fatalf("reloadedTarget.Status = %q, want %q", got, want)
 	}
 
 	published, err := firstManager.PublishTask(ctx, target.ID, taskpkg.ExecutionRequest{}, actor)
@@ -1078,6 +996,14 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 	}
 	if got, want := summaries[0].Dependencies[0].DependsOn.Title, blocker.Title; got != want {
 		t.Fatalf("summaries[0].Dependencies[0].DependsOn.Title = %q, want %q", got, want)
+	}
+
+	events, err := second.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: target.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents(target) error = %v", err)
+	}
+	if !containsEventType(events, "task.published") {
+		t.Fatalf("event types = %#v, want task.published", sortedEventTypes(events))
 	}
 }
 
@@ -2662,6 +2588,24 @@ func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testin
 func TestTaskManagerCatalogWorkspaceAccessIntegration(t *testing.T) {
 	t.Parallel()
 
+	ctx := t.Context()
+	db := openTaskManagerGlobalDB(t)
+	sourceID := registerTaskManagerWorkspace(t, db, "catalog-source", t.TempDir())
+	targetID := registerTaskManagerWorkspace(t, db, "catalog-target", t.TempDir())
+	fixtureManager := newTaskManagerIntegration(t, db)
+	operator, err := taskpkg.DeriveHumanActorContext("catalog-operator", taskpkg.OriginKindCLI, "task.list")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	for _, workspaceID := range []string{sourceID, targetID} {
+		if _, err := fixtureManager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID, Title: "Work owned by " + workspaceID,
+		}, operator); err != nil {
+			t.Fatalf("CreateTask(%s) error = %v", workspaceID, err)
+		}
+	}
+
 	for _, test := range []struct {
 		name     string
 		scope    taskpkg.CatalogScope
@@ -2681,27 +2625,12 @@ func TestTaskManagerCatalogWorkspaceAccessIntegration(t *testing.T) {
 			t.Parallel()
 
 			ctx := t.Context()
-			db := openTaskManagerGlobalDB(t)
-			sourceID := registerTaskManagerWorkspace(t, db, "catalog-source", t.TempDir())
-			targetID := registerTaskManagerWorkspace(t, db, "catalog-target", t.TempDir())
 			policy := &workspaceAccessIntegrationPolicy{}
 			var options []taskpkg.Option
 			if test.allow {
 				options = append(options, taskpkg.WithWorkspaceAccessPolicy(policy))
 			}
 			manager := newTaskManagerIntegration(t, db, options...)
-			operator, err := taskpkg.DeriveHumanActorContext("catalog-operator", taskpkg.OriginKindCLI, "task.list")
-			if err != nil {
-				t.Fatalf("DeriveHumanActorContext() error = %v", err)
-			}
-			for _, workspaceID := range []string{sourceID, targetID} {
-				if _, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-					ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeWorkspace,
-					WorkspaceID: workspaceID, Title: "Work owned by " + workspaceID,
-				}, operator); err != nil {
-					t.Fatalf("CreateTask(%s) error = %v", workspaceID, err)
-				}
-			}
 			agent, err := taskpkg.DeriveAgentSessionActorContext("sess-catalog", sourceID)
 			if err != nil {
 				t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
