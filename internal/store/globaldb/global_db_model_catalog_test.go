@@ -1237,6 +1237,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 	t.Run("Should reject mismatched source status and row identities", func(t *testing.T) {
 		t.Parallel()
 
+		globalDB := openTestGlobalDB(t)
 		for _, tc := range []struct {
 			name   string
 			rows   []modelcatalog.ModelRow
@@ -1324,7 +1325,6 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				globalDB := openTestGlobalDB(t)
 				err := globalDB.ReplaceSourceRows(
 					testutil.Context(t),
 					modelcatalog.GlobalCatalogExecutionContext(),

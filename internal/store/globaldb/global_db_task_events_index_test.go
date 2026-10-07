@@ -12,17 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func TestTaskEventsTypeSeqIndexFreshDB(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should install the type-sequence index on a fresh database", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		assertTaskEventIndexesReady(t, globalDB.db)
-	})
-}
-
 func TestTaskEventsTypeSeqIndexReopenAfterRestart(t *testing.T) {
 	t.Parallel()
 

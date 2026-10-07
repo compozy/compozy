@@ -14,38 +14,6 @@ import (
 func TestGlobalDBNotificationCursorStore(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should advance and read a cursor", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		service := notifications.NewService(globalDB)
-		key := notificationCursorTestKey()
-		now := notificationCursorTestTime()
-
-		cursor, err := service.Advance(ctx, notifications.AdvanceCursor{
-			Key:             key,
-			LastSequence:    7,
-			DeliveryID:      "delivery-7",
-			LastDeliveredAt: now.Add(-time.Minute),
-			Now:             now,
-		})
-		if err != nil {
-			t.Fatalf("Advance() error = %v", err)
-		}
-		if cursor.LastSequence != 7 || cursor.LastDeliveryID != "delivery-7" {
-			t.Fatalf("cursor = %#v, want sequence 7 delivery-7", cursor)
-		}
-
-		stored, err := service.Get(ctx, key)
-		if err != nil {
-			t.Fatalf("Get() error = %v", err)
-		}
-		if stored.LastSequence != cursor.LastSequence || stored.LastDeliveryID != cursor.LastDeliveryID {
-			t.Fatalf("stored cursor = %#v, want %#v", stored, cursor)
-		}
-	})
-
 	t.Run("Should persist identical opaque components independently by scope", func(t *testing.T) {
 		t.Parallel()
 

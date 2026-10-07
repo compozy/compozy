@@ -2494,140 +2494,84 @@ func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	assertPermissionLogIDs(t, globalDB, []string{"perm-boundary", "perm-fresh"})
 }
 
-func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
-	t.Run("Should create every extension table with the expected columns", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openFreshTestGlobalDB(t)
-
-		assertTableColumns(t, globalDB.db, "extensions", []string{
-			"name",
-			"version",
-			"source",
-			"manifest_path",
-			"format",
-			"ingest_diagnostics_json",
-			"installed_at",
-			"provides_json",
-			"permissions_json",
-			"checksum",
-			"lifecycle_token",
-			"registry_slug",
-			"registry_name",
-			"remote_version",
-			globalDBExtensionProvenanceJSONKey,
-			"gateway_requirement_digest",
-			"gateway_confirmed_by",
-			"gateway_confirmed_at",
-		})
-		assertTableColumns(t, globalDB.db, "extension_profile_enablement", []string{
-			"extension_name",
-			"profile_id",
-			"enabled",
-		})
-		assertTableColumns(t, globalDB.db, "extension_dev_links", []string{
-			"extension_name",
-			"workspace_id",
-			"origin_path",
-			"bundle_generation",
-			"linked_at",
-			"format",
-			"ingest_diagnostics_json",
-			"gateway_requirement_digest",
-			"gateway_confirmed_by",
-			"gateway_confirmed_at",
-		})
-		assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
-			"extension_name",
-			"profile_id",
-			"workspace_id",
-			"env_name",
-			"secret_ref",
-			"input_id",
-			"active",
-			"mcp_server",
-			"header_name",
-			"kind",
-			"created_at",
-			"updated_at",
-		})
-	})
-}
-
+// Invariant: a freshly migrated extension schema retains its exact shape on reopen.
+// Owner: global database integration; canonical suite: extension schema lifecycle.
 func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
-	t.Run("Should preserve the extension schema when the database reopens", func(t *testing.T) {
+	t.Run("Should create the extension schema and preserve it across reopen", func(t *testing.T) {
 		t.Parallel()
 
-		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		first, err := OpenGlobalDB(testutil.Context(t), dbPath)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(first) error = %v", err)
-		}
+		first := openFreshTestGlobalDB(t)
+		assertExtensionTableColumns(t, first)
+		dbPath := first.Path()
 		if err := first.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(first) error = %v", err)
 		}
-
 		second, err := OpenGlobalDB(testutil.Context(t), dbPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(second) error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := second.Close(testutil.Context(t)); err != nil {
-				t.Fatalf("Close(second) error = %v", err)
+				t.Errorf("Close(second) error = %v", err)
 			}
 		})
+		assertExtensionTableColumns(t, second)
+	})
+}
 
-		assertTableColumns(t, second.db, "extensions", []string{
-			"name",
-			"version",
-			"source",
-			"manifest_path",
-			"format",
-			"ingest_diagnostics_json",
-			"installed_at",
-			"provides_json",
-			"permissions_json",
-			"checksum",
-			"lifecycle_token",
-			"registry_slug",
-			"registry_name",
-			"remote_version",
-			globalDBExtensionProvenanceJSONKey,
-			"gateway_requirement_digest",
-			"gateway_confirmed_by",
-			"gateway_confirmed_at",
-		})
-		assertTableColumns(t, second.db, "extension_profile_enablement", []string{
-			"extension_name",
-			"profile_id",
-			"enabled",
-		})
-		assertTableColumns(t, second.db, "extension_dev_links", []string{
-			"extension_name",
-			"workspace_id",
-			"origin_path",
-			"bundle_generation",
-			"linked_at",
-			"format",
-			"ingest_diagnostics_json",
-			"gateway_requirement_digest",
-			"gateway_confirmed_by",
-			"gateway_confirmed_at",
-		})
-		assertTableColumns(t, second.db, "extension_env_bindings", []string{
-			"extension_name",
-			"profile_id",
-			"workspace_id",
-			"env_name",
-			"secret_ref",
-			"input_id",
-			"active",
-			"mcp_server",
-			"header_name",
-			"kind",
-			"created_at",
-			"updated_at",
-		})
+func assertExtensionTableColumns(t *testing.T, globalDB *GlobalDB) {
+	t.Helper()
+
+	assertTableColumns(t, globalDB.db, "extensions", []string{
+		"name",
+		"version",
+		"source",
+		"manifest_path",
+		"format",
+		"ingest_diagnostics_json",
+		"installed_at",
+		"provides_json",
+		"permissions_json",
+		"checksum",
+		"lifecycle_token",
+		"registry_slug",
+		"registry_name",
+		"remote_version",
+		globalDBExtensionProvenanceJSONKey,
+		"gateway_requirement_digest",
+		"gateway_confirmed_by",
+		"gateway_confirmed_at",
+	})
+	assertTableColumns(t, globalDB.db, "extension_profile_enablement", []string{
+		"extension_name",
+		"profile_id",
+		"enabled",
+	})
+	assertTableColumns(t, globalDB.db, "extension_dev_links", []string{
+		"extension_name",
+		"workspace_id",
+		"origin_path",
+		"bundle_generation",
+		"linked_at",
+		"format",
+		"ingest_diagnostics_json",
+		"gateway_requirement_digest",
+		"gateway_confirmed_by",
+		"gateway_confirmed_at",
+	})
+	assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
+		"extension_name",
+		"profile_id",
+		"workspace_id",
+		"env_name",
+		"secret_ref",
+		"input_id",
+		"active",
+		"mcp_server",
+		"header_name",
+		"kind",
+		"created_at",
+		"updated_at",
 	})
 }
 

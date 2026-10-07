@@ -732,6 +732,10 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+			prefix := globalMigrationPrefixBefore(t, "00113_schema.sql")
+			if err := copyGlobalMigrationTemplate(path, prefix); err != nil {
+				t.Fatalf("copy v112 migration fixture: %v", err)
+			}
 			previous, err := sql.Open(sqliteDriverName, path)
 			if err != nil {
 				t.Fatal(err)
@@ -744,7 +748,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			if err := applyGlobalMigrationPrefix(
 				t,
 				previous,
-				globalMigrationPrefixBefore(t, "00113_schema.sql"),
+				prefix,
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -789,11 +793,14 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 		t.Parallel()
 
 		databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+		prefixStream := globalMigrationPrefix(t, "00001_baseline.sql", "00002_schema.sql")
+		if err := copyGlobalMigrationTemplate(databasePath, prefixStream); err != nil {
+			t.Fatalf("copy v2 migration fixture: %v", err)
+		}
 		legacyDB, err := sql.Open(sqliteDriverName, databasePath)
 		if err != nil {
 			t.Fatalf("sql.Open(legacy) error = %v", err)
 		}
-		prefixStream := globalMigrationPrefix(t, "00001_baseline.sql", "00002_schema.sql")
 		if err := applyGlobalMigrationPrefix(t, legacyDB, prefixStream); err != nil {
 			closeErr := legacyDB.Close()
 			t.Fatalf("Apply(global v2) error = %v; close error = %v", err, closeErr)
@@ -921,10 +928,6 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 		t.Parallel()
 
 		databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
-		previousDB, err := sql.Open(sqliteDriverName, databasePath)
-		if err != nil {
-			t.Fatalf("sql.Open(previous) error = %v", err)
-		}
 		prefix := globalMigrationPrefix(
 			t,
 			"00001_baseline.sql",
@@ -933,6 +936,13 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			"00004_schema.sql",
 			"00005_schema.sql",
 		)
+		if err := copyGlobalMigrationTemplate(databasePath, prefix); err != nil {
+			t.Fatalf("copy v5 migration fixture: %v", err)
+		}
+		previousDB, err := sql.Open(sqliteDriverName, databasePath)
+		if err != nil {
+			t.Fatalf("sql.Open(previous) error = %v", err)
+		}
 		if err := applyGlobalMigrationPrefix(t, previousDB, prefix); err != nil {
 			closeErr := previousDB.Close()
 			t.Fatalf("Apply(global v5) error = %v; close error = %v", err, closeErr)
@@ -1009,11 +1019,14 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 		t.Parallel()
 
 		databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+		prefix := globalMigrationPrefixBefore(t, "00033_schema.sql")
+		if err := copyGlobalMigrationTemplate(databasePath, prefix); err != nil {
+			t.Fatalf("copy v32 migration fixture: %v", err)
+		}
 		previousDB, err := sql.Open(sqliteDriverName, databasePath)
 		if err != nil {
 			t.Fatalf("sql.Open(previous) error = %v", err)
 		}
-		prefix := globalMigrationPrefixBefore(t, "00033_schema.sql")
 		if err := applyGlobalMigrationPrefix(t, previousDB, prefix); err != nil {
 			closeErr := previousDB.Close()
 			t.Fatalf("Apply(global v32) error = %v; close error = %v", err, closeErr)
