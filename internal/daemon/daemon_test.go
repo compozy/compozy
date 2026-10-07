@@ -10945,7 +10945,7 @@ func (f *fakeExtensionRuntime) Get(name string) (*extensionpkg.Extension, error)
 func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
 	decls := make([]hookspkg.HookDecl, 0, len(f.hookDecls))
 	for _, decl := range f.hookDecls {
-		cloned := decl //nolint:copyloopvar // Keep source maps while allocating the cloned maps.
+		cloned := decl
 		cloned.Args = append([]string(nil), decl.Args...)
 		if len(decl.Env) > 0 {
 			cloned.Env = make(map[string]string, len(decl.Env))
@@ -10970,7 +10970,7 @@ func (f *fakeExtensionRuntime) HookDeclarationsForProfiles(
 	decls := make([]hookspkg.HookDecl, 0, len(f.hookDecls)*len(profiles))
 	for _, profile := range profiles {
 		for _, declaration := range f.hookDecls {
-			cloned := declaration //nolint:copyloopvar // Keep the original declaration when applying placement.
+			cloned := declaration
 			cloned = cloned.WithPlacement(profile.ID, nil)
 			cloned.Args = append([]string(nil), declaration.Args...)
 			decls = append(decls, cloned)

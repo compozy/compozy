@@ -447,7 +447,12 @@ exit 0
 printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
 `)
 		writeExecutable(t, fakeBin, "go", "#!/bin/sh\nexit 0\n")
-		output, err := runGate(t, repo, []string{"PATH=" + fakeBin + ":" + os.Getenv("PATH"), "GATE_TEST_CALLS=" + calls}, "auto")
+		output, err := runGate(
+			t,
+			repo,
+			[]string{"PATH=" + fakeBin + ":" + os.Getenv("PATH"), "GATE_TEST_CALLS=" + calls},
+			"auto",
+		)
 		if err != nil {
 			t.Fatalf("gate: %v\n%s", err, output)
 		}
@@ -460,7 +465,10 @@ printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
 		readRecord := func(id string) map[string]any {
 			t.Helper()
 			var record map[string]any
-			if err := json.Unmarshal([]byte(readFile(t, filepath.Join(repo, ".cache/gate", id+".json"))), &record); err != nil {
+			if err := json.Unmarshal(
+				[]byte(readFile(t, filepath.Join(repo, ".cache/gate", id+".json"))),
+				&record,
+			); err != nil {
 				t.Fatal(err)
 			}
 			return record
@@ -468,7 +476,8 @@ printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
 		root := readRecord("go-lint")
 		for _, id := range []string{"sdk-go-lint", "mage-lint", "internal-extension-testdata-command-fixture-go-lint"} {
 			record := readRecord(id)
-			if record["result"] != "pass" || record["fingerprint"] != root["fingerprint"] || record["log"] != root["log"] {
+			if record["result"] != "pass" || record["fingerprint"] != root["fingerprint"] ||
+				record["log"] != root["log"] {
 				t.Fatalf("%s evidence does not reference successful root lint: %v; root %v", id, record, root)
 			}
 		}
@@ -482,11 +491,27 @@ printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example\n\ngo 1.26.4\n"), 0o644); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(dir, "go.mod"),
+			[]byte("module example\n\ngo 1.26.4\n"),
+			0o644,
+		); err != nil {
 			t.Fatal(err)
 		}
 		runCommand(t, repo, "git", "add", "sdk")
-		runCommand(t, repo, "git", "-c", "user.name=Gate Test", "-c", "user.email=gate-test@example.com", "commit", "--quiet", "-m", "seed Go example")
+		runCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"user.name=Gate Test",
+			"-c",
+			"user.email=gate-test@example.com",
+			"commit",
+			"--quiet",
+			"-m",
+			"seed Go example",
+		)
 		if err := os.WriteFile(filepath.Join(dir, "template.html"), []byte("embedded template"), 0o644); err != nil {
 			t.Fatal(err)
 		}

@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -160,12 +161,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		partTypes = append(partTypes, payload.Type)
 	}
 	hasType := func(target string) bool {
-		for _, value := range partTypes {
-			if value == target {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(partTypes, target)
 	}
 	if !hasType("start") || !hasType("text-start") || !hasType("text-delta") ||
 		!hasType("text-end") || !hasType("finish") {

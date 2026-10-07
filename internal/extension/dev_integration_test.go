@@ -1038,23 +1038,19 @@ func testManagerDevelopmentReloadConcurrency(t *testing.T) {
 	errorsByReload := make(chan error, len(firstHashes)+1)
 	var reloads sync.WaitGroup
 	for _, generationHash := range firstHashes {
-		reloads.Add(1)
-		go func(hash string) {
-			defer reloads.Done()
+		reloads.Go(func() {
 			_, err := manager.ReloadExtension(testutil.Context(t), InstanceKey{
 				Name: "concurrent", WorkspaceID: firstWorkspace.WorkspaceID,
-			}, hash)
+			}, generationHash)
 			errorsByReload <- err
-		}(generationHash)
+		})
 	}
-	reloads.Add(1)
-	go func() {
-		defer reloads.Done()
+	reloads.Go(func() {
 		_, err := manager.ReloadExtension(testutil.Context(t), InstanceKey{
 			Name: "concurrent", WorkspaceID: secondWorkspace.WorkspaceID,
 		}, secondHash)
 		errorsByReload <- err
-	}()
+	})
 	reloads.Wait()
 	close(errorsByReload)
 	for err := range errorsByReload {

@@ -115,10 +115,8 @@ func TestHTTPHookCatalogEndpointFiltersWorkspaceScopedHooks(t *testing.T) {
 				t.Fatalf("Resolve() ref = %q, want alpha", ref)
 			}
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-alpha",
-					RootDir: "/workspace/alpha",
-				},
+				ID:          "ws-alpha",
+				RootDir:     "/workspace/alpha",
 				WorkspaceID: "ws-alpha",
 			}, nil
 		},
@@ -412,11 +410,9 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 	)
 
 	_, err := hooksRuntime.DispatchPermissionRequest(testutilpkg.Context(t), hookspkg.PermissionRequestPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookPermissionRequest},
-		SessionContext: hookspkg.SessionContext{
-			SessionID: sessionID,
-		},
-		Decision: "allow",
+		Event:     hookspkg.HookPermissionRequest,
+		SessionID: sessionID,
+		Decision:  "allow",
 	})
 	if err != nil {
 		t.Fatalf("DispatchPermissionRequest() error = %v", err)

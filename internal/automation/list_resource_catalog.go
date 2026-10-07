@@ -33,7 +33,7 @@ func (m *Manager) listProjectedJobCatalog(ctx context.Context, query JobListQuer
 	defer m.mu.RUnlock()
 	candidates := make([]resourceCatalogCandidate, 0, len(m.projectedJobs))
 	for _, job := range m.projectedJobs {
-		effective := job //nolint:copyloopvar // Apply the overlay to a separate effective value.
+		effective := job
 		if enabled, ok := overlays[job.ID]; ok && isOverlayManagedSource(job.Source) {
 			effective.Enabled = enabled
 		}
@@ -98,7 +98,7 @@ func (m *Manager) listProjectedTriggerCatalog(
 	defer m.mu.RUnlock()
 	candidates := make([]resourceCatalogCandidate, 0, len(m.projectedTriggers))
 	for _, trigger := range m.projectedTriggers {
-		effective := trigger //nolint:copyloopvar // Apply the overlay to a separate effective value.
+		effective := trigger
 		if enabled, ok := overlays[trigger.ID]; ok && isOverlayManagedSource(trigger.Source) {
 			effective.Enabled = enabled
 		}

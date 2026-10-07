@@ -2745,7 +2745,7 @@ func (s *inMemoryManagerStore) RecoverExpiredRunLeases(
 		default:
 			continue
 		}
-		previous := run //nolint:copyloopvar // Snapshot the run before mutating its recovery state.
+		previous := run
 		exhausted := false
 		taskRecord := s.tasks[run.TaskID]
 		exhausted = int(run.Attempt)+int(run.RecoveryCount) >=

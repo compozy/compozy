@@ -185,8 +185,8 @@ func TestDaemonE2ESpecCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 			t.Fatalf("bootResourceReconcile() error = %v", err)
 		}
 		t.Cleanup(func() {
-			for idx := len(cleanup.fns) - 1; idx >= 0; idx-- {
-				if err := cleanup.fns[idx](context.Background()); err != nil {
+			for idx, fn := range slices.Backward(cleanup.fns) {
+				if err := fn(context.Background()); err != nil {
 					t.Fatalf("cleanup[%d]() error = %v", idx, err)
 				}
 			}
