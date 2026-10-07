@@ -536,7 +536,12 @@ printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
 printf '%s %s\n' "$COMPOZY_GO_LINT_SCOPES" "$*" >> "$GATE_TEST_CALLS"
 `)
 				writeExecutable(t, fakeBin, "go", "#!/bin/sh\nexit 0\n")
-				output, err := runGate(t, repo, []string{"PATH=" + fakeBin + ":" + os.Getenv("PATH"), "GATE_TEST_CALLS=" + calls}, "auto")
+				output, err := runGate(
+					t,
+					repo,
+					[]string{"PATH=" + fakeBin + ":" + os.Getenv("PATH"), "GATE_TEST_CALLS=" + calls},
+					"auto",
+				)
 				if err != nil {
 					t.Fatalf("gate: %v\n%s", err, output)
 				}
@@ -553,7 +558,10 @@ printf '%s %s\n' "$COMPOZY_GO_LINT_SCOPES" "$*" >> "$GATE_TEST_CALLS"
 						id = "mage-lint"
 					}
 					var inherited map[string]any
-					if err := json.Unmarshal([]byte(readFile(t, filepath.Join(recordDir, id+".json"))), &inherited); err != nil {
+					if err := json.Unmarshal(
+						[]byte(readFile(t, filepath.Join(recordDir, id+".json"))),
+						&inherited,
+					); err != nil {
 						t.Fatal(err)
 					}
 					if tc.wantCalls == 0 {
@@ -561,7 +569,12 @@ printf '%s %s\n' "$COMPOZY_GO_LINT_SCOPES" "$*" >> "$GATE_TEST_CALLS"
 							t.Fatalf("full-scope evidence not reused for %s: %v", module, inherited)
 						}
 					} else if !strings.Contains(actualCalls, "./"+module+"/... go-lint") || inherited["log"] == logPath {
-						t.Fatalf("narrow evidence propagated to %s: calls %s, record %v", module, actualCalls, inherited)
+						t.Fatalf(
+							"narrow evidence propagated to %s: calls %s, record %v",
+							module,
+							actualCalls,
+							inherited,
+						)
 					}
 				}
 			})
