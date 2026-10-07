@@ -45,12 +45,17 @@ function collectMessages(value) {
   return messages;
 }
 
-async function runOxlint({ filename, source }) {
+async function runOxlint(input) {
+  const inputs = Array.isArray(input) ? input : [input];
   const root = await mkdtemp(join(tmpdir(), "compozy-data-boundaries-"));
   tempRoots.push(root);
-  const sourcePath = join(root, filename);
-  await mkdir(dirname(sourcePath), { recursive: true });
-  await writeFile(sourcePath, source, "utf8");
+  const sourcePaths = [];
+  for (const { filename, source } of inputs) {
+    const sourcePath = join(root, filename);
+    await mkdir(dirname(sourcePath), { recursive: true });
+    await writeFile(sourcePath, source, "utf8");
+    sourcePaths.push(sourcePath);
+  }
   const configPath = join(root, ".oxlintrc.json");
   await writeFile(
     configPath,
@@ -69,7 +74,7 @@ async function runOxlint({ filename, source }) {
       "--no-ignore",
       "--threads",
       "1",
-      sourcePath,
+      ...sourcePaths,
     ],
     {
       cwd: root,
@@ -143,10 +148,8 @@ describe("compozy-data-boundaries lint plugin", () => {
         source: 'export const query = useQuery({ queryKey: ["tasks"], queryFn: fetchTasks });\n',
       },
     ];
-    for (const input of inputs) {
-      const result = await runOxlint(input);
-      expect(result.exitCode, input.filename).toBe(0);
-      expect(result.messages, input.filename).toEqual([]);
-    }
+    const result = await runOxlint(inputs);
+    expect(result.exitCode).toBe(0);
+    expect(result.messages).toEqual([]);
   });
 });

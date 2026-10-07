@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Field, FieldHeader, FieldLabel } from "../../field";
 import { Dialog, DialogContent, DialogTitle } from "../../dialog";
@@ -13,6 +13,9 @@ function renderTip(ui: React.ReactNode) {
 }
 
 describe("HelpTip", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it("Should expose a named button that keyboard users can reach", async () => {
     const user = userEvent.setup();
     renderTip(<HelpTip label="About category path">Slash-separated catalog grouping.</HelpTip>);
@@ -25,25 +28,46 @@ describe("HelpTip", () => {
   it.each(["mouse", "touch"] as const)(
     "Should keep prose readable after %s activation until dismissal",
     async pointer => {
-      const user = userEvent.setup();
-      renderTip(<HelpTip label="About category path">Slash-separated catalog grouping.</HelpTip>);
-      const trigger = screen.getByRole("button", { name: "About category path" });
-      expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument();
-
-      if (pointer === "mouse") await user.click(trigger);
-      else {
-        await user.pointer({ keys: "[TouchA]", target: trigger });
-        // Chrome can leave the emulated mouse hover after a completed touch tap.
-        fireEvent.mouseLeave(trigger, { relatedTarget: document.body });
-      }
-      // Observe a readable interval: an exit-retained node must not make a flash pass.
-      await act(() => new Promise<void>(resolve => setTimeout(resolve, 1000)));
-      expect(screen.getByText("Slash-separated catalog grouping.")).toBeInTheDocument();
-
-      await user.keyboard("{Escape}");
-      await waitFor(() =>
-        expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument()
+      vi.useFakeTimers({
+        // RTL drains userEvent through a zero-delay timer outside advanceTimers.
+        shouldAdvanceTime: true,
+        toFake: [
+          "setTimeout",
+          "clearTimeout",
+          "setInterval",
+          "clearInterval",
+          "Date",
+          "performance",
+          "requestAnimationFrame",
+          "cancelAnimationFrame",
+        ],
+      });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const { unmount } = renderTip(
+        <HelpTip label="About category path">Slash-separated catalog grouping.</HelpTip>
       );
+      try {
+        const trigger = screen.getByRole("button", { name: "About category path" });
+        expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument();
+
+        if (pointer === "mouse") await user.click(trigger);
+        else {
+          await user.pointer({ keys: "[TouchA]", target: trigger });
+          // Chrome can leave the emulated mouse hover after a completed touch tap.
+          fireEvent.mouseLeave(trigger, { relatedTarget: document.body });
+        }
+        // Advance the readable interval and animation clock: an exit-retained
+        // node must not make a flash pass.
+        await act(() => vi.advanceTimersByTimeAsync(1000));
+        expect(screen.getByText("Slash-separated catalog grouping.")).toBeInTheDocument();
+
+        await user.keyboard("{Escape}");
+        await act(() => vi.advanceTimersByTimeAsync(1000));
+        expect(screen.queryByText("Slash-separated catalog grouping.")).not.toBeInTheDocument();
+      } finally {
+        unmount();
+        vi.useRealTimers();
+      }
     }
   );
 

@@ -32,19 +32,6 @@ function PopoverExample({ defaultOpen = false }: { defaultOpen?: boolean }) {
 }
 
 describe("Popover", () => {
-  it("Should not render the content before the trigger is activated", () => {
-    render(<PopoverExample />);
-    expect(screen.queryByText("Filters")).not.toBeInTheDocument();
-  });
-
-  it("Should open on trigger click and render title + description", async () => {
-    const user = userEvent.setup();
-    render(<PopoverExample />);
-    await user.click(screen.getByRole("button", { name: "Open popover" }));
-    await waitFor(() => expect(screen.getByText("Filters")).toBeInTheDocument());
-    expect(screen.getByText("Apply quick filters to the list.")).toBeInTheDocument();
-  });
-
   it("Should close on Escape", async () => {
     const user = userEvent.setup();
     render(<PopoverExample defaultOpen />);
@@ -84,7 +71,10 @@ describe("Popover", () => {
     it("Should focus the popup, not its first control, on a pointer open", async () => {
       const user = userEvent.setup();
       render(<PopoverExample />);
+      expect(screen.queryByText("Filters")).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Open popover" }));
+      await waitFor(() => expect(screen.getByText("Filters")).toBeInTheDocument());
+      expect(screen.getByText("Apply quick filters to the list.")).toBeInTheDocument();
       await waitFor(() => expect(popup()).toHaveFocus());
       expect(screen.getByRole("textbox", { name: "query" })).not.toHaveFocus();
     });
