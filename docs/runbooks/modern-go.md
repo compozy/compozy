@@ -61,7 +61,9 @@ SDK, with a disposable binary). Their runtime consumers are
 `internal/daemon/daemon_extension_commands_e2e_integration_test.go`
 (`integration && !windows`) and `desktop/e2e/_electron/__tests__/shell.spec.ts`;
 those heavy E2E journeys remain owned by CI. Mage changes select tagged lint plus the existing
-Mage/script tests. Each module lane keeps its own content-keyed evidence record.
+Mage/script tests. Each module lane keeps its own content-keyed evidence record. When root lint
+uses `./...`, module/Mage lint records reference its current passing log instead
+of rerunning lint. Module race tests and fixture build/vet still run.
 CI classifies nested module manifests as backend changes, and its lint cache key
 includes every module manifest and sum file.
 

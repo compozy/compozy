@@ -3,6 +3,7 @@
 package scripts
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -424,6 +425,51 @@ exit 0
 						t.Fatalf("Go-only change misclassified:\n%s", output)
 					}
 				})
+			}
+		}
+	})
+
+	t.Run("Should reuse root lint evidence for module and Mage lanes", func(t *testing.T) {
+		t.Parallel()
+		repo := newGateTestRepo(t)
+		for _, path := range []string{".golangci.yml", "sdk/go/main.go", "magefiles/main.go", "internal/extension/testdata/command-fixture-go/main.go"} {
+			dest := filepath.Join(repo, path)
+			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(dest, []byte("changed\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		fakeBin := t.TempDir()
+		calls := filepath.Join(t.TempDir(), "calls")
+		writeExecutable(t, fakeBin, "make", `#!/bin/sh
+printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
+`)
+		writeExecutable(t, fakeBin, "go", "#!/bin/sh\nexit 0\n")
+		output, err := runGate(t, repo, []string{"PATH=" + fakeBin + ":" + os.Getenv("PATH"), "GATE_TEST_CALLS=" + calls}, "auto")
+		if err != nil {
+			t.Fatalf("gate: %v\n%s", err, output)
+		}
+		if got := strings.Count(readFile(t, calls), "go-lint"); got != 1 {
+			t.Fatalf("lint calls = %d, want 1:\n%s", got, output)
+		}
+		if !strings.Contains(readFile(t, calls), "go-fixture-check") {
+			t.Fatal("fixture build/vet was skipped with duplicate lint")
+		}
+		readRecord := func(id string) map[string]any {
+			t.Helper()
+			var record map[string]any
+			if err := json.Unmarshal([]byte(readFile(t, filepath.Join(repo, ".cache/gate", id+".json"))), &record); err != nil {
+				t.Fatal(err)
+			}
+			return record
+		}
+		root := readRecord("go-lint")
+		for _, id := range []string{"sdk-go-lint", "mage-lint", "internal-extension-testdata-command-fixture-go-lint"} {
+			record := readRecord(id)
+			if record["result"] != "pass" || record["fingerprint"] != root["fingerprint"] || record["log"] != root["log"] {
+				t.Fatalf("%s evidence does not reference successful root lint: %v; root %v", id, record, root)
 			}
 		}
 	})

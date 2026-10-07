@@ -132,31 +132,51 @@ print_classification() {
   fi
 }
 
+root_lint_covers_modules() {
+  normalized_go_scopes | grep -Fx './...' >/dev/null
+}
+
+run_module_lint() {
+  local id="$1" module="$2" root_record
+  if root_lint_covers_modules; then
+    root_record="$(record_path go-lint)"
+    record_current "$root_record" || die "root lint coverage requires current passing evidence"
+    write_record "$id" pass "covered by go-lint (./...)" "$(record_field "$root_record" log)" 0
+    log "SKIP $id — covered by current go-lint evidence"
+  else
+    run_lane "$id" env "COMPOZY_GO_LINT_SCOPES=./$module/..." make go-lint
+  fi
+}
+
 run_module_lanes() {
   local module id
   for module in $(printf '%s' "$GO_MODULES" | sort -u); do
     id="$(printf '%s' "$module" | tr '/' '-')"
-    run_lane "$id-lint" env "COMPOZY_GO_LINT_SCOPES=./$module/..." make go-lint
+    run_module_lint "$id-lint" "$module"
     case "$module" in
       internal/extension/testdata/*) run_lane "$id-build-vet" make go-fixture-check "GO_FIXTURE_MODULE=$module" ;;
       *) run_lane "$id-test" env CGO_ENABLED=1 go -C "$module" test -race -p "$(go_test_p)" -parallel=4 ./... ;;
     esac
   done
   if [ "$MAGE_LINT" -eq 1 ]; then
-    run_lane mage-lint env COMPOZY_GO_LINT_SCOPES=./magefiles/... make go-lint
+    run_module_lint mage-lint magefiles
   fi
 }
 
 plan_module_lanes() {
   local module
   for module in $(printf '%s' "$GO_MODULES" | sort -u); do
-    log "would run: env COMPOZY_GO_LINT_SCOPES='./$module/...' make go-lint"
+    if root_lint_covers_modules; then
+      log "module lint covered by root go-lint: $module"
+    else
+      log "would run: env COMPOZY_GO_LINT_SCOPES='./$module/...' make go-lint"
+    fi
     case "$module" in
       internal/extension/testdata/*) log "would run: make go-fixture-check GO_FIXTURE_MODULE=$module (build + vet)" ;;
       *) log "would run: CGO_ENABLED=1 go -C $module test -race -p $(go_test_p) -parallel=4 ./..." ;;
     esac
   done
-  if [ "$MAGE_LINT" -eq 1 ]; then
+  if [ "$MAGE_LINT" -eq 1 ] && ! root_lint_covers_modules; then
     log "would run: env COMPOZY_GO_LINT_SCOPES='./magefiles/...' make go-lint"
   fi
 }
