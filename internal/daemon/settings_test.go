@@ -213,7 +213,10 @@ func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
 				t.Fatalf("WriteFile(%q) error = %v", filename, err)
 			}
 		}
-		if _, err := memoryStore.Reindex(t.Context(), memcontract.ReindexOptions{Scope: memcontract.ScopeProfile}); err != nil {
+		if _, err := memoryStore.Reindex(
+			t.Context(),
+			memcontract.ReindexOptions{Scope: memcontract.ScopeProfile},
+		); err != nil {
 			t.Fatalf("Reindex() error = %v", err)
 		}
 

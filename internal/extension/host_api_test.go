@@ -2029,16 +2029,28 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 			method: "sessions/prompt",
 			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1", "message": "hello"},
 		},
-		{method: "sessions/stop", params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"}},
-		{method: "sessions/status", params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"}},
-		{method: "sessions/events", params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"}},
+		{
+			method: "sessions/stop",
+			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"},
+		},
+		{
+			method: "sessions/status",
+			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"},
+		},
+		{
+			method: "sessions/events",
+			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"},
+		},
 		{method: "memory/recall", params: map[string]any{"query": "needle"}},
 		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
 		{method: "memory/forget", params: map[string]any{"key": "note"}},
 		{method: "observe/health", params: nil},
 		{method: "logs/list", params: map[string]any{"limit": 1}},
 		{method: "skills/list", params: map[string]any{"workspace": "ws-permission-check"}},
-		{method: "automation/jobs", params: map[string]any{"scope": "workspace", "workspace_id": "ws-permission-check"}},
+		{
+			method: "automation/jobs",
+			params: map[string]any{"scope": "workspace", "workspace_id": "ws-permission-check"},
+		},
 		{method: "automation/jobs/create", params: map[string]any{
 			"name":         "host-api-job",
 			"scope":        "workspace",

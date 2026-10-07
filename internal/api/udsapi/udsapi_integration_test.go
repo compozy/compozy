@@ -40,6 +40,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type memoryMutationDecisionResponse = contract.MemoryMutationDecisionResponse
+
 func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 

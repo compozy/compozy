@@ -317,7 +317,6 @@ func TestServerStartRejectsNilContext(t *testing.T) {
 			t.Fatal("Shutdown(nil) error = nil, want non-nil")
 		}
 	})
-
 }
 
 func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {

@@ -35,5 +35,4 @@ func TestQuietDebug(t *testing.T) {
 			t.Fatalf("Gin mode = %q, want %q", got, gin.DebugMode)
 		}
 	})
-
 }

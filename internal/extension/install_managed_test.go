@@ -1158,7 +1158,6 @@ func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {
 			t.Fatalf("InstallLocalManaged() error = %v, want wrapped source checksum failure", err)
 		}
 	})
-
 }
 
 type recordingManagedInstallRegistry struct {

@@ -2464,7 +2464,6 @@ func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
 			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
 		}
 	})
-
 }
 
 func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {

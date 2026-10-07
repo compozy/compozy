@@ -1329,7 +1329,8 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 				t.Fatalf("run list = %#v, want IDs %v", response.Runs, listing.ids)
 			}
 			for index, run := range response.Runs {
-				if run.ID != listing.ids[index] || run.ProfileID != store.DefaultProfileID || run.ProfileName != "default" {
+				if run.ID != listing.ids[index] || run.ProfileID != store.DefaultProfileID ||
+					run.ProfileName != "default" {
 					t.Fatalf("run list item = %#v, want %q with default profile", run, listing.ids[index])
 				}
 			}

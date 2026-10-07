@@ -1623,7 +1623,8 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 					t.Fatalf("queue claimed steering before delivery resolution: claimed=%v error=%v", premature, err)
 				}
 				reserved, ok, err := db.ReserveSessionSteer(ctx, sessionID, entry.ID, now.Add(time.Second))
-				if err != nil || !ok || reserved.ID != entry.ID || reserved.Status != store.SessionInputQueueStatusDispatching {
+				if err != nil || !ok || reserved.ID != entry.ID ||
+					reserved.Status != store.SessionInputQueueStatusDispatching {
 					t.Fatalf("ReserveSessionSteer() = %#v, %v, %v", reserved, ok, err)
 				}
 				_, second, err := db.ReserveSessionSteer(ctx, sessionID, entry.ID, now.Add(2*time.Second))

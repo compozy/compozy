@@ -2831,7 +2831,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 				marketingPayload.Agent,
 			)
 		}
-
 	})
 
 	t.Run("Should serve resource-backed agents through the selected profile lens", func(t *testing.T) {

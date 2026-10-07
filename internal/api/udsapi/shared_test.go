@@ -17,7 +17,6 @@ type logEventPayload = contract.LogEventPayload
 type logsCursor = core.LogsCursor
 type memoryListResponse = contract.MemoryListResponse
 type memoryEntryResponse = contract.MemoryEntryResponse
-type memoryMutationDecisionResponse = contract.MemoryMutationDecisionResponse
 type memorySearchResponse = contract.MemorySearchResponse
 type memoryReindexResponse = contract.MemoryReindexResponse
 type memoryDreamTriggerResponse = contract.MemoryDreamTriggerResponse

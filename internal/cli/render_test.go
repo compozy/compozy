@@ -335,10 +335,8 @@ func TestTerminalListBundleShouldRenderHumanOutput(t *testing.T) {
 		if err != nil {
 			t.Fatalf("terminalListBundle().human() error = %v", err)
 		}
-		wantRows := strings.Join([]string{
-			"ID\tPROFILE\tTITLE\tSTATE\tCREATED",
-			"term-9f21c04a3b17\twork\tzsh — status\trunning\t2m ago",
-		}, "\n")
+		wantRows := "ID\tPROFILE\tTITLE\tSTATE\tCREATED\n" +
+			"term-9f21c04a3b17\twork\tzsh — status\trunning\t2m ago"
 		if rows != wantRows {
 			t.Fatalf("terminal list = %q, want %q", rows, wantRows)
 		}

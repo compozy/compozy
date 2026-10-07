@@ -389,7 +389,11 @@ func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 		}))
 		session := createSession(t, h)
 		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
+			if err := h.manager.Stop(
+				testutil.Context(t),
+				session.ID,
+			); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
 				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
 			}
 		})

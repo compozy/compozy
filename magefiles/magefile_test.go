@@ -168,7 +168,6 @@ func TestFilesImporting(t *testing.T) {
 			t.Fatalf("filesImportingPrefix() = %#v, want %#v", files, want)
 		}
 	})
-
 }
 
 func TestProductionSourceLineLimit(t *testing.T) {
@@ -286,7 +285,6 @@ func TestGatewayBoundaryRules(t *testing.T) {
 			}
 		}
 	})
-
 }
 
 func TestDependencyClosureBoundaries(t *testing.T) {

@@ -11055,14 +11055,6 @@ func daemonExtensionHelperEnv(markerPath string) map[string]string {
 	return env
 }
 
-func daemonExtensionHelperScenarioEnv(scenario string, markerPath string) map[string]string {
-	env := daemonExtensionHelperEnv(markerPath)
-	if strings.TrimSpace(scenario) != "" {
-		env[daemonExtensionHelperScenarioKey] = scenario
-	}
-	return env
-}
-
 type daemonExtensionHelperServer struct {
 	scenario string
 	marker   string

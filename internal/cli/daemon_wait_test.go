@@ -350,7 +350,6 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 			t.Fatalf("daemonStopWaitTimeout() = %s, want %s", got, want)
 		}
 	})
-
 }
 
 func TestDaemonStopCommandSignalsAndWaitsForShutdown(t *testing.T) {

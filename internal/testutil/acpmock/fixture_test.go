@@ -245,7 +245,6 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 			t.Fatalf("recovered turn name = %q, want %q", got, want)
 		}
 	})
-
 }
 
 func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {

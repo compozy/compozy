@@ -292,7 +292,11 @@ func TestCallSendsRequestAndReceivesResponse(t *testing.T) {
 	})
 
 	if initializeResponse.ProtocolVersion != defaultProtocolVersion {
-		t.Fatalf("Initialize() protocol_version = %q, want %q", initializeResponse.ProtocolVersion, defaultProtocolVersion)
+		t.Fatalf(
+			"Initialize() protocol_version = %q, want %q",
+			initializeResponse.ProtocolVersion,
+			defaultProtocolVersion,
+		)
 	}
 
 	var response struct {

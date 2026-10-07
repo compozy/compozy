@@ -1354,7 +1354,11 @@ func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
 	workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-upgrade", t.TempDir())
 	// Invariant: v19 adds suggestion storage, and populated v20 payloads survive the rename.
 	// Owner: GlobalDB migrations; canonical suite: this staged historical upgrade.
-	if err := applyGlobalMigrationPrefix(t, prefixDB, automationSuggestionMigrationPrefix(t, "00020_schema.sql")); err != nil {
+	if err := applyGlobalMigrationPrefix(
+		t,
+		prefixDB,
+		automationSuggestionMigrationPrefix(t, "00020_schema.sql"),
+	); err != nil {
 		t.Fatalf("Apply(v20 prefix) error = %v", err)
 	}
 	legacyWorkspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-payload-rename", t.TempDir())
@@ -1426,7 +1430,6 @@ func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
 	}
-	ctx = testutil.Context(t)
 	t.Cleanup(func() {
 		if err := reopened.Close(testutil.Context(t)); err != nil {
 			t.Errorf("reopened.Close() error = %v", err)

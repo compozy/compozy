@@ -197,7 +197,6 @@ func TestCheck(t *testing.T) {
 			t.Fatalf("Check() error = %v", err)
 		}
 	})
-
 }
 
 func TestCheckGeneratedFile(t *testing.T) {

@@ -2547,7 +2547,6 @@ func TestWriteFileAndEnumHelpers(t *testing.T) {
 			t.Fatalf("WriteFile() output must match Render()")
 		}
 	})
-
 }
 
 func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {

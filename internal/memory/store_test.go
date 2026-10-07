@@ -1217,7 +1217,10 @@ func TestStoreSearchAndReindex(t *testing.T) {
 				t.Fatalf("os.WriteFile(%q) error = %v", filename, err)
 			}
 		}
-		if _, err := store.Reindex(t.Context(), memcontract.ReindexOptions{Scope: memcontract.ScopeProfile}); err != nil {
+		if _, err := store.Reindex(
+			t.Context(),
+			memcontract.ReindexOptions{Scope: memcontract.ScopeProfile},
+		); err != nil {
 			t.Fatalf("Store.Reindex() error = %v", err)
 		}
 
