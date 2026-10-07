@@ -124,18 +124,19 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 				expectedErrorPart: bestConstraint,
 			},
 		}
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+		run := testLoopRun("looprun-schema-constraints", now, looppkg.StatusRunning)
+		created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-
-				globalDB := openLoopTestGlobalDB(t)
 				ctx := testutil.Context(t)
-				now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
-				run := testLoopRun("looprun-schema-constraints", now, looppkg.StatusRunning)
-				created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
-				if err != nil {
-					t.Fatalf("CreateLoopRunForStart() error = %v", err)
-				}
+
 				args := []any{string(created.ID)}
 				if tc.includeCreatedAt {
 					args = append(args, now)
@@ -350,7 +351,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve canonical fractional seconds while repairing admission claims", func(t *testing.T) {
+	t.Run("Should repair fractional admission expiry and preserve writer timestamps after reopen", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
@@ -371,6 +372,19 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		) VALUES ('ws-upgrade', 'delivery', 'source', 'event:fractional', 'run-pre-v59', ?, ?, 0, NULL)`,
 			formattedClaimedAt,
 			formattedClaimedAt,
+		); err != nil {
+			t.Fatalf("insert pre-v59 admission claim error = %v", err)
+		}
+		writerClaimedAt := time.Date(2026, 8, 2, 10, 0, 0, 123456789, time.UTC)
+		writerExpiresAt := writerClaimedAt.Add(168 * time.Hour)
+		writerLastSuppressedAt := writerClaimedAt.Add(time.Hour)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_admission_claims (
+			workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at,
+			expires_at, suppressed_count, last_suppressed_at
+		) VALUES ('ws-upgrade', 'delivery', 'source', 'event:writer', 'run-pre-v59-writer', ?, ?, 1, ?)`,
+			writerClaimedAt,
+			writerExpiresAt,
+			writerLastSuppressedAt,
 		); err != nil {
 			t.Fatalf("insert pre-v59 admission claim error = %v", err)
 		}
@@ -409,57 +423,15 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if !claim.ExpiresAt.Equal(claimedAt.Add(168 * time.Hour)) {
 			t.Fatalf("ExpiresAt = %s, want %s", claim.ExpiresAt, claimedAt.Add(168*time.Hour))
 		}
-	})
 
-	t.Run("Should preserve the expiry of admission claims written before v59", func(t *testing.T) {
-		t.Parallel()
-
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := openGlobalMigrationPrefixDatabase(
-			t,
-			path,
-			globalMigrationPrefixBefore(t, "00059_loop_admission_claim_expiry.sql"),
-		)
-		if err != nil {
-			t.Fatalf("openGlobalMigrationPrefixDatabase() error = %v", err)
-		}
-		ctx := testutil.Context(t)
-		claimedAt := time.Date(2026, 8, 2, 23, 0, 0, 123456789, time.UTC)
-		expiresAt := claimedAt.Add(168 * time.Hour)
-		lastSuppressedAt := claimedAt.Add(time.Hour)
-		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_admission_claims (
-			workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at,
-			expires_at, suppressed_count, last_suppressed_at
-		) VALUES ('ws-upgrade', 'delivery', 'source', 'event:writer', 'run-pre-v59-writer', ?, ?, 1, ?)`,
-			claimedAt,
-			expiresAt,
-			lastSuppressedAt,
-		); err != nil {
-			t.Fatalf("insert pre-v59 admission claim error = %v", err)
-		}
-		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("prefixDB.Close() error = %v", err)
-		}
-
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(upgraded cleanup) error = %v", closeErr)
-			}
-		})
-
-		verificationCtx := testutil.Context(t)
-		deleted, err := upgraded.SweepAdmissionClaims(verificationCtx, expiresAt.Add(-time.Nanosecond), 10)
+		deleted, err := reopened.SweepAdmissionClaims(verificationCtx, writerExpiresAt.Add(-time.Nanosecond), 10)
 		if err != nil {
 			t.Fatalf("SweepAdmissionClaims(before expiry) error = %v", err)
 		}
 		if deleted != 0 {
 			t.Fatalf("SweepAdmissionClaims(before expiry) deleted = %d, want 0", deleted)
 		}
-		claim, err := upgraded.GetAdmissionClaim(
+		writerClaim, err := reopened.GetAdmissionClaim(
 			verificationCtx,
 			"ws-upgrade",
 			"delivery",
@@ -469,9 +441,9 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetAdmissionClaim() error = %v", err)
 		}
-		if !claim.ClaimedAt.Equal(claimedAt) || !claim.ExpiresAt.Equal(expiresAt) ||
-			claim.LastSuppressedAt == nil || !claim.LastSuppressedAt.Equal(lastSuppressedAt) {
-			t.Fatalf("upgraded admission claim = %#v, want preserved writer timestamps", claim)
+		if !writerClaim.ClaimedAt.Equal(writerClaimedAt) || !writerClaim.ExpiresAt.Equal(writerExpiresAt) ||
+			writerClaim.LastSuppressedAt == nil || !writerClaim.LastSuppressedAt.Equal(writerLastSuppressedAt) {
+			t.Fatalf("upgraded admission claim = %#v, want preserved writer timestamps", writerClaim)
 		}
 	})
 

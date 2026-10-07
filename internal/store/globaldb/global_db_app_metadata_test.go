@@ -124,7 +124,7 @@ func TestAppMetadataReopenAfterRestart(t *testing.T) {
 func TestOnboardingMetadataLifecycle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report not completed on fresh database", func(t *testing.T) {
+	t.Run("Should complete once, preserve the first timestamp, and reset status", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
@@ -136,13 +136,6 @@ func TestOnboardingMetadataLifecycle(t *testing.T) {
 		if status.Completed || status.CompletedAt != "" {
 			t.Fatalf("GetOnboardingStatus() = %#v, want not completed", status)
 		}
-	})
-
-	t.Run("Should complete once and preserve the first timestamp", func(t *testing.T) {
-		t.Parallel()
-		db := openTestGlobalDB(t)
-		ctx := testutil.Context(t)
-
 		first, err := db.CompleteOnboarding(ctx, "2026-05-25T12:00:00Z")
 		if err != nil {
 			t.Fatalf("CompleteOnboarding(first) error = %v", err)
@@ -158,17 +151,7 @@ func TestOnboardingMetadataLifecycle(t *testing.T) {
 		if !second.Completed || second.CompletedAt != first.CompletedAt {
 			t.Fatalf("CompleteOnboarding(second) = %#v, want preserved %q", second, first.CompletedAt)
 		}
-	})
-
-	t.Run("Should reset completed status", func(t *testing.T) {
-		t.Parallel()
-		db := openTestGlobalDB(t)
-		ctx := testutil.Context(t)
-
-		if _, err := db.CompleteOnboarding(ctx, "2026-05-25T12:00:00Z"); err != nil {
-			t.Fatalf("CompleteOnboarding() error = %v", err)
-		}
-		status, err := db.ResetOnboarding(ctx)
+		status, err = db.ResetOnboarding(ctx)
 		if err != nil {
 			t.Fatalf("ResetOnboarding() error = %v", err)
 		}

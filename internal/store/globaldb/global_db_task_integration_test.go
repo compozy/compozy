@@ -17,6 +17,7 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, dbPath)
 
 	first, err := OpenGlobalDB(ctx, dbPath)
 	if err != nil {
@@ -137,6 +138,7 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, dbPath)
 
 	first, err := OpenGlobalDB(ctx, dbPath)
 	if err != nil {
@@ -220,6 +222,7 @@ func TestGlobalDBTaskSearchFiltersAndOrderingSurviveReopen(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, dbPath)
 
 	first, err := OpenGlobalDB(ctx, dbPath)
 	if err != nil {

@@ -1626,7 +1626,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 					t.Fatalf("queue claimed steering before delivery resolution: claimed=%v error=%v", premature, err)
 				}
 				reserved, ok, err := db.ReserveSessionSteer(ctx, sessionID, entry.ID, now.Add(time.Second))
-				if err != nil || !ok || reserved.Status != store.SessionInputQueueStatusDispatching {
+				if err != nil || !ok || reserved.ID != entry.ID || reserved.Status != store.SessionInputQueueStatusDispatching {
 					t.Fatalf("ReserveSessionSteer() = %#v, %v, %v", reserved, ok, err)
 				}
 				_, second, err := db.ReserveSessionSteer(ctx, sessionID, entry.ID, now.Add(2*time.Second))
@@ -1857,44 +1857,6 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		_, _, err = globalDB.ClaimSessionPromptAdmission(ctx, admissionReq)
 		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
 			t.Fatalf("ClaimSessionPromptAdmission(after failure) error = %v, want dispatch indeterminate", err)
-		}
-	})
-
-	t.Run("Should lease an admitted steer exactly once before sending it", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		sessionID := registerInputQueueSession(t, globalDB)
-		now := time.Date(2026, 8, 1, 9, 15, 0, 0, time.UTC)
-		admissionReq := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "steer-lease", now)
-		admissionReq.Mode = store.SessionInputQueueModeSteer
-		queueReq := store.SessionInputQueueInsert{
-			ID: "steer-admitted-lease", SessionID: sessionID, Text: "steer once",
-			TargetTurnID: "turn-active", Delivery: store.SessionInputDeliveryInterruptThenPrompt,
-			SessionGeneration: 0, QueueCap: 10, Now: now,
-		}
-		_, staged, _, err := globalDB.StageAdmittedSessionSteer(ctx, admissionReq, queueReq)
-		if err != nil {
-			t.Fatalf("StageAdmittedSessionSteer() error = %v", err)
-		}
-		consumed, ok, err := globalDB.ReserveSessionSteer(ctx, sessionID, staged.ID, now.Add(time.Second))
-		if err != nil {
-			t.Fatalf("ReserveSessionSteer(first) error = %v", err)
-		}
-		if !ok || consumed.ID != staged.ID || consumed.Status != store.SessionInputQueueStatusDispatching {
-			t.Fatalf("ReserveSessionSteer(first) = %#v/%v, want dispatching %q", consumed, ok, staged.ID)
-		}
-		_, ok, err = globalDB.ReserveSessionSteer(ctx, sessionID, staged.ID, now.Add(2*time.Second))
-		if err != nil {
-			t.Fatalf("ReserveSessionSteer(second) error = %v", err)
-		}
-		if ok {
-			t.Fatal("ReserveSessionSteer(second) ok = true, want false while lease is active")
-		}
-		_, _, err = globalDB.ClaimSessionPromptAdmission(ctx, admissionReq)
-		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
-			t.Fatalf("ClaimSessionPromptAdmission(during steer lease) error = %v, want dispatch indeterminate", err)
 		}
 	})
 

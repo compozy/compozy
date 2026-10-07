@@ -16,17 +16,7 @@ func TestGlobalDBCreateDependencyCycleFailsTransactionally(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t)
-	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
-
-	globalDB, err := OpenGlobalDB(ctx, dbPath)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := globalDB.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("Close() error = %v", err)
-		}
-	})
+	globalDB := openTestGlobalDB(t)
 
 	taskA := taskRecordForTest("task-cycle-a")
 	taskB := taskRecordForTest("task-cycle-b")
@@ -46,7 +36,7 @@ func TestGlobalDBCreateDependencyCycleFailsTransactionally(t *testing.T) {
 		}
 	}
 
-	err = globalDB.CreateDependency(ctx, taskDependencyForTest(taskC.ID, taskA.ID))
+	err := globalDB.CreateDependency(ctx, taskDependencyForTest(taskC.ID, taskA.ID))
 	if !errors.Is(err, taskpkg.ErrCycleDetected) {
 		t.Fatalf("CreateDependency(cycle) error = %v, want ErrCycleDetected", err)
 	}
@@ -65,6 +55,7 @@ func TestGlobalDBTaskRunIdempotencyDeduplicatesDuplicateWrites(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, dbPath)
 
 	first, err := OpenGlobalDB(ctx, dbPath)
 	if err != nil {
