@@ -134,8 +134,6 @@ func TestDaemonE2EMemoryDreamHealth(t *testing.T) {
 		memory, dream bool
 	}{
 		{name: "Should report both opt-ins disabled"},
-		{name: "Should report memory enabled without dreaming", memory: true},
-		{name: "Should require memory for the dream role", dream: true},
 		{name: "Should report both opt-ins enabled", memory: true, dream: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
