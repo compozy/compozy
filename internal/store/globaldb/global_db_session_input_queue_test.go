@@ -1,7 +1,6 @@
 package globaldb
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"io/fs"
@@ -912,126 +911,18 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		)
 	})
 
-	t.Run("Should preserve populated runtime rows through the 00094 table rebuild", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := openGlobalMigrationPrefixDatabase(
-			t,
-			path,
-			globalMigrationPrefixBefore(t, "00094_schema.sql"),
-		)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(00093 prefix) error = %v", err)
-		}
-		ctx := globalMigrationTestContext(t)
-		now := time.Date(2026, 8, 27, 9, 0, 0, 0, time.UTC)
-		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: func() time.Time { return now }}
-		prefixGlobalDB.initializeRepositories(openConfig{})
-		workspaceID := registerWorkspaceForGlobalTests(
-			t,
-			prefixGlobalDB,
-			"acp-options-migration",
-			filepath.Join(t.TempDir(), "workspace"),
-		)
-		const sessionID = "sess-before-00094"
-		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO sessions (
-			id, profile_id, name, agent_name,
-			provider, model, reasoning_effort, speed,
-			selected_provider, selected_model, selected_reasoning_effort, selected_speed,
-			workspace_id, state, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			sessionID,
-			store.DefaultProfileID,
-			"Pre-00094 session",
-			"coder",
-			"cursor",
-			"grok-4.6",
-			"high",
-			"fast",
-			"cursor",
-			"grok-4.6",
-			"high",
-			"fast",
-			workspaceID,
-			"active",
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-		); err != nil {
-			t.Fatalf("seed 00093 session error = %v", err)
-		}
-		const admissionID = "admission-before-00094"
-		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_prompt_admissions (
-			id, workspace_id, session_id, message_id, idempotency_key, operation,
-			fingerprint_version, request_fingerprint, state, mode, authored_text,
-			runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
-			turn_id, event_id, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			admissionID,
-			workspaceID,
-			sessionID,
-			"message-before-00094",
-			"idem-before-00094",
-			store.SessionPromptOperationPrompt,
-			"prompt/v1",
-			"sha256:before-00094",
-			store.SessionPromptAdmissionReserved,
-			store.SessionInputQueueModeQueue,
-			"preserve admission",
-			"cursor",
-			"grok-4.6",
-			"high",
-			"fast",
-			"turn-before-00094",
-			"event-before-00094",
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-		); err != nil {
-			t.Fatalf("seed 00093 session_prompt_admissions error = %v", err)
-		}
-		const queueID = "queue-before-00094"
-		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_input_queue (
-			id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, event_id,
-			status, mode, text, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
-			enqueued_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			queueID,
-			sessionID,
-			admissionID,
-			"message-before-00094",
-			"idem-before-00094",
-			"turn-before-00094",
-			"event-before-00094",
-			store.SessionInputQueueStatusQueued,
-			store.SessionInputQueueModeQueue,
-			"preserve queue",
-			"cursor",
-			"grok-4.6",
-			"high",
-			"fast",
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-		); err != nil {
-			t.Fatalf("seed 00093 session_input_queue error = %v", err)
-		}
-		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("prefixDB.Close() error = %v", err)
-		}
+	fixture := openSessionPromptAdmissionMigrationFixture(t)
 
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(00094 upgrade) error = %v", err)
-		}
-		if err := upgraded.Close(ctx); err != nil {
-			t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
-		}
-		reopened, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("GlobalDB.Close(reopen) error = %v", closeErr)
-			}
-		})
+	t.Run("Should preserve populated runtime rows through the 00094 table rebuild", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		reopened := openSessionPromptAdmissionMigrationCopy(t, fixture.path)
+		workspaceID := fixture.runtimeWorkspaceID
+		const (
+			sessionID   = "sess-before-00094"
+			admissionID = "admission-before-00094"
+			queueID     = "queue-before-00094"
+		)
 
 		var provider, model, effort, speed, selectedProvider, selectedModel string
 		var selectedEffort, selectedSpeed, acpOptionsJSON, selectedACPOptionsJSON string
@@ -1197,11 +1088,13 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 	})
 
 	t.Run("Should upgrade the 00033 queue to an admission-aware schema", func(t *testing.T) {
-		fixture := openSessionPromptAdmissionMigrationFixture(t)
+		t.Parallel()
+		database := openSessionPromptAdmissionMigrationCopy(t, fixture.path)
 
 		t.Run("Should preserve legacy queue values and clear orphaned receipt links", func(t *testing.T) {
-			legacy, err := fixture.database.GetSessionInputQueueEntry(
-				fixture.ctx,
+			t.Parallel()
+			legacy, err := database.GetSessionInputQueueEntry(
+				testutil.Context(t),
 				fixture.sessionID,
 				"inq-legacy-before-00034",
 			)
@@ -1217,8 +1110,8 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			}); !reflect.DeepEqual(got, want) {
 				t.Fatalf("legacy queue runtime = %#v, want %#v", got, want)
 			}
-			orphaned, err := fixture.database.GetSessionInputQueueEntry(
-				fixture.ctx,
+			orphaned, err := database.GetSessionInputQueueEntry(
+				testutil.Context(t),
 				fixture.sessionID,
 				"inq-orphaned-admission-before-00036",
 			)
@@ -1231,7 +1124,8 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		})
 
 		t.Run("Should report the migration stream as complete after reopening", func(t *testing.T) {
-			status, err := store.Status(fixture.ctx, fixture.database.db, MigrationStream())
+			t.Parallel()
+			status, err := store.Status(testutil.Context(t), database.db, MigrationStream())
 			if err != nil {
 				t.Fatalf("Status(global) error = %v", err)
 			}
@@ -1239,21 +1133,23 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		})
 
 		t.Run("Should enforce receipt constraints for migrated queue entries", func(t *testing.T) {
+			t.Parallel()
+			database := openSessionPromptAdmissionMigrationCopy(t, fixture.path)
 			admissionReq := promptAdmissionRequest(
 				"ws-input-queue-workspace",
 				fixture.sessionID,
 				"migration",
 				fixture.now,
 			)
-			admission, created, err := fixture.database.ClaimSessionPromptAdmission(fixture.ctx, admissionReq)
+			admission, created, err := database.ClaimSessionPromptAdmission(testutil.Context(t), admissionReq)
 			if err != nil {
 				t.Fatalf("ClaimSessionPromptAdmission() error = %v", err)
 			}
 			if !created {
 				t.Fatal("ClaimSessionPromptAdmission() created = false, want true")
 			}
-			_, err = fixture.database.db.ExecContext(
-				fixture.ctx,
+			_, err = database.db.ExecContext(
+				testutil.Context(t),
 				`INSERT INTO session_prompt_admissions (
 					id, workspace_id, session_id, message_id, idempotency_key, operation,
 					fingerprint_version, request_fingerprint, state, mode, authored_text,
@@ -1287,8 +1183,8 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 				QueueCap:          10,
 				Now:               fixture.now,
 			}
-			_, entry, _, created, err := fixture.database.EnqueueAdmittedSessionInput(
-				fixture.ctx,
+			_, entry, _, created, err := database.EnqueueAdmittedSessionInput(
+				testutil.Context(t),
 				admissionReq,
 				queueReq,
 			)
@@ -1298,8 +1194,8 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			if !created || entry.PromptAdmissionID != admission.ID {
 				t.Fatalf("admitted queue entry = %#v, created=%v, want admission %q", entry, created, admission.ID)
 			}
-			_, err = fixture.database.db.ExecContext(
-				fixture.ctx,
+			_, err = database.db.ExecContext(
+				testutil.Context(t),
 				`INSERT INTO session_input_queue (
 					id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1315,15 +1211,15 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			if !isSQLiteUniqueConstraint(err) {
 				t.Fatalf("duplicate session input queue error = %v, want SQLite unique constraint", err)
 			}
-			if _, err := fixture.database.db.ExecContext(
-				fixture.ctx,
+			if _, err := database.db.ExecContext(
+				testutil.Context(t),
 				`DELETE FROM session_prompt_admissions WHERE id = ?`,
 				admission.ID,
 			); err != nil {
 				t.Fatalf("delete migrated session prompt admission error = %v", err)
 			}
-			migratedEntry, err := fixture.database.GetSessionInputQueueEntry(
-				fixture.ctx,
+			migratedEntry, err := database.GetSessionInputQueueEntry(
+				testutil.Context(t),
 				fixture.sessionID,
 				entry.ID,
 			)
@@ -1341,10 +1237,116 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 }
 
 type sessionPromptAdmissionMigrationFixture struct {
-	ctx       context.Context
-	database  *GlobalDB
-	sessionID string
-	now       time.Time
+	path               string
+	sessionID          string
+	runtimeWorkspaceID string
+	now                time.Time
+}
+
+func seedSessionPromptAdmissionRuntimePrefix(t *testing.T, prefixDB *sql.DB, path string) string {
+	t.Helper()
+	const (
+		sessionID   = "sess-before-00094"
+		admissionID = "admission-before-00094"
+		queueID     = "queue-before-00094"
+	)
+	ctx := globalMigrationTestContext(t)
+	now := time.Date(2026, 8, 27, 9, 0, 0, 0, time.UTC)
+	prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: func() time.Time { return now }}
+	prefixGlobalDB.initializeRepositories(openConfig{})
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		prefixGlobalDB,
+		"acp-options-migration",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
+	if _, err := prefixDB.ExecContext(ctx, `INSERT INTO sessions (
+		id, profile_id, name, agent_name,
+		provider, model, reasoning_effort, speed,
+		selected_provider, selected_model, selected_reasoning_effort, selected_speed,
+		workspace_id, state, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sessionID,
+		store.DefaultProfileID,
+		"Pre-00094 session",
+		"coder",
+		"cursor",
+		"grok-4.6",
+		"high",
+		"fast",
+		"cursor",
+		"grok-4.6",
+		"high",
+		"fast",
+		workspaceID,
+		"active",
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("seed 00093 session error = %v", err)
+	}
+	if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_prompt_admissions (
+		id, workspace_id, session_id, message_id, idempotency_key, operation,
+		fingerprint_version, request_fingerprint, state, mode, authored_text,
+		runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
+		turn_id, event_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		admissionID,
+		workspaceID,
+		sessionID,
+		"message-before-00094",
+		"idem-before-00094",
+		store.SessionPromptOperationPrompt,
+		"prompt/v1",
+		"sha256:before-00094",
+		store.SessionPromptAdmissionReserved,
+		store.SessionInputQueueModeQueue,
+		"preserve admission",
+		"cursor",
+		"grok-4.6",
+		"high",
+		"fast",
+		"turn-before-00094",
+		"event-before-00094",
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("seed 00093 session_prompt_admissions error = %v", err)
+	}
+	if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_input_queue (
+		id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, event_id,
+		status, mode, text, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
+		enqueued_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		queueID,
+		sessionID,
+		admissionID,
+		"message-before-00094",
+		"idem-before-00094",
+		"turn-before-00094",
+		"event-before-00094",
+		store.SessionInputQueueStatusQueued,
+		store.SessionInputQueueModeQueue,
+		"preserve queue",
+		"cursor",
+		"grok-4.6",
+		"high",
+		"fast",
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("seed 00093 session_input_queue error = %v", err)
+	}
+	return workspaceID
+}
+
+func openSessionPromptAdmissionMigrationCopy(t *testing.T, sourcePath string) *GlobalDB {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	if err := copyGlobalMigrationSeedFile(sourcePath, path); err != nil {
+		t.Fatalf("copy populated upgraded database: %v", err)
+	}
+	return openGlobalDBForTest(t, path)
 }
 
 func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmissionMigrationFixture {
@@ -1425,6 +1427,10 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 	); err != nil {
 		t.Fatalf("seed orphaned 00035 admission reference error = %v", err)
 	}
+	if err := applyGlobalMigrationPrefix(t, prefixDB, globalMigrationPrefixBefore(t, "00094_schema.sql")); err != nil {
+		t.Fatalf("Apply(global through 00093) error = %v", err)
+	}
+	runtimeWorkspaceID := seedSessionPromptAdmissionRuntimePrefix(t, prefixDB, path)
 	if err := prefixDB.Close(); err != nil {
 		t.Fatalf("prefixDB.Close() error = %v", err)
 	}
@@ -1432,7 +1438,7 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 
 	upgraded, err := openGlobalMigrationUpgrade(t, path)
 	if err != nil {
-		t.Fatalf("OpenGlobalDB(00036 upgrade) error = %v", err)
+		t.Fatalf("OpenGlobalDB(populated prefix upgrade) error = %v", err)
 	}
 	upgradedClosed := false
 	defer func() {
@@ -1448,20 +1454,11 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 	}
 	upgradedClosed = true
 
-	reopened, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-			t.Errorf("GlobalDB.Close(reopen) error = %v", closeErr)
-		}
-	})
 	return sessionPromptAdmissionMigrationFixture{
-		ctx:       ctx,
-		database:  reopened,
-		sessionID: sessionID,
-		now:       now,
+		path:               path,
+		sessionID:          sessionID,
+		runtimeWorkspaceID: runtimeWorkspaceID,
+		now:                now,
 	}
 }
 
