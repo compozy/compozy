@@ -103,6 +103,8 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 // Owner: extension registry persistence.
 // Canonical suite: extension registry tests.
 func TestRegistryInstallRetriesBusyPersistence(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should persist after a competing writer releases the database", func(t *testing.T) {
 		t.Parallel()
 
@@ -710,6 +712,8 @@ func TestRegistryEnableAndDisable(t *testing.T) {
 // Owner: extension registry enablement persistence.
 // Canonical suite: extension registry tests.
 func TestRegistrySetEnabledForProfileRetriesBusyPersistence(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should disable after a competing writer releases the database", func(t *testing.T) {
 		t.Parallel()
 
@@ -1818,6 +1822,8 @@ func TestRegistryDBReturnsBackingHandleAndNilSafe(t *testing.T) {
 }
 
 func TestRegistryGatewayConfirmationTracksCurrentArtifactDigest(t *testing.T) {
+	t.Parallel()
+
 	withDaemonVersion(t, "0.6.0")
 
 	t.Run("Should persist actor attribution only for the exact current digest", func(t *testing.T) {

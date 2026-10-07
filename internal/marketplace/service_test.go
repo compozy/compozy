@@ -102,10 +102,12 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 		return service
 	}
 
+	// Nil-context guards return before touching this fixture; only the detail case refreshes it.
+	service := newService(t)
+
 	t.Run("Should return source status and resolve detail by immutable id", func(t *testing.T) {
 		t.Parallel()
 
-		service := newService(t)
 		ctx := testutil.Context(t)
 		states, err := service.Status(ctx)
 		if err != nil {
@@ -181,7 +183,6 @@ func TestCatalogServiceDetailAndStatus(t *testing.T) {
 	t.Run("Should reject nil contexts and service receivers with specific diagnostics", func(t *testing.T) {
 		t.Parallel()
 
-		service := newService(t)
 		ctx := testutil.Context(t)
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
 		_, err := service.Browse(nil, "", 0, 10)
