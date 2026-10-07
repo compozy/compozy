@@ -385,90 +385,85 @@ test("operator must pass the force doorway before a dirty worktree is removed", 
   await expect(appPage.getByTestId(`os-workspaces-worktree-row-${worktree.id}`)).toHaveCount(0);
 });
 
-test("operator dismisses a missing worktree record without losing its history", async ({
+// E2E-016: restore the same record first, then dismiss it after a second disappearance.
+test("E2E-016: operator restores a missing checkout and later dismisses its record without losing history", async ({
   appPage,
   runtime,
 }) => {
   await completeOnboardingIfPrompted(appPage);
   const workspace = await runtime.resolveWorkspace(repo.rootDir);
   const worktree = await seedReadyWorktree(runtime, workspace.id, "hotfix-cors");
+  await test.step("operator restores a missing worktree when its checkout comes back", async () => {
+    // Pruned out of band, then restored at the very same path.
+    await repo.removeDirectory(worktree.path);
+    await expect
+      .poll(
+        async () => {
+          const listing = await listWorktrees(runtime, workspace.id, true);
+          return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
+        },
+        { timeout: 30_000 }
+      )
+      .toBe("missing");
+    await repo.restoreWorktreeAt(worktree.path, worktree.branch);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  await repo.removeDirectory(worktree.path);
-  await expect
-    .poll(
-      async () => {
-        const listing = await listWorktrees(runtime, workspace.id, true);
-        return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
-      },
-      { timeout: 30_000 }
-    )
-    .toBe("missing");
-  await appPage.reload({ waitUntil: "domcontentloaded" });
+    await openWorkspaceNest(appPage, workspace.id);
+    await chooseNestRowAction(appPage, worktree.id, "resolve");
+    await expect(appPage.getByTestId("worktree-missing-dialog")).toBeVisible();
 
-  await openWorkspaceNest(appPage, workspace.id);
-  await chooseNestRowAction(appPage, worktree.id, "resolve");
+    await appPage.getByTestId("worktree-missing-restore").click();
 
-  const dialog = appPage.getByTestId("worktree-missing-dialog");
-  await expect(dialog).toBeVisible();
-  // History preservation is stated before either choice is made.
-  await expect(dialog).toContainText("Run history is preserved");
+    // Adoption is the restore path: the same record returns to ready, and a new
+    // record is never minted for it.
+    await expect
+      .poll(
+        async () => {
+          const listing = await listWorktrees(runtime, workspace.id, true);
+          return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
+        },
+        { timeout: 30_000 }
+      )
+      .toBe("ready");
+    const listing = await listWorktrees(runtime, workspace.id);
+    expect(listing.worktrees.filter(entry => entry.name === "hotfix-cors")).toHaveLength(1);
+  });
 
-  await appPage.getByTestId("worktree-missing-dismiss").click();
+  await test.step("operator dismisses a missing worktree record without losing its history", async () => {
+    await repo.removeDirectory(worktree.path);
+    await expect
+      .poll(
+        async () => {
+          const listing = await listWorktrees(runtime, workspace.id, true);
+          return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
+        },
+        { timeout: 30_000 }
+      )
+      .toBe("missing");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  // Dismissal drops the record only; the outcome is rendered verbatim.
-  await expect(appPage.getByTestId("worktree-missing-outcome")).toBeVisible();
-  await expect
-    .poll(
-      async () => {
-        const listing = await listWorktrees(runtime, workspace.id, true);
-        return listing.worktrees.some(entry => entry.id === worktree.id);
-      },
-      { timeout: 30_000 }
-    )
-    .toBe(false);
-});
+    await openWorkspaceNest(appPage, workspace.id);
+    await chooseNestRowAction(appPage, worktree.id, "resolve");
 
-test("operator restores a missing worktree when its checkout comes back", async ({
-  appPage,
-  runtime,
-}) => {
-  await completeOnboardingIfPrompted(appPage);
-  const workspace = await runtime.resolveWorkspace(repo.rootDir);
-  const worktree = await seedReadyWorktree(runtime, workspace.id, "hotfix-cors");
+    const dialog = appPage.getByTestId("worktree-missing-dialog");
+    await expect(dialog).toBeVisible();
+    // History preservation is stated before either choice is made.
+    await expect(dialog).toContainText("Run history is preserved");
 
-  // Pruned out of band, then restored at the very same path.
-  await repo.removeDirectory(worktree.path);
-  await expect
-    .poll(
-      async () => {
-        const listing = await listWorktrees(runtime, workspace.id, true);
-        return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
-      },
-      { timeout: 30_000 }
-    )
-    .toBe("missing");
-  await repo.restoreWorktreeAt(worktree.path, worktree.branch);
-  await appPage.reload({ waitUntil: "domcontentloaded" });
+    await appPage.getByTestId("worktree-missing-dismiss").click();
 
-  await openWorkspaceNest(appPage, workspace.id);
-  await chooseNestRowAction(appPage, worktree.id, "resolve");
-  await expect(appPage.getByTestId("worktree-missing-dialog")).toBeVisible();
-
-  await appPage.getByTestId("worktree-missing-restore").click();
-
-  // Adoption is the restore path: the same record returns to ready, and a new
-  // record is never minted for it.
-  await expect
-    .poll(
-      async () => {
-        const listing = await listWorktrees(runtime, workspace.id, true);
-        return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
-      },
-      { timeout: 30_000 }
-    )
-    .toBe("ready");
-  const listing = await listWorktrees(runtime, workspace.id);
-  expect(listing.worktrees.filter(entry => entry.name === "hotfix-cors")).toHaveLength(1);
+    // Dismissal drops the record only; the outcome is rendered verbatim.
+    await expect(appPage.getByTestId("worktree-missing-outcome")).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          const listing = await listWorktrees(runtime, workspace.id, true);
+          return listing.worktrees.some(entry => entry.id === worktree.id);
+        },
+        { timeout: 30_000 }
+      )
+      .toBe(false);
+  });
 });
 
 // E2E-008: the session-create environment control — root default, ready

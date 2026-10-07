@@ -1356,60 +1356,55 @@ test("E2E-017: production CSP admits the same-origin terminal socket and refuses
   expect(result.crossOriginViolations).toBeGreaterThan(0);
 });
 
-test("E2E-019: the Terminal controller chunk loads only after its launcher opens", async ({
-  appPage,
-  runtime,
-}) => {
-  await ensureProjectWorkspace(appPage, runtime);
-  const terminalChunkLoaded = async () =>
-    await appPage.evaluate(() =>
-      performance.getEntriesByType("resource").some(entry => entry.name.includes("terminal-window"))
-    );
-
-  expect(await terminalChunkLoaded()).toBe(false);
-  const chunkResponse = appPage.waitForResponse(response =>
-    /\/assets\/terminal-window-[^/]+\.js(?:\?|$)/u.test(response.url())
-  );
-  const [response, terminalWindow] = await Promise.all([
-    chunkResponse,
-    openAppWindow(appPage, "Terminal", "terminal"),
-  ]);
-  expect(response.ok()).toBe(true);
-  await expect(terminalWindow.getByTestId("terminal-window")).toBeVisible();
-});
-
-test("E2E-018: keyboard activation opens a working terminal from the dock", async ({
+// Cold resource observation must precede the first dock activation in this journey.
+test("E2E-019 / E2E-018: keyboard activation lazily loads a working terminal from the dock", async ({
   appPage,
   runtime,
 }) => {
   assertLaunchRuntime(runtime);
   const workspace = await runtimeWorkspace(runtime);
   await ensureProjectWorkspace(appPage, runtime);
-  const launcher = appPage
-    .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
-    .getByRole("button", { exact: true, name: "Terminal" });
-  await launcher.focus();
-  await appPage.keyboard.press("Enter");
+  await test.step("the controller chunk stays cold until keyboard activation", async () => {
+    const terminalChunkLoaded = async () =>
+      await appPage.evaluate(() =>
+        performance
+          .getEntriesByType("resource")
+          .some(entry => entry.name.includes("terminal-window"))
+      );
+    expect(await terminalChunkLoaded()).toBe(false);
+    const chunkResponse = appPage.waitForResponse(response =>
+      /\/assets\/terminal-window-[^/]+\.js(?:\?|$)/u.test(response.url())
+    );
+    const launcher = appPage
+      .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
+      .getByRole("button", { exact: true, name: "Terminal" });
+    await launcher.focus();
+    await appPage.keyboard.press("Enter");
+    expect((await chunkResponse).ok()).toBe(true);
+    await expect(focusedTerminalWindow(appPage).getByTestId("terminal-window")).toBeVisible();
+  });
 
-  const terminalWindow = appPage.locator(
-    '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
-  );
-  await expect(terminalWindow).toBeVisible();
-  // One activation is the whole flow: the window resolves straight into a
-  // terminal, with no launcher step in between.
-  const terminalId = await visibleTerminalPaneID(terminalWindow);
+  await test.step("the opened terminal accepts keyboard input", async () => {
+    const terminalWindow = appPage.locator(
+      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+    );
+    await expect(terminalWindow).toBeVisible();
+    // One activation is the whole flow: the window resolves straight into a
+    // terminal, with no launcher step in between.
+    const terminalId = await visibleTerminalPaneID(terminalWindow);
 
-  const journalToggle = terminalWindow.getByTestId("terminal-journal-toggle");
-  await journalToggle.focus();
-  await expect(journalToggle).toBeFocused();
+    const journalToggle = terminalWindow.getByTestId("terminal-journal-toggle");
+    await journalToggle.focus();
+    await expect(journalToggle).toBeFocused();
 
-  const log = await interactiveTerminalLog(terminalWindow);
-  const input = log.getByRole("textbox", { name: "Terminal input", exact: true });
-  await input.focus();
-  await expect(input).toBeFocused();
-  await appPage.keyboard.type("printf 'keyboard-terminal-%s\\n' ready");
-  await appPage.keyboard.press("Enter");
-  await expect
-    .poll(async () => (await terminalScreen(runtime, workspace.id, terminalId)).content)
-    .toContain("keyboard-terminal-ready");
+    const log = await interactiveTerminalLog(terminalWindow);
+    const input = log.getByRole("textbox", { name: "Terminal input", exact: true });
+    await input.focus();
+    await expect(input).toBeFocused();
+    await appPage.keyboard.type("printf 'keyboard-terminal-%s\\n' ready");
+    await appPage.keyboard.press("Enter");
+    await expect
+      .poll(async () => (await terminalScreen(runtime, workspace.id, terminalId)).content)
+      .toContain("keyboard-terminal-ready");
+  });
 });
