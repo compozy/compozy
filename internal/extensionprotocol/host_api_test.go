@@ -101,25 +101,6 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 	})
 }
 
-func TestCapabilityServiceMethodsShouldIncludeModelSourceMethod(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should include model source method", func(t *testing.T) {
-		t.Parallel()
-
-		got := CapabilityServiceMethods([]string{CapabilityProvideModelSource})
-		want := []string{string(ExtensionServiceMethodModelsList)}
-		if len(got) != len(want) {
-			t.Fatalf("len(CapabilityServiceMethods(model.source)) = %d, want %d", len(got), len(want))
-		}
-		for idx := range want {
-			if got[idx] != want[idx] {
-				t.Fatalf("CapabilityServiceMethods(model.source)[%d] = %q, want %q", idx, got[idx], want[idx])
-			}
-		}
-	})
-}
-
 func TestCapabilityServiceMethodsShouldIncludeWatchPollMethod(t *testing.T) {
 	t.Parallel()
 

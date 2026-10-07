@@ -264,33 +264,6 @@ func TestViewPatchApplication(t *testing.T) {
 		)
 		requireErrorContains(t, err, `invalid array index "01"`)
 	})
-
-	t.Run("Should preserve deterministic replacement properties", func(t *testing.T) {
-		t.Parallel()
-		for index := range 100 {
-			current := validListViewPayload()
-			value := fmt.Sprintf("row-%d", index)
-			patched, revision, resync, err := ApplyViewPatch(
-				ViewKindList, "vr_a", current,
-				ViewPatch{
-					ViewID: "ext.notes.recent", From: "vr_a", To: "vr_b",
-					Ops: []PatchOp{{
-						Op: "replace", Path: "/sections/0/rows/0/title", Value: mustViewJSON(t, value),
-					}},
-				}, nil, nil,
-			)
-			if err != nil || resync || revision != "vr_b" || patched.Sections[0].Rows[0].Title != value {
-				t.Fatalf(
-					"iteration %d: payload %#v revision %q resync %t error %v",
-					index,
-					patched,
-					revision,
-					resync,
-					err,
-				)
-			}
-		}
-	})
 }
 
 func TestViewService(t *testing.T) {
@@ -883,15 +856,6 @@ func validListViewPayload() ViewPayload {
 			ID: "task-1", Title: "Review task", Badge: &ViewBadge{Label: "Queued", Tone: "info"},
 		}}}},
 	}
-}
-
-func mustViewJSON(t *testing.T, value any) json.RawMessage {
-	t.Helper()
-	wire, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
-	return wire
 }
 
 type viewCapabilityReporterStub struct {

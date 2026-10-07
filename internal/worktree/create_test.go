@@ -125,28 +125,6 @@ func worktreeListFixture(root, branch string) []byte {
 func TestServiceCreate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve a non-default profile owner", func(t *testing.T) {
-		t.Parallel()
-		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
-		item, err := fixture.service.Create(
-			t.Context(), fixture.workspace.ID,
-			CreateOptions{ProfileID: testNonDefaultWorktreeProfileID, Name: "Non-default Owner"},
-		)
-		if err != nil {
-			t.Fatalf("Create(non-default owner) error = %v", err)
-		}
-		if item.ProfileID != testNonDefaultWorktreeProfileID {
-			t.Fatalf("created ProfileID = %q, want %q", item.ProfileID, testNonDefaultWorktreeProfileID)
-		}
-		persisted, err := fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID)
-		if err != nil {
-			t.Fatalf("Get(non-default owner) error = %v", err)
-		}
-		if persisted.ProfileID != testNonDefaultWorktreeProfileID {
-			t.Fatalf("persisted ProfileID = %q, want %q", persisted.ProfileID, testNonDefaultWorktreeProfileID)
-		}
-	})
-
 	t.Run("Should publish a redacted failure after an accepted creation rolls back", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
@@ -266,10 +244,20 @@ func TestServiceCreate(t *testing.T) {
 		item, err := fixture.service.Create(
 			t.Context(),
 			fixture.workspace.ID,
-			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Docs Refresh"},
+			CreateOptions{ProfileID: testNonDefaultWorktreeProfileID, Name: "Docs Refresh"},
 		)
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
+		}
+		if item.ProfileID != testNonDefaultWorktreeProfileID {
+			t.Fatalf("created ProfileID = %q, want %q", item.ProfileID, testNonDefaultWorktreeProfileID)
+		}
+		persisted, err := fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID)
+		if err != nil {
+			t.Fatalf("Get(non-default owner) error = %v", err)
+		}
+		if persisted.ProfileID != testNonDefaultWorktreeProfileID {
+			t.Fatalf("persisted ProfileID = %q, want %q", persisted.ProfileID, testNonDefaultWorktreeProfileID)
 		}
 		if item.State != StateReady || !item.CreatedBranch || item.BaseRef != "main" ||
 			item.CreatedHead != "created-head" || filepath.Base(item.GitDir) != "created" {
