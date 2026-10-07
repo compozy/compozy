@@ -94,63 +94,65 @@ test.beforeEach(async ({ appPage: page, runtime }) => {
 });
 
 test.describe("E2E-009 attention bell", () => {
-  test("Should separate Needs you from Finished, count only needs-you, and acknowledge durably", async ({
+  test("Should acknowledge attention durably and navigate to the session a row names", async ({
     appPage: page,
     runtime,
     browserArtifacts,
   }) => {
-    await page.locator(bell.trigger).click();
-    await expect(page.getByTestId(bell.empty)).toContainText("All quiet");
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId(bell.popover)).toBeHidden();
+    await test.step("Should separate Needs you from Finished, count only needs-you, and acknowledge durably", async () => {
+      await page.locator(bell.trigger).click();
+      await expect(page.getByTestId(bell.empty)).toContainText("All quiet");
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId(bell.popover)).toBeHidden();
 
-    const workspace = await globalWorkspace(runtime);
-    const failed = await createFailedSession(runtime, workspace);
-    const done = await createDoneSession(runtime, workspace);
+      const workspace = await globalWorkspace(runtime);
+      const failed = await createFailedSession(runtime, workspace);
+      const done = await createDoneSession(runtime, workspace);
 
-    await page.locator(bell.trigger).click();
-    const popover = page.getByTestId(bell.popover);
-    await expect(popover).toBeVisible();
-    await expect(popover.getByTestId(`os-attention-session-${failed.id}`)).toBeVisible();
-    await expect(popover.getByTestId(`os-attention-session-${done.id}`)).toBeVisible();
-    await expect(popover.getByTestId(bell.needsYou)).toBeVisible();
-    await expect(popover.getByTestId(bell.finished)).toBeVisible();
+      await page.locator(bell.trigger).click();
+      const popover = page.getByTestId(bell.popover);
+      await expect(popover).toBeVisible();
+      await expect(popover.getByTestId(`os-attention-session-${failed.id}`)).toBeVisible();
+      await expect(popover.getByTestId(`os-attention-session-${done.id}`)).toBeVisible();
+      await expect(popover.getByTestId(bell.needsYou)).toBeVisible();
+      await expect(popover.getByTestId(bell.finished)).toBeVisible();
 
-    await expect(page.locator(bell.trigger)).toHaveAccessibleName("Attention, 1 waiting");
-    await expect(page.locator(`${bell.trigger} [data-slot="pill"]`)).toHaveText("1");
+      await expect(page.locator(bell.trigger)).toHaveAccessibleName("Attention, 1 waiting");
+      await expect(page.locator(`${bell.trigger} [data-slot="pill"]`)).toHaveText("1");
 
-    const row = popover.getByTestId(`os-attention-session-${failed.id}`);
-    await expect(row).toBeVisible();
-    await row
-      .locator("..")
-      .getByRole("button", { name: /^Mark .* as read$/ })
-      .click();
-    await expect(row).toBeHidden();
-    const source = await runtime.requestJSON<SessionEnvelope>(
-      sessionAPIPath(workspace.id, failed.id)
-    );
-    expect(source.session.badge).toBe(failed.badge);
-    expect(source.session.state).toBe(failed.state);
-    await reloadShell(page);
-    await page.locator(bell.trigger).click();
-    await expect(page.getByTestId(`os-attention-session-${failed.id}`)).toBeHidden();
-    await browserArtifacts.captureScreenshot("acknowledged-bell", page);
-  });
+      const row = popover.getByTestId(`os-attention-session-${failed.id}`);
+      await expect(row).toBeVisible();
+      await row
+        .locator("..")
+        .getByRole("button", { name: /^Mark .* as read$/ })
+        .click();
+      await expect(row).toBeHidden();
+      const source = await runtime.requestJSON<SessionEnvelope>(
+        sessionAPIPath(workspace.id, failed.id)
+      );
+      expect(source.session.badge).toBe(failed.badge);
+      expect(source.session.state).toBe(failed.state);
+      await reloadShell(page);
+      await page.locator(bell.trigger).click();
+      await expect(page.getByTestId(`os-attention-session-${failed.id}`)).toBeHidden();
+      await browserArtifacts.captureScreenshot("acknowledged-bell", page);
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId(bell.popover)).toBeHidden();
+    });
+    await test.step("Should land on the session a row names, switching workspace when needed", async () => {
+      const workspace = await createWorkspace(runtime, "attention-jump");
+      const failed = await createFailedSession(runtime, workspace);
+      await reloadShell(page);
 
-  test("Should land on the session a row names, switching workspace when needed", async ({
-    appPage: page,
-    runtime,
-  }) => {
-    const workspace = await createWorkspace(runtime, "attention-jump");
-    const failed = await createFailedSession(runtime, workspace);
-    await reloadShell(page);
+      await page.locator(bell.trigger).click();
+      await page.getByTestId(`os-attention-session-${failed.id}`).click();
 
-    await page.locator(bell.trigger).click();
-    await page.getByTestId(`os-attention-session-${failed.id}`).click();
-
-    await expect(page.getByTestId(bell.popover)).toBeHidden();
-    await expect(sessionWindow(page, failed.id)).toBeVisible();
-    await expect(page.locator('[data-slot="os-menubar-workspace"]')).toContainText(workspace.name);
+      await expect(page.getByTestId(bell.popover)).toBeHidden();
+      await expect(sessionWindow(page, failed.id)).toBeVisible();
+      await expect(page.locator('[data-slot="os-menubar-workspace"]')).toContainText(
+        workspace.name
+      );
+    });
   });
 
   test("Should state that a disconnected source is frozen and uncounted", async ({
@@ -251,59 +253,53 @@ test.describe("E2E-012 tab title count", () => {
 });
 
 test.describe("E2E-013 Settings → Attention", () => {
-  test("Should round-trip the delivery toggles without a save bar", async ({
+  test("Should show platform state and persist delivery toggles and workspace muting", async ({
     appPage: page,
     runtime,
   }) => {
-    await page.goto(runtime.url("/settings/attention"));
-    const sound = page.getByTestId("settings-attention-sound");
-    await expect(sound).toBeVisible();
-    await expect(page.getByTestId("settings-page-attention-save-bar")).toHaveCount(0);
+    await test.step("Should render the system channel's real platform state", async () => {
+      await page.goto(runtime.url("/settings/attention"));
+      await expect(
+        page.getByTestId(/^settings-attention-system-(default|denied|unsupported)$/)
+      ).toBeVisible();
+      await expect(page.getByTestId("settings-attention-system")).toHaveAttribute(
+        "aria-checked",
+        "false"
+      );
+    });
+    await test.step("Should keep a muted workspace's bell rows while silencing delivery", async () => {
+      const workspace = await createWorkspace(runtime, "attention-muted");
+      const failed = await createFailedSession(runtime, workspace);
+      await reloadShell(page);
+      await page.goto(runtime.url("/settings/attention"));
+      const muted = page.waitForResponse(
+        response =>
+          response.request().method() === "PATCH" &&
+          response.url().includes("/api/settings/attention")
+      );
+      await page.getByTestId("settings-attention-mute-picker").selectOption(workspace.id);
+      expect((await muted).ok()).toBe(true);
+      await expect(page.getByTestId(`settings-attention-unmute-${workspace.id}`)).toBeVisible();
 
-    await sound.click();
-    await page.reload();
-    await expect(page.getByTestId("settings-attention-sound")).toHaveAttribute(
-      "aria-checked",
-      "false"
-    );
-  });
+      await page.locator(bell.trigger).click();
+      await expect(page.getByTestId(`os-attention-session-${failed.id}`)).toHaveAttribute(
+        "data-muted",
+        "true"
+      );
+    });
+    await test.step("Should round-trip the delivery toggles without a save bar", async () => {
+      await page.goto(runtime.url("/settings/attention"));
+      const sound = page.getByTestId("settings-attention-sound");
+      await expect(sound).toBeVisible();
+      await expect(page.getByTestId("settings-page-attention-save-bar")).toHaveCount(0);
 
-  test("Should render the system channel's real platform state", async ({
-    appPage: page,
-    runtime,
-  }) => {
-    await page.goto(runtime.url("/settings/attention"));
-    await expect(
-      page.getByTestId(/^settings-attention-system-(default|denied|unsupported)$/)
-    ).toBeVisible();
-    await expect(page.getByTestId("settings-attention-system")).toHaveAttribute(
-      "aria-checked",
-      "false"
-    );
-  });
-
-  test("Should keep a muted workspace's bell rows while silencing delivery", async ({
-    appPage: page,
-    runtime,
-  }) => {
-    const workspace = await createWorkspace(runtime, "attention-muted");
-    const failed = await createFailedSession(runtime, workspace);
-    await reloadShell(page);
-    await page.goto(runtime.url("/settings/attention"));
-    const muted = page.waitForResponse(
-      response =>
-        response.request().method() === "PATCH" &&
-        response.url().includes("/api/settings/attention")
-    );
-    await page.getByTestId("settings-attention-mute-picker").selectOption(workspace.id);
-    expect((await muted).ok()).toBe(true);
-    await expect(page.getByTestId(`settings-attention-unmute-${workspace.id}`)).toBeVisible();
-
-    await page.locator(bell.trigger).click();
-    await expect(page.getByTestId(`os-attention-session-${failed.id}`)).toHaveAttribute(
-      "data-muted",
-      "true"
-    );
+      await sound.click();
+      await page.reload();
+      await expect(page.getByTestId("settings-attention-sound")).toHaveAttribute(
+        "aria-checked",
+        "false"
+      );
+    });
   });
 });
 

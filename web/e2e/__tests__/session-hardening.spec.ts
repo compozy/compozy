@@ -123,101 +123,101 @@ test.use({
   },
 });
 
-test("first document navigation to a canonical session route loads the app shell and transcript", async ({
+test("E2E-009: cold canonical session navigation loads the transcript and oversized tool results retain their tail", async ({
   page,
   runtime,
 }) => {
-  if (!runtime.paths?.homeDir) {
-    throw new Error("cold session-route E2E requires launch-mode runtime paths.");
-  }
-
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  await runtime.requestJSON("/api/onboarding/complete", { method: "POST" });
-  const session = await createSession(runtime, permissionAgent, workspace.id);
-  const sessionRequestPath = sessionAPIPath(workspace.id, session.id);
-  const observedSessionRequests = new Set<string>();
-
-  page.on("request", request => {
-    const pathname = new URL(request.url()).pathname;
-    if (request.method() === "GET" && pathname === sessionRequestPath) {
-      observedSessionRequests.add(pathname);
+  await test.step("first document navigation to a canonical session route loads the app shell and transcript", async () => {
+    if (!runtime.paths?.homeDir) {
+      throw new Error("cold session-route E2E requires launch-mode runtime paths.");
     }
-  });
-  await page.addInitScript(
-    ({ workspaceId }) => {
-      localStorage.setItem(
-        "compozy:active-workspace:v4",
-        JSON.stringify({
-          context: {
-            scope: "workspace",
-            selectedWorkspaceId: workspaceId,
-            worktreeByScope: {},
-          },
-          version: 0,
-        })
-      );
-    },
-    { workspaceId: workspace.id }
-  );
 
-  await page.goto(runtime.url(sessionPath(permissionAgent, session.id)), {
-    waitUntil: "domcontentloaded",
-  });
+    const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
+    await runtime.requestJSON("/api/onboarding/complete", { method: "POST" });
+    const session = await createSession(runtime, permissionAgent, workspace.id);
+    const sessionRequestPath = sessionAPIPath(workspace.id, session.id);
+    const observedSessionRequests = new Set<string>();
 
-  const sessionWin = sessionWindow(page, session.id);
-  const ui = sessionWindowSelectors(sessionWin, page);
-  await expect
-    .poll(async () => ({
-      osDesktopVisible: await page.getByTestId("os-desktop").isVisible(),
-      chatViewVisible: await ui.chatView.isVisible(),
-      sessionRequestObserved: observedSessionRequests.has(sessionRequestPath),
-    }))
-    .toEqual({
-      osDesktopVisible: true,
-      chatViewVisible: true,
-      sessionRequestObserved: true,
+    page.on("request", request => {
+      const pathname = new URL(request.url()).pathname;
+      if (request.method() === "GET" && pathname === sessionRequestPath) {
+        observedSessionRequests.add(pathname);
+      }
     });
-});
+    await page.addInitScript(
+      ({ workspaceId }) => {
+        localStorage.setItem(
+          "compozy:active-workspace:v4",
+          JSON.stringify({
+            context: {
+              scope: "workspace",
+              selectedWorkspaceId: workspaceId,
+              worktreeByScope: {},
+            },
+            version: 0,
+          })
+        );
+      },
+      { workspaceId: workspace.id }
+    );
 
-test("E2E-009: operator pages an oversized tool result to its retained tail", async ({
-  appPage,
-  runtime,
-}) => {
-  const workspace = await prepareSessionRuntime(runtime, appPage);
-  await seedToolArtifact(runtime, workspace.root_dir);
-  const session = await createSession(runtime, toolArtifactAgent, workspace.id);
-  const artifactOffsets: string[] = [];
-  appPage.on("response", response => {
-    const url = new URL(response.url());
-    if (url.pathname.includes("/tool-artifacts/")) {
-      artifactOffsets.push(url.searchParams.get("offset") ?? "0");
-    }
+    await page.goto(runtime.url(sessionPath(permissionAgent, session.id)), {
+      waitUntil: "domcontentloaded",
+    });
+
+    const sessionWin = sessionWindow(page, session.id);
+    const ui = sessionWindowSelectors(sessionWin, page);
+    await expect
+      .poll(async () => ({
+        osDesktopVisible: await page.getByTestId("os-desktop").isVisible(),
+        chatViewVisible: await ui.chatView.isVisible(),
+        sessionRequestObserved: observedSessionRequests.has(sessionRequestPath),
+      }))
+      .toEqual({
+        osDesktopVisible: true,
+        chatViewVisible: true,
+        sessionRequestObserved: true,
+      });
   });
 
-  await appPage.goto(runtime.url(sessionPath(toolArtifactAgent, session.id)), {
-    waitUntil: "domcontentloaded",
+  await test.step("E2E-009: operator pages an oversized tool result to its retained tail", async () => {
+    const appPage = page;
+    const workspace = await prepareSessionRuntime(runtime, appPage);
+    await seedToolArtifact(runtime, workspace.root_dir);
+    const session = await createSession(runtime, toolArtifactAgent, workspace.id);
+    const artifactOffsets: string[] = [];
+    appPage.on("response", response => {
+      const url = new URL(response.url());
+      if (url.pathname.includes("/tool-artifacts/")) {
+        artifactOffsets.push(url.searchParams.get("offset") ?? "0");
+      }
+    });
+
+    await appPage.goto(runtime.url(sessionPath(toolArtifactAgent, session.id)), {
+      waitUntil: "domcontentloaded",
+    });
+    const sessionWin = sessionWindow(appPage, session.id);
+    const ui = sessionWindowSelectors(sessionWin, appPage);
+    await expect(sessionWin).toBeVisible();
+    await ui.composerTextarea.fill("exercise tool artifact recovery");
+    await ui.composerTextarea.press("Enter");
+
+    await expect(ui.chatView).toContainText("Retained result is ready for page-back.");
+    await sessionWin.getByTestId("turn-fold-row").click();
+    await sessionWin.getByRole("button", { name: "Toggle tool call (success)" }).click();
+    await expect(ui.chatView).toContainText("E2E-009 bounded retained-result preview");
+    await sessionWin.getByRole("button", { name: "Open full result" }).click();
+    const loadMore = sessionWin.getByRole("button", { name: "Load more" });
+    await expect(loadMore).toBeVisible();
+    await loadMore.click();
+    await expect(loadMore).toBeEnabled();
+    await loadMore.click();
+
+    await expect(loadMore).toBeHidden();
+    await expect(sessionWin.getByTestId("full-tool-result")).toContainText(toolArtifactTail);
+    await expect(sessionWin.getByText("140,084 of 140,084 bytes")).toBeVisible();
+    expect(artifactOffsets).toEqual(["0", "65536", "131072"]);
   });
-  const sessionWin = sessionWindow(appPage, session.id);
-  const ui = sessionWindowSelectors(sessionWin, appPage);
-  await expect(sessionWin).toBeVisible();
-  await ui.composerTextarea.fill("exercise tool artifact recovery");
-  await ui.composerTextarea.press("Enter");
-
-  await expect(ui.chatView).toContainText("Retained result is ready for page-back.");
-  await sessionWin.getByTestId("turn-fold-row").click();
-  await sessionWin.getByRole("button", { name: "Toggle tool call (success)" }).click();
-  await expect(ui.chatView).toContainText("E2E-009 bounded retained-result preview");
-  await sessionWin.getByRole("button", { name: "Open full result" }).click();
-  const loadMore = sessionWin.getByRole("button", { name: "Load more" });
-  await expect(loadMore).toBeVisible();
-  await loadMore.click();
-  await expect(loadMore).toBeEnabled();
-  await loadMore.click();
-
-  await expect(loadMore).toBeHidden();
-  await expect(sessionWin.getByTestId("full-tool-result")).toContainText(toolArtifactTail);
-  await expect(sessionWin.getByText("140,084 of 140,084 bytes")).toBeVisible();
-  expect(artifactOffsets).toEqual(["0", "65536", "131072"]);
 });
 
 test("operator rejects a permission request, records tool output, and keeps session artifacts private", async ({
@@ -831,95 +831,169 @@ function promptResponse(
   );
 }
 
-test("E2E-012: Enter during a turn steers by default, the modifier queues once, explicit verbs win, and an empty Enter is a no-op", async ({
+test("E2E-012 / E2E-025: composer honors default steering, explicit queue actions, and persisted follow-up settings", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  const workspace = await prepareSessionRuntime(runtime, appPage);
-  const session = await createSession(runtime, faultAgent, workspace.id);
-  await appPage.goto(runtime.url(sessionPath(faultAgent, session.id)), {
-    waitUntil: "domcontentloaded",
+  await test.step("E2E-012: Enter during a turn steers by default, the modifier queues once, explicit verbs win, and an empty Enter is a no-op", async () => {
+    const workspace = await prepareSessionRuntime(runtime, appPage);
+    const session = await createSession(runtime, faultAgent, workspace.id);
+    await appPage.goto(runtime.url(sessionPath(faultAgent, session.id)), {
+      waitUntil: "domcontentloaded",
+    });
+    const sessionWin = sessionWindow(appPage, session.id);
+    const ui = sessionWindowSelectors(sessionWin, appPage);
+    await expect(sessionWin).toBeVisible();
+    await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "send");
+
+    await startBlockingTurn(ui, runtime, workspace.id, session.id);
+    // The hint mirrors the daemon default (steer) with the one-shot opposite.
+    await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "steer");
+    await expect(ui.composerEnterHint).toHaveAttribute("data-modifier", "queue");
+
+    // Empty draft + Enter: nothing sent, no feedback noise (US-003.EC-3).
+    const promptRequests: string[] = [];
+    appPage.on("request", request => {
+      if (
+        request.method() === "POST" &&
+        request.url().endsWith(sessionAPIPath(workspace.id, session.id, "/prompt"))
+      ) {
+        promptRequests.push(request.postData() ?? "");
+      }
+    });
+    await ui.composerTextarea.press("Enter");
+    await ui.composerTextarea.press("ControlOrMeta+Enter");
+    await expect(ui.composerFeedbackNote).toHaveCount(0);
+    expect(promptRequests).toHaveLength(0);
+
+    // Modifier+Enter performs the opposite of the default for exactly one send.
+    await ui.composerTextarea.fill("park this follow-up");
+    const queuedResponse = promptResponse(appPage, workspace.id, session.id);
+    await ui.composerTextarea.press("ControlOrMeta+Enter");
+    const queued = (await (await queuedResponse).json()) as PromptEnvelope;
+    expect(queued.prompt.disposition).toBe("queued");
+    expect(queued.prompt.queue_position).toBe(1);
+    await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "queued");
+    await expect(ui.composerFeedbackNote).toContainText("Queued #1 — runs after the current turn");
+    // The entry id rides on data-detail, off screen (internal ids stay off session screens).
+    await expect(ui.composerFeedbackNote).toHaveAttribute(
+      "data-detail",
+      queued.prompt.entry_id ?? ""
+    );
+    await expect(ui.composerTextarea).toHaveText("");
+    await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "steer");
+
+    // Explicit verb always wins for that send (US-003.EC-2).
+    await ui.composerTextarea.fill("second follow-up");
+    const explicitResponse = promptResponse(appPage, workspace.id, session.id);
+    await ui.composerQueueButton.click();
+    const explicit = (await (await explicitResponse).json()) as PromptEnvelope;
+    expect(explicit.prompt.disposition).toBe("queued");
+    expect(explicit.prompt.queue_position).toBe(2);
+    await expect(ui.composerFeedbackNote).toContainText("Queued #2");
+    const queue = await runtime.requestJSON<PromptQueueEnvelope>(
+      sessionAPIPath(workspace.id, session.id, "/prompt/queue")
+    );
+    expect(queue.inputs.map(input => input.text)).toEqual([
+      "park this follow-up",
+      "second follow-up",
+    ]);
+
+    // Plain Enter steers: the daemon answers with the delivery it actually used.
+    await ui.composerTextarea.fill("only touch the lifecycle tests");
+    const steerResponse = promptResponse(appPage, workspace.id, session.id);
+    await ui.composerTextarea.press("Enter");
+    const steerRequestBody = JSON.parse((await steerResponse).request().postData() ?? "{}") as {
+      mode?: string;
+    };
+    expect(steerRequestBody.mode).toBe("steer");
+    const steered = (await (await steerResponse).json()) as PromptEnvelope;
+    expect(steered.prompt.disposition).toBe("steering");
+    expect(["injected", "pending_injection", "interrupt_fallback"]).toContain(
+      steered.prompt.steer_delivery
+    );
+    await expect(ui.composerFeedbackNote).toHaveAttribute("data-kind", "disposition");
+    await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "steering");
+    await expect(ui.composerFeedbackNote).toHaveAttribute(
+      "data-detail",
+      steered.prompt.steer_delivery ?? ""
+    );
+    await expect(ui.composerTextarea).toHaveText("");
+    await browserArtifacts.captureScreenshot("e2e-012-composer-enter-default-steer", appPage);
+
+    // End this session before changing the daemon-wide follow-up setting.
+    const stopResponse = await appPage.request.post(
+      runtime.url(sessionAPIPath(workspace.id, session.id, "/stop"))
+    );
+    expect(stopResponse.status(), await stopResponse.text()).toBe(204);
   });
-  const sessionWin = sessionWindow(appPage, session.id);
-  const ui = sessionWindowSelectors(sessionWin, appPage);
-  await expect(sessionWin).toBeVisible();
-  await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "send");
 
-  await startBlockingTurn(ui, runtime, workspace.id, session.id);
-  // The hint mirrors the daemon default (steer) with the one-shot opposite.
-  await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "steer");
-  await expect(ui.composerEnterHint).toHaveAttribute("data-modifier", "queue");
+  await test.step("E2E-025: flipping Follow-up behavior in Settings changes what Enter does, and the daemon holds the value", async () => {
+    const workspace = await prepareSessionRuntime(runtime, appPage);
+    const before = await runtime.requestJSON<SettingsGeneralEnvelope>("/api/settings/general");
+    expect(before.config.busy_input?.default_mode).toBe("steer");
 
-  // Empty draft + Enter: nothing sent, no feedback noise (US-003.EC-3).
-  const promptRequests: string[] = [];
-  appPage.on("request", request => {
-    if (
-      request.method() === "POST" &&
-      request.url().endsWith(sessionAPIPath(workspace.id, session.id, "/prompt"))
-    ) {
-      promptRequests.push(request.postData() ?? "");
-    }
+    await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
+    const settingsWin = appWindow(appPage, "settings");
+    await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+    const settingsUI = settingsOperatorSelectors(settingsWin);
+    await expect(settingsUI.general.page).toBeVisible();
+    await expect(settingsUI.general.followUpOption("steer")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await settingsUI.general.followUpOption("queue").click();
+    await expect(settingsUI.general.saveButton).toBeEnabled();
+    const saveResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname === "/api/settings/general"
+    );
+    await settingsUI.general.saveButton.click();
+    expect((await saveResponse).ok()).toBe(true);
+    await expect
+      .poll(async () => {
+        const envelope =
+          await runtime.requestJSON<SettingsGeneralEnvelope>("/api/settings/general");
+        return envelope.config.busy_input?.default_mode ?? "";
+      })
+      .toBe("queue");
+    await browserArtifacts.captureScreenshot("e2e-025-settings-follow-up-queue", appPage);
+
+    const session = await createSession(runtime, faultAgent, workspace.id);
+    await appPage.goto(runtime.url(sessionPath(faultAgent, session.id)), {
+      waitUntil: "domcontentloaded",
+    });
+    const sessionWin = sessionWindow(appPage, session.id);
+    const ui = sessionWindowSelectors(sessionWin, appPage);
+    await expect(sessionWin).toBeVisible();
+    await startBlockingTurn(ui, runtime, workspace.id, session.id);
+    // The session resource reports the daemon value; the hint mirrors it.
+    const detail = await runtime.requestJSON<SessionEnvelope>(
+      sessionAPIPath(workspace.id, session.id)
+    );
+    expect(
+      (detail.session as { busy_input?: { default_mode?: string } }).busy_input?.default_mode
+    ).toBe("queue");
+    await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "queue");
+    await expect(ui.composerEnterHint).toHaveAttribute("data-modifier", "steer");
+
+    await ui.composerTextarea.fill("park this one");
+    const queuedResponse = promptResponse(appPage, workspace.id, session.id);
+    await ui.composerTextarea.press("Enter");
+    const queued = (await (await queuedResponse).json()) as PromptEnvelope;
+    expect(queued.prompt.disposition).toBe("queued");
+    await expect(ui.composerFeedbackNote).toContainText("Queued #1");
+
+    await ui.composerTextarea.fill("redirect this one");
+    const steerResponse = promptResponse(appPage, workspace.id, session.id);
+    await ui.composerTextarea.press("ControlOrMeta+Enter");
+    const steered = (await (await steerResponse).json()) as PromptEnvelope;
+    expect(steered.prompt.disposition).toBe("steering");
+    await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "steering");
+    await browserArtifacts.captureScreenshot("e2e-025-composer-enter-queue-default", appPage);
   });
-  await ui.composerTextarea.press("Enter");
-  await ui.composerTextarea.press("ControlOrMeta+Enter");
-  await expect(ui.composerFeedbackNote).toHaveCount(0);
-  expect(promptRequests).toHaveLength(0);
-
-  // Modifier+Enter performs the opposite of the default for exactly one send.
-  await ui.composerTextarea.fill("park this follow-up");
-  const queuedResponse = promptResponse(appPage, workspace.id, session.id);
-  await ui.composerTextarea.press("ControlOrMeta+Enter");
-  const queued = (await (await queuedResponse).json()) as PromptEnvelope;
-  expect(queued.prompt.disposition).toBe("queued");
-  expect(queued.prompt.queue_position).toBe(1);
-  await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "queued");
-  await expect(ui.composerFeedbackNote).toContainText("Queued #1 — runs after the current turn");
-  // The entry id rides on data-detail, off screen (internal ids stay off session screens).
-  await expect(ui.composerFeedbackNote).toHaveAttribute(
-    "data-detail",
-    queued.prompt.entry_id ?? ""
-  );
-  await expect(ui.composerTextarea).toHaveText("");
-  await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "steer");
-
-  // Explicit verb always wins for that send (US-003.EC-2).
-  await ui.composerTextarea.fill("second follow-up");
-  const explicitResponse = promptResponse(appPage, workspace.id, session.id);
-  await ui.composerQueueButton.click();
-  const explicit = (await (await explicitResponse).json()) as PromptEnvelope;
-  expect(explicit.prompt.disposition).toBe("queued");
-  expect(explicit.prompt.queue_position).toBe(2);
-  await expect(ui.composerFeedbackNote).toContainText("Queued #2");
-  const queue = await runtime.requestJSON<PromptQueueEnvelope>(
-    sessionAPIPath(workspace.id, session.id, "/prompt/queue")
-  );
-  expect(queue.inputs.map(input => input.text)).toEqual([
-    "park this follow-up",
-    "second follow-up",
-  ]);
-
-  // Plain Enter steers: the daemon answers with the delivery it actually used.
-  await ui.composerTextarea.fill("only touch the lifecycle tests");
-  const steerResponse = promptResponse(appPage, workspace.id, session.id);
-  await ui.composerTextarea.press("Enter");
-  const steerRequestBody = JSON.parse((await steerResponse).request().postData() ?? "{}") as {
-    mode?: string;
-  };
-  expect(steerRequestBody.mode).toBe("steer");
-  const steered = (await (await steerResponse).json()) as PromptEnvelope;
-  expect(steered.prompt.disposition).toBe("steering");
-  expect(["injected", "pending_injection", "interrupt_fallback"]).toContain(
-    steered.prompt.steer_delivery
-  );
-  await expect(ui.composerFeedbackNote).toHaveAttribute("data-kind", "disposition");
-  await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "steering");
-  await expect(ui.composerFeedbackNote).toHaveAttribute(
-    "data-detail",
-    steered.prompt.steer_delivery ?? ""
-  );
-  await expect(ui.composerTextarea).toHaveText("");
-  await browserArtifacts.captureScreenshot("e2e-012-composer-enter-default-steer", appPage);
 });
 
 test("E2E-013: a stale-fence refusal states the reason inline and gives the draft back", async ({
@@ -1034,72 +1108,6 @@ test("E2E-015: Stop reads Stopping… until the daemon confirms, guards a double
   // The interrupted turn stays on screen where it was stopped (US-009.AC-4).
   await expect(ui.chatView).toContainText(stubbornPrompt);
   await browserArtifacts.captureScreenshot("e2e-015-composer-stopped-draft-kept", appPage);
-});
-
-test("E2E-025: flipping Follow-up behavior in Settings changes what Enter does, and the daemon holds the value", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  const workspace = await prepareSessionRuntime(runtime, appPage);
-  const before = await runtime.requestJSON<SettingsGeneralEnvelope>("/api/settings/general");
-  expect(before.config.busy_input?.default_mode).toBe("steer");
-
-  await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
-  const settingsWin = appWindow(appPage, "settings");
-  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
-  const settingsUI = settingsOperatorSelectors(settingsWin);
-  await expect(settingsUI.general.page).toBeVisible();
-  await expect(settingsUI.general.followUpOption("steer")).toHaveAttribute("aria-pressed", "true");
-  await settingsUI.general.followUpOption("queue").click();
-  await expect(settingsUI.general.saveButton).toBeEnabled();
-  const saveResponse = appPage.waitForResponse(
-    response =>
-      response.request().method() === "PATCH" &&
-      new URL(response.url()).pathname === "/api/settings/general"
-  );
-  await settingsUI.general.saveButton.click();
-  expect((await saveResponse).ok()).toBe(true);
-  await expect
-    .poll(async () => {
-      const envelope = await runtime.requestJSON<SettingsGeneralEnvelope>("/api/settings/general");
-      return envelope.config.busy_input?.default_mode ?? "";
-    })
-    .toBe("queue");
-  await browserArtifacts.captureScreenshot("e2e-025-settings-follow-up-queue", appPage);
-
-  const session = await createSession(runtime, faultAgent, workspace.id);
-  await appPage.goto(runtime.url(sessionPath(faultAgent, session.id)), {
-    waitUntil: "domcontentloaded",
-  });
-  const sessionWin = sessionWindow(appPage, session.id);
-  const ui = sessionWindowSelectors(sessionWin, appPage);
-  await expect(sessionWin).toBeVisible();
-  await startBlockingTurn(ui, runtime, workspace.id, session.id);
-  // The session resource reports the daemon value; the hint mirrors it.
-  const detail = await runtime.requestJSON<SessionEnvelope>(
-    sessionAPIPath(workspace.id, session.id)
-  );
-  expect(
-    (detail.session as { busy_input?: { default_mode?: string } }).busy_input?.default_mode
-  ).toBe("queue");
-  await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "queue");
-  await expect(ui.composerEnterHint).toHaveAttribute("data-modifier", "steer");
-
-  await ui.composerTextarea.fill("park this one");
-  const queuedResponse = promptResponse(appPage, workspace.id, session.id);
-  await ui.composerTextarea.press("Enter");
-  const queued = (await (await queuedResponse).json()) as PromptEnvelope;
-  expect(queued.prompt.disposition).toBe("queued");
-  await expect(ui.composerFeedbackNote).toContainText("Queued #1");
-
-  await ui.composerTextarea.fill("redirect this one");
-  const steerResponse = promptResponse(appPage, workspace.id, session.id);
-  await ui.composerTextarea.press("ControlOrMeta+Enter");
-  const steered = (await (await steerResponse).json()) as PromptEnvelope;
-  expect(steered.prompt.disposition).toBe("steering");
-  await expect(ui.composerFeedbackNote).toHaveAttribute("data-code", "steering");
-  await browserArtifacts.captureScreenshot("e2e-025-composer-enter-queue-default", appPage);
 });
 
 async function prepareSessionRuntime(
