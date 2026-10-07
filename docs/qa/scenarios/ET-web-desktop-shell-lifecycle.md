@@ -77,6 +77,7 @@ and waits thirty seconds after catalog errors. Live streams own attention-summar
 polling pauses when hidden and backs off on errors. Each browser load uses a distinct opaque
 `X-Compozy-Client-ID`, recorded as `client_id` in HTTP request logs.
 
+The automated soak runs in the release desktop nightly lane (`make test-e2e-desktop-nightly`).
 Regression walk for #679: seed at least 300 durable sessions, keep an active Loop and the desktop
 open for sixty minutes, and record `/api/sessions` requests by client and minute. With unchanged
 mounted consumers, require no more than thirteen catalog wake windows per consumer per minute

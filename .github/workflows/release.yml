@@ -610,6 +610,72 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  e2e-desktop-nightly:
+    name: E2E Desktop Nightly Lane
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'build: release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Preserve Go caches across isolated desktop homes
+        run: |
+          echo "GOCACHE=$(go env GOCACHE)" >> "$GITHUB_ENV"
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> "$GITHUB_ENV"
+
+      - name: Set up Bun (desktop deps + Playwright)
+        uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "true"
+
+      - name: Allow the Chromium user namespace sandbox
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes openbox
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-
+            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
+            ${{ runner.os }}-turbo-
+
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
+      - name: Run desktop E2E lane
+        run: make test-e2e-desktop-nightly
+        env:
+          CGO_ENABLED: 0
+          CI: "true"
+
+      - name: Upload desktop E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-desktop-nightly-artifacts
+          path: |
+            .tmp/playwright
+            /tmp/compozy-e2e-*
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Run the full integration suite on a fresh runner.
   integration:
     name: Full Integration Suite (${{ matrix.shard_index }})

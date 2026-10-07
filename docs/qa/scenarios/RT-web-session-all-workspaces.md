@@ -64,6 +64,7 @@ is fetched for it; expand, navigate its history, and verify keyboard cycling use
 Refresh failures must retain known rows with Retry, while missing aggregate metadata stays unknown
 rather than showing a zero count. Repeat the catalog soak on the final built assets for 60 minutes;
 request growth must depend on visible consumers and wakes, not persisted history size.
+The automated soak runs in the release desktop nightly lane (`make test-e2e-desktop-nightly`).
 
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
