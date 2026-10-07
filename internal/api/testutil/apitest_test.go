@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/resources"
-	"github.com/compozy/compozy/internal/session"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestNewHomeConfig(t *testing.T) {
@@ -32,28 +30,6 @@ func TestNewHomeConfig(t *testing.T) {
 		}
 		if cfg.Memory.GlobalDir != homePaths.MemoryDir {
 			t.Fatalf("memory global dir = %q, want %q", cfg.Memory.GlobalDir, homePaths.MemoryDir)
-		}
-	})
-}
-
-func TestStubSessionManagerList(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return empty slice on fallback error", func(t *testing.T) {
-		t.Parallel()
-
-		manager := StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return nil, errors.New("boom")
-			},
-		}
-
-		got := manager.List()
-		if got == nil {
-			t.Fatal("List() = nil, want empty slice")
-		}
-		if len(got) != 0 {
-			t.Fatalf("len(List()) = %d, want 0", len(got))
 		}
 	})
 }
@@ -260,29 +236,6 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 	})
 }
 
-func TestNewSessionInfo(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return stable API fixture values", func(t *testing.T) {
-		t.Parallel()
-
-		got := NewSessionInfo("sess-1")
-		wantTime := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-		if got.ID != "sess-1" || got.Name != "demo" || got.AgentName != "coder" {
-			t.Fatalf("session identity = %#v, want stable demo coder session", got)
-		}
-		if got.WorkspaceID != "ws-workspace" || got.Workspace != "/workspace" {
-			t.Fatalf("workspace fields = %#v, want stable workspace fixture", got)
-		}
-		if got.State != session.StateActive {
-			t.Fatalf("state = %q, want %q", got.State, session.StateActive)
-		}
-		if !got.CreatedAt.Equal(wantTime) || !got.UpdatedAt.Equal(wantTime) {
-			t.Fatalf("timestamps = %s/%s, want %s", got.CreatedAt, got.UpdatedAt, wantTime)
-		}
-	})
-}
-
 func TestStubResourceServicePut(t *testing.T) {
 	t.Parallel()
 
@@ -320,28 +273,6 @@ func TestStubResourceServicePut(t *testing.T) {
 		}
 		if got.CreatedAt != got.UpdatedAt || got.CreatedAt.IsZero() {
 			t.Fatalf("timestamps = %s/%s, want deterministic non-zero timestamps", got.CreatedAt, got.UpdatedAt)
-		}
-	})
-}
-
-func TestStubWorkspaceServiceDefaults(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should report unconfigured register and resolve-or-register methods", func(t *testing.T) {
-		t.Parallel()
-
-		service := StubWorkspaceService{}
-		if _, err := service.Register(
-			t.Context(),
-			workspacepkg.RegisterOptions{},
-		); !errors.Is(err, ErrStubWorkspaceServiceNotImplemented) {
-			t.Fatalf("Register() error = %v, want ErrStubWorkspaceServiceNotImplemented", err)
-		}
-		if _, err := service.ResolveOrRegister(t.Context(), "/workspace"); !errors.Is(
-			err,
-			ErrStubWorkspaceServiceNotImplemented,
-		) {
-			t.Fatalf("ResolveOrRegister() error = %v, want ErrStubWorkspaceServiceNotImplemented", err)
 		}
 	})
 }

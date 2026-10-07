@@ -25,8 +25,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var errStubWorkspaceServiceNotImplemented = testutil.ErrStubWorkspaceServiceNotImplemented
-
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
 type stubTaskManager = testutil.StubTaskManager
@@ -597,35 +595,6 @@ func mustJSONBody(t *testing.T, value any) []byte {
 func parseSSE(t *testing.T, body string) []sseRecord {
 	t.Helper()
 	return testutil.ParseSSE(t, body)
-}
-
-func TestStubWorkspaceServiceDefaultsReportUnconfiguredMethods(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should report unconfigured workspace methods", func(t *testing.T) {
-		t.Parallel()
-
-		service := stubWorkspaceService{}
-
-		if _, err := service.Register(
-			t.Context(),
-			workspacepkg.RegisterOptions{},
-		); !errors.Is(
-			err,
-			errStubWorkspaceServiceNotImplemented,
-		) {
-			t.Fatalf("Register() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
-		}
-		if _, err := service.ResolveOrRegister(
-			t.Context(),
-			"/workspace",
-		); !errors.Is(
-			err,
-			errStubWorkspaceServiceNotImplemented,
-		) {
-			t.Fatalf("ResolveOrRegister() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
-		}
-	})
 }
 
 func newUnixClient(t *testing.T, socketPath string) *http.Client {

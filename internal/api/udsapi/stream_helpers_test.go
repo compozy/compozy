@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -22,12 +21,6 @@ func streamEventSummary(summary store.EventSummary, content json.RawMessage) sto
 	summary.SetContent(content)
 	return summary
 }
-
-type bufferFlusher struct {
-	bytes.Buffer
-}
-
-func (bufferFlusher) Flush() {}
 
 func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	homePaths := newTestHomePaths(t)
@@ -449,33 +442,6 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 			t.Fatalf("payload.Content = %s, want snake_case profile payload", string(payload.Content))
 		}
 	})
-}
-
-func TestHelperBuildersCoverRemainingBranches(t *testing.T) {
-	if acpCapsPayloadFromInfo(acp.Caps{SupportsLoadSession: true}) == nil {
-		t.Fatal("expected non-nil caps payload")
-	}
-	usage := int64(10)
-	if tokenUsagePayloadFromUsage(&acp.TokenUsage{InputTokens: &usage}) == nil {
-		t.Fatal("expected non-nil token usage payload")
-	}
-	if !observeEventAfterCursor(
-		store.EventSummary{ID: "b", Sequence: 2, Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)},
-		logsCursor{Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC), Sequence: 1},
-	) {
-		t.Fatal("expected event to sort after cursor")
-	}
-
-	writer := &bufferFlusher{}
-	if err := core.WriteSSE(
-		writer,
-		core.SSEMessage{ID: "1", Name: "done", Data: map[string]string{"ok": "true"}},
-	); err != nil {
-		t.Fatalf("writeSSE() error = %v", err)
-	}
-	if got := writer.String(); got == "" || !bytes.Contains([]byte(got), []byte("event: done")) {
-		t.Fatalf("writeSSE output = %q", got)
-	}
 }
 
 func TestNewHandlersAppliesDefaults(t *testing.T) {

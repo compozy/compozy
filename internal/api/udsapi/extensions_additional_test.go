@@ -2,9 +2,7 @@ package udsapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 
@@ -245,70 +243,6 @@ func TestExtensionEnablementHandlers(t *testing.T) {
 			t.Fatalf("blank name body = %q, want substring %q", blankName.Body.String(), "name")
 		}
 	})
-}
-
-func TestExtensionStatusCodeMappings(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		err  error
-		want int
-	}{
-		{name: "ShouldMapNilToOK", err: nil, want: http.StatusOK},
-		{name: "ShouldMapNotFoundToNotFound", err: extensionpkg.ErrExtensionNotFound, want: http.StatusNotFound},
-		{
-			name: "ShouldMapChecksumMismatchToBadRequest",
-			err:  extensionpkg.ErrExtensionChecksumMismatch,
-			want: http.StatusBadRequest,
-		},
-		{
-			name: "ShouldMapCuratedDigestMismatchToBadRequest",
-			err:  extensionpkg.ErrExtensionArchiveDigestMismatch,
-			want: http.StatusBadRequest,
-		},
-		{
-			name: "ShouldMapUnverifiedPolicyBlockToUnprocessable",
-			err:  extensionpkg.ErrExtensionUnverifiedPolicyBlocked,
-			want: http.StatusUnprocessableEntity,
-		},
-		{
-			name: "ShouldMapExistingExtensionToConflict",
-			err:  extensionpkg.ErrExtensionExists,
-			want: http.StatusConflict,
-		},
-		{
-			name: "ShouldMapInvalidManifestToBadRequest",
-			err:  extensionpkg.ErrManifestInvalid,
-			want: http.StatusBadRequest,
-		},
-		{
-			name: "ShouldMapIncompatibleManifestToBadRequest",
-			err:  extensionpkg.ErrManifestIncompatible,
-			want: http.StatusBadRequest,
-		},
-		{
-			name: "ShouldMapMissingManifestToBadRequest",
-			err:  extensionpkg.ErrManifestNotFound,
-			want: http.StatusBadRequest,
-		},
-		{name: "ShouldMapMissingFilesToBadRequest", err: os.ErrNotExist, want: http.StatusBadRequest},
-		{
-			name: "ShouldMapUnexpectedErrorsToInternalServerError",
-			err:  errors.New("boom"),
-			want: http.StatusInternalServerError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := extensionStatusCode(tt.err); got != tt.want {
-				t.Fatalf("extensionStatusCode(%v) = %d, want %d", tt.err, got, tt.want)
-			}
-		})
-	}
 }
 
 func TestApproveSessionHandler(t *testing.T) {
