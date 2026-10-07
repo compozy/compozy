@@ -287,6 +287,7 @@ func TestLiveProviderSources(t *testing.T) {
 			Values: []acp.SessionConfigOptionValue{
 				{Value: "default", Label: "Default (recommended)"},
 				{Value: "opus", Label: "Opus 5.5"},
+				{Value: "custom-deployment", Label: "Fable 5.1"},
 				{Value: "fable", Label: "Fable 5.1"},
 				{Value: "sonnet", Label: "Sonnet 5.5"},
 				{Value: "haiku", Label: "Haiku 4.5"},
@@ -330,7 +331,7 @@ func TestLiveProviderSources(t *testing.T) {
 		}; !slices.Equal(featured, want) {
 			t.Fatalf("featured curated models = %#v, want provider aliases %#v", featured, want)
 		}
-		for _, pinned := range []string{"claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-opus-4-8"} {
+		for _, pinned := range []string{"claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "custom-deployment"} {
 			if model, ok := curated[pinned]; !ok || model.Featured {
 				t.Fatalf("pinned release %q = %#v (curated %v), want curated and not featured", pinned, model, ok)
 			}
@@ -417,8 +418,10 @@ func TestLiveProviderSources(t *testing.T) {
 				t.Fatalf("unprobed model %q = %#v (listed %v), want fresh and available", modelID, model, ok)
 			}
 			if model.ReasoningKnown || len(model.ReasoningEfforts) != 0 || model.DefaultReasoningEffort != nil {
-				t.Fatalf("unprobed model %q reasoning = known %v efforts %#v default %v, want unknown without seed levels",
-					modelID, model.ReasoningKnown, model.ReasoningEfforts, model.DefaultReasoningEffort)
+				t.Fatalf(
+					"unprobed model %q reasoning = known %v efforts %#v default %v, want unknown without seed levels",
+					modelID, model.ReasoningKnown, model.ReasoningEfforts, model.DefaultReasoningEffort,
+				)
 			}
 			if !strings.Contains(model.LastError, "model options unavailable") {
 				t.Fatalf("unprobed model %q LastError = %q, want probe failure provenance", modelID, model.LastError)

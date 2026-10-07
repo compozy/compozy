@@ -651,6 +651,45 @@ func TestInspectSessionModels(t *testing.T) {
 			t.Fatalf("acknowledged model options missing: %v", inspection.Models)
 		}
 	})
+	for _, tc := range []struct {
+		name     string
+		scenario string
+		probes   int
+	}{
+		{"Should return cancellation during the first model probe", "stall_config", 1},
+		{"Should return cancellation during the final model probe", "stall_last_config", 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			captureFile := filepath.Join(t.TempDir(), "cancel-inspection.jsonl")
+			req := SessionInspectionRequest{
+				AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+				Env: helperEnvWithCapture(tc.scenario, "", captureFile),
+			}
+			done := make(chan struct{})
+			var inspection SessionModelInspection
+			var err error
+			go func() {
+				defer close(done)
+				inspection, err = InspectSessionModels(ctx, req)
+			}()
+			t.Cleanup(func() {
+				cancel()
+				<-done
+			})
+			waitForCapturedNotifications(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption, tc.probes)
+			cancel()
+			<-done
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("InspectSessionModels() error = %v, want caller cancellation", err)
+			}
+			if len(inspection.Options) != 0 || len(inspection.Models) != 0 {
+				t.Fatalf("cancelled inspection published partial results: %#v", inspection)
+			}
+		})
+	}
 	t.Run("Should return advertised models when the probe budget is exhausted", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)

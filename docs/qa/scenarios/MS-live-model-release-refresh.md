@@ -47,3 +47,9 @@ reports `provider_live:claude` as `succeeded` while that model shows unknown rea
 effort levels) with a "model options unavailable" error; when a forced composer refresh returns 200
 but a signed-in provider's live source failed, the picker shows "Couldn't refresh <provider> models:
 <error>".
+
+Review regression checks: custom transport IDs stay available without being featured as Claude
+release aliases. Cancelling an ACP inspection returns `context.Canceled` without publishing a
+partial snapshot; exhausting only the probe deadline still returns the advertised models. The
+existing `TestInspectSessionModels` subprocess suite covers cancellation during the first and
+last probes, and `TestLiveProviderSources` covers custom-row ordering in the curated view.

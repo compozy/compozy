@@ -52,7 +52,8 @@ func parseClaudeModelRows(
 			Label:            strings.TrimSpace(value.Label),
 		}
 		providerDefault := strings.EqualFold(modelID, providerDefaultOption)
-		alias := !providerDefault && !strings.HasPrefix(transportModelID, "claude-")
+		alias := !providerDefault && strings.HasPrefix(modelID, "claude-") &&
+			!strings.HasPrefix(transportModelID, "claude-")
 		if index, exists := byID[modelID]; exists {
 			rows[index].TransportBindings = appendTransportBinding(rows[index].TransportBindings, binding)
 			if alias {

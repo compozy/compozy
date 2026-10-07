@@ -32,6 +32,10 @@ unchanged; persisted selections of the bare alias (`opus`) still launch because 
 ids fall through to the transport value. Workspace/profile catalog contexts are untouched. No
 official `skills/compozy/` or site documentation change is required.
 
+Explicit caller cancellation aborts ACP discovery, including during its final option probe;
+deadline exhaustion still preserves the advertised list. Only aliases resolving to Claude
+release IDs receive live featured status; custom transport IDs remain ordinary curated rows.
+
 ## Dependency upgrades — 2026-10-05
 
 Owner: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.

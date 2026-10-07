@@ -48,6 +48,9 @@ func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (Se
 				continue
 			}
 			if err := ctx.Err(); err != nil {
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
 				result.recordModelError(value.Value, err)
 				continue
 			}
@@ -58,6 +61,9 @@ func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (Se
 				}
 			}
 			result.Models[value.Value] = CloneSessionConfigOptions(proc.CapsSnapshot().ConfigOptions)
+		}
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return ctx.Err()
 		}
 		return nil
 	})
