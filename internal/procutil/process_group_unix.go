@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -262,7 +262,7 @@ func linuxProcessGroupMembers(pgid int) ([]int, error) {
 		}
 	}
 
-	sort.Ints(members)
+	slices.Sort(members)
 	return members, nil
 }
 
@@ -274,12 +274,12 @@ func linuxProcessGroupID(pid int) (int, error) {
 	}
 
 	line := string(data)
-	closing := strings.LastIndex(line, ")")
-	if closing < 0 || closing+2 >= len(line) {
+	_, suffix, found := strings.CutLast(line, ")")
+	if !found || len(suffix) <= 1 {
 		return 0, fmt.Errorf("parse %s: malformed stat payload", statPath)
 	}
 
-	fields := strings.Fields(line[closing+2:])
+	fields := strings.Fields(suffix[1:])
 	if len(fields) < 3 {
 		return 0, fmt.Errorf("parse %s: missing pgid field", statPath)
 	}

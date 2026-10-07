@@ -184,11 +184,9 @@ func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() 
 		}
 	}()
 
-	var stopOnce sync.Once
+	stop := sync.OnceFunc(func() { close(done) })
 	return func() {
-		stopOnce.Do(func() {
-			close(done)
-		})
+		stop()
 		<-stopped
 	}
 }

@@ -1,11 +1,12 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -287,11 +288,8 @@ func (m *Manager) List() []*Info {
 		infos = append(infos, m.sessionInfoForRead(session))
 	}
 
-	sort.Slice(infos, func(i, j int) bool {
-		if infos[i].CreatedAt.Equal(infos[j].CreatedAt) {
-			return infos[i].ID < infos[j].ID
-		}
-		return infos[i].CreatedAt.Before(infos[j].CreatedAt)
+	slices.SortFunc(infos, func(a, b *Info) int {
+		return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.ID, b.ID))
 	})
 
 	return infos

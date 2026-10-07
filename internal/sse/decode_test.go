@@ -27,14 +27,14 @@ func TestDecodeRejectsNilArguments(t *testing.T) {
 		},
 		{
 			name:    "Should reject nil body",
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			body:    nil,
 			handler: func(Event) error { return nil },
 			wantErr: "sse: body is required",
 		},
 		{
 			name:    "Should reject nil handler",
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			body:    io.NopCloser(strings.NewReader("event: ping\n\n")),
 			handler: nil,
 			wantErr: "sse: handler is required",
@@ -68,7 +68,7 @@ func TestDecodeStopsOnErrStop(t *testing.T) {
 	}, "\n")
 
 	count := 0
-	err := Decode(context.Background(), io.NopCloser(strings.NewReader(body)), func(event Event) error {
+	err := Decode(t.Context(), io.NopCloser(strings.NewReader(body)), func(event Event) error {
 		count++
 		if event.Event == "done" {
 			return ErrStop
@@ -94,7 +94,7 @@ func TestDecodePropagatesHandlerError(t *testing.T) {
 		"",
 	}, "\n")
 
-	err := Decode(context.Background(), io.NopCloser(strings.NewReader(body)), func(Event) error {
+	err := Decode(t.Context(), io.NopCloser(strings.NewReader(body)), func(Event) error {
 		return wantErr
 	})
 	if !errors.Is(err, wantErr) {
@@ -114,7 +114,7 @@ func TestDecodePreservesMultiLineData(t *testing.T) {
 	}, "\n")
 
 	var seen Event
-	err := Decode(context.Background(), io.NopCloser(strings.NewReader(body)), func(event Event) error {
+	err := Decode(t.Context(), io.NopCloser(strings.NewReader(body)), func(event Event) error {
 		seen = event
 		return nil
 	})
@@ -136,7 +136,7 @@ func TestDecodeRejectsOversizedPendingEvent(t *testing.T) {
 		"",
 	}, "\n")
 
-	err := Decode(context.Background(), io.NopCloser(strings.NewReader(body)), func(Event) error {
+	err := Decode(t.Context(), io.NopCloser(strings.NewReader(body)), func(Event) error {
 		t.Fatal("Decode() handler called, want error")
 		return nil
 	})

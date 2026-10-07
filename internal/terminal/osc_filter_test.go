@@ -374,7 +374,7 @@ func TestTerminalTitlePipelineShouldPinAndSanitize(t *testing.T) {
 	t.Run("Should keep a user title pinned over program OSC", func(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
-		handle, err := manager.Open(context.Background(), OpenRequest{
+		handle, err := manager.Open(t.Context(), OpenRequest{
 			WS:           "workspace-a",
 			Title:        "Pinned",
 			Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},

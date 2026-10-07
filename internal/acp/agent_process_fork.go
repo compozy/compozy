@@ -67,9 +67,8 @@ func (p *AgentProcess) ForkSession(
 	capture := p.openForkCapture()
 	// SendRequest drains every notification enqueued before the response, so the
 	// capture holds all pre-response traffic when it closes.
-	response, err := sendControlRequest[acpsdk.UnstableForkSessionResponse](
+	response, err := p.sendControlRequest[acpsdk.UnstableForkSessionResponse](
 		ctx,
-		p,
 		acpsdk.AgentMethodSessionFork,
 		wireForkSessionRequest{Cwd: cwd, McpServers: mcpServers, SessionID: source},
 	)

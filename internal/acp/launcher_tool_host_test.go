@@ -90,7 +90,7 @@ func TestLocalConstructorsReturnInterfaceImplementations(t *testing.T) {
 		t.Fatal("NewLocalToolHost(nil context) error = nil, want context validation failure")
 	}
 
-	host, err := NewLocalToolHost(context.Background(), t.TempDir(), "", nil)
+	host, err := NewLocalToolHost(t.Context(), t.TempDir(), "", nil)
 	if err != nil {
 		t.Fatalf("NewLocalToolHost() error = %v", err)
 	}
@@ -165,7 +165,7 @@ func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
 		t.Fatal("Launch(nil) error = nil, want context validation failure")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, err := launcher.Launch(ctx, spec)
@@ -296,7 +296,7 @@ func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
 		t.Fatalf("Launch(long-running) error = %v", err)
 	}
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	stopCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if err := handle.Stop(stopCtx); err != nil {
 		t.Fatalf("handle.Stop() error = %v", err)

@@ -111,12 +111,10 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
@@ -129,7 +127,7 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	session := createSession(t, h)
 	childPID := waitForSessionStopWrapperChildPID(t, pidFile)
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	stopCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if err := h.manager.Stop(stopCtx, session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -488,12 +486,10 @@ func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.
 	command := sessionStopHelperCommand(t)
 	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
@@ -540,7 +536,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		command := sessionStopHelperCommand(t)
 		writeSessionIntegrationAgentDef(t, homePaths, "coder", command)
 
-		registry, err := openSessionTestGlobalDB(context.Background(), homePaths.DatabaseFile)
+		registry, err := openSessionTestGlobalDB(t.Context(), homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -706,12 +702,10 @@ func TestManagerIntegrationResumeFailsWhenAgentRemoved(t *testing.T) {
 	waitForStoppedSession(t, h.manager, session)
 
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     compozyconfig.DefaultAgentName,
 			Provider: acpmock.ProviderName,
@@ -804,12 +798,10 @@ func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,

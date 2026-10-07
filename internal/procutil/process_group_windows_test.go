@@ -104,8 +104,7 @@ func TestWindowsProcessHandleTermination(t *testing.T) {
 			if killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
 				t.Errorf("Kill() cleanup error = %v", killErr)
 			}
-			var exitErr *exec.ExitError
-			if waitErr != nil && !errors.As(waitErr, &exitErr) {
+			if _, ok := errors.AsType[*exec.ExitError](waitErr); waitErr != nil && !ok {
 				t.Errorf("Wait() cleanup error = %v", waitErr)
 			}
 		})
@@ -119,8 +118,7 @@ func TestWindowsProcessHandleTermination(t *testing.T) {
 		}
 		waitErr := command.Wait()
 		waited = true
-		var exitErr *exec.ExitError
-		if !errors.As(waitErr, &exitErr) {
+		if _, ok := errors.AsType[*exec.ExitError](waitErr); !ok {
 			t.Fatalf("Wait() error = %v, want exec.ExitError", waitErr)
 		}
 		if code := command.ProcessState.ExitCode(); code != 23 {

@@ -110,7 +110,7 @@ func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
 		t.Fatal(registerErr)
 	}
 
-	if err := driver.ApprovePermission(context.Background(), proc, ApproveRequest{
+	if err := driver.ApprovePermission(t.Context(), proc, ApproveRequest{
 		RequestID: requestID,
 		Decision:  string(decisionAllowOnce),
 	}); err != nil {
@@ -125,14 +125,14 @@ func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
 		t.Fatal("timed out waiting for pending permission response")
 	}
 
-	if err := driver.ApprovePermission(context.Background(), nil, ApproveRequest{
+	if err := driver.ApprovePermission(t.Context(), nil, ApproveRequest{
 		RequestID: "req-1",
 		Decision:  string(decisionAllowOnce),
 	}); err == nil {
 		t.Fatal("ApprovePermission(nil proc) error = nil, want non-nil")
 	}
 
-	canceledCtx, cancel := context.WithCancel(context.Background())
+	canceledCtx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := driver.ApprovePermission(canceledCtx, proc, ApproveRequest{
 		RequestID: "req-1",

@@ -36,8 +36,7 @@ func cloneDerivationReceipt(receipt *store.SessionDerivationReceipt) *store.Sess
 	if receipt == nil {
 		return nil
 	}
-	cloned := *receipt
-	return &cloned
+	return new(*receipt)
 }
 
 // registerDerivedSession commits a derived child: catalog row, creation identity, and

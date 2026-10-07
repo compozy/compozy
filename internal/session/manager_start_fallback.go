@@ -51,7 +51,7 @@ func (m *Manager) launchAcceptedSessionAttempts(
 		},
 	}
 	var startOpts acp.StartOpts
-	_, _, err := bindWithFallback(ctx, m, seq, primary, routes,
+	_, _, err := m.bindWithFallback(ctx, seq, primary, routes,
 		func(ctx context.Context, attempt int, route FallbackRoute) (struct{}, error) {
 			if attempt > 0 {
 				*spec = primarySpec

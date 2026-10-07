@@ -375,7 +375,7 @@ func screenText(emulator *charmvt.Emulator) string {
 		return ""
 	}
 	lines := make([]string, 0, emulator.Height())
-	for y := 0; y < emulator.Height(); y++ {
+	for y := range emulator.Height() {
 		var line strings.Builder
 		for x := 0; x < emulator.Width(); {
 			cell := emulator.CellAt(x, y)

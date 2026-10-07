@@ -40,7 +40,7 @@ func (m *Manager) bindPromptRuntimeWithFallback(
 			return m.resolveFallbackRouteCommand(ctx, &baseSpec, agentDef, route)
 		},
 	}
-	proc, _, err := bindWithFallback(ctx, m, seq, primary, routes,
+	proc, _, err := m.bindWithFallback(ctx, seq, primary, routes,
 		func(ctx context.Context, attempt int, route FallbackRoute) (*AgentProcess, error) {
 			attemptPlan := plan
 			if attempt > 0 {

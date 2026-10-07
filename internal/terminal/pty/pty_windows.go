@@ -284,8 +284,7 @@ func (p *windowsProc) waitForExit() waitResult {
 	if signal != "" {
 		return waitResult{exit: Exit{Cause: "signaled", Signal: &signal}, err: closeErr}
 	}
-	code := int(exitCode)
-	return waitResult{exit: Exit{Cause: "exited", Code: &code}, err: closeErr}
+	return waitResult{exit: Exit{Cause: "exited", Code: new(int(exitCode))}, err: closeErr}
 }
 
 func validateWindowsSignal(signal Signal) error {

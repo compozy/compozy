@@ -117,7 +117,7 @@ func TestConfigOptionMatching(t *testing.T) {
 	t.Parallel()
 
 	options := []SessionConfigOption{
-		{ID: "verbose", Kind: SessionConfigOptionKindBoolean, CurrentBool: boolPointer(true)},
+		{ID: "verbose", Kind: SessionConfigOptionKindBoolean, CurrentBool: new(true)},
 		{
 			ID:             "model",
 			Kind:           SessionConfigOptionKindSelect,
@@ -183,8 +183,4 @@ func TestConfigOptionMatching(t *testing.T) {
 			t.Fatalf("ValidateModelConfigValue(alias) error = %v, want model_unavailable NegotiationError", err)
 		}
 	})
-}
-
-func boolPointer(value bool) *bool {
-	return new(value)
 }

@@ -71,9 +71,7 @@ func TestProcessIntegrationConcurrentRequests(t *testing.T) {
 	results := make(chan result, 3)
 	var wg sync.WaitGroup
 	for index, delay := range []int64{80, 10, 40} {
-		wg.Add(1)
-		go func(index int, delay int64) {
-			defer wg.Done()
+		wg.Go(func() {
 			var response struct {
 				Message string `json:"message"`
 			}
@@ -82,7 +80,7 @@ func TestProcessIntegrationConcurrentRequests(t *testing.T) {
 				"message":  "req-" + string(rune('A'+index)),
 			}, &response)
 			results <- result{index: index, message: response.Message, err: err}
-		}(index, delay)
+		})
 	}
 
 	wg.Wait()

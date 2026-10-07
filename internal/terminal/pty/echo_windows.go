@@ -48,8 +48,7 @@ func windowsConsoleModeHelper(operation string) {
 }
 
 func windowsErrorCode(err error) uint32 {
-	var errno syscall.Errno
-	if errors.As(err, &errno) {
+	if errno, ok := errors.AsType[syscall.Errno](err); ok {
 		return uint32(errno) &^ windowsConsoleModeErrorMask
 	}
 	return uint32(windows.ERROR_GEN_FAILURE)

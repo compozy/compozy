@@ -53,7 +53,7 @@ func ScrubMemoryContextString(value string) string {
 
 func nextMemoryContextOpen(value string) (int, bool) {
 	best := -1
-	for candidate := 0; candidate < len(value); candidate++ {
+	for candidate := range len(value) {
 		for _, marker := range memoryContextOpenMarkers {
 			if asciiEqualFoldPrefix(value[candidate:], marker) &&
 				memoryContextOpenBoundary(value, candidate+len(marker)) &&
@@ -83,7 +83,7 @@ func memoryContextOpenBoundary(value string, after int) bool {
 func nextMemoryContextClose(value string) (int, int, bool) {
 	best := -1
 	bestLen := 0
-	for candidate := 0; candidate < len(value); candidate++ {
+	for candidate := range len(value) {
 		for _, marker := range memoryContextCloseMarkers {
 			if asciiEqualFoldPrefix(value[candidate:], marker) && (best < 0 || candidate < best) {
 				best = candidate
@@ -101,7 +101,7 @@ func asciiEqualFoldPrefix(value string, prefix string) bool {
 	if len(value) < len(prefix) {
 		return false
 	}
-	for idx := 0; idx < len(prefix); idx++ {
+	for idx := range len(prefix) {
 		if asciiLower(value[idx]) != asciiLower(prefix[idx]) {
 			return false
 		}

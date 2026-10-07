@@ -10,7 +10,7 @@ import (
 
 var errSessionNewTimeout = errors.New("acp: session/new control deadline exceeded")
 
-func sendControlRequest[T any](ctx context.Context, process *AgentProcess, method string, params any) (T, error) {
+func (process *AgentProcess) sendControlRequest[T any](ctx context.Context, method string, params any) (T, error) {
 	timeout := process.controlTimeout
 	if timeout <= 0 {
 		timeout = defaultControlTimeout

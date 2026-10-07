@@ -773,7 +773,7 @@ func newTestManager(
 	root := t.TempDir()
 	starter := &fakePTY{started: make(chan *fakeProc, 64)}
 	resolver := &staticWorkspaceResolver{workspace: workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: root}, WorkspaceID: "workspace-a",
+		ID: "workspace-a", RootDir: root, WorkspaceID: "workspace-a",
 	}}
 	base := []Option{
 		WithPTY(starter),
@@ -805,7 +805,7 @@ func withShortInputRequestTTL() Option {
 
 func openTestTerminal(t *testing.T, manager *Service, workspaceID, profileID string) Handle {
 	t.Helper()
-	handle, err := manager.Open(context.Background(), OpenRequest{
+	handle, err := manager.Open(t.Context(), OpenRequest{
 		WS: workspaceID, Shell: "sh", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: profileID},
 		Capabilities: Capabilities{Interactive: true}, Cols: 80, Rows: 24,
 	})

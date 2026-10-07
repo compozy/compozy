@@ -5,7 +5,6 @@ package wire
 // Boundary IN: queued output and ACK credit. Boundary OUT: delivered frames, gaps, demotion, and eviction.
 
 import (
-	"context"
 	"encoding/json"
 	"strconv"
 	"testing"
@@ -26,13 +25,13 @@ func TestFlowGroupShouldPauseOnlyWhenEveryAckSubscriberIsHigh(t *testing.T) {
 	payload := make([]byte, AckHighWatermark+1)
 	first.Enqueue(Frame{Op: ServerOpOutput, Seq: 0, Payload: payload}, uint64(len(payload)))
 	receiveFrame(t, first)
-	if err := group.WaitProducer(context.Background()); err != nil {
+	if err := group.WaitProducer(t.Context()); err != nil {
 		t.Fatalf("WaitProducer() with one healthy subscriber error = %v", err)
 	}
 	second.Enqueue(Frame{Op: ServerOpOutput, Seq: 0, Payload: payload}, uint64(len(payload)))
 	receiveFrame(t, second)
 	unblocked := make(chan error, 1)
-	go func() { unblocked <- group.WaitProducer(context.Background()) }()
+	go func() { unblocked <- group.WaitProducer(t.Context()) }()
 	select {
 	case err := <-unblocked:
 		t.Fatalf("WaitProducer() returned while every ack subscriber was high: %v", err)
@@ -187,7 +186,7 @@ func TestFlowQueueShouldDemoteAHighAckSubscriberAfterTimeout(t *testing.T) {
 	queue.Enqueue(Frame{Op: ServerOpOutput, Payload: payload}, uint64(len(payload)))
 	receiveFrame(t, queue)
 	unblocked := make(chan error, 1)
-	go func() { unblocked <- group.WaitProducer(context.Background()) }()
+	go func() { unblocked <- group.WaitProducer(t.Context()) }()
 	select {
 	case err := <-unblocked:
 		t.Fatalf("producer returned before slow timeout: %v", err)
@@ -291,7 +290,7 @@ func TestFlowGroupShouldKeepHealthyAckAndDropSubscribersIndependentUnderFlood(t 
 		for _, queue := range drops {
 			queue.Enqueue(frame, start+chunkBytes)
 		}
-		if err := group.WaitProducer(context.Background()); err != nil {
+		if err := group.WaitProducer(t.Context()); err != nil {
 			t.Fatalf("WaitProducer(%d) error = %v", index, err)
 		}
 	}

@@ -24,7 +24,7 @@ func TestWatchParentExit(t *testing.T) {
 			}
 			return 1
 		}
-		go watchParentExit(context.Background(), time.Millisecond, getppid, func() {
+		go watchParentExit(t.Context(), time.Millisecond, getppid, func() {
 			calls.Add(1)
 			close(done)
 		})
@@ -39,7 +39,7 @@ func TestWatchParentExit(t *testing.T) {
 	})
 	t.Run("Should return without calling onExit when ctx is canceled", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		var calls atomic.Int32
 		done := make(chan struct{})
 		go func() {

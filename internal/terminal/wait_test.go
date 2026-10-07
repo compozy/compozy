@@ -20,7 +20,7 @@ func TestWaitEngineContract(t *testing.T) {
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		code := 7
 		starter.latest().complete(terminalExit("exited", &code, nil))
-		result, err := handle.Wait(context.Background(), WaitCondition{Until: "exit"})
+		result, err := handle.Wait(t.Context(), WaitCondition{Until: "exit"})
 		if err != nil {
 			t.Fatalf("Wait(exit) error = %v", err)
 		}
@@ -113,7 +113,7 @@ func TestWaitEngineContract(t *testing.T) {
 				}
 			}
 		}()
-		holding, err := handle.Wait(context.Background(), WaitCondition{Until: "idle"})
+		holding, err := handle.Wait(t.Context(), WaitCondition{Until: "idle"})
 		close(stop)
 		<-tickerDone
 		if err != nil || holding.Reason != "still_running" {
@@ -140,7 +140,7 @@ func TestWaitEngineContract(t *testing.T) {
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		item := handle.(*session)
 		item.markReaderEnded()
-		result, err := handle.Wait(context.Background(), WaitCondition{Until: "match", Pattern: "never"})
+		result, err := handle.Wait(t.Context(), WaitCondition{Until: "match", Pattern: "never"})
 		if err != nil || result.Reason != "stalled" {
 			t.Fatalf("Wait(stalled) = %#v error=%v", result, err)
 		}
@@ -148,7 +148,7 @@ func TestWaitEngineContract(t *testing.T) {
 		managerTwo, _, _ := newTestManager(t, DefaultSettings())
 		handleTwo := openTestTerminal(t, managerTwo, "workspace-a", "profile-a")
 		started := time.Now()
-		result, err = handleTwo.Wait(context.Background(), WaitCondition{Until: "idle"})
+		result, err = handleTwo.Wait(t.Context(), WaitCondition{Until: "idle"})
 		elapsed := time.Since(started)
 		const expectedIdleDebounce = 300 * time.Millisecond
 		const expectedIdleMaximum = 700 * time.Millisecond

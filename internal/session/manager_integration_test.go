@@ -185,7 +185,6 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 			t.Fatalf("Create(root session) error = %v", err)
 		}
 		for _, item := range []*Session{parent, sameWorktree, otherWorktree, rootSession} {
-			item := item
 			t.Cleanup(func() { stopActiveIntegrationSession(t, h, item.ID) })
 		}
 
@@ -317,7 +316,7 @@ func TestManagerIntegrationWorktreeRemovalBindingRace(t *testing.T) {
 		removeDone := make(chan error, 1)
 		go func() {
 			_, err := fixture.service.Remove(
-				context.Background(), fixture.h.workspaceID, fixture.item.ID, false,
+				t.Context(), fixture.h.workspaceID, fixture.item.ID, false,
 			)
 			removeDone <- err
 		}()

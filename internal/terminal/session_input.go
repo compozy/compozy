@@ -136,8 +136,8 @@ func (s *session) commitInputDelivery(
 ) (inputDeliveryState, error) {
 	delivered := len(filtered)
 	if deliveryErr != nil {
-		var partial *PartialWriteError
-		if !errors.As(deliveryErr, &partial) || partial.Delivered <= 0 {
+		partial, ok := errors.AsType[*PartialWriteError](deliveryErr)
+		if !ok || partial.Delivered <= 0 {
 			reservation.Release()
 			return inputDeliveryState{}, deliveryErr
 		}

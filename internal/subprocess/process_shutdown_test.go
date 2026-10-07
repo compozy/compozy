@@ -121,7 +121,7 @@ func TestProcessShutdownCancellationContract(t *testing.T) {
 			DefaultHookTimeoutMS:  100,
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		err := process.Shutdown(ctx)
 		if !errors.Is(err, context.Canceled) {
@@ -153,7 +153,7 @@ func TestProcessShutdownCancellationContract(t *testing.T) {
 			DefaultHookTimeoutMS:  100,
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- process.Shutdown(ctx)
@@ -292,7 +292,7 @@ func TestProcessShutdownCancellationContract(t *testing.T) {
 			DefaultHookTimeoutMS:  100,
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
 		startedAt := time.Now()
@@ -421,7 +421,7 @@ func (s *blockingCompletionProcessStore) ListProcessRecords(
 func newStalledShutdownProcess(t *testing.T, frames io.Writer) *Process {
 	t.Helper()
 
-	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	lifecycleCtx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	process := &Process{
 		stdin:           discardWriteCloser{Writer: frames},

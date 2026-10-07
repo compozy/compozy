@@ -59,8 +59,7 @@ func cloneMarker(marker *Marker) *Marker {
 	if marker == nil {
 		return nil
 	}
-	cloned := marker.Normalize()
-	return &cloned
+	return new(marker.Normalize())
 }
 
 func cloneUIMessage(message UIMessage) UIMessage {

@@ -384,24 +384,21 @@ func cloneCreationProfile(profile *store.SessionCreationProfile) *store.SessionC
 	if profile == nil {
 		return nil
 	}
-	cloned := store.NormalizeSessionCreationProfile(*profile)
-	return &cloned
+	return new(store.NormalizeSessionCreationProfile(*profile))
 }
 
 func cloneCreationIdentity(identity *store.SessionCreationIdentity) *store.SessionCreationIdentity {
 	if identity == nil {
 		return nil
 	}
-	cloned := *identity
-	return &cloned
+	return new(*identity)
 }
 
 func cloneCreationOptions(options *store.SessionCreationOptions) *store.SessionCreationOptions {
 	if options == nil {
 		return nil
 	}
-	cloned := *options
-	return &cloned
+	return new(*options)
 }
 
 func creationError(effect EffectCertainty, code string, err error) error {

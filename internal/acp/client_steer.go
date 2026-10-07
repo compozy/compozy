@@ -63,7 +63,7 @@ func (d *Driver) Steer(ctx context.Context, proc *AgentProcess, turnID, text str
 
 	// Keep idle fallback host-owned so a provider cannot create an untracked detached turn.
 	request.Meta = map[string]any{"steering": map[string]any{"idleBehavior": "promptRequired"}}
-	response, err := sendControlRequest[wireSteerResponse](ctx, proc, steerExtensionMethod, request)
+	response, err := proc.sendControlRequest[wireSteerResponse](ctx, steerExtensionMethod, request)
 	if err != nil {
 		return SteerResult{Attempt: SteerAttemptUnsupported}, fmt.Errorf("acp: steer extension: %w", err)
 	}
