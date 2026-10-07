@@ -635,9 +635,8 @@ func TestSchedulerTaskSourceWatchEventsGapRecoveryShouldRequireStoreCapability(t
 	t.Run("Should fail when the scheduler store cannot enqueue watch-events gap wakes", func(t *testing.T) {
 		t.Parallel()
 
-		db := openDaemonTestGlobalDB(t)
 		source := schedulerTaskSource{
-			store:              taskStoreWithoutWatchEventsGapWake{taskStore: db},
+			store:              taskStoreWithoutWatchEventsGapWake{},
 			watchEventsGapScan: newLoopWatchEventsGapScanState(),
 		}
 		err := source.enqueueWatchEventsGapWakes(
@@ -669,7 +668,7 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		state := newLoopRetryDueScanState()
 		state.cursor = initial
 		source := schedulerTaskSource{
-			store:            retryDueErrorTaskStore{taskStore: openDaemonTestGlobalDB(t), next: next, err: sentinel},
+			store:            retryDueErrorTaskStore{next: next, err: sentinel},
 			loopRetryDueScan: state,
 		}
 		err := source.enqueueDueLoopRetryWakes(
@@ -701,7 +700,7 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		dueState.cursor = initialDue
 		dueSource := schedulerTaskSource{
 			store: loopWaitDueErrorTaskStore{
-				taskStore: openDaemonTestGlobalDB(t), next: nextDue, err: sentinel,
+				next: nextDue, err: sentinel,
 			},
 			loopWaitDueScan: dueState,
 		}
@@ -724,7 +723,7 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		escalationState.cursor = initialEscalation
 		escalationSource := schedulerTaskSource{
 			store: loopWaitEscalationErrorTaskStore{
-				taskStore: openDaemonTestGlobalDB(t), next: nextEscalation, err: sentinel,
+				next: nextEscalation, err: sentinel,
 			},
 			loopWaitEscalationScan: escalationState,
 		}
@@ -742,7 +741,7 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 		t.Parallel()
 
 		source := schedulerTaskSource{
-			store: taskStoreWithoutWatchEventsGapWake{taskStore: openDaemonTestGlobalDB(t)},
+			store: taskStoreWithoutWatchEventsGapWake{},
 		}
 		err := source.sweepLoopAdmissionClaims(testutil.Context(t), time.Now().UTC())
 		if !errors.Is(err, errLoopAdmissionClaimSweeperRequired) {

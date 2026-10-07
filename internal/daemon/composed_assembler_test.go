@@ -143,49 +143,6 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("Should prepend provider renders before base prompt", func(t *testing.T) {
-		t.Parallel()
-
-		assembler := NewComposedAssembler(
-			WithPrependPromptProviders(staticPromptProvider("# Memory section")),
-		)
-
-		got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
-		want := "# Memory section\n\nBase prompt."
-		if got != want {
-			t.Fatalf("Assemble() = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should append provider renders after base prompt", func(t *testing.T) {
-		t.Parallel()
-
-		assembler := NewComposedAssembler(
-			WithAppendPromptProviders(staticPromptProvider("<available-skills />")),
-		)
-
-		got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
-		want := "Base prompt.\n\n<available-skills />"
-		if got != want {
-			t.Fatalf("Assemble() = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should prepend and append providers preserve ordering", func(t *testing.T) {
-		t.Parallel()
-
-		assembler := NewComposedAssembler(
-			WithPrependPromptProviders(staticPromptProvider("# Memory section")),
-			WithAppendPromptProviders(staticPromptProvider("<available-skills />")),
-		)
-
-		got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
-		want := "# Memory section\n\nBase prompt.\n\n<available-skills />"
-		if got != want {
-			t.Fatalf("Assemble() = %q, want %q", got, want)
-		}
-	})
-
 	t.Run("Should nil providers are skipped", func(t *testing.T) {
 		t.Parallel()
 

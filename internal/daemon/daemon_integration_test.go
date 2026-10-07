@@ -96,49 +96,6 @@ func (f *fakeSessionManager) promptCount() int {
 	return len(f.promptCalls)
 }
 
-func TestBootSequenceReady(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
-
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(&cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
-		}
-	})
-
-	if d.sessions == nil || d.observer == nil || d.registry == nil {
-		t.Fatalf(
-			"boot() did not wire runtime dependencies: sessions=%v observer=%v registry=%v",
-			d.sessions,
-			d.observer,
-			d.registry,
-		)
-	}
-	if d.workspaceResolver == nil {
-		t.Fatal("boot() did not wire the workspace resolver")
-	}
-	if _, err := os.Stat(homePaths.DatabaseFile); err != nil {
-		t.Fatalf("stat global database error = %v", err)
-	}
-	if _, err := os.Stat(homePaths.DaemonInfo); err != nil {
-		t.Fatalf("stat daemon.json error = %v", err)
-	}
-	if _, err := AcquireLock(homePaths.DaemonLock, os.Getpid()); !errors.Is(err, ErrAlreadyRunning) {
-		t.Fatalf("AcquireLock(second instance) error = %v, want ErrAlreadyRunning", err)
-	}
-}
-
 func TestBootGatewayRefusalContinuesLocalOnly(t *testing.T) {
 	t.Parallel()
 
@@ -1710,251 +1667,204 @@ func TestDrainAllowsActiveAutomationPromptToFinishBeforeJoinedShutdown(t *testin
 	}
 }
 
-func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
+func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.T) {
+	// not parallel: integrationHomePaths isolates process environment with t.Setenv.
+	t.Run("Should retain healthy hooks and stop their runtime after a corrupt extension fails", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
 
-	hookMarker := filepath.Join(t.TempDir(), "hook.json")
-	shutdownMarker := filepath.Join(t.TempDir(), "shutdown.txt")
-	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-daemon", daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperEnv(shutdownMarker),
-		hookCommand:    "/bin/sh",
-		hookArgs: []string{
-			"-c",
-			`cat > "$1"; printf '{}'`,
-			"compozy-extension-hook",
-			hookMarker,
-		},
-		hookEvent: hookspkg.HookSessionPostCreate,
-	}, true)
+		hookMarker := filepath.Join(t.TempDir(), "hook.json")
+		shutdownMarker := filepath.Join(t.TempDir(), "shutdown.txt")
+		installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-good", daemonTestExtensionOptions{
+			runtimeCommand: daemonExtensionHelperCommand(t),
+			runtimeArgs:    daemonExtensionHelperArgs(),
+			runtimeEnv:     daemonExtensionHelperEnv(shutdownMarker),
+			hookCommand:    "/bin/sh",
+			hookArgs: []string{
+				"-c",
+				`cat > "$1"; printf '{}'`,
+				"compozy-extension-hook",
+				hookMarker,
+			},
+			hookEvent: hookspkg.HookSessionPostCreate,
+		}, true)
+		badDir := installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-bad", daemonTestExtensionOptions{
+			runtimeCommand: daemonExtensionHelperCommand(t),
+			runtimeArgs:    daemonExtensionHelperArgs(),
+			runtimeEnv:     daemonExtensionHelperEnv(""),
+		}, true)
+		writeDaemonFile(t, filepath.Join(badDir, "extension.toml"), "not = [valid")
 
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(&cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
+		var logBuffer bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
 
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	if d.extensions == nil {
-		t.Fatal("boot() did not publish the extension runtime")
-	}
-	projector, ok := d.extensions.(profiledExtensionHookRuntime)
-	if !ok {
-		t.Fatal("boot() extension runtime does not support profile hook projection")
-	}
-	profiles, err := d.profiles.List(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("profiles.List() error = %v", err)
-	}
-	activeProfiles := activeExtensionProfileLenses(profiles)
-	extensionHooks, err := projector.HookDeclarationsForProfiles(testutil.Context(t), activeProfiles)
-	if err != nil {
-		t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
-	}
-	var daemonHooks []hookspkg.HookDecl
-	for _, hook := range extensionHooks {
-		if hook.Name == "ext-daemon-hook" {
-			daemonHooks = append(daemonHooks, hook)
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(&cfg),
+			WithLogger(logger),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
 		}
-	}
-	if len(daemonHooks) != len(activeProfiles) {
-		t.Fatalf("ext-daemon hook count = %d, want %d (one per active profile)", len(daemonHooks), len(activeProfiles))
-	}
-	for _, profile := range activeProfiles {
-		count := 0
-		for _, hook := range daemonHooks {
-			if hook.PlacementProfileID() == profile.ID {
-				count++
-				if hook.Source != hookspkg.HookSourceExtension || hook.Priority != 300 {
-					t.Fatalf("extension hook = %#v, want source extension with priority 300", hook)
-				}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v, want boot to continue after corrupt extension", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		if d.extensions == nil {
+			t.Fatal("boot() did not publish the extension runtime")
+		}
+		projector, ok := d.extensions.(profiledExtensionHookRuntime)
+		if !ok {
+			t.Fatal("boot() extension runtime does not support profile hook projection")
+		}
+		profiles, err := d.profiles.List(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("profiles.List() error = %v", err)
+		}
+		activeProfiles := activeExtensionProfileLenses(profiles)
+		extensionHooks, err := projector.HookDeclarationsForProfiles(testutil.Context(t), activeProfiles)
+		if err != nil {
+			t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
+		}
+		var daemonHooks []hookspkg.HookDecl
+		for _, hook := range extensionHooks {
+			if hook.Name == "ext-good-hook" {
+				daemonHooks = append(daemonHooks, hook)
 			}
 		}
-		if count != 1 {
-			t.Fatalf("profile %q has %d ext-daemon hooks, want 1", profile.Name, count)
+		if len(daemonHooks) != len(activeProfiles) {
+			t.Fatalf("ext-good hook count = %d, want %d (one per active profile)", len(daemonHooks), len(activeProfiles))
 		}
-	}
+		for _, profile := range activeProfiles {
+			count := 0
+			for _, hook := range daemonHooks {
+				if hook.PlacementProfileID() == profile.ID {
+					count++
+					if hook.Source != hookspkg.HookSourceExtension || hook.Priority != 300 {
+						t.Fatalf("extension hook = %#v, want source extension with priority 300", hook)
+					}
+				}
+			}
+			if count != 1 {
+				t.Fatalf("profile %q has %d ext-good hooks, want 1", profile.Name, count)
+			}
+		}
 
-	payload := hookspkg.SessionPostCreatePayload{
-		Event:     hookspkg.HookSessionPostCreate,
-		Timestamp: time.Now().UTC(),
-		ProfileID: store.DefaultProfileID,
-		SessionID: "sess-ext",
-		AgentName: "coder",
-		State:     string(session.StateActive),
-	}
-	if _, err := d.hooks.DispatchSessionPostCreate(testutil.Context(t), payload); err != nil {
-		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
-	}
+		payload := hookspkg.SessionPostCreatePayload{
+			Event:     hookspkg.HookSessionPostCreate,
+			Timestamp: time.Now().UTC(),
+			SessionID: "sess-good",
+			ProfileID: store.DefaultProfileID,
+			AgentName: "coder",
+			State:     string(session.StateActive),
+		}
+		if _, err := d.hooks.DispatchSessionPostCreate(testutil.Context(t), payload); err != nil {
+			t.Fatalf("DispatchSessionPostCreate() error = %v", err)
+		}
 
-	waitForCondition(t, "extension hook marker", func() bool {
-		_, err := os.Stat(hookMarker)
-		return err == nil
-	})
-	hookPayload, err := os.ReadFile(hookMarker)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", hookMarker, err)
-	}
-	if !strings.Contains(string(hookPayload), "sess-ext") {
-		t.Fatalf("hook payload = %q, want session id", string(hookPayload))
-	}
-
-	if err := d.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
-	if payload, err := os.ReadFile(shutdownMarker); err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", shutdownMarker, err)
-	} else if strings.TrimSpace(string(payload)) != "shutdown" {
-		t.Fatalf("shutdown marker = %q, want shutdown", string(payload))
-	}
-}
-
-func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
-
-	hookMarker := filepath.Join(t.TempDir(), "hook.json")
-	shutdownMarker := filepath.Join(t.TempDir(), "shutdown.txt")
-	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-good", daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperEnv(shutdownMarker),
-		hookCommand:    "/bin/sh",
-		hookArgs: []string{
-			"-c",
-			`cat > "$1"; printf '{}'`,
-			"compozy-extension-hook",
-			hookMarker,
-		},
-		hookEvent: hookspkg.HookSessionPostCreate,
-	}, true)
-	badDir := installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-bad", daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperEnv(""),
-	}, true)
-	writeDaemonFile(t, filepath.Join(badDir, "extension.toml"), "not = [valid")
-
-	var logBuffer bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
-
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(&cfg),
-		WithLogger(logger),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v, want boot to continue after corrupt extension", err)
-	}
-	t.Cleanup(func() {
+		waitForCondition(t, "healthy extension hook marker", func() bool {
+			_, err := os.Stat(hookMarker)
+			return err == nil
+		})
+		hookPayload, err := os.ReadFile(hookMarker)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", hookMarker, err)
+		}
+		if !strings.Contains(string(hookPayload), "sess-good") {
+			t.Fatalf("hook payload = %q, want healthy extension session id", string(hookPayload))
+		}
 		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+			t.Fatalf("Shutdown() before reading logs error = %v", err)
+		}
+		if payload, err := os.ReadFile(shutdownMarker); err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", shutdownMarker, err)
+		} else if strings.TrimSpace(string(payload)) != "shutdown" {
+			t.Fatalf("shutdown marker = %q, want shutdown", string(payload))
+		}
+		if !strings.Contains(logBuffer.String(), "extension manager start failed") {
+			t.Fatalf("log output = %q, want extension start failure entry", logBuffer.String())
 		}
 	})
-
-	payload := hookspkg.SessionPostCreatePayload{
-		Event:     hookspkg.HookSessionPostCreate,
-		Timestamp: time.Now().UTC(),
-		SessionID: "sess-good",
-		ProfileID: store.DefaultProfileID,
-		AgentName: "coder",
-		State:     string(session.StateActive),
-	}
-	if _, err := d.hooks.DispatchSessionPostCreate(testutil.Context(t), payload); err != nil {
-		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
-	}
-
-	waitForCondition(t, "healthy extension hook marker", func() bool {
-		_, err := os.Stat(hookMarker)
-		return err == nil
-	})
-	hookPayload, err := os.ReadFile(hookMarker)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", hookMarker, err)
-	}
-	if !strings.Contains(string(hookPayload), "sess-good") {
-		t.Fatalf("hook payload = %q, want healthy extension session id", string(hookPayload))
-	}
-	if err := d.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() before reading logs error = %v", err)
-	}
-	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
-		t.Fatalf("log output = %q, want extension start failure entry", logBuffer.String())
-	}
-
 }
 
 func TestRunGracefulShutdownViaContextCancellation(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
+	// not parallel: integrationHomePaths isolates process environment with t.Setenv.
+	t.Run("Should publish readiness and release daemon state on cancellation", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
 
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(&cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(&cfg),
+			WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
 
-	runCtx, cancel := context.WithCancel(t.Context())
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- d.Run(runCtx)
-	}()
+		runCtx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- d.Run(runCtx)
+		}()
 
-	<-d.readyCh
-	cancel()
+		<-d.readyCh
+		if d.sessions == nil || d.observer == nil || d.registry == nil {
+			t.Fatalf(
+				"boot() did not wire runtime dependencies: sessions=%v observer=%v registry=%v",
+				d.sessions,
+				d.observer,
+				d.registry,
+			)
+		}
+		if d.workspaceResolver == nil {
+			t.Fatal("boot() did not wire the workspace resolver")
+		}
+		if _, err := os.Stat(homePaths.DatabaseFile); err != nil {
+			t.Fatalf("stat global database error = %v", err)
+		}
+		if _, err := os.Stat(homePaths.DaemonInfo); err != nil {
+			t.Fatalf("stat daemon.json error = %v", err)
+		}
+		if _, err := AcquireLock(homePaths.DaemonLock, os.Getpid()); !errors.Is(err, ErrAlreadyRunning) {
+			t.Fatalf("AcquireLock(second instance) error = %v, want ErrAlreadyRunning", err)
+		}
+		cancel()
 
-	if err := <-errCh; err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if _, err := os.Stat(homePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("daemon.json after shutdown: stat error = %v, want os.ErrNotExist", err)
-	}
+		if err := <-errCh; err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if _, err := os.Stat(homePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("daemon.json after shutdown: stat error = %v, want os.ErrNotExist", err)
+		}
 
-	lock, err := AcquireLock(homePaths.DaemonLock, os.Getpid())
-	if err != nil {
-		t.Fatalf("AcquireLock(after shutdown) error = %v", err)
-	}
-	if err := lock.Release(); err != nil {
-		t.Fatalf("lock.Release() error = %v", err)
-	}
+		lock, err := AcquireLock(homePaths.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatalf("AcquireLock(after shutdown) error = %v", err)
+		}
+		if err := lock.Release(); err != nil {
+			t.Fatalf("lock.Release() error = %v", err)
+		}
+	})
 }
 
 func TestRunGracefulShutdownViaSignal(t *testing.T) {

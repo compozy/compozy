@@ -40,52 +40,6 @@ import (
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func TestExtensionPaletteSettingsByName(t *testing.T) {
-	t.Parallel()
-	t.Run("Should preserve effective and dormant contribution state", func(t *testing.T) {
-		t.Parallel()
-
-		projection := extensionpkg.CmdPaletteProjection{
-			Commands: []extensionpkg.CmdPaletteProjectedCommand{
-				{ID: "ext.notes.capture", Title: "Capture note", Extension: "notes"},
-				{
-					ID: "ext.notes.recent", Title: "Recent notes", Extension: "notes",
-					UnavailableReason: "extension notes is unhealthy (crash loop)",
-				},
-			},
-			Views: []extensionpkg.CmdPaletteProjectedView{{
-				ID: "ext.notes.browse", Title: "Browse notes", Extension: "notes",
-				UnavailableReason: "extension notes is unhealthy (crash loop)",
-			}},
-		}
-		result := extensionPaletteSettingsByName(
-			projection,
-			map[string]windowmanager.ShortcutBinding{"ext.notes.capture": {"alt+shift+n"}},
-			map[string]windowmanager.ExtensionDefaultStatus{
-				"ext.notes.recent": {
-					CommandID: "ext.notes.recent", Binding: windowmanager.ShortcutBinding{"mod+n"},
-					Dormant: true, ConflictWith: "session.new",
-				},
-			},
-		)
-
-		palette := result["notes"]
-		if palette == nil || len(palette.Commands) != 2 || len(palette.Views) != 1 {
-			t.Fatalf("extensionPaletteSettingsByName() = %#v, want two commands and one view", result)
-		}
-		if got := palette.Commands[0].Bindings; !slices.Equal(got, []string{"alt+shift+n"}) {
-			t.Fatalf("capture bindings = %v, want [alt+shift+n]", got)
-		}
-		recent := palette.Commands[1]
-		if !recent.DefaultDormant || recent.ConflictWith != "session.new" || recent.Available {
-			t.Fatalf("recent contribution = %#v, want dormant unavailable conflict", recent)
-		}
-		if palette.Views[0].Available || !strings.Contains(palette.Views[0].Reason, "crash loop") {
-			t.Fatalf("view contribution = %#v, want unhealthy reason", palette.Views[0])
-		}
-	})
-}
-
 func TestSettingsRuntimeInstalledExtensionsPalette(t *testing.T) {
 	t.Parallel()
 
@@ -136,8 +90,12 @@ func TestSettingsRuntimeInstalledExtensionsPalette(t *testing.T) {
 		if !slices.Equal(palette.Commands[0].Bindings, []string{"alt+shift+KeyN"}) || !palette.Commands[0].Available {
 			t.Fatalf("capture command = %#v, want populated binding", palette.Commands[0])
 		}
-		if !palette.Commands[1].DefaultDormant || palette.Commands[1].Available {
+		if !palette.Commands[1].DefaultDormant || palette.Commands[1].Available ||
+			palette.Commands[1].ConflictWith != "session.new" {
 			t.Fatalf("recent command = %#v, want dormant unavailable contribution", palette.Commands[1])
+		}
+		if palette.Views[0].Available || !strings.Contains(palette.Views[0].Reason, "crash loop") {
+			t.Fatalf("view contribution = %#v, want unhealthy reason", palette.Views[0])
 		}
 	})
 
@@ -1170,78 +1128,74 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 		}
 	})
 
-	for _, shellRunning := range []bool{false, true} {
-		name := "Should stage an accepted app update while the shell is closed"
-		if shellRunning {
-			name = "Should stage an accepted app update while the shell is running"
+	t.Run("Should stage an accepted app update regardless of shell state", func(t *testing.T) {
+		t.Parallel()
+
+		store := newDaemonSettingsOperationStore(t)
+		manager := stubSettingsUpdateManager{
+			store: store,
+			planFn: func(
+				_ context.Context,
+				actor compozyupdate.Actor,
+				targets []compozyupdate.Target,
+				holder compozyupdate.Holder,
+			) (compozyupdate.OperationRequest, error) {
+				if actor != compozyupdate.ActorWeb ||
+					!slices.Equal(targets, []compozyupdate.Target{compozyupdate.TargetApp}) {
+					t.Fatalf("PlanOperation() actor/targets = %q/%v", actor, targets)
+				}
+				return daemonSettingsOperationRequest(holder, targets), nil
+			},
 		}
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			store := newDaemonSettingsOperationStore(t)
-			manager := stubSettingsUpdateManager{
-				store: store,
-				planFn: func(
-					_ context.Context,
-					actor compozyupdate.Actor,
-					targets []compozyupdate.Target,
-					holder compozyupdate.Holder,
-				) (compozyupdate.OperationRequest, error) {
-					if actor != compozyupdate.ActorWeb ||
-						!slices.Equal(targets, []compozyupdate.Target{compozyupdate.TargetApp}) {
-						t.Fatalf("PlanOperation() actor/targets = %q/%v", actor, targets)
-					}
-					return daemonSettingsOperationRequest(holder, targets), nil
-				},
-			}
-			controller := settingsUpdateController{
-				manager: manager,
-				holder: func(compozyupdate.Actor) (compozyupdate.Holder, error) {
-					return daemonSettingsHolder(t), nil
-				},
-				spawn: func(ctx context.Context, operation *compozyupdate.Operation) error {
-					staged, err := store.Transition(
-						ctx,
-						operation.ID,
-						operation.Holder.ExecutorGeneration,
-						operation.Revision,
-						compozyupdate.Transition{
-							Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
-							Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100,
-						},
-					)
-					if err != nil {
-						return err
-					}
-					_, err = store.Transition(ctx, staged.ID, staged.Holder.ExecutorGeneration, staged.Revision,
-						compozyupdate.Transition{
-							Kind: compozyupdate.TransitionWaitForApp, Actor: compozyupdate.ActorDaemon,
-							Target: compozyupdate.TargetApp, Percent: -1,
-						})
+		controller := settingsUpdateController{
+			manager: manager,
+			holder: func(compozyupdate.Actor) (compozyupdate.Holder, error) {
+				return daemonSettingsHolder(t), nil
+			},
+			spawn: func(ctx context.Context, operation *compozyupdate.Operation) error {
+				staged, err := store.Transition(
+					ctx,
+					operation.ID,
+					operation.Holder.ExecutorGeneration,
+					operation.Revision,
+					compozyupdate.Transition{
+						Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
+						Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100,
+					},
+				)
+				if err != nil {
 					return err
-				},
-			}
+				}
+				_, err = store.Transition(ctx, staged.ID, staged.Holder.ExecutorGeneration, staged.Revision,
+					compozyupdate.Transition{
+						Kind: compozyupdate.TransitionWaitForApp, Actor: compozyupdate.ActorDaemon,
+						Target: compozyupdate.TargetApp, Percent: -1,
+					})
+				return err
+			},
+		}
 
-			result, err := controller.ApplyUpdate(t.Context(), []compozyupdate.Target{compozyupdate.TargetApp})
-			if err != nil {
-				t.Fatalf("ApplyUpdate() error = %v", err)
-			}
-			if result.Status != compozyupdate.ApplyStatusAccepted || result.OperationID == "" {
-				t.Fatalf("ApplyUpdate() = %#v, want accepted app operation", result)
-			}
+		result, err := controller.ApplyUpdate(t.Context(), []compozyupdate.Target{compozyupdate.TargetApp})
+		if err != nil {
+			t.Fatalf("ApplyUpdate() error = %v", err)
+		}
+		if result.Status != compozyupdate.ApplyStatusAccepted || result.OperationID == "" {
+			t.Fatalf("ApplyUpdate() = %#v, want accepted app operation", result)
+		}
 
-			operation, err := store.Read(t.Context())
-			if err != nil {
-				t.Fatalf("Read() error = %v", err)
-			}
+		operation, err := store.Read(t.Context())
+		if err != nil {
+			t.Fatalf("Read() error = %v", err)
+		}
+		for _, shellRunning := range []bool{false, true} {
 			app := &compozyupdate.AppTrackState{Running: shellRunning, Status: compozyupdate.StatusAvailable}
 			projection := compozyupdate.ProjectMultiState(compozyupdate.State{}, app, operation)
 			if operation == nil || operation.App == nil || operation.App.Phase != compozyupdate.PhaseStaged ||
 				operation.Waiting != compozyupdate.WaitingForApp || projection.App.Status != compozyupdate.StatusStaged {
 				t.Fatalf("operation/projection = %#v/%#v, want dormant staged app", operation, projection.App)
 			}
-		})
-	}
+		}
+	})
 
 	t.Run("Should return the existing holder when acquisition is blocked", func(t *testing.T) {
 		t.Parallel()

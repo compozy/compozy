@@ -216,7 +216,10 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 	t.Run("Should expose inventory through native bindings", func(t *testing.T) {
 		t.Parallel()
 
-		deps, _, _, _ := newNativeExtensionToolDeps(t)
+		deps := &daemonNativeToolsDeps{
+			ExtensionRegistry: extensionpkg.NewRegistry(openDaemonTestGlobalDB(t).DB()),
+			HomePaths:         testHomePaths(t),
+		}
 		service := &nativeInventoryExtensionService{
 			inventory: contract.ExtensionInventoryPayload{
 				Extension: "kit", Enabled: true,

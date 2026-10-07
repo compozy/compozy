@@ -27,41 +27,6 @@ import (
 // TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary
 // Checks Goal composition through the parent action registry.
 func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *testing.T) {
-	t.Run("Should resolve the child executor without a parent package import", func(t *testing.T) {
-		t.Parallel()
-
-		store, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := store.Close(context.Background()); err != nil {
-				t.Errorf("Close() error = %v", err)
-			}
-		})
-		option, err := composeLoopGoalExecutor(
-			store,
-			inertLoopGoalRuntime{},
-			inertGateEvaluator{},
-			newLoopJudgeExecutionRegistry(),
-			nil,
-		)
-		if err != nil {
-			t.Fatalf("composeLoopGoalExecutor() error = %v", err)
-		}
-		registry, err := looppkg.NewActionRegistry(inertActionToolRegistry{}, option)
-		if err != nil {
-			t.Fatalf("NewActionRegistry() error = %v", err)
-		}
-		executor, err := registry.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionGoal))
-		if err != nil {
-			t.Fatalf("Resolve(goal) error = %v", err)
-		}
-		if _, ok := executor.(*goalpkg.Executor); !ok {
-			t.Fatalf("resolved Goal executor = %T", executor)
-		}
-	})
-
 	t.Run("Should compose through the real production session Manager", func(t *testing.T) {
 		t.Parallel()
 
@@ -792,63 +757,6 @@ func managedGoalRecoveryEvent(
 		Sequence: sequence, SessionID: event.SessionID, TurnID: promptID,
 		Type: event.Type, Content: payload, Timestamp: event.Timestamp,
 	}
-}
-
-type inertLoopGoalRuntime struct{}
-
-func (inertLoopGoalRuntime) BindActionSession(
-	context.Context,
-	looppkg.ActionSessionBindRequest,
-) (looppkg.ActionSessionBinding, error) {
-	return looppkg.ActionSessionBinding{}, nil
-}
-
-func (inertLoopGoalRuntime) AdvanceActionSessionRetry(
-	context.Context,
-	*looppkg.ActionSessionRetryRequest,
-) error {
-	return nil
-}
-
-func (inertLoopGoalRuntime) PrepareActionPrompt(
-	context.Context,
-	looppkg.ActionSessionBinding,
-	looppkg.ActionPromptRequest,
-) (looppkg.ActionPromptTicket, error) {
-	return looppkg.ActionPromptTicket{}, nil
-}
-
-func (inertLoopGoalRuntime) AwaitActionPrompt(
-	context.Context,
-	looppkg.ActionPromptTicket,
-) (looppkg.ActionPromptResult, error) {
-	return looppkg.ActionPromptResult{}, nil
-}
-
-func (inertLoopGoalRuntime) CancelActionPrompts(context.Context, looppkg.ActionPromptOwner) error {
-	return nil
-}
-
-func (inertLoopGoalRuntime) Usage(
-	context.Context,
-	looppkg.ActionSessionBinding,
-) (goalpkg.ContextUsage, error) {
-	return goalpkg.ContextUsage{}, nil
-}
-
-func (inertLoopGoalRuntime) HasAdvertisedCommand(
-	context.Context,
-	looppkg.ActionSessionBinding,
-	string,
-) (bool, error) {
-	return false, nil
-}
-
-func (inertLoopGoalRuntime) ReconcileTerminalFromEvents(
-	context.Context,
-	goalpkg.PromptRecoveryIdentity,
-) (looppkg.ActionPromptResult, bool, error) {
-	return looppkg.ActionPromptResult{}, false, nil
 }
 
 type inertGateEvaluator struct{}

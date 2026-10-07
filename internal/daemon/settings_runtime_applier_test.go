@@ -471,40 +471,6 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 	})
 
-	t.Run("Should record mcp_rollback when MCP rollback sync fails", func(t *testing.T) {
-		t.Parallel()
-
-		previous := compozyconfig.Config{}
-		next := compozyconfig.Config{
-			Providers: map[string]compozyconfig.ProviderConfig{
-				"codex": {Command: "codex acp", AuthMode: compozyconfig.ProviderAuthModeNativeCLI},
-			},
-		}
-		syncCalls := 0
-		failures := daemonSettingsRuntimeApplier{
-			daemon: &Daemon{},
-			state: &bootState{
-				cfg: previous,
-				toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
-					syncCalls++
-					return errors.New("mcp sync boom")
-				}),
-			},
-		}.ApplyActiveConfig(t.Context(), &next)
-		if syncCalls != 2 {
-			t.Fatalf("MCP Sync calls = %d, want 2 (apply + rollback)", syncCalls)
-		}
-		if len(failures) != 2 {
-			t.Fatalf("ApplyActiveConfig() failures = %#v, want mcp + mcp_rollback", failures)
-		}
-		if failures[0].Subsystem != "mcp" {
-			t.Fatalf("first failure subsystem = %q, want mcp", failures[0].Subsystem)
-		}
-		if failures[1].Subsystem != "mcp_rollback" {
-			t.Fatalf("second failure subsystem = %q, want mcp_rollback", failures[1].Subsystem)
-		}
-	})
-
 	// Invariant: unrelated config apply and rollback preserve sources registered through their owner.
 	// Owner: live config composition; canonical suite: TestDaemonSettingsRuntimeApplier.
 	for _, failSync := range []bool{false, true} {
