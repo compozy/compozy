@@ -1,7 +1,8 @@
 package core
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"time"
 
@@ -47,8 +48,8 @@ func (h *BaseHandlers) subprocessHealthAggregate(
 			),
 		})
 	}
-	sort.Slice(payload.Sessions, func(i int, j int) bool {
-		return payload.Sessions[i].SessionID < payload.Sessions[j].SessionID
+	slices.SortFunc(payload.Sessions, func(a, b contract.SubprocessHealthSessionPayload) int {
+		return cmp.Compare(a.SessionID, b.SessionID)
 	})
 	return payload
 }
@@ -57,6 +58,5 @@ func subprocessHealthStatusTimestamp(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	timestamp := value.UTC()
-	return &timestamp
+	return new(value.UTC())
 }

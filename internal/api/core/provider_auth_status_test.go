@@ -63,7 +63,7 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 		}
 		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/settings/providers",
 			http.NoBody,

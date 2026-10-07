@@ -76,7 +76,7 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
 		http.NoBody,
@@ -110,7 +110,7 @@ func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
 		http.NoBody,
@@ -158,7 +158,7 @@ func TestStreamSessionHandlerEmitsTerminalErrorWhenTranscriptInitializationFails
 		engine := newTestRouter(t, handlers)
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/workspaces/ws-workspace/sessions/sess-123/stream",
 			http.NoBody,
@@ -234,7 +234,7 @@ func TestStreamLogsPollsForNewEvents(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/logs/stream?workspace_id=ws-workspace",
 		http.NoBody,
@@ -286,7 +286,7 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/logs/stream?workspace_id=ws-workspace&replay=false",
 			http.NoBody,
@@ -324,7 +324,7 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/logs/stream?workspace_id=ws-workspace&replay=false",
 			http.NoBody,
@@ -343,12 +343,12 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
-	var doneOnce sync.Once
+	doneOnce := sync.OnceFunc(func() { close(done) })
 	var capturedQuery store.EventSummaryQuery
 	observer := stubObserver{
 		QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 			capturedQuery = query
-			doneOnce.Do(func() { close(done) })
+			doneOnce()
 			return []store.EventSummary{{
 				ID:        "sum-harness",
 				SessionID: "sess-harness",
@@ -365,7 +365,7 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/logs/stream?workspace_id=ws-workspace&session_id=sess-harness",
 		http.NoBody,
@@ -402,7 +402,7 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		done := make(chan struct{})
-		var doneOnce sync.Once
+		doneOnce := sync.OnceFunc(func() { close(done) })
 		var capturedQuery store.EventSummaryQuery
 		observer := stubObserver{
 			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -410,7 +410,7 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 				if query.Limit == 1 && !query.Forward {
 					return nil, nil
 				}
-				doneOnce.Do(func() { close(done) })
+				doneOnce()
 				// Profile events are global scope: they carry no workspace, session, or
 				// agent, and the registry allows that.
 				return []store.EventSummary{streamEventSummary(store.EventSummary{
@@ -429,7 +429,7 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/logs/stream?component=profile&replay=false",
 			http.NoBody,

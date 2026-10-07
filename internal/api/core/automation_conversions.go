@@ -109,8 +109,7 @@ func schedulerNextRun(state *contract.AutomationSchedulerStatePayload) *time.Tim
 	if state == nil || state.NextRunAt == nil {
 		return nil
 	}
-	nextRun := state.NextRunAt.UTC()
-	return &nextRun
+	return new(state.NextRunAt.UTC())
 }
 
 // TriggerPayloadFromTrigger converts an automation trigger into the shared response payload.

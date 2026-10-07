@@ -58,7 +58,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -145,7 +145,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 	if !ok {
 		t.Fatalf("MockAgentRegistration(%q) not found", transportAutomationAgent)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	t.Run("Should return an unbound runtime through create and read", func(t *testing.T) {
@@ -292,7 +292,7 @@ func TestHTTPTransportWebhookIngressUsesSharedRuntimeHarness(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	trigger, endpoint := seedTransportWebhookTrigger(t, ctx, runtimeHarness)
@@ -336,7 +336,7 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -415,7 +415,7 @@ func TestHTTPTransportTaskLoopCatalogParity(t *testing.T) {
 	t.Parallel()
 
 	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	seedTransportTaskLoopCatalog(t, ctx, runtimeHarness)
 
@@ -454,7 +454,6 @@ func TestHTTPTransportTaskLoopCatalogParity(t *testing.T) {
 	}
 
 	for _, query := range queries {
-		query := query
 		t.Run(query.name, func(t *testing.T) {
 			var httpPayload compozycontract.TasksResponse
 			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, query.path, nil, &httpPayload); err != nil {
@@ -573,7 +572,7 @@ func testHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	portablePath, err := filepath.Abs(filepath.Join("..", "..", "extension", "testdata", "agent-plugin-conformant"))
@@ -897,7 +896,7 @@ func TestHTTPInstallPortableManifestContract(t *testing.T) {
 			cfg.Extensions.Trust.AllowUnverified = true
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	database, err := globaldb.OpenGlobalDB(ctx, runtimeHarness.HomePaths.DatabaseFile)

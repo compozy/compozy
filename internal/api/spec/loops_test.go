@@ -3,7 +3,6 @@ package spec
 import (
 	"reflect"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -813,9 +812,9 @@ func assertLoopResponseStatusesExactly(t *testing.T, operation *openapi3.Operati
 	for _, status := range statuses {
 		want = append(want, strconv.Itoa(status))
 	}
-	sort.Strings(want)
+	slices.Sort(want)
 	got := operation.Responses.Keys()
-	sort.Strings(got)
+	slices.Sort(got)
 	if !slices.Equal(got, want) {
 		t.Fatalf("response statuses = %v, want %v", got, want)
 	}

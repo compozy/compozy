@@ -608,7 +608,7 @@ func TestStubWorkspaceServiceDefaultsReportUnconfiguredMethods(t *testing.T) {
 		service := stubWorkspaceService{}
 
 		if _, err := service.Register(
-			context.Background(),
+			t.Context(),
 			workspacepkg.RegisterOptions{},
 		); !errors.Is(
 			err,
@@ -617,7 +617,7 @@ func TestStubWorkspaceServiceDefaultsReportUnconfiguredMethods(t *testing.T) {
 			t.Fatalf("Register() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
 		}
 		if _, err := service.ResolveOrRegister(
-			context.Background(),
+			t.Context(),
 			"/workspace",
 		); !errors.Is(
 			err,

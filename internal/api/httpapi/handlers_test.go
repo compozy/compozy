@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -53,7 +52,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 	for _, route := range routes {
 		got = append(got, route.Method+" "+route.Path)
 	}
-	sort.Strings(got)
+	slices.Sort(got)
 
 	want := []string{
 		"DELETE /api/profiles/:name",
@@ -525,7 +524,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 		"DELETE /api/agents/:name",
 	}
-	sort.Strings(want)
+	slices.Sort(want)
 
 	if len(got) != len(want) {
 		t.Fatalf(
@@ -3257,7 +3256,7 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 		engine := newTestRouter(t, handlers)
 
-		requestCtx, cancel := context.WithCancel(context.Background())
+		requestCtx, cancel := context.WithCancel(t.Context())
 		req := httptest.NewRequestWithContext(
 			requestCtx,
 			http.MethodPost,
@@ -3781,7 +3780,7 @@ func TestCORSHeadersPresentOnResponses(t *testing.T) {
 	}, stubObserver{}, homePaths))
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"http://127.0.0.1/api/sessions?all_workspaces=true",
 		http.NoBody,

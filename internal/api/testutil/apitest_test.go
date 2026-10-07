@@ -204,7 +204,7 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 		t.Parallel()
 
 		_, err := (&StubTaskManager{}).EnqueueRun(
-			context.Background(),
+			t.Context(),
 			taskpkg.EnqueueRun{},
 			taskpkg.ActorContext{},
 		)
@@ -242,7 +242,7 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 			Sort:      taskpkg.CatalogSortRecent,
 			Limit:     1,
 		}
-		page, err := stub.ListTaskCatalog(context.Background(), query, taskpkg.ActorContext{})
+		page, err := stub.ListTaskCatalog(t.Context(), query, taskpkg.ActorContext{})
 		if err != nil {
 			t.Fatalf("ListTaskCatalog() error = %v", err)
 		}
@@ -297,7 +297,7 @@ func TestStubResourceServicePut(t *testing.T) {
 			SpecJSON: specJSON,
 		}
 
-		got, err := StubResourceService{}.Put(context.Background(), draft)
+		got, err := StubResourceService{}.Put(t.Context(), draft)
 		if err != nil {
 			t.Fatalf("StubResourceService.Put() error = %v", err)
 		}
@@ -332,12 +332,12 @@ func TestStubWorkspaceServiceDefaults(t *testing.T) {
 
 		service := StubWorkspaceService{}
 		if _, err := service.Register(
-			context.Background(),
+			t.Context(),
 			workspacepkg.RegisterOptions{},
 		); !errors.Is(err, ErrStubWorkspaceServiceNotImplemented) {
 			t.Fatalf("Register() error = %v, want ErrStubWorkspaceServiceNotImplemented", err)
 		}
-		if _, err := service.ResolveOrRegister(context.Background(), "/workspace"); !errors.Is(
+		if _, err := service.ResolveOrRegister(t.Context(), "/workspace"); !errors.Is(
 			err,
 			ErrStubWorkspaceServiceNotImplemented,
 		) {

@@ -209,7 +209,7 @@ func newParityUDSRouter(
 func performParityRequest(t *testing.T, handler http.Handler, method string, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	request := httptest.NewRequestWithContext(context.Background(), method, path, http.NoBody)
+	request := httptest.NewRequestWithContext(t.Context(), method, path, http.NoBody)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return recorder
@@ -224,7 +224,7 @@ func performParityJSONRequest(
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
-	request := httptest.NewRequestWithContext(context.Background(), method, path, bytes.NewReader(body))
+	request := httptest.NewRequestWithContext(t.Context(), method, path, bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)

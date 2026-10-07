@@ -95,7 +95,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	if len(listed.Sessions) != 1 || listed.Sessions[0].ID != created.Session.ID {
 		t.Fatalf("listed sessions = %#v", listed.Sessions)
 	}
-	tasksAfterManualSession, err := runtime.registry.ListTasks(context.Background(), taskpkg.Query{Limit: 10})
+	tasksAfterManualSession, err := runtime.registry.ListTasks(t.Context(), taskpkg.Query{Limit: 10})
 	if err != nil {
 		t.Fatalf("ListTasks(after manual session) error = %v", err)
 	}
@@ -103,7 +103,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("tasks after manual session = %#v, want none", tasksAfterManualSession)
 	}
 	runsAfterManualSession, err := runtime.registry.ListTaskRunsByStatus(
-		context.Background(),
+		t.Context(),
 		[]taskpkg.RunStatus{
 			taskpkg.TaskRunStatusQueued,
 			taskpkg.TaskRunStatusClaimed,
@@ -340,12 +340,12 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 
 	const promptTimeout = 5 * time.Second
 
-	userCtx, cancelUser := context.WithTimeout(context.Background(), promptTimeout)
+	userCtx, cancelUser := context.WithTimeout(t.Context(), promptTimeout)
 	userEvents, userErr := runtime.manager.Prompt(userCtx, sessionID, "hello")
 	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, userEvents, userErr), promptTimeout)
 	cancelUser()
 
-	syntheticCtx, cancelSynthetic := context.WithTimeout(context.Background(), promptTimeout)
+	syntheticCtx, cancelSynthetic := context.WithTimeout(t.Context(), promptTimeout)
 	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(
 		syntheticCtx,
 		sessionID,
@@ -1368,7 +1368,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	released := false
@@ -1376,7 +1376,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 		if !released {
 			close(release)
 		}
-		if err := server.Shutdown(context.Background()); err != nil {
+		if err := server.Shutdown(t.Context()); err != nil {
 			t.Errorf("server.Shutdown() error = %v", err)
 		}
 	}()
@@ -1402,7 +1402,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 	shutdownDone := make(chan error, 1)
 	shutdownStarted := registerUDSServerShutdownSignal(t, server)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 		shutdownDone <- server.Shutdown(ctx)
 	}()
@@ -2736,7 +2736,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		t.Fatalf("write integration provider config: %v", err)
 	}
 
-	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -2851,7 +2851,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("terminal.NewManager() error = %v", err)
 	}
-	if err := terminalManager.Start(context.Background()); err != nil {
+	if err := terminalManager.Start(t.Context()); err != nil {
 		t.Fatalf("terminalManager.Start() error = %v", err)
 	}
 	t.Cleanup(func() {
@@ -2898,7 +2898,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	})
 
 	observer, err := observe.New(
-		context.Background(),
+		t.Context(),
 		observe.WithHomePaths(homePaths),
 		observe.WithRegistry(registry),
 		observe.WithSessionSource(manager),
@@ -2916,7 +2916,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
 	}
-	if err := memoryStore.OpenCatalog(context.Background()); err != nil {
+	if err := memoryStore.OpenCatalog(t.Context()); err != nil {
 		t.Fatalf("memoryStore.OpenCatalog() error = %v", err)
 	}
 	t.Cleanup(func() {
@@ -2943,7 +2943,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("automation.New() error = %v", err)
 	}
-	if err := automationManager.Start(context.Background()); err != nil {
+	if err := automationManager.Start(t.Context()); err != nil {
 		t.Fatalf("automationManager.Start() error = %v", err)
 	}
 	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
@@ -3032,7 +3032,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("udsapi.New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("server.Start() error = %v", err)
 	}
 	t.Cleanup(func() {
@@ -3123,7 +3123,7 @@ func createIntegrationSessionPayloadFromRequest(
 func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, sessionID string) {
 	t.Helper()
 
-	info, err := manager.Status(context.Background(), sessionID)
+	info, err := manager.Status(t.Context(), sessionID)
 	if err != nil {
 		t.Fatalf("Status(%q) error = %v", sessionID, err)
 	}
@@ -3140,7 +3140,7 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 	}
 	defer cancel()
 
-	info, err = manager.Status(context.Background(), sessionID)
+	info, err = manager.Status(t.Context(), sessionID)
 	if err != nil {
 		t.Fatalf("Status(%q) after catalog subscription error = %v", sessionID, err)
 	}
@@ -3160,7 +3160,7 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 				continue
 			}
 
-			info, err = manager.Status(context.Background(), sessionID)
+			info, err = manager.Status(t.Context(), sessionID)
 			if err != nil {
 				t.Fatalf("Status(%q) after catalog event error = %v", sessionID, err)
 			}
@@ -3439,12 +3439,7 @@ func registerUDSServerShutdownSignal(t *testing.T, server *Server) <-chan struct
 		t.Fatal("UDS HTTP server was not initialized")
 	}
 	started := make(chan struct{})
-	var once sync.Once
-	httpServer.RegisterOnShutdown(func() {
-		once.Do(func() {
-			close(started)
-		})
-	})
+	httpServer.RegisterOnShutdown(sync.OnceFunc(func() { close(started) }))
 	return started
 }
 

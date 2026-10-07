@@ -209,12 +209,12 @@ func (h *BaseHandlers) StreamLoopRunEvents(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%w: %v", looppkg.ErrValidation, err))
 		return
 	}
-	if querySeq, err := ParseOptionalInt64(c.Query("after_sequence")); err != nil {
+	querySeq, err := ParseOptionalInt64(c.Query("after_sequence"))
+	if err != nil {
 		h.respondLoopError(c, fmt.Errorf("%w: after_sequence query: %v", looppkg.ErrValidation, err))
 		return
-	} else if querySeq > afterSeq {
-		afterSeq = querySeq
 	}
+	afterSeq = max(afterSeq, querySeq)
 	writer, err := PrepareSSE(c)
 	if err != nil {
 		h.logSSEWriteFailure("loop_events", err)

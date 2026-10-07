@@ -82,7 +82,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	}`)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/api/agent/spawn",
 			bytes.NewReader(body),
@@ -142,7 +142,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	}`)
 		rec = httptest.NewRecorder()
 		req = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/api/agent/spawn",
 			bytes.NewReader(body),
@@ -184,7 +184,7 @@ func TestBaseHandlersAgentSpawnStrictDecodeRejectsUnknownPermissionCategory(t *t
 	}`)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodPost,
 		"/api/agent/spawn",
 		bytes.NewReader(body),

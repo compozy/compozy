@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -823,7 +822,7 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z&run=run-1&actor_kind=agent&actor_id=agent:coder&provider=codex&outcome=failure&component=task&error_only=true",
 			http.NoBody,
@@ -876,7 +875,7 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 		invalidRecorder := httptest.NewRecorder()
 		invalidContext, _ := gin.CreateTestContext(invalidRecorder)
 		invalidContext.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/events?since=bad",
 			http.NoBody,
@@ -948,7 +947,7 @@ func TestPrepareSSESetsHeaders(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/stream",
 			http.NoBody,

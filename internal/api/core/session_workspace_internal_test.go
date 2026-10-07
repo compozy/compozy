@@ -70,11 +70,11 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 	t.Run("Should lookup workspace id", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := lookupWorkspaceID(context.Background(), "core-test", nil, "alpha"); err == nil {
+		if _, err := lookupWorkspaceID(t.Context(), "core-test", nil, "alpha"); err == nil {
 			t.Fatal("lookupWorkspaceID(nil resolver) error = nil, want non-nil")
 		}
 
-		id, err := lookupWorkspaceID(context.Background(), "core-test", workspaceGetterStub{
+		id, err := lookupWorkspaceID(t.Context(), "core-test", workspaceGetterStub{
 			get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 				if ref != "alpha" {
 					t.Fatalf("Get ref = %q, want alpha", ref)

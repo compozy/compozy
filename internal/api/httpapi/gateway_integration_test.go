@@ -14,7 +14,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -145,9 +145,7 @@ func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 	results := make(chan result, 2)
 	var workers sync.WaitGroup
 	for range 2 {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
+		workers.Go(func() {
 			<-start
 			payload := `{"artifact":"` + artifact.Artifact +
 				`","name":"Browser","actor_kind":"operator_device"}`
@@ -175,7 +173,7 @@ func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 				status: response.StatusCode, body: body, cookies: response.Cookies(),
 				err: errors.Join(readErr, closeErr),
 			}
-		}()
+		})
 	}
 	close(start)
 	workers.Wait()
@@ -208,7 +206,7 @@ func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 			t.Fatalf("pairing status = %d; body=%s", outcome.status, outcome.body)
 		}
 	}
-	sort.Ints(statuses)
+	slices.Sort(statuses)
 	if !reflect.DeepEqual(statuses, []int{http.StatusOK, http.StatusConflict}) {
 		t.Fatalf("pairing race statuses = %v, want [200 409]", statuses)
 	}
@@ -407,9 +405,7 @@ func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 		errorsCh := make(chan error, 2)
 		var workers sync.WaitGroup
 		for range 2 {
-			workers.Add(1)
-			go func() {
-				defer workers.Done()
+			workers.Go(func() {
 				<-start
 				response, body, err := tryDeliverGatewayIntegrationWebhook(
 					t.Context(), publicServer.URL, trigger, "shared-secret", "delivery-race", timestamp, payload,
@@ -423,7 +419,7 @@ func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 					return
 				}
 				statuses <- response.StatusCode
-			}()
+			})
 		}
 		close(start)
 		workers.Wait()
@@ -438,7 +434,7 @@ func TestGatewayPublicIngressWebhookIntegration(t *testing.T) {
 		for status := range statuses {
 			got = append(got, status)
 		}
-		sort.Ints(got)
+		slices.Sort(got)
 		if !reflect.DeepEqual(got, []int{http.StatusOK, http.StatusConflict}) {
 			t.Fatalf("duplicate race statuses = %v, want [200 409]", got)
 		}

@@ -43,7 +43,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/tasks?scope=workspace&workspace=alpha&status=ready&priority=high&include_drafts=true&approval_state=pending&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&worktree=wt-alpha&participation_channel=builders&query=review&limit=7",
 			http.NoBody,
@@ -59,7 +59,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		}
 
 		domainQuery, err := handlers.taskListDomainQuery(
-			context.Background(), store.ReadScope{ProfileID: store.DefaultProfileID}, query,
+			t.Context(), store.ReadScope{ProfileID: store.DefaultProfileID}, query,
 		)
 		if err != nil {
 			t.Fatalf("taskListDomainQuery() error = %v", err)
@@ -106,14 +106,14 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 				recorder := httptest.NewRecorder()
 				ginCtx, _ := gin.CreateTestContext(recorder)
 				ginCtx.Request = httptest.NewRequestWithContext(
-					context.Background(), http.MethodGet, tt.path, http.NoBody,
+					t.Context(), http.MethodGet, tt.path, http.NoBody,
 				)
 				transportQuery, err := ParseTaskListQuery(ginCtx)
 				if err != nil {
 					t.Fatalf("ParseTaskListQuery() error = %v", err)
 				}
 				domainQuery, err := handlers.taskListDomainQuery(
-					context.Background(),
+					t.Context(),
 					store.ReadScope{ProfileID: store.DefaultProfileID},
 					transportQuery,
 				)
@@ -145,7 +145,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/tasks/task-1/timeline?after_sequence=42&limit=5",
 			http.NoBody,
@@ -170,7 +170,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		streamRecorder := httptest.NewRecorder()
 		streamCtx, _ := gin.CreateTestContext(streamRecorder)
 		streamCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/tasks/task-1/stream?after_sequence=2",
 			http.NoBody,
@@ -196,7 +196,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		zeroRecorder := httptest.NewRecorder()
 		zeroCtx, _ := gin.CreateTestContext(zeroRecorder)
 		zeroCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/tasks/task-1/stream?after_sequence=12",
 			http.NoBody,
@@ -228,7 +228,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		dashboardRecorder := httptest.NewRecorder()
 		dashboardCtx, _ := gin.CreateTestContext(dashboardRecorder)
 		dashboardCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&worktree=wt-alpha&owner_kind=human&owner_ref=alice&participation_channel=builders&origin_kind=http",
 			http.NoBody,
@@ -240,7 +240,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		}
 
 		domainDashboard, err := handlers.taskDashboardDomainQuery(
-			context.Background(),
+			t.Context(),
 			store.ReadScope{ProfileID: store.DefaultProfileID},
 			dashboardQuery,
 		)
@@ -260,7 +260,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		inboxRecorder := httptest.NewRecorder()
 		inboxCtx, _ := gin.CreateTestContext(inboxRecorder)
 		inboxCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/observe/tasks/inbox?scope=workspace&workspace=alpha&worktree=wt-alpha&owner_kind=human&owner_ref=alice&lane=approvals&unread=true&query=approve&limit=4",
 			http.NoBody,
@@ -276,7 +276,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		}
 
 		domainInbox, err := handlers.taskInboxDomainQuery(
-			context.Background(), store.ReadScope{ProfileID: store.DefaultProfileID}, inboxQuery,
+			t.Context(), store.ReadScope{ProfileID: store.DefaultProfileID}, inboxQuery,
 		)
 		if err != nil {
 			t.Fatalf("taskInboxDomainQuery() error = %v", err)
@@ -306,7 +306,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/tasks?worktree=wt-alpha",
 			http.NoBody,
@@ -318,7 +318,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 			assertTaskValidationError(t, err, "workspace")
 		}
 		if _, err := handlers.taskListDomainQuery(
-			context.Background(),
+			t.Context(),
 			store.ReadScope{ProfileID: store.DefaultProfileID},
 			contract.TaskListQuery{Worktree: "wt-alpha"},
 		); err == nil {
@@ -334,7 +334,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			queryCtx, _ := gin.CreateTestContext(recorder)
 			queryCtx.Request = httptest.NewRequestWithContext(
-				context.Background(),
+				t.Context(),
 				http.MethodGet,
 				path,
 				http.NoBody,
@@ -360,7 +360,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/observe/tasks/inbox?lane=bogus",
 			http.NoBody,
@@ -373,7 +373,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		assertTaskValidationError(t, err, "lane")
 
 		if _, err := handlers.taskInboxDomainQuery(
-			context.Background(),
+			t.Context(),
 			store.ReadScope{ProfileID: store.DefaultProfileID},
 			contract.TaskInboxQuery{Lane: "bogus"},
 		); err == nil {
@@ -393,7 +393,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/observe/tasks/inbox?scope=workspace&workspace=missing&lane=approvals",
 			http.NoBody,
@@ -404,7 +404,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 			t.Fatalf("ParseTaskInboxQuery() error = %v", err)
 		}
 		if _, err := handlers.taskInboxDomainQuery(
-			context.Background(),
+			t.Context(),
 			store.ReadScope{ProfileID: store.DefaultProfileID},
 			query,
 		); !errors.Is(

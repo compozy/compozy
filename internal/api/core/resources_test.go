@@ -423,7 +423,7 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 	}
 
 	records, err := service.List(
-		context.Background(),
+		t.Context(),
 		resources.ResourceFilter{Kind: testKind, Limit: 5},
 	)
 	if err != nil {
@@ -433,12 +433,12 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 		t.Fatalf("service.List() records=%#v filter=%#v", records, gotFilter)
 	}
 
-	if _, err := service.Get(context.Background(), testKind, "demo"); err != nil {
+	if _, err := service.Get(t.Context(), testKind, "demo"); err != nil {
 		t.Fatalf("service.Get() error = %v", err)
 	}
 
 	if _, err := service.Put(
-		context.Background(),
+		t.Context(),
 		resources.RawDraft{
 			Kind:     testKind,
 			ID:       "demo",
@@ -452,7 +452,7 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 		t.Fatalf("service.Put() canonical spec = %s, want %s", string(gotDraft.SpecJSON), `{"name":"demo"}`)
 	}
 
-	if err := service.Delete(context.Background(), testKind, "demo", 2); err != nil {
+	if err := service.Delete(t.Context(), testKind, "demo", 2); err != nil {
 		t.Fatalf("service.Delete() error = %v", err)
 	}
 
@@ -512,7 +512,7 @@ func TestOperatorResourceServicePutReturnsCodecValidationError(t *testing.T) {
 	}
 
 	_, err = service.Put(
-		context.Background(),
+		t.Context(),
 		resources.RawDraft{
 			Kind:     testKind,
 			ID:       "demo",
@@ -997,7 +997,7 @@ func newResourceTestContext(t *testing.T, method string, target string) *gin.Con
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequestWithContext(context.Background(), method, target, http.NoBody)
+	ctx.Request = httptest.NewRequestWithContext(t.Context(), method, target, http.NoBody)
 	return ctx
 }
 
@@ -1017,7 +1017,7 @@ func newResourceRequestContext(
 	if body != nil {
 		reader = bytes.NewReader(body)
 	}
-	ctx.Request = httptest.NewRequestWithContext(context.Background(), method, target, reader)
+	ctx.Request = httptest.NewRequestWithContext(t.Context(), method, target, reader)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	ctx.Params = params
 	return ctx, recorder

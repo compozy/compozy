@@ -264,7 +264,7 @@ func TestAgentCrossWorkspaceUDSIdentityMapping(t *testing.T) {
 		}
 		engine := newTestRouter(t, handlers)
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/api/tasks",
 			strings.NewReader(`{"scope":"workspace","workspace":"target","title":"Cross workspace"}`),
@@ -290,7 +290,7 @@ func TestAgentCrossWorkspaceUDSIdentityMapping(t *testing.T) {
 func performAgentMeRequest(t *testing.T, engine http.Handler, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/agent/me", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/agent/me", http.NoBody)
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}

@@ -159,6 +159,5 @@ func timePointerFromMap(values map[string]*time.Time, id string) *time.Time {
 	if !ok || value == nil {
 		return nil
 	}
-	next := value.UTC()
-	return &next
+	return new(value.UTC())
 }

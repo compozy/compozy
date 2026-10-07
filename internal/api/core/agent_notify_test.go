@@ -61,7 +61,7 @@ func TestBaseHandlersAgentNotify(t *testing.T) {
 
 		deliveredRuntime := newNotifyRuntimeManager(t)
 		events, cancel, err := deliveredRuntime.SubscribeSessionCatalogEvents(
-			context.Background(),
+			t.Context(),
 			session.CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
 		)
 		if err != nil {
@@ -138,7 +138,7 @@ func performAgentNotify(
 	router.POST("/api/agent/notify", handlers.AgentNotify)
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(
-		context.Background(), http.MethodPost, "/api/agent/notify", bytes.NewReader(body),
+		t.Context(), http.MethodPost, "/api/agent/notify", bytes.NewReader(body),
 	)
 	if withIdentity {
 		req.Header.Set(agentidentity.HeaderSessionID, "sess-parent")

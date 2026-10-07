@@ -25,8 +25,7 @@ func WorktreePayloadFromInspection(inspection worktree.Inspection) contract.Work
 		}
 		payload.Behind = inspection.Status.Behind
 		if inspection.Status.DirtyFiles != nil {
-			dirty := *inspection.Status.DirtyFiles > 0
-			payload.Dirty = &dirty
+			payload.Dirty = new(*inspection.Status.DirtyFiles > 0)
 		}
 	}
 	return payload

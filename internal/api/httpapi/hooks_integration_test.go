@@ -404,7 +404,7 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 					deny := "deny"
 					return hookspkg.PermissionRequestPatch{
 						Decision: &deny,
-						Reason:   hookStringPointer("policy"),
+						Reason:   new("policy"),
 					}, nil
 				},
 			),
@@ -572,8 +572,4 @@ func closeHookRunSessionDB(t *testing.T, db *sessiondb.SessionDB) {
 	if err := db.Close(ctx); err != nil {
 		t.Fatalf("SessionDB.Close() error = %v", err)
 	}
-}
-
-func hookStringPointer(value string) *string {
-	return &value
 }

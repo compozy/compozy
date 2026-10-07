@@ -292,7 +292,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 	t.Run("Should pass registry workspace id to Soul authoring", func(t *testing.T) {
 		body := []byte("{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"body\":\"# Soul\"}")
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPut,
 			"/agents/coder/soul",
 			bytes.NewReader(body),
@@ -311,7 +311,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 
 	t.Run("Should pass registry workspace id to Heartbeat status", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/agents/coder/heartbeat/status?workspace_id=ws-stable",
 			nil,
@@ -332,7 +332,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\",\"dry_run\":true}",
 		)
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/agents/coder/heartbeat/wake",
 			bytes.NewReader(body),
@@ -400,7 +400,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 		stableFixture.Engine.POST("/agents/:name/heartbeat/wake", stableFixture.Handlers.WakeAgentHeartbeat)
 
 		statusReq := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/agents/coder/heartbeat/status?workspace_id=ws-stable&session_id=sess-owned",
 			nil,
@@ -421,7 +421,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\",\"dry_run\":true}",
 		)
 		wakeReq := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/agents/coder/heartbeat/wake",
 			bytes.NewReader(wakeBody),
@@ -617,7 +617,7 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 			fixture.Handlers.HeartbeatStatus = statusSpy
 			testCase.registerRoute(fixture)
 
-			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, testCase.path, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, testCase.path, nil)
 			recorder := httptest.NewRecorder()
 			fixture.Engine.ServeHTTP(recorder, req)
 
@@ -704,7 +704,7 @@ func TestSessionStatusCarriesLineage(t *testing.T) {
 			)
 
 			req := httptest.NewRequestWithContext(
-				context.Background(), http.MethodGet, "/workspaces/ws-stable/sessions/sess-child/status", nil,
+				t.Context(), http.MethodGet, "/workspaces/ws-stable/sessions/sess-child/status", nil,
 			)
 			recorder := httptest.NewRecorder()
 			fixture.Engine.ServeHTTP(recorder, req)
@@ -814,7 +814,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 
 	t.Run("Should reject foreign workspace heartbeat status session", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/agents/coder/heartbeat/status?workspace_id=ws-foreign&session_id=sess-owned&include_session_health=true",
 			nil,
@@ -838,7 +838,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 			"{\"workspace_id\":\"ws-foreign\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\"}",
 		)
 		req := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/agents/coder/heartbeat/wake",
 			bytes.NewReader(body),
@@ -997,7 +997,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			tc.registerRoute(fixture)
 
 			req := httptest.NewRequestWithContext(
-				context.Background(),
+				t.Context(),
 				tc.method,
 				tc.path+"?workspace_id=ws-1&profile=marketing",
 				bytes.NewReader(tc.body),
@@ -1144,7 +1144,7 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 			tc.registerRoute(fixture)
 
 			req := httptest.NewRequestWithContext(
-				context.Background(),
+				t.Context(),
 				tc.method,
 				tc.path,
 				bytes.NewReader(tc.body),

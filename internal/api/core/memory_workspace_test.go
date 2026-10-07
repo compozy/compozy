@@ -607,7 +607,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, trigger := setup(t)
-		identity, err := workspacepkg.EnsureIdentity(context.Background(), workspace)
+		identity, err := workspacepkg.EnsureIdentity(t.Context(), workspace)
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
@@ -867,7 +867,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			[]byte(memoryDocument(t, "Orphan", memcontract.TypeProject, "orphan signal"))); err != nil {
 			t.Fatalf("Write(workspace) error = %v", err)
 		}
-		if _, err := store.Search(context.Background(), "orphan signal", memcontract.SearchOptions{
+		if _, err := store.Search(t.Context(), "orphan signal", memcontract.SearchOptions{
 			Workspace: workspace,
 			Limit:     5,
 		}); err != nil {
@@ -921,7 +921,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("Write(workspace) error = %v", err)
 		}
 		since := time.Now().Add(-time.Second).UTC()
-		if _, err := store.Search(context.Background(), "common token=super-secret", memcontract.SearchOptions{
+		if _, err := store.Search(t.Context(), "common token=super-secret", memcontract.SearchOptions{
 			Workspace: workspace,
 			Limit:     5,
 		}); err != nil {
@@ -956,7 +956,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if len(payload.Operations) != 1 {
 			t.Fatalf("len(payload.Operations) = %d, want 1; payload=%#v", len(payload.Operations), payload)
 		}
-		identity, err := workspacepkg.EnsureIdentity(context.Background(), workspace)
+		identity, err := workspacepkg.EnsureIdentity(t.Context(), workspace)
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
@@ -1159,7 +1159,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
 		}
-		identity, err := workspacepkg.EnsureIdentity(context.Background(), workspaceRoot)
+		identity, err := workspacepkg.EnsureIdentity(t.Context(), workspaceRoot)
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
@@ -1299,7 +1299,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
 		}
-		identity, err := workspacepkg.EnsureIdentity(context.Background(), workspaceRoot)
+		identity, err := workspacepkg.EnsureIdentity(t.Context(), workspaceRoot)
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}

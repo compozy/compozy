@@ -79,8 +79,7 @@ func optionalWindowManagerLayoutGroupFromDomain(
 	if group == nil {
 		return nil
 	}
-	converted := windowManagerLayoutGroupFromDomain(*group)
-	return &converted
+	return new(windowManagerLayoutGroupFromDomain(*group))
 }
 
 func windowManagerLayoutNodeFromDomain(node windowmanager.LayoutNode) WindowManagerLayoutNode {
@@ -136,8 +135,7 @@ func optionalWindowManagerLayoutGroupToDomain(
 	if group == nil {
 		return nil
 	}
-	converted := windowManagerLayoutGroupToDomain(*group)
-	return &converted
+	return new(windowManagerLayoutGroupToDomain(*group))
 }
 
 func windowManagerLayoutNodeToDomain(node WindowManagerLayoutNode) windowmanager.LayoutNode {
@@ -158,6 +156,5 @@ func cloneWindowManagerPointer[T any](value *T) *T {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

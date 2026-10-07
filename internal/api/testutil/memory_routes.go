@@ -1,7 +1,7 @@
 package testutil
 
 import (
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,7 +17,7 @@ func MemoryV2RouteKeysFromGin(routes gin.RoutesInfo) []string {
 			keys = append(keys, route.Method+" "+route.Path)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 
@@ -63,7 +63,7 @@ func ExpectedMemoryV2RouteKeys() []string {
 		"POST /api/memory/sessions/repair",
 		"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 

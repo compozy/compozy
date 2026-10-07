@@ -1346,7 +1346,7 @@ func TestWorktreeStreams(t *testing.T) {
 		}
 		stream := func(afterSequence int64) string {
 			t.Helper()
-			requestContext, cancelRequest := context.WithCancel(context.Background())
+			requestContext, cancelRequest := context.WithCancel(t.Context())
 			observer := worktreeObserverStub{queryEvents: func(
 				_ context.Context,
 				query store.EventSummaryQuery,
