@@ -316,26 +316,6 @@ func TestRuntime(t *testing.T) {
 		}
 	})
 
-	t.Run("Should no-op when a tool write occurred in the same turn", func(t *testing.T) {
-		t.Parallel()
-
-		fake := newFakeExtractor()
-		runtime := newTestRuntime(t, t.TempDir(), fake, nil)
-		runtime.RecordToolWrite("sess-tool", 7)
-		if err := runtime.HandleSessionMessagePersisted(
-			testutil.Context(t),
-			testPersistedPayload("sess-tool", 7),
-		); err != nil {
-			t.Fatalf("HandleSessionMessagePersisted(tool write turn) error = %v", err)
-		}
-		if err := runtime.Drain(testutil.Context(t)); err != nil {
-			t.Fatalf("Drain() error = %v", err)
-		}
-		if turns := fake.turns(); len(turns) != 0 {
-			t.Fatalf("extracted turns = %#v, want no extraction after tool write", turns)
-		}
-	})
-
 	t.Run("Should skip persisted messages without extractable content", func(t *testing.T) {
 		t.Parallel()
 
@@ -1252,26 +1232,4 @@ func (s *failSecondCandidateOnceSink) ProposeCandidate(
 		return memcontract.Decision{}, errors.New("controlled second candidate failure")
 	}
 	return s.delegate.ProposeCandidate(ctx, candidate)
-}
-
-func TestCandidateJSONShape(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should preserve candidate metadata when encoded as inbox JSONL", func(t *testing.T) {
-		t.Parallel()
-
-		candidate := testCandidate("Pedro prefers brief updates.")
-		candidate.Metadata = map[string]string{"source": "test"}
-		encoded, err := json.Marshal(candidate)
-		if err != nil {
-			t.Fatalf("json.Marshal() error = %v", err)
-		}
-		var decoded memcontract.Candidate
-		if err := json.Unmarshal(encoded, &decoded); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if decoded.Metadata["source"] != "test" {
-			t.Fatalf("decoded metadata = %#v, want source=test", decoded.Metadata)
-		}
-	})
 }

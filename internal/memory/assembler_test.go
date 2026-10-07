@@ -30,6 +30,43 @@ func TestAssemblerAssemble(t *testing.T) {
 		if strings.Contains(got, "## Workspace MEMORY.md Index") {
 			t.Fatalf("assembled prompt unexpectedly included workspace section: %q", got)
 		}
+
+		for _, want := range []string{"## Memory Taxonomy", "`user`", "`feedback`", "`project`", "`reference`"} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("assembled prompt missing taxonomy content %q: %q", want, got)
+			}
+		}
+
+		for _, want := range []string{
+			"## Memory Commands",
+			"`compozy memory list`",
+			"`compozy memory search <query>`",
+			"`compozy memory show <filename>`",
+			"`compozy memory reindex`",
+			"`compozy memory write --name <name> --type <type> --description <desc> --content <content>`",
+		} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("assembled prompt missing command reference %q: %q", want, got)
+			}
+		}
+
+		if !strings.Contains(got, "## Staleness Policy") ||
+			!strings.Contains(got, "Memories older than 1 day should be verified") {
+			t.Fatalf("assembled prompt missing staleness policy: %q", got)
+		}
+
+		memoryIndex := strings.Index(got, "# Persistent Memory")
+		agentIndex := strings.Index(got, env.agent.Prompt)
+		if memoryIndex < 0 || agentIndex < 0 {
+			t.Fatalf("assembled prompt missing expected components: %q", got)
+		}
+		if memoryIndex >= agentIndex {
+			t.Fatalf(
+				"memory context index = %d, agent prompt index = %d, want memory before agent prompt",
+				memoryIndex,
+				agentIndex,
+			)
+		}
 	})
 
 	t.Run("Should workspace index only", func(t *testing.T) {
@@ -68,75 +105,6 @@ func TestAssemblerAssemble(t *testing.T) {
 		got := env.assemble(t)
 		if got != env.agent.Prompt {
 			t.Fatalf("assembled prompt = %q, want original prompt %q", got, env.agent.Prompt)
-		}
-	})
-
-	t.Run("Should includes taxonomy instructions", func(t *testing.T) {
-		t.Parallel()
-
-		env := newAssemblerTestEnv(t)
-		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
-
-		got := env.assemble(t)
-		for _, want := range []string{"## Memory Taxonomy", "`user`", "`feedback`", "`project`", "`reference`"} {
-			if !strings.Contains(got, want) {
-				t.Fatalf("assembled prompt missing taxonomy content %q: %q", want, got)
-			}
-		}
-	})
-
-	t.Run("Should includes compozy memory command reference", func(t *testing.T) {
-		t.Parallel()
-
-		env := newAssemblerTestEnv(t)
-		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
-
-		got := env.assemble(t)
-		for _, want := range []string{
-			"## Memory Commands",
-			"`compozy memory list`",
-			"`compozy memory search <query>`",
-			"`compozy memory show <filename>`",
-			"`compozy memory reindex`",
-			"`compozy memory write --name <name> --type <type> --description <desc> --content <content>`",
-		} {
-			if !strings.Contains(got, want) {
-				t.Fatalf("assembled prompt missing command reference %q: %q", want, got)
-			}
-		}
-	})
-
-	t.Run("Should includes staleness policy", func(t *testing.T) {
-		t.Parallel()
-
-		env := newAssemblerTestEnv(t)
-		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
-
-		got := env.assemble(t)
-		if !strings.Contains(got, "## Staleness Policy") ||
-			!strings.Contains(got, "Memories older than 1 day should be verified") {
-			t.Fatalf("assembled prompt missing staleness policy: %q", got)
-		}
-	})
-
-	t.Run("Should memory context before agent prompt", func(t *testing.T) {
-		t.Parallel()
-
-		env := newAssemblerTestEnv(t)
-		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
-
-		got := env.assemble(t)
-		memoryIndex := strings.Index(got, "# Persistent Memory")
-		agentIndex := strings.Index(got, env.agent.Prompt)
-		if memoryIndex < 0 || agentIndex < 0 {
-			t.Fatalf("assembled prompt missing expected components: %q", got)
-		}
-		if memoryIndex >= agentIndex {
-			t.Fatalf(
-				"memory context index = %d, agent prompt index = %d, want memory before agent prompt",
-				memoryIndex,
-				agentIndex,
-			)
 		}
 	})
 }

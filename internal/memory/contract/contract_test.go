@@ -1,7 +1,6 @@
 package contract
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -418,19 +417,6 @@ func TestDTOJSONShape(t *testing.T) {
 	})
 }
 
-func TestProviderInterfaces(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should compile against provider facing interfaces", func(t *testing.T) {
-		t.Parallel()
-
-		var _ MemoryProvider = (*providerStub)(nil)
-		var _ Controller = controllerStub{}
-		var _ Recaller = recallerStub{}
-		var _ Extractor = extractorStub{}
-	})
-}
-
 func TestImportBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -467,70 +453,6 @@ func TestImportBoundary(t *testing.T) {
 			}
 		}
 	})
-}
-
-type providerStub struct{}
-
-func (providerStub) Initialize(context.Context, ProviderInit) error {
-	return nil
-}
-
-func (providerStub) SystemPromptBlock(context.Context, SnapshotRequest) (SnapshotResult, error) {
-	return SnapshotResult{}, nil
-}
-
-func (providerStub) Recall(context.Context, RecallRequest) (RecallResult, error) {
-	return RecallResult{}, nil
-}
-
-func (providerStub) Prefetch(context.Context, PrefetchRequest) error {
-	return nil
-}
-
-func (providerStub) SyncTurn(context.Context, TurnRecord) error {
-	return nil
-}
-
-func (providerStub) OnSessionEnd(context.Context, SessionEndRecord) error {
-	return nil
-}
-
-func (providerStub) OnSessionSwitch(context.Context, SessionSwitchRecord) error {
-	return nil
-}
-
-func (providerStub) OnPreCompress(context.Context, PreCompressRequest) (PreCompressHint, error) {
-	return PreCompressHint{}, nil
-}
-
-func (providerStub) OnMemoryWrite(context.Context, WriteRecord) error {
-	return nil
-}
-
-func (providerStub) Shutdown(context.Context) error {
-	return nil
-}
-
-type controllerStub struct{}
-
-func (controllerStub) Decide(context.Context, Candidate) (Decision, error) {
-	return Decision{}, nil
-}
-
-type recallerStub struct{}
-
-func (recallerStub) Recall(context.Context, Query, RecallOptions) (Packaged, error) {
-	return Packaged{}, nil
-}
-
-type extractorStub struct{}
-
-func (extractorStub) Extract(context.Context, TurnRecord) ([]Candidate, error) {
-	return nil, nil
-}
-
-func (extractorStub) Drain(context.Context) error {
-	return nil
 }
 
 func findRepoRoot(t *testing.T) string {

@@ -1354,33 +1354,6 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should project five-rate catalog metadata through provider settings", func(t *testing.T) {
-		t.Parallel()
-
-		service, _, _, _ := providerModelCurationTestService(t)
-		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
-			Collection: CollectionProviders,
-		})
-		if err != nil {
-			t.Fatalf("ListCollection(providers) error = %v", err)
-		}
-		provider := mustFindProviderItem(t, envelope.Providers, "codex")
-		var model *compozyconfig.ProviderModelConfig
-		for index := range provider.Settings.Models.Curated {
-			if provider.Settings.Models.Curated[index].ID == "gpt-5.6-sol" {
-				model = &provider.Settings.Models.Curated[index]
-				break
-			}
-		}
-		if model == nil || model.CostInputPerMillion == nil || *model.CostInputPerMillion != 5 ||
-			model.CostOutputPerMillion == nil || *model.CostOutputPerMillion != 30 ||
-			model.CostCacheReadPerMillion == nil || *model.CostCacheReadPerMillion != 0.5 ||
-			model.CostCacheWritePerMillion == nil || *model.CostCacheWritePerMillion != 6 ||
-			model.CostReasoningPerMillion == nil || *model.CostReasoningPerMillion != 30 {
-			t.Fatalf("provider settings five-rate catalog metadata = %#v", model)
-		}
-	})
-
 	t.Run("Should persist explicit five-rate changes without catalog defaults", func(t *testing.T) {
 		t.Parallel()
 
@@ -1408,6 +1381,21 @@ default_reasoning_effort = "high"
 		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
 		if err != nil {
 			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		provider := mustFindProviderItem(t, envelope.Providers, "codex")
+		var projectedModel *compozyconfig.ProviderModelConfig
+		for index := range provider.Settings.Models.Curated {
+			if provider.Settings.Models.Curated[index].ID == "gpt-5.6-sol" {
+				projectedModel = &provider.Settings.Models.Curated[index]
+				break
+			}
+		}
+		if projectedModel == nil || projectedModel.CostInputPerMillion == nil || *projectedModel.CostInputPerMillion != 5 ||
+			projectedModel.CostOutputPerMillion == nil || *projectedModel.CostOutputPerMillion != 30 ||
+			projectedModel.CostCacheReadPerMillion == nil || *projectedModel.CostCacheReadPerMillion != 0.5 ||
+			projectedModel.CostCacheWritePerMillion == nil || *projectedModel.CostCacheWritePerMillion != 6 ||
+			projectedModel.CostReasoningPerMillion == nil || *projectedModel.CostReasoningPerMillion != 30 {
+			t.Fatalf("provider settings five-rate catalog metadata = %#v", projectedModel)
 		}
 		settings := mustFindProviderItem(t, envelope.Providers, "codex").Settings
 		settings.ModelsSet = true

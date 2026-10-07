@@ -20,9 +20,41 @@ import (
 	providerpkg "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+var profileTestStoreSeed *globalseed.Seed
+
+func TestMain(m *testing.M) {
+	os.Exit(runProfileTests(m))
+}
+
+func runProfileTests(m *testing.M) (code int) {
+	seed, err := globalseed.New(context.Background())
+	if err != nil {
+		reportProfileTestMainError("create store seed: %v", err)
+		return 1
+	}
+	defer func() {
+		if err := seed.Close(); err != nil {
+			reportProfileTestMainError("close store seed: %v", err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
+
+	profileTestStoreSeed = seed
+	return m.Run()
+}
+
+func reportProfileTestMainError(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, "profile tests: "+format+"\n", args...); err != nil {
+		panic(err)
+	}
+}
 
 func TestManagerProfileLifecycle(t *testing.T) {
 	t.Parallel()
@@ -2002,6 +2034,9 @@ func newTestManagerWithOptions(
 	home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := profileTestStoreSeed.Clone(home.DatabaseFile); err != nil {
+		t.Fatalf("Clone(store seed) error = %v", err)
 	}
 	database, err := globaldb.OpenGlobalDB(testutil.Context(t), home.DatabaseFile)
 	if err != nil {

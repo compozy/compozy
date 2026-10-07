@@ -642,13 +642,9 @@ func TestStoreScanCapsAtTwoHundredFiles(t *testing.T) {
 				Description: "Cap test",
 				Type:        memcontract.TypeReference,
 			}, "Reference entry\n")
-			if err := env.store.Write(t.Context(), memcontract.ScopeWorkspace, filename, payload); err != nil {
-				t.Fatalf("Store.Write(%q) error = %v", filename, err)
-			}
-
-			path, err := env.store.pathFor(memcontract.ScopeWorkspace, filename)
-			if err != nil {
-				t.Fatalf("pathFor(%q) error = %v", filename, err)
+			path := filepath.Join(env.store.workspaceDir, filename)
+			if err := os.WriteFile(path, payload, filePerm); err != nil {
+				t.Fatalf("os.WriteFile(%q) error = %v", filename, err)
 			}
 			modTime := base.Add(time.Duration(idx) * time.Minute)
 			if err := os.Chtimes(path, modTime, modTime); err != nil {
@@ -678,65 +674,37 @@ func TestStoreScanCapsAtTwoHundredFiles(t *testing.T) {
 		if got, want := count, 205; got != want {
 			t.Fatalf("Store.SourceHeaderCount() = %d, want %d", got, want)
 		}
+
+		for idx := range 3 {
+			filename := fmt.Sprintf("broken-%d.md", idx)
+			path, err := env.store.pathFor(memcontract.ScopeWorkspace, filename)
+			if err != nil {
+				t.Fatalf("pathFor(%q) error = %v", filename, err)
+			}
+			if err := os.WriteFile(path, []byte("not frontmatter\n"), filePerm); err != nil {
+				t.Fatalf("write malformed file %q: %v", filename, err)
+			}
+			modTime := base.Add(time.Duration(205+idx) * time.Minute)
+			if err := os.Chtimes(path, modTime, modTime); err != nil {
+				t.Fatalf("os.Chtimes(%q) error = %v", path, err)
+			}
+		}
+
+		headers, err = env.store.Scan(t.Context(), memcontract.ScopeWorkspace)
+		if err != nil {
+			t.Fatalf("Store.Scan() error = %v", err)
+		}
+
+		if got, want := len(headers), 200; got != want {
+			t.Fatalf("len(headers) = %d, want %d", got, want)
+		}
+		if headers[0].Filename != "204.md" {
+			t.Fatalf("headers[0].Filename = %q, want %q", headers[0].Filename, "204.md")
+		}
+		if headers[len(headers)-1].Filename != "005.md" {
+			t.Fatalf("headers[last].Filename = %q, want %q", headers[len(headers)-1].Filename, "005.md")
+		}
 	})
-}
-
-func TestStoreScanCapsAtTwoHundredFilesAfterSkippingMalformedNewestEntries(t *testing.T) {
-	t.Parallel()
-
-	env := newTestStoreEnv(t)
-	base := time.Now().Add(-205 * time.Minute)
-
-	for idx := range 205 {
-		filename := fmt.Sprintf("%03d.md", idx)
-		payload := mustMemoryContent(t, testMemoryMeta{
-			Name:        fmt.Sprintf("Memory %03d", idx),
-			Description: "Cap test",
-			Type:        memcontract.TypeReference,
-		}, "Reference entry\n")
-		if err := env.store.Write(t.Context(), memcontract.ScopeWorkspace, filename, payload); err != nil {
-			t.Fatalf("Store.Write(%q) error = %v", filename, err)
-		}
-
-		path, err := env.store.pathFor(memcontract.ScopeWorkspace, filename)
-		if err != nil {
-			t.Fatalf("pathFor(%q) error = %v", filename, err)
-		}
-		modTime := base.Add(time.Duration(idx) * time.Minute)
-		if err := os.Chtimes(path, modTime, modTime); err != nil {
-			t.Fatalf("os.Chtimes(%q) error = %v", path, err)
-		}
-	}
-
-	for idx := range 3 {
-		filename := fmt.Sprintf("broken-%d.md", idx)
-		path, err := env.store.pathFor(memcontract.ScopeWorkspace, filename)
-		if err != nil {
-			t.Fatalf("pathFor(%q) error = %v", filename, err)
-		}
-		if err := os.WriteFile(path, []byte("not frontmatter\n"), filePerm); err != nil {
-			t.Fatalf("write malformed file %q: %v", filename, err)
-		}
-		modTime := base.Add(time.Duration(205+idx) * time.Minute)
-		if err := os.Chtimes(path, modTime, modTime); err != nil {
-			t.Fatalf("os.Chtimes(%q) error = %v", path, err)
-		}
-	}
-
-	headers, err := env.store.Scan(t.Context(), memcontract.ScopeWorkspace)
-	if err != nil {
-		t.Fatalf("Store.Scan() error = %v", err)
-	}
-
-	if got, want := len(headers), 200; got != want {
-		t.Fatalf("len(headers) = %d, want %d", got, want)
-	}
-	if headers[0].Filename != "204.md" {
-		t.Fatalf("headers[0].Filename = %q, want %q", headers[0].Filename, "204.md")
-	}
-	if headers[len(headers)-1].Filename != "005.md" {
-		t.Fatalf("headers[last].Filename = %q, want %q", headers[len(headers)-1].Filename, "005.md")
-	}
 }
 
 func TestStoreScanSkipsMalformedFilesAndLogsWarning(t *testing.T) {

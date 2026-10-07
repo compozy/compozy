@@ -178,11 +178,14 @@ func TestQueryObserveOverviewValidation(t *testing.T) {
 
 	t.Run("Should reject an unsupported usage window", func(t *testing.T) {
 		t.Parallel()
-		fixture := newOverviewFixture(t)
-
-		query := fixture.query()
-		query.UsageWindowDays = 13
-		_, err := fixture.observer.QueryObserveOverview(observeTestContext(t), query)
+		observer := &Observer{}
+		query := OverviewQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
+			TaskScope:       taskpkg.CatalogScopeGlobal,
+			Actor:           taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+			UsageWindowDays: 13,
+		}
+		_, err := observer.QueryObserveOverview(observeTestContext(t), query)
 		if err == nil || !strings.Contains(err.Error(), "unsupported usage window 13") {
 			t.Fatalf("QueryObserveOverview(window 13) error = %v, want unsupported usage window 13", err)
 		}

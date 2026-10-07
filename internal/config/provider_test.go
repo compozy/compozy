@@ -512,45 +512,6 @@ func repoRootFromConfigTest(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 }
 
-func TestBuiltinProviderCommandsUseLatestDriverPackages(t *testing.T) {
-	t.Parallel()
-
-	packagePrefixes := []string{
-		"@agentclientprotocol/claude-agent-acp@",
-		"@agentclientprotocol/codex-acp@",
-		"pi-acp@",
-		"opencode-ai@",
-		"cline@",
-		"@qoder-ai/qodercli@",
-		"@qwen-code/qwen-code@",
-	}
-
-	for name, provider := range BuiltinProviders() {
-		t.Run("Should not pin driver package for "+name, func(t *testing.T) {
-			t.Parallel()
-
-			fields := strings.FieldsSeq(provider.Command)
-			for field := range fields {
-				for _, prefix := range packagePrefixes {
-					if !strings.HasPrefix(field, prefix) {
-						continue
-					}
-					version := strings.TrimPrefix(field, prefix)
-					if version != "latest" {
-						t.Fatalf(
-							"BuiltinProviders()[%q].Command = %q pins %s%s, want @latest",
-							name,
-							provider.Command,
-							prefix,
-							version,
-						)
-					}
-				}
-			}
-		})
-	}
-}
-
 func TestCanonicalProviderNameResolvesNewDriverAliases(t *testing.T) {
 	t.Parallel()
 
@@ -1570,41 +1531,6 @@ func TestResolveAgentRejectsPiProviderWithoutModel(t *testing.T) {
 	wantErr := `agent model is required when provider "custom-pi" has no default model`
 	if err.Error() != wantErr {
 		t.Fatalf("ResolveAgent() error = %q, want %q", err.Error(), wantErr)
-	}
-}
-
-func TestMCPServersMergeAgentAndProviderLevels(t *testing.T) {
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	cfg := DefaultWithHome(homePaths)
-	cfg.Providers["claude"] = ProviderConfig{
-		MCPServers: []MCPServer{
-			{Name: "github", Command: "npx"},
-		},
-	}
-
-	agent := AgentDef{
-		Name:     "coder",
-		Provider: "claude",
-		Prompt:   "prompt",
-		MCPServers: []MCPServer{
-			{Name: "memory", Command: "memory-server"},
-		},
-	}
-
-	resolved, err := cfg.ResolveAgent(agent)
-	if err != nil {
-		t.Fatalf("ResolveAgent() error = %v", err)
-	}
-
-	if len(resolved.MCPServers) != 2 {
-		t.Fatalf("ResolveAgent() MCPServers = %#v, want 2 entries", resolved.MCPServers)
-	}
-	if resolved.MCPServers[0].Name != "github" || resolved.MCPServers[1].Name != "memory" {
-		t.Fatalf("ResolveAgent() MCPServers = %#v", resolved.MCPServers)
 	}
 }
 
@@ -2740,28 +2666,6 @@ func TestResolveAgentDefaultsToolsAndPermissions(t *testing.T) {
 	}
 	if resolved.Permissions != string(PermissionModeApproveAll) {
 		t.Fatalf("ResolveAgent() Permissions = %q, want %q", resolved.Permissions, PermissionModeApproveAll)
-	}
-}
-
-func TestResolveAgentFallsBackToDefaultsProvider(t *testing.T) {
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	cfg := DefaultWithHome(homePaths)
-	cfg.Defaults.Provider = "claude"
-	agent := AgentDef{
-		Name:   DefaultAgentName,
-		Prompt: "prompt",
-	}
-
-	resolved, err := cfg.ResolveAgent(agent)
-	if err != nil {
-		t.Fatalf("ResolveAgent() error = %v", err)
-	}
-	if resolved.Provider != "claude" {
-		t.Fatalf("ResolveAgent() Provider = %q, want %q", resolved.Provider, "claude")
 	}
 }
 

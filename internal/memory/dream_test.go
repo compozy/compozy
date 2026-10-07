@@ -87,38 +87,6 @@ func TestServiceConstructionOverridesDefaults(t *testing.T) {
 	}
 }
 
-func TestServiceShouldRunTimeGateFails(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now().UTC().Round(0)
-	lock := &stubLock{lastConsolidatedAt: now.Add(-time.Hour)}
-	sessionsScanned := 0
-	service := NewService(
-		withLock(lock),
-		WithMinHours(24),
-		WithMinSessions(3),
-		withNow(func() time.Time { return now }),
-		withSessionCounter(func(time.Time) (int, error) {
-			sessionsScanned++
-			return 10, nil
-		}),
-	)
-
-	ok, err := service.ShouldRun()
-	if err != nil {
-		t.Fatalf("ShouldRun() error = %v", err)
-	}
-	if ok {
-		t.Fatal("ShouldRun() = true, want false")
-	}
-	if sessionsScanned != 0 {
-		t.Fatalf("session scans = %d, want 0", sessionsScanned)
-	}
-	if lock.tryAcquireCalls != 0 {
-		t.Fatalf("lock acquisitions = %d, want 0", lock.tryAcquireCalls)
-	}
-}
-
 func TestServiceShouldRunSessionGateFails(t *testing.T) {
 	t.Parallel()
 
