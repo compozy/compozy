@@ -785,20 +785,34 @@ func testCoordinatorQuarantineBoundedHistory(t *testing.T) {
 	oversized := QuarantineEntry{NodeID: "fetch", InputRef: quarantineInputRef(
 		Run{ID: "looprun-quarantine-history"}, "fetch",
 	)}
-	for generation := 1; generation <= maxQuarantineEpisodes+8; generation++ {
-		episode := QuarantineEpisode{Generation: generation, QuarantinedAt: now}
-		for attempt := 1; attempt <= 4; attempt++ {
-			episode.Attempts = append(episode.Attempts, NodeAttempt{
-				LoopRunID: "looprun-quarantine-history", Generation: generation, NodeID: "fetch",
-				Attempt: attempt, FailureClass: new(FailureTransport), FailureCode: "backend_failed",
-				Cause:       strings.Repeat("upstream transport failure ", 160),
-				Hint:        strings.Repeat("repair upstream then requeue ", 160),
-				Disposition: AttemptQuarantined, StartedAt: now,
-			})
+	const latestGeneration = maxQuarantineEpisodes + 1
+	for generation := 1; generation <= latestGeneration; generation++ {
+		attempt := NodeAttempt{
+			LoopRunID: "looprun-quarantine-history", Generation: generation, NodeID: "fetch",
+			Attempt: 1, FailureClass: new(FailureTransport), FailureCode: "backend_failed",
+			Cause: "upstream transport failure", Hint: "repair upstream then requeue",
+			Disposition: AttemptQuarantined, StartedAt: now,
 		}
+		episode := QuarantineEpisode{Generation: generation, QuarantinedAt: now}
+		if generation == latestGeneration {
+			attempt.Cause = strings.Repeat("upstream transport failure ", 80)
+			attempt.Hint = strings.Repeat("repair upstream then requeue ", 80)
+			episode.Attempts = append(episode.Attempts, attempt)
+			attempt.Attempt = 2
+		}
+		episode.Attempts = append(episode.Attempts, attempt)
 		oversized.Episodes = append(oversized.Episodes, episode)
+	}
+	// After count capping, the 31 short reasons alone retain 8,897 bytes
+	// after whitespace normalization, exceeding the 8 KiB envelope. Trimming
+	// must reach requeues after old episodes and attempts without large repeats.
+	for generation := 1; generation <= maxQuarantineRequeues+1; generation++ {
+		reason := strings.Repeat("repair note ", 24)
+		if generation == maxQuarantineRequeues+1 {
+			reason = strings.Repeat("repair note ", 96)
+		}
 		oversized.Requeues = append(oversized.Requeues, QuarantineProvenance{
-			ActorKind: "human", ActorID: "operator:alice", Reason: strings.Repeat("repair note ", 160),
+			ActorKind: "human", ActorID: "operator:alice", Reason: reason,
 			RequestedAt: now, Generation: generation,
 		})
 	}
@@ -814,9 +828,9 @@ func testCoordinatorQuarantineBoundedHistory(t *testing.T) {
 		t.Fatalf("json.Unmarshal(bounded quarantine) error = %v", err)
 	}
 	if !boundedEntry.Truncated || len(boundedEntry.Episodes) == 0 ||
-		boundedEntry.Episodes[len(boundedEntry.Episodes)-1].Generation != maxQuarantineEpisodes+8 ||
+		boundedEntry.Episodes[len(boundedEntry.Episodes)-1].Generation != latestGeneration ||
 		len(boundedEntry.Requeues) == 0 ||
-		boundedEntry.Requeues[len(boundedEntry.Requeues)-1].Generation != maxQuarantineEpisodes+8 {
+		boundedEntry.Requeues[len(boundedEntry.Requeues)-1].Generation != maxQuarantineRequeues+1 {
 		t.Fatalf("bounded quarantine entry = %#v, want latest evidence with truncation marker", boundedEntry)
 	}
 }
