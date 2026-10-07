@@ -245,12 +245,13 @@ func NewAutomationValidationError(err error) error {
 
 // StatusForAutomationError maps automation-domain failures to transport statuses.
 func StatusForAutomationError(err error) int {
-	var maxBytesErr *http.MaxBytesError
-	switch {
-	case err == nil:
+	if err == nil {
 		return http.StatusOK
-	case errors.As(err, &maxBytesErr):
+	}
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		return http.StatusRequestEntityTooLarge
+	}
+	switch {
 	case errors.Is(err, ErrAutomationValidation):
 		return http.StatusBadRequest
 	case errors.Is(err, automationpkg.ErrDaemonLifecycleCommandBlocked):

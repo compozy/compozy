@@ -1871,7 +1871,7 @@ func TestListMCPTools(t *testing.T) {
 				return next(ctx, method, request)
 			}
 		})
-		serverCtx, cancelServer := context.WithCancel(t.Context())
+		serverCtx, cancelServer := context.WithCancel(context.Background())
 		serverErr := make(chan error, 1)
 		go func() {
 			serverErr <- server.Run(serverCtx, serverTransport)

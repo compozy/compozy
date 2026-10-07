@@ -1307,7 +1307,7 @@ type gatewayPairingDaemonClient struct {
 func assertGatewayClientErrorCode(t *testing.T, err error, code string) {
 	t.Helper()
 	var payloadErr interface{ errorPayload() contract.ErrorPayload }
-	if !errors.As(err, &payloadErr) {
+	if !errors.As(err, &payloadErr) { //nolint:forbidigo // Target only has errorPayload, not Error.
 		t.Fatalf("error = %T %v, want structured gateway client error", err, err)
 	}
 	if payloadErr.errorPayload().Code != code {

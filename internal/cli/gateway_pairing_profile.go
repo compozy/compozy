@@ -109,7 +109,7 @@ func (p *preparedGatewayPairingProfile) Release() error {
 
 func isDefinitiveGatewayPairingRejection(err error) bool {
 	var payloadError interface{ errorPayload() contract.ErrorPayload }
-	if !errors.As(err, &payloadError) {
+	if !errors.As(err, &payloadError) { //nolint:forbidigo // Target only has errorPayload, not Error.
 		return false
 	}
 	switch payloadError.errorPayload().Code {

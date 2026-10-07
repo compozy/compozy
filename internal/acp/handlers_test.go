@@ -1726,7 +1726,7 @@ func TestToolHostOrDefaultUsesInjectedTerminalHost(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveAll, root)

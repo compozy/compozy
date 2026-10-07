@@ -121,7 +121,6 @@ func memoryProviderPayload(
 }
 
 func isMemoryProviderNotFound(err error) bool {
-	//nolint:errcheck // AsType returns a match, not an operation error.
 	_, ok := errors.AsType[*extensionpkg.MemoryProviderNotFoundError](
 		err,
 	)

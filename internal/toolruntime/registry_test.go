@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestRegistryCheckpointsProcessLifecycle(t *testing.T) {
@@ -382,7 +384,7 @@ func TestRegistryScopedInterruptSignalsOnlyMatchingLiveRecord(t *testing.T) {
 				t.Fatalf("Register(%s) error = %v", candidate.id, err)
 			}
 			t.Cleanup(func() {
-				if err := handle.Complete(t.Context(), ProcessCompletion{}); err != nil {
+				if err := handle.Complete(testutil.Context(t), ProcessCompletion{}); err != nil {
 					t.Errorf("Complete(%s cleanup) error = %v", candidate.id, err)
 				}
 			})

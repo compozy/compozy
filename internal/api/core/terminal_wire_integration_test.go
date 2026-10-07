@@ -84,7 +84,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
 		}
-		if err := manager.Start(t.Context()); err != nil {
+		if err := manager.Start(context.Background()); err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
 		t.Cleanup(func() {

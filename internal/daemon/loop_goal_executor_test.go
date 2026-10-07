@@ -71,7 +71,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := store.Close(ctx); err != nil {
+			if err := store.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
@@ -80,7 +80,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			t.Fatalf("session.NewManager() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := manager.Shutdown(ctx); err != nil {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
 				t.Errorf("Manager.Shutdown() error = %v", err)
 			}
 		})

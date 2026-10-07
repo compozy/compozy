@@ -647,7 +647,7 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 			t.Fatalf("CreateTerminal(second) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := host.ReleaseTerminal(first.TerminalId); err != nil {
+			if err := host.releaseTerminalWithContext(testutil.Context(t), first.TerminalId); err != nil {
 				t.Fatalf("ReleaseTerminal(first) error = %v", err)
 			}
 		})

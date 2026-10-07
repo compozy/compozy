@@ -3652,7 +3652,7 @@ func openManagerInputQueueStore(t *testing.T) *globaldb.GlobalDB {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := queueStore.Close(ctx); err != nil {
+		if err := queueStore.Close(testutil.Context(t)); err != nil {
 			t.Errorf("Close(globalDB) error = %v", err)
 		}
 	})

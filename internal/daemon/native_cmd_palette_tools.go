@@ -174,7 +174,6 @@ func nativeCmdPaletteError(id toolspkg.ToolID, err error) error {
 			toolspkg.ErrorCodeNotFound, id, err.Error(), fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
 		)
 	case func() bool {
-		//nolint:errcheck // AsType returns a match, not an operation error.
 		_, ok := errors.AsType[*cmdpalette.InvalidArgumentsError](err)
 		return ok
 	}(),
@@ -194,7 +193,6 @@ func nativeCmdPaletteError(id toolspkg.ToolID, err error) error {
 		)
 	case errors.Is(err, cmdpalette.ErrNoAttachedShell),
 		func() bool {
-			//nolint:errcheck // AsType returns a match, not an operation error.
 			_, ok := errors.AsType[*cmdpalette.UnavailableError](err)
 			return ok
 		}():

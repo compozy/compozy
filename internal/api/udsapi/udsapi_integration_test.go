@@ -2851,7 +2851,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("terminal.NewManager() error = %v", err)
 	}
-	if err := terminalManager.Start(t.Context()); err != nil {
+	if err := terminalManager.Start(context.Background()); err != nil {
 		t.Fatalf("terminalManager.Start() error = %v", err)
 	}
 	t.Cleanup(func() {

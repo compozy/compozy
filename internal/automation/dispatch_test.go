@@ -854,7 +854,7 @@ func TestDispatchFireLimitPersistsAcrossDispatcherRecreation(t *testing.T) {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+		if err := db.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})

@@ -1274,7 +1274,8 @@ func TestCancelPrompt(t *testing.T) {
 	t.Run("Should ignore cancel errors once the process is already done", func(t *testing.T) {
 		t.Parallel()
 
-		cleanupCtx := testutil.Context(t)
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(t.Context()), 45*time.Second)
+		t.Cleanup(cancelCleanup)
 		catalog := newRecordingSessionCatalog()
 		h := newHarness(t, WithSessionCatalog(catalog))
 		session := createSession(t, h)

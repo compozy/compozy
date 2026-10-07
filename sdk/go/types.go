@@ -133,7 +133,7 @@ type ExtensionDefinition struct {
 	Description         string              `json:"description,omitempty"`
 	RequiresEnv         []string            `json:"requires_env,omitempty"`
 	Profiles            []DescribeProfile   `json:"profiles,omitempty"`
-	Resources           DescribeResources   `json:"resources,omitempty"`
+	Resources           DescribeResources   `json:"resources,omitempty"` //nolint:modernize // omitempty is a no-op on this struct; omitzero would drop the zero DescribeResources object from the wire.
 	Subprocess          DescribeSubprocess  `json:"subprocess"`
 	Capabilities        CapabilitiesConfig  `json:"capabilities"`
 	Permissions         PermissionsConfig   `json:"permissions"`

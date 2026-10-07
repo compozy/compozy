@@ -1036,7 +1036,7 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(context.WithoutCancel(ctx)); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -1135,7 +1135,7 @@ func TestTaskManagerTriageMutationsRemainActorScopedAfterReload(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(second) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := second.Close(context.WithoutCancel(ctx)); err != nil {
+		if err := second.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
@@ -3500,7 +3500,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := sessionDB.Close(context.WithoutCancel(ctx)); err != nil {
+		if err := sessionDB.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("SessionDB.Close() error = %v", err)
 		}
 	})
@@ -5588,7 +5588,7 @@ func TestTaskManagerNeedsAttentionDurableAcrossRestartIntegration(t *testing.T) 
 			t.Fatalf("OpenGlobalDB(second) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := secondDB.Close(context.WithoutCancel(ctx)); err != nil {
+			if err := secondDB.Close(testutil.Context(t)); err != nil {
 				t.Fatalf("Close(second) error = %v", err)
 			}
 		})

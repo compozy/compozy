@@ -114,7 +114,7 @@ args = ["-c", 'cat >/dev/null; printf "%%s\n" "$1" >> "$2"; printf "{}"', "hook"
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := manager.Stop(context.WithoutCancel(ctx)); err != nil {
+				if err := manager.Stop(testutil.Context(t)); err != nil {
 					t.Error(err)
 				}
 			})

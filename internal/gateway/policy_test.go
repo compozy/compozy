@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestPolicyAuthorityAndRefusals(t *testing.T) {
@@ -371,7 +373,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		effects := newTestEffects(nil)
 		reconciler := NewReconciler(store, effects, WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond))
 		t.Cleanup(func() {
-			if err := reconciler.Close(context.WithoutCancel(t.Context())); err != nil {
+			if err := reconciler.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
@@ -404,7 +406,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 			WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond),
 		)
 		t.Cleanup(func() {
-			if err := reconciler.Close(context.WithoutCancel(t.Context())); err != nil {
+			if err := reconciler.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})
@@ -482,7 +484,7 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		effects := newTestEffects(nil)
 		reconciler := NewReconciler(store, effects, WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond))
 		t.Cleanup(func() {
-			if err := reconciler.Close(context.WithoutCancel(t.Context())); err != nil {
+			if err := reconciler.Close(testutil.Context(t)); err != nil {
 				t.Errorf("Close() error = %v", err)
 			}
 		})

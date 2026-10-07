@@ -286,11 +286,13 @@ func isHostedMCPTerminalError(err error) bool {
 }
 
 func isHostedMCPToolError(err error) bool {
-	var toolErr *toolspkg.ToolError
-	var validationErr *toolspkg.ValidationError
-	return errors.As(err, &toolErr) ||
-		errors.As(err, &validationErr) ||
-		errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+	if _, ok := errors.AsType[*toolspkg.ToolError](err); ok {
+		return true
+	}
+	if _, ok := errors.AsType[*toolspkg.ValidationError](err); ok {
+		return true
+	}
+	return errors.Is(err, toolspkg.ErrToolInvalidInput) ||
 		errors.Is(err, toolspkg.ErrToolNotFound) ||
 		errors.Is(err, toolspkg.ErrToolDenied) ||
 		errors.Is(err, toolspkg.ErrToolApprovalRequired) ||

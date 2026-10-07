@@ -18,7 +18,7 @@ func flattenConfigValue(entries *[]configEntry, path string, value any, redacted
 		}
 		keys := slices.Sorted(maps.Keys(typed))
 		for _, key := range keys {
-			nextPath := key
+			nextPath := key //nolint:copyloopvar // Preserve key for map lookup while extending the path.
 			if path != "" {
 				nextPath = path + "." + key
 			}

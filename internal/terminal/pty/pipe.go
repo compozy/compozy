@@ -300,7 +300,6 @@ func (p *pipeProc) signalReady(err error) {
 }
 
 func normalizeExecWaitError(err error) error {
-	//nolint:errcheck // AsType returns the matched input error; ok is the result to check.
 	if _, ok := errors.AsType[*exec.ExitError](err); ok {
 		return nil
 	}

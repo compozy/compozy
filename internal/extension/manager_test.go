@@ -567,7 +567,7 @@ path = "skills/shared"
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := manager.Stop(context.WithoutCancel(t.Context())); err != nil {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
 			t.Error(err)
 		}
 	})

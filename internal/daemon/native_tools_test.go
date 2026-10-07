@@ -10517,7 +10517,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			cleanup := &bootCleanup{}
 			t.Cleanup(func() {
 				var cleanupErr error
-				cleanup.run(t.Context(), &cleanupErr)
+				cleanup.run(testutil.Context(t), &cleanupErr)
 				if cleanupErr != nil {
 					t.Errorf("boot cleanup error = %v", cleanupErr)
 				}
@@ -10588,7 +10588,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		cleanup := &bootCleanup{}
 		t.Cleanup(func() {
 			var cleanupErr error
-			cleanup.run(t.Context(), &cleanupErr)
+			cleanup.run(testutil.Context(t), &cleanupErr)
 			if cleanupErr != nil {
 				t.Errorf("boot cleanup error = %v", cleanupErr)
 			}
@@ -10705,7 +10705,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			var cleanupErr error
-			cleanup.run(t.Context(), &cleanupErr)
+			cleanup.run(testutil.Context(t), &cleanupErr)
 			if cleanupErr != nil {
 				t.Errorf("boot cleanup error = %v", cleanupErr)
 			}

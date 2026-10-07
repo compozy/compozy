@@ -1791,12 +1791,14 @@ func holdTransientRegistryWriteLock(t *testing.T, db *sql.DB) {
 
 	releaseDone := make(chan error, 1)
 	timer := time.AfterFunc(100*time.Millisecond, func() {
-		_, commitErr := lockConn.ExecContext(ctx, `COMMIT`)
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 45*time.Second)
+		defer cancel()
+		_, commitErr := lockConn.ExecContext(releaseCtx, `COMMIT`)
 		releaseDone <- commitErr
 	})
 	t.Cleanup(func() {
 		if timer.Stop() {
-			if _, err := lockConn.ExecContext(ctx, `COMMIT`); err != nil {
+			if _, err := lockConn.ExecContext(testutil.Context(t), `COMMIT`); err != nil {
 				t.Errorf("manual lock release error = %v", err)
 			}
 			return

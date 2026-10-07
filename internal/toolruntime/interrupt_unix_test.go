@@ -3,6 +3,7 @@
 package toolruntime
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -19,7 +20,7 @@ func TestDefaultInterrupterProcessGroups(t *testing.T) {
 
 	t.Run("Should wait for recovered process group descendants before returning", func(t *testing.T) {
 		command := `trap 'exit 0' TERM; sh -c 'trap "" TERM; sleep 30' & wait`
-		cmd := exec.CommandContext(t.Context(), "sh", "-c", command)
+		cmd := exec.CommandContext(context.Background(), "sh", "-c", command)
 		procutil.ConfigureCommandProcessGroup(cmd)
 		if err := cmd.Start(); err != nil {
 			t.Fatalf("cmd.Start() error = %v", err)

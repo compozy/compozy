@@ -1532,7 +1532,7 @@ func (s *memorySchedulerStore) runsForJob(jobID string) []Run {
 		}
 		runs = append(runs, *cloneRun(&run))
 	}
-	sort.Slice(runs, func(i, j int) bool {
+	sort.Slice(runs, func(i, j int) bool { //nolint:forbidigo // Less(nil, nil) is true.
 		if runs[i].ScheduledAt == nil {
 			return true
 		}

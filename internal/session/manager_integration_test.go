@@ -940,7 +940,7 @@ func TestManagerIntegrationSyntheticQueueSurvivesRestart(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := reopened.Close(ctx); err != nil {
+				if err := reopened.Close(testutil.Context(t)); err != nil {
 					t.Error(err)
 				}
 			})

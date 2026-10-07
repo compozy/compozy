@@ -343,7 +343,7 @@ func gatewayPairingCredentialRejected(err error) bool {
 		return false
 	}
 	var payloadError interface{ errorPayload() contract.ErrorPayload }
-	return errors.As(err, &payloadError) &&
+	return errors.As(err, &payloadError) && //nolint:forbidigo // Target only has errorPayload, not Error.
 		payloadError.errorPayload().Code == gatewayDeviceUnauthenticatedCode
 }
 

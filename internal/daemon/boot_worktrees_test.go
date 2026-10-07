@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -452,7 +453,7 @@ func TestDaemonManagedDeliveryRecovery(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := db.Close(context.WithoutCancel(t.Context())); err != nil {
+				if err := db.Close(testutil.Context(t)); err != nil {
 					t.Errorf("close recovery fixture: %v", err)
 				}
 			})

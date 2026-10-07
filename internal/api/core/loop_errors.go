@@ -44,19 +44,19 @@ func (e *LoopLintFailedError) Error() string {
 
 // StatusForLoopError maps loop-domain failures to transport statuses.
 func StatusForLoopError(err error) int {
-	var lintErr *LoopLintFailedError
-	var runtimeErr *looppkg.RuntimeValidationError
-	var inputValidationErr *looppkg.InputValidationError
 	if status := StatusForTaskError(err); status != http.StatusInternalServerError {
 		return status
 	}
+	if _, ok := errors.AsType[*LoopLintFailedError](err); ok {
+		return http.StatusUnprocessableEntity
+	}
+	if _, ok := errors.AsType[*looppkg.RuntimeValidationError](err); ok {
+		return http.StatusUnprocessableEntity
+	}
+	if _, ok := errors.AsType[*looppkg.InputValidationError](err); ok {
+		return http.StatusUnprocessableEntity
+	}
 	switch {
-	case errors.As(err, &lintErr):
-		return http.StatusUnprocessableEntity
-	case errors.As(err, &runtimeErr):
-		return http.StatusUnprocessableEntity
-	case errors.As(err, &inputValidationErr):
-		return http.StatusUnprocessableEntity
 	case errors.Is(err, ErrLoopVersionConflict),
 		errors.Is(err, looppkg.ErrConcurrencyConflict),
 		errors.Is(err, looppkg.ErrTransitionConflict),
