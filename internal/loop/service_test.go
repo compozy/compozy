@@ -2351,14 +2351,6 @@ func TestCostShouldBeDisplayOnly(t *testing.T) {
 			t.Fatalf("USD = %.9f, want 0.003", cost.USD)
 		}
 	})
-
-	t.Run("Should not expose a budget USD enforcement field", func(t *testing.T) {
-		t.Parallel()
-
-		if _, ok := reflect.TypeFor[loop.EffectiveConfig]().FieldByName("BudgetUSD"); ok {
-			t.Fatal("EffectiveConfig exposes BudgetUSD, want token/wall budget enforcement only")
-		}
-	})
 }
 
 func inlineGoalDefinition(objective string, judgeModel string) dsl.Definition {

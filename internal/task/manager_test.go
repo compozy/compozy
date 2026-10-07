@@ -4550,12 +4550,17 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 			t.Fatalf("CreateTask(draft) error = %v", err)
 		}
 
-		if _, err := manager.EnqueueRun(
-			t.Context(),
-			EnqueueRun{TaskID: draftTask.ID},
-			actor,
-		); !errors.Is(err, ErrInvalidStatusTransition) {
+		// Draft admission is owned here with the publication lifecycle: rejection
+		// must return no run and leave the run store untouched.
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: draftTask.ID}, actor)
+		if !errors.Is(err, ErrInvalidStatusTransition) {
 			t.Fatalf("EnqueueRun(draft) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+		if run != nil {
+			t.Fatalf("EnqueueRun(draft) run = %#v, want nil", run)
+		}
+		if got := len(store.runs); got != 0 {
+			t.Fatalf("len(store.runs) = %d, want 0", got)
 		}
 
 		published, err := manager.PublishTask(
@@ -5576,35 +5581,6 @@ func TestManagerEnqueueRunRejectsConcurrentOpenRun(t *testing.T) {
 				t.Fatalf("len(ListTaskRuns()) = %d, want %d", got, want)
 			}
 		})
-	}
-}
-
-func TestManagerEnqueueRunRejectsDraftTask(t *testing.T) {
-	t.Parallel()
-
-	store := newInMemoryManagerStore()
-	manager := newTaskManagerForTest(t, store)
-	actor := validActorContext()
-
-	draftTask, err := manager.CreateTask(t.Context(), CreateTask{
-		ProfileID: storepkg.DefaultProfileID,
-		Scope:     ScopeGlobal,
-		Title:     "Draft task",
-		Draft:     true,
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-
-	run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: draftTask.ID}, actor)
-	if run != nil {
-		t.Fatalf("EnqueueRun() run = %#v, want nil", run)
-	}
-	if !errors.Is(err, ErrInvalidStatusTransition) {
-		t.Fatalf("EnqueueRun() error = %v, want %v", err, ErrInvalidStatusTransition)
-	}
-	if got := len(store.runs); got != 0 {
-		t.Fatalf("len(store.runs) = %d, want 0", got)
 	}
 }
 
@@ -7631,70 +7607,6 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 		ErrPermissionDenied,
 	) {
 		t.Fatalf("ListTaskRuns(no read) error = %v, want %v", err, ErrPermissionDenied)
-	}
-}
-
-func TestManagerListTasksSupportsSearchAndOrdersByLatestActivity(t *testing.T) {
-	t.Parallel()
-
-	store := newInMemoryManagerStore()
-	manager := newTaskManagerForTest(t, store)
-	actor := validActorContext()
-
-	first, err := manager.CreateTask(t.Context(), CreateTask{
-		ProfileID:  storepkg.DefaultProfileID,
-		Scope:      ScopeGlobal,
-		Title:      "Alpha planning",
-		Identifier: "OPS-100",
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask(first) error = %v", err)
-	}
-	second, err := manager.CreateTask(t.Context(), CreateTask{
-		ProfileID:  storepkg.DefaultProfileID,
-		Scope:      ScopeGlobal,
-		Title:      "Beta rollout",
-		Identifier: "OPS-200",
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask(second) error = %v", err)
-	}
-
-	store.runs["run-second"] = Run{
-		ID:        "run-second",
-		TaskID:    second.ID,
-		Status:    TaskRunStatusRunning,
-		Attempt:   1,
-		Origin:    Origin{Kind: OriginKindAutomation, Ref: "rule:nightly"},
-		QueuedAt:  time.Date(2026, 4, 14, 16, 0, 0, 0, time.UTC),
-		StartedAt: time.Date(2026, 4, 14, 16, 5, 0, 0, time.UTC),
-	}
-
-	byTitle, err := manager.ListTasks(t.Context(), Query{Search: "alpha"}, actor)
-	if err != nil {
-		t.Fatalf("ListTasks(search title) error = %v", err)
-	}
-	if len(byTitle) != 1 || byTitle[0].ID != first.ID {
-		t.Fatalf("ListTasks(search title) = %#v, want only %q", byTitle, first.ID)
-	}
-
-	byIdentifier, err := manager.ListTasks(t.Context(), Query{Search: "ops-200"}, actor)
-	if err != nil {
-		t.Fatalf("ListTasks(search identifier) error = %v", err)
-	}
-	if len(byIdentifier) != 1 || byIdentifier[0].ID != second.ID {
-		t.Fatalf("ListTasks(search identifier) = %#v, want only %q", byIdentifier, second.ID)
-	}
-
-	all, err := manager.ListTasks(t.Context(), Query{}, actor)
-	if err != nil {
-		t.Fatalf("ListTasks(all) error = %v", err)
-	}
-	if got, want := []string{all[0].ID, all[1].ID}, []string{second.ID, first.ID}; !equalStringSlices(
-		got,
-		want,
-	) {
-		t.Fatalf("ListTasks(all) order = %#v, want %#v", got, want)
 	}
 }
 

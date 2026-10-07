@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"maps"
-	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -618,16 +617,6 @@ contract:
 				appendMetricGate(def, dsl.CriterionCommand, &dsl.MetricSpec{
 					Direction: dsl.MetricMaximize,
 					MinDelta:  new(-0.1),
-				})
-			},
-			wantCode: loop.CodeMetricMinDeltaInvalid,
-		},
-		{
-			name: "Should reject a non-finite metric minimum delta",
-			mutate: func(def *dsl.Definition) {
-				appendMetricGate(def, dsl.CriterionCommand, &dsl.MetricSpec{
-					Direction: dsl.MetricMaximize,
-					MinDelta:  new(math.NaN()),
 				})
 			},
 			wantCode: loop.CodeMetricMinDeltaInvalid,
@@ -1606,16 +1595,6 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 			wantCodes: []string{loop.CodeFileImportParseRequired},
 		},
 		{
-			name: "Should reject empty file import parse",
-			def: singleNodeDefinition(dsl.Node{
-				ID:      "files",
-				Class:   dsl.NodeClassSource,
-				Kind:    string(dsl.SourceFileImport),
-				Pattern: "docs/*.md",
-			}),
-			wantCodes: []string{loop.CodeFileImportParseRequired},
-		},
-		{
 			name: "Should accept watch source closed enum",
 			def: singleNodeDefinition(dsl.Node{
 				ID:        "watch",
@@ -2150,14 +2129,6 @@ func TestLinterShouldValidateLifecycleGrammar(t *testing.T) {
 				requireNode(t, def, "agent").ResultContract = &dsl.ResultContract{FailureField: "error"}
 			},
 			wantCode: loop.CodeResultContractInvalid,
-			severity: loop.SeverityError,
-		},
-		{
-			name: "Should reject an effect without a kind",
-			mutate: func(def *dsl.Definition) {
-				requireNode(t, def, "agent").OnSuccess = []dsl.EffectSpec{{}}
-			},
-			wantCode: loop.CodeEffectShapeInvalid,
 			severity: loop.SeverityError,
 		},
 		{

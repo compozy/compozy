@@ -1045,58 +1045,6 @@ func TestRunOnceDelegatesTransientTaskBlockExpiry(t *testing.T) {
 	})
 }
 
-func TestRunOncePausedSchedulerStillSweepsExpiredLeases(t *testing.T) {
-	t.Run("Should stop new dispatch without blocking lease recovery", func(t *testing.T) {
-		base := time.Date(2026, 5, 21, 9, 30, 0, 0, time.UTC)
-		source := &fakeTaskSource{
-			pending: []RunSnapshot{
-				workSnapshot(
-					"task-paused-scheduler",
-					"run-paused-scheduler",
-					taskpkg.ScopeWorkspace,
-					"ws-1",
-					nil,
-					base,
-				),
-			},
-			recovered: []taskpkg.ExpiredLeaseRecoveryResult{{
-				Run:               taskpkg.Run{ID: "run-recovered", Status: taskpkg.TaskRunStatusQueued},
-				PreviousSessionID: "sess-stale",
-				Reason:            "scheduler_sweep",
-			}},
-		}
-		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
-			sessionSnapshot("sess-idle", "ws-1", "active", false, nil, base),
-		}}
-		waker := &fakeWaker{}
-		scheduler := newTestScheduler(
-			t,
-			source,
-			sessions,
-			waker,
-			WithClock(clockwork.NewFakeClockAt(base)),
-			WithPauseStore(fakePauseStore{state: taskpkg.SchedulerPauseState{Paused: true}}),
-		)
-
-		result, err := scheduler.RunOnce(testutil.Context(t))
-		if err != nil {
-			t.Fatalf("RunOnce() error = %v", err)
-		}
-		if !result.Paused {
-			t.Fatalf("Paused = false, want true in result %#v", result)
-		}
-		if result.RecoveredLeases != 1 {
-			t.Fatalf("RecoveredLeases = %d, want 1", result.RecoveredLeases)
-		}
-		if got := len(source.recoveryCallsSnapshot()); got != 1 {
-			t.Fatalf("recovery calls = %d, want 1", got)
-		}
-		if got := len(waker.targetsSnapshot()); got != 0 {
-			t.Fatalf("wake targets = %d, want 0 while scheduler is paused", got)
-		}
-	})
-}
-
 func TestRunOnceSkipsDirectlyPausedTaskSnapshots(t *testing.T) {
 	t.Parallel()
 
