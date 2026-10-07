@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
+import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { appWindow, sessionWindow, switchWorkspace, windowTitle } from "../fixtures/os-navigation";
@@ -285,7 +286,10 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
     parityEvidence.lifecycle = parity;
     await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
     await browserArtifacts.captureScreenshot("jobs-lifecycle-history", appPage);
-    await browserArtifacts.persist(appPage);
+    await runtime.artifactCollector.captureJSON(
+      "browser_route_state",
+      await captureRouteState(appPage)
+    );
     const routeState = await readRouteState(runtime);
     expect(routeState).toMatchObject({
       automation_active_tab: "jobs",
@@ -338,12 +342,9 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
       disabledHealth.automation.scheduled_jobs?.some(state => state.job_id === created.id)
     ).toBe(false);
 
-    await assertNoJobSensitiveLeak(appPage, runtime, {
-      afterDelete,
-      parity,
-      routeState,
-      workspaceJob,
-    });
+    parityEvidence.lifecycle = { afterDelete, parity, routeState, workspaceJob };
+    expect(JSON.stringify(parityEvidence.lifecycle)).not.toMatch(sensitivePattern);
+    expect((await appPage.textContent("body")) ?? "").not.toMatch(sensitivePattern);
     await deleteSessionIfExists(runtime, completedRun.workspace_id, completedRun.session_id);
     await deleteJobIfExists(runtime, workspaceJob.id);
   });
@@ -409,9 +410,9 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
     parityEvidence.restart = parity;
     await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
     await browserArtifacts.captureScreenshot("jobs-restart-scheduled-history", appPage);
-    await browserArtifacts.persist(appPage);
-    await assertNoJobSensitiveLeak(appPage, runtime, parity);
   });
+  await browserArtifacts.persist(appPage);
+  await assertNoJobSensitiveLeak(appPage, runtime, parityEvidence);
 });
 
 test("failed job run is diagnosable from browser and CLI without leaking secrets", async ({
