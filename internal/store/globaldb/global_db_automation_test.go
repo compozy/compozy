@@ -1327,79 +1327,129 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 
 func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
 	t.Parallel()
-	t.Run("Should append the v20 schema and preserve suggestions across reopen", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, automationSuggestionMigrationPrefix(t))
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v19 prefix) error = %v", err)
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, automationSuggestionMigrationPrefix(t))
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase(v19 prefix) error = %v", err)
+	}
+	ctx := testutil.Context(t)
+	prefixClosed := false
+	t.Cleanup(func() {
+		if prefixClosed {
+			return
 		}
-		ctx := testutil.Context(t)
-		prefixClosed := false
-		t.Cleanup(func() {
-			if prefixClosed {
-				return
-			}
-			if err := prefixDB.Close(); err != nil {
-				t.Errorf("prefixDB.Close(cleanup) error = %v", err)
-			}
-		})
-		exists, err := tableExists(ctx, prefixDB, "automation_suggestions")
-		if err != nil {
-			t.Fatalf("tableExists(automation_suggestions) error = %v", err)
-		}
-		if exists {
-			t.Fatal("automation_suggestions exists at v19, want append-only v20 ownership")
-		}
-		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: time.Now}
-		prefixGlobalDB.initializeRepositories(openConfig{})
-		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-upgrade", t.TempDir())
 		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("prefixDB.Close() error = %v", err)
+			t.Errorf("prefixDB.Close(cleanup) error = %v", err)
 		}
-		prefixClosed = true
+	})
+	exists, err := tableExists(ctx, prefixDB, "automation_suggestions")
+	if err != nil {
+		t.Fatalf("tableExists(automation_suggestions) error = %v", err)
+	}
+	if exists {
+		t.Fatal("automation_suggestions exists at v19, want append-only v20 ownership")
+	}
+	prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: time.Now}
+	prefixGlobalDB.initializeRepositories(openConfig{})
+	workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-upgrade", t.TempDir())
+	// Invariant: v19 adds suggestion storage, and populated v20 payloads survive the rename.
+	// Owner: GlobalDB migrations; canonical suite: this staged historical upgrade.
+	if err := applyGlobalMigrationPrefix(t, prefixDB, automationSuggestionMigrationPrefix(t, "00020_schema.sql")); err != nil {
+		t.Fatalf("Apply(v20 prefix) error = %v", err)
+	}
+	legacyWorkspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-payload-rename", t.TempDir())
+	legacySuggestion := automationSuggestionForTest(
+		"suggestion-payload-rename",
+		legacyWorkspaceID,
+		"catalog:v1:payload-rename",
+	)
+	legacySuggestion.CreatedAt = time.Date(2026, 7, 18, 13, 30, 0, 0, time.UTC)
+	payload, err := json.Marshal(legacySuggestion.Payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(payload) error = %v", err)
+	}
+	if _, err := prefixDB.ExecContext(
+		ctx,
+		`INSERT INTO automation_suggestions (
+			id, workspace_id, source, dedup_key, status, payload_json, created_at, resolved_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+		legacySuggestion.ID,
+		legacySuggestion.WorkspaceID,
+		legacySuggestion.Source,
+		legacySuggestion.DedupKey,
+		legacySuggestion.Status,
+		string(payload),
+		store.FormatTimestamp(legacySuggestion.CreatedAt),
+	); err != nil {
+		t.Fatalf("insert v20 suggestion error = %v", err)
+	}
 
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(v20 upgrade) error = %v", err)
-		}
-		ctx = testutil.Context(t)
-		upgradedClosed := false
-		t.Cleanup(func() {
-			if upgradedClosed {
-				return
-			}
-			if err := upgraded.Close(testutil.Context(t)); err != nil {
-				t.Errorf("upgraded.Close(cleanup) error = %v", err)
-			}
-		})
-		created, err := upgraded.CreateSuggestion(ctx, automationSuggestionForTest(
-			"suggestion-upgrade",
-			workspaceID,
-			"catalog:v1:upgrade",
-		), automation.DefaultSuggestionPendingCap)
-		if err != nil {
-			t.Fatalf("CreateSuggestion(after upgrade) error = %v", err)
-		}
-		status, err := store.Status(ctx, upgraded.db, MigrationStream())
-		if err != nil {
-			t.Fatalf("Status(v20) error = %v", err)
-		}
-		assertCompleteMigrationStream(t, status, MigrationStream())
-		if err := upgraded.Close(ctx); err != nil {
-			t.Fatalf("upgraded.Close() error = %v", err)
-		}
-		upgradedClosed = true
+	if err := prefixDB.Close(); err != nil {
+		t.Fatalf("prefixDB.Close() error = %v", err)
+	}
+	prefixClosed = true
 
-		reopened, err := OpenGlobalDB(testutil.Context(t), path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+	upgraded, err := openGlobalMigrationUpgrade(t, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(v20 upgrade) error = %v", err)
+	}
+	ctx = testutil.Context(t)
+	upgradedClosed := false
+	t.Cleanup(func() {
+		if upgradedClosed {
+			return
 		}
-		ctx = testutil.Context(t)
-		t.Cleanup(func() {
-			if err := reopened.Close(testutil.Context(t)); err != nil {
-				t.Errorf("reopened.Close() error = %v", err)
-			}
+		if err := upgraded.Close(testutil.Context(t)); err != nil {
+			t.Errorf("upgraded.Close(cleanup) error = %v", err)
+		}
+	})
+
+	created, err := upgraded.CreateSuggestion(ctx, automationSuggestionForTest(
+		"suggestion-upgrade",
+		workspaceID,
+		"catalog:v1:upgrade",
+	), automation.DefaultSuggestionPendingCap)
+	if err != nil {
+		t.Fatalf("CreateSuggestion(after upgrade) error = %v", err)
+	}
+	status, err := store.Status(ctx, upgraded.db, MigrationStream())
+	if err != nil {
+		t.Fatalf("Status(v20) error = %v", err)
+	}
+	assertCompleteMigrationStream(t, status, MigrationStream())
+	if err := upgraded.Close(ctx); err != nil {
+		t.Fatalf("upgraded.Close() error = %v", err)
+	}
+	upgradedClosed = true
+
+	reopened, err := OpenGlobalDB(testutil.Context(t), path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+	}
+	ctx = testutil.Context(t)
+	t.Cleanup(func() {
+		if err := reopened.Close(testutil.Context(t)); err != nil {
+			t.Errorf("reopened.Close() error = %v", err)
+		}
+	})
+	t.Run("Should preserve v20 payload rows through the hard column rename", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		stored, err := reopened.GetSuggestion(ctx, legacySuggestion.ProfileID, legacyWorkspaceID, legacySuggestion.ID)
+		if err != nil {
+			t.Fatalf("GetSuggestion(payload rename) error = %v", err)
+		}
+		if stored.ID != legacySuggestion.ID || stored.Payload.Prompt != legacySuggestion.Payload.Prompt ||
+			stored.DedupKey != legacySuggestion.DedupKey {
+			t.Fatalf("GetSuggestion(payload rename) = %#v, want preserved %#v", stored, legacySuggestion)
+		}
+		assertTableColumns(t, reopened.db, "automation_suggestions", []string{
+			"id", "profile_id", "workspace_id", "source", "dedup_key", "status", "payload", "created_at", "resolved_at",
 		})
+	})
+	t.Run("Should append the v20 schema and preserve suggestions across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
 		stored, err := reopened.GetSuggestion(ctx, created.ProfileID, workspaceID, created.ID)
 		if err != nil {
 			t.Fatalf("GetSuggestion(reopen) error = %v", err)
@@ -1408,82 +1458,6 @@ func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
 			stored.Status != automation.SuggestionStatusPending {
 			t.Fatalf("GetSuggestion(reopen) = %#v, want durable pending suggestion %#v", stored, created)
 		}
-	})
-
-	t.Run("Should preserve v20 payload rows through the hard column rename", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := openGlobalMigrationPrefixDatabase(
-			t,
-			path,
-			automationSuggestionMigrationPrefix(t, "00020_schema.sql"),
-		)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v20 prefix) error = %v", err)
-		}
-		ctx := testutil.Context(t)
-		prefixClosed := false
-		t.Cleanup(func() {
-			if prefixClosed {
-				return
-			}
-			if err := prefixDB.Close(); err != nil {
-				t.Errorf("prefixDB.Close(cleanup) error = %v", err)
-			}
-		})
-		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: time.Now}
-		prefixGlobalDB.initializeRepositories(openConfig{})
-		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-payload-rename", t.TempDir())
-		created := automationSuggestionForTest(
-			"suggestion-payload-rename",
-			workspaceID,
-			"catalog:v1:payload-rename",
-		)
-		created.CreatedAt = time.Date(2026, 7, 18, 13, 30, 0, 0, time.UTC)
-		payload, err := json.Marshal(created.Payload)
-		if err != nil {
-			t.Fatalf("json.Marshal(payload) error = %v", err)
-		}
-		if _, err := prefixDB.ExecContext(
-			ctx,
-			`INSERT INTO automation_suggestions (
-				id, workspace_id, source, dedup_key, status, payload_json, created_at, resolved_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
-			created.ID,
-			created.WorkspaceID,
-			created.Source,
-			created.DedupKey,
-			created.Status,
-			string(payload),
-			store.FormatTimestamp(created.CreatedAt),
-		); err != nil {
-			t.Fatalf("insert v20 suggestion error = %v", err)
-		}
-		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("prefixDB.Close() error = %v", err)
-		}
-		prefixClosed = true
-
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(payload rename) error = %v", err)
-		}
-		ctx = testutil.Context(t)
-		t.Cleanup(func() {
-			if err := upgraded.Close(testutil.Context(t)); err != nil {
-				t.Errorf("upgraded.Close() error = %v", err)
-			}
-		})
-		stored, err := upgraded.GetSuggestion(ctx, created.ProfileID, workspaceID, created.ID)
-		if err != nil {
-			t.Fatalf("GetSuggestion(payload rename) error = %v", err)
-		}
-		if stored.ID != created.ID || stored.Payload.Prompt != created.Payload.Prompt ||
-			stored.DedupKey != created.DedupKey {
-			t.Fatalf("GetSuggestion(payload rename) = %#v, want preserved %#v", stored, created)
-		}
-		assertTableColumns(t, upgraded.db, "automation_suggestions", []string{
-			"id", "profile_id", "workspace_id", "source", "dedup_key", "status", "payload", "created_at", "resolved_at",
-		})
 	})
 }
 
