@@ -16,140 +16,139 @@ const execFileAsync = promisify(execFile);
 const sensitivePattern =
   /compozy_claim_[a-z0-9._-]+|["']claim_token["']\s*:\s*["']?[a-z0-9._-]{8,}|(?:authorization\s*:\s*bearer|bearer)\s+["']?[a-z0-9._-]{8,}|(?:api[_-]?key|bearer[_-]?token|mcp[_-]?auth|oauth[_-]?(?:access(?:[_-]?token)?|client(?:[_-]?secret)?|refresh(?:[_-]?token)?|secret|token)|pkce[_-]?(?:challenge|secret|verifier)|provider[_-]?credential|browser-settings-secret)\s*[:=]\s*["']?[a-z0-9._:-]{8,}/i;
 
-test("operator can inspect and delete a session-scoped vault secret from the vault route", async ({
+// Invariant: session-secret deletion and provider-secret lifecycle preserve metadata-only reads.
+// Owner: the real vault route; session cleanup precedes provider seeding on the same runtime.
+test("operator deletes a session-scoped secret then stores and deletes a vault secret without plaintext readback", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  const ref = "vault:sessions/browser_e2e_vault/api_key";
+  await test.step("operator can inspect and delete a session-scoped vault secret from the vault route", async () => {
+    const ref = "vault:sessions/browser_e2e_vault/api_key";
 
-  await runtime.requestJSON<{ secret: { ref: string } }>("/api/vault/secrets", {
-    method: "PUT",
-    body: JSON.stringify({
-      ref,
-      kind: "api_key",
-      secret_value: "browser-e2e-vault-token",
-    }),
+    await runtime.requestJSON<{ secret: { ref: string } }>("/api/vault/secrets", {
+      method: "PUT",
+      body: JSON.stringify({
+        ref,
+        kind: "api_key",
+        secret_value: "browser-e2e-vault-token",
+      }),
+    });
+
+    try {
+      await ensureProjectWorkspace(appPage, runtime);
+      await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
+      await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
+
+      await expect(appPage.getByTestId("vault-shell")).toBeVisible({ timeout: 20_000 });
+      await expect(appPage.getByTestId("vault-page-list")).toBeVisible();
+      await expect(appPage.getByTestId(`vault-secrets-delete-${ref}`)).toBeVisible();
+
+      await appPage.getByTestId(`vault-secrets-delete-${ref}`).click();
+      await expect(appPage.getByTestId("settings-vault-delete")).toBeVisible();
+      await expect(appPage.getByTestId("settings-vault-delete-description")).toContainText(ref);
+      await confirmVaultSecretDelete(appPage, ref);
+
+      await expect(appPage.getByText("Deleted api_key")).toBeVisible();
+      await expect(appPage.getByTestId(`vault-secrets-delete-${ref}`)).not.toBeVisible();
+
+      const payload = await runtime.requestJSON<{ secrets: Array<{ ref: string }> }>(
+        "/api/vault/secrets?namespace=sessions"
+      );
+      expect(payload.secrets.some(secret => secret.ref === ref)).toBe(false);
+      await browserArtifacts.captureScreenshot("tc-func-013-vault-list-delete", appPage);
+    } finally {
+      await deleteVaultSecretIfPresent(
+        runtime.url(`/api/vault/secrets?ref=${encodeURIComponent(ref)}`)
+      );
+    }
   });
+  await test.step("operator stores and deletes a vault secret without plaintext readback", async () => {
+    assertLaunchRuntime(runtime, "vault lifecycle");
 
-  try {
+    const secretTitle = `browser-settings-secret-${Date.now()}`;
+    const secretRef = `vault:providers/${secretTitle}`;
+    const secretValue = "browser-settings-secret-value-11";
+
     await ensureProjectWorkspace(appPage, runtime);
     await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-
     await expect(appPage.getByTestId("vault-shell")).toBeVisible({ timeout: 20_000 });
-    await expect(appPage.getByTestId("vault-page-list")).toBeVisible();
-    await expect(appPage.getByTestId(`vault-secrets-delete-${ref}`)).toBeVisible();
+    await expect(appPage.getByTestId("vault-page-create")).toBeVisible();
 
-    await appPage.getByTestId(`vault-secrets-delete-${ref}`).click();
+    await appPage.getByTestId("vault-page-create").click();
+    await expect(appPage.getByTestId("settings-vault-editor")).toBeVisible();
+    await expect(appPage.getByTestId("settings-vault-editor-save")).toBeDisabled();
+    // A bare name is saved under the vault: prefix without the user typing it.
+    await appPage
+      .getByTestId("settings-vault-editor-ref-input")
+      .fill(secretRef.slice("vault:".length));
+    await expect(appPage.getByTestId("settings-vault-editor-ref-preview")).toContainText(secretRef);
+    await appPage.getByText("More options").click();
+    await appPage.getByTestId("settings-vault-editor-kind-input").fill("api_key");
+    await appPage.getByLabel("Secret value").fill(secretValue);
+    await expect(appPage.getByTestId("settings-vault-editor-save")).toBeEnabled();
+    await appPage.getByTestId("settings-vault-editor-save").click();
+
+    await expect(appPage.getByTestId("settings-vault-editor")).toBeHidden();
+    await expect(appPage.getByText(`Saved ${secretTitle}`)).toBeVisible();
+    await expect(appPage.locator("body")).not.toContainText(secretValue);
+
+    await selectVaultNamespace(appPage, "providers");
+    await appPage.getByTestId("vault-page-prefix").fill(secretRef);
+    await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(1);
+    await expect(appPage.getByTestId("vault-secrets-row")).toContainText(secretTitle);
+    await expect(appPage.getByTestId("vault-secrets-row")).toContainText("api_key");
+    await expect(appPage.getByTestId("vault-secrets-row")).not.toContainText(secretValue);
+
+    const httpMetadata = await runtime.requestJSON<unknown>(
+      `/api/vault/secrets/metadata?ref=${encodeURIComponent(secretRef)}`
+    );
+    const udsMetadata = await requestOperatorJSON<unknown>(
+      runtime,
+      `/api/vault/secrets/metadata?ref=${encodeURIComponent(secretRef)}`
+    );
+    const cliMetadata = await runCLIJSON(runtime.paths, ["vault", "get", secretRef, "-o", "json"]);
+    const cliList = await runCLIJSON(runtime.paths, [
+      "vault",
+      "list",
+      "--namespace",
+      "providers",
+      "--prefix",
+      secretRef,
+      "-o",
+      "json",
+    ]);
+
+    const snapshot = {
+      http_metadata: httpMetadata,
+      uds_metadata: udsMetadata,
+      cli_metadata: cliMetadata,
+      cli_list: cliList,
+      ui_row_count: await appPage.getByTestId("vault-secrets-row").count(),
+    };
+    expect(JSON.stringify(snapshot)).not.toContain(secretValue);
+    expect(JSON.stringify(snapshot)).not.toMatch(sensitivePattern);
+    await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
+    await browserArtifacts.captureScreenshot("vault-lifecycle-desktop", appPage);
+    await captureVaultViewportMatrix(appPage, browserArtifacts, runtime);
+
+    await appPage.getByTestId(`vault-secrets-delete-${secretRef}`).click();
     await expect(appPage.getByTestId("settings-vault-delete")).toBeVisible();
-    await expect(appPage.getByTestId("settings-vault-delete-description")).toContainText(ref);
-    await confirmVaultSecretDelete(appPage, ref);
+    await expect(appPage.getByTestId("settings-vault-delete-description")).toContainText(secretRef);
+    await confirmVaultSecretDelete(appPage, secretRef);
 
-    await expect(appPage.getByText("Deleted api_key")).toBeVisible();
-    await expect(appPage.getByTestId(`vault-secrets-delete-${ref}`)).not.toBeVisible();
+    await expect(appPage.getByText(`Deleted ${secretTitle}`)).toBeVisible();
+    await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(0);
 
-    const payload = await runtime.requestJSON<{ secrets: Array<{ ref: string }> }>(
-      "/api/vault/secrets?namespace=sessions"
+    const deletedResponse = await appPage.request.get(
+      runtime.url(`/api/vault/secrets/metadata?ref=${encodeURIComponent(secretRef)}`)
     );
-    expect(payload.secrets.some(secret => secret.ref === ref)).toBe(false);
-    await browserArtifacts.captureScreenshot("tc-func-013-vault-list-delete", appPage);
-  } finally {
-    await deleteVaultSecretIfPresent(
-      runtime.url(`/api/vault/secrets?ref=${encodeURIComponent(ref)}`)
-    );
-  }
-});
+    expect(deletedResponse.status()).toBe(404);
 
-test("operator stores and deletes a vault secret without plaintext readback", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  assertLaunchRuntime(runtime, "vault lifecycle");
-
-  const secretTitle = `browser-settings-secret-${Date.now()}`;
-  const secretRef = `vault:providers/${secretTitle}`;
-  const secretValue = "browser-settings-secret-value-11";
-
-  await ensureProjectWorkspace(appPage, runtime);
-  await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-  await expect(appPage.getByTestId("vault-shell")).toBeVisible({ timeout: 20_000 });
-  await expect(appPage.getByTestId("vault-page-create")).toBeVisible();
-
-  await appPage.getByTestId("vault-page-create").click();
-  await expect(appPage.getByTestId("settings-vault-editor")).toBeVisible();
-  await expect(appPage.getByTestId("settings-vault-editor-save")).toBeDisabled();
-  // A bare name is saved under the vault: prefix without the user typing it.
-  await appPage
-    .getByTestId("settings-vault-editor-ref-input")
-    .fill(secretRef.slice("vault:".length));
-  await expect(appPage.getByTestId("settings-vault-editor-ref-preview")).toContainText(secretRef);
-  await appPage.getByText("More options").click();
-  await appPage.getByTestId("settings-vault-editor-kind-input").fill("api_key");
-  await appPage.getByLabel("Secret value").fill(secretValue);
-  await expect(appPage.getByTestId("settings-vault-editor-save")).toBeEnabled();
-  await appPage.getByTestId("settings-vault-editor-save").click();
-
-  await expect(appPage.getByTestId("settings-vault-editor")).toBeHidden();
-  await expect(appPage.getByText(`Saved ${secretTitle}`)).toBeVisible();
-  await expect(appPage.locator("body")).not.toContainText(secretValue);
-
-  await selectVaultNamespace(appPage, "providers");
-  await appPage.getByTestId("vault-page-prefix").fill(secretRef);
-  await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(1);
-  await expect(appPage.getByTestId("vault-secrets-row")).toContainText(secretTitle);
-  await expect(appPage.getByTestId("vault-secrets-row")).toContainText("api_key");
-  await expect(appPage.getByTestId("vault-secrets-row")).not.toContainText(secretValue);
-
-  const httpMetadata = await runtime.requestJSON<unknown>(
-    `/api/vault/secrets/metadata?ref=${encodeURIComponent(secretRef)}`
-  );
-  const udsMetadata = await requestOperatorJSON<unknown>(
-    runtime,
-    `/api/vault/secrets/metadata?ref=${encodeURIComponent(secretRef)}`
-  );
-  const cliMetadata = await runCLIJSON(runtime.paths, ["vault", "get", secretRef, "-o", "json"]);
-  const cliList = await runCLIJSON(runtime.paths, [
-    "vault",
-    "list",
-    "--namespace",
-    "providers",
-    "--prefix",
-    secretRef,
-    "-o",
-    "json",
-  ]);
-
-  const snapshot = {
-    http_metadata: httpMetadata,
-    uds_metadata: udsMetadata,
-    cli_metadata: cliMetadata,
-    cli_list: cliList,
-    ui_row_count: await appPage.getByTestId("vault-secrets-row").count(),
-  };
-  expect(JSON.stringify(snapshot)).not.toContain(secretValue);
-  expect(JSON.stringify(snapshot)).not.toMatch(sensitivePattern);
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
-  await browserArtifacts.captureScreenshot("vault-lifecycle-desktop", appPage);
-  await captureVaultViewportMatrix(appPage, browserArtifacts, runtime);
-
-  await appPage.getByTestId(`vault-secrets-delete-${secretRef}`).click();
-  await expect(appPage.getByTestId("settings-vault-delete")).toBeVisible();
-  await expect(appPage.getByTestId("settings-vault-delete-description")).toContainText(secretRef);
-  await confirmVaultSecretDelete(appPage, secretRef);
-
-  await expect(appPage.getByText(`Deleted ${secretTitle}`)).toBeVisible();
-  await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(0);
-
-  const deletedResponse = await appPage.request.get(
-    runtime.url(`/api/vault/secrets/metadata?ref=${encodeURIComponent(secretRef)}`)
-  );
-  expect(deletedResponse.status()).toBe(404);
-
-  await browserArtifacts.persist(appPage);
-  await assertNoVaultSensitiveLeak(appPage, runtime, [secretValue]);
+    await browserArtifacts.persist(appPage);
+    await assertNoVaultSensitiveLeak(appPage, runtime, [secretValue]);
+  });
 });
 
 async function deleteVaultSecretIfPresent(url: string) {

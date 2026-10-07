@@ -377,7 +377,7 @@ test.describe("Profile-aware extension management", () => {
 
   test.use({ runtimeOptions: { extensionsAllowUnverified: true } });
 
-  test("E2E-023: placement, setup, dormancy, and enablement follow the active profile", async ({
+  test("E2E-023 / E2E-030: profile setup and enablement update extension details and placed palette commands", async ({
     appPage,
     runtime,
   }) => {
@@ -390,136 +390,124 @@ test.describe("Profile-aware extension management", () => {
       "--yes",
     ]);
 
-    await completeOnboardingIfPrompted(appPage);
-    await appPage.goto(
-      runtime.url(`/marketplace/${extensionName}?installed_name=${extensionName}`),
-      {
-        waitUntil: "domcontentloaded",
-      }
-    );
+    await test.step("E2E-023: placement, setup, dormancy, and profile enablement", async () => {
+      await completeOnboardingIfPrompted(appPage);
+      await appPage.goto(
+        runtime.url(`/marketplace/${extensionName}?installed_name=${extensionName}`),
+        {
+          waitUntil: "domcontentloaded",
+        }
+      );
 
-    const marketplaceWin = appWindow(appPage, "marketplace");
-    await expect(marketplaceWin).toBeVisible();
-    const marketplace = marketplaceOperatorSelectors(marketplaceWin);
-    await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
+      const marketplaceWin = appWindow(appPage, "marketplace");
+      await expect(marketplaceWin).toBeVisible();
+      const marketplace = marketplaceOperatorSelectors(marketplaceWin);
+      await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
 
-    const declaredProfiles = marketplaceWin.getByTestId("extension-declared-profiles");
-    await expect(declaredProfiles).toContainText("growth");
-    await expect(declaredProfiles).toContainText("Needs setup");
-    await expect(declaredProfiles).toContainText("finance");
-    await expect(marketplaceWin.getByTestId("extension-dormant-finance")).toContainText(
-      "finance-only"
-    );
-    await declaredProfiles.getByText("Placement matrix").click();
-    await expect(declaredProfiles).toContainText("shared");
-    await expect(declaredProfiles).toContainText("growth-only");
+      const declaredProfiles = marketplaceWin.getByTestId("extension-declared-profiles");
+      await expect(declaredProfiles).toContainText("growth");
+      await expect(declaredProfiles).toContainText("Needs setup");
+      await expect(declaredProfiles).toContainText("finance");
+      await expect(marketplaceWin.getByTestId("extension-dormant-finance")).toContainText(
+        "finance-only"
+      );
+      await declaredProfiles.getByText("Placement matrix").click();
+      await expect(declaredProfiles).toContainText("shared");
+      await expect(declaredProfiles).toContainText("growth-only");
 
-    const defaultToggle = marketplaceWin.getByTestId("extension-enabled-switch");
-    await expect(defaultToggle).toBeChecked();
-    const disabledResponse = appPage.waitForResponse(
-      response =>
-        response.request().method() === "PUT" &&
-        new URL(response.url()).pathname === `/api/extensions/${extensionName}/enablement`
-    );
-    await defaultToggle.click();
-    expect((await disabledResponse).ok()).toBe(true);
-    await expect(defaultToggle).not.toBeChecked();
-    await expect
-      .poll(async () => {
-        const enablement = await runtime.requestJSON<Array<{ enabled: boolean; profile: string }>>(
-          `/api/extensions/${extensionName}/enablement?profile=default`
-        );
-        return enablement.find(item => item.profile === "default")?.enabled;
-      })
-      .toBe(false);
+      const defaultToggle = marketplaceWin.getByTestId("extension-enabled-switch");
+      await expect(defaultToggle).toBeChecked();
+      const disabledResponse = appPage.waitForResponse(
+        response =>
+          response.request().method() === "PUT" &&
+          new URL(response.url()).pathname === `/api/extensions/${extensionName}/enablement`
+      );
+      await defaultToggle.click();
+      expect((await disabledResponse).ok()).toBe(true);
+      await expect(defaultToggle).not.toBeChecked();
+      await expect
+        .poll(async () => {
+          const enablement = await runtime.requestJSON<
+            Array<{ enabled: boolean; profile: string }>
+          >(`/api/extensions/${extensionName}/enablement?profile=default`);
+          return enablement.find(item => item.profile === "default")?.enabled;
+        })
+        .toBe(false);
 
-    await fulfillGrowthProfileCredential(runtime);
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    const refreshedMarketplace = appWindow(appPage, "marketplace");
-    const refreshedDeclaredProfiles = refreshedMarketplace.getByTestId(
-      "extension-declared-profiles"
-    );
-    await expect(refreshedDeclaredProfiles).toBeVisible({ timeout: 20_000 });
-    await expect(refreshedDeclaredProfiles.getByText("Needs setup")).toHaveCount(0);
+      await fulfillGrowthProfileCredential(runtime);
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      const refreshedMarketplace = appWindow(appPage, "marketplace");
+      const refreshedDeclaredProfiles = refreshedMarketplace.getByTestId(
+        "extension-declared-profiles"
+      );
+      await expect(refreshedDeclaredProfiles).toBeVisible({ timeout: 20_000 });
+      await expect(refreshedDeclaredProfiles.getByText("Needs setup")).toHaveCount(0);
 
-    const profiles = profilesOperatorSelectors(appPage);
-    await profiles.switcher.click();
-    await profiles.switcherOption("growth").click();
-    await expect(profiles.switcher).toHaveAccessibleName("Profile: growth");
-    await appPage.goto(
-      runtime.url(`/marketplace/${extensionName}?installed_name=${extensionName}`),
-      {
-        waitUntil: "domcontentloaded",
-      }
-    );
-    const growthMarketplace = appWindow(appPage, "marketplace");
-    await expect(growthMarketplace.getByTestId("extension-enabled-switch")).toBeChecked();
-    await expect(growthMarketplace.getByText("growth", { exact: true }).last()).toBeVisible();
-  });
-
-  test("E2E-030: a placed palette command follows profile enablement and catalog revision", async ({
-    appPage,
-    runtime,
-  }) => {
-    const sourceDir = await scaffoldProfileKitExtension();
-    const workspace = await runtime.resolveWorkspace(sourceDir);
-    await runBrowserRuntimeCLIJSON(runtime, [
-      "extension",
-      "install",
-      sourceDir,
-      "--allow-unverified",
-      "--yes",
-    ]);
-    await fulfillGrowthProfileCredential(runtime);
-
-    await completeOnboardingIfPrompted(appPage);
-    await switchWorkspace(appPage, workspace.id, workspace.name);
-    const profiles = profilesOperatorSelectors(appPage);
-    await profiles.switcher.click();
-    await profiles.switcherOption("growth").click();
-
-    const commandID = `ext.${extensionName}.open-growth`;
-    const query = `/api/cmd-palette/commands?workspace=${encodeURIComponent(workspace.id)}&profile=growth`;
-    const before = await runtime.requestJSON<{
-      catalog_revision: string;
-      commands: Array<{ id: string }>;
-    }>(query);
-    expect(before.commands.map(command => command.id)).toContain(commandID);
-
-    let palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
-    await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
-    await appPage.keyboard.press("Escape");
-    await expect(palette).toHaveCount(0);
-
-    await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
-      body: JSON.stringify({ enabled: false, profile: "growth" }),
-      method: "PUT",
+      const profiles = profilesOperatorSelectors(appPage);
+      await profiles.switcher.click();
+      await profiles.switcherOption("growth").click();
+      await expect(profiles.switcher).toHaveAccessibleName("Profile: growth");
+      await appPage.goto(
+        runtime.url(`/marketplace/${extensionName}?installed_name=${extensionName}`),
+        {
+          waitUntil: "domcontentloaded",
+        }
+      );
+      const growthMarketplace = appWindow(appPage, "marketplace");
+      await expect(growthMarketplace.getByTestId("extension-enabled-switch")).toBeChecked();
+      await expect(growthMarketplace.getByText("growth", { exact: true }).last()).toBeVisible();
     });
-    const disabled = await runtime.requestJSON<{
-      catalog_revision: string;
-      commands: Array<{ id: string }>;
-    }>(query);
-    expect(disabled.catalog_revision).not.toBe(before.catalog_revision);
-    expect(disabled.commands.map(command => command.id)).not.toContain(commandID);
 
-    palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
-    await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toHaveCount(0);
-    await appPage.keyboard.press("Escape");
-    await expect(palette).toHaveCount(0);
+    await test.step("E2E-030: palette commands follow enablement and catalog revision", async () => {
+      const workspace = await runtime.resolveWorkspace(sourceDir);
+      await switchWorkspace(appPage, workspace.id, workspace.name);
+      const profiles = profilesOperatorSelectors(appPage);
+      await profiles.switcher.click();
+      await profiles.switcherOption("growth").click();
+      await expect(profiles.switcher).toHaveAccessibleName("Profile: growth");
+      const commandID = `ext.${extensionName}.open-growth`;
+      const query = `/api/cmd-palette/commands?workspace=${encodeURIComponent(workspace.id)}&profile=growth`;
+      const before = await runtime.requestJSON<{
+        catalog_revision: string;
+        commands: Array<{ id: string }>;
+      }>(query);
+      expect(before.commands.map(command => command.id)).toContain(commandID);
 
-    await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
-      body: JSON.stringify({ enabled: true, profile: "growth" }),
-      method: "PUT",
+      let palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
+      await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
+      await appPage.keyboard.press("Escape");
+      await expect(palette).toHaveCount(0);
+
+      await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
+        body: JSON.stringify({ enabled: false, profile: "growth" }),
+        method: "PUT",
+      });
+      const disabled = await runtime.requestJSON<{
+        catalog_revision: string;
+        commands: Array<{ id: string }>;
+      }>(query);
+      expect(disabled.catalog_revision).not.toBe(before.catalog_revision);
+      expect(disabled.commands.map(command => command.id)).not.toContain(commandID);
+
+      palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
+      await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toHaveCount(0);
+      await appPage.keyboard.press("Escape");
+      await expect(palette).toHaveCount(0);
+
+      await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
+        body: JSON.stringify({ enabled: true, profile: "growth" }),
+        method: "PUT",
+      });
+      const restored = await runtime.requestJSON<{
+        catalog_revision: string;
+        commands: Array<{ id: string }>;
+      }>(query);
+      expect(restored.catalog_revision).not.toBe(disabled.catalog_revision);
+      expect(restored.commands.map(command => command.id)).toContain(commandID);
+
+      palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
+      await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
     });
-    const restored = await runtime.requestJSON<{
-      catalog_revision: string;
-      commands: Array<{ id: string }>;
-    }>(query);
-    expect(restored.catalog_revision).not.toBe(disabled.catalog_revision);
-    expect(restored.commands.map(command => command.id)).toContain(commandID);
-
-    palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
-    await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
   });
 
   async function scaffoldProfileKitExtension(): Promise<string> {

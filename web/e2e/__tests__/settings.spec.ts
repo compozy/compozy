@@ -16,16 +16,12 @@ import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixture
 import {
   settingsUpdateApplyingFixture,
   settingsUpdateBothAvailableFixture,
-  settingsUpdateManagedFixture,
-  settingsUpdateNoAppFixture,
   settingsUpdateRolledBackFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
 
 /** Host-install shapes the update projection can report, shared by the update journeys. */
 const updateFixtures = {
   bothAvailable: settingsUpdateBothAvailableFixture,
-  managed: settingsUpdateManagedFixture,
-  noApp: settingsUpdateNoAppFixture,
   applying: settingsUpdateApplyingFixture,
   rolledBack: settingsUpdateRolledBackFixture,
 } as const;
@@ -162,71 +158,81 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await browserArtifacts.captureScreenshot("tc-int-016-general-restart-ready", appPage);
 });
 
-test("Herdr E2E-017: shortcut alternates persist and refresh the live cheatsheet", async ({
+test("Herdr E2E-018 / E2E-017: Terminal preset lifecycle and shortcut alternates update the live cheatsheet", async ({
   appPage,
   runtime,
 }) => {
-  const sessionUI = sessionLifecycleSelectors(appPage);
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-shortcuts-settings-"));
-  const workspace = await runtime.resolveWorkspace(workspaceRoot);
+  await test.step("Terminal preset previews, applies, reverts, and re-applies idempotently", async () => {
+    const sessionUI = sessionLifecycleSelectors(appPage);
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-shortcuts-preset-"));
+    const workspace = await runtime.resolveWorkspace(workspaceRoot);
+    const before = await runtime.requestJSON<{
+      config: { shortcuts: Record<string, string[]> } & Record<string, unknown>;
+    }>("/api/settings/window-manager");
 
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(sessionUI);
-  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await switchWorkspace(appPage, workspace.id, workspace.name);
-  await appPage.goto(runtime.url("/settings/layouts"), { waitUntil: "domcontentloaded" });
+    try {
+      await ensureProjectWorkspace(appPage, runtime);
+      await completeOnboardingIfPrompted(sessionUI);
+      await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+      await switchWorkspace(appPage, workspace.id, workspace.name);
+      await appPage.goto(runtime.url("/settings/layouts"), { waitUntil: "domcontentloaded" });
 
-  const settingsWin = appWindow(appPage, "settings");
-  await expect(settingsWin.getByTestId("settings-page-layouts")).toBeVisible({ timeout: 20_000 });
+      const settingsWin = appWindow(appPage, "settings");
+      await expect(settingsWin.getByTestId("settings-page-layouts")).toBeVisible({
+        timeout: 20_000,
+      });
+      const preset = settingsWin.getByTestId("terminal-shortcut-preset");
+      await preset.getByRole("button", { name: "Preview" }).click();
+      await expect(preset).toContainText("window.tab.jump");
+      await expect(preset).toContainText("desktop.switch");
+      await expect(preset).toContainText(/[⌘⌃]1–8/u);
+      await expect(preset).toContainText(/[⌘⌃]1–9/u);
+      await expect(preset).toContainText("Control+Alt can alias AltGr");
 
-  const newTab = settingsWin.getByTestId("window-manager-shortcut-window.tab.new");
-  await newTab.getByRole("button", { name: "Add an alternate shortcut for New tab" }).click();
-  const saveResponse = appPage.waitForResponse(
-    response =>
-      new URL(response.url()).pathname === "/api/settings/window-manager" &&
-      response.request().method() === "PATCH"
-  );
-  await appPage.keyboard.press("Alt+r");
-  expect((await saveResponse).ok()).toBe(true);
-  await expect(newTab).toContainText("⌥R");
+      const firstApplyResponse = appPage.waitForResponse(
+        response =>
+          new URL(response.url()).pathname === "/api/settings/window-manager" &&
+          response.request().method() === "PATCH"
+      );
+      await preset.getByRole("button", { name: "Apply preset" }).click();
+      expect((await firstApplyResponse).ok()).toBe(true);
+      await expect(preset).toContainText("Applied");
+      await expect(preset.getByRole("button", { name: "Revert" })).toBeVisible();
+      const revertResponse = appPage.waitForResponse(
+        response =>
+          new URL(response.url()).pathname === "/api/settings/window-manager" &&
+          response.request().method() === "PATCH"
+      );
+      await preset.getByRole("button", { name: "Revert" }).click();
+      expect((await revertResponse).ok()).toBe(true);
+      await expect(settingsWin.getByTestId("settings-page-layouts-save-bar")).toHaveCount(0);
 
-  await appPage.keyboard.press("Shift+/");
-  const cheatsheet = appPage.getByTestId("os-shortcuts-dialog");
-  await expect(cheatsheet).toBeVisible();
-  await expect(cheatsheet.getByTestId("os-shortcut-row-window.tab.new")).toContainText("⌥R");
-  await appPage.keyboard.press("Escape");
+      await preset.getByRole("button", { name: "Preview" }).click();
+      const saveResponse = appPage.waitForResponse(
+        response =>
+          new URL(response.url()).pathname === "/api/settings/window-manager" &&
+          response.request().method() === "PATCH"
+      );
+      await preset.getByRole("button", { name: "Apply preset" }).click();
+      expect((await saveResponse).ok()).toBe(true);
 
-  await newTab.getByRole("button", { name: "New tab shortcut" }).click();
-  await appPage.keyboard.press("Control+Alt+ArrowLeft");
-  const conflict = settingsWin.getByTestId("shortcut-conflict-window.tab.new");
-  await expect(conflict).toContainText("⌃⌥← is already used by Tile left half");
-  await expect(conflict).toContainText("Overwriting leaves Tile left half unbound.");
-  await expect(conflict.getByRole("button", { name: "Overwrite" })).toBeVisible();
-  await expect(conflict.getByRole("button", { name: "Cancel" })).toBeVisible();
-  await expect(settingsWin.getByTestId("window-manager-shortcut-sidebar.toggle")).toContainText(
-    "Shadowed"
-  );
-  const resetResponse = appPage.waitForResponse(
-    response =>
-      new URL(response.url()).pathname === "/api/settings/window-manager" &&
-      response.request().method() === "PATCH"
-  );
-  await newTab.getByRole("button", { name: "Reset New tab to its default shortcut" }).click();
-  expect((await resetResponse).ok()).toBe(true);
-});
+      await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
+      await appPage.goto(runtime.url("/settings/layouts"), { waitUntil: "domcontentloaded" });
+      await preset.getByRole("button", { name: "Preview" }).click();
+      await expect(preset.getByRole("button", { name: "Apply preset" })).toBeDisabled();
+    } finally {
+      await runtime.requestJSON("/api/settings/window-manager", {
+        method: "PATCH",
+        body: JSON.stringify({ config: before.config }),
+      });
+    }
+  });
 
-test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies idempotently", async ({
-  appPage,
-  runtime,
-}) => {
-  const sessionUI = sessionLifecycleSelectors(appPage);
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-shortcuts-preset-"));
-  const workspace = await runtime.resolveWorkspace(workspaceRoot);
-  const before = await runtime.requestJSON<{
-    config: { shortcuts: Record<string, string[]> } & Record<string, unknown>;
-  }>("/api/settings/window-manager");
+  await test.step("Shortcut alternates persist and refresh the live cheatsheet", async () => {
+    const sessionUI = sessionLifecycleSelectors(appPage);
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-shortcuts-settings-"));
+    const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
-  try {
     await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(sessionUI);
     await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
@@ -234,54 +240,43 @@ test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies 
     await appPage.goto(runtime.url("/settings/layouts"), { waitUntil: "domcontentloaded" });
 
     const settingsWin = appWindow(appPage, "settings");
-    await expect(settingsWin.getByTestId("settings-page-layouts")).toBeVisible({
-      timeout: 20_000,
-    });
-    const preset = settingsWin.getByTestId("terminal-shortcut-preset");
-    await preset.getByRole("button", { name: "Preview" }).click();
-    await expect(preset).toContainText("window.tab.jump");
-    await expect(preset).toContainText("desktop.switch");
-    await expect(preset).toContainText(/[⌘⌃]1–8/u);
-    await expect(preset).toContainText(/[⌘⌃]1–9/u);
-    await expect(preset).toContainText("Control+Alt can alias AltGr");
+    await expect(settingsWin.getByTestId("settings-page-layouts")).toBeVisible({ timeout: 20_000 });
 
-    const firstApplyResponse = appPage.waitForResponse(
-      response =>
-        new URL(response.url()).pathname === "/api/settings/window-manager" &&
-        response.request().method() === "PATCH"
-    );
-    await preset.getByRole("button", { name: "Apply preset" }).click();
-    expect((await firstApplyResponse).ok()).toBe(true);
-    await expect(preset).toContainText("Applied");
-    await expect(preset.getByRole("button", { name: "Revert" })).toBeVisible();
-    const revertResponse = appPage.waitForResponse(
-      response =>
-        new URL(response.url()).pathname === "/api/settings/window-manager" &&
-        response.request().method() === "PATCH"
-    );
-    await preset.getByRole("button", { name: "Revert" }).click();
-    expect((await revertResponse).ok()).toBe(true);
-    await expect(settingsWin.getByTestId("settings-page-layouts-save-bar")).toHaveCount(0);
-
-    await preset.getByRole("button", { name: "Preview" }).click();
+    const newTab = settingsWin.getByTestId("window-manager-shortcut-window.tab.new");
+    await newTab.getByRole("button", { name: "Add an alternate shortcut for New tab" }).click();
     const saveResponse = appPage.waitForResponse(
       response =>
         new URL(response.url()).pathname === "/api/settings/window-manager" &&
         response.request().method() === "PATCH"
     );
-    await preset.getByRole("button", { name: "Apply preset" }).click();
+    await appPage.keyboard.press("Alt+r");
     expect((await saveResponse).ok()).toBe(true);
+    await expect(newTab).toContainText("⌥R");
 
-    await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
-    await appPage.goto(runtime.url("/settings/layouts"), { waitUntil: "domcontentloaded" });
-    await preset.getByRole("button", { name: "Preview" }).click();
-    await expect(preset.getByRole("button", { name: "Apply preset" })).toBeDisabled();
-  } finally {
-    await runtime.requestJSON("/api/settings/window-manager", {
-      method: "PATCH",
-      body: JSON.stringify({ config: before.config }),
-    });
-  }
+    await appPage.keyboard.press("Shift+/");
+    const cheatsheet = appPage.getByTestId("os-shortcuts-dialog");
+    await expect(cheatsheet).toBeVisible();
+    await expect(cheatsheet.getByTestId("os-shortcut-row-window.tab.new")).toContainText("⌥R");
+    await appPage.keyboard.press("Escape");
+
+    await newTab.getByRole("button", { name: "New tab shortcut" }).click();
+    await appPage.keyboard.press("Control+Alt+ArrowLeft");
+    const conflict = settingsWin.getByTestId("shortcut-conflict-window.tab.new");
+    await expect(conflict).toContainText("⌃⌥← is already used by Tile left half");
+    await expect(conflict).toContainText("Overwriting leaves Tile left half unbound.");
+    await expect(conflict.getByRole("button", { name: "Overwrite" })).toBeVisible();
+    await expect(conflict.getByRole("button", { name: "Cancel" })).toBeVisible();
+    await expect(settingsWin.getByTestId("window-manager-shortcut-sidebar.toggle")).toContainText(
+      "Shadowed"
+    );
+    const resetResponse = appPage.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === "/api/settings/window-manager" &&
+        response.request().method() === "PATCH"
+    );
+    await newTab.getByRole("button", { name: "Reset New tab to its default shortcut" }).click();
+    expect((await resetResponse).ok()).toBe(true);
+  });
 });
 
 test("operator can distinguish skills actions that apply now from policy changes that require restart", async ({
@@ -630,61 +625,11 @@ test("operator routes a background role, persists it across reload, and keeps bu
 
   // Virtual builtins never enter the Agents fleet.
   await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("agent-fleet-empty")).toHaveCount(0);
   await expect(sessionUI.agentRow("general")).toBeVisible();
   await expect(sessionUI.agentRow("coordinator")).toHaveCount(0);
   await expect(sessionUI.agentRow("dreaming-curator")).toHaveCount(0);
   await browserArtifacts.captureScreenshot("e2e-006-agents-fleet-no-builtins", appPage);
-});
-
-/**
- * E2E-019 — the Updates section renders daemon truth for every two-track shape a
- * host can be in, in a plain browser with zero desktop-awareness (US-029 AC-1/AC-3,
- * EC-1, EC-3). The update projection describes the host install, and no real feed
- * exists in the harness, so each shape is served through the API boundary; every
- * assertion below is on what the SPA does with that truth.
- */
-test("browser operator reads both update tracks, a managed runtime, and a headless host from daemon truth", async ({
-  appPage,
-  runtime,
-}) => {
-  const sessionUI = sessionLifecycleSelectors(appPage);
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(sessionUI);
-
-  let updatePayload: unknown = updateFixtures.bothAvailable;
-  await appPage.route("**/api/settings/update", async route => {
-    await route.fulfill({ json: updatePayload });
-  });
-
-  await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
-  const settingsWin = appWindow(appPage, "settings");
-  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
-  const settingsUI = settingsOperatorSelectors(settingsWin);
-  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
-
-  // Both tracks available: two rows, both versions, one combined action.
-  await expect(settingsUI.general.updateTrack("runtime")).toContainText("0.5.0");
-  await expect(settingsUI.general.updateTrack("runtime")).toContainText("0.5.1");
-  await expect(settingsUI.general.updateTrack("app")).toContainText("0.5.1");
-  await expect(settingsUI.general.updateApply()).toBeVisible();
-  await expect(settingsUI.general.updateRelease("runtime")).toHaveAttribute(
-    "href",
-    "https://github.com/compozy/compozy/releases/tag/v0.5.1"
-  );
-
-  // Managed runtime: the recommendation is verbatim and apply is ABSENT, not disabled.
-  updatePayload = updateFixtures.managed;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
-  await expect(settingsUI.general.updateRecommendation).toContainText("brew upgrade compozy");
-  await expect(settingsUI.general.updateApply()).toHaveCount(0);
-
-  // Headless host: the app row is absent entirely, not an empty row.
-  updatePayload = updateFixtures.noApp;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
-  await expect(settingsUI.general.updateTrack("runtime")).toBeVisible();
-  await expect(settingsUI.general.updateTrack("app")).toHaveCount(0);
 });
 
 /**

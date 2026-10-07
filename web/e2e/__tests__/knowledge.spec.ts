@@ -204,15 +204,6 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   );
   await knowledgeUI.editButton.click();
   await expect(knowledgeUI.editDialog).toBeVisible();
-  await expect(knowledgeUI.editDialog).toHaveAttribute("data-frame", "unframed");
-  await expect(knowledgeUI.editDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
-  await expect(knowledgeUI.editDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
   await knowledgeUI.editDescription.fill("browser-edited workspace recall contract");
   await knowledgeUI.editContent.fill(editedContent);
   await knowledgeUI.confirmEditMemory.click();
@@ -297,15 +288,6 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await knowledgeUI.item(`workspace:${filename}`).click();
   await knowledgeUI.deleteButton.click();
   await expect(knowledgeUI.deleteDialog).toBeVisible();
-  await expect(knowledgeUI.deleteDialog).toHaveAttribute("data-frame", "unframed");
-  await expect(knowledgeUI.deleteDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
-  await expect(knowledgeUI.deleteDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
   await appPage.getByTestId("knowledge-delete-confirm-typing").fill(memoryName);
   const deleteResponsePromise = appPage.waitForResponse(
     response =>

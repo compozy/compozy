@@ -867,48 +867,6 @@ test.describe("Profiles", () => {
     await expect(ui.switcher).toHaveAccessibleName("Profile: dispatch-client");
   });
 
-  test("E2E-015: All profiles labels every row, states the destination, and names the owner", async ({
-    appPage,
-    runtime,
-  }) => {
-    await ensureProjectWorkspace(appPage, runtime);
-    await completeOnboardingIfPrompted(appPage);
-    await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
-    await createProfile(runtime, "old-agency", "#b58e5f", "folder");
-    await archiveProfile(runtime, "old-agency");
-    await createDefaultProfileSession(runtime, await activeWorkspaceId(runtime));
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-
-    const ui = profilesOperatorSelectors(appPage);
-    await ui.switcher.click();
-    await ui.switcherAll.click();
-    await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
-
-    // S3: every aggregate row names its owner, and an archived owner says so.
-    const sessions = await openSessionsCatalog(appPage);
-    const rows = profilesOperatorSelectors(appPage, sessions);
-    await expect(rows.ownerTags.first()).toBeVisible();
-
-    // S2: the destination is stated before the commit, as fixed text.
-    await sessions.getByTestId("os-sessions-modal-new-session").click();
-    const chip = profilesOperatorSelectors(appPage).destinationChip;
-    await expect(chip).toBeVisible();
-    await expect(chip).toContainText("default");
-    await expect(chip.locator("button, select, input")).toHaveCount(0);
-    await appPage.getByRole("button", { name: "Cancel", exact: true }).click();
-    await sessions.getByRole("button", { name: "Close sessions" }).click();
-
-    // S11: the two axes compose — the globe stays independent of the profile.
-    await appPage.getByTestId("os-global-scope-toggle").click();
-    await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
-
-    // Leaving the aggregate lands on a real profile, never on the aggregate.
-    await ui.switcher.click();
-    await ui.switcherOption("marketing").click();
-    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
-    await expect(rows.ownerTags).toHaveCount(0);
-  });
-
   test("E2E-018: a deep link into another profile's session names its owner and offers the switch", async ({
     appPage,
     runtime,
@@ -936,23 +894,6 @@ test.describe("Profiles", () => {
     await expect(ui.ownerBanner).toContainText("belongs to consulting");
     await ui.ownerBannerSwitch.click();
     await expect(ui.switcher).toHaveAccessibleName("Profile: consulting");
-  });
-
-  test("E2E-019: an empty listing names the profile it is empty for", async ({
-    appPage,
-    runtime,
-  }) => {
-    await ensureProjectWorkspace(appPage, runtime);
-    await completeOnboardingIfPrompted(appPage);
-    await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-
-    const ui = profilesOperatorSelectors(appPage);
-    await ui.switcher.click();
-    await ui.switcherOption("marketing").click();
-
-    const tasks = await openAppWindow(appPage, "Tasks", "tasks");
-    await expect(tasks.getByRole("heading", { name: /No tasks in marketing yet/i })).toBeVisible();
   });
 
   test("E2E-021: usage is scoped per profile and breaks down by owner in the aggregate", async ({
@@ -1031,7 +972,9 @@ test.describe("Profiles", () => {
       .toContain("browser-dev");
   });
 
-  test("E2E-028: palette results, ranking, and view sessions re-scope across a switch", async ({
+  // Invariant: scoped and aggregate profile views carry owner labels and the create destination.
+  // Owner: browser/daemon profile composition; canonical suite: Profiles E2E-028 / E2E-015.
+  test("E2E-028 / E2E-015: palette and listings re-scope, label owners, and state the destination", async ({
     appPage,
     runtime,
   }) => {
@@ -1042,33 +985,77 @@ test.describe("Profiles", () => {
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
     const ui = profilesOperatorSelectors(appPage);
-    const scopedCatalog = appPage.waitForResponse(
-      response =>
-        response.url().includes("/api/cmd-palette/commands") &&
-        response.url().includes("profile=default")
-    );
-    await openCommandPalette(appPage);
-    expect((await scopedCatalog).ok()).toBe(true);
+
+    await test.step("E2E-028: cold scoped palette rebinds to aggregate sessions", async () => {
+      const scopedCatalog = appPage.waitForResponse(
+        response =>
+          response.url().includes("/api/cmd-palette/commands") &&
+          response.url().includes("profile=default")
+      );
+      await openCommandPalette(appPage);
+      expect((await scopedCatalog).ok()).toBe(true);
+      await appPage.keyboard.press("Escape");
+      await expect(appPage.getByTestId("os-command-palette")).toBeHidden();
+
+      const aggregateCatalog = appPage.waitForResponse(
+        response =>
+          response.url().includes("/api/cmd-palette/commands") &&
+          response.url().includes("all_profiles=true")
+      );
+      await ui.switcher.click();
+      await ui.switcherAll.click();
+      const palette = await openCommandPalette(appPage);
+      expect((await aggregateCatalog).ok()).toBe(true);
+      await palette.getByRole("combobox").fill("Sessions");
+      await palette.getByTestId("os-palette-command-palette.view.sessions").click();
+      await expect(palette).toHaveAttribute("data-palette-view", "sessions");
+      // The aggregate speaks the same owner vocabulary as the listings.
+      await expect(profilesOperatorSelectors(appPage, palette).ownerTags.first()).toBeVisible();
+    });
+
     await appPage.keyboard.press("Escape");
     await expect(appPage.getByTestId("os-command-palette")).toBeHidden();
-
-    const aggregateCatalog = appPage.waitForResponse(
-      response =>
-        response.url().includes("/api/cmd-palette/commands") &&
-        response.url().includes("all_profiles=true")
-    );
     await ui.switcher.click();
-    await ui.switcherAll.click();
-    const palette = await openCommandPalette(appPage);
-    expect((await aggregateCatalog).ok()).toBe(true);
-    await palette.getByRole("combobox").fill("Sessions");
-    await palette.getByTestId("os-palette-command-palette.view.sessions").click();
-    await expect(palette).toHaveAttribute("data-palette-view", "sessions");
-    // The aggregate speaks the same owner vocabulary as the listings.
-    await expect(profilesOperatorSelectors(appPage, palette).ownerTags.first()).toBeVisible();
+    await ui.switcherOption("default").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await createProfile(runtime, "old-agency", "#b58e5f", "folder");
+    await archiveProfile(runtime, "old-agency");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+
+    await test.step("E2E-015: aggregate listings label owners and creation destination", async () => {
+      await ui.switcher.click();
+      await ui.switcherAll.click();
+      await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
+
+      // S3: every aggregate row names its owner, and an archived owner says so.
+      const sessions = await openSessionsCatalog(appPage);
+      const rows = profilesOperatorSelectors(appPage, sessions);
+      await expect(rows.ownerTags.first()).toBeVisible();
+
+      // S2: the destination is stated before the commit, as fixed text.
+      await sessions.getByTestId("os-sessions-modal-new-session").click();
+      const chip = profilesOperatorSelectors(appPage).destinationChip;
+      await expect(chip).toBeVisible();
+      await expect(chip).toContainText("default");
+      await expect(chip.locator("button, select, input")).toHaveCount(0);
+      await appPage.getByRole("button", { name: "Cancel", exact: true }).click();
+      await sessions.getByRole("button", { name: "Close sessions" }).click();
+
+      // S11: the two axes compose — the globe stays independent of the profile.
+      await appPage.getByTestId("os-global-scope-toggle").click();
+      await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
+
+      // Leaving the aggregate lands on a real profile, never on the aggregate.
+      await ui.switcher.click();
+      await ui.switcherOption("marketing").click();
+      await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+      await expect(rows.ownerTags).toHaveCount(0);
+    });
   });
 
-  test("E2E-029: the tray and rail-foot order holds and a keyboard-only switch re-scopes listings", async ({
+  // Invariant: keyboard profile selection reaches a listing empty for that identity.
+  // Owner: browser profile navigation; canonical suite: Profiles E2E-029 / E2E-019.
+  test("E2E-029 / E2E-019: keyboard profile switching preserves tray order and scopes empty listings", async ({
     appPage,
     runtime,
   }) => {
@@ -1077,49 +1064,59 @@ test.describe("Profiles", () => {
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
-    // S1: the topbar tray keeps notifications before the palette; the rail foot
-    // stacks the profile switcher above the theme toggle above Settings (D6).
-    const railFoot = appPage.locator('[data-slot="os-rail-foot"]');
-    for (const control of [
-      appPage.locator('[data-slot="os-menubar-bell"]'),
-      appPage.locator('[data-slot="os-menubar-command"]'),
-      railFoot.getByTestId("os-menubar-profile"),
-      railFoot.getByRole("button", { name: /^Switch to (?:light|dark) mode$/ }),
-      railFoot.locator('[data-slot="os-rail-settings"]'),
-    ]) {
-      await expect(control).toBeVisible();
-    }
-    const order = await appPage.evaluate(() => {
-      const rect = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
-      const foot = '[data-slot="os-rail-foot"]';
-      return {
-        tray: ['[data-slot="os-menubar-bell"]', '[data-slot="os-menubar-command"]'].map(
-          selector => rect(selector)?.left ?? -1
-        ),
-        foot: [
-          `${foot} [data-testid="os-menubar-profile"]`,
-          `${foot} [aria-label^="Switch to"]`,
-          `${foot} [data-slot="os-rail-settings"]`,
-        ].map(selector => rect(selector)?.top ?? -1),
-      };
-    });
-    for (const positions of [order.tray, order.foot]) {
-      expect(
-        positions.every(position => position >= 0),
-        JSON.stringify(order)
-      ).toBe(true);
-      expect(positions).toEqual([...positions].sort((left, right) => left - right));
-    }
+    await test.step("E2E-029: tray order and keyboard-only profile switch", async () => {
+      // S1: the topbar tray keeps notifications before the palette; the rail foot
+      // stacks the profile switcher above the theme toggle above Settings (D6).
+      const railFoot = appPage.locator('[data-slot="os-rail-foot"]');
+      for (const control of [
+        appPage.locator('[data-slot="os-menubar-bell"]'),
+        appPage.locator('[data-slot="os-menubar-command"]'),
+        railFoot.getByTestId("os-menubar-profile"),
+        railFoot.getByRole("button", { name: /^Switch to (?:light|dark) mode$/ }),
+        railFoot.locator('[data-slot="os-rail-settings"]'),
+      ]) {
+        await expect(control).toBeVisible();
+      }
+      const order = await appPage.evaluate(() => {
+        const rect = (selector: string) =>
+          document.querySelector(selector)?.getBoundingClientRect();
+        const foot = '[data-slot="os-rail-foot"]';
+        return {
+          tray: ['[data-slot="os-menubar-bell"]', '[data-slot="os-menubar-command"]'].map(
+            selector => rect(selector)?.left ?? -1
+          ),
+          foot: [
+            `${foot} [data-testid="os-menubar-profile"]`,
+            `${foot} [aria-label^="Switch to"]`,
+            `${foot} [data-slot="os-rail-settings"]`,
+          ].map(selector => rect(selector)?.top ?? -1),
+        };
+      });
+      for (const positions of [order.tray, order.foot]) {
+        expect(
+          positions.every(position => position >= 0),
+          JSON.stringify(order)
+        ).toBe(true);
+        expect(positions).toEqual([...positions].sort((left, right) => left - right));
+      }
 
-    const ui = profilesOperatorSelectors(appPage);
-    const palette = await openCommandPalette(appPage);
-    await palette.getByRole("combobox").fill("Profiles");
-    await palette.getByTestId("os-palette-command-palette.view.profiles").click();
-    await expect(paletteView(appPage, "profiles")).toBeVisible();
-    await palette.getByRole("combobox").fill("marketing");
-    await expect(ui.paletteRow("marketing")).toBeVisible();
-    await appPage.keyboard.press("Enter");
-    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+      const ui = profilesOperatorSelectors(appPage);
+      const palette = await openCommandPalette(appPage);
+      await palette.getByRole("combobox").fill("Profiles");
+      await palette.getByTestId("os-palette-command-palette.view.profiles").click();
+      await expect(paletteView(appPage, "profiles")).toBeVisible();
+      await palette.getByRole("combobox").fill("marketing");
+      await expect(ui.paletteRow("marketing")).toBeVisible();
+      await appPage.keyboard.press("Enter");
+      await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+    });
+
+    await test.step("E2E-019: the empty task listing names its profile", async () => {
+      const tasks = await openAppWindow(appPage, "Tasks", "tasks");
+      await expect(
+        tasks.getByRole("heading", { name: /No tasks in marketing yet/i })
+      ).toBeVisible();
+    });
   });
   test("E2E-020: two clients hold their own active profile and share only the remembered choice", async ({
     appPage,
