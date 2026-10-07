@@ -190,8 +190,7 @@ func cloneOptionalBool(value *bool) *bool {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func normalizeDescribeGateway(

@@ -94,7 +94,7 @@ func TestAcquireVerifyLockAt(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read verify lock after release: %v", err)
 		}
-		if len(strings.TrimSpace(string(cleared))) != 0 {
+		if strings.TrimSpace(string(cleared)) != "" {
 			t.Fatalf("verify lock holder not cleared on release: %q", string(cleared))
 		}
 	})

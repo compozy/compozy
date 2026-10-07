@@ -19,8 +19,8 @@ func TestValidateWebOpenAPIArtifacts(t *testing.T) {
 		writeTestFile(t, root, "openapi/spec.json", "{}\n")
 		writeTestFile(t, root, "web/generated/types.d.ts", "export {};\n")
 		artifacts := []openapits.Artifact{{
-			SpecPath:   filepath.Join(root, "openapi/spec.json"),
-			OutputPath: filepath.Join(root, "web/generated/types.d.ts"),
+			SpecPath:   filepath.Join(root, "openapi", "spec.json"),
+			OutputPath: filepath.Join(root, "web", "generated", "types.d.ts"),
 		}}
 
 		got, err := validateWebOpenAPIArtifacts(artifacts, true)
@@ -38,8 +38,8 @@ func TestValidateWebOpenAPIArtifacts(t *testing.T) {
 		root := t.TempDir()
 		writeTestFile(t, root, "openapi/spec.json", "{}\n")
 		artifacts := []openapits.Artifact{{
-			SpecPath:   filepath.Join(root, "openapi/spec.json"),
-			OutputPath: filepath.Join(root, "web/generated/types.d.ts"),
+			SpecPath:   filepath.Join(root, "openapi", "spec.json"),
+			OutputPath: filepath.Join(root, "web", "generated", "types.d.ts"),
 		}}
 
 		if _, err := validateWebOpenAPIArtifacts(artifacts, false); err != nil {
@@ -53,8 +53,8 @@ func TestValidateWebOpenAPIArtifacts(t *testing.T) {
 		root := t.TempDir()
 		writeTestFile(t, root, "openapi/spec.json", "{}\n")
 		artifacts := []openapits.Artifact{{
-			SpecPath:   filepath.Join(root, "openapi/spec.json"),
-			OutputPath: filepath.Join(root, "web/generated/types.d.ts"),
+			SpecPath:   filepath.Join(root, "openapi", "spec.json"),
+			OutputPath: filepath.Join(root, "web", "generated", "types.d.ts"),
 		}}
 
 		if _, err := validateWebOpenAPIArtifacts(artifacts, true); err == nil {
@@ -66,13 +66,13 @@ func TestValidateWebOpenAPIArtifacts(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		specPath := filepath.Join(root, "openapi/spec.json")
+		specPath := filepath.Join(root, "openapi", "spec.json")
 		writeTestFile(t, root, "openapi/spec.json", "{}\n")
 		writeTestFile(t, root, "web/generated/one.d.ts", "export {};\n")
 		writeTestFile(t, root, "web/generated/two.d.ts", "export {};\n")
 		artifacts := []openapits.Artifact{
-			{SpecPath: specPath, OutputPath: filepath.Join(root, "web/generated/one.d.ts")},
-			{SpecPath: specPath, OutputPath: filepath.Join(root, "web/generated/two.d.ts")},
+			{SpecPath: specPath, OutputPath: filepath.Join(root, "web", "generated", "one.d.ts")},
+			{SpecPath: specPath, OutputPath: filepath.Join(root, "web", "generated", "two.d.ts")},
 		}
 
 		if _, err := validateWebOpenAPIArtifacts(artifacts, true); err == nil {
@@ -84,9 +84,9 @@ func TestValidateWebOpenAPIArtifacts(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		firstSpec := filepath.Join(root, "openapi/one.json")
-		sharedPath := filepath.Join(root, "openapi/two.json")
-		secondOutput := filepath.Join(root, "web/generated/two.d.ts")
+		firstSpec := filepath.Join(root, "openapi", "one.json")
+		sharedPath := filepath.Join(root, "openapi", "two.json")
+		secondOutput := filepath.Join(root, "web", "generated", "two.d.ts")
 		writeTestFile(t, root, "openapi/one.json", "{}\n")
 		writeTestFile(t, root, "openapi/two.json", "{}\n")
 		writeTestFile(t, root, "web/generated/two.d.ts", "export {};\n")

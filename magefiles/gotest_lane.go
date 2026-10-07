@@ -103,10 +103,7 @@ func goUnitTestPackageLimitFor(effectiveCPU, parallelism int) int {
 		parallelism = 1
 	}
 
-	totalBudget := effectiveCPU / 2
-	if totalBudget < parallelism {
-		totalBudget = parallelism
-	}
+	totalBudget := max(effectiveCPU/2, parallelism)
 	limit := (totalBudget + parallelism - 1) / parallelism
 	if limit < 1 {
 		return 1
@@ -174,8 +171,7 @@ func goUnitTestInvocations(ctx context.Context) ([]goUnitTestInvocation, error) 
 func goListPackagePaths(cmd *exec.Cmd) ([]string, error) {
 	output, err := cmd.Output()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			return nil, fmt.Errorf(
 				"list Go unit-test packages: %w: %s",
 				err,

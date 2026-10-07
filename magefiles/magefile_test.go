@@ -4,6 +4,7 @@ package main
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -435,11 +436,10 @@ func TestWorktreeScriptRejectsMissingFlagValues(t *testing.T) {
 	t.Parallel()
 
 	for _, flag := range []string{"--branch", "--base", "--dir"} {
-		flag := flag
 		t.Run("Should report a missing value for "+flag, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := exec.Command("bash", "scripts/worktree.sh", "new", "test-worktree", flag)
+			cmd := exec.CommandContext(t.Context(), "bash", "scripts/worktree.sh", "new", "test-worktree", flag)
 			output, err := cmd.CombinedOutput()
 			if err == nil {
 				t.Fatalf("worktree.sh new %s error = nil, want usage failure", flag)
@@ -515,7 +515,7 @@ func TestWorktreeScriptSharesResources(t *testing.T) {
 			t.Fatalf("active task content = %q, want active", got)
 		}
 		if _, err := os.Stat(
-			filepath.Join(worktreeDir, ".compozy/tasks/_archived/old/evidence.bin"),
+			filepath.Join(worktreeDir, ".compozy", "tasks", "_archived", "old", "evidence.bin"),
 		); !errors.Is(
 			err,
 			os.ErrNotExist,
@@ -640,7 +640,6 @@ func TestWebAssetsNextTag(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -733,14 +732,12 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 		}
 
 		env := make(map[string]string, len(credentials.env)+3)
-		for key, value := range credentials.env {
-			env[key] = value
-		}
+		maps.Copy(env, credentials.env)
 		env["GIT_CONFIG_GLOBAL"] = configPath
 		env["GIT_CONFIG_NOSYSTEM"] = "1"
 		env["WEB_ASSETS_HELPER_MARKER"] = markerPath
 
-		cmd := exec.Command("git", "credential", "fill")
+		cmd := exec.CommandContext(t.Context(), "git", "credential", "fill")
 		cmd.Env = mergeCommandEnv(env)
 		cmd.Stdin = strings.NewReader("protocol=https\nhost=github.com\n\n")
 		output, err := cmd.CombinedOutput()
@@ -760,7 +757,8 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 	t.Run("Should force public module resolution through the Go proxy", func(t *testing.T) {
 		t.Parallel()
 
-		env := webAssetsPublicModuleEnv("/tmp/compozy-web-assets-test")
+		cacheRoot := t.TempDir()
+		env := webAssetsPublicModuleEnv(cacheRoot)
 		want := map[string]string{
 			"GO111MODULE": "on",
 			"GOFLAGS":     "-mod=mod",
@@ -769,8 +767,8 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 			"GOPRIVATE":   "",
 			"GOPROXY":     "https://proxy.golang.org,direct",
 			"GOSUMDB":     "sum.golang.org",
-			"GOMODCACHE":  filepath.Join("/tmp/compozy-web-assets-test", "mod"),
-			"GOPATH":      filepath.Join("/tmp/compozy-web-assets-test", "gopath"),
+			"GOMODCACHE":  filepath.Join(cacheRoot, "mod"),
+			"GOPATH":      filepath.Join(cacheRoot, "gopath"),
 		}
 		for key, value := range want {
 			if env[key] != value {
@@ -1000,7 +998,7 @@ func createWorktreeScriptFixture(t *testing.T, withResources bool) (string, stri
 		t.Fatalf("os.Chmod(mise) error = %v", err)
 	}
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(t.Context(),
 		"bash",
 		filepath.Join(repoRoot, "scripts", "worktree.sh"),
 		"new",
@@ -1022,7 +1020,7 @@ func createWorktreeScriptFixture(t *testing.T, withResources bool) (string, stri
 func runTestCommand(t *testing.T, dir string, name string, args ...string) {
 	t.Helper()
 
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(t.Context(), name, args...)
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%s %s error = %v\n%s", name, strings.Join(args, " "), err, output)
@@ -1032,7 +1030,7 @@ func runTestCommand(t *testing.T, dir string, name string, args ...string) {
 func assertAskpassOutput(t *testing.T, env map[string]string, askpassPath string, prompt string, want string) {
 	t.Helper()
 
-	cmd := exec.Command(askpassPath, prompt)
+	cmd := exec.CommandContext(t.Context(), askpassPath, prompt)
 	cmd.Env = mergeCommandEnv(env)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

@@ -53,7 +53,7 @@ func TestSDKRuntimeContracts(t *testing.T) {
 		callErr := make(chan error, 1)
 		go func() {
 			var result json.RawMessage
-			callErr <- transport.Call(context.Background(), "echo", nil, &result)
+			callErr <- transport.Call(t.Context(), "echo", nil, &result)
 		}()
 		message := readMessage(t, bufio.NewReader(outputReader))
 		if got, want := message["method"], "echo"; got != want {
@@ -88,7 +88,7 @@ func TestSDKRuntimeContracts(t *testing.T) {
 			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 			compozysdk.WithStderr(io.Discard),
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() {

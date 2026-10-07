@@ -34,7 +34,7 @@ func TestStdioTransportLifecycle(t *testing.T) {
 			closeTestPipe(t, outputWriter)
 		})
 
-		firstCtx, cancelFirst := context.WithCancel(context.Background())
+		firstCtx, cancelFirst := context.WithCancel(t.Context())
 		firstErr := make(chan error, 1)
 		go func() {
 			var result map[string]string
@@ -74,7 +74,7 @@ func TestStdioTransportLifecycle(t *testing.T) {
 		go func() {
 			var result map[string]string
 			if err := transport.Call(
-				context.Background(),
+				t.Context(),
 				"echo",
 				map[string]string{"value": "beta"},
 				&result,
@@ -117,7 +117,7 @@ func TestStdioTransportLifecycle(t *testing.T) {
 
 		runErr := make(chan error, 1)
 		go func() {
-			runErr <- transport.Run(context.Background())
+			runErr <- transport.Run(t.Context())
 		}()
 		writeErr := make(chan error, 1)
 		go func() {
@@ -193,7 +193,7 @@ func TestStdioTransportInboundOwnership(t *testing.T) {
 				}
 			},
 		)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		done := make(chan error, 1)
 		go func() {
