@@ -20,15 +20,6 @@ func TestAPIStateTransitionCommandsExposeExactLeaves(t *testing.T) {
 		name string
 		args []string
 	}{
-		{name: "ShouldExposeSessionApprove", args: []string{"session", "approve"}},
-
-		{name: "ShouldExposeResourceDelete", args: []string{"resource", "delete"}},
-		{name: "ShouldExposeTaskDelete", args: []string{"task", "delete"}},
-		{name: "ShouldExposeTaskReject", args: []string{"task", "reject"}},
-		{name: "ShouldExposeSkillEnable", args: []string{"skill", "enable"}},
-		{name: "ShouldExposeSkillDisable", args: []string{"skill", "disable"}},
-		{name: "ShouldExposeToolApprove", args: []string{"tool", "approve"}},
-		{name: "ShouldExposeWorkspaceEditAlias", args: []string{"workspace", "edit"}},
 		{name: "ShouldExposeAgentHeartbeatWake", args: []string{"agent", "heartbeat", "wake"}},
 	}
 

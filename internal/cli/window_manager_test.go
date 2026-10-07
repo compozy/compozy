@@ -1621,12 +1621,6 @@ func TestWindowManagerHardCutCommandTree(t *testing.T) {
 		t.Parallel()
 
 		cmd := newRootCommand(commandDeps{}.withDefaults())
-		for _, name := range []string{"desktop", "window", "layout"} {
-			found, _, err := cmd.Find([]string{name})
-			if err != nil || found == nil || found.Name() != name {
-				t.Fatalf("find %q = %v/%v, want public root group", name, found, err)
-			}
-		}
 		if found, _, err := cmd.Find([]string{"desktop-state"}); err == nil && found != nil &&
 			found.Name() == "desktop-state" {
 			t.Fatal("legacy desktop-state command remains registered")

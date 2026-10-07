@@ -196,66 +196,6 @@ func extensionArchive(t *testing.T, files map[string]string) []byte {
 	return buffer.Bytes()
 }
 
-func TestExtensionInstallCommandIntegrationCreatesManagedInstallAndRegistryRecord(t *testing.T) {
-	t.Parallel()
-	t.Run("Should create a managed install and registry record", func(t *testing.T) {
-		t.Parallel()
-
-		env := newExtensionRegistryTestEnv(
-			t,
-			extensionRegistryTestOptions{allowUnverified: true},
-			&extensionRegistrySourceStub{
-				name: "github",
-				infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
-					return &registrypkg.Detail{Slug: slug,
-						Name:    "integration-ext",
-						Version: "1.0.0",
-						Source:  "github"}, nil
-				},
-				downloadFunc: func(_ context.Context, slug string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
-					return newExtensionDownloadResult(
-						t,
-						slug,
-						"1.0.0",
-						remoteExtensionArchiveFiles("integration-ext", "1.0.0"),
-					), nil
-				},
-			},
-		)
-
-		stdout, stderr, err := executeRootCommand(
-			t,
-			env.deps,
-			"extension",
-			"install",
-			"acme/integration-ext",
-			"--allow-unverified",
-			"--yes",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("extension install integration error = %v", err)
-		}
-
-		var payload ExtensionRecord
-		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(extension install integration) error = %v; stdout=%s", err, stdout)
-		}
-		if payload.Source != "marketplace" {
-			t.Fatalf("extension install integration payload = %#v, want marketplace source", payload)
-		}
-		if strings.TrimSpace(stderr) != "" {
-			t.Fatalf("extension install integration stderr = %q, want empty daemon-managed lifecycle guidance", stderr)
-		}
-
-		info := getInstalledExtension(t, env.homePaths, "integration-ext")
-		if info.Source != extensionpkg.SourceMarketplace {
-			t.Fatalf("installed source = %v, want marketplace", info.Source)
-		}
-	})
-}
-
 func TestExtensionMarketplacePortableInstallParityIntegration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should detect a marker-less portable source identically through web and CLI installs", func(t *testing.T) {
@@ -446,7 +386,7 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 			},
 		)
 
-		if _, _, err := executeRootCommand(
+		installOut, installStderr, err := executeRootCommand(
 			t,
 			env.deps,
 			"extension",
@@ -456,8 +396,19 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 			"--yes",
 			"-o",
 			"json",
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("extension install before update integration error = %v", err)
+		}
+		var installed ExtensionRecord
+		if err := json.Unmarshal([]byte(installOut), &installed); err != nil {
+			t.Fatalf("json.Unmarshal(extension install) error = %v; stdout=%s", err, installOut)
+		}
+		if installed.Source != "marketplace" || strings.TrimSpace(installStderr) != "" {
+			t.Fatalf("extension install payload = %#v, stderr = %q, want marketplace and no lifecycle guidance", installed, installStderr)
+		}
+		if info := getInstalledExtension(t, env.homePaths, "integration-update-ext"); info.Source != extensionpkg.SourceMarketplace {
+			t.Fatalf("installed source = %v, want marketplace", info.Source)
 		}
 
 		latestVersion = "1.3.0"
@@ -527,30 +478,11 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 		if _, err := os.Stat(installDir); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("removed install dir stat error = %v, want not exist", err)
 		}
-	})
-}
 
-func TestExtensionRemoveMissingIntegrationReturnsClearError(t *testing.T) {
-	t.Parallel()
-	t.Run("Should return the canonical error for a missing extension", func(t *testing.T) {
-		t.Parallel()
-
-		env := newExtensionRegistryTestEnv(t, extensionRegistryTestOptions{})
-
-		_, _, err := executeRootCommand(
-			t,
-			env.deps,
-			"extension",
-			"remove",
-			"missing-ext",
-			"--global",
-			"-o",
-			"json",
+		_, _, err = executeRootCommand(
+			t, env.deps, "extension", "remove", "integration-update-ext", "--global", "-o", "json",
 		)
-		if err == nil {
-			t.Fatal("extension remove missing integration error = nil, want failure")
-		}
-		if !strings.Contains(err.Error(), extensionpkg.ErrExtensionNotFound.Error()) {
+		if err == nil || !strings.Contains(err.Error(), extensionpkg.ErrExtensionNotFound.Error()) {
 			t.Fatalf("extension remove missing integration error = %v, want clear not-found error", err)
 		}
 	})

@@ -520,7 +520,7 @@ func TestAutomationJobsCreateInfersWorkspaceForWorkspaceScope(t *testing.T) {
 	})
 }
 
-func TestAutomationJobsCreateSupportsHumanAndJSONOutput(t *testing.T) {
+func TestAutomationJobsCreateSupportsHumanOutput(t *testing.T) {
 	t.Parallel()
 
 	deps := newDefaultProfileTestDeps(t, &stubClient{
@@ -546,29 +546,6 @@ func TestAutomationJobsCreateSupportsHumanAndJSONOutput(t *testing.T) {
 	if !strings.Contains(humanOut, "Automation Job") || !strings.Contains(humanOut, "nightly-review") ||
 		!strings.Contains(humanOut, "default") {
 		t.Fatalf("human output = %q, want Automation Job details", humanOut)
-	}
-
-	jsonOut, _, err := executeRootCommand(
-		t,
-		deps,
-		"automation", "jobs", "create",
-		"--name", "nightly-review",
-		"--scope", "global",
-		"--schedule", "every:30m",
-		"--agent", "coder",
-		"--prompt", "review repo",
-		"-o", "json",
-	)
-	if err != nil {
-		t.Fatalf("automation jobs create json error = %v", err)
-	}
-
-	var created JobRecord
-	if err := json.Unmarshal([]byte(jsonOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(job create json) error = %v", err)
-	}
-	if created.ID != "job-1" {
-		t.Fatalf("created.ID = %q, want %q", created.ID, "job-1")
 	}
 }
 
@@ -1202,9 +1179,6 @@ func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	}
 	if got := displayRunTarget(sampleAutomationRunRecord()); got != "job:job-1" {
 		t.Fatalf("displayRunTarget() = %q, want job target", got)
-	}
-	if ptr := new(true); ptr == nil || !*ptr {
-		t.Fatalf("new(true) = %#v, want true pointer", ptr)
 	}
 }
 

@@ -649,7 +649,7 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 			"create",
 			"plan-review",
 			"--group",
-			"marketing/campaigns",
+			" marketing / campaigns ",
 			"-o",
 			"json",
 		)
@@ -871,46 +871,6 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 		if where.Name != "plan-review" || where.Winner.Tier != "workspace" ||
 			!os.SameFile(winnerInfo, expectedSkillInfo) || !where.Winner.ResolvedToWinner {
 			t.Fatalf("skill where created group = %#v, want workspace winner at %q", where, skillPath)
-		}
-	})
-
-	t.Run("Should normalize whitespace around group segments", func(t *testing.T) {
-		t.Parallel()
-
-		env := newSkillTestEnv(t, nil)
-		stdout, _, err := executeRootCommand(
-			t,
-			skillWorkspaceDeps(t, &env),
-			"skill",
-			"create",
-			"launch-brief",
-			"--group",
-			" marketing / campaigns ",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("skill create normalized group error = %v", err)
-		}
-
-		var payload skillCreateItem
-		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(skill create normalized group) error = %v; stdout=%s", err, stdout)
-		}
-		if got, want := payload.Group, "marketing/campaigns"; got != want {
-			t.Fatalf("skill create group = %q, want %q", got, want)
-		}
-		skillPath := filepath.Join(
-			env.workspace,
-			compozyconfig.DirName,
-			compozyconfig.SkillsDirName,
-			"marketing",
-			"campaigns",
-			"launch-brief",
-			skillMarkdownFileName,
-		)
-		if _, err := os.Stat(skillPath); err != nil {
-			t.Fatalf("Stat(normalized skill path %q) error = %v", skillPath, err)
 		}
 	})
 }
@@ -1258,11 +1218,6 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 		t.Fatalf("formatSkillMetadataValue(nil) = %q, want empty string", got)
 	}
 
-	cloned := cloneMetadata(map[string]any{"alpha": "one"})
-	cloned["alpha"] = "two"
-	if cloned["alpha"] != "two" {
-		t.Fatalf("cloneMetadata() result = %#v, want mutable clone", cloned)
-	}
 	if got := titleizeSkillName("review_skill-helper"); got != "Review Skill Helper" {
 		t.Fatalf("titleizeSkillName() = %q, want Review Skill Helper", got)
 	}

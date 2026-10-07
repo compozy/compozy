@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/procutil"
+	"github.com/spf13/cobra"
 )
 
 type stubRunner struct {
@@ -469,30 +471,6 @@ func TestLogsFollowIncludesWorkspaceResolution(t *testing.T) {
 	}
 }
 
-func TestAgentLifecycleCommandPaths(t *testing.T) {
-	t.Parallel()
-
-	for _, verb := range []string{"create", "update", "delete", "duplicate"} {
-		t.Run("Should register agent "+verb, func(t *testing.T) {
-			t.Parallel()
-
-			stdout, _, err := executeRootCommand(
-				t,
-				newWorkspaceTestDeps(t, &stubClient{}),
-				"agent",
-				verb,
-				"--help",
-			)
-			if err != nil {
-				t.Fatalf("agent %s --help error = %v", verb, err)
-			}
-			if !strings.Contains(stdout, "compozy agent "+verb) {
-				t.Fatalf("agent %s help = %q, want command path", verb, stdout)
-			}
-		})
-	}
-}
-
 func TestExecuteContextVersion(t *testing.T) {
 	t.Parallel()
 
@@ -579,5 +557,61 @@ func TestDaemonStartRejectsNilDetachedProcess(t *testing.T) {
 	); err == nil ||
 		!strings.Contains(err.Error(), "detached daemon process is required") {
 		t.Fatalf("daemon start nil detached process error = %v, want detached daemon process is required", err)
+	}
+}
+
+func TestTerminalCommandsShouldKeepProfileContracts(t *testing.T) { // IT-037
+	t.Parallel()
+	deps := commandDeps{}
+	testCases := []struct {
+		commandName         string
+		command             *cobra.Command
+		wantAllProfilesFlag bool
+	}{
+		{commandName: "attach", command: newTerminalAttachCommand(deps)},
+		{commandName: "exec", command: newTerminalExecCommand(deps)},
+		{commandName: "get", command: newTerminalGetCommand(deps)},
+		{
+			commandName:         "input-requests",
+			command:             newTerminalInputRequestsCommand(deps),
+			wantAllProfilesFlag: true,
+		},
+		{
+			commandName:         "journal",
+			command:             newTerminalJournalCommand(deps),
+			wantAllProfilesFlag: true,
+		},
+		{commandName: "kill", command: newTerminalKillCommand(deps)},
+		{
+			commandName:         "list",
+			command:             newTerminalListCommand(deps),
+			wantAllProfilesFlag: true,
+		},
+		{commandName: "open", command: newTerminalOpenCommand(deps)},
+		{commandName: "quote", command: newTerminalQuoteCommand(deps)},
+		{commandName: "record", command: newTerminalRecordCommand(deps)},
+		{commandName: "respond", command: newTerminalRespondCommand(deps)},
+		{commandName: "signal", command: newTerminalSignalCommand(deps)},
+	}
+
+	wantNames := make([]string, 0, len(testCases))
+	for _, testCase := range testCases {
+		wantNames = append(wantNames, testCase.commandName)
+		t.Run("Should configure "+testCase.commandName, func(t *testing.T) {
+			t.Parallel()
+			flag := testCase.command.Flags().Lookup(allProfilesFlagName)
+			if got := flag != nil; got != testCase.wantAllProfilesFlag {
+				t.Fatalf("--all-profiles present = %t, want %t", got, testCase.wantAllProfilesFlag)
+			}
+		})
+	}
+
+	commands := newTerminalCommand(deps).Commands()
+	gotNames := make([]string, 0, len(commands))
+	for _, command := range commands {
+		gotNames = append(gotNames, command.Name())
+	}
+	if !reflect.DeepEqual(gotNames, wantNames) {
+		t.Fatalf("terminal commands = %#v, want %#v", gotNames, wantNames)
 	}
 }

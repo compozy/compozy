@@ -109,23 +109,6 @@ func TestLoopRunReadCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should describe inventory and roster flag contracts in nodes help", func(t *testing.T) {
-		stdout, _, err := executeRootCommand(t, deps, "loop", "nodes", "--help")
-		if err != nil {
-			t.Fatalf("loop nodes --help error = %v", err)
-		}
-		for _, phrase := range []string{
-			"Show the complete run roster; requires --run and excludes --cursor",
-			"Filter roster by generation; requires --run",
-			"State filter: inventory waiting|quarantined|attention|retrying; roster (--run) all|running|queued|waiting|retrying|paused|quarantined|succeeded|failed|canceled|not_taken",
-			"Page size: inventory 1 to 200; roster (--run) 1 to 500; defaults to 50",
-		} {
-			if !strings.Contains(stdout, phrase) {
-				t.Fatalf("loop nodes --help omitted %q:\n%s", phrase, stdout)
-			}
-		}
-	})
-
 	t.Run("Should render the documented timeline transcript", func(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t,

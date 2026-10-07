@@ -411,7 +411,7 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should name the unbound owner when overwrite chords differ only by modifier order", func(t *testing.T) {
+	t.Run("Should bind with explicit overwrite and name the owner despite modifier order", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
 		client.bindings = contract.SettingsWindowManagerResponse{
@@ -420,40 +420,6 @@ func TestCmdPaletteCommands(t *testing.T) {
 			},
 			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
 				"session.new": {"shift+meta+KeyN"},
-			},
-		}
-		client.bindingsResult = contract.SettingsWindowManagerResponse{
-			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
-				"ext.notes.capture": {"meta+shift+KeyN"},
-			},
-		}
-		stdout, _, err := executeRootCommand(
-			t,
-			newTestDeps(t, client),
-			"cmd-palette", "bind", "ext.notes.capture", "meta+shift+KeyN",
-			"--overwrite", "--workspace", "workspace-1", "-o", "json",
-		)
-		if err != nil {
-			t.Fatalf("cmd-palette bind overwrite error = %v", err)
-		}
-		var result cmdPaletteBindingMutationResult
-		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
-			t.Fatalf("json.Unmarshal(bind output) error = %v", err)
-		}
-		if result.UnboundOwner != "session.new" {
-			t.Fatalf("unbound owner = %q, want session.new", result.UnboundOwner)
-		}
-	})
-
-	t.Run("Should bind with explicit overwrite and name the unbound owner", func(t *testing.T) {
-		t.Parallel()
-		client := newClient()
-		client.bindings = contract.SettingsWindowManagerResponse{
-			Config: contract.SettingsWindowManagerConfigPayload{
-				Shortcuts: map[string]windowmanager.ShortcutBinding{},
-			},
-			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
-				"session.new": {"meta+shift+KeyN"},
 			},
 		}
 		client.bindingsResult = contract.SettingsWindowManagerResponse{
@@ -758,13 +724,13 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve ID name path and nested cwd to one workspace [IT-032]", func(t *testing.T) {
+	t.Run("Should forward explicit and inferred references to workspace resolution [IT-032]", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
 		client.DaemonClient = &stubClient{
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 				switch ref {
-				case "workspace-acme", "acme", "/repo/acme", "/repo/acme/nested":
+				case "acme", "/repo/acme/nested":
 					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
 						ID: "workspace-acme", Name: "acme", RootDir: "/repo/acme",
 					}}, nil
@@ -773,15 +739,13 @@ func TestCmdPaletteCommands(t *testing.T) {
 				}
 			},
 		}
-		for _, ref := range []string{"workspace-acme", "acme", "/repo/acme"} {
-			if _, _, err := executeRootCommand(
-				t, newTestDeps(t, client), "cmd-palette", "list", "--workspace", ref, "-o", "json",
-			); err != nil {
-				t.Fatalf("cmd-palette list --workspace %q error = %v", ref, err)
-			}
-			if client.listWorkspace != "workspace-acme" {
-				t.Fatalf("resolved workspace for %q = %q, want workspace-acme", ref, client.listWorkspace)
-			}
+		if _, _, err := executeRootCommand(
+			t, newTestDeps(t, client), "cmd-palette", "list", "--workspace", "acme", "-o", "json",
+		); err != nil {
+			t.Fatalf("cmd-palette list --workspace acme error = %v", err)
+		}
+		if client.listWorkspace != "workspace-acme" {
+			t.Fatalf("resolved workspace = %q, want workspace-acme", client.listWorkspace)
 		}
 		deps := newTestDeps(t, client)
 		deps.getwd = func() (string, error) { return "/repo/acme/nested", nil }

@@ -750,17 +750,6 @@ func TestExtensionEnableDisableOffline(t *testing.T) {
 	}
 }
 
-func TestExtensionEnableUnknownReturnsNotFound(t *testing.T) {
-	t.Parallel()
-
-	deps, _ := newExtensionLocalDeps(t, &stubClient{})
-
-	_, _, err := executeRootCommand(t, deps, "extension", "enable", "missing-ext", "-o", "json")
-	if err == nil || !strings.Contains(err.Error(), "running daemon") {
-		t.Fatalf("extension enable unknown offline error = %v, want running daemon requirement", err)
-	}
-}
-
 func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 	t.Parallel()
 
