@@ -150,39 +150,20 @@ func prepareE2ELaneEnv(needStampedDaemon, needDatabaseSeeder bool) (e2eLaneEnv, 
 		driverBinaryEnvVar: driverPath,
 	}
 	if needDatabaseSeeder {
-		seederPath, seederCleanup, seedErr := resolveOrBuildLaneBinary(
-			dbSeederBinaryEnvVar,
-			func(outputPath string) error {
-				return runCommandInDir(
-					context.Background(), ".", "go", "build", "-p", "2",
-					"-o", outputPath, "./web/e2e/fixtures/runtime-database-seeder",
-				)
-			},
-			"runtime-database-seeder",
+		cleanups, err = addLaneBinary(
+			values, cleanups, dbSeederBinaryEnvVar, "runtime-database-seeder", buildDatabaseSeederBinary,
 		)
-		if seedErr != nil {
-			return e2eLaneEnv{}, errors.Join(seedErr, runCleanups(cleanups))
+		if err != nil {
+			return e2eLaneEnv{}, errors.Join(err, runCleanups(cleanups))
 		}
-		cleanups = append(cleanups, seederCleanup)
-		values[dbSeederBinaryEnvVar] = seederPath
 	}
 	if needStampedDaemon {
-		stampedPath, stampedCleanup, stampErr := resolveOrBuildLaneBinary(
-			stampedDaemonBinaryEnvVar,
-			func(outputPath string) error {
-				return runCommandInDir(
-					context.Background(), ".", "go", "build", "-ldflags",
-					"-X github.com/compozy/compozy/internal/version.Version=v0.3.0-beta.1",
-					"-o", outputPath, "./cmd/compozy",
-				)
-			},
-			"compozy-stamped",
+		cleanups, err = addLaneBinary(
+			values, cleanups, stampedDaemonBinaryEnvVar, "compozy-stamped", buildStampedDaemonBinary,
 		)
-		if stampErr != nil {
-			return e2eLaneEnv{}, errors.Join(stampErr, runCleanups(cleanups))
+		if err != nil {
+			return e2eLaneEnv{}, errors.Join(err, runCleanups(cleanups))
 		}
-		cleanups = append(cleanups, stampedCleanup)
-		values[stampedDaemonBinaryEnvVar] = stampedPath
 	}
 	if _, err := os.Stat(webDistIndex); err == nil {
 		absWebDistDir, absErr := filepath.Abs(webDistDir)
@@ -203,6 +184,38 @@ func prepareE2ELaneEnv(needStampedDaemon, needDatabaseSeeder bool) (e2eLaneEnv, 
 			return runCleanups(cleanups)
 		},
 	}, nil
+}
+
+// addLaneBinary resolves or builds an optional lane binary and exports its
+// path under envVar.
+func addLaneBinary(
+	values map[string]string,
+	cleanups []func() error,
+	envVar string,
+	name string,
+	build func(outputPath string) error,
+) ([]func() error, error) {
+	path, cleanup, err := resolveOrBuildLaneBinary(envVar, build, name)
+	if err != nil {
+		return cleanups, err
+	}
+	values[envVar] = path
+	return append(cleanups, cleanup), nil
+}
+
+func buildDatabaseSeederBinary(outputPath string) error {
+	return runCommandInDir(
+		context.Background(), ".", "go", "build", "-p", "2",
+		"-o", outputPath, "./web/e2e/fixtures/runtime-database-seeder",
+	)
+}
+
+func buildStampedDaemonBinary(outputPath string) error {
+	return runCommandInDir(
+		context.Background(), ".", "go", "build", "-ldflags",
+		"-X github.com/compozy/compozy/internal/version.Version=v0.3.0-beta.1",
+		"-o", outputPath, "./cmd/compozy",
+	)
 }
 
 func resolveOrBuildLaneBinary(
