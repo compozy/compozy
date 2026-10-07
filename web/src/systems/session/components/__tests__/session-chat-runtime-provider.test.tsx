@@ -1391,6 +1391,7 @@ describe("SessionChatRuntimeProvider", () => {
   // is active, leaving one browser connection available for control requests.
   // Owning layer: chat-runtime provider integration. Canonical suite: this file.
   it("Should suspend the transcript live tail while a prompt stream is active", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const promptResponse = openSseResponse([
       'data: {"type":"start","messageId":"control-slot-turn"}\n\n',
     ]);
@@ -1415,13 +1416,19 @@ describe("SessionChatRuntimeProvider", () => {
       expect(countPromptFetches(fetchMock)).toBe(1);
       expect(sources[0]?.closed).toBe(true);
     });
-    await waitFor(
-      () =>
-        expect(countClarificationFetches(fetchMock)).toBeGreaterThan(initialClarificationFetches),
-      { timeout: 2_500 }
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    await waitFor(() =>
+      expect(countClarificationFetches(fetchMock)).toBeGreaterThan(initialClarificationFetches)
     );
 
-    promptResponse.close(['data: {"type":"finish","finishReason":"stop"}\n\n', "data: [DONE]\n\n"]);
+    await act(async () => {
+      promptResponse.close([
+        'data: {"type":"finish","finishReason":"stop"}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+    });
     await waitFor(() => {
       expect(sources).toHaveLength(2);
       expect(sources[1]?.closed).toBe(false);
@@ -1434,6 +1441,7 @@ describe("SessionChatRuntimeProvider", () => {
   // reopens at the durable cursor with its fences.
   // Owning layer: runtime extensions. Canonical suite: this file.
   it("Should run the 1s control poll only for the POST's duration and hand off at settle", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const promptResponse = openSseResponse([
       'data: {"type":"start","messageId":"control-poll-turn"}\n\n',
     ]);
@@ -1457,15 +1465,20 @@ describe("SessionChatRuntimeProvider", () => {
     });
     const queueBefore = countQueueFetches(fetchMock);
     const detailBefore = countSessionDetailFetches(fetchMock);
-    await waitFor(
-      () => {
-        expect(countQueueFetches(fetchMock)).toBeGreaterThan(queueBefore);
-        expect(countSessionDetailFetches(fetchMock)).toBeGreaterThan(detailBefore);
-      },
-      { timeout: 2_500 }
-    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    await waitFor(() => {
+      expect(countQueueFetches(fetchMock)).toBeGreaterThan(queueBefore);
+      expect(countSessionDetailFetches(fetchMock)).toBeGreaterThan(detailBefore);
+    });
 
-    promptResponse.close(['data: {"type":"finish","finishReason":"stop"}\n\n', "data: [DONE]\n\n"]);
+    await act(async () => {
+      promptResponse.close([
+        'data: {"type":"finish","finishReason":"stop"}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+    });
     await waitFor(() => {
       expect(sources).toHaveLength(2);
       expect(sources[1]?.closed).toBe(false);
@@ -1476,9 +1489,13 @@ describe("SessionChatRuntimeProvider", () => {
     expect(reopened.searchParams.get("epoch")).toBe("1");
     expect(reopened.searchParams.get("generation")).toBe("1");
     // The bounded poll stops once the POST settled: no new queue rereads after the handoff quiets.
-    await new Promise(resolve => setTimeout(resolve, 1_600));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_600);
+    });
     const queueAfterSettle = countQueueFetches(fetchMock);
-    await new Promise(resolve => setTimeout(resolve, 1_200));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_200);
+    });
     expect(countQueueFetches(fetchMock)).toBe(queueAfterSettle);
   });
 

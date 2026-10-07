@@ -405,13 +405,21 @@ describe("session ledger availability projection", () => {
   );
 
   it("Should retain unexpected ledger read failures as errors", async () => {
+    // The query owns retry/error projection; advance its delay without a real wait.
+    vi.useFakeTimers();
     const error = new Error("ledger materializer crashed");
     vi.mocked(fetchSessionLedger).mockRejectedValue(error);
-    const { result } = renderHook(() => useSessionLedger("sess-001", "ws_alpha"), {
+    const { result, unmount } = renderHook(() => useSessionLedger("sess-001", "ws_alpha"), {
       wrapper: createWrapper(),
     });
-    await waitFor(() => expect(result.current.error).toBe(error), { timeout: 3000 });
-    expect(result.current.availability).toBeUndefined();
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(1_100));
+      expect(result.current.error).toBe(error);
+      expect(result.current.availability).toBeUndefined();
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 });
 

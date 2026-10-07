@@ -501,43 +501,6 @@ describe("RuntimeSelector reasoning trigger + footer", () => {
     expect(trigger.querySelector('[data-slot="intensity-meter"]')).toBeNull();
   });
 
-  it("Should fill the trigger meter with the model default while reasoning is unset", () => {
-    renderSelector({
-      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
-      models: [
-        model("leveled", {
-          name: "Leveled",
-          efforts: ["low", "medium", "high"],
-          default_effort: "medium",
-        }),
-      ],
-    });
-
-    const trigger = screen.getByTestId("rt-trigger");
-    const meter = trigger.querySelector('[data-slot="intensity-meter"]');
-    expect(meter).not.toBeNull();
-    // The meter mirrors the slider: the model default (medium → canonical
-    // position 4) fills the bars while the wire value stays "". No effort
-    // label text renders on the trigger.
-    expect(meter).toHaveAttribute("data-hollow", "false");
-    expect(meter).toHaveAttribute("data-position", "4");
-    // No effort label text renders on the trigger — the meter is the only cue.
-    expect(within(trigger).queryByText("Medium")).toBeNull();
-  });
-
-  it("Should render a hollow trigger meter when reasoning is unset and the model has no default", () => {
-    renderSelector({
-      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
-      models: [model("leveled", { name: "Leveled", efforts: ["low", "medium", "high"] })],
-    });
-
-    const meter = screen.getByTestId("rt-trigger").querySelector('[data-slot="intensity-meter"]');
-    expect(meter).not.toBeNull();
-    // Semantic state (hollow, zero bars filled), not the visual class.
-    expect(meter).toHaveAttribute("data-hollow", "true");
-    expect(meter).toHaveAttribute("data-position", "0");
-  });
-
   it("Should expose only the model's efforts as slider stops in canonical order — no None, no Default", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
@@ -617,6 +580,13 @@ describe("RuntimeSelector reasoning slider", () => {
         }),
       ],
     });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    const meter = trigger.querySelector('[data-slot="intensity-meter"]');
+    expect(meter).not.toBeNull();
+    expect(meter).toHaveAttribute("data-hollow", "false");
+    expect(meter).toHaveAttribute("data-position", "4");
+    expect(within(trigger).queryByText("Medium")).toBeNull();
 
     await openSelector(user);
 
@@ -727,6 +697,11 @@ describe("RuntimeSelector reasoning slider", () => {
       value: { provider: "codex", model: "leveled", reasoning_effort: "" },
       models: [model("leveled", { name: "Leveled", efforts: ["low", "medium", "high"] })],
     });
+
+    const meter = screen.getByTestId("rt-trigger").querySelector('[data-slot="intensity-meter"]');
+    expect(meter).not.toBeNull();
+    expect(meter).toHaveAttribute("data-hollow", "true");
+    expect(meter).toHaveAttribute("data-position", "0");
 
     await openSelector(user);
 
@@ -1738,20 +1713,6 @@ describe("RuntimeSelector compound provider·model identity", () => {
     }),
   ];
 
-  it("Should render both providers' rows when a model id is shared across providers", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      providers: twoProviders,
-      models: sharedModels,
-    });
-
-    await openSelector(user);
-    expect(rowFor("codex", "shared-model")).toBeInTheDocument();
-    expect(rowFor("claude", "shared-model")).toBeInTheDocument();
-    expect(document.querySelectorAll('[data-model="shared-model"]')).toHaveLength(2);
-  });
-
   it("Should emit the exact provider of the clicked row for a shared model id", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
@@ -1763,6 +1724,10 @@ describe("RuntimeSelector compound provider·model identity", () => {
     // Selection keeps the popup open (pick model, then tune reasoning), so both
     // provider rows are clickable within one open session.
     await openSelector(user);
+
+    expect(rowFor("codex", "shared-model")).toBeInTheDocument();
+    expect(rowFor("claude", "shared-model")).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-model="shared-model"]')).toHaveLength(2);
     await user.click(rowFor("claude", "shared-model"));
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "claude",
@@ -1858,12 +1823,17 @@ describe("RuntimeSelector provider rail filtering", () => {
       value: { provider: "codex", model: "", reasoning_effort: "" },
       providers: twoProviders,
       models: railModels,
+      props: { onOpenProviderSettings: vi.fn() },
     });
 
     await openSelector(user);
     // Truthful semantics: a local mutually-exclusive filter is a radiogroup, never
     // a tablist (the rail does not swap a tabpanel — it filters the list in place).
     const radiogroup = document.querySelector<HTMLElement>('[role="radiogroup"]')!;
+
+    const settings = screen.getByTestId("runtime-selector-settings");
+    expect(radiogroup.contains(settings)).toBe(false);
+    expect(settings).not.toHaveAttribute("role", "radio");
     expect(radiogroup).toBeInTheDocument();
     expect(document.querySelector('[role="tablist"]')).toBeNull();
     expect(document.querySelector('[data-rail="all"]')).toHaveAttribute("role", "radio");
@@ -1876,23 +1846,6 @@ describe("RuntimeSelector provider rail filtering", () => {
     await waitFor(() =>
       expect(document.querySelector('[data-rail="fav"]')).toHaveAttribute("data-active", "true")
     );
-  });
-
-  it("Should keep Provider Settings structurally outside the filter radiogroup", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      providers: twoProviders,
-      models: railModels,
-      props: { onOpenProviderSettings: vi.fn() },
-    });
-
-    await openSelector(user);
-    const settings = screen.getByTestId("runtime-selector-settings");
-    const radiogroup = document.querySelector('[role="radiogroup"]')!;
-    // Settings is an escape hatch, not a fourth filter — it must not live in the group.
-    expect(radiogroup.contains(settings)).toBe(false);
-    expect(settings).not.toHaveAttribute("role", "radio");
   });
 
   it("Should jump the rail filter to the last provider on End and back to All on Home", async () => {
@@ -2080,6 +2033,10 @@ describe("RuntimeSelector speed request", () => {
       props: { speed: "normal", onSpeedChange },
     });
 
+    expect(
+      screen.getByTestId("rt-trigger").querySelector('[data-slot="runtime-selector-fast"]')
+    ).toBeNull();
+
     await openSelector(user);
     const speedSwitch = screen.getByTestId("runtime-selector-speed");
     expect(speedSwitch).toHaveRole("switch");
@@ -2098,6 +2055,12 @@ describe("RuntimeSelector speed request", () => {
       models: leveledModels,
       props: { speed: "fast", onSpeedChange },
     });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    expect(trigger.querySelector('[data-slot="runtime-selector-fast"]')).not.toBeNull();
+    expect(trigger).toHaveAccessibleName(
+      "Runtime: Codex / Leveled, reasoning provider default, fast speed requested"
+    );
 
     await openSelector(user);
     const speedSwitch = screen.getByTestId("runtime-selector-speed");
@@ -2139,31 +2102,7 @@ describe("RuntimeSelector speed request", () => {
     withSwitch.unmount();
   });
 
-  it("Should mark the trigger with the fast bolt and speak the request in the accessible summary", () => {
-    renderSelector({
-      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
-      models: leveledModels,
-      props: { speed: "fast", onSpeedChange: vi.fn() },
-    });
-
-    const trigger = screen.getByTestId("rt-trigger");
-    expect(trigger.querySelector('[data-slot="runtime-selector-fast"]')).not.toBeNull();
-    expect(trigger).toHaveAccessibleName(
-      "Runtime: Codex / Leveled, reasoning provider default, fast speed requested"
-    );
-  });
-
-  it("Should keep the trigger bolt off while the request is normal or the surface is unwired", () => {
-    const normalWired = renderSelector({
-      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
-      models: leveledModels,
-      props: { speed: "normal", onSpeedChange: vi.fn() },
-    });
-    expect(
-      screen.getByTestId("rt-trigger").querySelector('[data-slot="runtime-selector-fast"]')
-    ).toBeNull();
-    normalWired.unmount();
-
+  it("Should keep the trigger bolt off when the surface is unwired", () => {
     // An unwired surface must never show speed state, even if a stale `speed`
     // prop leaks in without its handler.
     renderSelector({
@@ -2331,18 +2270,6 @@ describe("RuntimeSelector composer variant", () => {
   };
   const composerModels = [model("gpt-a", { efforts: ["low", "medium", "high"] })];
 
-  it("Should keep the full runtime identity in the composer", () => {
-    renderSelector({
-      value: composerValue,
-      models: composerModels,
-      props: { variant: "composer" },
-    });
-
-    const trigger = screen.getByTestId("rt-trigger");
-    expect(trigger).toHaveTextContent("gpt-a");
-    expect(trigger).toHaveAccessibleName(/Codex \/ gpt-a, reasoning High/);
-  });
-
   it("Should open and close the popup exactly like the default variant", async () => {
     const user = userEvent.setup();
     renderSelector({
@@ -2352,6 +2279,9 @@ describe("RuntimeSelector composer variant", () => {
     });
 
     const trigger = screen.getByTestId("rt-trigger");
+
+    expect(trigger).toHaveTextContent("gpt-a");
+    expect(trigger).toHaveAccessibleName(/Codex \/ gpt-a, reasoning High/);
     expect(trigger).toHaveAttribute("aria-expanded", "false");
 
     await openSelector(user);

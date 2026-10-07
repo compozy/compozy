@@ -1799,20 +1799,6 @@ describe("SessionThread transcript states", () => {
     );
   });
 
-  it("Should offer rewind only for a durable user message when session input is idle", async () => {
-    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
-
-    renderThreadState({
-      status: "success",
-      messages,
-      durableMessageIds: ["transcript_user_001"],
-    });
-
-    const rewind = await screen.findByRole("button", { name: "Rewind to here" });
-    await waitFor(() => expect(rewind).toBeEnabled());
-    expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
-  });
-
   // UT-068 (S3, US-007.EC-2/EC-5): "Fork from here" is rewind's twin — present
   // only on a durable user message under a Fork host, mounted before "Rewind to
   // here", and it hands that message (id + text) to the host.
@@ -1846,26 +1832,32 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
     expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
-    view.unmount();
-
-    const noHost = renderThreadState({
-      status: "success",
-      messages,
+    view.rerenderWith({
       durableMessageIds: ["transcript_user_001"],
+      forkRequest: null,
     });
     expect(await screen.findByTestId("user-message-rewind")).toBeInTheDocument();
+    const rewind = screen.getByRole("button", { name: "Rewind to here" });
+    await waitFor(() => expect(rewind).toBeEnabled());
+    expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
     expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
-    noHost.unmount();
 
-    renderThreadState({
-      status: "success",
-      messages,
+    view.rerenderWith({
       durableMessageIds: ["transcript_user_001"],
       forkRequest: vi.fn(),
       readOnly: true,
     });
     expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
     expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();
+
+    view.rerenderWith({
+      durableMessageIds: ["transcript_user_001"],
+      forkRequest: null,
+      readOnly: true,
+    });
+    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("composer-input")).not.toBeInTheDocument();
   });
 
   // A pending rewind anywhere in the workspace moves the transcript under every
@@ -1923,21 +1915,6 @@ describe("SessionThread transcript states", () => {
 
     await waitFor(() => expect(screen.getByTestId("user-message-fork")).toBeDisabled());
     expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
-  });
-
-  it("Should hide transcript actions and goal prefill controls in read-only mode", async () => {
-    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
-
-    renderThreadState({
-      status: "success",
-      messages,
-      durableMessageIds: ["transcript_user_001"],
-      readOnly: true,
-    });
-
-    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
-    expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("composer-input")).not.toBeInTheDocument();
   });
 
   it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {
