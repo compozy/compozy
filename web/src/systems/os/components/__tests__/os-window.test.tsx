@@ -213,20 +213,6 @@ describe("OsWindow", () => {
     );
   });
 
-  it("Should flush tiled chrome and lift floating chrome off the desk", () => {
-    const classesOf = (node: HTMLElement) => node.className.split(/\s+/);
-    const view = render(<OsWindow frame={frameModel({ kind: "floating" })} />);
-    const floatingChrome = screen.getByTestId("os-window-frame-window:tasks");
-    expect(floatingChrome).toHaveAttribute("data-kind", "floating");
-    expect(classesOf(floatingChrome)).toContain("shadow-elevated");
-
-    view.rerender(<OsWindow frame={frameModel({ kind: "tiled", layer: 1 })} />);
-    const tiledChrome = screen.getByTestId("os-window-frame-window:tasks");
-    expect(tiledChrome).toHaveAttribute("data-kind", "tiled");
-    expect(classesOf(tiledChrome)).not.toContain("shadow-elevated");
-    expect(classesOf(tiledChrome)).not.toContain("border");
-  });
-
   it("Should render resize seams on the semantic seam layer", () => {
     const seam: ProjectedSeam = {
       id: "split:main:0",

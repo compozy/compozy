@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   composeStorybookHandlerGroup,
+  flattenStorybookHandlerGroups,
   storybookMswParameters,
   storybookSystemHandlerGroups,
   storybookSystemHandlers,
@@ -80,20 +81,28 @@ describe("storybook msw helpers", () => {
     expect(catalogIdx).toBeLessThan(nameIdx);
   });
 
-  it("does not register duplicate local API method/path pairs after normalizing path params", () => {
-    const signatures = storybookSystemHandlers
-      .map(handlerSignature)
-      .filter(signature => signature.includes(" /api/"))
-      .map(signature => signature.replace(/:[^/]+/g, "{param}").replace(/\{[^/]+\}/g, "{param}"));
-
-    expect(signatures).toHaveLength(new Set(signatures).size);
-  });
-
-  it("includes the route-owning vault handler group", () => {
+  it("registers unique handlers required by app route stories", () => {
+    expect(storybookSystemHandlers.length).toBeGreaterThan(0);
+    expect(flattenStorybookHandlerGroups(storybookSystemHandlerGroups).length).toBe(
+      storybookSystemHandlers.length
+    );
     expect(storybookSystemHandlerGroups.vault.length).toBeGreaterThan(0);
-  });
-
-  it("includes the runtime handler group used by the shared app shell", () => {
     expect(storybookSystemHandlerGroups.runtime.length).toBeGreaterThan(0);
+
+    const signatures = storybookSystemHandlers.map(handlerSignature);
+    const normalized = signatures.map(signature =>
+      signature.replace(/:[^/]+/g, "{param}").replace(/\{[^/]+\}/g, "{param}")
+    );
+    expect(normalized).toHaveLength(new Set(normalized).size);
+    expect(signatures).toContain("GET /api/onboarding");
+    expect(signatures).toContain("GET /api/logs/stream");
+    expect(signatures).toContain("GET /api/providers");
+    expect(signatures).toContain("GET /api/fs/browse");
+    expect(signatures).toContain("GET /api/marketplace");
+    expect(signatures).not.toContain("GET /api/marketplace/search");
+    expect(normalized).toContain("GET /api/workspaces/{param}/loop-runs/{param}/events");
+    expect(normalized).toContain("GET /api/workspaces/{param}/loop-runs/{param}/briefing");
+    expect(normalized).toContain("GET /api/workspaces/{param}/loop-runs/{param}/nodes");
+    expect(normalized).toContain("GET /api/workspaces/{param}/loop-runs/{param}/timeline");
   });
 });
