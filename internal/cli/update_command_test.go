@@ -120,7 +120,8 @@ func TestUpdateCommandContract(t *testing.T) {
 			t.Fatalf("json.Unmarshal(update) error = %v", err)
 		}
 		if record.Status != compozyupdate.StatusAvailable || record.Runtime.Status != compozyupdate.StatusAvailable ||
-			record.Runtime.CurrentVersion != "v1.0.0" || record.Runtime.LatestVersion != "v1.1.0" {
+			record.Runtime.CurrentVersion != "v1.0.0" || record.Runtime.LatestVersion != "v1.1.0" ||
+			record.Runtime.Managed || record.Runtime.InstallMethod != "direct-binary" {
 			t.Fatalf("update record = %#v, want nested available runtime", record)
 		}
 	})

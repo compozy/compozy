@@ -265,41 +265,6 @@ func TestUninstallRemovesRuntimeArtifactsIdempotentlyAndRequiresForceForPurge(t 
 	}
 }
 
-func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) {
-	t.Parallel()
-
-	deps := newWorkspaceTestDeps(t, &stubClient{})
-	deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
-		return stubUpdateManager{
-			checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
-				return compozyupdate.State{
-					Supported:      true,
-					Managed:        false,
-					InstallMethod:  "direct-binary",
-					CurrentVersion: "v1.0.0",
-					LatestVersion:  "v1.1.0",
-					Available:      true,
-					Status:         compozyupdate.StatusAvailable,
-					Message:        "A newer stable CompozyOS release is available.",
-				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
-			},
-		}, nil
-	}
-
-	out, _, err := executeRootCommand(t, deps, "update", "--check", "-o", "json")
-	if err != nil {
-		t.Fatalf("update --check error = %v", err)
-	}
-	var record updateRecord
-	if err := json.Unmarshal([]byte(out), &record); err != nil {
-		t.Fatalf("json.Unmarshal(update) error = %v", err)
-	}
-	if record.Status != compozyupdate.StatusAvailable ||
-		record.Runtime.Managed || record.Runtime.InstallMethod != "direct-binary" {
-		t.Fatalf("update record = %#v, want available direct-binary update", record)
-	}
-}
-
 func TestConfigEditUsesEditorAndValidatesResult(t *testing.T) {
 	t.Parallel()
 

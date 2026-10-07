@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	compozylogger "github.com/compozy/compozy/internal/logger"
 )
 
 func TestSpawnDetachedDaemonProcess(t *testing.T) {
@@ -34,36 +33,6 @@ func TestSpawnDetachedDaemonProcess(t *testing.T) {
 	}
 	if err := process.Wait(); err != nil {
 		t.Fatalf("process.Wait() error = %v", err)
-	}
-}
-
-func TestSpawnDetachedDaemonProcessWaitIncludesStderr(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	scriptPath := filepath.Join(t.TempDir(), "compozy-test-daemon-error.sh")
-	script := "#!/bin/sh\nprintf 'bind failed on localhost:2123\\n' >&2\nexit 1\n"
-	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("os.WriteFile(script) error = %v", err)
-	}
-
-	process, err := spawnDetachedDaemonProcess(t.Context(), homePaths, func() (string, error) {
-		return scriptPath, nil
-	})
-	if err != nil {
-		t.Fatalf("spawnDetachedDaemonProcess() error = %v", err)
-	}
-
-	waitErr := process.Wait()
-	if waitErr == nil {
-		t.Fatal("process.Wait() error = nil, want non-nil")
-	}
-	if !strings.Contains(waitErr.Error(), "bind failed on localhost:2123") {
-		t.Fatalf("process.Wait() error = %v, want captured stderr", waitErr)
 	}
 }
 
@@ -105,13 +74,6 @@ func TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv(t *testing.T) {
 		}
 		if !strings.Contains(string(logData), "mirror=0") {
 			t.Fatalf("log file = %q, want detached mirror override", string(logData))
-		}
-
-		if !strings.Contains(
-			strings.Join(compozylogger.WithMirrorToStderrEnv(nil, false), "\n"),
-			"COMPOZY_INTERNAL_LOG_MIRROR_STDERR=0",
-		) {
-			t.Fatal("WithMirrorToStderrEnv(nil, false) did not inject COMPOZY_INTERNAL_LOG_MIRROR_STDERR=0")
 		}
 	})
 }

@@ -989,32 +989,6 @@ Print the version.
 	}
 }
 
-func TestProcess_CreatesOutputDir(t *testing.T) {
-	t.Parallel()
-
-	srcDir := t.TempDir()
-	dstDir := filepath.Join(t.TempDir(), "nested", "deep", "output")
-
-	// Write a minimal .md file so Process has something to work on.
-	content := "## compozy\n\nCompozy agent OS\n"
-	if err := os.WriteFile(filepath.Join(srcDir, "compozy.md"), []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := Process(t.Context(), srcDir, dstDir, Options{}); err != nil {
-		t.Fatalf("Process() should create output dir: %v", err)
-	}
-
-	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
-		t.Error("output directory should have been created")
-	}
-	if _, err := os.Stat(filepath.Join(dstDir, "compozy.mdx")); os.IsNotExist(err) {
-		t.Error("compozy.mdx should have been written (from compozy.md)")
-	} else if err != nil {
-		t.Fatalf("stat compozy.mdx: %v", err)
-	}
-}
-
 func TestProcessRejectsNonManagedOutputDir(t *testing.T) {
 	t.Parallel()
 
@@ -1053,7 +1027,7 @@ func TestProcessAllowsRerunIntoGeneratedOutputDir(t *testing.T) {
 	t.Parallel()
 
 	srcDir := t.TempDir()
-	dstDir := filepath.Join(t.TempDir(), "output")
+	dstDir := filepath.Join(t.TempDir(), "nested", "deep", "output")
 	content := "## compozy\n\nCompozy agent OS\n"
 	if err := os.WriteFile(filepath.Join(srcDir, "compozy.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("write source file: %v", err)
@@ -1061,6 +1035,14 @@ func TestProcessAllowsRerunIntoGeneratedOutputDir(t *testing.T) {
 
 	if err := Process(t.Context(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("initial Process() error = %v", err)
+	}
+	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
+		t.Error("output directory should have been created")
+	}
+	if _, err := os.Stat(filepath.Join(dstDir, "compozy.mdx")); os.IsNotExist(err) {
+		t.Error("compozy.mdx should have been written (from compozy.md)")
+	} else if err != nil {
+		t.Fatalf("stat compozy.mdx: %v", err)
 	}
 	if err := Process(t.Context(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("rerun Process() error = %v", err)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -708,15 +707,6 @@ func testMemoryDecision(id string, op memcontract.Op) contract.MemoryDecisionPay
 		Source:     memcontract.SourceRule,
 		Reason:     "accepted",
 		DecidedAt:  fixedTestNow,
-	}
-}
-
-func TestMemoryErrorsWrapAsExpected(t *testing.T) {
-	t.Parallel()
-
-	err := errors.New("memory.unsupported: reserved")
-	if !strings.Contains(err.Error(), "memory.unsupported") {
-		t.Fatalf("error = %v", err)
 	}
 }
 

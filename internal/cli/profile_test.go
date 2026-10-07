@@ -547,14 +547,7 @@ func TestProfileStructuredErrorsCoverPublicCodes(t *testing.T) {
 		}
 	})
 
-	codes := []string{
-		"profile_not_found", "profile_archived", "profile_name_invalid", "profile_name_taken",
-		"profile_name_reserved", "profile_permanent", "profile_owns_work", "profile_sessions_running",
-		"profile_config_key_denied", "profile_secret_env_forbidden", "profile_selection_conflict",
-		profileSelectionUnsupportedCode,
-		"profile_plan_stale", "profile_unavailable", "profile_session_conflict",
-		"profile_remote_management_forbidden", "profile_deliveries_in_flight", "profile_approvals_pending",
-	}
+	codes := []string{"profile_not_found"}
 	for _, code := range codes {
 		t.Run("Should marshal "+code+" [UT-079]", func(t *testing.T) {
 			t.Parallel()

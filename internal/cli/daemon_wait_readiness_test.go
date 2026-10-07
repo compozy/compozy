@@ -97,7 +97,8 @@ func TestWaitForDaemonStartReadiness(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 		defer cancel()
 		_, err := waitForDaemonStart(ctx, deps, child)
-		if err == nil || !strings.Contains(err.Error(), "daemon did not become ready before timeout") {
+		if !errors.Is(err, context.DeadlineExceeded) ||
+			!strings.Contains(err.Error(), "daemon did not become ready before timeout") {
 			t.Fatalf("waitForDaemonStart() error = %v, want readiness timeout", err)
 		}
 		if calls := child.waitCalls.Load(); calls != 0 {
