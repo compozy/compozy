@@ -19,6 +19,5 @@ func (r *Run) SetActiveHumanCriteria(criteria json.RawMessage) {
 		return
 	}
 	r.ensureStartState()
-	cloned := append(json.RawMessage(nil), criteria...)
-	r.activeHumanCriteria = &cloned
+	r.activeHumanCriteria = new(append(json.RawMessage(nil), criteria...))
 }

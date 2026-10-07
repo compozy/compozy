@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -50,8 +51,7 @@ func ClampLoopConfig(cfg LoopConfig) LoopConfig {
 	clampNonNegative(clamped.FanOutWidth)
 	clampNonNegativeMax(clamped.GateMaxRevisions, LoopMaxGateRevisions)
 	if clamped.BudgetOnExceeded != nil && *clamped.BudgetOnExceeded == "" {
-		value := dsl.BudgetExceededHalt
-		clamped.BudgetOnExceeded = &value
+		clamped.BudgetOnExceeded = new(dsl.BudgetExceededHalt)
 	}
 	return clamped
 }
@@ -91,12 +91,10 @@ func (cfg LoopConfig) Clone() LoopConfig {
 	cloned.RuntimeDefaults = cloneRuntimeDefaults(cfg.RuntimeDefaults)
 	cloned.RuntimeRules = cloneRuntimeRules(cfg.RuntimeRules)
 	if cfg.Environment != nil {
-		environment := *cfg.Environment
-		cloned.Environment = &environment
+		cloned.Environment = new(*cfg.Environment)
 	}
 	if cfg.Lifecycle != nil {
-		lifecycle := cfg.Lifecycle.Clone()
-		cloned.Lifecycle = &lifecycle
+		cloned.Lifecycle = new(cfg.Lifecycle.Clone())
 	}
 	if cfg.RequestExpireAfter != nil {
 		cloned.RequestExpireAfter = new(*cfg.RequestExpireAfter)
@@ -385,7 +383,7 @@ func cloneRawMessage(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
 	}
-	return append(json.RawMessage(nil), raw...)
+	return slices.Clone(raw)
 }
 
 func cloneAnyValue(value any) any {

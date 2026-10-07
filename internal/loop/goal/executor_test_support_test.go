@@ -364,28 +364,22 @@ func (s *fakeExecutorStore) ambiguousCount() int {
 func cloneTestCheckpoint(checkpoint Checkpoint) Checkpoint {
 	cloned := checkpoint
 	if checkpoint.UsageSequence != nil {
-		sequence := *checkpoint.UsageSequence
-		cloned.UsageSequence = &sequence
+		cloned.UsageSequence = new(*checkpoint.UsageSequence)
 	}
 	if checkpoint.UsagePendingAfterSequence != nil {
-		sequence := *checkpoint.UsagePendingAfterSequence
-		cloned.UsagePendingAfterSequence = &sequence
+		cloned.UsagePendingAfterSequence = new(*checkpoint.UsagePendingAfterSequence)
 	}
 	if checkpoint.CompactionBaselineUsed != nil {
-		used := *checkpoint.CompactionBaselineUsed
-		cloned.CompactionBaselineUsed = &used
+		cloned.CompactionBaselineUsed = new(*checkpoint.CompactionBaselineUsed)
 	}
 	if checkpoint.ControlGrant != nil {
-		grant := *checkpoint.ControlGrant
-		cloned.ControlGrant = &grant
+		cloned.ControlGrant = new(*checkpoint.ControlGrant)
 	}
 	if checkpoint.ReportIntent != nil {
-		intent := *checkpoint.ReportIntent
-		cloned.ReportIntent = &intent
+		cloned.ReportIntent = new(*checkpoint.ReportIntent)
 	}
 	if checkpoint.CompactionCancel != nil {
-		intent := *checkpoint.CompactionCancel
-		cloned.CompactionCancel = &intent
+		cloned.CompactionCancel = new(*checkpoint.CompactionCancel)
 	}
 	return cloned
 }
@@ -394,8 +388,7 @@ func cloneTestInt64(value *int64) *int64 {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneJudgeAttempt(attempt JudgeAttempt) JudgeAttempt {
@@ -403,8 +396,7 @@ func cloneJudgeAttempt(attempt JudgeAttempt) JudgeAttempt {
 	attempt.Criteria = cloneCriterionResults(attempt.Criteria)
 	attempt.Warnings = append([]gate.DiagnosticWarning(nil), attempt.Warnings...)
 	if attempt.CompletedAt != nil {
-		completedAt := *attempt.CompletedAt
-		attempt.CompletedAt = &completedAt
+		attempt.CompletedAt = new(*attempt.CompletedAt)
 	}
 	return attempt
 }

@@ -191,7 +191,7 @@ func runAgentSessionBindRequest(
 		ProfileID:   in.ToolScope.ProfileID,
 		WorkspaceID: in.WorkspaceID, LoopRunID: in.LoopRunID, Generation: in.Generation,
 		NodeID: in.NodeID, Agent: strings.TrimSpace(input.spec.Agent),
-		Environment: cloneEnvironmentSpec(environment), Handle: handle, SharedKey: sharedKey,
+		Environment: new(environment), Handle: handle, SharedKey: sharedKey,
 		ItemIndex: in.ItemIndex, TargetBindingEpoch: in.CellEpoch + 1,
 		ProvenanceParentSessionID: strings.TrimSpace(in.ProvenanceParentSessionID),
 		CellFence: &ActionSessionCellFence{

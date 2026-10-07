@@ -113,7 +113,7 @@ func TestServiceShouldPreserveOwnershipAndLifecycleContext(t *testing.T) {
 			copied,
 		)
 		_, err := svc.DryRun(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -123,7 +123,7 @@ func TestServiceShouldPreserveOwnershipAndLifecycleContext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DryRun() error = %v", err)
 		}
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{ProfileID: "profile-marketing",
+		run, err := svc.Start(t.Context(), "ws-1", "valid-loop", loop.Inputs{ProfileID: "profile-marketing",
 			Values: map[string]any{"tasks": "task-ref"},
 		}, humanActor(t))
 		if err != nil {
@@ -143,7 +143,7 @@ func TestServiceShouldPreserveOwnershipAndLifecycleContext(t *testing.T) {
 			store,
 			validDefinition(),
 		)
-		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+		_, err := svc.Start(t.Context(), "ws-1", "valid-loop", loop.Inputs{
 			Values: map[string]any{"tasks": "task-ref"},
 		}, humanActor(t))
 		if !errors.Is(err, loop.ErrValidation) || !strings.Contains(err.Error(), "profile id is required") {
@@ -162,7 +162,7 @@ func TestServiceShouldPreserveOwnershipAndLifecycleContext(t *testing.T) {
 			validDefinition(),
 			loop.WithHookDispatcher(hooks),
 		)
-		startCtx, cancelStart := context.WithCancel(context.Background())
+		startCtx, cancelStart := context.WithCancel(t.Context())
 		hooks.cancelStarted = cancelStart
 		defer cancelStart()
 		run, err := svc.Start(startCtx, "ws-1", "valid-loop", loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -178,7 +178,7 @@ func TestServiceShouldPreserveOwnershipAndLifecycleContext(t *testing.T) {
 				hooks.startedDeadline,
 			)
 		}
-		transitionCtx, cancelTransition := context.WithCancel(context.Background())
+		transitionCtx, cancelTransition := context.WithCancel(t.Context())
 		hooks.cancelTerminal = cancelTransition
 		defer cancelTransition()
 		if err := svc.Transition(
@@ -237,7 +237,7 @@ func TestServiceTransitionShouldEnforceTruthyStatusFSM(t *testing.T) {
 				run := seedFakeRun(store, tt.from)
 				svc := newTestService(t, store, validDefinition())
 
-				err := svc.Transition(context.Background(), run.ID, tt.to, loop.TransitionCauseContract)
+				err := svc.Transition(t.Context(), run.ID, tt.to, loop.TransitionCauseContract)
 				if !errors.Is(err, loop.ErrInvalidTransition) {
 					t.Fatalf("Transition(%s -> %s) error = %v, want ErrInvalidTransition", tt.from, tt.to, err)
 				}
@@ -257,7 +257,7 @@ func TestServiceTransitionShouldEnforceTruthyStatusFSM(t *testing.T) {
 		svc := newTestService(t, store, validDefinition())
 
 		err := svc.Transition(
-			context.Background(),
+			t.Context(),
 			run.ID,
 			loop.StatusPaused,
 			loop.TransitionCausePauseBoundary,
@@ -266,7 +266,7 @@ func TestServiceTransitionShouldEnforceTruthyStatusFSM(t *testing.T) {
 			t.Fatalf("Transition(running -> paused) error = %v", err)
 		}
 		err = svc.Transition(
-			context.Background(),
+			t.Context(),
 			run.ID,
 			loop.StatusRunning,
 			loop.TransitionCauseOperatorResume,
@@ -277,7 +277,7 @@ func TestServiceTransitionShouldEnforceTruthyStatusFSM(t *testing.T) {
 
 		done := seedFakeRun(store, loop.StatusDone)
 		err = svc.Transition(
-			context.Background(),
+			t.Context(),
 			done.ID,
 			loop.StatusPaused,
 			loop.TransitionCausePauseBoundary,
@@ -287,7 +287,7 @@ func TestServiceTransitionShouldEnforceTruthyStatusFSM(t *testing.T) {
 		}
 		watching := seedFakeRun(store, loop.StatusWatching)
 		err = svc.Transition(
-			context.Background(),
+			t.Context(),
 			watching.ID,
 			loop.StatusPaused,
 			loop.TransitionCausePauseBoundary,
@@ -308,12 +308,12 @@ func TestServiceTransitionShouldEnforceTruthyStatusFSM(t *testing.T) {
 				run := seedFakeRun(store, from)
 				svc := newTestService(t, store, validDefinition())
 				if err := svc.Transition(
-					context.Background(), run.ID, loop.StatusCanceled, loop.TransitionCauseContract,
+					t.Context(), run.ID, loop.StatusCanceled, loop.TransitionCauseContract,
 				); !errors.Is(err, loop.ErrInvalidTransition) {
 					t.Fatalf("Transition(%s -> canceled, contract) error = %v, want ErrInvalidTransition", from, err)
 				}
 				if err := svc.Transition(
-					context.Background(), run.ID, loop.StatusCanceled, loop.TransitionCauseOperatorCancel,
+					t.Context(), run.ID, loop.StatusCanceled, loop.TransitionCauseOperatorCancel,
 				); err != nil {
 					t.Fatalf("Transition(%s -> canceled, operator) error = %v", from, err)
 				}
@@ -499,11 +499,10 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		t.Parallel()
 
 		resolved := compileDefinition(t, validDefinition())
-		disabled := false
 		effective, err := loop.ResolveEffectiveConfig(
 			resolved,
 			loop.LoopDefaults{Delivery: loop.LoopConfig{IterationCap: new(0)}},
-			&loop.LoopConfig{HumanGateEnabled: &disabled},
+			&loop.LoopConfig{HumanGateEnabled: new(false)},
 			loop.LoopConfig{},
 		)
 		if err != nil {
@@ -605,7 +604,6 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 		t.Parallel()
 
 		store := newFakeLoopStore()
-		halt := dsl.BudgetExceededHalt
 		iterationCap := 12
 		var resolvedWorkspace loop.WorkspaceID
 		svc := newTestServiceWithOptions(
@@ -623,7 +621,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 						NoProgressWindow: new(5),
 						BudgetTokens:     new(0),
 						BudgetWallSec:    new(0),
-						BudgetOnExceeded: &halt,
+						BudgetOnExceeded: new(dsl.BudgetExceededHalt),
 						FanOutWidth:      new(1),
 					},
 				}, nil
@@ -631,7 +629,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 		)
 
 		run, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-config",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -656,7 +654,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			)
 		}
 		iterationCap = 99
-		snapshot, err := store.GetLoopDefinitionSnapshot(context.Background(), "ws-config", run.DefinitionDigest)
+		snapshot, err := store.GetLoopDefinitionSnapshot(t.Context(), "ws-config", run.DefinitionDigest)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
 		}
@@ -698,7 +696,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 		)
 
 		preview, err := svc.DryRun(
-			context.Background(),
+			t.Context(),
 			"ws-inputs",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID},
@@ -720,7 +718,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 		}
 
 		run, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-inputs",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "explicit-task"}},
@@ -759,7 +757,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 		)
 
 		_, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-inputs",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}},
@@ -789,7 +787,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		definition.Contract.DefinitionOfDone = "{{ .inputs.tasks }} is complete"
 		svc := newTestService(t, store, definition)
 		run, err := svc.StartInline(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			inlineGoalDefinition("ship the release", "judge-v1"),
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID},
@@ -814,7 +812,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		store := newFakeLoopStore()
 		svc := newTestService(t, store, validDefinition())
 		_, err := svc.StartInline(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			inlineGoalDefinition("ship the release", ""),
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID},
@@ -841,7 +839,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		store.seed(old)
 		svc := newTestService(t, store, validDefinition())
 		result, err := svc.ReplaceInline(
-			context.Background(),
+			t.Context(),
 			old.ID,
 			"ws-1",
 			inlineGoalDefinition("ship the safer release", "judge-v1"),
@@ -889,7 +887,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		)
 
 		result, err := svc.ReplaceInline(
-			context.Background(),
+			t.Context(),
 			old.ID,
 			"ws-1",
 			inlineGoalDefinition("ship the safer release", "judge-v1"),
@@ -922,7 +920,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		invalid := inlineGoalDefinition("ship the release", "judge-v1")
 		invalid.Graph.Nodes[0].Params["objective"] = ""
 		if _, err := svc.ReplaceInline(
-			context.Background(), old.ID, "ws-1", invalid, loop.Inputs{ProfileID: storepkg.DefaultProfileID},
+			t.Context(), old.ID, "ws-1", invalid, loop.Inputs{ProfileID: storepkg.DefaultProfileID},
 			inlineGoalOrigin("session-origin"), humanActor(t),
 		); err == nil {
 			t.Fatal("ReplaceInline(invalid) error = nil")
@@ -943,7 +941,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		store.seed(active)
 		svc := newTestService(t, store, validDefinition())
 		if err := svc.ClearInlineGoal(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"session-origin",
 			humanActor(t),
@@ -992,7 +990,7 @@ func TestServiceStartShouldPinGoalRunPolicy(t *testing.T) {
 		}
 
 		run, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-goal-policy",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1042,7 +1040,7 @@ func TestServiceStartShouldPinGoalRunPolicy(t *testing.T) {
 		}
 
 		_, err = svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-goal-policy",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1070,7 +1068,7 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		svc := newTestService(t, store, validDefinition())
 
 		_, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1097,7 +1095,7 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		svc := newTestService(t, store, def)
 
 		run, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1121,7 +1119,7 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		svc := newTestService(t, store, validDefinition())
 
 		_, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1150,7 +1148,7 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		svc := newTestService(t, store, validDefinition())
 
 		_, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1180,7 +1178,7 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		svc := newTestService(t, store, validDefinition())
 
 		_, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1208,12 +1206,12 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		svc := newTestService(t, store, validDefinition())
 		actor := humanActor(t)
 
-		if err := svc.Pause(context.Background(), "ws-1", run.ID, actor); !errors.Is(err, loop.ErrInvalidTransition) {
+		if err := svc.Pause(t.Context(), "ws-1", run.ID, actor); !errors.Is(err, loop.ErrInvalidTransition) {
 			t.Fatalf("Pause(historical) error = %v, want ErrInvalidTransition", err)
 		}
 		nodes := svc.(loop.NodeLifecycleService)
 		if _, err := nodes.PauseNode(
-			context.Background(), "ws-1", run.ID, "worker", nil, loop.NodePauseCancel, "repair", actor,
+			t.Context(), "ws-1", run.ID, "worker", nil, loop.NodePauseCancel, "repair", actor,
 		); !errors.Is(err, loop.ErrInvalidTransition) {
 			t.Fatalf("PauseNode(historical) error = %v, want ErrInvalidTransition", err)
 		}
@@ -1226,14 +1224,14 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		run := seedFakeRun(store, loop.StatusRunning)
 		svc := newTestService(t, store, validDefinition())
 
-		if err := svc.Pause(context.Background(), "ws-1", run.ID, humanActor(t)); err != nil {
+		if err := svc.Pause(t.Context(), "ws-1", run.ID, humanActor(t)); err != nil {
 			t.Fatalf("Pause() error = %v", err)
 		}
 		stored := store.mustRun(t, run.ID)
 		if stored.Status != loop.StatusRunning || !stored.PauseRequested {
 			t.Fatalf("stored run = %#v, want running with pause_requested", stored)
 		}
-		if err := svc.Pause(context.Background(), "ws-1", run.ID, humanActor(t)); err != nil {
+		if err := svc.Pause(t.Context(), "ws-1", run.ID, humanActor(t)); err != nil {
 			t.Fatalf("Pause() second call error = %v, want idempotent nil", err)
 		}
 	})
@@ -1251,13 +1249,13 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		store.seed(paused)
 		svc := newTestService(t, store, validDefinition())
 
-		if err := svc.Resume(context.Background(), "ws-1", running.ID, humanActor(t)); err != nil {
+		if err := svc.Resume(t.Context(), "ws-1", running.ID, humanActor(t)); err != nil {
 			t.Fatalf("Resume(running) error = %v", err)
 		}
 		if got := store.mustRun(t, running.ID); got.PauseRequested {
 			t.Fatalf("running PauseRequested = true, want false")
 		}
-		if err := svc.Resume(context.Background(), "ws-1", paused.ID, humanActor(t)); err != nil {
+		if err := svc.Resume(t.Context(), "ws-1", paused.ID, humanActor(t)); err != nil {
 			t.Fatalf("Resume(paused) error = %v", err)
 		}
 		if got := store.mustRun(t, paused.ID); got.Status != loop.StatusRunning || got.PauseRequested {
@@ -1297,7 +1295,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		}
 		currentAttempts := 9
 		if err := store.UpsertLoopConfig(
-			context.Background(),
+			t.Context(),
 			run.WorkspaceID,
 			run.LoopName,
 			loop.LoopConfig{Lifecycle: &loop.LifecycleConfig{WaitAdmissionAttempts: &currentAttempts}},
@@ -1311,7 +1309,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		}
 
 		if _, err := lifecycle.ResumeNodeWait(
-			context.Background(),
+			t.Context(),
 			run.WorkspaceID,
 			run.ID,
 			"release",
@@ -1356,7 +1354,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		actor := humanActor(t)
 
 		err := svc.Approve(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			approvable.ID,
 			"review_gate",
@@ -1369,7 +1367,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		if got := store.mustRun(t, approvable.ID); got.Status != loop.StatusRunning {
 			t.Fatalf("approved status = %q, want running", got.Status)
 		}
-		decisions, err := store.ListLoopGateDecisions(context.Background(), "ws-1", approvable.ID, 0, "review_gate")
+		decisions, err := store.ListLoopGateDecisions(t.Context(), "ws-1", approvable.ID, 0, "review_gate")
 		if err != nil {
 			t.Fatalf("ListLoopGateDecisions(approve) error = %v", err)
 		}
@@ -1377,7 +1375,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 			t.Fatalf("decision[human] = %#v, want approve", decisions["human"])
 		}
 		err = svc.Approve(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			rejectable.ID,
 			"review_gate",
@@ -1391,7 +1389,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 			t.Fatalf("rejected status = %q, want blocked", got.Status)
 		}
 		err = svc.Approve(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			running.ID,
 			"review_gate",
@@ -1417,7 +1415,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		svc := newTestService(t, store, validDefinition())
 
 		err := svc.Approve(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			run.ID,
 			"old_gate",
@@ -1440,7 +1438,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		svc := newTestService(t, store, validDefinition())
 
 		err := svc.Approve(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			run.ID,
 			loop.BudgetGateID,
@@ -1526,7 +1524,7 @@ func TestServiceShouldAllocateTypedGoalGrantsFromDurableControl(t *testing.T) {
 				activated = run
 			})),
 		)
-		approveCtx, cancel := context.WithCancel(context.Background())
+		approveCtx, cancel := context.WithCancel(t.Context())
 		cancelApprove = cancel
 		defer cancel()
 		if err := svc.Approve(
@@ -1600,7 +1598,7 @@ func TestServiceShouldAllocateTypedGoalGrantsFromDurableControl(t *testing.T) {
 				}
 				svc := newTestService(t, store, validDefinition())
 				if err := svc.Approve(
-					context.Background(), run.WorkspaceID, run.ID, run.ActiveGateID,
+					t.Context(), run.WorkspaceID, run.ID, run.ActiveGateID,
 					loop.GateDecisionApprove, humanActor(t),
 				); err != nil {
 					t.Fatalf("Approve(%s) error = %v", tc.name, err)
@@ -1627,7 +1625,7 @@ func TestServiceShouldAllocateTypedGoalGrantsFromDurableControl(t *testing.T) {
 			Cause: loop.ReasonCode(loop.TransitionCausePauseBoundary), RunStatus: loop.StatusPaused,
 		}
 		svc := newTestService(t, store, validDefinition())
-		if err := svc.Resume(context.Background(), run.WorkspaceID, run.ID, humanActor(t)); err != nil {
+		if err := svc.Resume(t.Context(), run.WorkspaceID, run.ID, humanActor(t)); err != nil {
 			t.Fatalf("Resume(plain Goal control) error = %v", err)
 		}
 		grant := store.lastGoalReactivation(t)
@@ -1647,13 +1645,13 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		store := newFakeLoopStore()
 		svc := newTestService(t, store, validDefinition())
 
-		if err := svc.Configure(context.Background(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
+		if err := svc.Configure(t.Context(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
 			EnabledChecks: []byte(`{"human":true}`),
 			FanOutWidth:   new(500),
 		}); err != nil {
 			t.Fatalf("Configure() error = %v", err)
 		}
-		cfg, err := svc.GetConfig(context.Background(), "ws-1", "valid-loop")
+		cfg, err := svc.GetConfig(t.Context(), "ws-1", "valid-loop")
 		if err != nil {
 			t.Fatalf("GetConfig() error = %v", err)
 		}
@@ -1664,7 +1662,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			t.Fatalf("EnabledChecks = %s, want persisted JSON", cfg.EnabledChecks)
 		}
 		snapshot, err := svc.GetConfigSnapshot(
-			context.Background(), "ws-1", storepkg.DefaultProfileID, "valid-loop",
+			t.Context(), "ws-1", storepkg.DefaultProfileID, "valid-loop",
 		)
 		if err != nil {
 			t.Fatalf("GetConfigSnapshot() error = %v", err)
@@ -1688,14 +1686,14 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			Mode:        dsl.EnvironmentWorktree,
 			WorktreeRef: "child-feature",
 		}
-		if err := svc.Configure(context.Background(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
+		if err := svc.Configure(t.Context(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
 			Environment: &childEnvironment,
 		}); err != nil {
 			t.Fatalf("Configure(child environment) error = %v", err)
 		}
 		parentEnvironment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
 		preview, err := svc.DryRun(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1718,7 +1716,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		}
 		explicitRunEnvironment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot}
 		preview, err = svc.DryRun(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -1748,7 +1746,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		svc := newTestService(t, newFakeLoopStore(), validDefinition())
 		inherited := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
 		preview, err := svc.DryRun(
-			context.Background(),
+			t.Context(),
 			"ws-inherited-environment",
 			"valid-loop",
 			loop.Inputs{
@@ -1770,7 +1768,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		t.Parallel()
 
 		svc := newTestService(t, newFakeLoopStore(), validDefinition())
-		err := svc.Configure(context.Background(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
+		err := svc.Configure(t.Context(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
 			EnabledChecks: []byte(`{`),
 		})
 		if !errors.Is(err, loop.ErrValidation) {
@@ -1798,14 +1796,14 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 
-		err = svc.Configure(context.Background(), "ws-1", storepkg.DefaultProfileID, "missing-loop", loop.LoopConfig{
+		err = svc.Configure(t.Context(), "ws-1", storepkg.DefaultProfileID, "missing-loop", loop.LoopConfig{
 			IterationCap: new(3),
 		})
 		if !errors.Is(err, loop.ErrDefinitionNotFound) {
 			t.Fatalf("Configure(missing definition) error = %v, want ErrDefinitionNotFound", err)
 		}
 		if _, err := store.GetLoopConfig(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"missing-loop",
 		); !errors.Is(err, loop.ErrConfigNotFound) {
@@ -1824,7 +1822,7 @@ func TestServiceGetAndDefaultsShouldExposeRunState(t *testing.T) {
 		run := seedFakeRun(store, loop.StatusRunning)
 		svc := newTestService(t, store, validDefinition())
 
-		got, err := svc.Get(context.Background(), "ws-1", run.ID)
+		got, err := svc.Get(t.Context(), "ws-1", run.ID)
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}
@@ -1842,7 +1840,7 @@ func TestServiceGetAndDefaultsShouldExposeRunState(t *testing.T) {
 		}))
 
 		run, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -2089,7 +2087,7 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		svc := newTestService(t, store, definition)
 
 		preview, err := svc.DryRun(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -2141,14 +2139,14 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		)
 		inputs := loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}}
 
-		if _, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", inputs); err == nil {
+		if _, err := svc.DryRun(t.Context(), "ws-1", "valid-loop", inputs); err == nil {
 			t.Fatal("DryRun() error = nil, want runtime validation")
 		} else if validation, ok := loop.AsRuntimeValidationError(err); !ok ||
 			len(validation.Items) != 1 || validation.Items[0].Reason != "unknown_provider" {
 			t.Fatalf("DryRun() error = %v, want unknown_provider runtime validation", err)
 		}
 		if _, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			inputs,
@@ -2191,7 +2189,7 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		)
 
 		_, err := svc.DryRun(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -2268,11 +2266,11 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			call func() error
 		}{
 			{name: "Should reject dry-run", call: func() error {
-				_, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", inputs)
+				_, err := svc.DryRun(t.Context(), "ws-1", "valid-loop", inputs)
 				return err
 			}},
 			{name: "Should reject start", call: func() error {
-				_, err := svc.Start(context.Background(), "ws-1", "valid-loop", inputs, humanActor(t))
+				_, err := svc.Start(t.Context(), "ws-1", "valid-loop", inputs, humanActor(t))
 				return err
 			}},
 		} {
@@ -2323,7 +2321,7 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		}
 
 		_, err = svc.DryRun(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -2469,7 +2467,7 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 		store := &amendmentFakeStore{fakeLoopStore: newFakeLoopStore()}
 		svc := newTestServiceWithOptions(t, store, definition)
 		run, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -2480,7 +2478,7 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
-		_, err = svc.AmendNodeOutput(context.Background(), loop.AmendInput{
+		_, err = svc.AmendNodeOutput(t.Context(), loop.AmendInput{
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "agent",
 			Payload: json.RawMessage(`{"summary":"repair"}`), Actor: humanActor(t),
 		})
@@ -2535,7 +2533,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		}}
 		svc := newTestServiceWithOptions(t, store, validDefinition()).(loop.TimeTravelService)
 
-		result, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+		result, err := svc.DiffRun(t.Context(), "ws-1", loop.DiffQuery{
 			RunID: base.ID, AgainstRunID: against.ID,
 		})
 		if err != nil {
@@ -2570,7 +2568,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			t.Fatalf("large diff row = %#v, want bounded size/hash summary", row)
 		}
 
-		same, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+		same, err := svc.DiffRun(t.Context(), "ws-1", loop.DiffQuery{
 			RunID: base.ID, Generation: 1, AgainstGeneration: 1,
 		})
 		if err != nil || len(same.Nodes) != 0 {
@@ -2579,7 +2577,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 
 		against.DefinitionDigest = "definition-b"
 		store.seed(against)
-		diverged, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+		diverged, err := svc.DiffRun(t.Context(), "ws-1", loop.DiffQuery{
 			RunID: base.ID, Generation: 1, AgainstRunID: against.ID, AgainstGeneration: 1,
 		})
 		if err != nil || !diverged.DefinitionDivergence {
@@ -2594,7 +2592,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		foreign := against
 		foreign.ID, foreign.LoopName = "run-foreign", "other-loop"
 		store.seed(foreign)
-		_, err = svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{RunID: base.ID, AgainstRunID: foreign.ID})
+		_, err = svc.DiffRun(t.Context(), "ws-1", loop.DiffQuery{RunID: base.ID, AgainstRunID: foreign.ID})
 		if !errors.Is(err, loop.ErrDiffCrossLoop) {
 			t.Fatalf("cross-loop DiffRun() error = %v, want ErrDiffCrossLoop", err)
 		}
@@ -2626,7 +2624,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		service := newTestServiceWithOptions(t, store, definition)
 		svc := service.(loop.TimeTravelService)
 		run, err := service.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -2649,7 +2647,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		}
 		store.mu.Unlock()
 		actor := humanActor(t)
-		result, err := svc.RerunFromNode(context.Background(), loop.RerunInput{
+		result, err := svc.RerunFromNode(t.Context(), loop.RerunInput{
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Reason: "retry flaky provider",
 			RequestID: "rerun-1", Actor: actor,
 		})
@@ -2674,12 +2672,11 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		if publish == nil || publish.Status != "pending" {
 			t.Fatalf("publish rerun output = %#v, want pending across an unmaterialized bridge", publish)
 		}
-		storedReplay := result
-		store.rerunReplay = &storedReplay
+		store.rerunReplay = new(result)
 		store.replayDigest = store.rerunRequest.RequestDigest
 		terminal.Status = loop.StatusRunning
 		store.seed(terminal)
-		replay, err := svc.RerunFromNode(context.Background(), loop.RerunInput{
+		replay, err := svc.RerunFromNode(t.Context(), loop.RerunInput{
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Reason: "retry flaky provider",
 			RequestID: "rerun-1", Actor: actor,
 		})
@@ -2687,7 +2684,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			!reflect.DeepEqual(replay.RerunNodes, result.RerunNodes) {
 			t.Fatalf("RerunFromNode(replay) = %#v error=%v, want prior result", replay, err)
 		}
-		_, err = svc.RerunFromNode(context.Background(), loop.RerunInput{
+		_, err = svc.RerunFromNode(t.Context(), loop.RerunInput{
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Actor: actor,
 		})
 		if !errors.Is(err, loop.ErrRerunBusy) {
@@ -2700,7 +2697,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		store.replayDigest = ""
 		store.generationOutputs[run.ID][0].Status = "pending"
 		store.mu.Unlock()
-		_, err = svc.RerunFromNode(context.Background(), loop.RerunInput{
+		_, err = svc.RerunFromNode(t.Context(), loop.RerunInput{
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", RequestID: "rerun-unrelated-pending",
 			Actor: actor,
 		})
@@ -2711,7 +2708,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		store.generationOutputs[run.ID][0].Status = "succeeded"
 		store.generationOutputs[run.ID][3].Status = "running"
 		store.mu.Unlock()
-		_, err = svc.RerunFromNode(context.Background(), loop.RerunInput{
+		_, err = svc.RerunFromNode(t.Context(), loop.RerunInput{
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", RequestID: "rerun-busy-output",
 			Actor: actor,
 		})
@@ -2724,7 +2721,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		t.Parallel()
 		store := newTimeTravelFakeStore()
 		service := newTestServiceWithOptions(t, store, validDefinition())
-		run, err := service.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+		run, err := service.Start(t.Context(), "ws-1", "valid-loop", loop.Inputs{
 			ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"},
 		}, humanActor(t))
 		if err != nil {
@@ -2746,7 +2743,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			RequestID:   "rerun-latest",
 			Actor:       humanActor(t),
 		}
-		result, err := svc.RerunFromNode(context.Background(), input)
+		result, err := svc.RerunFromNode(t.Context(), input)
 		if err != nil {
 			t.Fatalf("RerunFromNode() error = %v", err)
 		}
@@ -2766,7 +2763,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			}
 		}
 		store.rerunReplay, store.replayDigest = &result, request.RequestDigest
-		replay, err := svc.RerunFromNode(context.Background(), input)
+		replay, err := svc.RerunFromNode(t.Context(), input)
 		if err != nil || !replay.Replayed || replay.Generation != 3 {
 			t.Fatalf("replay = %#v, error = %v", replay, err)
 		}
@@ -2798,7 +2795,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			loop.WithInputEntityCatalog(entityCatalog),
 		)
 		source, err := starter.Start(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"valid-loop",
 			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
@@ -2812,15 +2809,14 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		store.mu.Lock()
 		source.Generation = 1
 		source.Status = loop.StatusDone
-		score := 0.91
-		source.BestGeneration, source.BestScore = new(int64), &score
+		source.BestGeneration, source.BestScore = new(int64), new(0.91)
 		*source.BestGeneration = 1
 		store.runs[source.ID] = *source
 		store.generationOutputs[source.ID] = []loop.GenerationOutput{{
 			Generation: 1, NodeID: "agent", Status: "running", OutputRef: "source-output",
 		}}
 		store.mu.Unlock()
-		_, err = svc.ForkRun(context.Background(), loop.ForkInput{
+		_, err = svc.ForkRun(t.Context(), loop.ForkInput{
 			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1, Actor: humanActor(t),
 		})
 		if !errors.Is(err, loop.ErrForkGenerationUnknown) {
@@ -2830,7 +2826,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		store.generationOutputs[source.ID][0].Status = "succeeded"
 		store.mu.Unlock()
 		before := store.mustRun(t, source.ID)
-		_, err = svc.ForkRun(context.Background(), loop.ForkInput{
+		_, err = svc.ForkRun(t.Context(), loop.ForkInput{
 			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1,
 			Inputs: map[string]any{"tasks": "removed-reviewer"}, Actor: humanActor(t),
 		})
@@ -2839,7 +2835,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			validation.Origin != loop.InputOriginRun {
 			t.Fatalf("ForkRun(stale input) error = %#v, want typed input validation", err)
 		}
-		result, err := svc.ForkRun(context.Background(), loop.ForkInput{
+		result, err := svc.ForkRun(t.Context(), loop.ForkInput{
 			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1,
 			Inputs: map[string]any{"tasks": "reviewer"}, Reason: "try a safer path",
 			RequestID: "fork-1", Actor: humanActor(t),
@@ -3145,12 +3141,12 @@ func TestServiceNodePauseShouldRetryCancellationDelivery(t *testing.T) {
 	nodes := svc.(loop.NodeLifecycleService)
 	actor := humanActor(t)
 	if _, err := nodes.PauseNode(
-		context.Background(), "ws-1", "run-1", "worker", nil, loop.NodePauseCancel, "repair", actor,
+		t.Context(), "ws-1", "run-1", "worker", nil, loop.NodePauseCancel, "repair", actor,
 	); err == nil {
 		t.Fatal("PauseNode(first) error = nil, want delivery failure")
 	}
 	result, err := nodes.PauseNode(
-		context.Background(), "ws-1", "run-1", "worker", nil, loop.NodePauseCancel, "repair", actor,
+		t.Context(), "ws-1", "run-1", "worker", nil, loop.NodePauseCancel, "repair", actor,
 	)
 	if err != nil {
 		t.Fatalf("PauseNode(retry) error = %v", err)
@@ -3264,7 +3260,7 @@ func TestServiceRespondShouldValidateAnnotatedEntityReferences(t *testing.T) {
 			}),
 		)
 		run, err := svc.Start(
-			context.Background(),
+			t.Context(),
 			"ws-response",
 			definition.Meta.Name,
 			loop.Inputs{ProfileID: "profile-engineering",
@@ -3276,7 +3272,7 @@ func TestServiceRespondShouldValidateAnnotatedEntityReferences(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		respond := func(reviewer string) error {
-			_, respondErr := svc.Respond(context.Background(), loop.RespondInput{
+			_, respondErr := svc.Respond(t.Context(), loop.RespondInput{
 				WorkspaceID: run.WorkspaceID,
 				RunID:       run.ID,
 				Generation:  run.Generation,
@@ -3629,8 +3625,7 @@ func (s *timeTravelFakeStore) CreateRerun(
 	_ context.Context,
 	request loop.RerunStoreRequest,
 ) (loop.RerunResult, bool, error) {
-	cloned := request
-	s.rerunRequest = &cloned
+	s.rerunRequest = new(request)
 	return loop.RerunResult{
 		RunID: request.Source.ID, Generation: request.Intent.Generation,
 		ParentGeneration: request.Intent.ParentGeneration,
@@ -3656,8 +3651,7 @@ func (s *timeTravelFakeStore) CreateFork(
 	_ context.Context,
 	request loop.ForkStoreRequest,
 ) (loop.Run, bool, error) {
-	cloned := request
-	s.forkRequest = &cloned
+	s.forkRequest = new(request)
 	s.seed(*request.Child)
 	return *request.Child, false, nil
 }
@@ -3730,7 +3724,7 @@ func (s *fakeLoopStore) seed(run loop.Run) {
 
 func (s *fakeLoopStore) mustRun(t *testing.T, id loop.RunID) loop.Run {
 	t.Helper()
-	run, err := s.GetLoopRunByID(context.Background(), id)
+	run, err := s.GetLoopRunByID(t.Context(), id)
 	if err != nil {
 		t.Fatalf("GetLoopRunByID(%q) error = %v", id, err)
 	}
@@ -3953,8 +3947,7 @@ func (s *fakeLoopStore) ResumeWait(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	mutationCopy := mutation
-	s.waitResumeMutation = &mutationCopy
+	s.waitResumeMutation = new(mutation)
 	return loop.WaitResumeResult{Won: true}, nil
 }
 

@@ -26,12 +26,11 @@ func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *te
 		insertLoopServiceWorkspace(t, globalDB, "ws-1")
 		svc := newIntegrationService(t, globalDB, validDefinition())
 		ctx := testutil.Context(t)
-		onExceeded := dsl.BudgetExceededEscalate
 
 		err := svc.Configure(ctx, "ws-1", store.DefaultProfileID, "valid-loop", loop.LoopConfig{
 			BudgetTokens:     new(2222),
 			BudgetWallSec:    new(333),
-			BudgetOnExceeded: &onExceeded,
+			BudgetOnExceeded: new(dsl.BudgetExceededEscalate),
 			FanOutWidth:      new(9),
 			NoProgressWindow: new(4),
 		})

@@ -341,8 +341,7 @@ func applyRosterOutput(view *RosterNode, runID RunID, output GenerationOutput) {
 	view.SessionID = output.SessionID
 	view.CellTaskID = NodeCellTaskID(runID, view.Generation, string(view.NodeID), view.ItemIndex)
 	if output.FirstScheduledAt != nil {
-		started := output.FirstScheduledAt.UTC()
-		view.StartedAt = &started
+		view.StartedAt = new(output.FirstScheduledAt.UTC())
 	}
 	if output.NextAttemptAt != nil {
 		view.State = NodeStateRetrying

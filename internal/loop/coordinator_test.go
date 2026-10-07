@@ -157,7 +157,7 @@ func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 			t.Fatalf("NewCoordinatorRunner() error = %v", err)
 		}
 
-		plan, err := runner.Run(context.Background(), task.RunID(taskRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(taskRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -712,7 +712,7 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedPolicyAndSessionProvena
 			Status: task.TaskRunStatusClaimed, Metadata: metadata,
 		}
 
-		if _, err := runner.ExecuteActionRun(context.Background(), workerRun, task.ActorContext{}); err != nil {
+		if _, err := runner.ExecuteActionRun(t.Context(), workerRun, task.ActorContext{}); err != nil {
 			t.Fatalf("ExecuteActionRun() error = %v", err)
 		}
 		nodes, ok := capture.input.Namespace[namespaceNodesKey].(map[string]any)
@@ -896,7 +896,7 @@ func TestCoordinatorRunnerShouldResolveNoProgressWindowFromWorkspaceDefaults(t *
 			},
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1281,7 +1281,7 @@ func TestGateRoutePlannerShouldSelectAndRecordTarget(t *testing.T) {
 		return verdict, nil
 	})
 	result, terminal, err := evaluateGateNode(
-		context.Background(),
+		t.Context(),
 		Run{ID: "run-gate-route", WorkspaceID: "ws-1"},
 		1,
 		resolved,
@@ -1590,7 +1590,7 @@ func TestCoordinatorRunnerShouldReconcileReadyDependentsFromGenerationSnapshot(t
 			},
 		}}})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1696,7 +1696,7 @@ func TestCoordinatorRunnerShouldMarkReadyPlanInFlightWhenSiblingIsLive(t *testin
 			graph,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1750,7 +1750,7 @@ func TestCoordinatorRunnerShouldYieldWhenGenerationStillHasLiveNode(t *testing.T
 			TaskRunID:  rootRun.ID,
 		}}}})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1813,7 +1813,7 @@ func TestCoordinatorRunnerShouldKeepHealthyLaneRunningWhenTargetIsUnavailable(t 
 			graph,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1871,7 +1871,7 @@ func TestCoordinatorRunnerShouldYieldWhileAwaitingChildLoop(t *testing.T) {
 			childRun.ID: childRun,
 		})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -1972,7 +1972,7 @@ func TestCoordinatorRunnerShouldRestoreAwaitedChildFromCompletedActionResult(t *
 			child.ID:  child,
 		})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -2231,7 +2231,7 @@ func TestCoordinatorRunnerShouldResolveCompletedAwaitedChildTerminal(t *testing.
 			setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{parent.ID: parent, child.ID: child})
 
 			output, live, stops, terminal, err := runner.refreshGenerationOutputFromTaskRun(
-				context.Background(),
+				t.Context(),
 				parent,
 				graph,
 				GenerationOutput{
@@ -2319,7 +2319,7 @@ func TestCoordinatorRunnerShouldResolveAwaitingChildCoordinatorTerminal(t *testi
 			childRun.ID: childRun,
 		})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -2386,7 +2386,7 @@ func TestCoordinatorRunnerShouldClassifyAwaitedChildTerminalFailClosed(t *testin
 			)
 			setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{parent.ID: parent, child.ID: child})
 			output, live, stops, err := runner.refreshAwaitingChildOutput(
-				context.Background(), parent, dsl.Graph{}, GenerationOutput{
+				t.Context(), parent, dsl.Graph{}, GenerationOutput{
 					Generation: 1, NodeID: "child", Status: generationOutputAwaitingChild,
 					ChildLoopRunID: string(child.ID),
 				},
@@ -2402,7 +2402,7 @@ func TestCoordinatorRunnerShouldClassifyAwaitedChildTerminalFailClosed(t *testin
 				failure.Code != childLoopStatusRef(testCase.status) {
 				t.Fatalf("classified child failure = %#v", failure)
 			}
-			storedParent, err := runner.store.GetLoopRunByID(context.Background(), parent.ID)
+			storedParent, err := runner.store.GetLoopRunByID(t.Context(), parent.ID)
 			if err != nil {
 				t.Fatalf("GetLoopRunByID(parent) error = %v", err)
 			}
@@ -2462,7 +2462,7 @@ func TestCoordinatorRunnerShouldRejectAwaitedChildOutsideParentBoundary(t *testi
 			})
 
 			output, live, stops, err := runner.refreshAwaitingChildOutput(
-				context.Background(), parent, dsl.Graph{}, GenerationOutput{
+				t.Context(), parent, dsl.Graph{}, GenerationOutput{
 					Generation: 1, NodeID: "child", Status: generationOutputAwaitingChild,
 					ChildLoopRunID: string(testCase.child.ID),
 				},
@@ -2517,7 +2517,7 @@ func TestCoordinatorRunnerShouldRejectMalformedAwaitedChildIdentity(t *testing.T
 		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{parent.ID: parent, child.ID: child})
 
 		output, live, stops, err := runner.refreshAwaitingChildOutput(
-			context.Background(), parent, dsl.Graph{}, GenerationOutput{
+			t.Context(), parent, dsl.Graph{}, GenerationOutput{
 				Generation: 1, NodeID: "child", Status: generationOutputAwaitingChild,
 				ChildLoopRunID: " " + string(child.ID),
 			},
@@ -2649,7 +2649,7 @@ func TestCoordinatorRunnerShouldRetryAwaitingChildLoopOnTimeout(t *testing.T) {
 		})
 		runner.now = func() time.Time { return now.Add(2 * time.Second) }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -2712,7 +2712,7 @@ func TestCoordinatorRunnerShouldTerminalizeDoneWhenGenerationSucceeded(t *testin
 			Status:     generationOutputSucceeded,
 		}}}})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -2831,7 +2831,7 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 			)),
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -2865,7 +2865,7 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 			`{"issues":[{"id":"R1"}]}`,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -2916,7 +2916,7 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 		}
 		runner := newCoordinatorRunnerForStopWhenTest(t, loopRun, coordinatorRun, `{"issues":[]}`)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -2949,7 +2949,7 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 			`{"issues":[]}`,
 			dsl.StopWhenSpec{Expr: `nodes.inspect_issues.output.issues[0] == "done"`},
 		)
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -2984,7 +2984,7 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 				OnEvalError: dsl.EvalErrorFail,
 			},
 		)
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -3056,7 +3056,7 @@ func TestCoordinatorRunnerShouldSkipEmptyCommandGate(t *testing.T) {
 			)),
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -3109,7 +3109,7 @@ func TestCoordinatorRunnerShouldClassifyExplicitDependencyFailureAsBlocked(t *te
 			TaskRunID:  rootRun.ID,
 		}}}})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -3190,7 +3190,7 @@ func TestCoordinatorRunnerShouldPreferExplicitBlockerWhenMultipleNodesFail(t *te
 			graph,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -3242,7 +3242,7 @@ func TestCoordinatorRunnerShouldRetryUnstructuredNodeFailure(t *testing.T) {
 			TaskRunID:  rootRun.ID,
 		}}}})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -3343,7 +3343,7 @@ func TestCoordinatorRunnerShouldUnionRouteCausingGateProducers(t *testing.T) {
 			WithCoordinatorGateEvaluator(testRouteEvaluator(gate.RouteRevise)),
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -3530,7 +3530,7 @@ func TestCoordinatorRunnerShouldStartFreshGenerationForBothNextGenerationSurface
 				WithCoordinatorGateEvaluator(testRouteEvaluator(gate.RouteNextGeneration)),
 			)
 
-			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
@@ -3566,7 +3566,7 @@ func TestCoordinatorRunnerShouldStartFreshGenerationForBothNextGenerationSurface
 				tc.definition,
 				WithCoordinatorGateEvaluator(testRouteEvaluator(gate.RouteNextGeneration)),
 			)
-			cappedPlan, err := cappedRunner.Run(context.Background(), task.RunID(cappedCoordinator.ID))
+			cappedPlan, err := cappedRunner.Run(t.Context(), task.RunID(cappedCoordinator.ID))
 			if err != nil {
 				t.Fatalf("Run(capped) error = %v", err)
 			}
@@ -3580,7 +3580,6 @@ func TestCoordinatorRunnerShouldStartFreshGenerationForBothNextGenerationSurface
 
 func TestCoordinatorRunnerShouldSeedMetricRevisionFromBest(t *testing.T) {
 	bestGeneration := int64(1)
-	currentBestGeneration := int64(2)
 	bestScore := 0.9
 	cases := []struct {
 		name           string
@@ -3599,7 +3598,7 @@ func TestCoordinatorRunnerShouldSeedMetricRevisionFromBest(t *testing.T) {
 			wantOrigin: OriginGateRevise, wantParent: 2,
 		},
 		{
-			name: "with inconsistent current baseline", bestGeneration: &currentBestGeneration, bestScore: &bestScore,
+			name: "with inconsistent current baseline", bestGeneration: new(int64(2)), bestScore: &bestScore,
 			wantRef: `{"value":"latest"}`, wantOrigin: OriginGateRevise, wantParent: 2,
 		},
 	}
@@ -3671,14 +3670,13 @@ func TestCoordinatorRunnerShouldSeedMetricRevisionFromBest(t *testing.T) {
 				WithCoordinatorGateEvaluator(gateEvaluatorFunc(
 					func(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
 						verdict := testRouteVerdict(gate.RouteRevise)
-						score := 0.7
-						verdict.Criteria[0].Score = &score
+						verdict.Criteria[0].Score = new(0.7)
 						return verdict, nil
 					},
 				)),
 			)
 
-			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
@@ -3863,7 +3861,7 @@ func TestCoordinatorRunnerShouldExposePreviousHistoryToRerunGate(t *testing.T) {
 			)),
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -3926,7 +3924,7 @@ func TestCoordinatorRunnerShouldPersistEveryGateVerdictInSucceededGeneration(t *
 			)),
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4114,7 +4112,7 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 				tc.graph,
 			)
 
-			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
@@ -4194,7 +4192,7 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 			coordinatorTestGraph(),
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4260,7 +4258,7 @@ func TestCoordinatorRunnerShouldClearSubLoopChildOnFailedOnlyRetry(t *testing.T)
 			graph,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4328,7 +4326,7 @@ func TestCoordinatorRunnerShouldExhaustWhenIterationCapHit(t *testing.T) {
 			},
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4426,7 +4424,7 @@ func TestCoordinatorRunnerShouldStallOnRepeatedBlockingIssueSignature(t *testing
 				WithCoordinatorGateEvaluator(testRouteEvaluator(tc.action)),
 			)
 
-			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
@@ -4496,7 +4494,7 @@ func TestCoordinatorRunnerShouldStallOnRepeatedBlockingIssueSignature(t *testing
 			},
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4555,7 +4553,7 @@ func TestCoordinatorRunnerShouldResetStallWhenBlockingIssueSignatureChanges(t *t
 			},
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4631,7 +4629,7 @@ func TestCoordinatorRunnerShouldIsolateRepeatedFailures(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4693,7 +4691,7 @@ func TestCoordinatorRunnerShouldIsolateRepeatedFailures(t *testing.T) {
 			dsl.Definition{Graph: graph},
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4729,7 +4727,7 @@ func TestCoordinatorRunnerShouldIsolateRepeatedFailures(t *testing.T) {
 			dsl.Definition{Graph: graph},
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4786,7 +4784,7 @@ func TestCoordinatorRunnerShouldPlanRequeueThroughSuccession(t *testing.T) {
 	)
 	runner.now = func() time.Time { return now }
 
-	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -4828,7 +4826,7 @@ func TestCoordinatorRunnerShouldPlanRequeueThroughSuccession(t *testing.T) {
 		WithCoordinatorTargetHealth(health),
 	)
 	readyPlan, err := runnerAfterRequeue.Run(
-		context.Background(), task.RunID(coordinatorAfterRequeue.ID),
+		t.Context(), task.RunID(coordinatorAfterRequeue.ID),
 	)
 	if err != nil {
 		t.Fatalf("Run(after requeue) error = %v", err)
@@ -4841,9 +4839,9 @@ func TestCoordinatorRunnerShouldPlanRequeueThroughSuccession(t *testing.T) {
 		ID: workerSpec.RunID, TaskID: workerSpec.TaskID, RunKind: task.RunKindWorker,
 		LoopRunID: string(runAfterRequeue.ID), Status: task.TaskRunStatusClaimed, Metadata: workerSpec.Metadata,
 	}
-	_, err = runnerAfterRequeue.ExecuteActionRun(context.Background(), workerRun, task.ActorContext{})
-	var safeFailure SafeActionFailureProvider
-	if !errors.As(err, &safeFailure) || safeFailure.SafeActionFailure().Code != targetUnavailableReasonCode {
+	_, err = runnerAfterRequeue.ExecuteActionRun(t.Context(), workerRun, task.ActorContext{})
+	safeFailure, ok := errors.AsType[SafeActionFailureProvider](err)
+	if !ok || safeFailure.SafeActionFailure().Code != targetUnavailableReasonCode {
 		t.Fatalf("ExecuteActionRun(requeued) error = %v, want target_unavailable", err)
 	}
 	if got := health.probedKeys(); len(got) != 1 || got[0].EntityID != "run-agent:planner" {
@@ -4949,7 +4947,7 @@ func TestCoordinatorRunnerShouldTreatZeroTokenBudgetAsUnlimited(t *testing.T) {
 			coordinatorRun.ID: coordinatorRun,
 		}, coordinatorRunnerOutputs{})
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -4994,7 +4992,7 @@ func TestCoordinatorRunnerShouldApplyLoopControlHooks(t *testing.T) {
 		runner := newCoordinatorRunnerForTest(t, loopRun, coordinatorRun, nil, coordinatorRunnerOutputs{})
 		runner.hooks = hooks
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -5117,12 +5115,11 @@ func TestCoordinatorRunnerShouldApplyLoopControlHooks(t *testing.T) {
 		t.Parallel()
 
 		bestGeneration := int64(1)
-		bestScore := 0.8
 		verdictScore := 0.7
 		loopRun := Run{
 			ID: "looprun-hook-verdict", WorkspaceID: "ws-1", LoopName: "delivery",
 			Status: StatusRunning, Generation: 2, IterationCap: 3,
-			BestGeneration: &bestGeneration, BestScore: &bestScore,
+			BestGeneration: &bestGeneration, BestScore: new(0.8),
 		}
 		coordinatorRun := task.Run{
 			ID: "run-coordinator-hook-verdict", TaskID: "task-coordinator-hook-verdict",
@@ -5218,7 +5215,7 @@ func TestCoordinatorRunnerShouldApplyLoopControlHooks(t *testing.T) {
 		runner := newCoordinatorRunnerForTest(t, loopRun, coordinatorRun, nil, coordinatorRunnerOutputs{})
 		runner.hooks = hooks
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -5281,7 +5278,7 @@ func TestCoordinatorRunnerShouldResolveInputSourceNodes(t *testing.T) {
 			def,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}

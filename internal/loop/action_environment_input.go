@@ -18,8 +18,3 @@ func environmentSpecValue(spec *dsl.EnvironmentSpec) dsl.EnvironmentSpec {
 	}
 	return *spec
 }
-
-func cloneEnvironmentSpec(spec dsl.EnvironmentSpec) *dsl.EnvironmentSpec {
-	cloned := spec
-	return &cloned
-}

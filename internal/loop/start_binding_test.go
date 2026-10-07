@@ -102,7 +102,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 
 		def := startBindingDefinition()
 		resolver := startBindingResolver(t, def)
-		values, err := loop.ResolveStartTargetInputs(context.Background(), resolver, loop.StartTargetResolution{
+		values, err := loop.ResolveStartTargetInputs(t.Context(), resolver, loop.StartTargetResolution{
 			WorkspaceID: "ws-1",
 			ProfileID:   "profile-marketing",
 			LoopName:    "valid-loop",
@@ -130,7 +130,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 	t.Run("Should reject undeclared start surface with reason code", func(t *testing.T) {
 		t.Parallel()
 
-		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
+		err := loop.ValidateStartTarget(t.Context(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
 				ProfileID:   "profile-marketing",
@@ -147,7 +147,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 	t.Run("Should defer missing required inputs to the shared service resolver", func(t *testing.T) {
 		t.Parallel()
 
-		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
+		err := loop.ValidateStartTarget(t.Context(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
 				ProfileID:   "profile-marketing",
@@ -163,7 +163,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 	t.Run("Should reject non payload mapping grammar", func(t *testing.T) {
 		t.Parallel()
 
-		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
+		err := loop.ValidateStartTarget(t.Context(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
 				ProfileID:   "profile-marketing",
@@ -211,7 +211,7 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 			store := newFakeLoopStore()
 			resolver := startBindingResolver(t, def)
 			svc := newTestService(t, store, def)
-			run, err := loop.StartFromBinding(context.Background(), svc, resolver, loop.StartBindingRequest{
+			run, err := loop.StartFromBinding(t.Context(), svc, resolver, loop.StartBindingRequest{
 				WorkspaceID: "ws-1",
 				LoopName:    "valid-loop",
 				Kind:        tt.kind,

@@ -23,8 +23,7 @@ func (s *Service) resolveWorkspace(
 	provided *workspacepkg.ResolvedWorkspace,
 ) (*workspacepkg.ResolvedWorkspace, error) {
 	if provided != nil {
-		clone := *provided
-		return &clone, nil
+		return new(*provided), nil
 	}
 
 	target := firstTrimmed(workspaceID, rootDir)

@@ -132,8 +132,7 @@ func cloneClassifiedFailure(value *ClassifiedFailure) *ClassifiedFailure {
 	}
 	cloned := *value
 	if value.RetryAfter != nil {
-		retryAfter := *value.RetryAfter
-		cloned.RetryAfter = &retryAfter
+		cloned.RetryAfter = new(*value.RetryAfter)
 	}
 	return &cloned
 }

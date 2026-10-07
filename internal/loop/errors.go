@@ -3,7 +3,8 @@ package loop
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -94,11 +95,7 @@ func (e *ReasonError) Error() string {
 	if len(e.Meta) == 0 {
 		return fmt.Sprintf("%s: %v", e.Code, e.Err)
 	}
-	keys := make([]string, 0, len(e.Meta))
-	for key := range e.Meta {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(e.Meta))
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
 		parts = append(parts, fmt.Sprintf("%s=%s", key, e.Meta[key]))

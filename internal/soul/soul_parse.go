@@ -3,8 +3,9 @@ package soul
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
-	"sort"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -83,11 +84,7 @@ func parseFrontmatter(metadata []byte, sourcePath string) (Frontmatter, []Diagno
 	}
 
 	diagnosticsList := make([]Diagnostic, 0)
-	keys := make([]string, 0, len(raw))
-	for key := range raw {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(raw))
 
 	var front Frontmatter
 	for _, key := range keys {

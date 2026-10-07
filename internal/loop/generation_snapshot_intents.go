@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -111,22 +112,19 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.ItemIndexes = append([]int(nil), i.ItemIndexes...)
 	i.AheadCursors = cloneInt64Map(i.AheadCursors)
 	if len(i.QuarantineEntry) > 0 {
-		i.QuarantineEntry = append(json.RawMessage(nil), i.QuarantineEntry...)
+		i.QuarantineEntry = slices.Clone(i.QuarantineEntry)
 	}
 	if i.NextAttemptAt != nil {
-		value := i.NextAttemptAt.UTC()
-		i.NextAttemptAt = &value
+		i.NextAttemptAt = new(i.NextAttemptAt.UTC())
 	}
 	if i.BestGeneration != nil {
-		value := *i.BestGeneration
-		i.BestGeneration = &value
+		i.BestGeneration = new(*i.BestGeneration)
 	}
 	if i.Failure != nil {
-		failure := *i.Failure
-		i.Failure = &failure
+		i.Failure = new(*i.Failure)
 	}
 	if len(i.Effects) > 0 {
-		i.Effects = append([]RenderedEffectIntent(nil), i.Effects...)
+		i.Effects = slices.Clone(i.Effects)
 	}
 	return i
 }
@@ -424,12 +422,10 @@ func normalizeGenerationVerdictIntent(intent gate.VerdictIntent) (gate.VerdictIn
 		return gate.VerdictIntent{}, fmt.Errorf("%w: generation gate verdict diagnostics must be JSON", ErrValidation)
 	}
 	if intent.Score != nil {
-		score := *intent.Score
-		intent.Score = &score
+		intent.Score = new(*intent.Score)
 	}
 	if intent.RouteCauseRank != nil {
-		rank := *intent.RouteCauseRank
-		intent.RouteCauseRank = &rank
+		intent.RouteCauseRank = new(*intent.RouteCauseRank)
 	}
 	intent.BlockingIssues = append(json.RawMessage(nil), intent.BlockingIssues...)
 	intent.Criteria = append(json.RawMessage(nil), intent.Criteria...)

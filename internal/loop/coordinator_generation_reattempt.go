@@ -1,8 +1,9 @@
 package loop
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -242,11 +243,8 @@ func reattemptGenerationOutputs(
 		carry.ExpectedEpoch = nil
 		next = append(next, carry)
 	}
-	sort.Slice(next, func(i, j int) bool {
-		if next[i].NodeID == next[j].NodeID {
-			return next[i].ItemIndex < next[j].ItemIndex
-		}
-		return next[i].NodeID < next[j].NodeID
+	slices.SortFunc(next, func(a, b GenerationOutput) int {
+		return cmp.Or(cmp.Compare(a.NodeID, b.NodeID), cmp.Compare(a.ItemIndex, b.ItemIndex))
 	})
 	return next
 }

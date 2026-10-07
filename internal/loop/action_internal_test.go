@@ -48,11 +48,11 @@ func TestActionRegistryInternalsShouldCoverOverrideAndValidationBranches(t *test
 			{kind: string(dsl.ActionTransform), want: "transform-override"},
 		}
 		for _, tc := range cases {
-			executor, err := actions.Resolve(context.Background(), tools.Scope{}, tc.kind)
+			executor, err := actions.Resolve(t.Context(), tools.Scope{}, tc.kind)
 			if err != nil {
 				t.Fatalf("Resolve(%q) error = %v", tc.kind, err)
 			}
-			raw, err := executor.Execute(context.Background(), dsl.Node{}, ActionExecutionInput{})
+			raw, err := executor.Execute(t.Context(), dsl.Node{}, ActionExecutionInput{})
 			if err != nil {
 				t.Fatalf("Execute(%q) error = %v", tc.kind, err)
 			}
@@ -70,7 +70,7 @@ func TestActionHarvestInternalsShouldCoverEventRangeAndDependencyBranches(t *tes
 		t.Parallel()
 
 		executor := &ToolCallActionExecutor{}
-		_, err := executor.Execute(context.Background(), dsl.Node{}, ActionExecutionInput{})
+		_, err := executor.Execute(t.Context(), dsl.Node{}, ActionExecutionInput{})
 		if !errors.Is(err, ErrActionDependencyMissing) {
 			t.Fatalf("Execute() error = %v, want ErrActionDependencyMissing", err)
 		}
@@ -81,7 +81,7 @@ func TestActionHarvestInternalsShouldCoverEventRangeAndDependencyBranches(t *tes
 
 		executor := &ToolCallActionExecutor{}
 		node := dsl.Node{Harvest: &dsl.HarvestSpec{Kind: harvestKindEventRange}}
-		_, err := executor.Harvest(context.Background(), ActionRawResult{}, node)
+		_, err := executor.Harvest(t.Context(), ActionRawResult{}, node)
 		if !errors.Is(err, ErrActionDependencyMissing) {
 			t.Fatalf("Harvest() error = %v, want ErrActionDependencyMissing", err)
 		}
@@ -95,7 +95,7 @@ func TestActionHarvestInternalsShouldCoverEventRangeAndDependencyBranches(t *tes
 		}}}
 		executor := &ToolCallActionExecutor{eventReader: reader}
 		node := dsl.Node{Harvest: &dsl.HarvestSpec{Kind: harvestKindAsync}}
-		output, err := executor.Harvest(context.Background(), ActionRawResult{
+		output, err := executor.Harvest(t.Context(), ActionRawResult{
 			SessionID:     "sess-1",
 			EventStartSeq: 4,
 			EventEndSeq:   4,
@@ -495,7 +495,7 @@ func TestActionRenderingInternalsShouldNormalizeValuesAndErrors(t *testing.T) {
 		if got := metadataString(metadata, "bad_string"); got != "" {
 			t.Fatalf("metadataString(bad) = %q, want empty", got)
 		}
-		ctx, cancel, err := actionContextWithNodeTimeout(context.Background(), "1ms")
+		ctx, cancel, err := actionContextWithNodeTimeout(t.Context(), "1ms")
 		if err != nil {
 			t.Fatalf("actionContextWithNodeTimeout() error = %v", err)
 		}
@@ -513,7 +513,7 @@ func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {
 		t.Parallel()
 
 		executor := &RunLoopActionExecutor{starter: &internalLoopStarter{}}
-		_, err := executor.Execute(context.Background(), dsl.Node{
+		_, err := executor.Execute(t.Context(), dsl.Node{
 			Params: dsl.NodeParams{"loop": "child", "mode": string(dsl.RunLoopDetach)},
 		}, ActionExecutionInput{})
 		if !errors.Is(err, ErrActionDependencyMissing) {
@@ -525,7 +525,7 @@ func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {
 		t.Parallel()
 
 		executor := &RunLoopActionExecutor{}
-		output, err := executor.Harvest(context.Background(), ActionRawResult{
+		output, err := executor.Harvest(t.Context(), ActionRawResult{
 			Structured:     json.RawMessage(`{"loop_run_id":"child"}`),
 			ChildLoopRunID: "child",
 		}, dsl.Node{})
@@ -548,7 +548,7 @@ func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {
 			},
 		}
 		executor := &RunAgentActionExecutor{binder: binder}
-		_, err := executor.Execute(context.Background(), dsl.Node{
+		_, err := executor.Execute(t.Context(), dsl.Node{
 			Params: dsl.NodeParams{
 				"agent":         "planner",
 				"prompt":        "summarize",

@@ -82,7 +82,7 @@ func TestJudgeRuntimeShouldValidateWithoutTaskRules(t *testing.T) {
 
 		factory := judgeRuntimeCatalogFactoryForTest{catalog: judgeRuntimeCatalogForTest{}}
 		err := validateJudgeGateRuntimes(
-			context.Background(), factory, "ws-judge",
+			t.Context(), factory, "ws-judge",
 			RuntimeSpec{Provider: "codex", Model: "default-model", Reasoning: "high"},
 			[]dsl.GateCriterion{{
 				ID: "judge", Type: dsl.CriterionAgentJudge,

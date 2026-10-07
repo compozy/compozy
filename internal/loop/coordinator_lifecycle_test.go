@@ -172,7 +172,7 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 		)
 		runner.now = func() time.Time { return now }
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -221,7 +221,7 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 		)
 		dueRunner.now = func() time.Time { return output.NextAttemptAt.Add(time.Millisecond) }
 
-		duePlan, err := dueRunner.Run(context.Background(), task.RunID(dueCoordinatorRun.ID))
+		duePlan, err := dueRunner.Run(t.Context(), task.RunID(dueCoordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run(due) error = %v", err)
 		}
@@ -586,7 +586,7 @@ func runLifecycleFailurePlanWithConfigAndControls(
 		t, loopRun, coordinatorRun, workerRun, outputs, def, lifecycle, options...,
 	)
 	runner.now = func() time.Time { return now }
-	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -673,7 +673,7 @@ func runLifecyclePayloadFailurePlan(
 		WithCoordinatorNodeAttemptReader(outputs),
 	)
 	runner.now = func() time.Time { return now }
-	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -781,7 +781,6 @@ func testCoordinatorQuarantineBoundedHistory(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 2, 23, 0, 0, 0, time.UTC)
-	failureClass := FailureTransport
 
 	oversized := QuarantineEntry{NodeID: "fetch", InputRef: quarantineInputRef(
 		Run{ID: "looprun-quarantine-history"}, "fetch",
@@ -791,7 +790,7 @@ func testCoordinatorQuarantineBoundedHistory(t *testing.T) {
 		for attempt := 1; attempt <= 4; attempt++ {
 			episode.Attempts = append(episode.Attempts, NodeAttempt{
 				LoopRunID: "looprun-quarantine-history", Generation: generation, NodeID: "fetch",
-				Attempt: attempt, FailureClass: &failureClass, FailureCode: "backend_failed",
+				Attempt: attempt, FailureClass: new(FailureTransport), FailureCode: "backend_failed",
 				Cause:       strings.Repeat("upstream transport failure ", 160),
 				Hint:        strings.Repeat("repair upstream then requeue ", 160),
 				Disposition: AttemptQuarantined, StartedAt: now,
@@ -836,7 +835,7 @@ func TestCoordinatorPausedNodeControlsShouldPreserveSettledPlan(t *testing.T) {
 		Terminal: &task.CoordinatorTerminal{Status: string(StatusDone)},
 	}
 
-	updated, err := runner.applyPausedNodeControls(context.Background(), run, plan)
+	updated, err := runner.applyPausedNodeControls(t.Context(), run, plan)
 	if err != nil {
 		t.Fatalf("applyPausedNodeControls() error = %v", err)
 	}
@@ -872,7 +871,7 @@ func TestCoordinatorParkedDependencyShouldSurfaceNeedsAttention(t *testing.T) {
 				Run{ID: "looprun-parked-dependency", WorkspaceID: "ws-1"}, 2, outputs, nil,
 			)
 			updated, blocked, err := runner.applyParkedDependencyAttention(
-				context.Background(),
+				t.Context(),
 				Run{ID: "looprun-parked-dependency", WorkspaceID: "ws-1"},
 				graph,
 				newControlTopology(graph),
@@ -921,7 +920,7 @@ func TestCoordinatorParkedDependencyShouldSurfaceNeedsAttention(t *testing.T) {
 			Run{ID: "looprun-all-paused", WorkspaceID: "ws-1"}, 2, outputs, nil,
 		)
 		updated, parked, err := runner.applyParkedDependencyAttention(
-			context.Background(),
+			t.Context(),
 			Run{ID: "looprun-all-paused", WorkspaceID: "ws-1"},
 			graph,
 			newControlTopology(graph),

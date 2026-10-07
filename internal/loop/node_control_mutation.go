@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 )
@@ -52,7 +53,7 @@ func (m NodeControlMutation) normalized() NodeControlMutation {
 	m.PauseReason = strings.TrimSpace(m.PauseReason)
 	m.PauseRuleID = strings.TrimSpace(m.PauseRuleID)
 	if len(m.QuarantineEntry) > 0 {
-		m.QuarantineEntry = append(json.RawMessage(nil), m.QuarantineEntry...)
+		m.QuarantineEntry = slices.Clone(m.QuarantineEntry)
 	}
 	if len(m.GateRevisions) > 0 {
 		m.GateRevisions = maps.Clone(m.GateRevisions)

@@ -35,8 +35,8 @@ func TestTargetHealthShouldFailFastThroughTheNormalFailureChain(t *testing.T) {
 	if err == nil {
 		t.Fatal("admitActionTarget() error = nil, want fail-fast denial")
 	}
-	var safeFailure SafeActionFailureProvider
-	if !errors.As(err, &safeFailure) {
+	safeFailure, ok := errors.AsType[SafeActionFailureProvider](err)
+	if !ok {
 		t.Fatalf("admitActionTarget() error = %T, want SafeActionFailureProvider", err)
 	}
 	failure := safeFailure.SafeActionFailure()

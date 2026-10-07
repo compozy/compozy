@@ -78,8 +78,7 @@ func NewVerdictIntent(
 	}
 	var projectedRouteCauseRank *int
 	if routeCauseRank != nil {
-		rank := *routeCauseRank
-		projectedRouteCauseRank = &rank
+		projectedRouteCauseRank = new(*routeCauseRank)
 	}
 	score, err := verdictScore(verdict.Criteria)
 	if err != nil {
@@ -116,8 +115,7 @@ func verdictScore(criteria []CriterionResult) (*float64, error) {
 		if score != nil {
 			return nil, fmt.Errorf("%w: %v", ErrValidation, errMultipleScores)
 		}
-		value := *criterion.Score
-		score = &value
+		score = new(*criterion.Score)
 	}
 	return score, nil
 }

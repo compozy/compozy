@@ -1,7 +1,6 @@
 package situation
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -55,7 +54,7 @@ func TestContextForSessionTopLevelTaskReferenceContract(t *testing.T) {
 			},
 		})
 
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:          run.SessionID,
 			ProfileID:   store.DefaultProfileID,
 			AgentName:   "coder",

@@ -236,9 +236,8 @@ func evaluateTransformMapping(key string, mapping dsl.TransformMapping, namespac
 }
 
 func namespacePathValue(namespace map[string]any, path string) (any, error) {
-	segments := strings.Split(strings.TrimPrefix(strings.TrimSpace(path), "."), ".")
 	var current any = namespace
-	for _, segment := range segments {
+	for segment := range strings.SplitSeq(strings.TrimPrefix(strings.TrimSpace(path), "."), ".") {
 		if segment == "" {
 			return nil, fmt.Errorf("%w: empty path segment", ErrValidation)
 		}

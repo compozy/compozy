@@ -39,8 +39,7 @@ func (r *CoordinatorRunner) actionRetryFailure(
 	if prior == nil {
 		return nil, nil
 	}
-	failure := classifiedFailureFromAttempt(*prior)
-	return &failure, nil
+	return new(classifiedFailureFromAttempt(*prior)), nil
 }
 
 func runAgentPromptWithRetryFeedback(

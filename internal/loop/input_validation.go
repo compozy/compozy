@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -212,11 +212,7 @@ func runtimeInputSpec(value any) (dsl.RuntimeSpec, error) {
 
 func runtimeInputSpecFromMap(value map[string]any) (dsl.RuntimeSpec, error) {
 	runtime := dsl.RuntimeSpec{}
-	keys := make([]string, 0, len(value))
-	for key := range value {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(value))
 	for _, key := range keys {
 		raw := value[key]
 		if key == runtimeFieldACPOptions {

@@ -1,11 +1,12 @@
 package loop
 
 import (
+	"cmp"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -204,8 +205,8 @@ func projectTimelineWithHead(runID RunID, head int64, events []RunEvent, query T
 		}
 		filtered = append(filtered, event)
 	}
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].Seq > filtered[j].Seq
+	slices.SortFunc(filtered, func(a, b RunEvent) int {
+		return cmp.Compare(b.Seq, a.Seq)
 	})
 	entries, err := coalesceTimeline(filtered)
 	if err != nil {
