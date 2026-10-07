@@ -25,7 +25,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
 
 const (
@@ -61,10 +60,7 @@ func TestRemoteGatewayE2EConnectSSHUsesLoopbackAndPreservesOwnership(t *testing.
 			t.Fatalf("os.MkdirAll(remote binary directory) error = %v", err)
 		}
 		compozyBinary := filepath.Join(remoteBinaryDir, "compozy")
-		// Reuse the immutable lane binary; standalone runs build through the same helper.
-		if err := os.Symlink(e2etest.BuildCompozyBinary(t), compozyBinary); err != nil {
-			t.Fatalf("link remote compozy binary error = %v", err)
-		}
+		buildRemoteCompozyBinary(t, compozyBinary)
 
 		server := startSSHGatewayE2EServer(t, remoteBinaryDir)
 		t.Setenv("HOME", clientHome)
@@ -341,6 +337,20 @@ func verifySSHGatewayE2ERemoteBinary(
 	}
 	if version.Version == "" {
 		t.Fatalf("remote compozy version = %#v, want a version", version)
+	}
+}
+
+func buildRemoteCompozyBinary(t *testing.T, outputPath string) {
+	t.Helper()
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("filepath.Abs(repository root) error = %v", err)
+	}
+	command := exec.CommandContext(t.Context(), "go", "build", "-o", outputPath, "./cmd/compozy")
+	command.Dir = repoRoot
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("build remote compozy binary error = %v; output: %s", err, output)
 	}
 }
 
