@@ -37,25 +37,23 @@ func parseVersion(raw string) (*semver.Version, error) {
 // trimGitDescribeSuffix collapses `vX.Y.Z-N-g<sha>` strings back to the base tag.
 func trimGitDescribeSuffix(raw string) string {
 	trimmed := strings.TrimSpace(raw)
-	commitSep := strings.LastIndex(trimmed, "-g")
-	if commitSep < 0 || commitSep+2 >= len(trimmed) {
+	beforeCommit, commit, found := strings.CutLast(trimmed, "-g")
+	if !found || commit == "" {
 		return trimmed
 	}
-	commit := trimmed[commitSep+2:]
 	if !isGitShortSHA(commit) {
 		return trimmed
 	}
-	beforeCommit := trimmed[:commitSep]
-	countSep := strings.LastIndex(beforeCommit, "-")
-	if countSep < 0 || countSep+1 >= len(beforeCommit) {
+	tag, count, found := strings.CutLast(beforeCommit, "-")
+	if !found || count == "" {
 		return trimmed
 	}
-	for _, char := range beforeCommit[countSep+1:] {
+	for _, char := range count {
 		if char < '0' || char > '9' {
 			return trimmed
 		}
 	}
-	return beforeCommit[:countSep]
+	return tag
 }
 
 // isGitShortSHA reports whether value matches the short commit suffix from `git describe`.

@@ -1,11 +1,12 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -52,7 +53,9 @@ func InspectProfileLayerFiles(
 		}
 		diagnostics = append(diagnostics, items...)
 	}
-	sort.Slice(diagnostics, func(i, j int) bool { return diagnostics[i].Path < diagnostics[j].Path })
+	slices.SortFunc(diagnostics, func(left, right ProfileLayerDiagnostic) int {
+		return cmp.Compare(left.Path, right.Path)
+	})
 	return diagnostics, nil
 }
 

@@ -19,7 +19,7 @@ func TestRunWithPaths(t *testing.T) {
 	t.Run("ShouldReturnUsageWhenTargetIsMissing", func(t *testing.T) {
 		t.Parallel()
 
-		err := runWithPaths(context.Background(), nil, "ignored-openapi.json", "ignored-contracts.ts")
+		err := runWithPaths(t.Context(), nil, "ignored-openapi.json", "ignored-contracts.ts")
 		if err == nil {
 			t.Fatal("runWithPaths() error = nil, want usage error")
 		}
@@ -32,7 +32,7 @@ func TestRunWithPaths(t *testing.T) {
 		t.Parallel()
 
 		err := runWithPaths(
-			context.Background(),
+			t.Context(),
 			[]string{"unknown"},
 			"ignored-openapi.json",
 			"ignored-contracts.ts",
@@ -51,7 +51,7 @@ func TestRunWithPaths(t *testing.T) {
 		openapiPath := filepath.Join(t.TempDir(), "generated", "compozy.json")
 
 		if err := runWithPaths(
-			context.Background(),
+			t.Context(),
 			[]string{"openapi"},
 			openapiPath,
 			"ignored-contracts.ts",
@@ -68,7 +68,7 @@ func TestRunWithPaths(t *testing.T) {
 		}
 
 		if err := runWithPaths(
-			context.Background(),
+			t.Context(),
 			[]string{"check"},
 			openapiPath,
 			filepath.Join(t.TempDir(), "missing.ts"),
@@ -92,7 +92,7 @@ func TestRunWithPaths(t *testing.T) {
 		sdkContractsPath := filepath.Join(t.TempDir(), "sdk", "contracts.ts")
 
 		if err := runWithPaths(
-			context.Background(),
+			t.Context(),
 			[]string{"sdk-contracts"},
 			"ignored-openapi.json",
 			sdkContractsPath,
@@ -108,7 +108,7 @@ func TestRunWithPaths(t *testing.T) {
 			t.Fatalf("generated sdk contracts missing header: %s", string(content))
 		}
 
-		if err := checkSDKContracts(context.Background(), sdkContractsPath); err != nil {
+		if err := checkSDKContracts(t.Context(), sdkContractsPath); err != nil {
 			t.Fatalf("checkSDKContracts() error = %v", err)
 		}
 	})
@@ -121,44 +121,44 @@ func TestRunWithPaths(t *testing.T) {
 		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
 
 		if err := runWithPaths(
-			context.Background(),
+			t.Context(),
 			[]string{subcommandAll},
 			openapiPath,
 			sdkContractsPath,
 		); err != nil {
 			t.Fatalf("runWithPaths(all) error = %v", err)
 		}
-		if err := runWithPaths(context.Background(), []string{"check"}, openapiPath, sdkContractsPath); err != nil {
+		if err := runWithPaths(t.Context(), []string{"check"}, openapiPath, sdkContractsPath); err != nil {
 			t.Fatalf("runWithPaths(check) error = %v", err)
 		}
 
 		if err := os.WriteFile(openapiPath, []byte("{\"broken\":true}\n"), 0o644); err != nil {
 			t.Fatalf("os.WriteFile(%q) error = %v", openapiPath, err)
 		}
-		err := runWithPaths(context.Background(), []string{"check"}, openapiPath, sdkContractsPath)
+		err := runWithPaths(t.Context(), []string{"check"}, openapiPath, sdkContractsPath)
 		if !errors.Is(err, ErrStaleGeneratedFile) {
 			t.Fatalf("runWithPaths(check) error = %v, want ErrStaleGeneratedFile for stale openapi", err)
 		}
 
-		if err := writeOpenAPI(context.Background(), openapiPath); err != nil {
+		if err := writeOpenAPI(t.Context(), openapiPath); err != nil {
 			t.Fatalf("writeOpenAPI(%q) error = %v", openapiPath, err)
 		}
 		if err := os.WriteFile(sdkContractsPath, []byte("export type Broken = true;\n"), 0o644); err != nil {
 			t.Fatalf("os.WriteFile(%q) error = %v", sdkContractsPath, err)
 		}
-		err = runWithPaths(context.Background(), []string{"check"}, openapiPath, sdkContractsPath)
+		err = runWithPaths(t.Context(), []string{"check"}, openapiPath, sdkContractsPath)
 		if !errors.Is(err, ErrStaleGeneratedFile) {
 			t.Fatalf("runWithPaths(check) error = %v, want ErrStaleGeneratedFile for stale sdk", err)
 		}
 
-		if err := writeSDKContracts(context.Background(), sdkContractsPath); err != nil {
+		if err := writeSDKContracts(t.Context(), sdkContractsPath); err != nil {
 			t.Fatalf("writeSDKContracts(%q) error = %v", sdkContractsPath, err)
 		}
 		loopEnumsPath := loopEnumsPathFor(openapiPath)
 		if err := os.WriteFile(loopEnumsPath, []byte("export const Broken = true;\n"), 0o644); err != nil {
 			t.Fatalf("os.WriteFile(%q) error = %v", loopEnumsPath, err)
 		}
-		err = runWithPaths(context.Background(), []string{"check"}, openapiPath, sdkContractsPath)
+		err = runWithPaths(t.Context(), []string{"check"}, openapiPath, sdkContractsPath)
 		if !errors.Is(err, ErrStaleGeneratedFile) {
 			t.Fatalf("runWithPaths(check) error = %v, want ErrStaleGeneratedFile for stale loop enums", err)
 		}
@@ -172,7 +172,7 @@ func TestRunWithPaths(t *testing.T) {
 		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "contracts.ts")
 		sdkGoContractsPath := filepath.Join(dir, "sdk", "go", "contracts")
 		if err := runWithAllPaths(
-			context.Background(),
+			t.Context(),
 			[]string{subcommandAll},
 			openapiPath,
 			sdkContractsPath,
@@ -200,7 +200,7 @@ func TestRunWithPaths(t *testing.T) {
 		}
 
 		err = runWithAllPaths(
-			context.Background(),
+			t.Context(),
 			[]string{"check"},
 			openapiPath,
 			sdkContractsPath,
@@ -221,7 +221,7 @@ func TestDescribeContractDrift(t *testing.T) {
 		dir := t.TempDir()
 		typeScriptPath := filepath.Join(dir, "contracts.ts")
 		goPath := filepath.Join(dir, "contracts")
-		ctx := context.Background()
+		ctx := t.Context()
 		if err := writeSDKContracts(ctx, typeScriptPath); err != nil {
 			t.Fatalf("writeSDKContracts() error = %v", err)
 		}
@@ -278,7 +278,7 @@ func TestRun(t *testing.T) {
 	t.Run("ShouldReturnUsageWhenTargetIsMissing", func(t *testing.T) {
 		t.Parallel()
 
-		err := run(context.Background(), nil)
+		err := run(t.Context(), nil)
 		if err == nil {
 			t.Fatal("run() error = nil, want usage error")
 		}
@@ -290,7 +290,7 @@ func TestRun(t *testing.T) {
 	t.Run("ShouldRejectUnknownTargets", func(t *testing.T) {
 		t.Parallel()
 
-		err := run(context.Background(), []string{"unknown"})
+		err := run(t.Context(), []string{"unknown"})
 		if err == nil {
 			t.Fatal("run() error = nil, want unknown target error")
 		}
@@ -461,7 +461,7 @@ func TestWriteOpenAPI(t *testing.T) {
 	t.Run("Should propagate write errors", func(t *testing.T) {
 		t.Parallel()
 
-		err := writeOpenAPI(context.Background(), t.TempDir())
+		err := writeOpenAPI(t.Context(), t.TempDir())
 		if err == nil {
 			t.Fatal("writeOpenAPI() error = nil, want non-nil")
 		}
@@ -492,7 +492,7 @@ func TestWriteSDKContracts(t *testing.T) {
 			}
 		})
 
-		err := writeSDKContracts(context.Background(), filepath.Join(dir, "contracts.ts"))
+		err := writeSDKContracts(t.Context(), filepath.Join(dir, "contracts.ts"))
 		if err == nil {
 			t.Fatal("writeSDKContracts() error = nil, want non-nil")
 		}
@@ -639,7 +639,7 @@ func TestFormatTypeScript(t *testing.T) {
 		t.Parallel()
 
 		formatted, err := formatTypeScript(
-			context.Background(),
+			t.Context(),
 			"sdk/typescript/src/generated/contracts.ts",
 			[]byte("export type Value =\n  | \"a\"\n  | \"b\";\n"),
 		)
@@ -654,7 +654,7 @@ func TestFormatTypeScript(t *testing.T) {
 	t.Run("ShouldReturnContextErrorWhenCanceled", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		_, err := formatTypeScript(
@@ -690,7 +690,7 @@ func TestGenerateFormattedSDKContracts(t *testing.T) {
 		t.Parallel()
 
 		content, err := generateFormattedSDKContracts(
-			context.Background(),
+			t.Context(),
 			filepath.Join(t.TempDir(), "sdk", "contracts.ts"),
 		)
 		if err != nil {
@@ -704,7 +704,7 @@ func TestGenerateFormattedSDKContracts(t *testing.T) {
 	t.Run("ShouldReturnContextErrorsFromFormatting", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		_, err := generateFormattedSDKContracts(
@@ -722,7 +722,7 @@ func TestGenerateFormattedLoopEnums(t *testing.T) {
 		t.Parallel()
 
 		content, err := generateFormattedLoopEnums(
-			context.Background(),
+			t.Context(),
 			filepath.Join(t.TempDir(), "web", "loop-enums.ts"),
 		)
 		if err != nil {
@@ -740,7 +740,7 @@ func TestGenerateFormattedLoopEnums(t *testing.T) {
 		t.Parallel()
 
 		content, err := generateFormattedLoopEnums(
-			context.Background(),
+			t.Context(),
 			filepath.Join(t.TempDir(), "web", "loop-enums.ts"),
 		)
 		if err != nil {
@@ -768,7 +768,7 @@ func TestGenerateFormattedLoopEnums(t *testing.T) {
 	t.Run("Should return context errors from formatting", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		_, err := generateFormattedLoopEnums(

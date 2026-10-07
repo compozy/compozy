@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -376,10 +377,7 @@ func waitForSettingsRestart(
 			case restartStatusReady:
 				return status, true, nil
 			case restartStatusFailed:
-				reason := strings.TrimSpace(status.FailureReason)
-				if reason == "" {
-					reason = "daemon restart failed"
-				}
+				reason := cmp.Or(strings.TrimSpace(status.FailureReason), "daemon restart failed")
 				return status, true, errors.New("cli: " + reason)
 			default:
 				return SettingsRestartStatusRecord{}, false, nil

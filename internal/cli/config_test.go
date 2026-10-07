@@ -1645,8 +1645,8 @@ func TestConfigProfileLayerWriteTargetsIT043E2E006(t *testing.T) {
 			"--profile", "marketing", "config", "set", "http.port", "2124",
 			"--workspace", workspaceRoot, "-o", "json",
 		)
-		var validation compozyconfig.ValidationError
-		if err == nil || !errors.As(err, &validation) || validation.Code != "profile_config_key_denied" ||
+		validation, validationOK := errors.AsType[compozyconfig.ValidationError](err)
+		if err == nil || !validationOK || validation.Code != "profile_config_key_denied" ||
 			!strings.Contains(err.Error(), "--scope user") {
 			t.Fatalf("profile denylist error = %v, want stable code and --scope user guidance", err)
 		}
@@ -1661,8 +1661,8 @@ func TestConfigProfileLayerWriteTargetsIT043E2E006(t *testing.T) {
 			_, _, err := executeRootCommand(
 				t, deps, "--profile", "marketing", "config", command, "-o", "json",
 			)
-			var validationFailure configValidationFailedError
-			if err == nil || !errors.As(err, &validationFailure) {
+			_, validationFailureOK := errors.AsType[configValidationFailedError](err)
+			if err == nil || !validationFailureOK {
 				t.Fatalf("marketing config %s error = %v, want profile validation failure", command, err)
 			}
 		}

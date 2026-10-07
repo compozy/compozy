@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -128,10 +129,7 @@ func renderSkillListTranscript(items []skillListItem) string {
 	rows := make([][]string, 0, len(items)+1)
 	rows = append(rows, []string{cliNameHeader, cliSourceHeader, cliOriginHeader, "DESCRIPTION"})
 	for _, item := range items {
-		origin := strings.TrimSpace(item.Origin)
-		if origin == "" {
-			origin = "—"
-		}
+		origin := cmp.Or(strings.TrimSpace(item.Origin), "—")
 		rows = append(rows, []string{
 			stringOrDash(item.Name),
 			stringOrDash(item.Source),
@@ -274,10 +272,7 @@ func skillWhereBundle(record skillWhereItem) outputBundle {
 }
 
 func renderSkillWhereTranscript(record skillWhereItem) string {
-	winnerOrigin := strings.TrimSpace(record.Origin)
-	if winnerOrigin == "" {
-		winnerOrigin = compozySkillSource
-	}
+	winnerOrigin := cmp.Or(strings.TrimSpace(record.Origin), compozySkillSource)
 	winnerPath := strings.TrimSpace(record.Dir)
 	if winnerPath == "" {
 		winnerPath = skillDefinitionDirectory(record.Winner.Path)

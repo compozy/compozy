@@ -1,7 +1,8 @@
 package cli
 
 import (
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -223,11 +224,7 @@ func roleFallbackRows(role RoleRecord) [][]string {
 }
 
 func roleProvenanceRows(role RoleRecord) [][]string {
-	fields := make([]string, 0, len(role.Provenance))
-	for field := range role.Provenance {
-		fields = append(fields, field)
-	}
-	sort.Strings(fields)
+	fields := slices.Sorted(maps.Keys(role.Provenance))
 	rows := make([][]string, 0, len(fields))
 	for _, field := range fields {
 		rows = append(rows, []string{field, role.Provenance[field]})

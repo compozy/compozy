@@ -183,8 +183,7 @@ func (flags *spawnCommandFlags) request(
 		IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
 	}
 	if options.notifyFlagChanged {
-		notifyCreator := !flags.noNotifyCreator
-		request.NotifyCreator = &notifyCreator
+		request.NotifyCreator = new(!flags.noNotifyCreator)
 	}
 	return request, nil
 }

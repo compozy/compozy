@@ -67,7 +67,7 @@ func TestWaitForDaemonStartReadiness(t *testing.T) {
 		deps.pollInterval = time.Millisecond
 		deps.startTimeout = 3 * time.Millisecond
 		deps.processAlive = func(int) bool { return true }
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		stop := context.AfterFunc(t.Context(), cancel)
 		defer stop()
@@ -120,7 +120,7 @@ func TestWaitForDaemonStartReadiness(t *testing.T) {
 		deps.pollInterval = time.Millisecond
 		deps.startTimeout = 3 * time.Millisecond
 		deps.processAlive = func(int) bool { return true }
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		stop := context.AfterFunc(t.Context(), cancel)
 		defer stop()

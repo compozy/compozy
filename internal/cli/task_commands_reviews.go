@@ -237,15 +237,14 @@ func buildTaskRunReviewRequest(
 	if err != nil {
 		return nil, err
 	}
-	request := TaskRunReviewRequest{
+	return new(TaskRunReviewRequest{
 		RunID:          strings.TrimSpace(runID),
 		ReviewRound:    round,
 		Attempt:        attempt,
 		Policy:         policy,
 		ParentReviewID: strings.TrimSpace(parentID),
 		Reason:         strings.TrimSpace(reasonRaw),
-	}
-	return &request, nil
+	}), nil
 }
 
 func buildTaskRunReviewVerdictRequest(

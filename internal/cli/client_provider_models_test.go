@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,7 +27,7 @@ func TestProviderModelClientRoutesGlobalActions(t *testing.T) {
 			})},
 		}
 		if _, err := client.RefreshProviderModels(
-			context.Background(),
+			t.Context(),
 			"  ",
 			ProviderModelRefreshRequest{},
 		); err != nil {
@@ -48,7 +47,7 @@ func TestProviderModelClientRoutesGlobalActions(t *testing.T) {
 				return newHTTPResponse(http.StatusOK, `{"sources":[]}`), nil
 			})},
 		}
-		if _, err := client.ProviderModelStatus(context.Background(), " "); err != nil {
+		if _, err := client.ProviderModelStatus(t.Context(), " "); err != nil {
 			t.Fatalf("ProviderModelStatus(blank provider) error = %v", err)
 		}
 	})
@@ -62,7 +61,7 @@ func TestProviderModelClientRequiresProviderIDForCuration(t *testing.T) {
 	t.Run("Should reject blank provider IDs for curation", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := client.CurateProviderModel(context.Background(), " ", ProviderModelCurationRequest{})
+		_, err := client.CurateProviderModel(t.Context(), " ", ProviderModelCurationRequest{})
 		if err == nil {
 			t.Fatal("CurateProviderModel(blank provider) error = nil, want validation error")
 		}
@@ -121,7 +120,7 @@ func TestProviderModelClientRequiresProviderIDForCuration(t *testing.T) {
 			})},
 		}
 		record, err := client.CurateProviderModel(
-			context.Background(),
+			t.Context(),
 			"codex",
 			ProviderModelCurationRequest{
 				ModelID:  "gpt-5.6-sol",

@@ -135,8 +135,8 @@ custom_sources = ["./relative-user-source"]
 `)
 
 		_, err = LoadForHome(homePaths)
-		var validation *SkillSourceValidationError
-		if !errors.As(err, &validation) || validation.Code != "invalid_source_path" ||
+		validation, validationOK := errors.AsType[*SkillSourceValidationError](err)
+		if !validationOK || validation.Code != "invalid_source_path" ||
 			!strings.Contains(err.Error(), "workspace-relative paths require workspace scope") {
 			t.Fatalf("LoadForHome(relative user source) error = %#v, want invalid_source_path", err)
 		}
@@ -523,10 +523,10 @@ acp_options = [{ id = "thinking", bool_value = true }]
 
 				cfg := DefaultWithHome(HomePaths{})
 				first := rolesOverlay{
-					Coordinator: coordinatorRoleOverlay{roleOverlay: roleOverlay{Enabled: tc.first}},
+					Coordinator: coordinatorRoleOverlay{Enabled: tc.first},
 				}
 				last := rolesOverlay{
-					Coordinator: coordinatorRoleOverlay{roleOverlay: roleOverlay{Enabled: tc.last}},
+					Coordinator: coordinatorRoleOverlay{Enabled: tc.last},
 				}
 				first.Apply(&cfg.Roles)
 				last.Apply(&cfg.Roles)

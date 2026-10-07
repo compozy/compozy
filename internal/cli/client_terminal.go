@@ -90,8 +90,7 @@ func (c *daemonClient) DeleteTerminal(
 	}
 	var exitSignal *string
 	if response.Exit.Signal != nil {
-		value := string(*response.Exit.Signal)
-		exitSignal = &value
+		exitSignal = new(string(*response.Exit.Signal))
 	}
 	return TerminalExitRecord{
 		Cause: string(response.Exit.Cause), Code: response.Exit.Code, Signal: exitSignal, At: response.Exit.At,

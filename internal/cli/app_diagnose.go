@@ -166,8 +166,8 @@ func resolveAppDiagnosticReport(
 }
 
 func isAppNotRunningError(err error) bool {
-	var appErr *appCommandError
-	return errors.As(err, &appErr) && appErr.code == appNotRunningCode
+	appErr, appErrOK := errors.AsType[*appCommandError](err)
+	return appErrOK && appErr.code == appNotRunningCode
 }
 
 func readLocalAppDiagnosticReport(homePaths compozyconfig.HomePaths) (appDiagnosticReport, error) {

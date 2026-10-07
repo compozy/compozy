@@ -1500,8 +1500,8 @@ func TestSessionListProfileReadScope(t *testing.T) {
 		_, _, err := executeRootCommand(
 			t, deps, "session", "list", "--profile", "marketing", "--all-profiles", "-o", "json",
 		)
-		var profileErr *profileCommandError
-		if !errors.As(err, &profileErr) || profileErr.payload.Error.Code != "profile_selection_conflict" {
+		profileErr, profileErrOK := errors.AsType[*profileCommandError](err)
+		if !profileErrOK || profileErr.payload.Error.Code != "profile_selection_conflict" {
 			t.Fatalf("aggregate conflict error = %v, want profile_selection_conflict", err)
 		}
 	})
@@ -1571,7 +1571,7 @@ func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
 		Question:  "Which workspace should I use?",
 		Choices:   []string{"staging", "production"},
 		AskedAt:   fixedTestNow,
-		Deadline:  timePointer(fixedTestNow.Add(5 * time.Minute)),
+		Deadline:  new(fixedTestNow.Add(5 * time.Minute)),
 	}}}
 	deps := newWorkspaceTestDeps(t, &stubClient{
 		listSessionClarificationsFn: func(_ context.Context, sessionID string) (ClarificationsRecord, error) {

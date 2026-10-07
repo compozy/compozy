@@ -3,7 +3,8 @@ package config
 import (
 	_ "embed"
 	"errors"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -35,11 +36,8 @@ var (
 
 // BuiltinAgentNames returns the reserved runtime-owned identity names.
 func BuiltinAgentNames() []string {
-	names := make([]string, 0, len(builtinAgentDefs))
-	for name := range builtinAgentDefs {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.AppendSeq(make([]string, 0, len(builtinAgentDefs)), maps.Keys(builtinAgentDefs))
+	slices.Sort(names)
 	return names
 }
 

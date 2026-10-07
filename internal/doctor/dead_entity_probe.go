@@ -1,10 +1,11 @@
 package doctor
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -70,8 +71,8 @@ func (p *DeadEntityProbe) Run(
 	if err != nil {
 		return nil, fmt.Errorf("doctor: list dead-entity workspaces: %w", err)
 	}
-	sort.Slice(workspaces, func(left int, right int) bool {
-		return workspaces[left].ID < workspaces[right].ID
+	slices.SortFunc(workspaces, func(left, right workspacepkg.Workspace) int {
+		return cmp.Compare(left.ID, right.ID)
 	})
 
 	items := make([]contract.DiagnosticItem, 0)

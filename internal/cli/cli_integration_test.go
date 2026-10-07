@@ -1470,8 +1470,8 @@ func TestRemoteCLIProfilesIntegrationIT060ThroughIT066(t *testing.T) {
 			"copied":   secondClient.(gatewayClientAPI),
 		} {
 			_, err := client.GetGatewayStatus(t.Context())
-			var apiErr *daemonAPIError
-			if !errors.As(err, &apiErr) || apiErr.payload.Code != "gateway_device_unauthenticated" {
+			apiErr, apiErrOK := errors.AsType[*daemonAPIError](err)
+			if !apiErrOK || apiErr.payload.Code != "gateway_device_unauthenticated" {
 				t.Fatalf("%s copied-identity error = %T %v [IT-061]", label, err, err)
 			}
 		}
@@ -2656,7 +2656,7 @@ func TestSessionEventsFollowIntegration(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 		done <- cmd.ExecuteContext(ctx)
 	}()
@@ -4978,7 +4978,7 @@ func waitForCondition(t *testing.T, timeout time.Duration, fn func() bool) {
 func waitUntilLeaseExpires(t *testing.T, leaseUntil time.Time, timeout time.Duration) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()

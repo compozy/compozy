@@ -497,7 +497,7 @@ func TestExecuteContextVersion(t *testing.T) {
 	t.Parallel()
 
 	var stdout bytes.Buffer
-	code := ExecuteContext(context.Background(), []string{"version", "-o", "json"}, &stdout, &bytes.Buffer{})
+	code := ExecuteContext(t.Context(), []string{"version", "-o", "json"}, &stdout, &bytes.Buffer{})
 	if code != 0 {
 		t.Fatalf("ExecuteContext(version) code = %d, want 0", code)
 	}
@@ -528,7 +528,7 @@ func TestDaemonStatusFallbackStartingAndStopped(t *testing.T) {
 		t.Fatalf("loadRuntimeContext() error = %v", err)
 	}
 
-	status, err := daemonStatusFromDeps(context.Background(), deps, runtime)
+	status, err := daemonStatusFromDeps(t.Context(), deps, runtime)
 	if err != nil {
 		t.Fatalf("daemonStatusFromDeps(starting) error = %v", err)
 	}
@@ -537,7 +537,7 @@ func TestDaemonStatusFallbackStartingAndStopped(t *testing.T) {
 	}
 
 	deps.processAlive = func(int) bool { return false }
-	status, err = daemonStatusFromDeps(context.Background(), deps, runtime)
+	status, err = daemonStatusFromDeps(t.Context(), deps, runtime)
 	if err != nil {
 		t.Fatalf("daemonStatusFromDeps(stopped) error = %v", err)
 	}

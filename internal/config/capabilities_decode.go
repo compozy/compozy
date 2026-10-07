@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -60,8 +60,8 @@ func loadCapabilityCatalogDirectoryFromDirectory(
 		}
 	}
 
-	sort.Strings(tomlFiles)
-	sort.Strings(jsonFiles)
+	slices.Sort(tomlFiles)
+	slices.Sort(jsonFiles)
 
 	if len(tomlFiles) > 0 && len(jsonFiles) > 0 {
 		conflicts := append(append([]string(nil), tomlFiles...), jsonFiles...)

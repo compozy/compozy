@@ -1,7 +1,8 @@
 package cli
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -117,7 +118,9 @@ func filterCmdPaletteCommands(
 		}
 		filtered = append(filtered, command)
 	}
-	sort.Slice(filtered, func(left, right int) bool { return filtered[left].ID < filtered[right].ID })
+	slices.SortFunc(filtered, func(left, right contract.CmdPaletteCommand) int {
+		return cmp.Compare(left.ID, right.ID)
+	})
 	return filtered
 }
 

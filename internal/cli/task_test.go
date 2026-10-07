@@ -661,8 +661,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 				blockID = gotBlockID
 				request = got
 				block := sampleTaskBlockRecord()
-				clearedAt := fixedTestNow
-				block.ClearedAt = &clearedAt
+				block.ClearedAt = new(fixedTestNow)
 				block.ClearNote = got.Note
 				return block, nil
 			},
@@ -719,8 +718,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 				blockID = gotBlockID
 				request = got
 				block := sampleTaskBlockRecord()
-				clearedAt := fixedTestNow
-				block.ClearedAt = &clearedAt
+				block.ClearedAt = new(fixedTestNow)
 				block.ClearNote = got.Note
 				return block, nil
 			},
@@ -2928,11 +2926,6 @@ func sampleTaskRunReviewRecord(status taskpkg.RunReviewStatus) TaskRunReviewReco
 	}
 }
 
-func timePointer(value time.Time) *time.Time {
-	cloned := value
-	return &cloned
-}
-
 func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	record := TaskRunRecord{
 		ID:             "run-1",
@@ -2954,32 +2947,32 @@ func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	switch status {
 	case taskpkg.TaskRunStatusClaimed:
 		record.ClaimedBy = claimedBy
-		record.ClaimedAt = timePointer(claimedAt)
+		record.ClaimedAt = new(claimedAt)
 	case taskpkg.TaskRunStatusStarting:
 		record.ClaimedBy = claimedBy
 		record.SessionID = "sess-1"
-		record.ClaimedAt = timePointer(claimedAt)
+		record.ClaimedAt = new(claimedAt)
 	case taskpkg.TaskRunStatusRunning:
 		record.ClaimedBy = claimedBy
 		record.SessionID = "sess-1"
-		record.ClaimedAt = timePointer(claimedAt)
-		record.StartedAt = timePointer(startedAt)
+		record.ClaimedAt = new(claimedAt)
+		record.StartedAt = new(startedAt)
 	case taskpkg.TaskRunStatusCompleted:
 		record.ClaimedBy = claimedBy
 		record.SessionID = "sess-1"
-		record.ClaimedAt = timePointer(claimedAt)
-		record.StartedAt = timePointer(startedAt)
-		record.EndedAt = timePointer(endedAt)
+		record.ClaimedAt = new(claimedAt)
+		record.StartedAt = new(startedAt)
+		record.EndedAt = new(endedAt)
 		record.Result = json.RawMessage(`{"ok":true}`)
 	case taskpkg.TaskRunStatusFailed:
 		record.ClaimedBy = claimedBy
 		record.SessionID = "sess-1"
-		record.ClaimedAt = timePointer(claimedAt)
-		record.StartedAt = timePointer(startedAt)
-		record.EndedAt = timePointer(endedAt)
+		record.ClaimedAt = new(claimedAt)
+		record.StartedAt = new(startedAt)
+		record.EndedAt = new(endedAt)
 		record.Error = "boom"
 	case taskpkg.TaskRunStatusCanceled:
-		record.EndedAt = timePointer(endedAt)
+		record.EndedAt = new(endedAt)
 	}
 
 	return record

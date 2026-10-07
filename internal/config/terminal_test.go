@@ -94,8 +94,8 @@ func TestTerminalConfigLifecycle(t *testing.T) {
 		denied := filepath.Join(t.TempDir(), "denied.toml")
 		writeFile(t, denied, "[terminal]\nmax_per_daemon = 64\n")
 		err = applyProfileConfigOverlayFile(denied, &config, "test-profile")
-		var validationErr ValidationError
-		if !errors.As(err, &validationErr) || validationErr.Code != profileConfigKeyDeniedCode ||
+		validationErr, validationErrOK := errors.AsType[ValidationError](err)
+		if !validationErrOK || validationErr.Code != profileConfigKeyDeniedCode ||
 			validationErr.Path != "terminal.max_per_daemon" {
 			t.Fatalf("profile max_per_daemon overlay error = %#v", err)
 		}
@@ -139,8 +139,8 @@ func TestTerminalConfigLifecycle(t *testing.T) {
 
 func assertTerminalValidationPath(t *testing.T, err error, want string) {
 	t.Helper()
-	var validationErr ValidationError
-	if !errors.As(err, &validationErr) || validationErr.Path != want || !strings.Contains(err.Error(), want) {
+	validationErr, validationErrOK := errors.AsType[ValidationError](err)
+	if !validationErrOK || validationErr.Path != want || !strings.Contains(err.Error(), want) {
 		t.Fatalf("Validate() error = %#v, want path %q", err, want)
 	}
 }

@@ -1,7 +1,8 @@
 package docpost
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -19,10 +20,7 @@ func renderSubcommandsSection(current input, inputs []input, targets map[string]
 
 	rows := make([]subcommandRow, 0, len(children))
 	for _, child := range children {
-		description := strings.TrimSpace(extractDescription(child.raw))
-		if description == "" {
-			description = "See command reference."
-		}
+		description := cmp.Or(strings.TrimSpace(extractDescription(child.raw)), "See command reference.")
 		rows = append(rows, subcommandRow{
 			command:     "[" + child.commandName() + "](" + targets[child.baseName] + ")",
 			description: strings.ReplaceAll(description, "|", "\\|"),
@@ -84,8 +82,8 @@ func directChildren(parent input, inputs []input) []input {
 		}
 	}
 
-	sort.Slice(children, func(i, j int) bool {
-		return children[i].commandName() < children[j].commandName()
+	slices.SortFunc(children, func(left, right input) int {
+		return cmp.Compare(left.commandName(), right.commandName())
 	})
 	return children
 }

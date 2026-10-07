@@ -335,8 +335,7 @@ func buildTaskCreateRequest(
 		Metadata:           metadata,
 	}
 	if input.NoWakeCreator {
-		wakeCreator := false
-		request.WakeCreator = &wakeCreator
+		request.WakeCreator = new(false)
 	}
 	if request.Title == "" {
 		return CreateTaskRequest{}, errors.New("cli: --title is required")

@@ -35,8 +35,8 @@ func TestOperationAcquisitionAndFencing(t *testing.T) {
 		}
 
 		_, err = store.Acquire(t.Context(), request)
-		var blocked *BlockedError
-		if !errors.As(err, &blocked) || blocked.Operation.ID != operation.ID {
+		blocked, blockedOK := errors.AsType[*BlockedError](err)
+		if !blockedOK || blocked.Operation.ID != operation.ID {
 			t.Fatalf("second Acquire() error = %v, want BlockedError for %q", err, operation.ID)
 		}
 
@@ -430,8 +430,8 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 		competingRequest := resumeRequest
 		competingRequest.Holder = operationTestHolder("generation-3", testOperationNow.Add(2*time.Minute))
 		_, err = store.Acquire(t.Context(), competingRequest)
-		var blocked *BlockedError
-		if !errors.As(err, &blocked) || blocked.Operation.ID != resumed.ID {
+		blocked, blockedOK := errors.AsType[*BlockedError](err)
+		if !blockedOK || blocked.Operation.ID != resumed.ID {
 			t.Fatalf("second resumed Acquire() error = %v, want BlockedError for %q", err, resumed.ID)
 		}
 	})

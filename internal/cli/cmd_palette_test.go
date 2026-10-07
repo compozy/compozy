@@ -894,8 +894,8 @@ func TestCmdPaletteInvokeError(t *testing.T) {
 	t.Run("Should preserve the transport error exit code", func(t *testing.T) {
 		t.Parallel()
 		err := errors.New("transport failed")
-		var commandErr *commandExitError
-		if !errors.As(cmdPaletteInvokeError(err), &commandErr) || commandErr.cliExitCode() != 1 {
+		commandErr, commandErrOK := errors.AsType[*commandExitError](cmdPaletteInvokeError(err))
+		if !commandErrOK || commandErr.cliExitCode() != 1 {
 			t.Fatal("transport invocation error must preserve exit code one")
 		}
 	})

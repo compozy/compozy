@@ -178,8 +178,7 @@ func skillProvenanceRecordFromSkill(skill *skills.Skill, shadows skills.SkillSha
 		provenance.Registry = strings.TrimSpace(skill.Provenance.Registry)
 		provenance.Version = strings.TrimSpace(skill.Provenance.Version)
 		if !skill.Provenance.InstalledAt.IsZero() {
-			installedAt := skill.Provenance.InstalledAt.UTC()
-			provenance.InstalledAt = &installedAt
+			provenance.InstalledAt = new(skill.Provenance.InstalledAt.UTC())
 		}
 	}
 	if len(shadows.Shadows) > 1 {

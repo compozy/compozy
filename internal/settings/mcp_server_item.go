@@ -1,8 +1,9 @@
 package settings
 
 import (
+	"cmp"
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -85,7 +86,7 @@ func mcpEnvKeys(env map[string]string) []string {
 			keys = append(keys, trimmed)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 
@@ -99,7 +100,7 @@ func mcpSecretEnvKeys(secretEnv map[string]string) []string {
 			keys = append(keys, trimmed)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 
@@ -117,18 +118,15 @@ func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
 		status := *value.AuthStatus
 		status.Scopes = append([]string(nil), value.AuthStatus.Scopes...)
 		if value.AuthStatus.ExpiresAt != nil {
-			expiresAt := *value.AuthStatus.ExpiresAt
-			status.ExpiresAt = &expiresAt
+			status.ExpiresAt = new(*value.AuthStatus.ExpiresAt)
 		}
 		if value.AuthStatus.UpdatedAt != nil {
-			updatedAt := *value.AuthStatus.UpdatedAt
-			status.UpdatedAt = &updatedAt
+			status.UpdatedAt = new(*value.AuthStatus.UpdatedAt)
 		}
 		value.AuthStatus = &status
 	}
 	if value.RuntimeStatus != nil {
-		status := *value.RuntimeStatus
-		value.RuntimeStatus = &status
+		value.RuntimeStatus = new(*value.RuntimeStatus)
 	}
 	value.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
 	return value
@@ -159,8 +157,8 @@ func committedMCPServerItem(
 	if !replaced {
 		entries = append(entries, committed)
 	}
-	sort.SliceStable(entries, func(left, right int) bool {
-		return mcpSourcePrecedence(entries[left].Target) < mcpSourcePrecedence(entries[right].Target)
+	slices.SortStableFunc(entries, func(left, right mcpSourceEntry) int {
+		return cmp.Compare(mcpSourcePrecedence(left.Target), mcpSourcePrecedence(right.Target))
 	})
 	return baseMCPServerItem(entries[len(entries)-1], entries, scope, workspaceID, profileName)
 }
@@ -192,6 +190,5 @@ func cloneMCPServerItemPointer(value *MCPServerItem) *MCPServerItem {
 	if value == nil {
 		return nil
 	}
-	cloned := cloneMCPServerItem(*value)
-	return &cloned
+	return new(cloneMCPServerItem(*value))
 }

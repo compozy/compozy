@@ -1,11 +1,12 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 
 	"reflect"
-	"sort"
+	"slices"
 
 	"strings"
 	"time"
@@ -195,8 +196,8 @@ func RedactedConfigMap(cfg *Config) map[string]any {
 func FlattenConfigEntries(configMap map[string]any) []Entry {
 	entries := make([]Entry, 0)
 	flattenConfigValue(&entries, "", configMap, false)
-	sort.Slice(entries, func(i int, j int) bool {
-		return entries[i].Path < entries[j].Path
+	slices.SortFunc(entries, func(left, right Entry) int {
+		return cmp.Compare(left.Path, right.Path)
 	})
 	return entries
 }
@@ -237,8 +238,8 @@ func DiffConfigEntries(before []Entry, after []Entry) []DiffEntry {
 		}
 		diff = append(diff, entry)
 	}
-	sort.Slice(diff, func(i int, j int) bool {
-		return diff[i].Path < diff[j].Path
+	slices.SortFunc(diff, func(left, right DiffEntry) int {
+		return cmp.Compare(left.Path, right.Path)
 	})
 	return diff
 }

@@ -71,14 +71,14 @@ func newProfileUnavailableError() error {
 }
 
 func (c *daemonClient) ListProfiles(ctx context.Context) ([]contract.Profile, error) {
-	return profileClientJSON[[]contract.Profile](ctx, c, http.MethodGet, "/api/profiles", nil, nil)
+	return c.profileClientJSON[[]contract.Profile](ctx, http.MethodGet, "/api/profiles", nil, nil)
 }
 
 func (c *daemonClient) CreateProfile(
 	ctx context.Context,
 	request contract.CreateProfileRequest,
 ) (contract.Profile, error) {
-	return profileClientJSON[contract.Profile](ctx, c, http.MethodPost, "/api/profiles", nil, request)
+	return c.profileClientJSON[contract.Profile](ctx, http.MethodPost, "/api/profiles", nil, request)
 }
 
 func (c *daemonClient) UpdateProfile(
@@ -86,7 +86,7 @@ func (c *daemonClient) UpdateProfile(
 	name string,
 	request contract.UpdateProfileRequest,
 ) (contract.Profile, error) {
-	return profileClientJSON[contract.Profile](ctx, c, http.MethodPatch, profilePath(name), nil, request)
+	return c.profileClientJSON[contract.Profile](ctx, http.MethodPatch, profilePath(name), nil, request)
 }
 
 func (c *daemonClient) PrepareProfileRename(
@@ -94,9 +94,8 @@ func (c *daemonClient) PrepareProfileRename(
 	name, newName string,
 ) (contract.RenameProfilePlan, error) {
 	query := url.Values{"new_name": []string{strings.TrimSpace(newName)}}
-	return profileClientJSON[contract.RenameProfilePlan](
+	return c.profileClientJSON[contract.RenameProfilePlan](
 		ctx,
-		c,
 		http.MethodGet,
 		profilePath(name)+"/rename-plan",
 		query,
@@ -109,9 +108,8 @@ func (c *daemonClient) RenameProfile(
 	name string,
 	request contract.RenameProfileRequest,
 ) (contract.RenameProfileResponse, error) {
-	return profileClientJSON[contract.RenameProfileResponse](
+	return c.profileClientJSON[contract.RenameProfileResponse](
 		ctx,
-		c,
 		http.MethodPost,
 		profilePath(name)+"/rename",
 		nil,
@@ -120,9 +118,8 @@ func (c *daemonClient) RenameProfile(
 }
 
 func (c *daemonClient) PrepareProfileArchive(ctx context.Context, name string) (contract.ArchiveProfilePlan, error) {
-	return profileClientJSON[contract.ArchiveProfilePlan](
+	return c.profileClientJSON[contract.ArchiveProfilePlan](
 		ctx,
-		c,
 		http.MethodGet,
 		profilePath(name)+"/archive-plan",
 		nil,
@@ -135,9 +132,8 @@ func (c *daemonClient) ArchiveProfile(
 	name, revision string,
 ) (contract.ArchiveProfileResponse, error) {
 	request := contract.ProfilePlanRequest{PlanRevision: revision}
-	return profileClientJSON[contract.ArchiveProfileResponse](
+	return c.profileClientJSON[contract.ArchiveProfileResponse](
 		ctx,
-		c,
 		http.MethodPost,
 		profilePath(name)+"/archive",
 		nil,
@@ -146,9 +142,8 @@ func (c *daemonClient) ArchiveProfile(
 }
 
 func (c *daemonClient) UnarchiveProfile(ctx context.Context, name string) (contract.UnarchiveProfileResponse, error) {
-	return profileClientJSON[contract.UnarchiveProfileResponse](
+	return c.profileClientJSON[contract.UnarchiveProfileResponse](
 		ctx,
-		c,
 		http.MethodPost,
 		profilePath(name)+"/unarchive",
 		nil,
@@ -157,9 +152,8 @@ func (c *daemonClient) UnarchiveProfile(ctx context.Context, name string) (contr
 }
 
 func (c *daemonClient) PrepareProfileDelete(ctx context.Context, name string) (contract.DeleteProfilePlan, error) {
-	return profileClientJSON[contract.DeleteProfilePlan](
+	return c.profileClientJSON[contract.DeleteProfilePlan](
 		ctx,
-		c,
 		http.MethodGet,
 		profilePath(name)+"/delete-plan",
 		nil,
@@ -172,38 +166,37 @@ func (c *daemonClient) DeleteProfile(
 	name, revision string,
 ) (contract.DeleteProfileResponse, error) {
 	query := url.Values{"plan_revision": []string{strings.TrimSpace(revision)}}
-	return profileClientJSON[contract.DeleteProfileResponse](ctx, c, http.MethodDelete, profilePath(name), query, nil)
+	return c.profileClientJSON[contract.DeleteProfileResponse](ctx, http.MethodDelete, profilePath(name), query, nil)
 }
 
 func (c *daemonClient) ListProfileSelections(ctx context.Context) ([]contract.ProfileSelection, error) {
-	return profileClientJSON[[]contract.ProfileSelection](ctx, c, http.MethodGet, "/api/profiles/selection", nil, nil)
+	return c.profileClientJSON[[]contract.ProfileSelection](ctx, http.MethodGet, "/api/profiles/selection", nil, nil)
 }
 
 func (c *daemonClient) PutProfileSelection(
 	ctx context.Context,
 	request contract.ProfileSelection,
 ) (contract.ProfileSelection, error) {
-	return profileClientJSON[contract.ProfileSelection](ctx, c, http.MethodPut, "/api/profiles/selection", nil, request)
+	return c.profileClientJSON[contract.ProfileSelection](ctx, http.MethodPut, "/api/profiles/selection", nil, request)
 }
 
 func (c *daemonClient) ListProfileOperations(ctx context.Context) ([]contract.ProfileOperation, error) {
-	return profileClientJSON[[]contract.ProfileOperation](ctx, c, http.MethodGet, "/api/profiles/ops", nil, nil)
+	return c.profileClientJSON[[]contract.ProfileOperation](ctx, http.MethodGet, "/api/profiles/ops", nil, nil)
 }
 
 func (c *daemonClient) RetryProfileOperation(ctx context.Context, id string) (contract.ProfileOperation, error) {
 	path := "/api/profiles/ops/" + url.PathEscape(strings.TrimSpace(id)) + "/retry"
-	return profileClientJSON[contract.ProfileOperation](ctx, c, http.MethodPost, path, nil, nil)
+	return c.profileClientJSON[contract.ProfileOperation](ctx, http.MethodPost, path, nil, nil)
 }
 
-func profileClientJSON[T any](
+func (c *daemonClient) profileClientJSON[T any](
 	ctx context.Context,
-	client *daemonClient,
 	method, path string,
 	query url.Values,
 	request any,
 ) (T, error) {
 	var response T
-	if err := client.doJSON(ctx, method, path, query, request, &response); err != nil {
+	if err := c.doJSON(ctx, method, path, query, request, &response); err != nil {
 		return response, err
 	}
 	return response, nil

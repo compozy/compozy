@@ -2,8 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 
-	"sort"
+	"slices"
 )
 
 func flattenConfigValue(entries *[]configEntry, path string, value any, redacted bool) {
@@ -15,11 +16,7 @@ func flattenConfigValue(entries *[]configEntry, path string, value any, redacted
 			}
 			return
 		}
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(typed))
 		for _, key := range keys {
 			nextPath := key
 			if path != "" {

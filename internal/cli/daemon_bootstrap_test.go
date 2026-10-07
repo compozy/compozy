@@ -141,8 +141,8 @@ func TestDaemonBootstrapCompatibility(t *testing.T) {
 			Version: "v1.0.0", MinAppVersion: "v1.0.0",
 		}, ">=1.1.0", "v1.1.0")
 		assertErrorContains(t, err, "repair or update the runtime")
-		var failure *bootstrapCompatibilityFailure
-		if !errors.As(err, &failure) || failure.Reason != "runtime_below_minimum" ||
+		failure, failureOK := errors.AsType[*bootstrapCompatibilityFailure](err)
+		if !failureOK || failure.Reason != "runtime_below_minimum" ||
 			failure.Runtime != "v1.0.0" || failure.Needed != ">=1.1.0" {
 			t.Fatalf("compatibility failure = %#v, want typed runtime skew", failure)
 		}
@@ -155,8 +155,8 @@ func TestDaemonBootstrapCompatibility(t *testing.T) {
 			Version: "v1.2.0", MinAppVersion: "v1.2.0",
 		}, ">=1.0.0", "v1.1.0")
 		assertErrorContains(t, err, "repair the desktop app")
-		var failure *bootstrapCompatibilityFailure
-		if !errors.As(err, &failure) || failure.Reason != "app_below_minimum" ||
+		failure, failureOK := errors.AsType[*bootstrapCompatibilityFailure](err)
+		if !failureOK || failure.Reason != "app_below_minimum" ||
 			failure.Runtime != "v1.2.0" || failure.Needed != "v1.2.0" {
 			t.Fatalf("compatibility failure = %#v, want typed app skew", failure)
 		}

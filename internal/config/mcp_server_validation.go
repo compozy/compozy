@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"net"
 	"net/url"
@@ -107,10 +108,7 @@ func (a MCPAuthConfig) Validate(path string) error {
 	if a.IsZero() {
 		return nil
 	}
-	registration := a.Registration
-	if registration == "" {
-		registration = MCPAuthRegistrationAuto
-	}
+	registration := cmp.Or(a.Registration, MCPAuthRegistrationAuto)
 	switch registration {
 	case MCPAuthRegistrationAuto:
 		if strings.TrimSpace(a.ClientID) != "" ||

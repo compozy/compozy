@@ -278,8 +278,7 @@ func mergeProviderModelPointerDelta[T comparable](target **T, current *T, desire
 		*target = nil
 		return
 	}
-	value := *desired
-	*target = &value
+	*target = new(*desired)
 }
 
 func providerModelsWriteClearsConfig(models compozyconfig.ProviderModelsConfig) bool {

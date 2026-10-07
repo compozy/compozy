@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,10 +66,7 @@ func renderProfileExecutionError(err error) (string, bool) {
 		return "", false
 	}
 	payload := typed.profileErrorPayload().Error
-	message := strings.TrimSpace(payload.Message)
-	if message == "" {
-		message = "profile operation failed"
-	}
+	message := cmp.Or(strings.TrimSpace(payload.Message), "profile operation failed")
 	if action := strings.TrimSpace(payload.Action); action != "" {
 		return fmt.Sprintf("Error: %s — %s", message, action), true
 	}

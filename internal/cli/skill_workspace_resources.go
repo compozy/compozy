@@ -8,7 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/skills"
@@ -83,7 +83,7 @@ func listSkillResources(skill *skills.Skill, bundledFS fs.FS) ([]string, error) 
 		}
 	}
 
-	sort.Strings(resources)
+	slices.Sort(resources)
 	return resources, nil
 }
 

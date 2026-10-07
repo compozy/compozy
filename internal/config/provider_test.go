@@ -3090,8 +3090,7 @@ func TestProviderSteerCapabilityConfig(t *testing.T) {
 	for _, value := range []SteerCapability{"", SteerCapabilityExtension, SteerCapabilityConcurrentPrompt, SteerCapabilityNone} {
 		t.Run("Should resolve steering override "+string(value), func(t *testing.T) {
 			t.Parallel()
-			cfg := Config{}
-			cfg.Providers = map[string]ProviderConfig{"codex": {SteerCapability: value}}
+			cfg := Config{Providers: map[string]ProviderConfig{"codex": {SteerCapability: value}}}
 			provider, err := cfg.ResolveProvider("codex")
 			if err != nil {
 				t.Fatalf("ResolveProvider() error = %v", err)
@@ -3103,8 +3102,7 @@ func TestProviderSteerCapabilityConfig(t *testing.T) {
 	}
 	t.Run("Should reject an unknown steering mechanism at the config boundary", func(t *testing.T) {
 		t.Parallel()
-		cfg := Config{}
-		cfg.Providers = map[string]ProviderConfig{"codex": {SteerCapability: "auto"}}
+		cfg := Config{Providers: map[string]ProviderConfig{"codex": {SteerCapability: "auto"}}}
 		_, err := cfg.ResolveProvider("codex")
 		if err == nil || !strings.Contains(err.Error(), "providers.codex.steer_capability") {
 			t.Fatalf("ResolveProvider() error = %v", err)

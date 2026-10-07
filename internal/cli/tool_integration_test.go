@@ -55,11 +55,9 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		udsapi.WithWorkspaceResolver(testutil.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{
-						ID:      ref,
-						RootDir: workspaceRoot,
-						Name:    ref,
-					},
+					ID:          ref,
+					RootDir:     workspaceRoot,
+					Name:        ref,
 					WorkspaceID: ref,
 				}, nil
 			},
@@ -71,7 +69,7 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("udsapi.New() error = %v", err)
 	}
-	if err := server.Start(context.Background()); err != nil {
+	if err := server.Start(t.Context()); err != nil {
 		t.Fatalf("server.Start() error = %v", err)
 	}
 	t.Cleanup(func() {
@@ -275,7 +273,7 @@ func expectedCLIToolListPayload(
 ) ToolsResponseRecord {
 	t.Helper()
 
-	views, err := registry.List(context.Background(), scope)
+	views, err := registry.List(t.Context(), scope)
 	if err != nil {
 		t.Fatalf("registry.List() error = %v", err)
 	}
@@ -290,7 +288,7 @@ func expectedCLIToolSearchPayload(
 ) ToolsResponseRecord {
 	t.Helper()
 
-	views, err := registry.Search(context.Background(), scope, query)
+	views, err := registry.Search(t.Context(), scope, query)
 	if err != nil {
 		t.Fatalf("registry.Search() error = %v", err)
 	}
@@ -305,7 +303,7 @@ func expectedCLIToolInvokePayload(
 ) ToolInvokeResponseRecord {
 	t.Helper()
 
-	result, err := registry.Call(context.Background(), scope, request)
+	result, err := registry.Call(t.Context(), scope, request)
 	if err != nil {
 		t.Fatalf("registry.Call() error = %v", err)
 	}
@@ -327,7 +325,7 @@ func expectedCLIToolsetPayload(
 ) ToolsetResponseRecord {
 	t.Helper()
 
-	toolset, err := registry.GetToolset(context.Background(), scope, id)
+	toolset, err := registry.GetToolset(t.Context(), scope, id)
 	if err != nil {
 		t.Fatalf("registry.GetToolset() error = %v", err)
 	}

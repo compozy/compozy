@@ -1,9 +1,10 @@
 package cli
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 
@@ -150,8 +151,8 @@ func windowManagerWindowListBundle(snapshot contract.WindowManagerSnapshot) outp
 		}
 		windows = append(windows, item)
 	}
-	sort.Slice(windows, func(left, right int) bool {
-		return windows[left].ID < windows[right].ID
+	slices.SortFunc(windows, func(left, right windowManagerWindowListItem) int {
+		return cmp.Compare(left.ID, right.ID)
 	})
 	return listBundle(
 		windows, windows, "Windows",

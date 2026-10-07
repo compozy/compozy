@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 
@@ -113,10 +114,7 @@ func rejectRemovedExtensionMarketplaceKeys(source string, keys []burnttoml.Key) 
 			removedSection = key
 			continue
 		}
-		replacement := replacements[key[2]]
-		if replacement == "" {
-			replacement = "extensions.trust or extensions.sources"
-		}
+		replacement := cmp.Or(replacements[key[2]], "extensions.trust or extensions.sources")
 		return fmt.Errorf(
 			"removed config key %q in %q: use %q",
 			key.String(),

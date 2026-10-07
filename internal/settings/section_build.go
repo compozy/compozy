@@ -1,11 +1,12 @@
 package settings
 
 import (
+	"cmp"
 	"context"
 
 	"fmt"
 
-	"sort"
+	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
@@ -46,8 +47,8 @@ func (s *service) buildSkillsSection(
 ) (SkillsSection, error) {
 	section := SkillsSection{
 		Config: cfg.Skills,
+		Links:  buildSkillsOperationalLinks(),
 	}
-	section.Links = buildSkillsOperationalLinks()
 
 	if scope == ScopeAgent {
 		agent, _, err := s.resolveEffectiveAgent(resolved, agentName)
@@ -188,8 +189,8 @@ func (s *service) buildHooksExtensionsSection(
 			return HooksExtensionsSection{}, fmt.Errorf("settings: installed extensions: %w", err)
 		}
 		installed = append(installed, values...)
-		sort.Slice(installed, func(i, j int) bool {
-			return installed[i].Name < installed[j].Name
+		slices.SortFunc(installed, func(left, right InstalledExtension) int {
+			return cmp.Compare(left.Name, right.Name)
 		})
 	}
 

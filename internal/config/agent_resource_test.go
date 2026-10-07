@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -108,7 +107,7 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Encode() error = %v", err)
 			}
-			_, err = codec.DecodeAndValidate(context.Background(), scope, raw)
+			_, err = codec.DecodeAndValidate(t.Context(), scope, raw)
 			if err == nil {
 				t.Fatal("DecodeAndValidate() error = nil, want validation error")
 			}
@@ -195,7 +194,7 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		}
 
 		got, err := codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
 			raw,
 		)
@@ -302,7 +301,7 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		}`)
 
 		got, err := codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
 			raw,
 		)
@@ -348,7 +347,7 @@ func canonicalMCPServerResourceSpecForAgentTest(t *testing.T, spec MCPServer) MC
 		t.Fatalf("MCP codec Encode() error = %v", err)
 	}
 	got, err := codec.DecodeAndValidate(
-		context.Background(),
+		t.Context(),
 		resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
 		raw,
 	)

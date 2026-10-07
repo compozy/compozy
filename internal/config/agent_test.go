@@ -484,8 +484,8 @@ func TestSkillSourcePresetPolicy(t *testing.T) {
 		t.Parallel()
 
 		err := ValidateSkillSources([]string{"agnets"})
-		var validation *SkillSourceValidationError
-		if !errors.As(err, &validation) {
+		validation, validationOK := errors.AsType[*SkillSourceValidationError](err)
+		if !validationOK {
 			t.Fatalf("ValidateSkillSources() error = %v, want SkillSourceValidationError", err)
 		}
 		if validation.Code != "unknown_skill_source" || validation.Suggestion != SkillSourceAgents ||
@@ -536,15 +536,16 @@ func TestSkillSourcePresetPolicy(t *testing.T) {
 			CustomSources: []string{"~/.agents/skills"},
 		}
 		err := duplicate.ValidateForScope(WriteScopeUser)
-		var validation *SkillSourceValidationError
-		if !errors.As(err, &validation) || validation.Code != "duplicate_skill_source" ||
+		validation, validationOK := errors.AsType[*SkillSourceValidationError](err)
+		if !validationOK || validation.Code != "duplicate_skill_source" ||
 			validation.ExistingSource != SkillSourceAgents {
 			t.Fatalf("ValidateForScope(duplicate) error = %#v", err)
 		}
 
 		relative := SkillsConfig{CustomSources: []string{"./rel/path"}}
 		err = relative.ValidateForScope(WriteScopeUser)
-		if !errors.As(err, &validation) || validation.Code != "invalid_source_path" ||
+		validation, validationOK = errors.AsType[*SkillSourceValidationError](err)
+		if !validationOK || validation.Code != "invalid_source_path" ||
 			!strings.Contains(err.Error(), "workspace-relative paths require workspace scope") {
 			t.Fatalf("ValidateForScope(relative) error = %#v", err)
 		}

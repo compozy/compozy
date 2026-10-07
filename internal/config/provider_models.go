@@ -96,6 +96,5 @@ func cloneProviderModelPtr[T any](src *T) *T {
 	if src == nil {
 		return nil
 	}
-	value := *src
-	return &value
+	return new(*src)
 }

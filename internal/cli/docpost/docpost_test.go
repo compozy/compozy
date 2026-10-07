@@ -720,7 +720,7 @@ func TestCleanOutput_PreservesRootEditorialFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cleanOutput(context.Background(), dstDir); err != nil {
+	if err := cleanOutput(t.Context(), dstDir); err != nil {
 		t.Fatalf("cleanOutput() error: %v", err)
 	}
 
@@ -757,7 +757,7 @@ func TestWriteDirMeta_ErrorIncludesTargetPath(t *testing.T) {
 		t.Fatalf("mkdir meta.json dir: %v", err)
 	}
 
-	err := writeDirMeta(context.Background(), dir)
+	err := writeDirMeta(t.Context(), dir)
 	if err == nil {
 		t.Fatal("writeDirMeta() should fail when meta.json is a directory")
 	}
@@ -872,7 +872,7 @@ Print the version.
 		}
 	}
 
-	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
+	if err := Process(t.Context(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("Process() error: %v", err)
 	}
 
@@ -1001,7 +1001,7 @@ func TestProcess_CreatesOutputDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
+	if err := Process(t.Context(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("Process() should create output dir: %v", err)
 	}
 
@@ -1035,7 +1035,7 @@ func TestProcessRejectsNonManagedOutputDir(t *testing.T) {
 		t.Fatalf("write sentinel: %v", err)
 	}
 
-	err := Process(context.Background(), srcDir, dstDir, Options{})
+	err := Process(t.Context(), srcDir, dstDir, Options{})
 	if err == nil || !strings.Contains(err.Error(), "refusing to clean non-empty unmanaged output dir") {
 		t.Fatalf("Process() error = %v, want unmanaged output-dir refusal", err)
 	}
@@ -1059,10 +1059,10 @@ func TestProcessAllowsRerunIntoGeneratedOutputDir(t *testing.T) {
 		t.Fatalf("write source file: %v", err)
 	}
 
-	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
+	if err := Process(t.Context(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("initial Process() error = %v", err)
 	}
-	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
+	if err := Process(t.Context(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("rerun Process() error = %v", err)
 	}
 }
@@ -1104,7 +1104,7 @@ func TestProcessAllowsManagedRootFilesAndDirs(t *testing.T) {
 		t.Fatalf("mkdir generated subdir: %v", err)
 	}
 
-	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
+	if err := Process(t.Context(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("Process() should allow managed root files and dirs: %v", err)
 	}
 
@@ -1138,7 +1138,7 @@ func TestProcess_StopsWhenContextCanceled(t *testing.T) {
 		t.Fatalf("write source file: %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	err := Process(ctx, srcDir, dstDir, Options{})

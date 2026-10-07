@@ -26,7 +26,7 @@ import (
 const settingsCatalogMCPHelperEnv = "COMPOZY_SETTINGS_CATALOG_MCP_HELPER"
 
 func TestProviderOverlayDeleteRevealsBuiltinFallbackMetadataCorrectly(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, `
 [providers.codex]
@@ -48,8 +48,8 @@ command = "custom-codex"
 	}
 
 	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "codex",
+		Collection: CollectionProviders,
+		Name:       "codex",
 	}); err != nil {
 		t.Fatalf("DeleteCollectionItem(provider) error = %v", err)
 	}
@@ -68,7 +68,7 @@ command = "custom-codex"
 }
 
 func TestWorkspaceScopedMCPMutationResolvesWorkspaceRootAndPersistsToTarget(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 
@@ -76,19 +76,17 @@ func TestWorkspaceScopedMCPMutationResolvesWorkspaceRootAndPersistsToTarget(t *t
 		WorkspaceResolver: fakeWorkspaceResolver{
 			resolved: map[string]workspacepkg.ResolvedWorkspace{
 				"ws-1": {
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+					ID: "ws-1", RootDir: workspaceRoot,
 				},
 			},
 		},
 	})
 
 	result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{
-			Collection:  CollectionMCPServers,
-			Scope:       ScopeWorkspace,
-			WorkspaceID: "ws-1",
-		},
-		Name: "workspace-alpha",
+		Collection:  CollectionMCPServers,
+		Scope:       ScopeWorkspace,
+		WorkspaceID: "ws-1",
+		Name:        "workspace-alpha",
 		MCPServer: &compozyconfig.MCPServer{
 			Command: "workspace-command",
 		},
@@ -121,8 +119,8 @@ func TestManualMCPPersistsEncryptedSecretAndExecutorResolvesIt(t *testing.T) {
 		}
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: vaultService})
 		installed, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers, Scope: ScopeUser},
-			Name:              "catalog-helper", Target: TargetAuto,
+			Collection: CollectionMCPServers, Scope: ScopeUser,
+			Name: "catalog-helper", Target: TargetAuto,
 			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx", Env: map[string]string{settingsCatalogMCPHelperEnv: "1"},
 			},
@@ -306,13 +304,13 @@ func (s *settingsIntegrationVaultStore) DeleteVaultSecret(_ context.Context, ref
 }
 
 func TestMutationResultExposesSemanticWriteTarget(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := testHomePaths(t)
 	service := testService(t, homePaths, Dependencies{})
 
 	result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
-		Name:              "custom",
+		Collection: CollectionProviders,
+		Name:       "custom",
 		Provider: &ProviderSettings{
 			Command: "custom-provider",
 		},
@@ -356,7 +354,7 @@ review = "agent:user"
 `)
 	service := testService(t, homePaths, Dependencies{WorkspaceResolver: fakeWorkspaceResolver{
 		resolved: map[string]workspacepkg.ResolvedWorkspace{
-			"ws-1": {Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot}},
+			"ws-1": {ID: "ws-1", RootDir: workspaceRoot},
 		},
 	}})
 
@@ -364,9 +362,7 @@ review = "agent:user"
 		t.Helper()
 		aliases := map[string]string{"review": alias}
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{
-				Section: SectionCmdPalette, Scope: ScopeProfile, ProfileName: profileName,
-			},
+			Section: SectionCmdPalette, Scope: ScopeProfile, ProfileName: profileName,
 			CmdPalette: &CmdPaletteUpdate{
 				FallbackAgentEnabled: &enabled, Personalization: &personalized, Aliases: &aliases,
 			},
@@ -382,8 +378,8 @@ review = "agent:user"
 	writeProfilePalette("sales", true, true, "agent:sales")
 	emptyAliases := map[string]string{}
 	if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
-		SectionRequest: SectionRequest{Section: SectionCmdPalette, Scope: ScopeProfile, ProfileName: "marketing"},
-		CmdPalette:     &CmdPaletteUpdate{Aliases: &emptyAliases},
+		Section: SectionCmdPalette, Scope: ScopeProfile, ProfileName: "marketing",
+		CmdPalette: &CmdPaletteUpdate{Aliases: &emptyAliases},
 	}); err == nil || !errors.Is(err, ErrValidation) {
 		t.Fatalf("UpdateSection(empty profile aliases) error = %v, want validation error", err)
 	}
@@ -415,7 +411,6 @@ review = "agent:user"
 		{name: "marketing", enabled: false, personalized: false, alias: "agent:marketing"},
 		{name: "sales", enabled: true, personalized: true, alias: "agent:sales"},
 	} {
-		test := test
 		t.Run("Should preserve "+test.name+" profile palette", func(t *testing.T) {
 			t.Parallel()
 			cfg, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithProfile(test.name))
@@ -429,9 +424,7 @@ review = "agent:user"
 	workspaceAliases := map[string]string{"review": "agent:workspace"}
 	workspaceEnabled, workspacePersonalized := true, false
 	workspaceResult, err := service.UpdateSection(ctx, SectionUpdateRequest{
-		SectionRequest: SectionRequest{
-			Section: SectionCmdPalette, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
-		},
+		Section: SectionCmdPalette, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
 		CmdPalette: &CmdPaletteUpdate{
 			FallbackAgentEnabled: &workspaceEnabled,
 			Personalization:      &workspacePersonalized,
@@ -456,9 +449,7 @@ review = "agent:user"
 
 	shortcutAttempt := map[string]string{"session.new": "meta+shift+Space"}
 	_, err = service.UpdateSection(ctx, SectionUpdateRequest{
-		SectionRequest: SectionRequest{
-			Section: SectionWindowManager, Scope: ScopeProfile, ProfileName: "marketing",
-		},
+		Section: SectionWindowManager, Scope: ScopeProfile, ProfileName: "marketing",
 		WindowManagerGlobalShortcuts: &shortcutAttempt,
 	})
 	if !errors.Is(err, ErrConflict) {
@@ -475,8 +466,8 @@ review = "agent:user"
 	if _, loadErr := compozyconfig.LoadForHome(homePaths, compozyconfig.WithProfile("marketing")); loadErr == nil {
 		t.Fatal("personal profile shortcut load error = nil, want profile_config_key_denied")
 	} else {
-		var validation compozyconfig.ValidationError
-		if !errors.As(loadErr, &validation) || validation.Code != "profile_config_key_denied" {
+		validation, validationOK := errors.AsType[compozyconfig.ValidationError](loadErr)
+		if !validationOK || validation.Code != "profile_config_key_denied" {
 			t.Fatalf("personal profile shortcut load error = %v", loadErr)
 		}
 	}
@@ -495,8 +486,8 @@ review = "agent:user"
 	); loadErr == nil {
 		t.Fatal("workspace profile shortcut load error = nil, want profile_config_key_denied")
 	} else {
-		var validation compozyconfig.ValidationError
-		if !errors.As(loadErr, &validation) || validation.Code != "profile_config_key_denied" {
+		validation, validationOK := errors.AsType[compozyconfig.ValidationError](loadErr)
+		if !validationOK || validation.Code != "profile_config_key_denied" {
 			t.Fatalf("workspace profile shortcut load error = %v", loadErr)
 		}
 	}

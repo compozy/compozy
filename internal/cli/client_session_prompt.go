@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -211,17 +212,11 @@ func (s *sessionPromptStreamState) observe(event SSEEvent) error {
 			return fmt.Errorf("cli: decode prompt stream event: %w", err)
 		}
 	}
-	eventType := strings.TrimSpace(payload.Type)
-	if eventType == "" {
-		eventType = strings.TrimSpace(event.Event)
-	}
+	eventType := cmp.Or(strings.TrimSpace(payload.Type), strings.TrimSpace(event.Event))
 	switch eventType {
 	case automationErrorKey:
 		s.terminal = true
-		message := strings.TrimSpace(payload.ErrorText)
-		if message == "" {
-			message = strings.TrimSpace(payload.Error)
-		}
+		message := cmp.Or(strings.TrimSpace(payload.ErrorText), strings.TrimSpace(payload.Error))
 		if message == "" && payload.Failure != nil {
 			message = strings.TrimSpace(payload.Failure.Summary)
 		}

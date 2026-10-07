@@ -251,8 +251,7 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 				request.AddDirs = &mergedDirs
 			}
 			if cmd.Flags().Changed("default-agent") {
-				trimmedDefaultAgent := strings.TrimSpace(defaultAgent)
-				request.DefaultAgent = &trimmedDefaultAgent
+				request.DefaultAgent = new(strings.TrimSpace(defaultAgent))
 			}
 
 			updated, err := client.UpdateWorkspace(cmd.Context(), detail.Workspace.ID, request)

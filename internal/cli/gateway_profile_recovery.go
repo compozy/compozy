@@ -259,8 +259,8 @@ func newGatewayPairingRecoveryPendingError(cause error) error {
 }
 
 func isGatewayPairingRecoveryPending(err error) bool {
-	var clientErr *gatewayClientError
-	return errors.As(err, &clientErr) && clientErr.code == gatewayPairingRecoveryPendingCode
+	clientErr, clientErrOK := errors.AsType[*gatewayClientError](err)
+	return clientErrOK && clientErr.code == gatewayPairingRecoveryPendingCode
 }
 
 func probePendingGatewayPairing(

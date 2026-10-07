@@ -21,7 +21,7 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 	t.Run("Should expose missing native CLI diagnostics through provider settings", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+
 			"\n[providers.local]\n"+
@@ -90,7 +90,7 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 	t.Run("Should expose a safe login descriptor without creating isolated provider state", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+
 			"\n[providers.pi]\n"+
@@ -149,7 +149,7 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 	t.Run("Should resolve the declared status command once for the returned native CLI", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+
 			"\n[providers.local]\n"+
@@ -205,7 +205,7 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 	t.Run("Should keep an operational status resolution failure unknown", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+
 			"\n[providers.local]\n"+
