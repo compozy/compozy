@@ -8,7 +8,7 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e-desktop test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
+.PHONY: go-fixture-check deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e-desktop test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
 
 DEMO_HOME ?= $(HOME)/.compozy-demo
 DEMO_PORT ?= 2124
@@ -30,6 +30,9 @@ lint:
 
 go-lint:
 	@$(MAGE_RUN) goLint
+
+go-fixture-check:
+	@$(MAGE_RUN) goFixtureCheck "$(GO_FIXTURE_MODULE)"
 
 source-policy:
 	@$(MAGE_RUN) sourcePolicy

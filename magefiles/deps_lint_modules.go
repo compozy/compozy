@@ -5,11 +5,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"go/version"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"golang.org/x/mod/modfile"
 )
 
 var goLintModules = []string{
@@ -46,7 +49,7 @@ func golangciLintTargets(raw string) []goLintTarget {
 		}
 	}
 	if len(root.scopes) > 0 {
-		targets = append(targets, root)
+		targets = append(targets, root, goLintTarget{dir: ".", scopes: slices.Clone(root.scopes), tags: "integration"})
 	}
 	for _, module := range modules {
 		target := goLintTarget{dir: module}
@@ -83,7 +86,9 @@ func runGolangciTarget(root string, env map[string]string, target goLintTarget, 
 	if target.tags != "" {
 		args = append(args, "--build-tags", target.tags)
 	}
-	if !formatters {
+	if target.tags == "integration" {
+		args = append(args, "--enable-only", "modernize,forbidigo,depguard,copyloopvar")
+	} else if !formatters {
 		linters, err := golangciEnabledLinters(filepath.Join(root, golangciConfigPath))
 		if err != nil {
 			return err
@@ -96,7 +101,7 @@ func runGolangciTarget(root string, env map[string]string, target goLintTarget, 
 		return err
 	}
 	defer cleanup()
-	fmt.Printf("go-lint module: %s (%s)\n", target.dir, strings.Join(target.scopes, " "))
+	fmt.Printf("go-lint module: %s (%s), build tags: %q\n", target.dir, strings.Join(target.scopes, " "), target.tags)
 	if err := runGolangciCommandInDir(filepath.Join(root, target.dir), targetEnv, args...); err != nil {
 		return fmt.Errorf("lint %s: %w", target.dir, err)
 	}
@@ -119,6 +124,11 @@ func goLintModuleEnv(root, dir string, env map[string]string) (map[string]string
 	if !strings.HasPrefix(dir, "internal/extension/testdata/") {
 		return env, noop, nil
 	}
+	members := []string{filepath.Join(root, dir), filepath.Join(root, "sdk", "go")}
+	goVersion, err := goWorkspaceVersion(members)
+	if err != nil {
+		return nil, noop, err
+	}
 	temp, err := os.MkdirTemp("", "compozy-lint-module-")
 	if err != nil {
 		return nil, noop, err
@@ -129,7 +139,7 @@ func goLintModuleEnv(root, dir string, env map[string]string) (map[string]string
 		}
 	}
 	workspace := filepath.Join(temp, "go.work")
-	data := fmt.Sprintf("go 1.26.4\n\nuse (\n%q\n%q\n)\n", filepath.Join(root, dir), filepath.Join(root, "sdk", "go"))
+	data := fmt.Sprintf("go %s\n\nuse (\n%q\n%q\n)\n", goVersion, members[0], members[1])
 	if err := os.WriteFile(workspace, []byte(data), 0o600); err != nil {
 		cleanup()
 		return nil, noop, err
@@ -138,4 +148,52 @@ func goLintModuleEnv(root, dir string, env map[string]string) (map[string]string
 	maps.Copy(targetEnv, env)
 	targetEnv["GOWORK"] = workspace
 	return targetEnv, cleanup, nil
+}
+
+// A workspace must meet the highest Go requirement of all its members.
+func goWorkspaceVersion(members []string) (string, error) {
+	selected := "1.18"
+	for _, member := range members {
+		path := filepath.Join(member, "go.mod")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		module, err := modfile.ParseLax(path, data, nil)
+		if err != nil {
+			return "", err
+		}
+		if module.Go != nil && version.Compare("go"+module.Go.Version, "go"+selected) > 0 {
+			selected = module.Go.Version
+		}
+	}
+	return selected, nil
+}
+
+// GoFixtureCheck builds and vets an extension fixture against the local SDK.
+func GoFixtureCheck(module string) error {
+	if !slices.Contains(goLintModules, module) || !strings.HasPrefix(module, "internal/extension/testdata/") {
+		return fmt.Errorf("unsupported Go fixture module %q", module)
+	}
+	root, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	env, cleanup, err := goLintModuleEnv(root, module, nil)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	output := filepath.Join(filepath.Dir(env["GOWORK"]), "fixture")
+	for _, args := range [][]string{
+		{"build", "-p", "2", "-o", output, "./..."},
+		{"vet", "-p", "2", "./..."},
+	} {
+		if err := runCommandInDirWithEnv(
+			context.Background(), filepath.Join(root, module), env, "go", args...,
+		); err != nil {
+			return fmt.Errorf("%s fixture %s: %w", args[0], module, err)
+		}
+	}
+	return nil
 }

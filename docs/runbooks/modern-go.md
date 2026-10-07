@@ -5,10 +5,12 @@
 `make go-lint` runs the root source policy and golangci-lint v2.13.1 using the
 repository `.golangci.yml`. `make lint` and the CI Go lint job call that same lane.
 An unset `COMPOZY_GO_LINT_SCOPES`, or `./...`, checks every row below.
+The Mage suite compares the dispatch list with tracked nested `go.mod` files,
+so adding a module requires updating lint coverage.
 
 | Directory | Declared Go version | Package scope / build tag |
 | --- | --- | --- |
-| Repository root | 1.27.1 | `./...` |
+| Repository root | 1.27.1 | `./...`, default and `integration` |
 | `magefiles` | 1.27.1 (root module) | `./...`, `mage` |
 | `sdk/go` | 1.26.4 | `./...` |
 | `sdk/examples/notes-commands` | 1.26.4 | `./...` |
@@ -18,7 +20,8 @@ An unset `COMPOZY_GO_LINT_SCOPES`, or `./...`, checks every row below.
 
 Fixture authoring tests copy the module and replace the SDK with `sdk/go`.
 Lint resolves that same local SDK through a disposable Go workspace containing
-only the fixture and SDK modules. Its workspace and sum file are removed after
+only the fixture and SDK modules. The workspace Go directive is the maximum of
+the member module requirements. Its workspace and sum file are removed after
 lint. The checked-in fixture modules and their runtime build behavior are unchanged.
 A `GOFLAGS=-modfile=...` override is unsuitable here: the bundled `go/packages`
 queries the Go version with modules disabled, which rejects that flag.
@@ -40,7 +43,12 @@ COMPOZY_GO_LINT_SCOPES='./magefiles/...' mise exec -- make go-lint
 Scopes are space-separated repository-relative package patterns. A nested-module
 scope is translated to a pattern relative to that module. A root package scope
 stays narrow; a recursive ancestor also selects supported modules below it.
-The first failing module returns a nonzero exit status.
+Root scopes run both the full default-tag lint set and an `integration`-tag pass
+restricted to `modernize,forbidigo,depguard,copyloopvar` with `--enable-only`.
+This includes integration-tagged tests and `scripts/gate_integration_test.go`
+when their root scopes are selected; default `./...` covers them in CI.
+Nested modules and Mage retain their existing tag sets (no integration-only
+source files exist there). The first failing pass returns a nonzero exit status.
 
 `COMPOZY_GO_LINT_CONCURRENCY` applies to each sequential invocation. The existing
 cache override remains supported, including relative paths resolved from the
@@ -50,10 +58,17 @@ The default is `run` in CI and `split` locally.
 
 `bash scripts/gate.sh plan` reports the selected commands. SDK Go changes select
 module lint and race tests. Go source, `go.mod`, and `go.sum` changes under SDK
-examples select that module's Go lanes; examples with `package.json` also retain
+examples select that module's Go lanes. Non-document assets in Go-only examples
+also select Go lanes (for example, embedded templates); examples with `package.json` retain
 JavaScript lanes. Fixture changes select fixture lint and
-`./internal/extension/...` tests. Mage changes select tagged lint plus the existing
-Mage/script tests. Each module lane keeps its own content-keyed evidence record.
+`make go-fixture-check GO_FIXTURE_MODULE=<module>` (build + vet against the local
+SDK, with a disposable binary). Their runtime consumers are
+`internal/daemon/daemon_extension_commands_e2e_integration_test.go`
+(`integration && !windows`) and `desktop/e2e/_electron/__tests__/shell.spec.ts`;
+those heavy E2E journeys remain owned by CI. Mage changes select tagged lint plus the existing
+Mage/script tests. Each module lane keeps its own content-keyed evidence record. When root lint
+uses `./...`, module/Mage lint records reference its current passing log instead
+of rerunning lint. Module race tests and fixture build/vet still run.
 CI classifies nested module manifests as backend changes, and its lint cache key
 includes every module manifest and sum file.
 
@@ -93,7 +108,7 @@ their generators and drift gates retain ownership.
 | `slices_sorted` | Review: collection nilness and ordering |
 | `time_tick_gc` | Review: Stop/Reset and lifecycle ownership |
 | `range_over_int` | modernize `rangeint` |
-| `loopvar_capture` | modernize `forvar` plus copyloopvar with alias checking |
+| `loopvar_capture` | modernize `forvar` plus default copyloopvar self-copy checks; renamed copies can preserve required mutation semantics |
 | `cmp_or` | Review: arguments are evaluated eagerly |
 | `reflect_type_for` | modernize `reflecttypefor` |
 | `http_servemux_patterns` | Review: method, malformed-path, wildcard and route precedence contracts |
