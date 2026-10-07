@@ -464,6 +464,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			WorkspaceID: h.workspaceID,
 			Title:       "Failed job",
 			Status:      taskpkg.TaskStatusFailed,
+			MaxAttempts: 1,
 			CreatedBy:   taskActor(taskpkg.ActorKindAutomation, "rule-1"),
 			Origin:      taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
 			CreatedAt:   now.Add(-11 * time.Minute),
@@ -539,6 +540,13 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 		}
 		if got, want := dashboard.Totals.RunsTotal, 4; got != want {
 			t.Fatalf("dashboard.Totals.RunsTotal = %d, want %d", got, want)
+		}
+		if dashboard.Totals.ReadyTasks != 1 || dashboard.Totals.InProgressTasks != 1 ||
+			dashboard.Totals.FailedTasks != 1 || dashboard.Totals.CompletedTasks != 1 {
+			t.Fatalf("dashboard.Totals = %#v, want one ready, in-progress, failed and completed task", dashboard.Totals)
+		}
+		if got, want := dashboard.ActiveRuns.Total, 2; got != want {
+			t.Fatalf("dashboard.ActiveRuns.Total = %d, want %d", got, want)
 		}
 		if got, want := dashboard.Totals.BlockedTasks, 2; got != want {
 			t.Fatalf("dashboard.Totals.BlockedTasks = %d, want %d", got, want)

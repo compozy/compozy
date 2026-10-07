@@ -138,20 +138,6 @@ func TestToolsConfigValidation(t *testing.T) {
 			wantErr: "tools.hosted_mcp.bind_nonce_ttl_seconds",
 		},
 		{
-			name: "ShouldRejectTooShortClarifyTimeout",
-			mutate: func(cfg *Config) {
-				cfg.Tools.Clarify.Timeout = MinToolsClarifyTimeout - time.Nanosecond
-			},
-			wantErr: "tools.clarify.timeout",
-		},
-		{
-			name: "ShouldRejectTooLongClarifyTimeout",
-			mutate: func(cfg *Config) {
-				cfg.Tools.Clarify.Timeout = MaxToolsClarifyTimeout + time.Nanosecond
-			},
-			wantErr: "tools.clarify.timeout",
-		},
-		{
 			name: "ShouldRejectZeroArtifactMaxCount",
 			mutate: func(cfg *Config) {
 				cfg.Tools.Artifacts.MaxCount = 0

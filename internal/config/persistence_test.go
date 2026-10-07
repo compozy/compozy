@@ -58,6 +58,7 @@ enabled = false
 			t.Fatalf("edited config lacks preserved %q: %s", fragment, text)
 		}
 	}
+	assertPrivatePathMode(t, homePaths.ConfigFile, 0o600)
 }
 
 func TestEditConfigOverlayRejectsSymlinkWithoutReadingTarget(t *testing.T) {
@@ -1505,5 +1506,17 @@ func TestLoadConfigArchivesRetiredSkillMCP(t *testing.T) {
 				}
 			},
 		)
+	}
+}
+
+func assertPrivatePathMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("os.Stat(%q) error = %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != want {
+		t.Fatalf("permissions for %q = %o, want %o", path, got, want)
 	}
 }

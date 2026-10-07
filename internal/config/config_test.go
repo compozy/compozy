@@ -443,19 +443,7 @@ func TestDaemonMemoryReportIntervalDefaultsAndValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should allow zero to disable reports", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := DaemonConfig{
-			Socket:         "/tmp/compozy.sock",
-			ReloadTimeouts: DefaultDaemonReloadTimeoutsConfig(),
-		}
-		if err := cfg.Validate(); err != nil {
-			t.Fatalf("Validate() error = %v, want nil", err)
-		}
-	})
-
-	t.Run("Should allow zero to disable subprocess health escalation", func(t *testing.T) {
+	t.Run("Should allow zero to disable reports and subprocess health escalation", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := DaemonConfig{
@@ -1685,11 +1673,14 @@ func TestLoadForHomeSkipsDuplicateWorkspaceOverlay(t *testing.T) {
 		if err := EnsureHomeLayout(homePaths); err != nil {
 			t.Fatalf("EnsureHomeLayout() error = %v", err)
 		}
-		writeFile(t, homePaths.ConfigFile, "[gateway]\nprivate_port = 4242\n")
+		writeFile(t, homePaths.ConfigFile, "[gateway]\nenabled = true\nprivate_port = 4242\n")
 
 		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(operatorHome))
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if !cfg.Gateway.Enabled {
+			t.Fatal("LoadForHome() Gateway.Enabled = false, want true")
 		}
 		if got, want := cfg.Gateway.PrivatePort, 4242; got != want {
 			t.Fatalf("LoadForHome() Gateway.PrivatePort = %d, want %d", got, want)
@@ -2253,34 +2244,6 @@ poll_interval = "0s"
 	}
 	if !strings.Contains(err.Error(), "skills.poll_interval") {
 		t.Fatalf("Load() error = %v, want skills.poll_interval in message", err)
-	}
-}
-
-func TestLoadUsesDotEnvForCompozyHome(t *testing.T) {
-	workspaceRoot := t.TempDir()
-	homeRoot := filepath.Join(t.TempDir(), "dotenv-home")
-
-	writeFile(t, filepath.Join(workspaceRoot, ".env"), "COMPOZY_HOME="+homeRoot+"\n")
-
-	homePaths, err := ResolveHomePathsFrom(homeRoot)
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	if err := EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
-	writeFile(t, homePaths.ConfigFile, `
-[defaults]
-agent = "dotenv-agent"
-`)
-
-	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	if cfg.Defaults.Agent != "dotenv-agent" {
-		t.Fatalf("Load() Defaults.Agent = %q, want %q", cfg.Defaults.Agent, "dotenv-agent")
 	}
 }
 

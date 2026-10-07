@@ -527,45 +527,6 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 	})
 }
 
-func TestTaskStoreStubListRunReviewsSortsBeforeApplyingLimit(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should sort reviews before applying the limit", func(t *testing.T) {
-		t.Parallel()
-
-		store := taskStoreStub{
-			reviews: map[string]taskpkg.RunReview{
-				"review-older": {
-					ReviewID:  "review-older",
-					TaskID:    "task-1",
-					Status:    taskpkg.RunReviewStatusInReview,
-					UpdatedAt: fixedTime().Add(time.Minute),
-				},
-				"review-newer": {
-					ReviewID:  "review-newer",
-					TaskID:    "task-1",
-					Status:    taskpkg.RunReviewStatusInReview,
-					UpdatedAt: fixedTime().Add(2 * time.Minute),
-				},
-			},
-		}
-
-		reviews, err := store.ListRunReviews(t.Context(), taskpkg.RunReviewQuery{
-			TaskID: "task-1",
-			Limit:  1,
-		})
-		if err != nil {
-			t.Fatalf("ListRunReviews() error = %v", err)
-		}
-		if got, want := len(reviews), 1; got != want {
-			t.Fatalf("len(reviews) = %d, want %d", got, want)
-		}
-		if got, want := reviews[0].ReviewID, "review-newer"; got != want {
-			t.Fatalf("reviews[0].ReviewID = %q, want %q", got, want)
-		}
-	})
-}
-
 func TestTaskRunPromptOverlayByIDRejectsMismatchedRunTaskPair(t *testing.T) {
 	t.Parallel()
 

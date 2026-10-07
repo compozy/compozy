@@ -14,71 +14,75 @@ import (
 
 func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 	t.Parallel()
-
-	path := filepath.Join(t.TempDir(), ".env")
-	contents := strings.Join([]string{
-		"# keep comments",
-		"COMPOZY_HOME=/tmp/compozy-home",
-		"OPENAI_API_KEY=sk-live\u200b ANTHROPIC_API_KEY=anthropic\u2011key",
-		`PLAIN_VALUE="hello world"`,
-		"",
-	}, "\n")
-	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(.env) error = %v", err)
-	}
-
-	report, err := InspectDotEnvFile(path)
-	if err != nil {
-		t.Fatalf("InspectDotEnvFile() error = %v", err)
-	}
-	if report.Status != DotEnvStatusRepairable {
-		t.Fatalf("InspectDotEnvFile() Status = %q, want %q", report.Status, DotEnvStatusRepairable)
-	}
-	if len(report.Diagnostics) != 3 {
-		t.Fatalf("InspectDotEnvFile() diagnostics = %#v, want multi-key plus two sanitizers", report.Diagnostics)
-	}
-
-	repair, err := RepairDotEnvFile(path)
-	if err != nil {
-		t.Fatalf("RepairDotEnvFile() error = %v", err)
-	}
-	if repair.Status != DotEnvStatusRepaired || !repair.Repaired {
-		t.Fatalf("RepairDotEnvFile() = %#v, want repaired status", repair)
-	}
-
-	repaired, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("os.ReadFile(repaired .env) error = %v", err)
-	}
-	repairedText := string(repaired)
-	for _, want := range []string{
-		"# keep comments",
-		"COMPOZY_HOME=/tmp/compozy-home",
-		"OPENAI_API_KEY=sk-live",
-		"ANTHROPIC_API_KEY=anthropickey",
-		`PLAIN_VALUE="hello world"`,
-	} {
-		if !strings.Contains(repairedText, want) {
-			t.Fatalf("repaired .env missing %q:\n%s", want, repairedText)
+	t.Run("Should repair structured entries with private permissions", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), ".env")
+		contents := strings.Join([]string{
+			"# keep comments",
+			"COMPOZY_HOME=/tmp/compozy-home",
+			"OPENAI_API_KEY=sk-live\u200b ANTHROPIC_API_KEY=anthropic\u2011key",
+			`PLAIN_VALUE="hello world"`,
+			"",
+		}, "\n")
+		if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(.env) error = %v", err)
 		}
-	}
-	if strings.Contains(repairedText, "\u200b") || strings.Contains(repairedText, "\u2011") {
-		t.Fatalf("repaired .env retained non-ASCII secret characters:\n%s", repairedText)
-	}
 
-	parsed := parseDotEnvDocument(repairedText)
-	if parsed.unsupported || parsed.needsRepair {
-		t.Fatalf("parseDotEnvDocument(repaired) = %#v, want clean parse", parsed)
-	}
-	wantValues := map[string]string{
-		"COMPOZY_HOME":      "/tmp/compozy-home",
-		"OPENAI_API_KEY":    "sk-live",
-		"ANTHROPIC_API_KEY": "anthropickey",
-		"PLAIN_VALUE":       "hello world",
-	}
-	if !reflect.DeepEqual(parsed.values, wantValues) {
-		t.Fatalf("parsed values = %#v, want %#v", parsed.values, wantValues)
-	}
+		report, err := InspectDotEnvFile(path)
+		if err != nil {
+			t.Fatalf("InspectDotEnvFile() error = %v", err)
+		}
+		if report.Status != DotEnvStatusRepairable {
+			t.Fatalf("InspectDotEnvFile() Status = %q, want %q", report.Status, DotEnvStatusRepairable)
+		}
+		if len(report.Diagnostics) != 3 {
+			t.Fatalf("InspectDotEnvFile() diagnostics = %#v, want multi-key plus two sanitizers", report.Diagnostics)
+		}
+
+		repair, err := RepairDotEnvFile(path)
+		if err != nil {
+			t.Fatalf("RepairDotEnvFile() error = %v", err)
+		}
+		if repair.Status != DotEnvStatusRepaired || !repair.Repaired {
+			t.Fatalf("RepairDotEnvFile() = %#v, want repaired status", repair)
+		}
+
+		assertConfigPathMode(t, path, 0o600)
+
+		repaired, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("os.ReadFile(repaired .env) error = %v", err)
+		}
+		repairedText := string(repaired)
+		for _, want := range []string{
+			"# keep comments",
+			"COMPOZY_HOME=/tmp/compozy-home",
+			"OPENAI_API_KEY=sk-live",
+			"ANTHROPIC_API_KEY=anthropickey",
+			`PLAIN_VALUE="hello world"`,
+		} {
+			if !strings.Contains(repairedText, want) {
+				t.Fatalf("repaired .env missing %q:\n%s", want, repairedText)
+			}
+		}
+		if strings.Contains(repairedText, "\u200b") || strings.Contains(repairedText, "\u2011") {
+			t.Fatalf("repaired .env retained non-ASCII secret characters:\n%s", repairedText)
+		}
+
+		parsed := parseDotEnvDocument(repairedText)
+		if parsed.unsupported || parsed.needsRepair {
+			t.Fatalf("parseDotEnvDocument(repaired) = %#v, want clean parse", parsed)
+		}
+		wantValues := map[string]string{
+			"COMPOZY_HOME":      "/tmp/compozy-home",
+			"OPENAI_API_KEY":    "sk-live",
+			"ANTHROPIC_API_KEY": "anthropickey",
+			"PLAIN_VALUE":       "hello world",
+		}
+		if !reflect.DeepEqual(parsed.values, wantValues) {
+			t.Fatalf("parsed values = %#v, want %#v", parsed.values, wantValues)
+		}
+	})
 }
 
 func TestDotEnvFileTreatsMissingPathAsOptional(t *testing.T) {
@@ -102,35 +106,6 @@ func TestDotEnvFileTreatsMissingPathAsOptional(t *testing.T) {
 		}
 		if repair.Status != DotEnvStatusMissing {
 			t.Fatalf("RepairDotEnvFile(missing) status = %q, want %q", repair.Status, DotEnvStatusMissing)
-		}
-	})
-}
-
-func TestRepairDotEnvFileTightensRepairedFilePermissions(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should tighten a repaired dotenv file to owner read write", func(t *testing.T) {
-		t.Parallel()
-
-		path := filepath.Join(t.TempDir(), ".env")
-		contents := "OPENAI_API_KEY=sk-live\u200b ANTHROPIC_API_KEY=anthropic\u2011key\n"
-		if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
-			t.Fatalf("os.WriteFile(.env) error = %v", err)
-		}
-
-		report, err := RepairDotEnvFile(path)
-		if err != nil {
-			t.Fatalf("RepairDotEnvFile() error = %v", err)
-		}
-		if report.Status != DotEnvStatusRepaired || !report.Repaired {
-			t.Fatalf("RepairDotEnvFile() = %#v, want repaired status", report)
-		}
-		info, err := os.Stat(path)
-		if err != nil {
-			t.Fatalf("os.Stat(.env) error = %v", err)
-		}
-		if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
-			t.Fatalf(".env mode = %#o, want %#o", got, want)
 		}
 	})
 }

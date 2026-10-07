@@ -221,9 +221,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should refuse self-update for dev builds", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{
-			CurrentVersion: "dev",
-		})
+		manager := &Manager{currentVersion: "dev"}
 
 		state := manager.composeState(
 			installInfo{Method: string(InstallMethodDirectBinary)},
@@ -358,10 +356,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should mark Windows direct-binary installs as manual-only", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{
-			RuntimeOS:   runtimeOSWindows,
-			RuntimeArch: runtimeArchAMD64,
-		})
+		manager := &Manager{currentVersion: "v1.0.0", runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchAMD64}
 
 		state := manager.composeState(
 			installInfo{Method: string(InstallMethodDirectBinary)},
@@ -382,7 +377,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should defer managed npm and go-install updates with package-specific guidance", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{})
+		manager := &Manager{currentVersion: "v1.0.0", runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64}
 		tests := []struct {
 			name   string
 			method InstallMethod
@@ -422,7 +417,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should self-apply a desktop-owned runtime", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{})
+		manager := &Manager{currentVersion: "v1.0.0", runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64}
 		state := manager.composeState(
 			installInfo{Method: string(InstallMethodDesktopApp)},
 			&Release{Version: "v1.1.0"},
@@ -437,7 +432,10 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should keep beta recommendations on beta-capable distribution paths", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, &Config{CurrentVersion: "v0.3.0-beta.1"})
+		manager := &Manager{
+			currentVersion: "v0.3.0-beta.1", releaseTrack: releaseTrackBeta,
+			runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64,
+		}
 		tests := []struct {
 			name      string
 			method    InstallMethod
@@ -540,7 +538,7 @@ func TestManagerCheck(t *testing.T) {
 				{Name: "CompozyOS-1.2.0-linux-x64.AppImage"},
 			},
 		}
-		mac, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSDarwin, RuntimeArch: runtimeArchARM64})
+		mac := &Manager{runtimeOS: runtimeOSDarwin, runtimeArch: runtimeArchARM64}
 		macAsset, err := mac.resolveAppReleaseAsset(release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(macOS) error = %v", err)
@@ -549,7 +547,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("resolveAppReleaseAsset(macOS) = %q, want zip", macAsset.Name)
 		}
 
-		linux, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchAMD64})
+		linux := &Manager{runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64}
 		linuxAsset, err := linux.resolveAppReleaseAsset(release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(Linux) error = %v", err)
@@ -558,13 +556,13 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("resolveAppReleaseAsset(Linux) = %q, want AppImage", linuxAsset.Name)
 		}
 
-		linuxARM, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchARM64})
+		linuxARM := &Manager{runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchARM64}
 		if _, err := linuxARM.resolveAppReleaseAsset(release); err == nil ||
 			!strings.Contains(err.Error(), "unsupported on linux/arm64") {
 			t.Fatalf("resolveAppReleaseAsset(Linux ARM) error = %v, want unsupported", err)
 		}
 
-		windows, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSWindows, RuntimeArch: runtimeArchAMD64})
+		windows := &Manager{runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchAMD64}
 		if _, err := windows.resolveAppReleaseAsset(release); err == nil {
 			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
 		}

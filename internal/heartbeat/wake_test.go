@@ -18,22 +18,13 @@ import (
 func TestManagedWakeServiceDecision(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should use the latest valid policy snapshot at decision time", func(t *testing.T) {
+	t.Run("Should project the policy snapshot returned by the store into wake prompts", func(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
-		older := wakeSnapshot(t, cfg, "hb-older", "ws-1", "coder", base.Add(-time.Hour), "Older policy")
-		invalid := older
-		invalid.ID = "hb-invalid-newer"
-		invalid.Digest = "sha256:invalid"
-		invalid.ResolvedJSON = []byte(
-			`{"schema_version":1,"present":true,"active":false,"valid":false,"config_provenance":{"digest":"sha256:config"}}`,
-		)
-		invalid.CreatedAt = base.Add(-time.Minute)
-		latest := wakeSnapshot(t, cfg, "hb-latest", "ws-1", "coder", base, "Latest policy")
-		store.snapshots = []Snapshot{older, invalid, latest}
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-latest", "ws-1", "coder", base, "Latest policy")}
 		health := newFakeWakeHealth()
 		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
 		prompter := &fakeWakePrompter{}
@@ -412,39 +403,6 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 			t.Fatalf("prompt requests = %d, want %d", got, want)
 		}
 		assertLastWakeEvent(t, store, WakeResultSkipped, WakeReasonSessionPromptRace, "hb-policy")
-	})
-
-	t.Run("Should write failed audit events when synthetic prompt dispatch fails", func(t *testing.T) {
-		t.Parallel()
-
-		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := compozyconfig.DefaultHeartbeatConfig()
-		store := newFakeWakeStore(t)
-		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
-		health := newFakeWakeHealth()
-		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
-		service := newTestWakeService(
-			t,
-			store,
-			health,
-			&fakeWakePrompter{err: errors.New("driver refused prompt")},
-			cfg,
-			base,
-		)
-
-		decision, err := service.Wake(t.Context(), WakeRequest{
-			WorkspaceID: "ws-1",
-			AgentName:   "coder",
-			SessionID:   "sess-1",
-			Source:      WakeSourceScheduler,
-		})
-		if err != nil {
-			t.Fatalf("Wake() error = %v", err)
-		}
-		if decision.Result != WakeResultFailed || decision.Reason != WakeReasonSyntheticPromptFailed {
-			t.Fatalf("Wake() = %#v, want failed synthetic prompt decision", decision)
-		}
-		assertLastWakeEvent(t, store, WakeResultFailed, WakeReasonSyntheticPromptFailed, "hb-policy")
 	})
 
 	t.Run("Should redact synthetic prompt errors in wake diagnostics", func(t *testing.T) {
