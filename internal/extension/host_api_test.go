@@ -589,6 +589,8 @@ func TestHostAPIHandlerSessionsStopStopsSession(t *testing.T) {
 }
 
 func TestHostAPIHandlerSessionsArchiveRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should archive and unarchive a stopped session", func(t *testing.T) {
 		t.Parallel()
 
@@ -1708,13 +1710,16 @@ func TestHostAPIHandlerListLogsReturnsFilteredEventsWithSince(t *testing.T) {
 func TestHostAPIHandlerListLogsRequiresPermission(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-observe", []string{"observe/health"}, nil)
-
-	_, err := env.call(t, "ext-observe", "logs/list", map[string]any{
-		"workspace_id": env.workspaceID,
-		"limit":        1,
+	checker := &CapabilityChecker{}
+	checker.Register("ext-observe", SourceUser, &Manifest{
+		Permissions: PermissionsConfig{Requires: []string{"observe/health"}},
 	})
+	handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPICapabilityChecker(checker))
+
+	_, err := handler.Handle(t.Context(), "ext-observe", "logs/list", mustMarshalRawMessage(t, map[string]any{
+		"workspace_id": "ws-permission-check",
+		"limit":        1,
+	}))
 	assertCapabilityDenied(t, err, "logs/list")
 	data := decodeRPCData(t, err)
 	required, ok := data["required"].([]any)
@@ -1943,8 +1948,8 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 func TestHostAPIHandlerUnknownMethodReturnsMethodNotFound(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	_, err := env.call(t, "ext-any", "sessions/missing", nil)
+	handler := NewHostAPIHandler(nil, nil, nil, nil)
+	_, err := handler.Handle(t.Context(), "ext-any", "sessions/missing", nil)
 	assertRPCErrorCode(t, err, HostAPIMethodNotFoundCode)
 }
 
@@ -2010,33 +2015,34 @@ func TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder(t *te
 func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-denied", nil, nil)
+	checker := &CapabilityChecker{}
+	checker.Register("ext-denied", SourceUser, &Manifest{})
+	handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPICapabilityChecker(checker))
 
 	tests := []struct {
 		method string
 		params any
 	}{
 		{method: "sessions/list", params: nil},
-		{method: "sessions/create", params: map[string]any{"agent": "coder", "workspace": env.workspaceID}},
+		{method: "sessions/create", params: map[string]any{"agent": "coder", "workspace": "ws-permission-check"}},
 		{
 			method: "sessions/prompt",
-			params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1", "message": "hello"},
+			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1", "message": "hello"},
 		},
-		{method: "sessions/stop", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
-		{method: "sessions/status", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
-		{method: "sessions/events", params: map[string]any{"workspace_id": env.workspaceID, "session_id": "sess-1"}},
+		{method: "sessions/stop", params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"}},
+		{method: "sessions/status", params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"}},
+		{method: "sessions/events", params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"}},
 		{method: "memory/recall", params: map[string]any{"query": "needle"}},
 		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
 		{method: "memory/forget", params: map[string]any{"key": "note"}},
 		{method: "observe/health", params: nil},
 		{method: "logs/list", params: map[string]any{"limit": 1}},
-		{method: "skills/list", params: map[string]any{"workspace": env.workspaceID}},
-		{method: "automation/jobs", params: map[string]any{"scope": "workspace", "workspace_id": env.workspaceID}},
+		{method: "skills/list", params: map[string]any{"workspace": "ws-permission-check"}},
+		{method: "automation/jobs", params: map[string]any{"scope": "workspace", "workspace_id": "ws-permission-check"}},
 		{method: "automation/jobs/create", params: map[string]any{
 			"name":         "host-api-job",
 			"scope":        "workspace",
-			"workspace_id": env.workspaceID,
+			"workspace_id": "ws-permission-check",
 			"agent_name":   "coder",
 			"prompt":       "do work",
 			"schedule": map[string]any{
@@ -2047,7 +2053,7 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 		{method: "automation/triggers/fire", params: map[string]any{
 			"event":        "ext.github.push",
 			"scope":        "workspace",
-			"workspace_id": env.workspaceID,
+			"workspace_id": "ws-permission-check",
 		}},
 	}
 
@@ -2055,7 +2061,7 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 		t.Run(tt.method, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.call(t, "ext-denied", tt.method, tt.params)
+			_, err := handler.Handle(t.Context(), "ext-denied", tt.method, mustMarshalRawMessage(t, tt.params))
 			assertCapabilityDenied(t, err, tt.method)
 		})
 	}
@@ -2066,23 +2072,26 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 	t.Run("Should authorize the session grant while preserving the extension name", func(t *testing.T) {
 		t.Parallel()
 
-		env := newHostAPITestEnv(t)
+		checker := &CapabilityChecker{}
+		handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPICapabilityChecker(checker))
 		key := GlobalInstanceKey("ext-wrapped")
 		grantID := extensionCapabilityGrantID(key, "session-nonce")
-		env.grant(grantID, []string{"observe/health"}, []string{"observe.read"})
+		checker.Register(grantID, SourceUser, &Manifest{
+			Permissions: PermissionsConfig{Requires: []string{"observe/health"}},
+		})
 
 		var handledExtensionName string
-		env.handler.methods["observe/health"] = func(ctx context.Context, _ json.RawMessage) (any, error) {
+		handler.methods["observe/health"] = func(ctx context.Context, _ json.RawMessage) (any, error) {
 			handledExtensionName = hostAPIExtensionNameFromContext(ctx)
 			return observepkg.Health{Status: "ok"}, nil
 		}
 
-		manager := NewManager(nil, WithCapabilityChecker(env.checker))
+		manager := NewManager(nil, WithCapabilityChecker(checker))
 		wrapped := manager.wrapHostHandler(
 			key,
 			"observe/health",
 			&hostAPIResourceSession{Actor: resources.MutationActor{ID: grantID}},
-			env.handler.HandleMethod("observe/health"),
+			handler.HandleMethod("observe/health"),
 		)
 
 		result, err := wrapped(testutil.Context(t), nil)
@@ -2910,8 +2919,9 @@ func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
 func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-denied", nil, nil)
+	checker := &CapabilityChecker{}
+	checker.Register("ext-denied", SourceUser, &Manifest{})
+	handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPICapabilityChecker(checker))
 
 	tests := []struct {
 		name   string
@@ -2939,7 +2949,7 @@ func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.call(t, "ext-denied", tt.method, tt.params)
+			_, err := handler.Handle(t.Context(), "ext-denied", tt.method, mustMarshalRawMessage(t, tt.params))
 			assertCapabilityDenied(t, err, tt.method)
 		})
 	}

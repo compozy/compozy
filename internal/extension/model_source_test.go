@@ -788,7 +788,11 @@ func mustTestModelSource(
 func openModelSourceTestStore(t *testing.T) *globaldb.GlobalDB {
 	t.Helper()
 
-	store, err := globaldb.OpenGlobalDB(testutil.Context(t), filepath.Join(t.TempDir(), "compozy.db"))
+	path := filepath.Join(t.TempDir(), "compozy.db")
+	if err := extensionTestGlobalSeed.Clone(path); err != nil {
+		t.Fatalf("global store seed Clone() error = %v", err)
+	}
+	store, err := globaldb.OpenGlobalDB(testutil.Context(t), path)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
