@@ -275,8 +275,7 @@ func cloneSkillHookDecls(src []hookspkg.HookDecl) []hookspkg.HookDecl {
 		next.SecretEnv = cloneStringMap(decl.SecretEnv)
 		next.Metadata = cloneStringMap(decl.Metadata)
 		if decl.Matcher.ToolReadOnly != nil {
-			value := *decl.Matcher.ToolReadOnly
-			next.Matcher.ToolReadOnly = &value
+			next.Matcher.ToolReadOnly = new(*decl.Matcher.ToolReadOnly)
 		}
 		cloned = append(cloned, next)
 	}

@@ -927,8 +927,7 @@ func TestOAuthRefreshCannotReinsertTokenAfterLogout(t *testing.T) {
 		t.Parallel()
 		refreshStarted := make(chan struct{})
 		releaseRefresh := make(chan struct{})
-		var releaseOnce sync.Once
-		release := func() { releaseOnce.Do(func() { close(releaseRefresh) }) }
+		release := sync.OnceFunc(func() { close(releaseRefresh) })
 		t.Cleanup(release)
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			switch request.URL.Path {

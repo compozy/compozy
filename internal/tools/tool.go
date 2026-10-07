@@ -4,6 +4,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"slices"
 )
 
 // BackendKind identifies the executable backend class.
@@ -436,19 +437,19 @@ func cloneRawMessage(src json.RawMessage) json.RawMessage {
 	if len(src) == 0 {
 		return nil
 	}
-	return append(json.RawMessage(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneStrings(src []string) []string {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]string(nil), src...)
+	return slices.Clone(src)
 }
 
 func cloneToolsets(src []ToolsetID) []ToolsetID {
 	if len(src) == 0 {
 		return nil
 	}
-	return append([]ToolsetID(nil), src...)
+	return slices.Clone(src)
 }

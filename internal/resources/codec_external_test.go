@@ -70,7 +70,7 @@ func TestCodecRegistryExternalContract(t *testing.T) {
 		}
 
 		canonical, validated, err := resources.ValidateAndCanonicalizeIfRegistered(
-			context.Background(),
+			t.Context(),
 			registry,
 			kind,
 			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},

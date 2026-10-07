@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"uuid"
+
 	"github.com/compozy/compozy/internal/version"
-	"github.com/google/uuid"
 	mcpgo "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -61,7 +62,7 @@ func ServeStdio(
 	stdin io.Reader,
 	stdout io.Writer,
 ) (err error) {
-	serveSessionID := uuid.NewString()
+	serveSessionID := uuid.NewV4().String()
 	mcpServer, err := newHostAPIMCPServer(invoker, serveSessionID, workspace)
 	if err != nil {
 		return err

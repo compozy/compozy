@@ -94,7 +94,7 @@ func TestSkillResourceCodecRejectsInvalidSpecs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Encode() error = %v", err)
 			}
-			_, err = codec.DecodeAndValidate(context.Background(), scope, raw)
+			_, err = codec.DecodeAndValidate(t.Context(), scope, raw)
 			if err == nil {
 				t.Fatal("DecodeAndValidate() error = nil, want validation error")
 			}
@@ -130,7 +130,7 @@ func TestSkillResourceCodecRejectsSecretLikeLiteralMCPEnv(t *testing.T) {
 			t.Fatalf("Encode() error = %v", err)
 		}
 		_, err = codec.DecodeAndValidate(
-			context.Background(),
+			t.Context(),
 			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			raw,
 		)
@@ -180,7 +180,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 	}
 
 	registry := NewRegistry(RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(filepath.Dir(skillDir))})
-	discovered, _, err := registry.DiscoverGlobal(context.Background())
+	discovered, _, err := registry.DiscoverGlobal(t.Context())
 	if err != nil {
 		t.Fatalf("DiscoverGlobal() error = %v", err)
 	}
@@ -200,7 +200,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 		t.Fatalf("Encode() error = %v", err)
 	}
 	decoded, err := codec.DecodeAndValidate(
-		context.Background(),
+		t.Context(),
 		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		raw,
 	)
@@ -348,7 +348,7 @@ func TestSkillResourceCodecCanonicalizesHookMetadata(t *testing.T) {
 	}
 
 	decoded, err := codec.DecodeAndValidate(
-		context.Background(),
+		t.Context(),
 		resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-hooks"},
 		raw,
 	)
@@ -401,10 +401,10 @@ func TestResourceAuthorityKeepsFilesystemDiscoveryNonAuthoritative(t *testing.T)
 	if _, ok := registry.Get("resource-backed"); ok {
 		t.Fatal("Get(\"resource-backed\") ok = true after rejected projection")
 	}
-	if err := registry.ApplyResourceRecords(context.Background(), 1, records); err != nil {
+	if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
 		t.Fatalf("ApplyResourceRecords() error = %v", err)
 	}
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
@@ -476,11 +476,11 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 			},
 		},
 	}
-	if err := registry.ApplyResourceRecords(context.Background(), 2, records); err != nil {
+	if err := registry.ApplyResourceRecords(t.Context(), 2, records); err != nil {
 		t.Fatalf("ApplyResourceRecords() error = %v", err)
 	}
 
-	skills, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
+	skills, err := registry.ForWorkspace(t.Context(), &workspacepkg.ResolvedWorkspace{
 		ID:          "/workspace/project",
 		WorkspaceID: "runtime-workspace-identity",
 		ProfileID:   store.DefaultProfileID, ProfileName: "default",
@@ -500,7 +500,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	if !hasSkillNamed(skills, "workspace-profile-skill") {
 		t.Fatal("ForWorkspace() missing workspace-profile-skill")
 	}
-	defaultSkills, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
+	defaultSkills, err := registry.ForWorkspace(t.Context(), &workspacepkg.ResolvedWorkspace{
 		ID: "/workspace/project",
 	})
 	if err != nil {
@@ -511,7 +511,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 		t.Fatalf("ForWorkspace(default profile) skills = %#v, want profile layers", defaultSkills)
 	}
 
-	other, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
+	other, err := registry.ForWorkspace(t.Context(), &workspacepkg.ResolvedWorkspace{
 		ID:        "/workspace/other",
 		ProfileID: store.DefaultProfileID, ProfileName: "default",
 	})
@@ -532,7 +532,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	); err != nil {
 		t.Fatalf("SetEnabled(workspace-skill) error = %v", err)
 	}
-	updated, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
+	updated, err := registry.ForWorkspace(t.Context(), &workspacepkg.ResolvedWorkspace{
 		ID: "/workspace/project",
 	})
 	if err != nil {
@@ -559,7 +559,7 @@ func TestDiscoverWorkspaceLoadsDefinitionsForPublication(t *testing.T) {
 
 	registry := NewRegistry(RegistryConfig{})
 	discovered, snapshots, err := registry.DiscoverWorkspace(
-		context.Background(),
+		t.Context(),
 		&workspacepkg.ResolvedWorkspace{
 			ID: "ws-discover", RootDir: root,
 			WorkspaceID: "ws-discover",

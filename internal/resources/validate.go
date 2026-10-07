@@ -53,8 +53,7 @@ func normalizeDraft(draft RawDraft, maxSpecBytes int) (RawDraft, error) {
 	normalized.ID = strings.TrimSpace(draft.ID)
 	normalized.Scope = draft.Scope.Normalize()
 	if draft.Owner != nil {
-		owner := draft.Owner.Normalize()
-		normalized.Owner = &owner
+		normalized.Owner = new(draft.Owner.Normalize())
 	}
 
 	if err := normalized.Kind.Validate("draft.kind"); err != nil {

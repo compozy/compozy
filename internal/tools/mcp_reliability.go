@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
@@ -210,11 +211,9 @@ func (r *mcpReliability) forgetWorkspace(workspaceID string) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for key := range r.states {
-		if key.WorkspaceID == trimmed {
-			delete(r.states, key)
-		}
-	}
+	maps.DeleteFunc(r.states, func(key store.DeadEntityKey, _ *mcpReliabilityState) bool {
+		return key.WorkspaceID == trimmed
+	})
 }
 
 func (r *mcpReliability) retainActiveSources(scope Scope, sources []SourceRef) {

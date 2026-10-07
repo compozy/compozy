@@ -30,7 +30,7 @@ func TestExposeManager(t *testing.T) {
 		t.Parallel()
 		fixture := newExposureFixture(t, "agents")
 
-		results, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+		results, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("Expose() error = %v", err)
 		}
@@ -45,7 +45,7 @@ func TestExposeManager(t *testing.T) {
 		}
 		createdAt := record.UpdatedAt
 
-		repeated, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+		repeated, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("repeat Expose() error = %v", err)
 		}
@@ -61,7 +61,7 @@ func TestExposeManager(t *testing.T) {
 			t.Fatalf("repeat expose changed record updated_at: before=%v after=%v", createdAt, got)
 		}
 
-		removed, err := fixture.manager.Unexpose(context.Background(), fixture.skill, []string{"agents"})
+		removed, err := fixture.manager.Unexpose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("Unexpose() error = %v", err)
 		}
@@ -103,7 +103,7 @@ func TestExposeManager(t *testing.T) {
 		})
 		for _, tc := range cases {
 			t.Run("Should refuse "+tc.name, func(t *testing.T) {
-				results, err := fixture.manager.Expose(context.Background(), tc.skill, []string{tc.target})
+				results, err := fixture.manager.Expose(t.Context(), tc.skill, []string{tc.target})
 				assertExposureCode(t, err, tc.code)
 				if len(results) != 1 {
 					t.Fatalf("results length = %d", len(results))
@@ -128,7 +128,7 @@ func TestExposeManager(t *testing.T) {
 				t.Parallel()
 				fixture := newExposureFixture(t, "agents")
 				fixture.skill.ResourceScope = resources.ResourceScope{Kind: kind, ID: "profile-a"}
-				_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+				_, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 				assertExposureCode(t, err, ExposureCodeProfileSkillNotExposable)
 				if got := fixture.store.operationCount(); got != 0 {
 					t.Fatalf("store operations = %d, want 0", got)
@@ -154,14 +154,14 @@ func TestExposeManager(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(foreign) error = %v", err)
 		}
-		_, err = fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+		_, err = fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 		assertExposureCode(t, err, ExposureCodeNameConflict)
-		states, err := fixture.manager.Exposures(context.Background(), fixture.skill)
+		states, err := fixture.manager.Exposures(t.Context(), fixture.skill)
 		if err != nil {
 			t.Fatalf("Exposures() error = %v", err)
 		}
 		assertExposureStatus(t, states, "agents", ExposureForeignConflict)
-		_, err = fixture.manager.Unexpose(context.Background(), fixture.skill, []string{"agents"})
+		_, err = fixture.manager.Unexpose(t.Context(), fixture.skill, []string{"agents"})
 		assertExposureCode(t, err, ExposureCodeForeignLink)
 		after, err := os.ReadFile(foreignPath)
 		if err != nil {
@@ -175,7 +175,7 @@ func TestExposeManager(t *testing.T) {
 	t.Run("Should reconcile healthy missing broken and foreign records", func(t *testing.T) {
 		t.Parallel()
 		fixture := newExposureFixture(t, "agents", "claude")
-		_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+		_, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents", "claude"})
 		if err != nil {
 			t.Fatalf("Expose() error = %v", err)
 		}
@@ -193,7 +193,7 @@ func TestExposeManager(t *testing.T) {
 				t.Fatalf("EvalSymlinks(canonical) error = %v", err)
 			}
 			linkTarget := relativeExposureTarget(linkPath, canonical)
-			record, err := fixture.store.CreateSkillExposure(context.Background(), ExposureRecord{
+			record, err := fixture.store.CreateSkillExposure(t.Context(), ExposureRecord{
 				SkillName: fixture.skill.Meta.Name, CanonicalDir: canonical, TargetSlug: target,
 				LinkPath: linkPath, LinkTarget: linkTarget, OwnerScope: store.SkillExposureOwnerUser,
 			})
@@ -223,7 +223,7 @@ func TestExposeManager(t *testing.T) {
 			t.Fatalf("Symlink(foreign) error = %v", err)
 		}
 
-		states, err := fixture.manager.Exposures(context.Background(), fixture.skill)
+		states, err := fixture.manager.Exposures(t.Context(), fixture.skill)
 		if err != nil {
 			t.Fatalf("Exposures() error = %v", err)
 		}
@@ -243,7 +243,7 @@ func TestExposeManager(t *testing.T) {
 		if err := os.WriteFile(conflict, []byte("foreign"), 0o600); err != nil {
 			t.Fatalf("WriteFile(conflict) error = %v", err)
 		}
-		results, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+		results, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents", "claude"})
 		assertExposureCode(t, err, ExposureCodeNameConflict)
 		if len(results) != 2 {
 			t.Fatalf("preflight results count = %d, want 2", len(results))
@@ -254,8 +254,10 @@ func TestExposeManager(t *testing.T) {
 		if got := exposureErrorCode(results[1].Err); got != ExposureCodeNameConflict {
 			t.Fatalf("claude preflight result code = %q, want %q", got, ExposureCodeNameConflict)
 		}
-		var agentsErr *ExposureError
-		if !errors.As(results[0].Err, &agentsErr) || agentsErr.Target != "agents" || agentsErr.Path != "" {
+		if agentsErr, ok := errors.AsType[*ExposureError](
+			results[0].Err,
+		); !ok || agentsErr.Target != "agents" ||
+			agentsErr.Path != "" {
 			t.Fatalf("agents preflight result = %#v, want target-local result without foreign path", results[0])
 		}
 		if fixture.store.recordCount() != 0 {
@@ -279,7 +281,7 @@ func TestExposeManager(t *testing.T) {
 		}
 		faults := &faultExposureFS{exposureFS: osExposureFS{}, failSymlinkPath: failedPath}
 		fixture.manager.fs = faults
-		results, err = fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+		results, err = fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents", "claude"})
 		assertExposureCode(t, err, ExposureCodeLinkUnsupported)
 		if len(results) != 2 || !results[0].RolledBack || exposureErrorCode(results[0].Err) != ExposureCodeRolledBack {
 			t.Fatalf("rollback results = %#v", results)
@@ -308,7 +310,7 @@ func TestExposeManager(t *testing.T) {
 			t.Fatalf("resolveExposeDest(failure path) error = %v", resolveErr)
 		}
 		fixture.manager.fs = &faultExposureFS{exposureFS: osExposureFS{}, failSymlinkPath: failedPath}
-		_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+		_, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents", "claude"})
 		assertExposureCode(t, err, ExposureCodeLinkUnsupported)
 		if _, err := os.Stat(fixture.root("agents")); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("empty self-created agents root remains, error = %v", err)
@@ -318,7 +320,7 @@ func TestExposeManager(t *testing.T) {
 		}
 
 		success := newExposureFixture(t, "agents")
-		results, err := success.manager.Expose(context.Background(), success.skill, []string{"agents"})
+		results, err := success.manager.Expose(t.Context(), success.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("Expose(absent root) error = %v", err)
 		}
@@ -341,7 +343,7 @@ func TestExposeManager(t *testing.T) {
 				}
 			},
 		}
-		_, err = foreign.manager.Expose(context.Background(), foreign.skill, []string{"agents", "claude"})
+		_, err = foreign.manager.Expose(t.Context(), foreign.skill, []string{"agents", "claude"})
 		assertExposureCode(t, err, ExposureCodeLinkUnsupported)
 		if content, err := os.ReadFile(foreignFile); err != nil || string(content) != "foreign" {
 			t.Fatalf("foreign rollback content=%q error=%v", content, err)
@@ -351,25 +353,25 @@ func TestExposeManager(t *testing.T) {
 	t.Run("Should remove link before record and converge after record deletion failure", func(t *testing.T) {
 		t.Parallel()
 		fixture := newExposureFixture(t, "agents")
-		_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+		_, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("Expose() error = %v", err)
 		}
 		record := fixture.store.onlyRecord(t)
 		fixture.store.failDeleteOnce = errors.New("simulated crash")
-		_, err = fixture.manager.Unexpose(context.Background(), fixture.skill, []string{"agents"})
+		_, err = fixture.manager.Unexpose(t.Context(), fixture.skill, []string{"agents"})
 		if err == nil {
 			t.Fatal("Unexpose() error = nil, want simulated crash")
 		}
 		if _, err := os.Lstat(record.LinkPath); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("link exists after delete-record failure, error = %v", err)
 		}
-		states, err := fixture.manager.Exposures(context.Background(), fixture.skill)
+		states, err := fixture.manager.Exposures(t.Context(), fixture.skill)
 		if err != nil {
 			t.Fatalf("Exposures() error = %v", err)
 		}
 		assertExposureStatus(t, states, "agents", ExposureMissing)
-		results, err := fixture.manager.Unexpose(context.Background(), fixture.skill, []string{"agents"})
+		results, err := fixture.manager.Unexpose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil || len(results) != 1 || !results[0].OK {
 			t.Fatalf("retry Unexpose() results=%#v error=%v", results, err)
 		}
@@ -381,7 +383,7 @@ func TestExposeManager(t *testing.T) {
 	t.Run("Should repair a missing owned link and preserve one record", func(t *testing.T) {
 		t.Parallel()
 		fixture := newExposureFixture(t, "agents")
-		_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+		_, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("Expose() error = %v", err)
 		}
@@ -389,12 +391,12 @@ func TestExposeManager(t *testing.T) {
 		if err := os.Remove(record.LinkPath); err != nil {
 			t.Fatalf("Remove(link) error = %v", err)
 		}
-		states, err := fixture.manager.Exposures(context.Background(), fixture.skill)
+		states, err := fixture.manager.Exposures(t.Context(), fixture.skill)
 		if err != nil {
 			t.Fatalf("Exposures() error = %v", err)
 		}
 		assertExposureStatus(t, states, "agents", ExposureMissing)
-		results, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+		results, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("repair Expose() error = %v", err)
 		}
@@ -409,13 +411,13 @@ func TestExposeManager(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 			fixture := newExposureFixture(t, "agents", "claude")
-			_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+			_, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents", "claude"})
 			if err != nil {
 				t.Fatalf("Expose() error = %v", err)
 			}
 			records := fixture.store.recordsSnapshot()
 			fixture.manager.roots = fixture.manager.roots[:1]
-			if err := fixture.manager.CleanupCanonicalDir(context.Background(), fixture.skill.Dir); err != nil {
+			if err := fixture.manager.CleanupCanonicalDir(t.Context(), fixture.skill.Dir); err != nil {
 				t.Fatalf("CleanupCanonicalDir() error = %v", err)
 			}
 			for _, record := range records {
@@ -435,16 +437,18 @@ func TestExposeManager(t *testing.T) {
 	t.Run("Should block removal on an uncleanable owned link and complete on retry", func(t *testing.T) {
 		t.Parallel()
 		fixture := newExposureFixture(t, "agents")
-		_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+		_, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("Expose() error = %v", err)
 		}
 		record := fixture.store.onlyRecord(t)
 		fixture.manager.fs = &faultExposureFS{exposureFS: osExposureFS{}, failRemovePath: record.LinkPath}
-		err = fixture.manager.CleanupCanonicalDir(context.Background(), fixture.skill.Dir)
+		err = fixture.manager.CleanupCanonicalDir(t.Context(), fixture.skill.Dir)
 		assertExposureCode(t, err, ExposureCodeSkillRemoveBlocked)
-		var exposureErr *ExposureError
-		if !errors.As(err, &exposureErr) || !exposureErr.Retryable || exposureErr.Path != record.LinkPath {
+		if exposureErr, ok := errors.AsType[*ExposureError](
+			err,
+		); !ok || !exposureErr.Retryable ||
+			exposureErr.Path != record.LinkPath {
 			t.Fatalf("cleanup error = %#v", exposureErr)
 		}
 		if fixture.store.recordCount() != 1 {
@@ -454,7 +458,7 @@ func TestExposeManager(t *testing.T) {
 			t.Fatalf("blocked cleanup removed canonical dir: %v", err)
 		}
 		fixture.manager.fs = osExposureFS{}
-		if err := fixture.manager.CleanupCanonicalDir(context.Background(), fixture.skill.Dir); err != nil {
+		if err := fixture.manager.CleanupCanonicalDir(t.Context(), fixture.skill.Dir); err != nil {
 			t.Fatalf("retry CleanupCanonicalDir() error = %v", err)
 		}
 		if fixture.store.recordCount() != 0 {
@@ -478,7 +482,7 @@ func TestExposeManager(t *testing.T) {
 		fixture.manager.fs = &faultExposureFS{
 			exposureFS: osExposureFS{}, failSymlinkPath: claudePath, failRemovePath: agentsPath,
 		}
-		results, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+		results, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents", "claude"})
 		assertExposureCode(t, err, ExposureCodeLinkUnsupported)
 		if len(results) != 2 || results[0].CleanupErr == nil || results[0].RolledBack {
 			t.Fatalf("rollback cleanup results = %#v", results)
@@ -499,7 +503,7 @@ func TestExposeManager(t *testing.T) {
 		fixture := newExposureFixture(t, "agents")
 		events := &recordingExposureEvents{}
 		fixture.manager.events = events
-		ctx := WithSourceEventCorrelation(context.Background(), SourceEventCorrelation{
+		ctx := WithSourceEventCorrelation(t.Context(), SourceEventCorrelation{
 			ProfileID: "profile-acting", ActorKind: "agent", ActorID: "agent-7",
 		})
 		ctx = WithConfigGeneration(ctx, 42)
@@ -547,7 +551,7 @@ func TestExposeManager(t *testing.T) {
 				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
 			},
 		}
-		results, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+		results, err := fixture.manager.Expose(t.Context(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("Expose(workspace) error = %v", err)
 		}

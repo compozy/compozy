@@ -8,12 +8,13 @@ import (
 	"strings"
 	"sync"
 
+	"uuid"
+
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extension/surfaces"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/resources"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	"github.com/google/uuid"
 )
 
 const mcpServePrincipalPrefix = "__compozy_mcp_serve__"
@@ -51,7 +52,7 @@ func NewHostAPIFacade(
 		checker:        checker,
 		workspaces:     workspaces,
 		sourceSessions: sourceSessions,
-		salt:           uuid.NewString(),
+		salt:           uuid.NewV4().String(),
 		sessions:       make(map[string]*hostAPIFacadeSession),
 	}
 }
@@ -221,7 +222,7 @@ func (f *HostAPIFacade) session(
 	actor := resources.MutationActor{
 		Kind:         resources.MutationActorKindExtension,
 		ID:           principal,
-		SessionNonce: uuid.NewString(),
+		SessionNonce: uuid.NewV4().String(),
 		Source: resources.ResourceSource{
 			Kind: resources.ResourceSourceKind("mcp_serve"),
 			ID:   principal,

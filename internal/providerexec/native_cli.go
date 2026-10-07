@@ -104,10 +104,10 @@ func normalizedAdapterToken(value string) string {
 	if !strings.HasPrefix(token, "@") {
 		return token
 	}
-	versionSeparator := strings.LastIndex(token, "@")
+	packageName, _, found := strings.CutLast(token, "@")
 	packageSeparator := strings.Index(token, "/")
-	if versionSeparator > packageSeparator {
-		return token[:versionSeparator]
+	if found && len(packageName) > packageSeparator {
+		return packageName
 	}
 	return token
 }

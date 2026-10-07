@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -20,7 +19,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 					"review": "Bundled review skill",
 				}),
 			})
-			if err := registry.LoadAll(context.Background()); err != nil {
+			if err := registry.LoadAll(t.Context()); err != nil {
 				t.Fatalf("LoadAll() error = %v", err)
 			}
 
@@ -34,7 +33,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 				}},
 			}
 
-			skills, err := registry.ForAgent(context.Background(), resolved, compozyconfig.BuiltinCoordinatorAgentName)
+			skills, err := registry.ForAgent(t.Context(), resolved, compozyconfig.BuiltinCoordinatorAgentName)
 			if err != nil {
 				t.Fatalf("ForAgent(coordinator) error = %v", err)
 			}
@@ -60,7 +59,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 					"review": "Bundled review skill",
 				}),
 			})
-			if err := registry.LoadAll(context.Background()); err != nil {
+			if err := registry.LoadAll(t.Context()); err != nil {
 				t.Fatalf("LoadAll() error = %v", err)
 			}
 
@@ -71,7 +70,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 			}
 
 			section, err := provider.PromptAgentSection(
-				context.Background(),
+				t.Context(),
 				mustBuiltinAgentDef(t, compozyconfig.BuiltinCoordinatorAgentName),
 				resolved,
 			)

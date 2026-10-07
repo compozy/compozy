@@ -237,7 +237,7 @@ func protectedResourceMetadataURLs(
 	if err != nil {
 		return urls
 	}
-	atEndpoint := *resource
+	atEndpoint := resource.Clone()
 	atEndpoint.Path = "/.well-known/oauth-protected-resource/" + strings.TrimLeft(
 		resource.Path,
 		"/",
@@ -248,11 +248,11 @@ func protectedResourceMetadataURLs(
 		urls,
 		protectedResourceMetadataCandidate{URL: atEndpoint.String(), ResourceURL: resourceURL},
 	)
-	atRoot := *resource
+	atRoot := resource.Clone()
 	atRoot.Path = "/.well-known/oauth-protected-resource"
 	atRoot.RawQuery = ""
 	atRoot.Fragment = ""
-	rootResource := *resource
+	rootResource := resource.Clone()
 	rootResource.Path = ""
 	rootResource.RawQuery = ""
 	rootResource.Fragment = ""

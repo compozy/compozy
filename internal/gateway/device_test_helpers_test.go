@@ -1,10 +1,11 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"io"
-	"sort"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -77,21 +78,24 @@ func (s *memoryDeviceStore) ListDevices(context.Context) ([]DeviceSession, error
 	for _, record := range s.byID {
 		devices = append(devices, record.Session)
 	}
-	sort.Slice(devices, func(left, right int) bool {
-		leftActive := devices[left].RevokedAt.IsZero()
-		rightActive := devices[right].RevokedAt.IsZero()
+	slices.SortFunc(devices, func(left, right DeviceSession) int {
+		leftActive := left.RevokedAt.IsZero()
+		rightActive := right.RevokedAt.IsZero()
 		if leftActive != rightActive {
-			return leftActive
+			if leftActive {
+				return -1
+			}
+			return 1
 		}
-		leftSeen := devices[left].LastSeenAt
-		rightSeen := devices[right].LastSeenAt
+		leftSeen := left.LastSeenAt
+		rightSeen := right.LastSeenAt
 		if leftSeen.IsZero() != rightSeen.IsZero() {
-			return !leftSeen.IsZero()
+			if !leftSeen.IsZero() {
+				return -1
+			}
+			return 1
 		}
-		if !leftSeen.Equal(rightSeen) {
-			return leftSeen.After(rightSeen)
-		}
-		return devices[left].CreatedAt.After(devices[right].CreatedAt)
+		return cmp.Or(rightSeen.Compare(leftSeen), right.CreatedAt.Compare(left.CreatedAt))
 	})
 	return devices, nil
 }

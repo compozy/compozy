@@ -128,8 +128,7 @@ func (p *policy) currentRefusal() *Refusal {
 	if p.refusal == nil {
 		return nil
 	}
-	refusalCopy := *p.refusal
-	return &refusalCopy
+	return new(*p.refusal)
 }
 
 func planSnapshot(snapshot Snapshot) ExposurePlan {
@@ -139,8 +138,7 @@ func planSnapshot(snapshot Snapshot) ExposurePlan {
 		for j := range snapshot.Providers {
 			provider := snapshot.Providers[j]
 			if provider.Tier == tierPlan.Tier && provider.Desired == DesiredEnabled {
-				providerCopy := provider
-				tierPlan.Provider = &providerCopy
+				tierPlan.Provider = new(provider)
 				break
 			}
 		}

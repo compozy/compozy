@@ -1,11 +1,12 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -113,7 +114,7 @@ func auditDeviceHighlights(devices []DeviceSession, now time.Time) AuditDeviceHi
 			highlights.StaleDeviceIDs = append(highlights.StaleDeviceIDs, strings.TrimSpace(device.ID))
 		}
 	}
-	sort.Strings(highlights.StaleDeviceIDs)
+	slices.Sort(highlights.StaleDeviceIDs)
 	return highlights
 }
 
@@ -150,13 +151,11 @@ func auditFindings(status Status, highlights AuditDeviceHighlights) []AuditFindi
 			Resource:    strings.Join(highlights.StaleDeviceIDs, ","),
 		})
 	}
-	sort.Slice(findings, func(i, j int) bool {
-		left := auditSeverityRank(findings[i].Severity)
-		right := auditSeverityRank(findings[j].Severity)
-		if left != right {
-			return left < right
-		}
-		return findings[i].ID < findings[j].ID
+	slices.SortFunc(findings, func(left, right AuditFinding) int {
+		return cmp.Or(
+			cmp.Compare(auditSeverityRank(left.Severity), auditSeverityRank(right.Severity)),
+			strings.Compare(left.ID, right.ID),
+		)
 	})
 	return findings
 }

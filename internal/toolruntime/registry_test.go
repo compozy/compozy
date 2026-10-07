@@ -19,7 +19,7 @@ func TestRegistryCheckpointsProcessLifecycle(t *testing.T) {
 	t.Run("Should checkpoint and complete one process lifecycle", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := NewMemoryStore()
 		now := fixedClock(time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC))
 		registry := NewRegistry(store, WithNow(now), WithDaemonPID(4242))
@@ -74,7 +74,7 @@ func TestRegistryRegisterValidatesPIDStartTime(t *testing.T) {
 	t.Run("Should reject PID backed registrations when start time cannot be observed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := NewMemoryStore()
 		registry := NewRegistry(store)
 		_, err := registry.Register(ctx, RegisterConfig{
@@ -99,7 +99,7 @@ func TestRegistryCompletionPersistsBeforeRetiringActiveHandle(t *testing.T) {
 	t.Run("Should allow completion retry after transient store update failure", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := &failOnceUpdateStore{
 			MemoryStore: NewMemoryStore(),
 			err:         errors.New("update failed"),
@@ -142,7 +142,7 @@ func TestMemoryStoreProcessStateUpdateContract(t *testing.T) {
 		t.Parallel()
 
 		store := NewMemoryStore()
-		err := store.UpdateProcessRecordState(context.Background(), ProcessStateUpdate{
+		err := store.UpdateProcessRecordState(t.Context(), ProcessStateUpdate{
 			ID:        "proc-missing",
 			State:     ProcessStateCompleted,
 			UpdatedAt: time.Date(2026, 4, 24, 11, 0, 0, 0, time.UTC),
@@ -164,7 +164,7 @@ func TestRegistryReconcileBootRetiresPersistedPriorDaemonProcesses(t *testing.T)
 		func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			store := NewMemoryStore()
 			startedAt := time.Date(2026, 4, 24, 9, 30, 0, 0, time.UTC)
 			for _, record := range []ProcessRecord{
@@ -254,7 +254,7 @@ func TestRegistryReconcileBootRetiresPersistedPriorDaemonProcesses(t *testing.T)
 	t.Run("Should mark a process stale and continue when ownership is lost after validation", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := NewMemoryStore()
 		startedAt := time.Date(2026, 4, 24, 9, 30, 0, 0, time.UTC)
 		if err := store.UpsertProcessRecord(ctx, ProcessRecord{
@@ -308,7 +308,7 @@ func TestRegistryReconcileBootRetiresPersistedPriorDaemonProcesses(t *testing.T)
 	t.Run("Should return interruption failures unrelated to ownership validation", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := NewMemoryStore()
 		startedAt := time.Date(2026, 4, 24, 9, 30, 0, 0, time.UTC)
 		if err := store.UpsertProcessRecord(ctx, ProcessRecord{
@@ -403,7 +403,7 @@ func TestRegistryScopedInterruptSignalsOnlyMatchingLiveRecord(t *testing.T) {
 	t.Run("Should signal only matching live process records", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := NewMemoryStore()
 		registry := NewRegistry(store)
 		signaled := make(map[string]int)
@@ -478,7 +478,7 @@ func TestRegistryInterruptDoesNotSignalRecoveredStalePID(t *testing.T) {
 	t.Run("Should mark recovered stale PIDs without signaling", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := NewMemoryStore()
 		startedAt := time.Date(2026, 4, 24, 9, 0, 0, 0, time.UTC)
 		if err := store.UpsertProcessRecord(ctx, ProcessRecord{
@@ -522,7 +522,7 @@ func TestRegistryInterruptPropagatesLiveCallbackError(t *testing.T) {
 	t.Run("Should return live callback errors", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		registry := NewRegistry(NewMemoryStore())
 		wantErr := errors.New("interrupt failed")
 		_, err := registry.Register(ctx, RegisterConfig{
@@ -576,7 +576,7 @@ func fixedClock(value time.Time) func() time.Time {
 
 func listAllRecords(t *testing.T, store *MemoryStore) []ProcessRecord {
 	t.Helper()
-	records, err := store.ListProcessRecords(context.Background(), ProcessQuery{})
+	records, err := store.ListProcessRecords(t.Context(), ProcessQuery{})
 	if err != nil {
 		t.Fatalf("ListProcessRecords() error = %v", err)
 	}
@@ -624,8 +624,7 @@ func TestRegistryObservationsRequireFreshIdentityVerification(t *testing.T) {
 	if !registry.Observations("session")[0].VerifiedAt.Equal(now) {
 		t.Fatal("reconciliation did not refresh identity")
 	}
-	nextPID := 4567
-	if err := handle.Checkpoint(t.Context(), ProcessCheckpoint{PID: &nextPID}); err != nil {
+	if err := handle.Checkpoint(t.Context(), ProcessCheckpoint{PID: new(4567)}); err != nil {
 		t.Fatal(err)
 	}
 	if !registry.Observations("session")[0].VerifiedAt.IsZero() {

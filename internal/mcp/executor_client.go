@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -175,11 +176,7 @@ func (e *CallExecutor) resolveMCPRequestHeaders(
 	for name, value := range server.Headers {
 		headers.Set(name, value)
 	}
-	names := make([]string, 0, len(server.SecretHeaders))
-	for name := range server.SecretHeaders {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(server.SecretHeaders))
 	for _, name := range names {
 		value, err := e.resolveSecretRef(ctx, server.SecretHeaders[name])
 		if err != nil {
@@ -296,7 +293,7 @@ func mcpServerEnv(env map[string]string) []string {
 			keys = append(keys, key)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	values := make([]string, 0, len(keys))
 	for _, key := range keys {
 		values = append(values, strings.TrimSpace(key)+"="+merged[key])

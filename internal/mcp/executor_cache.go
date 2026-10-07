@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -55,11 +56,9 @@ func (e *CallExecutor) cacheTools(key string, descriptors []toolspkg.MCPToolDesc
 		e.toolCache.entries = make(map[string]mcpToolListCacheEntry)
 	}
 	e.pruneToolProjectionStatesLocked(now)
-	for cachedKey, entry := range e.toolCache.entries {
-		if !now.Before(entry.expiresAt) {
-			delete(e.toolCache.entries, cachedKey)
-		}
-	}
+	maps.DeleteFunc(e.toolCache.entries, func(_ string, entry mcpToolListCacheEntry) bool {
+		return !now.Before(entry.expiresAt)
+	})
 	e.toolCache.entries[key] = mcpToolListCacheEntry{
 		descriptors: cloneMCPToolDescriptors(descriptors),
 		expiresAt:   now.Add(time.Duration(ttlMs) * time.Millisecond),
@@ -181,11 +180,9 @@ func (e *CallExecutor) projectionSourceKey(
 }
 
 func (e *CallExecutor) pruneToolProjectionStatesLocked(now time.Time) {
-	for key, state := range e.toolCache.projectionStates {
-		if !now.Before(state.expiresAt) {
-			delete(e.toolCache.projectionStates, key)
-		}
-	}
+	maps.DeleteFunc(e.toolCache.projectionStates, func(_ string, state mcpToolProjectionState) bool {
+		return !now.Before(state.expiresAt)
+	})
 }
 
 func mcpProjectionSourceKey(source toolspkg.SourceRef, authorizationHeader string) string {

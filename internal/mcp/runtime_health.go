@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -186,10 +187,8 @@ func (r *RuntimeHealthRegistry) EvictInstance(instanceName string, workspaceID s
 	}
 	r.mu.Lock()
 	r.instanceEpochs[instance]++
-	for key := range r.states {
-		if key.instanceKey() == instance {
-			delete(r.states, key)
-		}
-	}
+	maps.DeleteFunc(r.states, func(key RuntimeHealthKey, _ runtimeHealthState) bool {
+		return key.instanceKey() == instance
+	})
 	r.mu.Unlock()
 }

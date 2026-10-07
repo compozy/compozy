@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -2023,8 +2023,8 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 			if err == nil {
 				t.Fatalf("%s input schema accepted rejected payload", descriptor.ID)
 			}
-			var validationErr *jsonschema.ValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+			if !ok {
 				t.Fatalf("%s validation error = %T, want *jsonschema.ValidationError", descriptor.ID, err)
 			}
 			if !validationErrorContainsKind(validationErr, tc.matchesKind) {
@@ -2596,12 +2596,8 @@ func assertSchemaFields(
 	wantRequired []string,
 ) {
 	t.Helper()
-	properties := make([]string, 0, len(schema.Properties))
-	for property := range schema.Properties {
-		properties = append(properties, property)
-	}
-	sort.Strings(properties)
-	sort.Strings(schema.Required)
+	properties := slices.Sorted(maps.Keys(schema.Properties))
+	slices.Sort(schema.Required)
 	if !slices.Equal(properties, wantProperties) {
 		t.Fatalf("%s properties = %#v, want %#v", owner, properties, wantProperties)
 	}
@@ -2615,11 +2611,7 @@ func assertClosedObjectSchema(t *testing.T, owner string, schema nativeObjectSch
 	if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties {
 		t.Fatalf("%s = %#v, want closed object", owner, schema)
 	}
-	gotKeys := make([]string, 0, len(schema.Properties))
-	for key := range schema.Properties {
-		gotKeys = append(gotKeys, key)
-	}
-	sort.Strings(gotKeys)
+	gotKeys := slices.Sorted(maps.Keys(schema.Properties))
 	if !slices.Equal(gotKeys, wantKeys) {
 		t.Fatalf("%s properties = %#v, want %#v", owner, gotKeys, wantKeys)
 	}
@@ -2768,8 +2760,8 @@ func assertNativeLoopRuntimeRulesSchema(
 			if err == nil {
 				t.Fatalf("%s runtime_rules schema accepted invalid payload %s", descriptor.ID, testCase.payload)
 			}
-			var validationErr *jsonschema.ValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+			if !ok {
 				t.Fatalf("%s validation error = %T, want *jsonschema.ValidationError", descriptor.ID, err)
 			}
 			if !validationErrorContainsKind(validationErr, testCase.matchesKind) {

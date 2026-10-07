@@ -168,7 +168,7 @@ func TestReconcileDriverWriteStormCoalescesIntegration(t *testing.T) {
 	}
 	<-firstBuildStarted
 
-	for i := 0; i < 25; i++ {
+	for i := range 25 {
 		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(storm %d) error = %v", i, err)
 		}
@@ -221,7 +221,7 @@ func TestReconcileDriverCloseCancelsInFlightWorkIntegration(t *testing.T) {
 	}
 	<-buildStarted
 
-	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	closeCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	if err := driver.Close(closeCtx); err != nil {
 		t.Fatalf("Close() error = %v", err)

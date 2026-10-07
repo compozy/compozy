@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"slices"
 	"strings"
@@ -194,11 +195,7 @@ func (r *Registry) emitResourceGlobalSkillSummaries(ctx context.Context, project
 }
 
 func (r *Registry) emitResourceWorkspaceSkillSummaries(ctx context.Context, projection resourceSkillProjection) {
-	workspaceIDs := make([]string, 0, len(projection.workspaceSkills))
-	for workspaceID := range projection.workspaceSkills {
-		workspaceIDs = append(workspaceIDs, workspaceID)
-	}
-	slices.Sort(workspaceIDs)
+	workspaceIDs := slices.Sorted(maps.Keys(projection.workspaceSkills))
 	for _, workspaceID := range workspaceIDs {
 		r.logWorkspaceSkillOverrides(
 			projection.globalSkills,
@@ -220,11 +217,7 @@ func (r *Registry) emitResourceWorkspaceSkillSummaries(ctx context.Context, proj
 }
 
 func (r *Registry) emitResourceProfileSkillSummaries(ctx context.Context, projection resourceSkillProjection) {
-	profileIDs := make([]string, 0, len(projection.profileSkills))
-	for profileID := range projection.profileSkills {
-		profileIDs = append(profileIDs, profileID)
-	}
-	slices.Sort(profileIDs)
+	profileIDs := slices.Sorted(maps.Keys(projection.profileSkills))
 	for _, profileID := range profileIDs {
 		r.emitEventSummaries(
 			ctx,
@@ -244,11 +237,7 @@ func (r *Registry) emitResourceWorkspaceProfileSkillSummaries(
 	ctx context.Context,
 	projection resourceSkillProjection,
 ) {
-	workspaceProfileKeys := make([]string, 0, len(projection.workspaceProfileSkills))
-	for key := range projection.workspaceProfileSkills {
-		workspaceProfileKeys = append(workspaceProfileKeys, key)
-	}
-	slices.Sort(workspaceProfileKeys)
+	workspaceProfileKeys := slices.Sorted(maps.Keys(projection.workspaceProfileSkills))
 	for _, key := range workspaceProfileKeys {
 		workspaceID, profileID, ok := strings.Cut(key, "@pf:")
 		if !ok || strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(profileID) == "" {
