@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@compozy/ui";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 import { userEvent } from "@testing-library/user-event";
 import { SessionContextControl } from "../session-context-control";
@@ -266,7 +267,12 @@ describe("Session context", () => {
     "Should render $label without inventing context or a compaction policy",
     async ({ context, label, copy }) => {
       const user = userEvent.setup();
-      render(<SessionContextControl context={deriveSessionContext(context)} onOpen={vi.fn()} />);
+      // This case owns tooltip content, not the primitive's hover delay.
+      render(
+        <TooltipProvider delay={0}>
+          <SessionContextControl context={deriveSessionContext(context)} onOpen={vi.fn()} />
+        </TooltipProvider>
+      );
       await user.hover(screen.getByRole("button", { name: label }));
       expect(await screen.findByRole("tooltip")).toHaveTextContent(copy);
       expect(screen.getByRole("tooltip")).not.toHaveTextContent("summarizes older messages");
@@ -282,7 +288,11 @@ describe("Session context", () => {
       ratio: 1.1,
       stale: true,
     });
-    render(<SessionContextControl context={context} onOpen={vi.fn()} />);
+    render(
+      <TooltipProvider delay={0}>
+        <SessionContextControl context={context} onOpen={vi.fn()} />
+      </TooltipProvider>
+    );
     await user.hover(screen.getByRole("button"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent("110% · 281.6K / 256K");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Updated a while ago");

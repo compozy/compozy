@@ -767,6 +767,11 @@ describe("useOsPaletteRoot", () => {
   });
 
   afterEach(() => {
+    if (vi.isFakeTimers()) {
+      cleanup();
+      paletteQueryClient.clear();
+      vi.useRealTimers();
+    }
     vi.clearAllMocks();
   });
 
@@ -805,6 +810,7 @@ describe("useOsPaletteRoot", () => {
   });
 
   it("Should include the home workspace in global session search", async () => {
+    vi.useFakeTimers();
     paletteMocks.scope = "global";
     paletteMocks.rankSignals = TEST_RANK_SIGNALS;
     paletteMocks.workspaceGroups = [
@@ -820,7 +826,8 @@ describe("useOsPaletteRoot", () => {
 
     act(() => result.current.setQuery("Home target"));
 
-    await waitFor(() => expect(result.current.entities.sessions).toHaveLength(1));
+    await act(async () => vi.advanceTimersByTimeAsync(180));
+    expect(result.current.entities.sessions).toHaveLength(1);
     expect(result.current.entities.sessions[0]?.sessionId).toBe("s-home");
     expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
   });
@@ -1712,7 +1719,8 @@ describe("palette nested views", () => {
     expect(screen.getByText("100 sessions on this page.")).toBeInTheDocument();
     await user.click(screen.getByTestId("os-palette-sessions-next"));
     expect(paletteMocks.nextCatalogPage).toHaveBeenCalledTimes(1);
-    await user.type(input, "Session 211");
+    await user.click(input);
+    await user.paste("Session 211");
     await waitFor(() =>
       expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
         expect.objectContaining({ q: "Session 211", search_fields: "title_agent", limit: 100 })
@@ -2048,6 +2056,11 @@ describe("palette execution surfaces", () => {
     expect(within(panel).getByTestId("os-palette-action-meta.pin")).toBeInTheDocument();
     expect(within(panel).queryByTestId("os-palette-action-primary.run")).not.toBeInTheDocument();
 
+    await user.clear(screen.getByPlaceholderText("Filter actions…"));
+    await user.type(screen.getByPlaceholderText("Filter actions…"), "xyz");
+    expect(screen.getByTestId("os-palette-action-empty")).toHaveTextContent("No actions match");
+    expect(screen.getByTestId("os-palette-action-panel")).toBeInTheDocument();
+
     await user.keyboard("{Meta>}k{/Meta}");
     await waitFor(() =>
       expect(screen.queryByTestId("os-palette-action-panel")).not.toBeInTheDocument()
@@ -2062,17 +2075,6 @@ describe("palette execution surfaces", () => {
     expect(screen.getByTestId("os-palette-command-ext.notes.capture")).toHaveTextContent(
       "Capture note (cap)"
     );
-  });
-
-  it("Should keep a filter that matches nothing open and honest [UT-125]", async () => {
-    const user = userEvent.setup();
-    renderExecutionPalette();
-    await user.keyboard("{Meta>}k{/Meta}");
-    await screen.findByTestId("os-palette-action-panel");
-
-    await user.type(screen.getByPlaceholderText("Filter actions…"), "xyz");
-    expect(screen.getByTestId("os-palette-action-empty")).toHaveTextContent("No actions match");
-    expect(screen.getByTestId("os-palette-action-panel")).toBeInTheDocument();
   });
 
   it("Should pin through the seam and deep-link alias and shortcut to the settings table [UT-126]", async () => {
@@ -2164,7 +2166,8 @@ describe("palette execution surfaces", () => {
     );
   });
 
-  it("Should open in argument mode when the seam asks for arguments [UT-122]", async () => {
+  it("Should enter argument mode, traverse fields and run once every required argument is filled [UT-120, UT-122]", async () => {
+    const user = userEvent.setup();
     requestPaletteArgs(CAPTURE_COMMAND);
     renderExecutionPalette();
 
@@ -2172,12 +2175,6 @@ describe("palette execution surfaces", () => {
     expect(screen.getByTestId("os-palette-arg-title")).toHaveValue("");
     expect(screen.getByTestId("os-palette-arg-title")).toHaveAttribute("placeholder", "Note title");
     expect(screen.queryByPlaceholderText("Search apps, sessions, and actions…")).toBeNull();
-  });
-
-  it("Should traverse fields and run once every required argument is filled [UT-120]", async () => {
-    const user = userEvent.setup();
-    requestPaletteArgs(CAPTURE_COMMAND);
-    renderExecutionPalette();
 
     await user.type(screen.getByTestId("os-palette-arg-title"), "Standup follow-ups");
     await user.tab();

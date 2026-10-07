@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -120,20 +120,22 @@ describe("daemon status query projections", () => {
   });
 
   it("Should report an error after the shared status request fails", async () => {
+    // The status projection owns the failed retry outcome, not wall-clock waiting.
+    vi.useFakeTimers();
     vi.mocked(fetchStatus).mockRejectedValue(new Error("Network error"));
 
-    const { result } = renderHook(() => useDaemonHealth(), {
+    const { result, unmount } = renderHook(() => useDaemonHealth(), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(
-      () => {
-        expect(result.current.connectionStatus).toBe("error");
-      },
-      { timeout: 3_000 }
-    );
-
-    expect(result.current.health).toBeUndefined();
-    expect(fetchStatus).toHaveBeenCalledTimes(2);
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(1_100));
+      expect(result.current.connectionStatus).toBe("error");
+      expect(result.current.health).toBeUndefined();
+      expect(fetchStatus).toHaveBeenCalledTimes(2);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 });
