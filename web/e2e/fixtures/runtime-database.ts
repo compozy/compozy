@@ -42,14 +42,21 @@ async function createTemplate(repoRoot: string): Promise<string> {
   templateDirs.add(dir);
   const output = path.join(dir, databaseName);
   try {
-    await execFileAsync(
-      "go",
-      ["run", "-p", "2", "./web/e2e/fixtures/runtime-database-seeder", "--output", output],
-      {
-        cwd: repoRoot,
-        maxBuffer: 20 * 1024 * 1024,
-      }
-    );
+    const override = process.env.COMPOZY_TEST_DATABASE_SEEDER_BIN?.trim();
+    const binaryPath = override
+      ? path.resolve(repoRoot, override)
+      : path.join(dir, process.platform === "win32" ? "database-seeder.exe" : "database-seeder");
+    const execOptions = { cwd: repoRoot, maxBuffer: 20 * 1024 * 1024 };
+    // Mage builds once before starting Playwright workers. Direct fixture runs
+    // build once per cached template, outside subsequent per-test database copies.
+    if (!override) {
+      await execFileAsync(
+        "go",
+        ["build", "-p", "2", "-o", binaryPath, "./web/e2e/fixtures/runtime-database-seeder"],
+        execOptions
+      );
+    }
+    await execFileAsync(binaryPath, ["--output", output], execOptions);
     return output;
   } catch (error) {
     await rm(dir, { force: true, recursive: true });
