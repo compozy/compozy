@@ -372,11 +372,6 @@ func TestLoadManifest_ParsesTOMLAndJSONEquivalently(t *testing.T) {
 			t.Fatalf("unexpected JSON manifest\n got: %#v\nwant: %#v", *gotJSON, want)
 		}
 	})
-	t.Run("ShouldParseTOMLAndJSONEquivalently", func(t *testing.T) {
-		if !reflect.DeepEqual(*gotTOML, *gotJSON) {
-			t.Fatalf("TOML and JSON manifests differ\n toml: %#v\n json: %#v", *gotTOML, *gotJSON)
-		}
-	})
 }
 
 func TestLoadManifestResourcePathCompatibility(t *testing.T) {

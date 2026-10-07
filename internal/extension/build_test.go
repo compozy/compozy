@@ -390,36 +390,6 @@ path = "skills"
 		}
 	})
 
-	t.Run("Should Produce Byte Identical Immutable Generations", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		writeGoBuildFixture(t, dir)
-		runner := newBuildTestRunner(new(validDescribePayload()))
-		first, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
-		if err != nil {
-			t.Fatalf("buildBundle(first) error = %v", err)
-		}
-		firstBytes, err := os.ReadFile(first.ManifestPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(first manifest) error = %v", err)
-		}
-		second, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
-		if err != nil {
-			t.Fatalf("buildBundle(second) error = %v", err)
-		}
-		secondBytes, err := os.ReadFile(second.ManifestPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(second manifest) error = %v", err)
-		}
-		if first.GenerationHash != second.GenerationHash || first.GenerationDir != second.GenerationDir {
-			t.Fatalf("generation mismatch: first=%#v second=%#v", first, second)
-		}
-		if !slices.Equal(firstBytes, secondBytes) {
-			t.Fatal("generated extension.toml bytes differ across identical builds")
-		}
-	})
-
 	t.Run("Should copy declared resources and emit them deterministically", func(t *testing.T) {
 		t.Parallel()
 
@@ -491,8 +461,15 @@ expr = "0 * * * *"
 		if err != nil {
 			t.Fatalf("buildBundle(second) error = %v", err)
 		}
-		if first.GenerationHash != second.GenerationHash {
-			t.Fatalf("generation hash = %q then %q, want stable", first.GenerationHash, second.GenerationHash)
+		if first.GenerationHash != second.GenerationHash || first.GenerationDir != second.GenerationDir {
+			t.Fatalf("generation mismatch: first=%#v second=%#v", first, second)
+		}
+		secondManifest, err := os.ReadFile(second.ManifestPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(second manifest) error = %v", err)
+		}
+		if !slices.Equal(firstManifest, secondManifest) {
+			t.Fatal("generated extension.toml bytes differ across identical builds")
 		}
 	})
 

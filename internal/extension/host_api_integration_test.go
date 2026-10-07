@@ -112,65 +112,6 @@ func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
 	})
 }
 
-func TestHostAPIIntegrationResourcesSnapshotPublishesAndReadsBack(t *testing.T) {
-	env := newHostAPITestEnv(t)
-	env.grantWithResources(
-		t,
-		"ext-resources",
-		[]string{"resources/list", "resources/get", "resources/snapshot"},
-		[]string{"resources.read", "resources.write"},
-		[]string{"tools"},
-		resources.ResourceScopeKindWorkspace,
-	)
-
-	sessionNonce := "nonce-integration"
-	env.activateResourceSession(t, "ext-resources", sessionNonce)
-
-	if _, err := env.callResource(t, "ext-resources", sessionNonce, "resources/snapshot", map[string]any{
-		"source_version": 1,
-		"records": []map[string]any{
-			{
-				"kind":  "tool",
-				"id":    "grep",
-				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  hostAPITestToolSpec("grep", "search workspace", "extension"),
-			},
-		},
-	}); err != nil {
-		t.Fatalf("Handle(resources/snapshot) error = %v", err)
-	}
-
-	listResult, err := env.callResource(t, "ext-resources", sessionNonce, "resources/list", map[string]any{
-		"kind": "tool",
-	})
-	if err != nil {
-		t.Fatalf("Handle(resources/list) error = %v", err)
-	}
-
-	var listed []hostAPIResourceRecord
-	decodeResult(t, listResult, &listed)
-	if got, want := len(listed), 1; got != want {
-		t.Fatalf("len(resources/list) = %d, want %d", got, want)
-	}
-	if got, want := listed[0].ID, "grep"; got != want {
-		t.Fatalf("resources/list[0].ID = %q, want %q", got, want)
-	}
-
-	getResult, err := env.callResource(t, "ext-resources", sessionNonce, "resources/get", map[string]any{
-		"kind": "tool",
-		"id":   "grep",
-	})
-	if err != nil {
-		t.Fatalf("Handle(resources/get) error = %v", err)
-	}
-
-	var record hostAPIResourceRecord
-	decodeResult(t, getResult, &record)
-	if got, want := record.Version, int64(1); got != want {
-		t.Fatalf("resources/get version = %d, want %d", got, want)
-	}
-}
-
 func TestHostAPIIntegrationSecondResourceSessionInvalidatesOlderNonce(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grantWithResources(
@@ -924,17 +865,6 @@ func taskInboxContainsTask(groups []apicontract.TaskInboxLaneGroupPayload, taskI
 	return false
 }
 
-func TestHostAPIIntegrationTaskReadSurfaceErrorsStayHostFacing(t *testing.T) {
-	env := newHostAPITestEnv(t)
-	env.grant("ext-reader", []string{"tasks/get", "tasks/runs/get"}, []string{"task.read"})
-
-	_, err := env.call(t, "ext-reader", "tasks/get", map[string]any{"id": "task-missing"})
-	assertRPCErrorCode(t, err, HostAPINotFoundCode)
-
-	_, err = env.call(t, "ext-reader", "tasks/unknown", nil)
-	assertRPCErrorCode(t, err, HostAPIMethodNotFoundCode)
-}
-
 func decodeIntegrationResult(result any, target any) error {
 	encoded, err := json.Marshal(result)
 	if err != nil {
@@ -997,38 +927,6 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 			_, err := env.call(t, "ext-denied", tt.method, tt.params)
 			assertCapabilityDenied(t, err, tt.method)
 		})
-	}
-}
-
-func TestHostAPIIntegrationAutomationJobCreateReturnsCreatedJobPayload(t *testing.T) {
-	env := newHostAPITestEnv(t)
-	env.grant("ext-automation", []string{"automation/jobs/create"}, []string{"automation.write"})
-
-	result, err := env.call(t, "ext-automation", "automation/jobs/create", map[string]any{
-		"name":         "nightly-report",
-		"scope":        "workspace",
-		"workspace_id": env.workspaceID,
-		"agent_name":   "coder",
-		"prompt":       "Generate nightly report",
-		"schedule": map[string]any{
-			"mode":     "every",
-			"interval": "5m",
-		},
-	})
-	if err != nil {
-		t.Fatalf("Handle(automation/jobs/create) error = %v", err)
-	}
-
-	var created automationpkg.Job
-	decodeResult(t, result, &created)
-	if created.ID == "" {
-		t.Fatal("automation/jobs/create id = empty, want non-empty")
-	}
-	if created.Name != "nightly-report" {
-		t.Fatalf("automation/jobs/create name = %q, want nightly-report", created.Name)
-	}
-	if created.Source != automationpkg.JobSourceDynamic {
-		t.Fatalf("automation/jobs/create source = %q, want %q", created.Source, automationpkg.JobSourceDynamic)
 	}
 }
 

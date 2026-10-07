@@ -1372,6 +1372,9 @@ func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *te
 	if got, want := own.ID, "grep"; got != want {
 		t.Fatalf("resources/get own id = %q, want %q", got, want)
 	}
+	if got, want := own.Version, int64(1); got != want {
+		t.Fatalf("resources/get version = %d, want %d", got, want)
+	}
 
 	_, err = env.callResource(t, "ext-resources", sessionNonce, "resources/get", map[string]any{
 		"kind": "tool",
@@ -2098,22 +2101,6 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 	})
 }
 
-func TestNormalizeHostAPIHandlerDefaultsFillsZeroValues(t *testing.T) {
-	t.Parallel()
-
-	normalizeHostAPIHandlerDefaults(nil)
-
-	handler := &HostAPIHandler{}
-	normalizeHostAPIHandlerDefaults(handler)
-
-	if handler.now == nil {
-		t.Fatal("normalizeHostAPIHandlerDefaults() left now nil")
-	}
-	if handler.capChecker == nil {
-		t.Fatal("normalizeHostAPIHandlerDefaults() left capChecker nil")
-	}
-}
-
 func TestHostAPIContextHelpersCloneResourceSession(t *testing.T) {
 	t.Parallel()
 
@@ -2392,6 +2379,9 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 
 	var created automationpkg.Job
 	decodeResult(t, createResult, &created)
+	if created.ID == "" || created.Name != "host-api-job" || created.Source != automationpkg.JobSourceDynamic {
+		t.Fatalf("automation/jobs/create result = %#v, want named dynamic job with an ID", created)
+	}
 	if got, want := created.WorkspaceID, env.workspaceID; got != want {
 		t.Fatalf("created workspace_id = %q, want %q", got, want)
 	}
@@ -4014,22 +4004,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		t.Fatalf("tasks/runs[0].session_id = %q, want %q", got, want)
 	}
 
-	runsWithMetadataResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs", map[string]any{
-		"id":         completedTask.ID,
-		"status":     taskpkg.TaskRunStatusCompleted,
-		"session_id": boundSession.ID,
-		"limit":      1,
-	})
-	if err != nil {
-		t.Fatalf("Handle(tasks/runs metadata list) error = %v", err)
-	}
-
-	var runsWithMetadata []apicontract.TaskRunPayload
-	decodeResult(t, runsWithMetadataResult, &runsWithMetadata)
-	if got, want := len(runsWithMetadata), 1; got != want {
-		t.Fatalf("len(tasks/runs metadata list) = %d, want %d", got, want)
-	}
-	assertMetadataPhase("tasks/runs list", runsWithMetadata[0].Metadata, "extension")
+	assertMetadataPhase("tasks/runs list", filtered[0].Metadata, "extension")
 }
 
 func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {

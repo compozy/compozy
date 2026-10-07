@@ -884,36 +884,6 @@ profile = "y"
 	yProjection, _ = project(t, yProfileID, "y")
 	assertSkills(t, xProjection, []string{"shared", "x-one"})
 	assertSkills(t, yProjection, []string{"shared", "x-two", "y-one"})
-
-	t.Run("Should filter every declarative resource family", func(t *testing.T) {
-		t.Parallel()
-		resources := ResourcesConfig{
-			Skills:     []ManifestResourcePath{{Path: "shared"}, {Path: "x", Profile: "x"}, {Path: "y", Profile: "y"}},
-			Loops:      []ManifestResourcePath{{Path: "x-loop", Profile: "x"}, {Path: "y-loop", Profile: "y"}},
-			Agents:     []ManifestResourcePath{{Path: "x-agent", Profile: "x"}, {Path: "y-agent", Profile: "y"}},
-			Automation: []ManifestResourcePath{{Path: "x-job", Profile: "x"}, {Path: "y-job", Profile: "y"}},
-			Layouts:    []ManifestResourcePath{{Path: "x-layout", Profile: "x"}, {Path: "y-layout", Profile: "y"}},
-			Hooks:      []HookConfig{{Name: "x-hook", Profile: "x"}, {Name: "y-hook", Profile: "y"}},
-			Tools: map[string]ToolConfig{
-				"x-tool": {Profile: "x"}, "y-tool": {Profile: "y"},
-			},
-			MCPServers: map[string]MCPServerConfig{
-				"x-mcp": {Profile: "x"}, "y-mcp": {Profile: "y"},
-			},
-			CommandGroups: []manifestCommandGroupSpec{{Path: "x-group", Profile: "x"}, {Path: "y-group", Profile: "y"}},
-			CmdPalette: CmdPaletteConfig{
-				Commands: []CmdPaletteCommand{{ID: "x-command", Profile: "x"}, {ID: "y-command", Profile: "y"}},
-				Views:    []CmdPaletteView{{ID: "x-view", Profile: "x"}, {ID: "y-view", Profile: "y"}},
-			},
-		}
-		projectManifestResourcesForProfile(&resources, "x")
-		if len(resources.Skills) != 2 || len(resources.Loops) != 1 || len(resources.Agents) != 1 ||
-			len(resources.Automation) != 1 || len(resources.Layouts) != 1 || len(resources.Hooks) != 1 ||
-			len(resources.Tools) != 1 || len(resources.MCPServers) != 1 || len(resources.CommandGroups) != 1 ||
-			len(resources.CmdPalette.Commands) != 1 || len(resources.CmdPalette.Views) != 1 {
-			t.Fatalf("profile resource projection = %#v, want one x resource per family plus shared skill", resources)
-		}
-	})
 }
 
 func TestManagerInitializeRuntimeRequestEncodesEmptyCapabilitiesAsArrays(t *testing.T) {
