@@ -708,7 +708,7 @@ test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers a
   await expect(await desktop.product()).toHaveTitle(/CompozyOS/u);
 });
 
-test("E2E-008: native product chrome and window geometry survive relaunch", async ({
+test("E2E-008 E2E-009: native chrome, geometry, and menu and shortcut zoom survive relaunch", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
@@ -735,55 +735,7 @@ test("E2E-008: native product chrome and window geometry survive relaunch", asyn
       visible: true,
     });
   }
-  await desktop.app.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getAllWindows().find(candidate => {
-      const url = candidate.webContents.getURL();
-      return url.startsWith("http://") || url.startsWith("https://");
-    });
-    if (!window) throw new Error("Product window missing.");
-    window.setBounds({ x: 80, y: 70, width: 960, height: 720 });
-    window.maximize();
-  });
-  await desktop.closeShell();
-  const maximized = await launchDesktop({ home: desktop.home });
-  await maximized.product();
-  expect(
-    await maximized.app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().some(window => window.isMaximized())
-    )
-  ).toBe(true);
-  await maximized.closeShell();
-  await writeFile(
-    join(desktop.home, "desktop-window.json"),
-    `${JSON.stringify({ x: 999999, y: 999999, width: 960, height: 720, maximized: false, zoom_level: 0 })}\n`,
-    { mode: 0o600 }
-  );
-  const clamped = await launchDesktop({ home: desktop.home });
-  await clamped.product();
-  expect(
-    await clamped.app.evaluate(({ BrowserWindow, screen }) => {
-      const window = BrowserWindow.getAllWindows().find(candidate => {
-        const url = candidate.webContents.getURL();
-        return url.startsWith("http://") || url.startsWith("https://");
-      });
-      if (!window) return false;
-      const bounds = window.getBounds();
-      const area = screen.getDisplayMatching(bounds).workArea;
-      return (
-        bounds.x >= area.x &&
-        bounds.y >= area.y &&
-        bounds.x + bounds.width <= area.x + area.width &&
-        bounds.y + bounds.height <= area.y + area.height
-      );
-    })
-  ).toBe(true);
-});
-
-test("E2E-009: menu and shortcut zoom share one persisted bounded value", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
+  // Zoom and geometry share the same native window persistence and relaunch.
   await desktop.app.evaluate(({ Menu }) => {
     const view = Menu.getApplicationMenu()?.items.find(item => item.label === "View");
     if (!view?.submenu) throw new Error("The View menu is missing.");
@@ -816,11 +768,26 @@ test("E2E-009: menu and shortcut zoom share one persisted bounded value", async 
         )
     )
     .toBe(1);
+
+  await desktop.app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find(candidate => {
+      const url = candidate.webContents.getURL();
+      return url.startsWith("http://") || url.startsWith("https://");
+    });
+    if (!window) throw new Error("Product window missing.");
+    window.setBounds({ x: 80, y: 70, width: 960, height: 720 });
+    window.maximize();
+  });
   await desktop.closeShell();
-  const relaunched = await launchDesktop({ home: desktop.home });
-  await relaunched.product();
+  const maximized = await launchDesktop({ home: desktop.home });
+  await maximized.product();
   expect(
-    await relaunched.app.evaluate(({ BrowserWindow }) =>
+    await maximized.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().some(window => window.isMaximized())
+    )
+  ).toBe(true);
+  expect(
+    await maximized.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
         .find(window => {
           const url = window.webContents.getURL();
@@ -829,6 +796,31 @@ test("E2E-009: menu and shortcut zoom share one persisted bounded value", async 
         ?.webContents.getZoomLevel()
     )
   ).toBe(1);
+  await maximized.closeShell();
+  await writeFile(
+    join(desktop.home, "desktop-window.json"),
+    `${JSON.stringify({ x: 999999, y: 999999, width: 960, height: 720, maximized: false, zoom_level: 0 })}\n`,
+    { mode: 0o600 }
+  );
+  const clamped = await launchDesktop({ home: desktop.home });
+  await clamped.product();
+  expect(
+    await clamped.app.evaluate(({ BrowserWindow, screen }) => {
+      const window = BrowserWindow.getAllWindows().find(candidate => {
+        const url = candidate.webContents.getURL();
+        return url.startsWith("http://") || url.startsWith("https://");
+      });
+      if (!window) return false;
+      const bounds = window.getBounds();
+      const area = screen.getDisplayMatching(bounds).workArea;
+      return (
+        bounds.x >= area.x &&
+        bounds.y >= area.y &&
+        bounds.x + bounds.width <= area.x + area.width &&
+        bounds.y + bounds.height <= area.y + area.height
+      );
+    })
+  ).toBe(true);
 });
 
 test("native Edit shortcuts copy and paste editable renderer content", async ({
