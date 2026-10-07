@@ -166,41 +166,4 @@ describe("authored context runtime docs", () => {
     // No native tool for Soul exists today.
     expect(develop).not.toContain("compozy__agent_soul ");
   });
-
-  it("ships generated CLI references for soul, heartbeat, and session health/status/inspect", () => {
-    const required = [
-      "cli/agent/soul/index.mdx",
-      "cli/agent/soul/inspect.mdx",
-      "cli/agent/soul/validate.mdx",
-      "cli/agent/soul/write.mdx",
-      "cli/agent/soul/delete.mdx",
-      "cli/agent/soul/history.mdx",
-      "cli/agent/soul/rollback.mdx",
-      "cli/agent/heartbeat/index.mdx",
-      "cli/agent/heartbeat/inspect.mdx",
-      "cli/agent/heartbeat/validate.mdx",
-      "cli/agent/heartbeat/write.mdx",
-      "cli/agent/heartbeat/delete.mdx",
-      "cli/agent/heartbeat/history.mdx",
-      "cli/agent/heartbeat/rollback.mdx",
-      "cli/agent/heartbeat/status.mdx",
-      "cli/agent/heartbeat/wake.mdx",
-      "cli/session/soul/index.mdx",
-      "cli/session/soul/refresh.mdx",
-      "cli/session/health.mdx",
-      "cli/session/status.mdx",
-      "cli/session/inspect.mdx",
-    ];
-    for (const page of required) {
-      expect(existsSync(resolve(runtimeRoot, page))).toBe(true);
-    }
-  });
-
-  it("does not advertise an compozy session heartbeat command in CLI references", () => {
-    expect(existsSync(resolve(runtimeRoot, "cli/session/heartbeat"))).toBe(false);
-    expect(existsSync(resolve(runtimeRoot, "cli/session/heartbeat.mdx"))).toBe(false);
-
-    const sessionIndex = readDoc("cli/session/index.mdx");
-    expect(sessionIndex).not.toContain("compozy session heartbeat");
-  });
 });

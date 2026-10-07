@@ -17,21 +17,10 @@ function TooltipExample({ delay = 0 }: { delay?: number }) {
 }
 
 describe("Tooltip", () => {
-  it("Should not render the tooltip content until the trigger is hovered/focused", () => {
-    render(<TooltipExample />);
-    expect(screen.queryByText(/Keyboard shortcut/)).not.toBeInTheDocument();
-  });
-
-  it("Should open on focus and render the content", async () => {
-    const user = userEvent.setup();
-    render(<TooltipExample delay={0} />);
-    await user.tab();
-    await waitFor(() => expect(screen.getByText(/Keyboard shortcut/)).toBeInTheDocument());
-  });
-
   it("Should close when the trigger is blurred", async () => {
     const user = userEvent.setup();
     render(<TooltipExample delay={0} />);
+    expect(screen.queryByText(/Keyboard shortcut/)).not.toBeInTheDocument();
     await user.tab();
     await waitFor(() => expect(screen.getByText(/Keyboard shortcut/)).toBeInTheDocument());
     await user.tab();

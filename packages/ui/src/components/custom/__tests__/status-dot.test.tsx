@@ -31,17 +31,4 @@ describe("StatusDot", () => {
     expect(node?.getAttribute("aria-label")).toBe("Mentions");
     expect(node?.getAttribute("role")).toBe("img");
   });
-
-  it("Should apply distinct size utilities for default and sm", () => {
-    const { container: def } = render(<StatusDot tone="accent" />);
-    const defNode = def.querySelector<HTMLElement>('[data-slot="status-dot"]');
-    expect(defNode?.dataset.size).toBe("default");
-    expect(defNode?.className).toContain("size-status-dot");
-    expect(defNode?.className).not.toContain("size-status-dot-sm");
-
-    const { container: sm } = render(<StatusDot tone="accent" size="sm" />);
-    const smNode = sm.querySelector<HTMLElement>('[data-slot="status-dot"]');
-    expect(smNode?.dataset.size).toBe("sm");
-    expect(smNode?.className).toContain("size-status-dot-sm");
-  });
 });

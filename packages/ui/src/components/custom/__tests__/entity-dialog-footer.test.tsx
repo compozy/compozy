@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { Check } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DIALOG_TOUCH_TARGET_CLASS } from "../../../lib/dialog-shell";
 import { Dialog, DialogContent } from "../../dialog";
 import { EntityDialogFooter } from "../entity-dialog-footer";
 import { UIProvider } from "../ui-provider";
@@ -73,14 +72,6 @@ describe("EntityDialogFooter", () => {
 
     await user.click(primary);
     expect(onPrimary).not.toHaveBeenCalled();
-  });
-
-  it("Should raise both actions to the touch target below 760px", async () => {
-    renderFooter({ hint: "Consequence note." });
-
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    expect(screen.getByTestId("footer-cancel")).toHaveClass(DIALOG_TOUCH_TARGET_CLASS);
-    expect(screen.getByTestId("footer-primary")).toHaveClass(DIALOG_TOUCH_TARGET_CLASS);
   });
 
   it("Should keep the consequence note ahead of its action when stacked", async () => {

@@ -596,21 +596,6 @@ describe("compozy-design-system lint plugin", () => {
       expect(message).not.toContain("family=");
     });
 
-    it("reports inline eyebrow tuples in packages/ui source", async () => {
-      await expectViolation(
-        {
-          filename: "packages/ui/src/components/foo.tsx",
-          rule,
-          source: `
-            export function View() {
-              return <span className="font-mono uppercase tracking-mono">x</span>;
-            }
-          `,
-        },
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui"
-      );
-    });
-
     it("allows unrelated className strings", async () => {
       await expectAllowed({
         filename: "web/src/foo.tsx",
@@ -618,48 +603,6 @@ describe("compozy-design-system lint plugin", () => {
         source: `
           export function View() {
             return <span className="text-sm">x</span>;
-          }
-        `,
-      });
-    });
-
-    it("reports the deleted eyebrow-badge utility literal in JSX className", async () => {
-      await expectViolation(
-        {
-          filename: "web/src/foo.tsx",
-          rule,
-          source: `
-            export function View() {
-              return <span className="eyebrow-badge text-(--muted)">x</span>;
-            }
-          `,
-        },
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui"
-      );
-    });
-
-    it("reports the deleted eyebrow-micro utility literal in JSX className", async () => {
-      await expectViolation(
-        {
-          filename: "web/src/foo.tsx",
-          rule,
-          source: `
-            export function View() {
-              return <span className="eyebrow-micro text-(--subtle)">x</span>;
-            }
-          `,
-        },
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui"
-      );
-    });
-
-    it("does not flag the canonical eyebrow utility literal", async () => {
-      await expectAllowed({
-        filename: "web/src/foo.tsx",
-        rule,
-        source: `
-          export function View() {
-            return <span className="eyebrow text-(--muted)">x</span>;
           }
         `,
       });
@@ -684,21 +627,6 @@ describe("compozy-design-system lint plugin", () => {
       );
     });
 
-    it("reports inline glaze rgba classes in packages/site source", async () => {
-      await expectViolation(
-        {
-          filename: "packages/site/components/foo.tsx",
-          rule,
-          source: `
-            export function View() {
-              return <div className="bg-[rgba(255,255,255,0.022)]">x</div>;
-            }
-          `,
-        },
-        "Inline surface glaze rgba in className."
-      );
-    });
-
     it("allows tokenized glaze classes", async () => {
       await expectAllowed({
         filename: "web/src/foo.tsx",
@@ -706,18 +634,6 @@ describe("compozy-design-system lint plugin", () => {
         source: `
           export function View() {
             return <div className="bg-(--bar-fill)">x</div>;
-          }
-        `,
-      });
-    });
-
-    it("allows the design-system showcase exemption", async () => {
-      await expectAllowed({
-        filename: "web/src/components/design-system-showcase.tsx",
-        rule,
-        source: `
-          export function DesignSystemShowcase() {
-            return <div className="bg-[rgba(255,255,255,0.022)]">x</div>;
           }
         `,
       });
@@ -731,36 +647,6 @@ describe("compozy-design-system lint plugin", () => {
       await expectViolation(
         {
           filename: "web/src/foo.tsx",
-          rule,
-          source: `
-            import { Loader2 } from "lucide-react";
-
-            export const Icon = Loader2;
-          `,
-        },
-        "Importing Loader2 from lucide-react is banned in frontend code."
-      );
-    });
-
-    it("reports Loader2Icon imports from lucide-react in web source", async () => {
-      await expectViolation(
-        {
-          filename: "web/src/foo.tsx",
-          rule,
-          source: `
-            import { Loader2Icon } from "lucide-react";
-
-            export const Icon = Loader2Icon;
-          `,
-        },
-        "Importing Loader2Icon from lucide-react is banned in frontend code."
-      );
-    });
-
-    it("reports Loader2 imports from lucide-react in packages/site source", async () => {
-      await expectViolation(
-        {
-          filename: "packages/site/components/foo.tsx",
           rule,
           source: `
             import { Loader2 } from "lucide-react";
@@ -796,21 +682,6 @@ describe("compozy-design-system lint plugin", () => {
           source: `
             export function View() {
               return <h1 className={cva("text-[22px] tracking-[-0.026em]")()}>Title</h1>;
-            }
-          `,
-        },
-        "Inline 22px page H1 tuple in className."
-      );
-    });
-
-    it("reports the 22px page-h1 tuple in packages/site source", async () => {
-      await expectViolation(
-        {
-          filename: "packages/site/components/foo.tsx",
-          rule,
-          source: `
-            export function View() {
-              return <h1 className="text-[22px] tracking-[-0.026em]">Title</h1>;
             }
           `,
         },

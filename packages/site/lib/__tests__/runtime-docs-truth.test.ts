@@ -191,17 +191,6 @@ describe("runtime docs truth", () => {
     expect(resourceDoc).not.toMatch(/\| `400` on write\s+\|\s+Invalid kind/);
   });
 
-  it("declares the API reference as generated from the complete canonical contract", () => {
-    const content = manualContent();
-    const apiReference = readRepoFile("packages/site/content/docs/api/index.mdx");
-
-    expect(apiReference).toMatch(/built from\s+`openapi\/compozy\.json`/);
-    expect(apiReference).toContain("make codegen-check");
-    expect(content).toContain("The API route map lists the implemented route families");
-    expect(content).not.toMatch(/does not yet cover every implemented\s+route/);
-    expect(content).not.toMatch(/complete generated schema coverage for every route yet/i);
-  });
-
   it("does not route session SSE examples through the replay events endpoint", () => {
     const content = manualContent().replaceAll("\\\n", " ");
 

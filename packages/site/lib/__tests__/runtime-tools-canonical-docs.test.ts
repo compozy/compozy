@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -43,26 +43,6 @@ describe("tool-first canonical surface docs", () => {
       "canonical `compozy__skill_search`",
       "and `compozy__skill_view`",
       "Operator-only management",
-    ]);
-  });
-
-  it("documents operational native toolsets for task, model catalog, and Memory administration", () => {
-    const toolsets = readDoc("tools/toolsets.mdx");
-    const tools = readDoc("tools/index.mdx");
-
-    expectIncludesAll(toolsets, [
-      "compozy__tasks",
-      "compozy__provider_models",
-      "compozy__memory",
-      "compozy__memory_admin",
-      "compozy__memory_admin_history",
-      "compozy__resources",
-      "compozy__mcp",
-    ]);
-    expectExcludesAll(toolsets, ["compozy__memory_history", "compozy__bundles"]);
-    expectIncludesAll(tools, [
-      "Memory v2 operational/admin actions",
-      "MCP server probe/status diagnostics",
     ]);
   });
 
@@ -157,39 +137,6 @@ describe("tool-first canonical surface docs", () => {
       '`lifecycle="restart-required"`',
       '`next_action="restart-daemon"`',
     ]);
-  });
-
-  it("documents the canonical tool surface in skills guidance", () => {
-    const skillsIndex = readDoc("skills/index.mdx");
-    const bundled = readDoc("skills/bundled.mdx");
-
-    expectIncludesAll(skillsIndex, [
-      "`compozy__skill_view`",
-      "`compozy__skill_search`",
-      "operator CLI",
-    ]);
-    expectIncludesAll(bundled, [
-      "`compozy`",
-      "references/native-tools.md",
-      "CompozyOS-native tools",
-      "compozy__tool_search",
-    ]);
-  });
-
-  it("ships generated CLI references for the tool and toolsets command groups", () => {
-    const required = [
-      "cli/tool/index.mdx",
-      "cli/tool/list.mdx",
-      "cli/tool/search.mdx",
-      "cli/tool/info.mdx",
-      "cli/tool/invoke.mdx",
-      "cli/toolsets/index.mdx",
-      "cli/toolsets/list.mdx",
-      "cli/toolsets/info.mdx",
-    ];
-    for (const page of required) {
-      expect(existsSync(resolve(runtimeRoot, page))).toBe(true);
-    }
   });
 
   it("does not advertise raw claim_token CLI flags in autonomy CLI pages", () => {

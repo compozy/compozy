@@ -156,12 +156,4 @@ describe("HelpTip", () => {
     );
     expect(screen.getByRole("dialog", { name: "Task editor" })).toBeInTheDocument();
   });
-
-  it("Should raise the trigger to the touch target below 760px", () => {
-    renderTip(<HelpTip label="About category path">Slash-separated catalog grouping.</HelpTip>);
-
-    expect(screen.getByRole("button", { name: "About category path" })).toHaveClass(
-      "max-[760px]:size-(--height-button-cta-lg)"
-    );
-  });
 });

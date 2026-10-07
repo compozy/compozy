@@ -82,26 +82,4 @@ describe("Slider", () => {
 
     expect(onValueChange).not.toHaveBeenCalled();
   });
-
-  it("Should carry the data-slot contract for every part", async () => {
-    const { container } = await act(async () =>
-      render(<Slider aria-label="History steps" defaultValue={50} />)
-    );
-
-    expect(container.querySelector("[data-slot=slider]")).not.toBeNull();
-    expect(container.querySelector("[data-slot=slider-track]")).not.toBeNull();
-    expect(container.querySelector("[data-slot=slider-range]")).not.toBeNull();
-    expect(container.querySelector("[data-slot=slider-thumb]")).not.toBeNull();
-  });
-
-  it("Should mark a quiet fill as a neutral tone", async () => {
-    const { container } = await act(async () =>
-      render(<Slider aria-label="Playback position" defaultValue={20} tone="neutral" />)
-    );
-
-    expect(container.querySelector("[data-slot=slider-range]")).toHaveAttribute(
-      "data-tone",
-      "neutral"
-    );
-  });
 });

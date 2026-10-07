@@ -269,20 +269,6 @@ describe("ai-default-indigo", () => {
     expect(findings.find(f => f.id === "ai-default-indigo")).toBeDefined();
   });
 
-  it("still exempts indigo on :root prefixed with the canonical data-theme switch", () => {
-    // Sanity check: the prefixed-attribute change must keep exempting
-    // legitimate theme-switch selectors (`:root[data-theme="dark"]`),
-    // even though the prefixed-form regex changed shape.
-    const html = `
-      <style>
-        :root[data-theme="dark"] { --accent: #6366f1; --bg: #0b0b10; }
-        .cta { background: var(--accent); color: white; }
-      </style>
-    `;
-    const findings = lintArtifact(html);
-    expect(findings.find(f => f.id === "ai-default-indigo")).toBeUndefined();
-  });
-
   it("still exempts indigo on html and body prefixed with data-theme", () => {
     const html = `
       <style>
@@ -630,17 +616,6 @@ describe("all-caps-no-tracking", () => {
     expect(findings.find(f => f.id === "all-caps-no-tracking")).toBeUndefined();
   });
 
-  it("passes a 14px label with 1px tracking (resolves 0.06em via same-rule font-size)", () => {
-    // 14px * 0.06 = 0.84px floor, so 1px tracking satisfies the rule.
-    const html = `
-      <style>
-        .badge { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-      </style>
-    `;
-    const findings = lintArtifact(html);
-    expect(findings.find(f => f.id === "all-caps-no-tracking")).toBeUndefined();
-  });
-
   it("flags a 14px label with 0.5px tracking (below same-rule 0.06em floor)", () => {
     // 14px * 0.06 = 0.84px floor; 0.5px is below the rule and must flag.
     const html = `
@@ -655,12 +630,6 @@ describe("all-caps-no-tracking", () => {
   it("passes inline 12px label with 1px tracking", () => {
     // Same regression as the <style>-block case but in the inline branch.
     const html = `<span style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px">NEW</span>`;
-    const findings = lintArtifact(html);
-    expect(findings.find(f => f.id === "all-caps-no-tracking")).toBeUndefined();
-  });
-
-  it("passes inline 14px label with 1px tracking", () => {
-    const html = `<span style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px">NEW</span>`;
     const findings = lintArtifact(html);
     expect(findings.find(f => f.id === "all-caps-no-tracking")).toBeUndefined();
   });

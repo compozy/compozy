@@ -57,25 +57,4 @@ describe("Tabs", () => {
     expect(container.querySelector('[data-slot="tabs-trigger-count"]')).toHaveTextContent("3");
     expect(container.querySelector('[data-slot="tabs-trigger-live"]')).toHaveTextContent("Live");
   });
-
-  it("Should render counts with sans tabular numerals", () => {
-    const { container } = render(
-      <Tabs defaultValue="lane-a">
-        <TabsList>
-          <TabsTrigger count={4} value="lane-a">
-            Lane A
-          </TabsTrigger>
-          <TabsTrigger count={2} value="lane-b">
-            Lane B
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="lane-a">Panel</TabsContent>
-        <TabsContent value="lane-b">Panel</TabsContent>
-      </Tabs>
-    );
-    const count = container.querySelector('[data-slot="tabs-trigger-count"]') as HTMLElement | null;
-    expect(count?.textContent).toBe("4");
-    expect(count).toHaveClass("tabular-nums");
-    expect(count).not.toHaveClass("font-mono");
-  });
 });

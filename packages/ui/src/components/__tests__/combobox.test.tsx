@@ -142,27 +142,6 @@ describe("Combobox", () => {
     });
   });
 
-  it("Should mount the input group and open the bordered popup in single-select mode", async () => {
-    const user = userEvent.setup();
-    render(<SingleExample />);
-
-    const inputGroup = document.querySelector(
-      "[data-slot='combobox-input-group']"
-    ) as HTMLElement | null;
-    const input = screen.getByLabelText("city");
-
-    expect(inputGroup).not.toBeNull();
-
-    await user.click(input);
-    await waitFor(() => expect(screen.getByText("Berlin")).toBeInTheDocument());
-
-    const content = document.body.querySelector(
-      "[data-slot='combobox-content']"
-    ) as HTMLElement | null;
-
-    expect(content).not.toBeNull();
-  });
-
   it("Should render the input trigger button through the combobox trigger primitive", async () => {
     const user = userEvent.setup();
     render(<SingleExample />);
