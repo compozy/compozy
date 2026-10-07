@@ -11,7 +11,6 @@ import {
 
 const STORYBOOK_PORT = 6108;
 const STORY_MODULE_PATH = "/src/systems/loops/components/stories/loop-run-page.stories.tsx";
-const RUN_PAGE = "systems-loops-components-looprunpage";
 const RUN_ROUTES = "systems-loops-routes-loopruns";
 const LOOP_EDITOR = "systems-loops-components-loopeditor";
 
@@ -35,64 +34,9 @@ async function openStory(page: Page, storyId: string): Promise<void> {
 }
 
 test.describe("Human requests on the run page", () => {
-  test("E2E-020: an ask renders its schema form and reports the daemon's field errors", async ({
+  test("E2E-022: answering a request does not optimistically paint a resolution", async ({
     page,
   }) => {
-    test.setTimeout(180_000);
-    await openStory(page, `${RUN_PAGE}--pending-requests`);
-
-    const cards = page.getByTestId("loop-request-card");
-    await expect(cards).toHaveCount(1);
-    await expect(page.getByTestId("loop-request-progress")).toHaveText("Question 1 of 2");
-    await expect(page.getByTestId("loop-request-prompt")).toContainText(
-      "Which regions ship first?"
-    );
-    await page.getByTestId("loop-request-details").click();
-    await expect(page.getByTestId("loop-request-context")).toBeVisible();
-    await expect(page.getByTestId("loop-request-context-fetch")).toBeVisible();
-
-    const askCard = cards.first();
-    await expect(askCard.getByTestId("loop-request-submit")).toBeEnabled();
-
-    await openStory(page, `${RUN_PAGE}--request-validation-failure`);
-    await expect(page.getByTestId("loop-request-field-error-regions")).toContainText(
-      "At least one region is required."
-    );
-    await expect(page.getByTestId("loop-request-submit").first()).toBeEnabled();
-  });
-
-  test("E2E-021: a review shows proposed args and only the persisted decisions", async ({
-    page,
-  }) => {
-    await openStory(page, `${RUN_PAGE}--pending-requests`);
-
-    await page.getByTestId("loop-request-next").click();
-    await expect(page.getByTestId("loop-request-progress")).toHaveText("Question 2 of 2");
-    const reviewCard = page.getByTestId("loop-request-card");
-    await expect(reviewCard.getByTestId("loop-review-proposed-args")).toBeVisible();
-
-    for (const decision of ["approve", "edit", "reject", "respond"]) {
-      await expect(reviewCard.getByTestId(`loop-request-decision-${decision}`)).toBeVisible();
-    }
-    await expect(reviewCard.getByTestId("loop-request-decision-escalate")).toHaveCount(0);
-
-    await reviewCard.getByTestId("loop-request-decision-edit").click();
-    await expect(reviewCard.getByTestId("loop-review-proposed-args")).toBeVisible();
-  });
-
-  test("E2E-022: resolved and refused requests render outcomes, never a form", async ({ page }) => {
-    await openStory(page, `${RUN_PAGE}--resolved-requests`);
-
-    const resolutions = page.getByTestId("loop-request-resolution");
-    await expect(resolutions.first()).toBeVisible();
-    await expect(page.getByTestId("loop-request-submit")).toHaveCount(0);
-
-    await openStory(page, `${RUN_PAGE}--request-already-answered`);
-    await expect(page.getByTestId("loop-request-refusal")).toContainText("already answered");
-
-    await openStory(page, `${RUN_PAGE}--request-answer-pending`);
-    await expect(page.getByTestId("loop-request-submit").first()).toBeDisabled();
-
     await openStory(page, `${RUN_ROUTES}--run-requests`);
     const card = page.getByTestId("loop-request-card").first();
     await expect(card).toBeVisible();
@@ -112,20 +56,6 @@ test.describe("Human requests on the run page", () => {
     await expect(card.getByTestId("loop-request-resolution")).toHaveCount(0);
     await expect(submit).toBeEnabled();
   });
-});
-
-test("E2E-024: the timeline renders the new graph-completion row families", async ({ page }) => {
-  await openStory(page, `${RUN_PAGE}--pending-requests`);
-
-  const story = page.getByTestId("loop-run-story");
-  await expect(story).toBeVisible();
-  const rows = story.getByTestId(/^loop-run-beat-/);
-  await expect(rows.first()).toBeVisible();
-
-  const timeline = await story.innerText();
-  for (const fragment of ["standard", "Which regions ship first?", "render-notes"]) {
-    expect(timeline).toContain(fragment);
-  }
 });
 
 test("E2E-029: editor grammar round-trips and reports a missing route default", async ({

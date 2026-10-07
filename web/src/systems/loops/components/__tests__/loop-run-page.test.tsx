@@ -2292,3 +2292,162 @@ describe("Loop run dialogs and diff", () => {
     expect(screen.getByTestId("loop-diff-empty")).toBeVisible();
   });
 });
+
+// E2E-020/021/024 presentation belongs to these real components, independent of a browser.
+describe("Loop request and timeline presentation", () => {
+  it("E2E-020 / E2E-021: Should render ask errors and navigate to the persisted review decisions", () => {
+    const scenario = graphEngFixtures.pendingRequestsScenario();
+    const props = buildScenarioProps(scenario);
+    const cardProps = {
+      run: props.run,
+      request: null,
+      fallbackFacts: [],
+      showApproval: false,
+      requests: props.requests,
+      onDecision: vi.fn(),
+    };
+    const { rerender } = render(<LoopRunNeedsYouCard {...cardProps} />);
+    expect(screen.getAllByTestId("loop-request-card")).toHaveLength(1);
+    expect(screen.getByTestId("loop-request-progress")).toHaveTextContent("Question 1 of 2");
+    expect(screen.getByTestId("loop-request-prompt")).toHaveTextContent(
+      "Which regions ship first?"
+    );
+    fireEvent.click(screen.getByTestId("loop-request-details"));
+    expect(screen.getByTestId("loop-request-context")).toBeVisible();
+    expect(screen.getByTestId("loop-request-context-fetch")).toBeVisible();
+    expect(screen.getByTestId("loop-request-submit")).toBeEnabled();
+    rerender(
+      <LoopRunNeedsYouCard
+        {...cardProps}
+        requestState={{
+          engagedKey: "3:confirm-rollout:0",
+          fieldErrors: { regions: "At least one region is required." },
+        }}
+      />
+    );
+    expect(screen.getByTestId("loop-request-field-error-regions")).toHaveTextContent(
+      "At least one region is required."
+    );
+    expect(screen.getByTestId("loop-request-submit")).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("loop-request-next"));
+    expect(screen.getByTestId("loop-request-progress")).toHaveTextContent("Question 2 of 2");
+    expect(screen.getByTestId("loop-review-proposed-args")).toBeVisible();
+    for (const decision of ["approve", "edit", "reject", "respond"]) {
+      expect(screen.getByTestId(`loop-request-decision-${decision}`)).toBeVisible();
+    }
+    expect(screen.queryByTestId("loop-request-decision-escalate")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-request-decision-edit"));
+    expect(screen.getByTestId("loop-review-proposed-args")).toBeVisible();
+  });
+
+  it("E2E-022: Should show recorded outcomes, daemon refusals and pending submission state", () => {
+    const settled = buildScenarioProps(graphEngFixtures.resolvedRequestsScenario());
+    const pending = buildScenarioProps(graphEngFixtures.pendingRequestsScenario());
+    const common = { request: null, fallbackFacts: [], showApproval: false, onDecision: vi.fn() };
+    const { rerender } = render(
+      <LoopRunNeedsYouCard
+        key="settled"
+        {...common}
+        run={settled.run}
+        requests={settled.requests}
+      />
+    );
+    expect(screen.getAllByTestId("loop-request-resolution")[0]).toBeVisible();
+    expect(screen.queryByTestId("loop-request-submit")).not.toBeInTheDocument();
+    rerender(
+      <LoopRunNeedsYouCard
+        key="refused"
+        {...common}
+        run={pending.run}
+        requests={pending.requests}
+        requestState={{
+          engagedKey: "3:apply-migration:0",
+          refusal: "Someone already answered this request.",
+        }}
+      />
+    );
+    expect(screen.getByTestId("loop-request-refusal")).toHaveTextContent("already answered");
+    rerender(
+      <LoopRunNeedsYouCard
+        key="pending"
+        {...common}
+        run={pending.run}
+        requests={pending.requests}
+        requestState={{ engagedKey: "3:confirm-rollout:0", isAnswerPending: true }}
+      />
+    );
+    expect(screen.getByTestId("loop-request-submit")).toBeDisabled();
+  });
+
+  it("E2E-024: Should render graph-completion timeline rows from the durable projection", () => {
+    const props = buildScenarioProps(graphEngFixtures.pendingRequestsScenario());
+    if (!props.storyPaging) throw new Error("Graph-completion fixture requires story paging");
+    render(<LoopRunStory beats={props.registers.beats} paging={props.storyPaging} />);
+    const story = screen.getByTestId("loop-run-story");
+    expect(story).toBeVisible();
+    expect(within(story).getAllByTestId(/^loop-run-beat-/)[0]).toBeVisible();
+    for (const fragment of ["standard", "Which regions ship first?", "render-notes"]) {
+      expect(story).toHaveTextContent(fragment);
+    }
+  });
+});
+
+// Invariant: reduced motion removes a genuinely live DAG pulse while every
+// roster state retains both its readable name and glyph. Owner: run-page components.
+describe("E2E-019: run graph motion and non-color state signals", () => {
+  it("Should unmount a live graph pulse when reduced motion is enabled", async () => {
+    const { MotionConfig } = await import("motion/react");
+    const dag = buildRunDag({
+      graph: {
+        nodes: ["prepare", "execute"].map(id => ({
+          id,
+          nodeClass: "action" as const,
+          kind: "run-agent",
+          isGate: false,
+          eventsCount: 0,
+          routes: [],
+          hasAskExpect: false,
+        })),
+        edges: [{ from: "prepare", to: "execute" }],
+      },
+      nodes: [
+        makeRosterNode("prepare", "succeeded", { generation: 1 }),
+        makeRosterNode("execute", "running", { generation: 1 }),
+      ],
+      rollups: [],
+      round: 1,
+    });
+    const onSelect = vi.fn();
+    const { rerender } = render(
+      <MotionConfig reducedMotion="never">
+        <LoopRunDag dag={dag} onSelect={onSelect} selection={null} />
+      </MotionConfig>
+    );
+    expect(screen.getByTestId("loop-dag-edge-pulse")).toBeVisible();
+
+    rerender(
+      <MotionConfig reducedMotion="always">
+        <LoopRunDag dag={dag} onSelect={onSelect} selection={null} />
+      </MotionConfig>
+    );
+    expect(screen.queryByTestId("loop-dag-edge-pulse")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-dag-node-execute")).toHaveAttribute("data-state", "running");
+  });
+
+  it("Should pair every accessible roster state name with its visible glyph", () => {
+    render(
+      <>
+        {LOOP_ROSTER_STATES.map(state => (
+          <LoopNodeStateChip chip={loopRosterStateChip(state)} key={state} />
+        ))}
+      </>
+    );
+    for (const state of LOOP_ROSTER_STATES) {
+      const chip = screen.getByTestId(`loop-state-chip-${state}`);
+      expect(chip).toHaveAccessibleName(loopRosterStateChip(state).label);
+      expect(chip).toHaveTextContent(loopRosterStateChip(state).label);
+      expect(chip.querySelectorAll("svg")).toHaveLength(1);
+    }
+  });
+});

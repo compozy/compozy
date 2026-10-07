@@ -13,6 +13,7 @@ import {
 } from "../fixtures/selectors";
 import {
   appWindow,
+  ensureAppWindow,
   openAppWindow,
   setGlobalScope,
   sessionWindow,
@@ -679,178 +680,184 @@ test.describe("Loop record legibility", () => {
   });
 
   // E2E-010 (US-001, US-001.EC-2, US-003, US-003.EC-1)
-  test("Loop records leave the default Tasks list, board, dashboard and inbox", async ({
-    appPage,
-    browserArtifacts,
-    runtime,
-  }) => {
-    const seeded = await seedLoopRecords(runtime, appPage);
-    const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
-    const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
-
-    // This workspace holds nothing but the loop run's records, so the calm read
-    // is genuinely empty — no mechanical row leaks in to fill it (US-001.EC-2).
-    const loopOnly = await runtime.requestJSON<CatalogProbe>(calmCatalogPath(seeded.workspaceId));
-    expect(loopOnly.tasks).toHaveLength(0);
-    expect(loopOnly.page.total).toBe(0);
-
-    const trueEmpty = tasksWin.getByTestId("tasks-empty-state");
-    await expect(trueEmpty).toBeVisible();
-    await expect(trueEmpty).toContainText("No tasks in default yet");
-    await expect(tasksWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
-    await expect(tasksUI.taskCard(seeded.coordinatorTaskId)).toHaveCount(0);
-    await expect(tasksUI.taskCard(seeded.cellTaskId)).toHaveCount(0);
-    await browserArtifacts.captureScreenshot("tasks-loop-only-true-empty", appPage);
-
-    // Now give the workspace one real work item and prove the exclusion is a
-    // filter, not an emptiness: work shows, loop records still do not.
-    const workItem = await runtime.requestJSON<{ task: { id: string } }>("/api/tasks", {
-      method: "POST",
-      body: JSON.stringify({
-        description: "Work item that must survive the Loop exclusion.",
-        identifier: "TASK-CALM-1",
-        owner: { kind: "human", ref: "qa-operator" },
-        priority: "medium",
-        scope: "workspace",
-        title: "Review the loop legibility pass",
-        workspace: seeded.workspaceId,
-      }),
-    });
-
-    const calm = await runtime.requestJSON<CatalogProbe>(calmCatalogPath(seeded.workspaceId));
-    expect(calm.tasks.map(task => task.id)).toEqual([workItem.task.id]);
-    expect(calm.tasks.some(task => task.loop)).toBe(false);
-    expect(calm.page.total).toBe(1);
-    // Facets are computed over the same filtered set the rows come from, so a
-    // group header can never claim more than the list can show (US-001.AC-3).
-    expect(calm.facets.statuses.reduce((total, facet) => total + facet.count, 0)).toBe(
-      calm.page.total
-    );
-
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    const listWin = appWindow(appPage, "tasks");
-    const listUI = tasksOperatorSelectors(listWin, appPage);
-    await expect(listWin.getByTestId("tasks-list-surface")).toBeVisible();
-    await expect(listUI.taskCard(workItem.task.id)).toBeVisible();
-    await expect(listWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
-    await expect(listWin.getByTestId(`task-card-${seeded.coordinatorTaskId}`)).toHaveCount(0);
-    await expect(listWin.getByTestId(`task-card-${seeded.cellTaskId}`)).toHaveCount(0);
-    await browserArtifacts.captureScreenshot("tasks-loop-calm-default", appPage);
-
-    // Second projection, same population: no loop cards on the board.
-    await listUI.modeKanban.click();
-    await expect(listWin.getByTestId("tasks-kanban-board")).toBeVisible();
-    await expect(listWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
-    await expect(listWin.getByTestId(`task-card-${seeded.cellTaskId}`)).toHaveCount(0);
-    await browserArtifacts.captureScreenshot("tasks-loop-kanban-default", appPage);
-
-    // Aggregates answer the same question over the same population (US-003.AC-1).
-    const dashboard = await runtime.requestJSON<DashboardProbe>(
-      `/api/observe/tasks/dashboard?scope=workspace&workspace=${encodeURIComponent(seeded.workspaceId)}`
-    );
-    const breakdownTotal = dashboard.dashboard.status_breakdown.reduce(
-      (total, entry) => total + entry.count,
-      0
-    );
-    expect(breakdownTotal).toBe(1);
-
-    await listUI.modeDashboard.click();
-    await expect(listUI.dashboardView).toBeVisible();
-    // Status-agnostic on purpose: what must hold is that the breakdown counts the
-    // one work item and none of the loop records, whatever status it settles in.
-    await expect(listWin.getByTestId("tasks-dashboard-status-breakdown-total")).toHaveText(
-      "total 1"
-    );
-    await browserArtifacts.captureScreenshot("tasks-loop-dashboard-default", appPage);
-
-    // The loop's escalations route through the loop lane, never the inbox
-    // (US-003.AC-2 / EC-1).
-    const inbox = await runtime.requestJSON<InboxProbe>(
-      `/api/observe/tasks/inbox?workspace=${encodeURIComponent(seeded.workspaceId)}`
-    );
-    const inboxTaskIds = inbox.inbox.groups.flatMap(group =>
-      (group.items ?? []).map(item => item.task.id)
-    );
-    expect(inboxTaskIds).not.toContain(seeded.coordinatorTaskId);
-    expect(inboxTaskIds).not.toContain(seeded.cellTaskId);
-
-    await listUI.modeInbox.click();
-    await expect(listUI.inboxView).toBeVisible();
-    await expect(listWin.getByTestId(`task-card-${seeded.cellTaskId}`)).toHaveCount(0);
-    await expect(listWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
-  });
-
   // E2E-011 (US-002, US-002.AC-3, US-002.EC-1)
-  test("the reveal filter states its own empty, distinguishes records, links to the run and never persists", async ({
+  test("E2E-010 / E2E-011: Loop records stay out of default Tasks and reveal only for the current context", async ({
     appPage,
     browserArtifacts,
     runtime,
   }) => {
-    const prepared = await prepareLoopWorkspace(runtime, appPage);
+    const prepared =
+      await test.step("E2E-011: reveal filter is empty before any Loop run exists", async () => {
+        const prepared = await prepareLoopWorkspace(runtime, appPage);
 
-    // Reveal-empty is asserted against a workspace that genuinely holds no Loop
-    // records yet — before any run exists, not by filtering one away.
-    const emptyWin = await openAppWindow(appPage, "Tasks", "tasks");
-    await expect(emptyWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    await emptyWin.getByTestId("tasks-records-filter-loop").click();
-    const revealEmpty = emptyWin.getByTestId("tasks-list-surface-loop-empty");
-    await expect(revealEmpty).toBeVisible();
-    await expect(revealEmpty).toContainText("No loop steps in this project");
-    await expect(revealEmpty).toContainText("Switch back to Tasks to see your work.");
-    // The filter-scoped empty replaces the generic one rather than sitting beside it.
-    await expect(emptyWin.getByTestId("tasks-list-surface-empty")).toHaveCount(0);
-    await expect(emptyWin.getByTestId("tasks-empty-state")).toHaveCount(0);
-    await browserArtifacts.captureScreenshot("tasks-loop-reveal-empty", appPage);
+        // Reveal-empty is asserted against a workspace that genuinely holds no Loop
+        // records yet — before any run exists, not by filtering one away.
+        const emptyWin = await openAppWindow(appPage, "Tasks", "tasks");
+        await expect(emptyWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
+          "aria-pressed",
+          "true"
+        );
+        await emptyWin.getByTestId("tasks-records-filter-loop").click();
+        const revealEmpty = emptyWin.getByTestId("tasks-list-surface-loop-empty");
+        await expect(revealEmpty).toBeVisible();
+        await expect(revealEmpty).toContainText("No loop steps in this project");
+        await expect(revealEmpty).toContainText("Switch back to Tasks to see your work.");
+        // The filter-scoped empty replaces the generic one rather than sitting beside it.
+        await expect(emptyWin.getByTestId("tasks-list-surface-empty")).toHaveCount(0);
+        await expect(emptyWin.getByTestId("tasks-empty-state")).toHaveCount(0);
+        await browserArtifacts.captureScreenshot("tasks-loop-reveal-empty", appPage);
 
-    // Its action is the way out of the filter it named.
-    await emptyWin.getByRole("button", { name: "Show tasks" }).click();
-    await expect(emptyWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    await expect(emptyWin.getByTestId("tasks-list-surface-loop-empty")).toHaveCount(0);
-
+        // Its action is the way out of the filter it named.
+        await emptyWin.getByRole("button", { name: "Show tasks" }).click();
+        await expect(emptyWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
+          "aria-pressed",
+          "true"
+        );
+        await expect(emptyWin.getByTestId("tasks-list-surface-loop-empty")).toHaveCount(0);
+        return prepared;
+      });
     const seeded = await seedLoopRecords(runtime, appPage, prepared);
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    const tasksWin = appWindow(appPage, "tasks");
+    await test.step("Loop records leave the default Tasks list, board, dashboard and inbox", async () => {
+      const tasksWin = await ensureAppWindow(appPage, "Tasks", "tasks");
+      const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
 
-    await expect(tasksWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    await tasksWin.getByTestId("tasks-records-filter-loop").click();
+      // This workspace holds nothing but the loop run's records, so the calm read
+      // is genuinely empty — no mechanical row leaks in to fill it (US-001.EC-2).
+      const loopOnly = await runtime.requestJSON<CatalogProbe>(calmCatalogPath(seeded.workspaceId));
+      expect(loopOnly.tasks).toHaveLength(0);
+      expect(loopOnly.page.total).toBe(0);
 
-    const coordinatorRow = tasksWin.getByTestId(`task-loop-row-${seeded.coordinatorTaskId}`);
-    await expect(coordinatorRow).toBeVisible();
-    await expect(coordinatorRow.locator('[data-slot="task-loop-row-identity"]')).toContainText(
-      seeded.loopName
-    );
-    // Plain words lead; the machine id is never the row's primary text.
-    await expect(coordinatorRow.locator('[data-slot="task-loop-row-identity"]')).not.toContainText(
-      seeded.coordinatorTaskId
-    );
-    await expect(coordinatorRow.locator('[data-slot="task-loop-row-role"]')).toHaveText("Loop run");
-    const cellRow = tasksWin.getByTestId(`task-loop-row-${seeded.cellTaskId}`);
-    await expect(cellRow.locator('[data-slot="task-loop-row-role"]')).toHaveText("Loop step");
-    await expect(cellRow.locator('[data-slot="task-loop-row-identity"]')).toContainText("step ");
-    await browserArtifacts.captureScreenshot("tasks-loop-revealed", appPage);
+      const trueEmpty = tasksWin.getByTestId("tasks-empty-state");
+      await expect(trueEmpty).toBeVisible();
+      await expect(trueEmpty).toContainText("No tasks in default yet");
+      await expect(tasksWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
+      await expect(tasksUI.taskCard(seeded.coordinatorTaskId)).toHaveCount(0);
+      await expect(tasksUI.taskCard(seeded.cellTaskId)).toHaveCount(0);
+      await browserArtifacts.captureScreenshot("tasks-loop-only-true-empty", appPage);
 
-    // Activation lands on the run page — the observability home for loop work.
-    await cellRow.locator("a").first().click();
-    await expect(appPage).toHaveURL(new RegExp(`/loop-runs/${seeded.runId}`));
-    await expect(appWindow(appPage, "loops").getByTestId("loop-run-detail-content")).toBeVisible();
-    await browserArtifacts.captureScreenshot("tasks-loop-revealed-run-page", appPage);
+      // Now give the workspace one real work item and prove the exclusion is a
+      // filter, not an emptiness: work shows, loop records still do not.
+      const workItem = await runtime.requestJSON<{ task: { id: string } }>("/api/tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          description: "Work item that must survive the Loop exclusion.",
+          identifier: "TASK-CALM-1",
+          owner: { kind: "human", ref: "qa-operator" },
+          priority: "medium",
+          scope: "workspace",
+          title: "Review the loop legibility pass",
+          workspace: seeded.workspaceId,
+        }),
+      });
 
-    // Revealing is an explicit act per context: coming back starts calm again.
-    const returnedWin = await openAppWindow(appPage, "Tasks", "tasks");
-    await expect(returnedWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    await expect(returnedWin.getByTestId(`task-loop-row-${seeded.cellTaskId}`)).toHaveCount(0);
+      const calm = await runtime.requestJSON<CatalogProbe>(calmCatalogPath(seeded.workspaceId));
+      expect(calm.tasks.map(task => task.id)).toEqual([workItem.task.id]);
+      expect(calm.tasks.some(task => task.loop)).toBe(false);
+      expect(calm.page.total).toBe(1);
+      // Facets are computed over the same filtered set the rows come from, so a
+      // group header can never claim more than the list can show (US-001.AC-3).
+      expect(calm.facets.statuses.reduce((total, facet) => total + facet.count, 0)).toBe(
+        calm.page.total
+      );
+
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      const listWin = appWindow(appPage, "tasks");
+      const listUI = tasksOperatorSelectors(listWin, appPage);
+      await expect(listWin.getByTestId("tasks-list-surface")).toBeVisible();
+      await expect(listUI.taskCard(workItem.task.id)).toBeVisible();
+      await expect(listWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
+      await expect(listWin.getByTestId(`task-card-${seeded.coordinatorTaskId}`)).toHaveCount(0);
+      await expect(listWin.getByTestId(`task-card-${seeded.cellTaskId}`)).toHaveCount(0);
+      await browserArtifacts.captureScreenshot("tasks-loop-calm-default", appPage);
+
+      // Second projection, same population: no loop cards on the board.
+      await listUI.modeKanban.click();
+      await expect(listWin.getByTestId("tasks-kanban-board")).toBeVisible();
+      await expect(listWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
+      await expect(listWin.getByTestId(`task-card-${seeded.cellTaskId}`)).toHaveCount(0);
+      await browserArtifacts.captureScreenshot("tasks-loop-kanban-default", appPage);
+
+      // Aggregates answer the same question over the same population (US-003.AC-1).
+      const dashboard = await runtime.requestJSON<DashboardProbe>(
+        `/api/observe/tasks/dashboard?scope=workspace&workspace=${encodeURIComponent(seeded.workspaceId)}`
+      );
+      const breakdownTotal = dashboard.dashboard.status_breakdown.reduce(
+        (total, entry) => total + entry.count,
+        0
+      );
+      expect(breakdownTotal).toBe(1);
+
+      await listUI.modeDashboard.click();
+      await expect(listUI.dashboardView).toBeVisible();
+      // Status-agnostic on purpose: what must hold is that the breakdown counts the
+      // one work item and none of the loop records, whatever status it settles in.
+      await expect(listWin.getByTestId("tasks-dashboard-status-breakdown-total")).toHaveText(
+        "total 1"
+      );
+      await browserArtifacts.captureScreenshot("tasks-loop-dashboard-default", appPage);
+
+      // The loop's escalations route through the loop lane, never the inbox
+      // (US-003.AC-2 / EC-1).
+      const inbox = await runtime.requestJSON<InboxProbe>(
+        `/api/observe/tasks/inbox?workspace=${encodeURIComponent(seeded.workspaceId)}`
+      );
+      const inboxTaskIds = inbox.inbox.groups.flatMap(group =>
+        (group.items ?? []).map(item => item.task.id)
+      );
+      expect(inboxTaskIds).not.toContain(seeded.coordinatorTaskId);
+      expect(inboxTaskIds).not.toContain(seeded.cellTaskId);
+
+      await listUI.modeInbox.click();
+      await expect(listUI.inboxView).toBeVisible();
+      await expect(listWin.getByTestId(`task-card-${seeded.cellTaskId}`)).toHaveCount(0);
+      await expect(listWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
+    });
+    await test.step("the reveal filter states its own empty, distinguishes records, links to the run and never persists", async () => {
+      await ensureAppWindow(appPage, "Tasks", "tasks");
+      await tasksOperatorSelectors(appWindow(appPage, "tasks"), appPage).modeList.click();
+
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      const tasksWin = appWindow(appPage, "tasks");
+
+      await expect(tasksWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+      await tasksWin.getByTestId("tasks-records-filter-loop").click();
+
+      const coordinatorRow = tasksWin.getByTestId(`task-loop-row-${seeded.coordinatorTaskId}`);
+      await expect(coordinatorRow).toBeVisible();
+      await expect(coordinatorRow.locator('[data-slot="task-loop-row-identity"]')).toContainText(
+        seeded.loopName
+      );
+      // Plain words lead; the machine id is never the row's primary text.
+      await expect(
+        coordinatorRow.locator('[data-slot="task-loop-row-identity"]')
+      ).not.toContainText(seeded.coordinatorTaskId);
+      await expect(coordinatorRow.locator('[data-slot="task-loop-row-role"]')).toHaveText(
+        "Loop run"
+      );
+      const cellRow = tasksWin.getByTestId(`task-loop-row-${seeded.cellTaskId}`);
+      await expect(cellRow.locator('[data-slot="task-loop-row-role"]')).toHaveText("Loop step");
+      await expect(cellRow.locator('[data-slot="task-loop-row-identity"]')).toContainText("step ");
+      await browserArtifacts.captureScreenshot("tasks-loop-revealed", appPage);
+
+      // Activation lands on the run page — the observability home for loop work.
+      await cellRow.locator("a").first().click();
+      await expect(appPage).toHaveURL(new RegExp(`/loop-runs/${seeded.runId}`));
+      await expect(
+        appWindow(appPage, "loops").getByTestId("loop-run-detail-content")
+      ).toBeVisible();
+      await browserArtifacts.captureScreenshot("tasks-loop-revealed-run-page", appPage);
+
+      // Revealing is an explicit act per context: coming back starts calm again.
+      const returnedWin = await openAppWindow(appPage, "Tasks", "tasks");
+      await expect(returnedWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+      await expect(returnedWin.getByTestId(`task-loop-row-${seeded.cellTaskId}`)).toHaveCount(0);
+    });
   });
 
   // E2E-020 (US-002.EC-2, US-015.AC-2)

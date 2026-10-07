@@ -8,6 +8,7 @@ import {
   seedBrowserAutomationOperatorFlow,
 } from "../fixtures/runtime";
 import {
+  ensureAppWindow,
   focusWindowThroughPalette,
   openAppWindow,
   sessionWindow,
@@ -48,218 +49,225 @@ test.use({
   },
 });
 
-test("operator can inspect automation, trigger a real run, and inspect the linked session transcript", async ({
+test("operator manages workspace suggestions and inspects a real automation run and linked session", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  const automationUI = automationOperatorSelectors(appPage);
-  const seeded = await seedBrowserAutomationOperatorFlow(runtime, {
-    agentName: automationAgentName,
+  // Keep the starter catalog untouched until suggestion decisions are verified.
+  test.setTimeout(180_000);
+
+  await test.step("operator can accept and dismiss workspace suggestions through the real daemon", async () => {
+    const automationUI = automationOperatorSelectors(appPage);
+
+    await ensureProjectWorkspace(appPage, runtime);
+    await completeOnboardingIfPrompted(automationUI);
+    const workspaces = await runtime.requestJSON<{
+      workspaces: Array<{ id: string }>;
+    }>("/api/workspaces");
+    const workspaceID = workspaces.workspaces[0]?.id;
+    if (!workspaceID) {
+      throw new Error("Expected the browser Automation scenario to have an active workspace.");
+    }
+
+    const suggestionPath = `/api/workspaces/${encodeURIComponent(workspaceID)}/automation/suggestions`;
+    const initial = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
+      `${suggestionPath}?status=pending`
+    );
+    expect(initial.suggestions).toHaveLength(4);
+
+    const acceptTarget = initial.suggestions.find(
+      suggestion => suggestion.payload.name === "Daily workspace briefing"
+    );
+    const dismissTarget = initial.suggestions.find(
+      suggestion => suggestion.payload.name === "Weekday standup draft"
+    );
+    if (!acceptTarget || !dismissTarget) {
+      throw new Error("Expected the deterministic starter suggestion catalog.");
+    }
+
+    const jobsWin = await openAppWindow(appPage, "Jobs", "jobs");
+    const jobsUI = automationOperatorSelectors(jobsWin, appPage);
+    await expect(appPage).toHaveURL(/\/jobs$/);
+    await expect(jobsUI.automationSuggestionsCard).toBeVisible();
+
+    const dismissedRow = jobsUI.suggestion(dismissTarget.id);
+    await dismissedRow.getByRole("button", { name: "Dismiss" }).click();
+    await expect(dismissedRow).toBeHidden();
+
+    const acceptedRow = jobsUI.suggestion(acceptTarget.id);
+    await acceptedRow.locator('[data-slot="collapsible-trigger"]').click();
+    await expect(acceptedRow.locator('[data-slot="collapsible-content"]')).toContainText(
+      acceptTarget.payload.prompt
+    );
+    await acceptedRow.getByRole("button", { name: "Create job" }).click();
+
+    await expect(acceptedRow).toBeHidden();
+    await expect(jobsUI.item(acceptTarget.payload.id)).toBeVisible();
+    const acceptedJob = await runtime.requestJSON<{ job: AutomationJob }>(
+      `/api/automation/jobs/${encodeURIComponent(acceptTarget.payload.id)}`
+    );
+    expect(acceptedJob.job).toMatchObject({
+      enabled: true,
+      id: acceptTarget.payload.id,
+      workspace_id: workspaceID,
+    });
+
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(jobsUI.jobsShell).toBeVisible();
+    await expect(jobsUI.suggestion(acceptTarget.id)).toBeHidden();
+    await expect(jobsUI.suggestion(dismissTarget.id)).toBeHidden();
+
+    const accepted = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
+      `${suggestionPath}?status=accepted`
+    );
+    const dismissed = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
+      `${suggestionPath}?status=dismissed`
+    );
+    expect(accepted.suggestions.map(suggestion => suggestion.id)).toContain(acceptTarget.id);
+    expect(dismissed.suggestions.map(suggestion => suggestion.id)).toContain(dismissTarget.id);
   });
 
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(automationUI);
+  await test.step("operator can inspect automation, trigger a real run, and inspect the linked session transcript", async () => {
+    const automationUI = automationOperatorSelectors(appPage);
+    const seeded = await seedBrowserAutomationOperatorFlow(runtime, {
+      agentName: automationAgentName,
+    });
 
-  await expect(automationUI.osDesktop).toBeVisible();
-  const jobsWin = await openAppWindow(appPage, "Jobs", "jobs");
-  const jobsUI = automationOperatorSelectors(jobsWin, appPage);
+    await ensureProjectWorkspace(appPage, runtime);
+    await completeOnboardingIfPrompted(automationUI);
 
-  await expect(appPage).toHaveURL(/\/jobs$/);
-  await expect(jobsUI.jobsShell).toBeVisible();
-  await expect(jobsUI.jobsListRows).toBeVisible();
-  await expect(jobsUI.item(seeded.job.id)).toBeVisible();
-  await jobsUI.itemLink(seeded.job.id).click();
+    await expect(automationUI.osDesktop).toBeVisible();
+    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
+    const jobsWin = await ensureAppWindow(appPage, "Jobs", "jobs");
+    const jobsUI = automationOperatorSelectors(jobsWin, appPage);
 
-  await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
-  await expect(jobsUI.detailPanel).toBeVisible();
-  await expect(windowTitle(jobsWin)).toContainText(seeded.job.name);
-  await expect(jobsUI.detailPanel).toContainText(browserAutomationOperatorFlowScenario.job.prompt);
-  await expect(jobsUI.runHistory).toBeVisible();
-  await expect(jobsUI.run(seeded.baselineRun.id)).toBeVisible();
-  await expect(jobsUI.run(seeded.baselineRun.id)).toContainText(/completed/i);
-  await expect(jobsUI.runSessionLink(seeded.baselineRun.id)).toBeVisible();
-  await expect(jobsUI.runSessionLink(seeded.baselineRun.id)).toHaveAttribute(
-    "href",
-    `/session/${seeded.baselineRun.session_id}`
-  );
+    await expect(appPage).toHaveURL(/\/jobs$/);
+    await expect(jobsUI.jobsShell).toBeVisible();
+    await expect(jobsUI.jobsListRows).toBeVisible();
+    await expect(jobsUI.item(seeded.job.id)).toBeVisible();
+    await jobsUI.itemLink(seeded.job.id).click();
 
-  const triggersWin = await openAppWindow(appPage, "Triggers", "triggers");
-  const triggersUI = automationOperatorSelectors(triggersWin, appPage);
-  await expect(appPage).toHaveURL(/\/triggers$/);
-  await expect(triggersUI.triggersShell).toBeVisible();
-  await expect(triggersUI.triggersListRows).toBeVisible();
-  await expect(triggersUI.item(seeded.trigger.id)).toBeVisible();
-  await triggersUI.itemLink(seeded.trigger.id).click();
+    await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
+    await expect(jobsUI.detailPanel).toBeVisible();
+    await expect(windowTitle(jobsWin)).toContainText(seeded.job.name);
+    await expect(jobsUI.detailPanel).toContainText(
+      browserAutomationOperatorFlowScenario.job.prompt
+    );
+    await expect(jobsUI.runHistory).toBeVisible();
+    await expect(jobsUI.run(seeded.baselineRun.id)).toBeVisible();
+    await expect(jobsUI.run(seeded.baselineRun.id)).toContainText(/completed/i);
+    await expect(jobsUI.runSessionLink(seeded.baselineRun.id)).toBeVisible();
+    await expect(jobsUI.runSessionLink(seeded.baselineRun.id)).toHaveAttribute(
+      "href",
+      `/session/${seeded.baselineRun.session_id}`
+    );
 
-  await expect(appPage).toHaveURL(new RegExp(`/triggers/${seeded.trigger.id}$`));
-  await expect(windowTitle(triggersWin)).toContainText(seeded.trigger.name);
-  await expect(triggersUI.detailPanel).toContainText(
-    browserAutomationOperatorFlowScenario.trigger.webhookID
-  );
+    const triggersWin = await openAppWindow(appPage, "Triggers", "triggers");
+    const triggersUI = automationOperatorSelectors(triggersWin, appPage);
+    await expect(appPage).toHaveURL(/\/triggers$/);
+    await expect(triggersUI.triggersShell).toBeVisible();
+    await expect(triggersUI.triggersListRows).toBeVisible();
+    await expect(triggersUI.item(seeded.trigger.id)).toBeVisible();
+    await triggersUI.itemLink(seeded.trigger.id).click();
 
-  // Edit is a route-chrome action for a trigger the operator owns.
-  await expect(triggersUI.editTriggerButton).toBeEnabled();
-  await triggersUI.editTriggerButton.click();
-  await expect(triggersUI.triggerNameInput).toHaveValue(seeded.trigger.name);
-  const triggerDialog = triggersUI.editorDialog;
-  await expect(triggersUI.triggerRetryMax).toBeVisible();
-  await triggersWin.getByTestId("trigger-governance-toggle").click();
-  await expect(triggersUI.triggerRetryMax).toBeHidden();
-  await triggersWin.getByTestId("trigger-governance-toggle").click();
-  await expect(triggersUI.triggerRetryMax).toBeVisible();
-  await appPage.keyboard.press("Escape");
-  await expect(triggerDialog).toBeHidden();
+    await expect(appPage).toHaveURL(new RegExp(`/triggers/${seeded.trigger.id}$`));
+    await expect(windowTitle(triggersWin)).toContainText(seeded.trigger.name);
+    await expect(triggersUI.detailPanel).toContainText(
+      browserAutomationOperatorFlowScenario.trigger.webhookID
+    );
 
-  await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-  await expect(appPage).toHaveURL(/\/jobs$/);
-  await expect(jobsUI.jobsShell).toBeVisible();
-  await focusWindowThroughPalette(appPage, jobsWin);
-  await jobsUI.itemLink(seeded.job.id).click();
-  await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
-  await expect(jobsUI.detailPanel).toBeVisible();
+    // Edit is a route-chrome action for a trigger the operator owns.
+    await expect(triggersUI.editTriggerButton).toBeEnabled();
+    await triggersUI.editTriggerButton.click();
+    await expect(triggersUI.triggerNameInput).toHaveValue(seeded.trigger.name);
+    const triggerDialog = triggersUI.editorDialog;
+    await expect(triggersUI.triggerRetryMax).toBeVisible();
+    await triggersWin.getByTestId("trigger-governance-toggle").click();
+    await expect(triggersUI.triggerRetryMax).toBeHidden();
+    await triggersWin.getByTestId("trigger-governance-toggle").click();
+    await expect(triggersUI.triggerRetryMax).toBeVisible();
+    await appPage.keyboard.press("Escape");
+    await expect(triggerDialog).toBeHidden();
 
-  await jobsUI.detailOverflow.click();
-  const editJob = appPage.getByTestId("edit-automation-btn");
-  await expect(editJob).toBeEnabled();
-  await editJob.click();
-  await expect(jobsUI.jobForm).toBeVisible();
-  await expect(jobsUI.jobNameInput).toHaveValue(seeded.job.name);
-  await expect(jobsUI.jobScheduleExpr).toHaveValue(
-    browserAutomationOperatorFlowScenario.job.scheduleExpr
-  );
-  await appPage.keyboard.press("Escape");
-  await expect(jobsUI.jobForm).toBeHidden();
+    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
+    await expect(appPage).toHaveURL(/\/jobs$/);
+    await expect(jobsUI.jobsShell).toBeVisible();
+    await focusWindowThroughPalette(appPage, jobsWin);
+    await jobsUI.itemLink(seeded.job.id).click();
+    await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
+    await expect(jobsUI.detailPanel).toBeVisible();
 
-  await jobsUI.triggerJobButton.click();
+    await jobsUI.detailOverflow.click();
+    const editJob = appPage.getByTestId("edit-automation-btn");
+    await expect(editJob).toBeEnabled();
+    await editJob.click();
+    await expect(jobsUI.jobForm).toBeVisible();
+    await expect(jobsUI.jobNameInput).toHaveValue(seeded.job.name);
+    await expect(jobsUI.jobScheduleExpr).toHaveValue(
+      browserAutomationOperatorFlowScenario.job.scheduleExpr
+    );
+    await appPage.keyboard.press("Escape");
+    await expect(jobsUI.jobForm).toBeHidden();
 
-  await expect
-    .poll(async () => {
-      const payload = await runtime.requestJSON<{
-        runs: Array<{ id: string }>;
-      }>(`/api/automation/jobs/${encodeURIComponent(seeded.job.id)}/runs?limit=10`);
-      return payload.runs.length;
-    })
-    .toBe(2);
+    await jobsUI.triggerJobButton.click();
 
-  let uiTriggeredRun:
-    | {
-        id: string;
-        session_id?: string | null;
-      }
-    | undefined;
-  await expect
-    .poll(
-      async () => {
-        const runsPayload = await runtime.requestJSON<{
-          runs: Array<{ id: string; session_id?: string | null }>;
+    await expect
+      .poll(async () => {
+        const payload = await runtime.requestJSON<{
+          runs: Array<{ id: string }>;
         }>(`/api/automation/jobs/${encodeURIComponent(seeded.job.id)}/runs?limit=10`);
-        uiTriggeredRun = runsPayload.runs.find(
-          run => run.id !== seeded.baselineRun.id && run.session_id
-        );
-        return uiTriggeredRun?.session_id ?? "";
-      },
-      {
-        timeout: 20_000,
-      }
-    )
-    .not.toBe("");
+        return payload.runs.length;
+      })
+      .toBe(2);
 
-  if (!uiTriggeredRun?.session_id) {
-    throw new Error("Expected the UI-triggered automation run to include a linked session.");
-  }
+    let uiTriggeredRun:
+      | {
+          id: string;
+          session_id?: string | null;
+        }
+      | undefined;
+    await expect
+      .poll(
+        async () => {
+          const runsPayload = await runtime.requestJSON<{
+            runs: Array<{ id: string; session_id?: string | null }>;
+          }>(`/api/automation/jobs/${encodeURIComponent(seeded.job.id)}/runs?limit=10`);
+          uiTriggeredRun = runsPayload.runs.find(
+            run => run.id !== seeded.baselineRun.id && run.session_id
+          );
+          return uiTriggeredRun?.session_id ?? "";
+        },
+        {
+          timeout: 20_000,
+        }
+      )
+      .not.toBe("");
 
-  await expect(jobsUI.run(uiTriggeredRun.id)).toBeVisible();
-  await browserArtifacts.captureScreenshot("automation-operator-history", appPage);
+    if (!uiTriggeredRun?.session_id) {
+      throw new Error("Expected the UI-triggered automation run to include a linked session.");
+    }
 
-  await jobsUI.runSessionLink(uiTriggeredRun.id).click();
+    await expect(jobsUI.run(uiTriggeredRun.id)).toBeVisible();
+    await browserArtifacts.captureScreenshot("automation-operator-history", appPage);
 
-  await expect
-    .poll(() => new URL(appPage.url()).pathname)
-    .toBe(automationSessionPath(uiTriggeredRun.session_id));
-  const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch project?" });
-  await expect(workspaceSwitchDialog).toBeVisible();
-  await workspaceSwitchDialog.getByRole("button", { name: "Switch project" }).click();
-  const sessionUI = sessionWindowSelectors(sessionWindow(appPage, uiTriggeredRun.session_id));
-  await expect(sessionUI.chatView).toBeVisible();
-  await expect(sessionUI.chatView).toContainText(browserAutomationOperatorFlowScenario.job.prompt);
-  await expect(sessionUI.chatView).toContainText(
-    browserAutomationOperatorFlowScenario.transcript.assistant
-  );
+    await jobsUI.runSessionLink(uiTriggeredRun.id).click();
 
-  await browserArtifacts.captureScreenshot("automation-linked-session", appPage);
-});
+    await expect
+      .poll(() => new URL(appPage.url()).pathname)
+      .toBe(automationSessionPath(uiTriggeredRun.session_id));
+    const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch project?" });
+    await expect(workspaceSwitchDialog).toBeVisible();
+    await workspaceSwitchDialog.getByRole("button", { name: "Switch project" }).click();
+    const sessionUI = sessionWindowSelectors(sessionWindow(appPage, uiTriggeredRun.session_id));
+    await expect(sessionUI.chatView).toBeVisible();
+    await expect(sessionUI.chatView).toContainText(
+      browserAutomationOperatorFlowScenario.job.prompt
+    );
+    await expect(sessionUI.chatView).toContainText(
+      browserAutomationOperatorFlowScenario.transcript.assistant
+    );
 
-test("operator can accept and dismiss workspace suggestions through the real daemon", async ({
-  appPage,
-  runtime,
-}) => {
-  const automationUI = automationOperatorSelectors(appPage);
-
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(automationUI);
-  const workspaces = await runtime.requestJSON<{
-    workspaces: Array<{ id: string }>;
-  }>("/api/workspaces");
-  const workspaceID = workspaces.workspaces[0]?.id;
-  if (!workspaceID) {
-    throw new Error("Expected the browser Automation scenario to have an active workspace.");
-  }
-
-  const suggestionPath = `/api/workspaces/${encodeURIComponent(workspaceID)}/automation/suggestions`;
-  const initial = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
-    `${suggestionPath}?status=pending`
-  );
-  expect(initial.suggestions).toHaveLength(4);
-
-  const acceptTarget = initial.suggestions.find(
-    suggestion => suggestion.payload.name === "Daily workspace briefing"
-  );
-  const dismissTarget = initial.suggestions.find(
-    suggestion => suggestion.payload.name === "Weekday standup draft"
-  );
-  if (!acceptTarget || !dismissTarget) {
-    throw new Error("Expected the deterministic starter suggestion catalog.");
-  }
-
-  const jobsWin = await openAppWindow(appPage, "Jobs", "jobs");
-  const jobsUI = automationOperatorSelectors(jobsWin, appPage);
-  await expect(appPage).toHaveURL(/\/jobs$/);
-  await expect(jobsUI.automationSuggestionsCard).toBeVisible();
-
-  const dismissedRow = jobsUI.suggestion(dismissTarget.id);
-  await dismissedRow.getByRole("button", { name: "Dismiss" }).click();
-  await expect(dismissedRow).toBeHidden();
-
-  const acceptedRow = jobsUI.suggestion(acceptTarget.id);
-  await acceptedRow.locator('[data-slot="collapsible-trigger"]').click();
-  await expect(acceptedRow.locator('[data-slot="collapsible-content"]')).toContainText(
-    acceptTarget.payload.prompt
-  );
-  await acceptedRow.getByRole("button", { name: "Create job" }).click();
-
-  await expect(acceptedRow).toBeHidden();
-  await expect(jobsUI.item(acceptTarget.payload.id)).toBeVisible();
-  const acceptedJob = await runtime.requestJSON<{ job: AutomationJob }>(
-    `/api/automation/jobs/${encodeURIComponent(acceptTarget.payload.id)}`
-  );
-  expect(acceptedJob.job).toMatchObject({
-    enabled: true,
-    id: acceptTarget.payload.id,
-    workspace_id: workspaceID,
+    await browserArtifacts.captureScreenshot("automation-linked-session", appPage);
   });
-
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(jobsUI.jobsShell).toBeVisible();
-  await expect(jobsUI.suggestion(acceptTarget.id)).toBeHidden();
-  await expect(jobsUI.suggestion(dismissTarget.id)).toBeHidden();
-
-  const accepted = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
-    `${suggestionPath}?status=accepted`
-  );
-  const dismissed = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
-    `${suggestionPath}?status=dismissed`
-  );
-  expect(accepted.suggestions.map(suggestion => suggestion.id)).toContain(acceptTarget.id);
-  expect(dismissed.suggestions.map(suggestion => suggestion.id)).toContain(dismissTarget.id);
 });

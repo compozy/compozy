@@ -53,11 +53,12 @@ test.use({
   },
 });
 
-test("operator cancels a running task run and sees matching HTTP, UDS, CLI, and browser state", async ({
+test("operator cancels a running task run and rejects manual approval without hidden work", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
+  const parityEvidence: Record<string, unknown> = {};
   const ui = tasksOperatorSelectors(appPage);
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: tasksSessionAgentName,
@@ -66,120 +67,111 @@ test("operator cancels a running task run and sees matching HTTP, UDS, CLI, and 
   await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
   await setGlobalScope(appPage, true);
 
-  const runPath = `/tasks/${encodeURIComponent(seeded.runningTask.id)}/runs/${encodeURIComponent(seeded.runningRun.id)}`;
-  await appPage.goto(runtime.url(runPath), { waitUntil: "domcontentloaded" });
-  await expect(ui.runDetailContent).toBeVisible();
-  await ui.runDetailOverflow.click();
-  await expect(ui.runDetailCancel).toBeVisible();
+  await test.step("operator cancels a running task run and sees matching HTTP, UDS, CLI, and browser state", async () => {
+    const runPath = `/tasks/${encodeURIComponent(seeded.runningTask.id)}/runs/${encodeURIComponent(seeded.runningRun.id)}`;
+    await appPage.goto(runtime.url(runPath), { waitUntil: "domcontentloaded" });
+    await expect(ui.runDetailContent).toBeVisible();
+    await ui.runDetailOverflow.click();
+    await expect(ui.runDetailCancel).toBeVisible();
 
-  const cancelResponsePromise = appPage.waitForResponse(
-    response =>
-      response.request().method() === "POST" &&
-      response.url().endsWith(`/api/task-runs/${encodeURIComponent(seeded.runningRun.id)}/cancel`)
-  );
-  await ui.runDetailCancel.click();
-  expect((await cancelResponsePromise).ok()).toBe(true);
+    const cancelResponsePromise = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/task-runs/${encodeURIComponent(seeded.runningRun.id)}/cancel`)
+    );
+    await ui.runDetailCancel.click();
+    expect((await cancelResponsePromise).ok()).toBe(true);
 
-  await expect
-    .poll(async () => {
-      const detail = await getTaskRun(runtime, seeded.runningRun.id);
-      return detail.run.status;
-    })
-    .toBe("canceled");
-  await expect(ui.runDetailCancel).toBeHidden();
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.runDetailContent).toContainText("canceled");
-  await expect(ui.runDetailCancel).toBeHidden();
+    await expect
+      .poll(async () => {
+        const detail = await getTaskRun(runtime, seeded.runningRun.id);
+        return detail.run.status;
+      })
+      .toBe("canceled");
+    await expect(ui.runDetailCancel).toBeHidden();
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(ui.runDetailContent).toContainText("canceled");
+    await expect(ui.runDetailCancel).toBeHidden();
 
-  const parity = await captureTaskRunParity(runtime, seeded.runningTask.id, seeded.runningRun.id);
-  expect(parity.http.run.status).toBe("canceled");
-  expect(parity.uds?.run.status).toBe("canceled");
-  expect(findRun(parity.cliRuns, seeded.runningRun.id)?.status).toBe("canceled");
+    const parity = await captureTaskRunParity(runtime, seeded.runningTask.id, seeded.runningRun.id);
+    expect(parity.http.run.status).toBe("canceled");
+    expect(parity.uds?.run.status).toBe("canceled");
+    expect(findRun(parity.cliRuns, seeded.runningRun.id)?.status).toBe("canceled");
 
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);
-  await browserArtifacts.captureScreenshot("tasks-run-canceled", appPage);
-  await browserArtifacts.persist(appPage);
-  const routeState = await readRouteState(runtime);
-  expect(routeState).toMatchObject({
-    tasks_run_cancel_visible: false,
-    tasks_run_detail_visible: true,
-    tasks_selected_run: seeded.runningRun.id,
-    tasks_selected_task: seeded.runningTask.id,
-    tasks_view_visible: true,
+    parityEvidence.cancellation = parity;
+    await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
+    await browserArtifacts.captureScreenshot("tasks-run-canceled", appPage);
+    await browserArtifacts.persist(appPage);
+    const routeState = await readRouteState(runtime);
+    expect(routeState).toMatchObject({
+      tasks_run_cancel_visible: false,
+      tasks_run_detail_visible: true,
+      tasks_selected_run: seeded.runningRun.id,
+      tasks_selected_task: seeded.runningTask.id,
+      tasks_view_visible: true,
+    });
+    await assertNoTaskSensitiveLeak(appPage, runtime, parity);
   });
-  await assertNoTaskSensitiveLeak(appPage, runtime, parity);
-});
+  await test.step("operator rejects a manual approval task without creating hidden work", async () => {
+    await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
+    await ui.modeInbox.click();
+    await expect(ui.inboxLane("approvals")).toBeVisible();
+    await expect(ui.inboxItem(seeded.approvalTask.id)).toBeVisible();
 
-test("operator rejects a manual approval task without creating hidden work", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  const ui = tasksOperatorSelectors(appPage);
-  const seeded = await seedBrowserTasksOperatorFlow(runtime, {
-    sessionAgentName: tasksSessionAgentName,
+    const rejectResponsePromise = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}/reject`)
+    );
+    await ui.inboxReject(seeded.approvalTask.id).click();
+    expect((await rejectResponsePromise).ok()).toBe(true);
+
+    await expect
+      .poll(async () => {
+        const detail = await getTask(runtime, seeded.approvalTask.id);
+        return {
+          approval: detail.task.approval_state,
+          runs: taskDetailRuns(detail).length,
+        };
+      })
+      .toEqual({ approval: "rejected", runs: 0 });
+    await expect(ui.inboxItem(seeded.approvalTask.id)).toHaveAttribute("data-lane", "blocked");
+    await expect(ui.inboxReject(seeded.approvalTask.id)).toBeHidden();
+    await expect(ui.inboxApprove(seeded.approvalTask.id)).toBeHidden();
+
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await ui.modeInbox.click();
+    await expect(ui.modeInbox).toHaveAttribute("aria-current", "page");
+    await expect(ui.inboxView).toBeVisible();
+    await expect(ui.inboxItem(seeded.approvalTask.id)).toHaveAttribute("data-lane", "blocked");
+    await expect(ui.inboxReject(seeded.approvalTask.id)).toBeHidden();
+    await expect(ui.inboxApprove(seeded.approvalTask.id)).toBeHidden();
+
+    const snapshot = {
+      http: await getTask(runtime, seeded.approvalTask.id),
+      uds: await requestOperatorJSONOrThrow<TaskDetailEnvelope>(
+        runtime,
+        `/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}`
+      ),
+      cli: await taskCLI<TaskDetailView>(runtime, ["task", "get", seeded.approvalTask.id]),
+    };
+    expect(snapshot.http.task.approval_state).toBe("rejected");
+    expect(snapshot.uds.task.task.approval_state).toBe("rejected");
+    expect(snapshot.cli.task.approval_state).toBe("rejected");
+    expect(taskDetailRuns(snapshot.cli)).toHaveLength(0);
+
+    parityEvidence.rejection = snapshot;
+    await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
+    await browserArtifacts.captureScreenshot("tasks-approval-rejected", appPage);
+    await browserArtifacts.persist(appPage);
+    const routeState = await readRouteState(runtime);
+    expect(routeState).toMatchObject({
+      tasks_active_mode: "inbox",
+      tasks_inbox_count: expect.any(Number),
+      tasks_view_visible: true,
+    });
+    await assertNoTaskSensitiveLeak(appPage, runtime, snapshot);
   });
-  await completeOnboardingIfPrompted(ui);
-  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
-  await setGlobalScope(appPage, true);
-
-  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await ui.modeInbox.click();
-  await expect(ui.inboxLane("approvals")).toBeVisible();
-  await expect(ui.inboxItem(seeded.approvalTask.id)).toBeVisible();
-
-  const rejectResponsePromise = appPage.waitForResponse(
-    response =>
-      response.request().method() === "POST" &&
-      response.url().endsWith(`/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}/reject`)
-  );
-  await ui.inboxReject(seeded.approvalTask.id).click();
-  expect((await rejectResponsePromise).ok()).toBe(true);
-
-  await expect
-    .poll(async () => {
-      const detail = await getTask(runtime, seeded.approvalTask.id);
-      return {
-        approval: detail.task.approval_state,
-        runs: taskDetailRuns(detail).length,
-      };
-    })
-    .toEqual({ approval: "rejected", runs: 0 });
-  await expect(ui.inboxItem(seeded.approvalTask.id)).toHaveAttribute("data-lane", "blocked");
-  await expect(ui.inboxReject(seeded.approvalTask.id)).toBeHidden();
-  await expect(ui.inboxApprove(seeded.approvalTask.id)).toBeHidden();
-
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await ui.modeInbox.click();
-  await expect(ui.modeInbox).toHaveAttribute("aria-current", "page");
-  await expect(ui.inboxView).toBeVisible();
-  await expect(ui.inboxItem(seeded.approvalTask.id)).toHaveAttribute("data-lane", "blocked");
-  await expect(ui.inboxReject(seeded.approvalTask.id)).toBeHidden();
-  await expect(ui.inboxApprove(seeded.approvalTask.id)).toBeHidden();
-
-  const snapshot = {
-    http: await getTask(runtime, seeded.approvalTask.id),
-    uds: await requestOperatorJSONOrThrow<TaskDetailEnvelope>(
-      runtime,
-      `/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}`
-    ),
-    cli: await taskCLI<TaskDetailView>(runtime, ["task", "get", seeded.approvalTask.id]),
-  };
-  expect(snapshot.http.task.approval_state).toBe("rejected");
-  expect(snapshot.uds.task.task.approval_state).toBe("rejected");
-  expect(snapshot.cli.task.approval_state).toBe("rejected");
-  expect(taskDetailRuns(snapshot.cli)).toHaveLength(0);
-
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
-  await browserArtifacts.captureScreenshot("tasks-approval-rejected", appPage);
-  await browserArtifacts.persist(appPage);
-  const routeState = await readRouteState(runtime);
-  expect(routeState).toMatchObject({
-    tasks_active_mode: "inbox",
-    tasks_inbox_count: expect.any(Number),
-    tasks_view_visible: true,
-  });
-  await assertNoTaskSensitiveLeak(appPage, runtime, snapshot);
 });
 
 test("operator retries failed work and sees an auditable run review gate", async ({
@@ -673,7 +665,7 @@ test("task detail renders blocked_reasons bands for dependency, approval, and bl
 // the escalation through the real API, and a second observer tab (which never
 // fires the mutation) proves the badge disappears live via the task.recovered
 // SSE frame — isolating the SSE round-trip from the acting tab's own invalidation.
-test("task detail exposes the needs_attention badge and a Recover action that clears it live", async ({
+test("E2E-web-2 / E2E-web-4: needs_attention stays distinct in list and kanban and recovers live", async ({
   appPage,
   browser,
   browserArtifacts,
@@ -690,56 +682,94 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
   await escalateTaskToNeedsAttention(runtime, task.id);
   expect((await getTask(runtime, task.id)).task.status).toBe("needs_attention");
 
-  const detailPath = `/tasks/${encodeURIComponent(task.id)}`;
-  await appPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(ui);
-  await expect(ui.detailContent).toBeVisible();
+  await test.step("tasks list and kanban surface needs_attention as a distinct status", async () => {
+    await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
+    await completeOnboardingIfPrompted(ui);
+    await setGlobalScope(appPage, true);
+    if ((await ui.modeList.getAttribute("aria-current")) !== "page") {
+      await ui.modeList.click();
+    }
+    await expect(ui.modeList).toHaveAttribute("aria-current", "page");
+    await revealTasksListPanel(appPage);
+    await expect(appPage.getByTestId("tasks-list-surface")).toBeVisible();
 
-  const badge = appPage.getByTestId("tasks-detail-now-stuck");
-  const recover = appPage.getByTestId("tasks-detail-now-recover");
-  await expect(badge).toBeVisible();
-  await expect(recover).toBeVisible();
-  await browserArtifacts.captureScreenshot("tasks-needs-attention-badge", appPage);
-
-  // The observer never issues the mutation, so its badge can only clear from
-  // the live `task.recovered` frame. Its independent browser context avoids
-  // sharing the six-connection HTTP/1.1 pool with the acting page's three SSEs.
-  const observerContext = await browser.newContext();
-  const observerPage = await observerContext.newPage();
-  try {
-    const observerStreamReady = observerPage.waitForResponse(response => {
-      const url = new URL(response.url());
-      return (
-        response.request().resourceType() === "eventsource" &&
-        url.pathname === `/api/tasks/${encodeURIComponent(task.id)}/stream`
-      );
-    });
-    await observerPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
-    await completeOnboardingIfPrompted(observerPage);
-    const observerBadge = observerPage.getByTestId("tasks-detail-now-stuck");
-    await expect(observerBadge).toBeVisible();
-    await observerStreamReady;
-
-    const recoverResponse = appPage.waitForResponse(
-      response =>
-        response.request().method() === "POST" &&
-        response.url().endsWith(`/api/tasks/${encodeURIComponent(task.id)}/recover`)
+    // Distinct list group: the escalation lands in its own `needs_attention`
+    // group, never folded into `blocked`.
+    const needsAttentionGroup = appPage.getByTestId("task-group-needs_attention");
+    await expect(needsAttentionGroup).toBeVisible();
+    await expect(needsAttentionGroup.getByTestId(`task-card-${task.id}`)).toBeVisible();
+    await expect(
+      appPage.getByTestId("task-group-blocked").getByTestId(`task-card-${task.id}`)
+    ).toHaveCount(0);
+    await expect(needsAttentionGroup.getByTestId(`task-card-${task.id}`)).toHaveAttribute(
+      "data-status",
+      "needs_attention"
     );
-    await recover.click();
-    expect((await recoverResponse).ok()).toBe(true);
+    await browserArtifacts.captureScreenshot("tasks-list-needs-attention", appPage);
 
-    // Acting tab clears via the recover round-trip; observer tab clears purely
-    // via the SSE frame it received without issuing any mutation.
-    await expect(badge).toBeHidden();
-    await expect(recover).toBeHidden();
-    await expect(observerBadge).toBeHidden();
-  } finally {
-    await observerContext.close();
-  }
+    // Distinct kanban column: the same task lands in the needs_attention column.
+    await ui.modeKanban.click();
+    await expect(ui.modeKanban).toHaveAttribute("aria-current", "page");
+    await expect(appPage.getByTestId("tasks-kanban-column-needs_attention")).toBeVisible();
+    await expect(
+      appPage
+        .getByTestId("tasks-kanban-column-body-needs_attention")
+        .getByTestId(`tasks-kanban-card-${task.id}`)
+    ).toBeVisible();
+  });
+  await test.step("task detail exposes the needs_attention badge and a Recover action that clears it live", async () => {
+    expect((await getTask(runtime, task.id)).task.status).toBe("needs_attention");
+    const detailPath = `/tasks/${encodeURIComponent(task.id)}`;
+    await appPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
+    await completeOnboardingIfPrompted(ui);
+    await expect(ui.detailContent).toBeVisible();
 
-  await expect
-    .poll(async () => (await getTask(runtime, task.id)).task.status)
-    .not.toBe("needs_attention");
+    const badge = appPage.getByTestId("tasks-detail-now-stuck");
+    const recover = appPage.getByTestId("tasks-detail-now-recover");
+    await expect(badge).toBeVisible();
+    await expect(recover).toBeVisible();
+    await browserArtifacts.captureScreenshot("tasks-needs-attention-badge", appPage);
+
+    // The observer never issues the mutation, so its badge can only clear from
+    // the live `task.recovered` frame. Its independent browser context avoids
+    // sharing the six-connection HTTP/1.1 pool with the acting page's three SSEs.
+    const observerContext = await browser.newContext();
+    const observerPage = await observerContext.newPage();
+    try {
+      const observerStreamReady = observerPage.waitForResponse(response => {
+        const url = new URL(response.url());
+        return (
+          response.request().resourceType() === "eventsource" &&
+          url.pathname === `/api/tasks/${encodeURIComponent(task.id)}/stream`
+        );
+      });
+      await observerPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
+      await completeOnboardingIfPrompted(observerPage);
+      const observerBadge = observerPage.getByTestId("tasks-detail-now-stuck");
+      await expect(observerBadge).toBeVisible();
+      await observerStreamReady;
+
+      const recoverResponse = appPage.waitForResponse(
+        response =>
+          response.request().method() === "POST" &&
+          response.url().endsWith(`/api/tasks/${encodeURIComponent(task.id)}/recover`)
+      );
+      await recover.click();
+      expect((await recoverResponse).ok()).toBe(true);
+
+      // Acting tab clears via the recover round-trip; observer tab clears purely
+      // via the SSE frame it received without issuing any mutation.
+      await expect(badge).toBeHidden();
+      await expect(recover).toBeHidden();
+      await expect(observerBadge).toBeHidden();
+    } finally {
+      await observerContext.close();
+    }
+
+    await expect
+      .poll(async () => (await getTask(runtime, task.id)).task.status)
+      .not.toBe("needs_attention");
+  });
 });
 
 // E2E-web-3 (_tests.md §4.3): the wake indicator reflects the wake_creator opt-out
@@ -795,59 +825,6 @@ test("task detail reflects the wake_creator opt-out on agent-created tasks", asy
   const wakeOnPill = appPage.getByTestId("tasks-detail-pill-wake");
   await expect(wakeOnPill).toBeVisible();
   await expect(wakeOnPill).toContainText("Wake on");
-});
-
-// E2E-web-4 (_tests.md §4.4): needs_attention stays a distinct, truthful status in
-// the list group and kanban column — never coerced into `blocked` (guards B-001).
-test("tasks list and kanban surface needs_attention as a distinct status", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  const ui = tasksOperatorSelectors(appPage);
-  await ensureProjectWorkspace(appPage, runtime);
-
-  const task = await createTask(runtime, {
-    scope: "global",
-    title: uniqueTitle("Escalated list task"),
-    description: "Escalated task that must stay visible as its own list/kanban status.",
-  });
-  await escalateTaskToNeedsAttention(runtime, task.id);
-  expect((await getTask(runtime, task.id)).task.status).toBe("needs_attention");
-
-  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(ui);
-  await setGlobalScope(appPage, true);
-  if ((await ui.modeList.getAttribute("aria-current")) !== "page") {
-    await ui.modeList.click();
-  }
-  await expect(ui.modeList).toHaveAttribute("aria-current", "page");
-  await revealTasksListPanel(appPage);
-  await expect(appPage.getByTestId("tasks-list-surface")).toBeVisible();
-
-  // Distinct list group: the escalation lands in its own `needs_attention`
-  // group, never folded into `blocked`.
-  const needsAttentionGroup = appPage.getByTestId("task-group-needs_attention");
-  await expect(needsAttentionGroup).toBeVisible();
-  await expect(needsAttentionGroup.getByTestId(`task-card-${task.id}`)).toBeVisible();
-  await expect(
-    appPage.getByTestId("task-group-blocked").getByTestId(`task-card-${task.id}`)
-  ).toHaveCount(0);
-  await expect(needsAttentionGroup.getByTestId(`task-card-${task.id}`)).toHaveAttribute(
-    "data-status",
-    "needs_attention"
-  );
-  await browserArtifacts.captureScreenshot("tasks-list-needs-attention", appPage);
-
-  // Distinct kanban column: the same task lands in the needs_attention column.
-  await ui.modeKanban.click();
-  await expect(ui.modeKanban).toHaveAttribute("aria-current", "page");
-  await expect(appPage.getByTestId("tasks-kanban-column-needs_attention")).toBeVisible();
-  await expect(
-    appPage
-      .getByTestId("tasks-kanban-column-body-needs_attention")
-      .getByTestId(`tasks-kanban-card-${task.id}`)
-  ).toBeVisible();
 });
 
 interface TaskActorIdentity {

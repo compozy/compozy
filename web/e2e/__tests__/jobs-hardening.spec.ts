@@ -163,248 +163,255 @@ test.use({
   },
 });
 
-test("operator creates edits disables enables triggers and deletes a dynamic job with parity evidence", async ({
+test("operator manages a dynamic job and verifies scheduled execution across daemon restart", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  const jobsWin = appWindow(appPage, "jobs");
-  const ui = automationOperatorSelectors(jobsWin, appPage);
-  const shellUI = automationOperatorSelectors(appPage);
-  const jobStatus = jobsWin.getByTestId("job-enable-label");
-  const workspace = await createWorkspace(runtime);
-  const workspaceJob = await createJob(runtime, workspaceJobRequest(workspace));
-  await completeOnboardingIfPrompted(shellUI);
-  await switchWorkspace(appPage, workspace.id, workspace.name);
+  // Preserve both journey budgets; restart runs last after lifecycle cleanup.
+  test.setTimeout(180_000);
+  const parityEvidence: Record<string, unknown> = {};
 
-  await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-  await expect(ui.jobsShell).toBeVisible();
-  await expect(ui.jobsListRows).toBeVisible();
-  await expect(ui.item(workspaceJob.id)).toBeVisible();
-  await ui.itemLink(workspaceJob.id).click();
-  await expect(appPage).toHaveURL(new RegExp(`/jobs/${workspaceJob.id}$`));
-  await expect(jobsWin.getByTestId("automation-detail-meta")).toContainText("Project");
+  await test.step("operator creates edits disables enables triggers and deletes a dynamic job with parity evidence", async () => {
+    const jobsWin = appWindow(appPage, "jobs");
+    const ui = automationOperatorSelectors(jobsWin, appPage);
+    const shellUI = automationOperatorSelectors(appPage);
+    const jobStatus = jobsWin.getByTestId("job-enable-label");
+    const workspace = await createWorkspace(runtime);
+    const workspaceJob = await createJob(runtime, workspaceJobRequest(workspace));
+    await completeOnboardingIfPrompted(shellUI);
+    await switchWorkspace(appPage, workspace.id, workspace.name);
 
-  await jobsWin
-    .getByRole("navigation", { name: "Window path" })
-    .getByRole("button", { exact: true, name: "Jobs" })
-    .click();
-  await expect(appPage).toHaveURL(/\/jobs$/);
-  await expect(ui.jobsShell).toBeVisible();
-  await ui.createJobButton.click();
-  await expect(ui.editorDialog).toBeVisible();
-  await expect(ui.submitJobForm).toBeDisabled();
-  const initialName = uniqueName("jobs-lifecycle");
-  await ui.jobNameInput.fill(initialName);
-  await ui.jobAgentInput.click();
-  await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
-  await expect(ui.jobAgentInput).toContainText(automationAgentName);
-  await ui.jobPromptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
-  await enableCronExpressionEditing(ui);
-  await ui.jobScheduleExpr.fill("");
-  await expect(ui.submitJobForm).toBeDisabled();
-  await ui.jobScheduleExpr.fill(browserAutomationOperatorFlowScenario.job.scheduleExpr);
-  await ui.jobGovernanceToggle.click();
-  await expect(ui.jobFireLimitMax).toBeVisible();
-  await ui.jobFireLimitMax.fill("24");
-  await ui.jobFireLimitWindow.fill("1h");
+    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
+    await expect(ui.jobsShell).toBeVisible();
+    await expect(ui.jobsListRows).toBeVisible();
+    await expect(ui.item(workspaceJob.id)).toBeVisible();
+    await ui.itemLink(workspaceJob.id).click();
+    await expect(appPage).toHaveURL(new RegExp(`/jobs/${workspaceJob.id}$`));
+    await expect(jobsWin.getByTestId("automation-detail-meta")).toContainText("Project");
 
-  const createResponse = appPage.waitForResponse(
-    response =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname === "/api/automation/jobs"
-  );
-  await ui.submitJobForm.click();
-  expect((await createResponse).ok()).toBe(true);
-  await expect(ui.editorDialog).toBeHidden();
-  const created = await waitForJobByName(runtime, initialName);
-  // Saving from the editor navigates straight to the new job's detail route.
-  await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
-  await expect(windowTitle(jobsWin)).toContainText(initialName);
-  await jobsWin.getByTestId("automation-job-advanced-toggle").click();
-  await expect(jobsWin.getByTestId("automation-job-scheduler")).toContainText("Registered");
+    await jobsWin
+      .getByRole("navigation", { name: "Window path" })
+      .getByRole("button", { exact: true, name: "Jobs" })
+      .click();
+    await expect(appPage).toHaveURL(/\/jobs$/);
+    await expect(ui.jobsShell).toBeVisible();
+    await ui.createJobButton.click();
+    await expect(ui.editorDialog).toBeVisible();
+    await expect(ui.submitJobForm).toBeDisabled();
+    const initialName = uniqueName("jobs-lifecycle");
+    await ui.jobNameInput.fill(initialName);
+    await ui.jobAgentInput.click();
+    await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
+    await expect(ui.jobAgentInput).toContainText(automationAgentName);
+    await ui.jobPromptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
+    await enableCronExpressionEditing(ui);
+    await ui.jobScheduleExpr.fill("");
+    await expect(ui.submitJobForm).toBeDisabled();
+    await ui.jobScheduleExpr.fill(browserAutomationOperatorFlowScenario.job.scheduleExpr);
+    await ui.jobGovernanceToggle.click();
+    await expect(ui.jobFireLimitMax).toBeVisible();
+    await ui.jobFireLimitMax.fill("24");
+    await ui.jobFireLimitWindow.fill("1h");
 
-  await ui.detailOverflow.click();
-  await appPage.getByTestId("edit-automation-btn").click();
-  await expect(ui.editorDialog).toBeVisible();
-  const editedName = `${initialName}-edited`;
-  await ui.jobNameInput.fill(editedName);
-  await ui.jobPromptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
-  await enableCronExpressionEditing(ui);
-  await ui.jobScheduleExpr.fill(browserAutomationOperatorFlowScenario.job.updatedScheduleExpr);
-  const updateResponse = appPage.waitForResponse(
-    response =>
-      response.request().method() === "PATCH" &&
-      new URL(response.url()).pathname === `/api/automation/jobs/${encodeURIComponent(created.id)}`
-  );
-  await ui.submitJobForm.click();
-  expect((await updateResponse).ok()).toBe(true);
-  await expect(ui.editorDialog).toBeHidden();
-  await expect(windowTitle(jobsWin)).toContainText(editedName);
+    const createResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/automation/jobs"
+    );
+    await ui.submitJobForm.click();
+    expect((await createResponse).ok()).toBe(true);
+    await expect(ui.editorDialog).toBeHidden();
+    const created = await waitForJobByName(runtime, initialName);
+    // Saving from the editor navigates straight to the new job's detail route.
+    await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
+    await expect(windowTitle(jobsWin)).toContainText(initialName);
+    await jobsWin.getByTestId("automation-job-advanced-toggle").click();
+    await expect(jobsWin.getByTestId("automation-job-scheduler")).toContainText("Registered");
 
-  await ui.toggleAutomationButton.click();
-  await expect.poll(async () => (await getJob(runtime, created.id)).job.enabled).toBe(false);
-  await expect(jobStatus).toContainText("Disabled");
-  let disabledHealth = await getAutomationHealth(runtime);
-  expect(
-    disabledHealth.automation.scheduled_jobs?.some(
-      state => state.job_id === created.id && state.registered
-    )
-  ).toBe(false);
+    await ui.detailOverflow.click();
+    await appPage.getByTestId("edit-automation-btn").click();
+    await expect(ui.editorDialog).toBeVisible();
+    const editedName = `${initialName}-edited`;
+    await ui.jobNameInput.fill(editedName);
+    await ui.jobPromptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
+    await enableCronExpressionEditing(ui);
+    await ui.jobScheduleExpr.fill(browserAutomationOperatorFlowScenario.job.updatedScheduleExpr);
+    const updateResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname ===
+          `/api/automation/jobs/${encodeURIComponent(created.id)}`
+    );
+    await ui.submitJobForm.click();
+    expect((await updateResponse).ok()).toBe(true);
+    await expect(ui.editorDialog).toBeHidden();
+    await expect(windowTitle(jobsWin)).toContainText(editedName);
 
-  await ui.toggleAutomationButton.click();
-  await expect.poll(async () => (await getJob(runtime, created.id)).job.enabled).toBe(true);
-  await expect(jobStatus).toContainText("Enabled");
-  await expect
-    .poll(async () => schedulerState(runtime, created.id).then(state => state?.registered))
-    .toBe(true);
+    await ui.toggleAutomationButton.click();
+    await expect.poll(async () => (await getJob(runtime, created.id)).job.enabled).toBe(false);
+    await expect(jobStatus).toContainText("Disabled");
+    let disabledHealth = await getAutomationHealth(runtime);
+    expect(
+      disabledHealth.automation.scheduled_jobs?.some(
+        state => state.job_id === created.id && state.registered
+      )
+    ).toBe(false);
 
-  await ui.triggerJobButton.click();
-  const completedRun = await waitForLatestRun(runtime, created.id, "completed");
-  await expect(ui.run(completedRun.id)).toBeVisible();
-  await expect(ui.runSessionLink(completedRun.id)).toBeVisible();
+    await ui.toggleAutomationButton.click();
+    await expect.poll(async () => (await getJob(runtime, created.id)).job.enabled).toBe(true);
+    await expect(jobStatus).toContainText("Enabled");
+    await expect
+      .poll(async () => schedulerState(runtime, created.id).then(state => state?.registered))
+      .toBe(true);
 
-  const parity = await captureJobParity(runtime, created.id, completedRun.id);
-  expect(parity.http.job.name).toBe(editedName);
-  expect(parity.http.job.enabled).toBe(true);
-  expect(parity.uds.job.name).toBe(editedName);
-  expect(parity.cliGet.id).toBe(created.id);
-  expect(parity.cliHistory.runs.some(run => run.id === completedRun.id)).toBe(true);
-  expect(parity.health.automation.scheduler_running).toBe(true);
+    await ui.triggerJobButton.click();
+    const completedRun = await waitForLatestRun(runtime, created.id, "completed");
+    await expect(ui.run(completedRun.id)).toBeVisible();
+    await expect(ui.runSessionLink(completedRun.id)).toBeVisible();
 
-  await assertJobsLifecycleViewportMatrix(appPage, browserArtifacts, runtime, created.id);
-  // The matrix re-navigates, which folds Advanced details (and the scheduler) closed again.
-  await jobsWin.getByTestId("automation-job-advanced-toggle").click();
-  await expect(jobsWin.getByTestId("automation-job-scheduler")).toBeVisible();
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);
-  await browserArtifacts.captureScreenshot("jobs-lifecycle-history", appPage);
-  await browserArtifacts.persist(appPage);
-  const routeState = await readRouteState(runtime);
-  expect(routeState).toMatchObject({
-    automation_active_tab: "jobs",
-    automation_detail_overflow_visible: true,
-    automation_run_history_visible: true,
-    automation_scheduler_visible: true,
-    automation_selected_item: editedName,
-    automation_session_link_count: expect.any(Number),
-    automation_trigger_visible: true,
-    automation_view_visible: true,
-  });
+    const parity = await captureJobParity(runtime, created.id, completedRun.id);
+    expect(parity.http.job.name).toBe(editedName);
+    expect(parity.http.job.enabled).toBe(true);
+    expect(parity.uds.job.name).toBe(editedName);
+    expect(parity.cliGet.id).toBe(created.id);
+    expect(parity.cliHistory.runs.some(run => run.id === completedRun.id)).toBe(true);
+    expect(parity.health.automation.scheduler_running).toBe(true);
 
-  await ui.runSessionLink(completedRun.id).click();
-  const completedSessionId = completedRun.session_id;
-  if (!completedSessionId) {
-    throw new Error("Expected the completed job run to expose a linked session.");
-  }
-  const sessionUI = sessionWindowSelectors(sessionWindow(appPage, completedSessionId));
-  await expect(sessionUI.chatView).toBeVisible();
-  await expect(sessionUI.chatView).toContainText(browserAutomationOperatorFlowScenario.job.prompt);
-  await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-  await ui.itemLink(created.id).click();
-  await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
+    await assertJobsLifecycleViewportMatrix(appPage, browserArtifacts, runtime, created.id);
+    // The matrix re-navigates, which folds Advanced details (and the scheduler) closed again.
+    await jobsWin.getByTestId("automation-job-advanced-toggle").click();
+    await expect(jobsWin.getByTestId("automation-job-scheduler")).toBeVisible();
+    parityEvidence.lifecycle = parity;
+    await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
+    await browserArtifacts.captureScreenshot("jobs-lifecycle-history", appPage);
+    await browserArtifacts.persist(appPage);
+    const routeState = await readRouteState(runtime);
+    expect(routeState).toMatchObject({
+      automation_active_tab: "jobs",
+      automation_detail_overflow_visible: true,
+      automation_run_history_visible: true,
+      automation_scheduler_visible: true,
+      automation_selected_item: editedName,
+      automation_session_link_count: expect.any(Number),
+      automation_trigger_visible: true,
+      automation_view_visible: true,
+    });
 
-  await ui.detailOverflow.click();
-  await ui.deleteAutomationButton.click();
-  await expect(ui.automationDeleteDialog).toBeVisible();
-  await ui.automationDeleteConfirmTyping.fill(editedName);
-  const deleteResponsePromise = appPage.waitForResponse(
-    response =>
-      response.request().method() === "DELETE" &&
-      new URL(response.url()).pathname === `/api/automation/jobs/${created.id}`
-  );
-  await ui.confirmDeleteAutomationButton.click();
-  const deleteResponse = await deleteResponsePromise;
-  expect(deleteResponse.ok()).toBe(true);
-  await expect(ui.automationDeleteDialog).toBeHidden();
-  await expect.poll(async () => await getJobStatus(runtime, created.id)).toBe(404);
-  const afterDelete = await automationCLI<JobsResponse>(runtime, [
-    "automation",
-    "jobs",
-    "--limit",
-    "50",
-  ]);
-  expect(afterDelete.jobs.some(job => job.id === created.id)).toBe(false);
-  disabledHealth = await getAutomationHealth(runtime);
-  expect(disabledHealth.automation.scheduled_jobs?.some(state => state.job_id === created.id)).toBe(
-    false
-  );
-
-  await assertNoJobSensitiveLeak(appPage, runtime, {
-    afterDelete,
-    parity,
-    routeState,
-    workspaceJob,
-  });
-  await deleteSessionIfExists(runtime, completedRun.workspace_id, completedRun.session_id);
-  await deleteJobIfExists(runtime, workspaceJob.id);
-});
-
-test("scheduled job survives daemon restart and does not duplicate fire ids", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  const jobsWin = appWindow(appPage, "jobs");
-  const ui = automationOperatorSelectors(jobsWin, appPage);
-  const shellUI = automationOperatorSelectors(appPage);
-  const job = await createJob(
-    runtime,
-    jobRequest({
-      fireLimit: { max: 100, window: "2m" },
-      name: uniqueName("jobs-restart"),
-      schedule: { mode: "every", interval: "1s" },
-    })
-  );
-  await completeOnboardingIfPrompted(shellUI);
-  await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-  await expect(ui.jobsListRows).toBeVisible();
-  await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(job.id).click();
-  await expect(appPage).toHaveURL(new RegExp(`/jobs/${job.id}$`));
-  await jobsWin.getByTestId("automation-job-advanced-toggle").click();
-  await expect(jobsWin.getByTestId("automation-job-scheduler")).toContainText("Registered");
-
-  const beforeRestart = await waitForScheduledRuns(runtime, job.id, 1);
-  const beforeFireIDs = uniqueFireIDs(beforeRestart);
-  expect(new Set(beforeFireIDs).size).toBe(beforeFireIDs.length);
-
-  const restart = await runtime.requestJSON<SettingsRestartAction>(
-    "/api/settings/actions/restart",
-    {
-      method: "POST",
-      body: "{}",
+    await ui.runSessionLink(completedRun.id).click();
+    const completedSessionId = completedRun.session_id;
+    if (!completedSessionId) {
+      throw new Error("Expected the completed job run to expose a linked session.");
     }
-  );
-  expect(restart.operation_id).toMatch(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  );
-  await expect
-    .poll(async () => await pollRestartStatus(runtime, restart.status_url), {
-      timeout: 45_000,
-    })
-    .toBe("ready");
-  await reloadDaemonServedPage(appPage, runtime, "/jobs", { readyTestId: "jobs-shell" });
-  await expect(ui.jobsShell).toBeVisible();
-  await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(job.id).click();
+    const sessionUI = sessionWindowSelectors(sessionWindow(appPage, completedSessionId));
+    await expect(sessionUI.chatView).toBeVisible();
+    await expect(sessionUI.chatView).toContainText(
+      browserAutomationOperatorFlowScenario.job.prompt
+    );
+    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
+    await ui.itemLink(created.id).click();
+    await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
 
-  const afterRestart = await waitForScheduledRuns(runtime, job.id, 2);
-  const fireIDs = uniqueFireIDs(afterRestart);
-  expect(fireIDs.length).toBeGreaterThanOrEqual(2);
-  expect(new Set(fireIDs).size).toBe(fireIDs.length);
-  const state = await schedulerState(runtime, job.id);
-  expect(state).toMatchObject({ job_id: job.id, registered: true });
-  expect(state?.last_fire_id).toBeTruthy();
+    await ui.detailOverflow.click();
+    await ui.deleteAutomationButton.click();
+    await expect(ui.automationDeleteDialog).toBeVisible();
+    await ui.automationDeleteConfirmTyping.fill(editedName);
+    const deleteResponsePromise = appPage.waitForResponse(
+      response =>
+        response.request().method() === "DELETE" &&
+        new URL(response.url()).pathname === `/api/automation/jobs/${created.id}`
+    );
+    await ui.confirmDeleteAutomationButton.click();
+    const deleteResponse = await deleteResponsePromise;
+    expect(deleteResponse.ok()).toBe(true);
+    await expect(ui.automationDeleteDialog).toBeHidden();
+    await expect.poll(async () => await getJobStatus(runtime, created.id)).toBe(404);
+    const afterDelete = await automationCLI<JobsResponse>(runtime, [
+      "automation",
+      "jobs",
+      "--limit",
+      "50",
+    ]);
+    expect(afterDelete.jobs.some(job => job.id === created.id)).toBe(false);
+    disabledHealth = await getAutomationHealth(runtime);
+    expect(
+      disabledHealth.automation.scheduled_jobs?.some(state => state.job_id === created.id)
+    ).toBe(false);
 
-  const parity = await captureJobParity(runtime, job.id, afterRestart[0].id);
-  expect(parity.httpRuns.runs.filter(run => run.scheduled_at).length).toBeGreaterThanOrEqual(2);
-  expect(parity.cliHistory.runs.filter(run => run.fire_id).length).toBeGreaterThanOrEqual(2);
-  expect(parity.uds.job.scheduler?.registered).toBe(true);
+    await assertNoJobSensitiveLeak(appPage, runtime, {
+      afterDelete,
+      parity,
+      routeState,
+      workspaceJob,
+    });
+    await deleteSessionIfExists(runtime, completedRun.workspace_id, completedRun.session_id);
+    await deleteJobIfExists(runtime, workspaceJob.id);
+  });
 
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);
-  await browserArtifacts.captureScreenshot("jobs-restart-scheduled-history", appPage);
-  await browserArtifacts.persist(appPage);
-  await assertNoJobSensitiveLeak(appPage, runtime, parity);
+  await test.step("scheduled job survives daemon restart and does not duplicate fire ids", async () => {
+    const jobsWin = appWindow(appPage, "jobs");
+    const ui = automationOperatorSelectors(jobsWin, appPage);
+    const shellUI = automationOperatorSelectors(appPage);
+    const job = await createJob(
+      runtime,
+      jobRequest({
+        fireLimit: { max: 100, window: "2m" },
+        name: uniqueName("jobs-restart"),
+        schedule: { mode: "every", interval: "1s" },
+      })
+    );
+    await completeOnboardingIfPrompted(shellUI);
+    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
+    await expect(ui.jobsListRows).toBeVisible();
+    await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
+    await ui.itemLink(job.id).click();
+    await expect(appPage).toHaveURL(new RegExp(`/jobs/${job.id}$`));
+    await jobsWin.getByTestId("automation-job-advanced-toggle").click();
+    await expect(jobsWin.getByTestId("automation-job-scheduler")).toContainText("Registered");
+
+    const beforeRestart = await waitForScheduledRuns(runtime, job.id, 1);
+    const beforeFireIDs = uniqueFireIDs(beforeRestart);
+    expect(new Set(beforeFireIDs).size).toBe(beforeFireIDs.length);
+
+    const restart = await runtime.requestJSON<SettingsRestartAction>(
+      "/api/settings/actions/restart",
+      {
+        method: "POST",
+        body: "{}",
+      }
+    );
+    expect(restart.operation_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+    await expect
+      .poll(async () => await pollRestartStatus(runtime, restart.status_url), {
+        timeout: 45_000,
+      })
+      .toBe("ready");
+    await reloadDaemonServedPage(appPage, runtime, "/jobs", { readyTestId: "jobs-shell" });
+    await expect(ui.jobsShell).toBeVisible();
+    await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
+    await ui.itemLink(job.id).click();
+
+    const afterRestart = await waitForScheduledRuns(runtime, job.id, 2);
+    const fireIDs = uniqueFireIDs(afterRestart);
+    expect(fireIDs.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(fireIDs).size).toBe(fireIDs.length);
+    const state = await schedulerState(runtime, job.id);
+    expect(state).toMatchObject({ job_id: job.id, registered: true });
+    expect(state?.last_fire_id).toBeTruthy();
+
+    const parity = await captureJobParity(runtime, job.id, afterRestart[0].id);
+    expect(parity.httpRuns.runs.filter(run => run.scheduled_at).length).toBeGreaterThanOrEqual(2);
+    expect(parity.cliHistory.runs.filter(run => run.fire_id).length).toBeGreaterThanOrEqual(2);
+    expect(parity.uds.job.scheduler?.registered).toBe(true);
+
+    parityEvidence.restart = parity;
+    await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
+    await browserArtifacts.captureScreenshot("jobs-restart-scheduled-history", appPage);
+    await browserArtifacts.persist(appPage);
+    await assertNoJobSensitiveLeak(appPage, runtime, parity);
+  });
 });
 
 test("failed job run is diagnosable from browser and CLI without leaking secrets", async ({

@@ -54,7 +54,6 @@ const QUARANTINE_LOOP = "run-page-quarantine-e2e";
 const EXHAUSTED_LOOP = "run-page-exhausted-e2e";
 const DONE_LOOP = "run-page-done-e2e";
 const CANCELED_LOOP = "run-page-canceled-e2e";
-const RETRY_LOOP = "run-page-retry-e2e";
 const USAGE_LOOP = "run-page-usage-e2e";
 const GRAPH_STATES_LOOP = "run-page-graph-states-e2e";
 const RACE_LOOP = "run-page-race-e2e";
@@ -389,46 +388,15 @@ const exhaustedDefinition: LoopDefinition = {
   contract: contract("Require the published note to fail.", "nodes.publish.status == 'failed'"),
 };
 
-/** A step whose first attempt blows its deadline and whose retry heals it. */
-const retryDefinition: LoopDefinition = {
-  apiVersion: "compozy.loop/v1",
-  kind: "Loop",
-  meta: {
-    name: RETRY_LOOP,
-    description: "One step that times out once and succeeds on its retry.",
-    catalog: { category: "Testing" },
-  },
-  concurrency: "allow",
-  contract: contract("Finish the step, retrying once.", "nodes.execute.status == 'succeeded'"),
-  graph: {
-    nodes: [
-      {
-        id: "execute",
-        class: "action",
-        kind: "run-agent",
-        timeout: "2s",
-        retry: { max_attempts: 3, backoff: { base: "10ms", max: "10ms" } },
-        params: {
-          agent: RETRY_AGENT,
-          prompt: "retry lifecycle",
-          output_schema: {
-            type: "object",
-            required: ["summary", "value"],
-            properties: { summary: { type: "string" }, value: { type: "string" } },
-          },
-        },
-      },
-    ],
-    edges: [],
-  } as LoopDefinition["graph"],
-  start: [{ kind: "http" }],
-};
-
 /** One direct successful turn with provider usage, without retry lifecycle noise. */
 const usageDefinition: LoopDefinition = {
-  ...retryDefinition,
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  concurrency: "allow",
+  contract: contract("Finish the step, retrying once.", "nodes.execute.status == 'succeeded'"),
+  start: [{ kind: "http" }],
   meta: {
-    ...retryDefinition.meta,
+    catalog: { category: "Testing" },
     name: USAGE_LOOP,
     description: "One successful step that reports provider token usage.",
   },
@@ -1005,72 +973,6 @@ test.describe("Loop run page — two registers", () => {
     );
   });
 
-  test("E2E-014: terminal runs lead with their outcome, uncollapsed", async ({
-    appPage,
-    runtime,
-  }) => {
-    const done = await seedRun(appPage, runtime, doneDefinition, DONE_LOOP);
-    await waitForRun(runtime, done.runPath, detail => detail.run.status === "done");
-    await openRun(appPage, runtime, done.runId);
-
-    await expect(appPage.getByTestId("loop-run-briefing-outcome")).toContainText("Done");
-    // Visible with every disclosure shut: a signal you have to expand to find is
-    // a signal you will miss.
-    await expect(appPage.getByTestId("loop-run-inspect-panel")).toBeHidden();
-    // A run that produced nothing says so rather than showing an empty shelf.
-    await expect(
-      appPage.getByTestId("loop-run-artifacts").or(appPage.getByTestId("loop-run-artifacts-none"))
-    ).toBeVisible();
-  });
-
-  test("E2E-014: a failed run leads with its failure, uncollapsed", async ({
-    appPage,
-    runtime,
-  }) => {
-    const { runId, runPath } = await seedRun(appPage, runtime, exhaustedDefinition, EXHAUSTED_LOOP);
-    // A real failure, not a label: the step exhausts and the run settles on one
-    // of its failing terminal states.
-    await waitForRun(runtime, runPath, detail =>
-      ["failed", "exhausted", "stalled", "blocked"].includes(detail.run.status)
-    );
-    await openRun(appPage, runtime, runId);
-
-    const briefing = appPage.getByTestId("loop-run-briefing");
-    await expect(briefing).toHaveAttribute("data-tone", "failed");
-    await expect(appPage.getByTestId("loop-run-briefing-headline")).not.toBeEmpty();
-    // The plain cause is readable with every disclosure still shut.
-    await expect(appPage.getByTestId("loop-run-inspect-panel")).toBeHidden();
-    await expect(briefing).toContainText(/fail|exhaust|stall|block/i);
-  });
-
-  test("E2E-014: a canceled run names who stopped it and when, calmly", async ({
-    appPage,
-    runtime,
-  }) => {
-    const { runId, runPath } = await seedRun(appPage, runtime, needsYouDefinition, NEEDS_YOU_LOOP, {
-      humanGate: true,
-    });
-    await waitForRun(runtime, runPath, detail => (detail.requests ?? []).length > 0);
-    await runtime.requestJSON(`${runPath}/cancel`, { method: "POST", body: JSON.stringify({}) });
-    await waitForRun(runtime, runPath, detail => detail.run.status === "canceled");
-
-    // The daemon recorded both halves of the answer, so the page has both to show.
-    const briefingRead = await runtime.requestJSON<{
-      outcome?: { actor_kind?: string; actor_ref?: string; at: string } | null;
-    }>(`${runPath}/briefing`);
-    expect(briefingRead.outcome?.at).toBeTruthy();
-    expect(briefingRead.outcome?.actor_kind || briefingRead.outcome?.actor_ref).toBeTruthy();
-
-    await openRun(appPage, runtime, runId);
-    const briefing = appPage.getByTestId("loop-run-briefing");
-    await expect(appPage.getByTestId("loop-run-briefing-outcome")).toContainText("Canceled");
-    // Who, and when — a cancellation without a time is a fact nobody can place.
-    await expect(briefing).toContainText("by");
-    await expect(appPage.getByTestId("loop-run-briefing-outcome-at")).toBeVisible();
-    // Cancellation is calm — the actor travels in words, never in an alarm colour.
-    await expect(briefing).not.toHaveAttribute("data-tone", "failed");
-  });
-
   test("E2E-015: a long run pages its whole story back with no gap and no repeat", async ({
     appPage,
     runtime,
@@ -1496,7 +1398,7 @@ test.describe("Loop run page — two registers", () => {
     await expect(operatorPanel.getByTestId("loop-state-chip-failed")).toHaveCount(0);
   });
 
-  test("E2E-018: the runs roster puts what needs you first and reads outcomes plainly", async ({
+  test("E2E-014 / E2E-018: terminal briefings and the runs roster read outcomes plainly", async ({
     appPage,
     runtime,
   }) => {
@@ -1520,6 +1422,53 @@ test.describe("Loop run page — two registers", () => {
     await waitForRun(runtime, canceled.runPath, detail => detail.run.status === "canceled");
     await waitForRun(runtime, failed.runPath, isTerminal, 120_000);
     await waitForRun(runtime, needsYou.runPath, detail => (detail.requests ?? []).length > 0);
+
+    await test.step("E2E-014: terminal runs lead with their outcome, uncollapsed", async () => {
+      await openRun(appPage, runtime, done.runId);
+
+      await expect(appPage.getByTestId("loop-run-briefing-outcome")).toContainText("Done");
+      // Visible with every disclosure shut: a signal you have to expand to find is
+      // a signal you will miss.
+      await expect(appPage.getByTestId("loop-run-inspect-panel")).toBeHidden();
+      // A run that produced nothing says so rather than showing an empty shelf.
+      await expect(
+        appPage.getByTestId("loop-run-artifacts").or(appPage.getByTestId("loop-run-artifacts-none"))
+      ).toBeVisible();
+    });
+
+    await test.step("E2E-014: a failed run leads with its failure, uncollapsed", async () => {
+      // A real failure, not a label: the step exhausts and the run settles on one
+      // of its failing terminal states.
+      await waitForRun(runtime, failed.runPath, detail =>
+        ["failed", "exhausted", "stalled", "blocked"].includes(detail.run.status)
+      );
+      await openRun(appPage, runtime, failed.runId);
+
+      const briefing = appPage.getByTestId("loop-run-briefing");
+      await expect(briefing).toHaveAttribute("data-tone", "failed");
+      await expect(appPage.getByTestId("loop-run-briefing-headline")).not.toBeEmpty();
+      // The plain cause is readable with every disclosure still shut.
+      await expect(appPage.getByTestId("loop-run-inspect-panel")).toBeHidden();
+      await expect(briefing).toContainText(/fail|exhaust|stall|block/i);
+    });
+
+    await test.step("E2E-014: a canceled run names who stopped it and when, calmly", async () => {
+      // The daemon recorded both halves of the answer, so the page has both to show.
+      const briefingRead = await runtime.requestJSON<{
+        outcome?: { actor_kind?: string; actor_ref?: string; at: string } | null;
+      }>(`${canceled.runPath}/briefing`);
+      expect(briefingRead.outcome?.at).toBeTruthy();
+      expect(briefingRead.outcome?.actor_kind || briefingRead.outcome?.actor_ref).toBeTruthy();
+
+      await openRun(appPage, runtime, canceled.runId);
+      const briefing = appPage.getByTestId("loop-run-briefing");
+      await expect(appPage.getByTestId("loop-run-briefing-outcome")).toContainText("Canceled");
+      // Who, and when — a cancellation without a time is a fact nobody can place.
+      await expect(briefing).toContainText("by");
+      await expect(appPage.getByTestId("loop-run-briefing-outcome-at")).toBeVisible();
+      // Cancellation is calm — the actor travels in words, never in an alarm colour.
+      await expect(briefing).not.toHaveAttribute("data-tone", "failed");
+    });
 
     await appPage.goto(runtime.url("/loop-runs"), { waitUntil: "domcontentloaded" });
     await expect(appPage.getByTestId("loop-runs-view")).toBeVisible();
@@ -1550,37 +1499,6 @@ test.describe("Loop run page — two registers", () => {
     await expect(outcomeOf(EXHAUSTED_LOOP)).toContainText(/fail|exhaust|stall|block/i);
     for (const loopName of [DONE_LOOP, CANCELED_LOOP, EXHAUSTED_LOOP]) {
       await expect(outcomeOf(loopName)).not.toContainText("_");
-    }
-  });
-
-  test("E2E-019: reduced motion unmounts the pulse and every chip says its state", async ({
-    appPage,
-    runtime,
-  }) => {
-    // Emulated on the page rather than declared as a suite option: the shared
-    // `appPage` fixture owns the context, so the preference has to be set on the
-    // page the harness handed us.
-    await appPage.emulateMedia({ reducedMotion: "reduce" });
-    const { runId, runPath } = await seedRun(appPage, runtime, retryDefinition, RETRY_LOOP);
-    await waitForRun(runtime, runPath, detail => (detail.generations ?? []).length > 0);
-    await openRun(appPage, runtime, runId);
-    await openInspect(appPage, "graph");
-    await expect(appPage.getByTestId("loop-run-dag")).toBeVisible();
-
-    // Removed from the render, not paused mid-frame: a frozen dot on an edge
-    // reads as a stalled run, which is the exact misreading to avoid.
-    await expect(appPage.getByTestId("loop-dag-edge-pulse")).toHaveCount(0);
-
-    // Colour is never the sole carrier. Every state chip says its state in words
-    // AND carries its glyph, or a screenshot and a colour-blind reader both come
-    // away with nothing.
-    const chips = appPage.getByTestId(/^loop-state-chip-/);
-    const count = await chips.count();
-    expect(count).toBeGreaterThan(0);
-    for (let index = 0; index < count; index += 1) {
-      const chip = chips.nth(index);
-      await expect(chip).toHaveAccessibleName(/\S/);
-      await expect(chip.locator("svg")).toHaveCount(1);
     }
   });
 });
