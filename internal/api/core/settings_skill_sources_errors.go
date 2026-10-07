@@ -9,8 +9,8 @@ import (
 )
 
 func (h *BaseHandlers) respondSettingsSkillsError(c *gin.Context, err error) {
-	var sourceError *compozyconfig.SkillSourceValidationError
-	if !errors.As(err, &sourceError) {
+	sourceError, ok := errors.AsType[*compozyconfig.SkillSourceValidationError](err)
+	if !ok {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
@@ -36,8 +36,8 @@ func (h *BaseHandlers) respondSkillSourceValidationError(
 }
 
 func (h *BaseHandlers) respondSettingsSkillsTypedError(c *gin.Context, err error) bool {
-	var sourceError *compozyconfig.SkillSourceValidationError
-	if !errors.As(err, &sourceError) {
+	sourceError, ok := errors.AsType[*compozyconfig.SkillSourceValidationError](err)
+	if !ok {
 		return false
 	}
 	h.respondSkillSourceValidationError(c, err, sourceError)

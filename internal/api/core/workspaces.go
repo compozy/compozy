@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -187,11 +188,7 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 		}
 	}
 
-	names := make([]string, 0, len(merged))
-	for name := range merged {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(merged))
 
 	agents := make([]AgentCatalogEntry, 0, len(names))
 	for _, name := range names {

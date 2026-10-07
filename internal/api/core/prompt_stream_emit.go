@@ -2,7 +2,7 @@ package core
 
 import (
 	"encoding/json"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -73,7 +73,7 @@ func (e *PromptStreamEncoder) emitUnresolvedToolResults(writer FlushWriter, even
 			toolCallIDs = append(toolCallIDs, toolCallID)
 		}
 	}
-	sort.Strings(toolCallIDs)
+	slices.Sort(toolCallIDs)
 	for _, toolCallID := range toolCallIDs {
 		errorText := "Tool call ended before returning a result."
 		raw, err := json.Marshal(map[string]string{"error": errorText})

@@ -123,16 +123,14 @@ func cloneTimePtr(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}
-	copyValue := value.UTC()
-	return &copyValue
+	return new(value.UTC())
 }
 
 func cloneInt64Ptr(value *int64) *int64 {
 	if value == nil {
 		return nil
 	}
-	copyValue := *value
-	return &copyValue
+	return new(*value)
 }
 
 func cloneRawMessage(raw json.RawMessage) json.RawMessage {

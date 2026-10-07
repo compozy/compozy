@@ -91,8 +91,7 @@ func cloneReasoningEffortPtr(value *modelcatalog.ReasoningEffort) *modelcatalog.
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func providerSettingsPayloadEmpty(payload contract.SettingsProviderWritePayload) bool {

@@ -209,24 +209,21 @@ func taskCatalogCloneOwnership(source *taskpkg.Ownership) *taskpkg.Ownership {
 	if source == nil {
 		return nil
 	}
-	cloned := *source
-	return &cloned
+	return new(*source)
 }
 
 func taskCatalogCloneActorIdentity(source *taskpkg.ActorIdentity) *taskpkg.ActorIdentity {
 	if source == nil {
 		return nil
 	}
-	cloned := *source
-	return &cloned
+	return new(*source)
 }
 
 func taskCatalogOptionalTime(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	cloned := value
-	return &cloned
+	return new(value)
 }
 
 func taskCatalogNeedsAttentionReason(attention *taskpkg.NeedsAttention) string {
@@ -247,8 +244,7 @@ func taskCatalogNeedsAttentionBy(attention *taskpkg.NeedsAttention) *taskpkg.Act
 	if attention == nil || attention.By.IsZero() {
 		return nil
 	}
-	actor := attention.By
-	return &actor
+	return new(attention.By)
 }
 
 // TaskInboxLane identifies one inbox grouping lane.

@@ -62,10 +62,10 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 		countingRegistry := &countingHostedMCPRegistry{Registry: registry}
 		done := make(chan struct{})
 		var projectionSamples atomic.Int32
-		var closeDone sync.Once
+		closeDone := sync.OnceFunc(func() { close(done) })
 		generation := func(context.Context, toolspkg.Scope) (string, bool) {
 			if projectionSamples.Add(1) >= 5 {
-				closeDone.Do(func() { close(done) })
+				closeDone()
 			}
 			return "stable", true
 		}
@@ -82,7 +82,7 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/internal/hosted-mcp/projection/stream?bind_id="+bind.BindID,
 			http.NoBody,
@@ -270,7 +270,7 @@ func TestHostedMCPJSONRouteErrors(t *testing.T) {
 
 				recorder := httptest.NewRecorder()
 				request := httptest.NewRequestWithContext(
-					context.Background(),
+					t.Context(),
 					tt.method,
 					tt.path,
 					bytes.NewBufferString(tt.body),
@@ -434,7 +434,7 @@ func postHostedMCPToolCall(
 	body := fmt.Sprintf(`{"bind_id":%q,"tool_name":%q,"input":{}}`, bindID, toolName)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodPost,
 		"/api/internal/hosted-mcp/tools/call",
 		bytes.NewBufferString(body),

@@ -1002,7 +1002,7 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 		engine := gin.New()
 		engine.POST("/extensions/:name/enable", handlers.EnableExtension)
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			"/extensions/kit/enable",
 			strings.NewReader(""),

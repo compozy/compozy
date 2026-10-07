@@ -192,8 +192,7 @@ func cloneGlobalShortcut(value *cmdpalette.GlobalShortcut) *cmdpalette.GlobalSho
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func CmdPaletteClientsFromDomain(clients []cmdpalette.Client) []CmdPaletteClient {
@@ -265,14 +264,12 @@ func cloneContractString(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneConfirmation(value *cmdpalette.Confirmation) *cmdpalette.Confirmation {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

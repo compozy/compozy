@@ -658,7 +658,7 @@ func TestMemoryHelpersWriteScopeStatusAndWorkspaces(t *testing.T) {
 		},
 	}
 	handlers := newTestMemoryHandlers(t, manager, stubObserver{}, nil, &stubDreamTrigger{})
-	workspaces, err := handlers.memoryHealthWorkspaces(context.Background(), "")
+	workspaces, err := handlers.memoryHealthWorkspaces(t.Context(), "")
 	if err != nil {
 		t.Fatalf("memoryHealthWorkspaces() error = %v", err)
 	}
@@ -667,7 +667,7 @@ func TestMemoryHelpersWriteScopeStatusAndWorkspaces(t *testing.T) {
 	}
 
 	explicitWorkspace := t.TempDir()
-	explicit, err := handlers.memoryHealthWorkspaces(context.Background(), explicitWorkspace)
+	explicit, err := handlers.memoryHealthWorkspaces(t.Context(), explicitWorkspace)
 	if err != nil {
 		t.Fatalf("memoryHealthWorkspaces(explicit) error = %v", err)
 	}
@@ -768,7 +768,7 @@ func newTestMemoryStore(t *testing.T) (*memory.Store, string) {
 		}
 	})
 	workspace := t.TempDir()
-	if _, err := compozyworkspace.EnsureIdentity(context.Background(), workspace); err != nil {
+	if _, err := compozyworkspace.EnsureIdentity(t.Context(), workspace); err != nil {
 		t.Fatalf("EnsureIdentity(%q) error = %v", workspace, err)
 	}
 	return store, workspace

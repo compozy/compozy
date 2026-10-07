@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/internal/agentidentity"
@@ -32,7 +31,7 @@ func TestAgentTaskClaimCriteria(t *testing.T) {
 		}
 
 		criteria, err := handlers.agentTaskClaimCriteria(
-			context.Background(),
+			t.Context(),
 			contract.AgentTaskClaimNextRequest{LeaseSeconds: 60},
 			caller,
 		)
@@ -66,7 +65,7 @@ func TestAgentTaskClaimCriteria(t *testing.T) {
 		}
 
 		criteria, err := handlers.agentTaskClaimCriteria(
-			context.Background(),
+			t.Context(),
 			contract.AgentTaskClaimNextRequest{WorkspaceID: "ws-target", LeaseSeconds: 60},
 			caller,
 		)

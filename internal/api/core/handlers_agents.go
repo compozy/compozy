@@ -1,12 +1,13 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -183,8 +184,8 @@ func (h *BaseHandlers) respondAgentEntries(
 			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, diagnosticWorkspaceID))
 		}
 	}
-	sort.Slice(agents, func(i, j int) bool {
-		return agents[i].Name < agents[j].Name
+	slices.SortFunc(agents, func(a, b contract.AgentPayload) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 	c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
 }

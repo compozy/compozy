@@ -1,7 +1,7 @@
 package spec
 
 import (
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
@@ -63,7 +63,7 @@ func toolReasonCodeValues() []string {
 		string(tools.ReasonSkillDefinitionInvalid),
 	}
 	values = appendUniqueStrings(values, contract.TerminalErrorCodeValues()...)
-	sort.Strings(values)
+	slices.Sort(values)
 	return values
 }
 
@@ -84,7 +84,7 @@ func toolErrorCodeValues() []string {
 		string(tools.ErrorCodeTimedOut),
 	}
 	values = appendUniqueStrings(values, contract.TerminalErrorCodeValues()...)
-	sort.Strings(values)
+	slices.Sort(values)
 	return values
 }
 

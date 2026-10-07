@@ -270,16 +270,14 @@ func cloneBoolPtr(src *bool) *bool {
 	if src == nil {
 		return nil
 	}
-	value := *src
-	return &value
+	return new(*src)
 }
 
 func cloneTimePointer(src *time.Time) *time.Time {
 	if src == nil {
 		return nil
 	}
-	cloned := src.UTC()
-	return &cloned
+	return new(src.UTC())
 }
 
 func durationString(value time.Duration) string {

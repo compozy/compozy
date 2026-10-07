@@ -107,8 +107,7 @@ func mcpSecretValuesFromPayload(payload *contract.SettingsMCPSecretValuesPayload
 	}
 	var oauthClientSecret *string
 	if payload.OAuthClientSecret != nil {
-		value := *payload.OAuthClientSecret
-		oauthClientSecret = &value
+		oauthClientSecret = new(*payload.OAuthClientSecret)
 	}
 	return settingspkg.MCPSecretValues{
 		SecretEnv:         cloneStringMap(payload.SecretEnv),

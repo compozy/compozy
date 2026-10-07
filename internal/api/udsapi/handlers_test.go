@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -49,7 +48,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		for _, route := range routes {
 			got = append(got, route.Method+" "+route.Path)
 		}
-		sort.Strings(got)
+		slices.Sort(got)
 
 		want := []string{
 			"DELETE /api/profiles/:name",
@@ -529,7 +528,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/terminals/recordings/:id",
 			"GET /api/workspaces/:workspace_id/terminals/stream",
 		}
-		sort.Strings(want)
+		slices.Sort(want)
 
 		if len(got) != len(want) {
 			wantSet := make(map[string]struct{}, len(want))
@@ -2537,7 +2536,7 @@ func TestStreamSessionHandlerUsesLastEventID(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw",
 		http.NoBody,
@@ -2578,7 +2577,7 @@ func TestStreamSessionHandlerSyntheticStoppedEventIncludesWorkspaceContext(t *te
 	engine := newTestRouter(t, handlers)
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
 		http.NoBody,
@@ -2974,7 +2973,7 @@ func TestObserveEventStreamUsesLastEventIDCursor(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/logs/stream?workspace_id=ws-workspace",
 		http.NoBody,

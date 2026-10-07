@@ -240,7 +240,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 			t.Fatalf("New() error = %v", err)
 		}
 
-		if err := server.Start(context.Background()); err != nil {
+		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
 
@@ -254,7 +254,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 
 		client := newUnixClient(t, socketPath)
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"http://unix/api/status",
 			http.NoBody,
@@ -273,7 +273,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 			t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 		}
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
@@ -340,7 +340,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		if err := server.Start(context.Background()); err != nil {
+		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
 		t.Cleanup(func() {
@@ -350,7 +350,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 				t.Errorf("Shutdown() error = %v", err)
 			}
 		})
-		if err := server.Start(context.Background()); err == nil {
+		if err := server.Start(t.Context()); err == nil {
 			t.Fatal("Start(second) error = nil, want non-nil")
 		}
 	})
@@ -389,7 +389,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		if err := server.Start(context.Background()); err != nil {
+		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
 		released := false
@@ -410,7 +410,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 		errCh := make(chan error, 1)
 		go func() {
 			req, requestErr := http.NewRequestWithContext(
-				context.Background(),
+				t.Context(),
 				http.MethodGet,
 				"http://unix/api/sessions?all_workspaces=true",
 				http.NoBody,
@@ -440,13 +440,13 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 
 		shutdownDone := make(chan error, 1)
 		go func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 			shutdownDone <- server.Shutdown(shutdownCtx)
 		}()
 		waitForServerState(t, server, serverStateStopping)
 
-		if err := server.Start(context.Background()); err == nil {
+		if err := server.Start(t.Context()); err == nil {
 			t.Fatal("Start(during shutdown) error = nil, want non-nil")
 		}
 
@@ -525,7 +525,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		if err := server.Start(context.Background()); err != nil {
+		if err := server.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
 		t.Cleanup(func() {
@@ -536,7 +536,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 			}
 		})
 
-		if err := server.Start(context.Background()); err == nil {
+		if err := server.Start(t.Context()); err == nil {
 			t.Fatal("Start(second) error = nil, want non-nil")
 		}
 		if info, err := os.Lstat(socketPath); err != nil {
@@ -547,7 +547,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 
 		client := newUnixClient(t, socketPath)
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"http://unix/api/status",
 			http.NoBody,
@@ -599,7 +599,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 			t.Fatalf("New() error = %v", err)
 		}
 
-		if err := server.Start(context.Background()); err == nil {
+		if err := server.Start(t.Context()); err == nil {
 			t.Fatal("Start() error = nil, want non-nil")
 		}
 	})
@@ -625,7 +625,7 @@ func TestEnsureSocketParentDirAndWaitForServeDone(t *testing.T) {
 
 		done := make(chan struct{})
 		close(done)
-		if err := waitForServeDone(context.Background(), done); err != nil {
+		if err := waitForServeDone(t.Context(), done); err != nil {
 			t.Fatalf("waitForServeDone(done) error = %v", err)
 		}
 	})
@@ -633,7 +633,7 @@ func TestEnsureSocketParentDirAndWaitForServeDone(t *testing.T) {
 	t.Run("Should return context error while waiting for serve goroutine", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 		defer cancel()
 		if err := waitForServeDone(ctx, make(chan struct{})); err == nil {
 			t.Fatal("waitForServeDone(timeout) error = nil, want non-nil")

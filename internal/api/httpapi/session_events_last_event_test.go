@@ -26,7 +26,7 @@ func TestSessionEventsLastEventIDHeader(t *testing.T) {
 		engine := newTestRouter(t, handlers)
 
 		request := httptest.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			"/api/workspaces/ws-workspace/sessions/sess-123/events?after_sequence=5&limit=10",
 			http.NoBody,

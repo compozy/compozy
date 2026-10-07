@@ -164,7 +164,7 @@ func TestBaseHandlersSupportBundles(t *testing.T) {
 				}, nil
 			},
 		})
-		reqCtx, cancel := context.WithDeadline(context.Background(), deadline)
+		reqCtx, cancel := context.WithDeadline(t.Context(), deadline)
 		defer cancel()
 		request := httptest.NewRequestWithContext(
 			reqCtx,

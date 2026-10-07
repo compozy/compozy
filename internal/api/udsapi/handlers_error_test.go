@@ -246,7 +246,7 @@ func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 	}
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/workspaces/ws-workspace/sessions/sess-123/stream",
 		http.NoBody,
@@ -309,7 +309,7 @@ func TestObserveStreamAndHealthAndDaemonStatusErrorPaths(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	req := httptest.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodGet,
 		"/api/logs/stream?workspace_id=ws-workspace",
 		http.NoBody,
