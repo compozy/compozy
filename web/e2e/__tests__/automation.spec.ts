@@ -8,7 +8,7 @@ import {
   seedBrowserAutomationOperatorFlow,
 } from "../fixtures/runtime";
 import {
-  ensureAppWindow,
+  appWindow,
   focusWindowThroughPalette,
   openAppWindow,
   sessionWindow,
@@ -139,7 +139,9 @@ test("operator manages workspace suggestions and inspects a real automation run 
 
     await expect(automationUI.osDesktop).toBeVisible();
     await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-    const jobsWin = await ensureAppWindow(appPage, "Jobs", "jobs");
+    // The route opens/focuses Jobs after hydration; another Dock click can minimize it.
+    const jobsWin = appWindow(appPage, "jobs");
+    await expect(jobsWin).toBeVisible();
     const jobsUI = automationOperatorSelectors(jobsWin, appPage);
 
     await expect(appPage).toHaveURL(/\/jobs$/);

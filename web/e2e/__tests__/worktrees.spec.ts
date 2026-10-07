@@ -390,6 +390,8 @@ test("E2E-016: operator restores a missing checkout and later dismisses its reco
   appPage,
   runtime,
 }) => {
+  // Preserve the combined budget of the two original journeys.
+  test.setTimeout(180_000);
   await completeOnboardingIfPrompted(appPage);
   const workspace = await runtime.resolveWorkspace(repo.rootDir);
   const worktree = await seedReadyWorktree(runtime, workspace.id, "hotfix-cors");

@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
+import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { appWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
@@ -360,7 +361,10 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     };
     await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
     await browserArtifacts.captureScreenshot("triggers-lifecycle-history", appPage);
-    await browserArtifacts.persist(appPage);
+    await runtime.artifactCollector.captureJSON(
+      "browser_route_state",
+      await captureRouteState(appPage)
+    );
     const routeState = await readRouteState(runtime);
     expect(routeState).toMatchObject({
       automation_active_tab: "triggers",
@@ -415,11 +419,13 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     });
     expect(afterDelete.body).not.toMatch(sensitivePattern);
 
-    await assertNoTriggerSensitiveLeak(appPage, runtime, {
+    parityEvidence.lifecycleDiagnostics = {
       afterDelete: { status: afterDelete.status },
       parity,
       routeState,
-    });
+    };
+    expect(JSON.stringify(parityEvidence.lifecycleDiagnostics)).not.toMatch(sensitivePattern);
+    expect((await appPage.textContent("body")) ?? "").not.toMatch(sensitivePattern);
     await deleteSessionIfExists(
       runtime,
       await resolveAutomationWorkspaceID(runtime, firstRun.workspace_id),
@@ -508,8 +514,9 @@ test("operator manages a webhook trigger and verifies authentication replay and 
       acceptedRun.id,
       "triggers-fire-limit-rejection"
     );
+    // Finalize once while the last journey state is still visible, before cleanup.
     await browserArtifacts.persist(appPage);
-    await assertNoTriggerSensitiveLeak(appPage, runtime, { limited, parity });
+    await assertNoTriggerSensitiveLeak(appPage, runtime, { ...parityEvidence, limited });
     await deleteSessionIfExists(runtime, acceptedWorkspaceID, acceptedRun.session_id);
     await deleteTriggerIfExists(runtime, trigger.id);
   });

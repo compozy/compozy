@@ -686,6 +686,8 @@ test.describe("Loop record legibility", () => {
     browserArtifacts,
     runtime,
   }) => {
+    // Preserve the combined budget of the two original journeys.
+    test.setTimeout(180_000);
     const prepared =
       await test.step("E2E-011: reveal filter is empty before any Loop run exists", async () => {
         const prepared = await prepareLoopWorkspace(runtime, appPage);

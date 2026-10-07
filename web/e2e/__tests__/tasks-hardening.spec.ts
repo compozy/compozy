@@ -101,7 +101,11 @@ test("operator cancels a running task run and rejects manual approval without hi
     parityEvidence.cancellation = parity;
     await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
     await browserArtifacts.captureScreenshot("tasks-run-canceled", appPage);
-    await browserArtifacts.persist(appPage);
+    // Keep tracing through the rejection step; persist finalizes the session once.
+    await runtime.artifactCollector.captureJSON(
+      "browser_route_state",
+      await captureRouteState(appPage)
+    );
     const routeState = await readRouteState(runtime);
     expect(routeState).toMatchObject({
       tasks_run_cancel_visible: false,
@@ -110,7 +114,9 @@ test("operator cancels a running task run and rejects manual approval without hi
       tasks_selected_task: seeded.runningTask.id,
       tasks_view_visible: true,
     });
-    await assertNoTaskSensitiveLeak(appPage, runtime, parity);
+    parityEvidence.cancellationRoute = routeState;
+    await expect(appPage.locator("body")).not.toContainText(sensitivePattern);
+    expect(JSON.stringify({ parity, routeState })).not.toMatch(sensitivePattern);
   });
   await test.step("operator rejects a manual approval task without creating hidden work", async () => {
     await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
@@ -170,7 +176,7 @@ test("operator cancels a running task run and rejects manual approval without hi
       tasks_inbox_count: expect.any(Number),
       tasks_view_visible: true,
     });
-    await assertNoTaskSensitiveLeak(appPage, runtime, snapshot);
+    await assertNoTaskSensitiveLeak(appPage, runtime, parityEvidence);
   });
 });
 

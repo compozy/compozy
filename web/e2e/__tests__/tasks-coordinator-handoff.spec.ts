@@ -11,7 +11,6 @@ import {
 } from "../fixtures/selectors";
 import {
   appWindow,
-  ensureAppWindow,
   openAppWindow,
   setGlobalScope,
   sessionWindow,
@@ -77,6 +76,8 @@ test("draft publishing and agent approval preserve coordinator-handoff boundarie
   browserArtifacts,
   runtime,
 }) => {
+  // Preserve the combined budget of the two original journeys.
+  test.setTimeout(180_000);
   await test.step("publishing a draft hands off to the coordinator without retired coordination channels", async () => {
     const tasksWin = appWindow(appPage, "tasks");
     const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
@@ -84,11 +85,11 @@ test("draft publishing and agent approval preserve coordinator-handoff boundarie
     const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
     await ensureProjectWorkspace(appPage, runtime);
+    await switchWorkspace(appPage, workspace.id, workspace.name);
     await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(appPage);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
-    await switchWorkspace(appPage, workspace.id, workspace.name);
-    await ensureAppWindow(appPage, "Tasks", "tasks");
+    await expect(tasksWin).toBeVisible();
 
     await tasksUI.openCreate.click();
     await selectRecurringTaskTemplate(tasksUI);
@@ -166,7 +167,9 @@ test("draft publishing and agent approval preserve coordinator-handoff boundarie
     await setGlobalScope(appPage, true);
 
     await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-    const tasksWin = await ensureAppWindow(appPage, "Tasks", "tasks");
+    // Wait for route hydration instead of toggling its already-focused Dock entry.
+    const tasksWin = appWindow(appPage, "tasks");
+    await expect(tasksWin).toBeVisible();
     const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
     await expect(appPage).toHaveURL(/\/tasks$/);
     await tasksUI.modeList.click();

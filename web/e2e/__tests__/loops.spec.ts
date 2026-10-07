@@ -1178,6 +1178,8 @@ test("CompozyOS migration E2E-004 / E2E-006: run provenance and exhausted feedba
   browserArtifacts,
   runtime,
 }) => {
+  // Preserve the combined budget of the two original journeys.
+  test.setTimeout(180_000);
   await test.step("E2E-004: loop run renders API runtime provenance without controls", async () => {
     if (!runtime.paths) {
       throw new Error("Loop runtime browser test requires launch-mode runtime paths");

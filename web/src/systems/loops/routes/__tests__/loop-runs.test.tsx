@@ -4,12 +4,12 @@
 // No existing loops route suite owns the bell-to-request navigation boundary.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, ws } from "msw";
 import { setupServer } from "msw/node";
 import { z } from "zod";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider, UIProvider } from "@compozy/ui";
 import { routeTree } from "@/routeTree.gen";
@@ -51,7 +51,9 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-function renderAttentionRoute(story: typeof AttentionRequests | typeof AttentionRequestTarget) {
+async function renderAttentionRoute(
+  story: typeof AttentionRequests | typeof AttentionRequestTarget
+) {
   const initialEntries = story.parameters?.router?.initialEntries;
   if (!initialEntries?.length) throw new Error("The route story must specify its initial location");
   const msw = story.parameters?.msw;
@@ -133,13 +135,22 @@ function renderAttentionRoute(story: typeof AttentionRequests | typeof Attention
       </UIProvider>
     </QueryClientProvider>
   );
+  // Route loaders resolve the profile/workspace and await the run-detail MSW
+  // query. Then flush the lazy desktop window import before starting findBy's
+  // DOM timeout; cold CI transforms are not a missing-detail failure.
+  await act(async () => {
+    await router.load();
+  });
+  await act(async () => {
+    await vi.dynamicImportSettled();
+  });
   return router;
 }
 
 describe("Loop request attention routes", () => {
   it("E2E-030: Should compose four waiting notifications and close the bell when jumping to a request", async () => {
     const user = userEvent.setup();
-    const router = renderAttentionRoute(AttentionRequests);
+    const router = await renderAttentionRoute(AttentionRequests);
     await user.click(await screen.findByRole("button", { name: "Attention, 4 waiting" }));
     const row = await screen.findByTestId(
       "os-attention-loop-request-ws_launch_hq:looprun_release_train:confirm-rollout:0"
@@ -158,7 +169,7 @@ describe("Loop request attention routes", () => {
   });
 
   it("E2E-030: Should focus the requested schema field when opening its deep link", async () => {
-    renderAttentionRoute(AttentionRequestTarget);
+    await renderAttentionRoute(AttentionRequestTarget);
     expect(await screen.findByTestId("loop-run-detail-content")).toBeVisible();
     await waitFor(() => expect(screen.getByTestId("loop-request-field-regions")).toHaveFocus());
   });
