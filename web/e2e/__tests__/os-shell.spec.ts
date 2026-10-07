@@ -932,6 +932,10 @@ test("Command palette E2E-009 / ENG-131: Tasks filters clear and a loop row open
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
+  const loopName = "palette-direct-loop";
+  // The first root search caches every domain catalog. Seed the loop before
+  // opening the palette because runtime API writes do not invalidate that cache.
+  await createPaletteLoop(runtime, workspace.id, loopName);
 
   await test.step("Command palette E2E-009: Tasks reports truthful zero counts and clears one filter", async () => {
     const task = await createTask(runtime, "Palette filter target", workspace.id);
@@ -959,9 +963,6 @@ test("Command palette E2E-009 / ENG-131: Tasks filters clear and a loop row open
   });
 
   await test.step("Command palette ENG-131: a loop row opens its detail route", async () => {
-    const loopName = "palette-direct-loop";
-    await createPaletteLoop(runtime, workspace.id, loopName);
-
     const palette = await openCommandPalette(appPage);
     const search = palette.getByPlaceholder("Search apps, sessions, and actions…");
     await search.fill(loopName);
