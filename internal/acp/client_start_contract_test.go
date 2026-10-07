@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -627,17 +628,90 @@ func TestInspectSessionModels(t *testing.T) {
 			t.Fatal("discovery submitted a prompt")
 		}
 	})
-	t.Run("Should fail discovery when a model selection is not acknowledged", func(t *testing.T) {
+	t.Run("Should keep advertised models when a model selection is not acknowledged", func(t *testing.T) {
 		t.Parallel()
 		inspection, err := InspectSessionModels(testutil.Context(t), SessionInspectionRequest{
 			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
 			Env: helperEnv("config_options_unconfirmed", ""),
 		})
-		if err == nil || !strings.Contains(err.Error(), "did not confirm") {
-			t.Fatalf("error = %v, want unconfirmed configuration failure", err)
+		if err != nil {
+			t.Fatalf("InspectSessionModels() error = %v, want advertised options despite one rejected model", err)
+		}
+		assertConfigOption(t, inspection.Options, "model", "new-model", "new-model", "loaded-model", "other-model")
+		for _, rejected := range []string{"loaded-model", "other-model"} {
+			if _, published := inspection.Models[rejected]; published {
+				t.Fatalf("unacknowledged model %q published options: %v", rejected, inspection.Models[rejected])
+			}
+			if err := inspection.ModelErrors[rejected]; err == nil ||
+				!strings.Contains(err.Error(), "did not confirm") {
+				t.Fatalf("ModelErrors[%q] = %v, want unconfirmed configuration failure", rejected, err)
+			}
+		}
+		if _, confirmed := inspection.Models["new-model"]; !confirmed {
+			t.Fatalf("acknowledged model options missing: %v", inspection.Models)
+		}
+	})
+	for _, tc := range []struct {
+		name     string
+		scenario string
+		probes   int
+	}{
+		{"Should return cancellation during the first model probe", "stall_config", 1},
+		{"Should return cancellation during the final model probe", "stall_last_config", 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			captureFile := filepath.Join(t.TempDir(), "cancel-inspection.jsonl")
+			req := SessionInspectionRequest{
+				AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+				Env: helperEnvWithCapture(tc.scenario, "", captureFile),
+			}
+			done := make(chan struct{})
+			var inspection SessionModelInspection
+			var err error
+			go func() {
+				defer close(done)
+				inspection, err = InspectSessionModels(ctx, req)
+			}()
+			t.Cleanup(func() {
+				cancel()
+				<-done
+			})
+			waitForCapturedNotifications(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption, tc.probes)
+			cancel()
+			<-done
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("InspectSessionModels() error = %v, want caller cancellation", err)
+			}
+			if len(inspection.Options) != 0 || len(inspection.Models) != 0 {
+				t.Fatalf("canceled inspection published partial results: %#v", inspection)
+			}
+		})
+	}
+	t.Run("Should return advertised models when the probe budget is exhausted", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+		defer cancel()
+		inspection, err := InspectSessionModels(ctx, SessionInspectionRequest{
+			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnv("stall_config", ""),
+		})
+		if err != nil {
+			t.Fatalf("InspectSessionModels() error = %v, want advertised options after deadline", err)
+		}
+		if _, ok := ModelConfigOption(inspection.Options); !ok {
+			t.Fatalf("advertised model option missing after deadline: %#v", inspection.Options)
 		}
 		if len(inspection.Models) != 0 {
-			t.Fatalf("failed inspection published models: %v", inspection.Models)
+			t.Fatalf("stalled probes published model options: %v", inspection.Models)
+		}
+		model, _ := ModelConfigOption(inspection.Options)
+		for _, value := range model.Values {
+			if err := inspection.ModelErrors[value.Value]; !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("ModelErrors[%q] = %v, want unobserved options recorded as deadline", value.Value, err)
+			}
 		}
 	})
 }

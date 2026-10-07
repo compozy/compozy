@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -116,6 +116,102 @@ describe("useRuntimeModelCatalog", () => {
         { reasoning_effort: "high", fast: true },
       ],
     });
+  });
+
+  it("Should force rediscovery and reread the catalog when refreshed by the user", async () => {
+    const stale = payload("claude", "claude-opus-5", { stale: true });
+    const fresh = payload("claude", "claude-opus-5-5");
+    vi.mocked(listAllModels)
+      .mockResolvedValueOnce({ models: [stale] } as Awaited<ReturnType<typeof listAllModels>>)
+      .mockResolvedValue({
+        models: [stale, fresh].map(model => ({ ...model, stale: false })),
+      } as Awaited<ReturnType<typeof listAllModels>>);
+    vi.mocked(refreshAllModels).mockResolvedValue({ sources: [] } as Awaited<
+      ReturnType<typeof refreshAllModels>
+    >);
+
+    const { result } = renderHook(() => useRuntimeModelCatalog([{ id: "claude" }]), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.stale).toBe(true));
+
+    act(() => result.current.refresh());
+
+    await waitFor(() => expect(result.current.models).toHaveLength(2));
+    expect(vi.mocked(refreshAllModels)).toHaveBeenCalledWith({ force: true });
+    expect(result.current.stale).toBe(false);
+    expect(result.current.refreshError).toBeNull();
+  });
+
+  it("Should surface a failed user refresh instead of a silent no-op", async () => {
+    mockModels([payload("claude", "claude-opus-5", { stale: true })]);
+    vi.mocked(refreshAllModels).mockRejectedValue(
+      new ModelCatalogApiError("inspect claude ACP model options: deadline exceeded", 502)
+    );
+
+    const { result } = renderHook(() => useRuntimeModelCatalog([{ id: "claude" }]), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.models).toHaveLength(1));
+
+    act(() => result.current.refresh());
+
+    await waitFor(() =>
+      expect(result.current.refreshError).toBe(
+        "inspect claude ACP model options: deadline exceeded"
+      )
+    );
+  });
+
+  it("Should surface a live source that failed inside a successful forced refresh", async () => {
+    mockModels([payload("claude", "claude-opus-5")]);
+    vi.mocked(refreshAllModels).mockResolvedValue({
+      sources: [
+        {
+          source_id: "builtin",
+          source_kind: "builtin",
+          provider_id: "claude",
+          priority: 10,
+          refresh_state: "succeeded",
+          row_count: 5,
+          stale: false,
+        },
+        {
+          source_id: "provider_live:claude",
+          source_kind: "provider_live",
+          provider_id: "claude",
+          priority: 110,
+          refresh_state: "failed",
+          row_count: 0,
+          stale: false,
+          last_error: "ACP initialization failed",
+        },
+        {
+          source_id: "provider_live:openrouter",
+          source_kind: "provider_live",
+          provider_id: "openrouter",
+          priority: 110,
+          refresh_state: "failed",
+          row_count: 0,
+          stale: false,
+          last_error: "missing key",
+        },
+      ],
+    } as Awaited<ReturnType<typeof refreshAllModels>>);
+
+    const { result } = renderHook(() => useRuntimeModelCatalog([{ id: "claude" }]), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.models).toHaveLength(1));
+
+    act(() => result.current.refresh());
+
+    await waitFor(() =>
+      expect(result.current.refreshError).toBe(
+        "Couldn't refresh claude models: ACP initialization failed"
+      )
+    );
+    expect(result.current.models.map(model => model.id)).toEqual(["claude-opus-5"]);
   });
 
   it("Should disable every row of a needs-auth provider", async () => {

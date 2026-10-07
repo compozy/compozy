@@ -57,6 +57,8 @@ func hasReasoningTransportBindings(model *Model) bool {
 }
 
 // explicitReasoningProfileRow selects authoritative reasoning metadata, excluding enrichment-only claims.
+// A fresh live row whose option observation failed is authoritative too: its capability
+// is unknown, and lower-priority seeds must not stand in as verified levels.
 func explicitReasoningProfileRow(rows []ModelRow) (ModelRow, bool) {
 	for _, row := range rows {
 		if row.SourceKind == SourceKindModelsDev {
@@ -65,8 +67,16 @@ func explicitReasoningProfileRow(rows []ModelRow) (ModelRow, bool) {
 		if row.SupportsReasoning != nil || len(row.ReasoningEfforts) > 0 || hasACPModelOptions(row) {
 			return row, true
 		}
+		if unobservedLiveModel(row) {
+			return row, true
+		}
 	}
 	return ModelRow{}, false
+}
+
+// unobservedLiveModel reports a current live row that advertised the model but could not observe its options.
+func unobservedLiveModel(row ModelRow) bool {
+	return row.SourceKind == SourceKindProviderLive && !row.Stale && strings.TrimSpace(row.LastError) != ""
 }
 
 // explicitDefaultReasoningEffort stops at a complete ACP snapshot, including its provider-default choice.
@@ -75,7 +85,7 @@ func explicitDefaultReasoningEffort(rows []ModelRow) *ReasoningEffort {
 		if row.SourceKind == SourceKindModelsDev {
 			continue
 		}
-		if row.DefaultReasoningEffort != nil || hasACPModelOptions(row) {
+		if row.DefaultReasoningEffort != nil || hasACPModelOptions(row) || unobservedLiveModel(row) {
 			return row.DefaultReasoningEffort
 		}
 	}

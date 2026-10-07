@@ -272,6 +272,163 @@ func TestLiveProviderSources(t *testing.T) {
 		assertClaudeTransportBinding(t, future, "claude-future-6")
 	})
 
+	t.Run("Should curate newly shipped Claude aliases under their advertised release ids", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.BuiltinProviders()["claude"]
+		provider.Command = "claude-acp"
+		provider.AuthMode = compozyconfig.ProviderAuthModeNone
+		// Option list captured from claude-agent-acp after Opus 5.5 / Sonnet 5.5 / Fable 5.1
+		// shipped: current models are advertised only as version aliases.
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
+			ID:       "model",
+			Category: "model",
+			Kind:     acp.SessionConfigOptionKindSelect,
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "default", Label: "Default (recommended)"},
+				{Value: "opus", Label: "Opus 5.5"},
+				{Value: "custom-deployment", Label: "Fable 5.1"},
+				{Value: "fable", Label: "Fable 5.1"},
+				{Value: "sonnet", Label: "Sonnet 5.5"},
+				{Value: "haiku", Label: "Haiku 4.5"},
+				{Value: "claude-sonnet-5", Label: "Sonnet 5"},
+				{Value: "claude-opus-5", Label: "Opus 5"},
+				{Value: "claude-fable-5", Label: "Fable 5"},
+				{Value: "claude-opus-4-8", Label: "Opus 4.8"},
+			},
+		}}}
+		source := newLiveSourceForTest(t, "claude", provider, &LiveProviderSourcesConfig{
+			BaseEnv:  []string{"PATH=/bin"},
+			ACPProbe: probe,
+		})
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{NewBuiltinSource(), source})
+		if _, err := service.Refresh(
+			testutil.Context(t),
+			RefreshOptions{ProviderID: "claude", Force: true, Now: testTime(0)},
+		); err != nil {
+			t.Fatalf("Refresh(claude) error = %v", err)
+		}
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "claude",
+			View:       CatalogViewCurated,
+			Now:        testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(curated claude) error = %v", err)
+		}
+		featured := make([]string, 0, len(models))
+		curated := make(map[string]Model, len(models))
+		for _, model := range models {
+			curated[model.ModelID] = model
+			if model.Featured {
+				featured = append(featured, model.ModelID)
+			}
+		}
+		slices.Sort(featured)
+		if want := []string{
+			"claude-fable-5-1", "claude-haiku-4-5-20251001", "claude-opus-5-5", "claude-sonnet-5-5",
+		}; !slices.Equal(featured, want) {
+			t.Fatalf("featured curated models = %#v, want provider aliases %#v", featured, want)
+		}
+		for _, pinned := range []string{"claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "custom-deployment"} {
+			if model, ok := curated[pinned]; !ok || model.Featured {
+				t.Fatalf("pinned release %q = %#v (curated %v), want curated and not featured", pinned, model, ok)
+			}
+		}
+		if _, ok := curated["default"]; ok {
+			t.Fatal("provider default pointer was curated as a model")
+		}
+		if got := curated["claude-opus-5-5"].DisplayName; got != "Opus 5.5" {
+			t.Fatalf("claude-opus-5-5 display name = %q, want live label", got)
+		}
+		if !strings.HasPrefix(models[0].ModelID, "claude-") || !models[0].Featured {
+			t.Fatalf("first curated model = %#v, want a featured provider alias", models[0])
+		}
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "claude", Now: testTime(2)})
+		if err != nil {
+			t.Fatalf("ListModels(Claude ACP) error = %v", err)
+		}
+		assertClaudeTransportBinding(t, requireModelRow(t, rows, "claude-opus-5-5"), "opus")
+		assertClaudeTransportBinding(t, requireModelRow(t, rows, "claude-sonnet-5-5"), "sonnet")
+		assertClaudeTransportBinding(t, requireModelRow(t, rows, "claude-fable-5-1"), "fable")
+	})
+
+	t.Run("Should publish advertised Claude models with unknown reasoning when option probes fail", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.BuiltinProviders()["claude"]
+		provider.Command = "claude-acp"
+		provider.AuthMode = compozyconfig.ProviderAuthModeNone
+		probe := &fakeACPModelProbe{
+			options: []acp.SessionConfigOption{{
+				ID:       "model",
+				Category: "model",
+				Kind:     acp.SessionConfigOptionKindSelect,
+				Values: []acp.SessionConfigOptionValue{
+					{Value: "opus", Label: "Opus 5.5"},
+					{Value: "claude-sonnet-5", Label: "Sonnet 5"},
+					{Value: "claude-fable-5-1[1m]", Label: "Fable 5.1 1M"},
+				},
+			}},
+			models: map[string][]acp.SessionConfigOption{"opus": {{
+				ID:             "effort",
+				Category:       "thought_level",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: "high",
+				Values:         []acp.SessionConfigOptionValue{{Value: "low"}, {Value: "high"}},
+			}}},
+			modelErrors: map[string]error{
+				"claude-sonnet-5":      context.DeadlineExceeded,
+				"claude-fable-5-1[1m]": errors.New("Couldn't confirm model with the API"),
+			},
+		}
+		source := newLiveSourceForTest(t, "claude", provider, &LiveProviderSourcesConfig{
+			BaseEnv:  []string{"PATH=/bin"},
+			ACPProbe: probe,
+		})
+		// The builtin source seeds claude-sonnet-5 with static effort levels.
+		service := newTestService(t, newMemoryStore(), []Source{NewBuiltinSource(), source})
+		service.UpdateMergeOptions(MergeOptions{ReasoningApply: map[string]bool{"claude": true}})
+		if _, err := service.Refresh(
+			testutil.Context(t),
+			RefreshOptions{ProviderID: "claude", Force: true, Now: testTime(0)},
+		); err != nil {
+			t.Fatalf("Refresh(claude) error = %v, want advertised rows despite failed probes", err)
+		}
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "claude",
+			View:       CatalogViewAll,
+			Now:        testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(claude) error = %v", err)
+		}
+		byID := make(map[string]Model, len(models))
+		for _, model := range models {
+			byID[model.ModelID] = model
+		}
+		opus := byID["claude-opus-5-5"]
+		if !opus.ReasoningKnown || !slices.Equal(opus.ReasoningEfforts, []ReasoningEffort{"low", "high"}) {
+			t.Fatalf("probed model = %#v, want observed low/high efforts", opus)
+		}
+		for _, modelID := range []string{"claude-sonnet-5", "claude-fable-5-1"} {
+			model, ok := byID[modelID]
+			if !ok || model.Stale || model.Available == nil || !*model.Available {
+				t.Fatalf("unprobed model %q = %#v (listed %v), want fresh and available", modelID, model, ok)
+			}
+			if model.ReasoningKnown || len(model.ReasoningEfforts) != 0 || model.DefaultReasoningEffort != nil {
+				t.Fatalf(
+					"unprobed model %q reasoning = known %v efforts %#v default %v, want unknown without seed levels",
+					modelID, model.ReasoningKnown, model.ReasoningEfforts, model.DefaultReasoningEffort,
+				)
+			}
+			if !strings.Contains(model.LastError, "model options unavailable") {
+				t.Fatalf("unprobed model %q LastError = %q, want probe failure provenance", modelID, model.LastError)
+			}
+		}
+	})
+
 	t.Run(
 		"Should record unavailable Claude runtime when native CLI auth cannot satisfy HTTP discovery",
 		func(t *testing.T) {
@@ -1494,11 +1651,12 @@ type fakeDiscoveryExecutor struct {
 }
 
 type fakeACPModelProbe struct {
-	mu       sync.Mutex
-	options  []acp.SessionConfigOption
-	models   map[string][]acp.SessionConfigOption
-	err      error
-	requests []ACPModelProbeRequest
+	mu          sync.Mutex
+	options     []acp.SessionConfigOption
+	models      map[string][]acp.SessionConfigOption
+	modelErrors map[string]error
+	err         error
+	requests    []ACPModelProbeRequest
 }
 
 // InspectModels supplies isolated per-model snapshots at the ACP discovery I/O boundary.
@@ -1509,7 +1667,11 @@ func (p *fakeACPModelProbe) InspectModels(
 	p.mu.Lock()
 	p.requests = append(p.requests, req)
 	p.mu.Unlock()
-	return acp.SessionModelInspection{Options: acp.CloneSessionConfigOptions(p.options), Models: p.models}, p.err
+	return acp.SessionModelInspection{
+		Options:     acp.CloneSessionConfigOptions(p.options),
+		Models:      p.models,
+		ModelErrors: p.modelErrors,
+	}, p.err
 }
 
 func (p *fakeACPModelProbe) singleRequest(t *testing.T) ACPModelProbeRequest {

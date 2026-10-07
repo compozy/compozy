@@ -16,6 +16,26 @@ shapes; workspace isolation is unchanged. Docs: `sessions/lifecycle.mdx`; offici
 `runtime-operations.md`. QA: `ET-web-session-continue` (steps 10–11), `ET-web-session-fork-from-here`
 (reset to untested), `ET-web-session-sidebar-threads` and `ET-web-sessions-catalog-modal` (flagged).
 
+## Live model catalog freshness — 2026-10-06
+
+Owner: `docs/qa/scenarios/MS-live-model-release-refresh.md`.
+Claude live discovery now names version aliases after the release their provider label
+advertises (`opus` + "Opus 5.5" -> `claude-opus-5-5`, transport binding stays `opus`) and curates
+the advertised list, featuring aliases over pinned releases; user curation in `config.toml`
+still outranks it. ACP model inspection keeps the advertised list when a per-model option probe
+is rejected or runs out of budget (`acp.SessionModelInspection.ModelErrors`, internal); such a
+model reports unknown reasoning with a row `last_error` rather than static seed levels. The Web
+composer refresh sends `force: true`, matching the settings refresh, and reports failed sources
+of signed-in providers that a 200 aggregate refresh returns. HTTP/UDS/CLI routes, DTOs,
+`compozy__provider_models_*` tools, hooks, config keys, extension SDKs and SQLite shape are
+unchanged; persisted selections of the bare alias (`opus`) still launch because unknown Claude
+ids fall through to the transport value. Workspace/profile catalog contexts are untouched. No
+official `skills/compozy/` or site documentation change is required.
+
+Explicit caller cancellation aborts ACP discovery, including during its final option probe;
+deadline exhaustion still preserves the advertised list. Only aliases resolving to Claude
+release IDs receive live featured status; custom transport IDs remain ordinary curated rows.
+
 ## Dependency upgrades — 2026-10-05
 
 Owner: `docs/qa/reports/2026-10-05-dependency-upgrades.md`.

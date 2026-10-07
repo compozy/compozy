@@ -631,7 +631,7 @@ func (a *helperACPAgent) NewSession(
 		}, nil
 	}
 	if a.scenario == "config_options" || a.scenario == "stall_config" ||
-		a.scenario == "config_options_slow_close" ||
+		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
@@ -994,7 +994,8 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	ctx context.Context,
 	request acpsdk.SetSessionConfigOptionRequest,
 ) (acpsdk.SetSessionConfigOptionResponse, error) {
-	if a.scenario == "stall_config" {
+	if a.scenario == "stall_config" || (a.scenario == "stall_last_config" &&
+		request.ValueId != nil && string(request.ValueId.Value) == "other-model") {
 		<-ctx.Done()
 		return acpsdk.SetSessionConfigOptionResponse{}, ctx.Err()
 	}
