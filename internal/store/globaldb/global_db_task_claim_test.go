@@ -4252,7 +4252,7 @@ func successionLoopRunForTest(
 	return run
 }
 
-func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time) looppkg.Run {
+func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time, withGate bool) looppkg.Run {
 	t.Helper()
 
 	transform := func(nodeID dsl.NodeID) dsl.Node {
@@ -4299,6 +4299,21 @@ func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time) loop
 			},
 		},
 	}
+	if withGate {
+		definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+			ID: "approve_delivery", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+			Criteria:      []dsl.GateCriterion{{ID: "operator", Type: dsl.CriterionHuman}},
+			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+		})
+		for idx := range definition.Graph.Edges {
+			if definition.Graph.Edges[idx].To == "prepare_worktree" {
+				definition.Graph.Edges[idx].To = "approve_delivery"
+			}
+		}
+		definition.Graph.Edges = append(definition.Graph.Edges, dsl.Edge{
+			From: "approve_delivery", To: "prepare_worktree",
+		})
+	}
 	definition.Normalize()
 	resolved, err := looppkg.NewCompiler().Compile(definition)
 	if err != nil {
@@ -4308,7 +4323,7 @@ func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time) loop
 		resolved,
 		looppkg.DefaultLoopDefaults(),
 		nil,
-		looppkg.LoopConfig{},
+		looppkg.LoopConfig{HumanGateEnabled: new(false)},
 	)
 	if err != nil {
 		t.Fatalf("ResolveEffectiveConfig(route-not-taken definition) error = %v", err)
@@ -6400,7 +6415,12 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 
 	t.Run("Should claim a join after an inactive route settles", func(t *testing.T) {
 		t.Parallel()
-		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t)
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t, false)
+	})
+
+	t.Run("Should claim downstream work after an inactive route and an auto-approved gate", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t, true)
 	})
 
 	t.Run("Should drain open descendants when the coordinator terminates", func(t *testing.T) {
@@ -6655,18 +6675,20 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	}
 }
 
-func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t *testing.T) {
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t *testing.T, withGate bool) {
 	t.Helper()
 
 	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 8, 25, 21, 0, 0, 0, time.UTC)
-	loopRun := routeNotTakenJoinLoopRunForTest(t, "looprun-route-not-taken-join", now)
+	loopRun := routeNotTakenJoinLoopRunForTest(t, "looprun-route-not-taken-join", now, withGate)
 	created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
-	runner, err := looppkg.NewCoordinatorRunner(globalDB, globalDB, globalDB, slog.Default())
+	runner, err := looppkg.NewCoordinatorRunner(globalDB, globalDB, globalDB, slog.Default(),
+		looppkg.WithCoordinatorGateEvaluator(gate.NewEvaluator()),
+	)
 	if err != nil {
 		t.Fatalf("NewCoordinatorRunner() error = %v", err)
 	}
@@ -6818,7 +6840,22 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRo
 		t.Fatalf("claimed join run = %q, want %q", got, want)
 	}
 
-	for _, inactiveNodeID := range []string{"analyze_linear", "create_spec"} {
+	absentNodes := []string{"analyze_linear", "create_spec"}
+	if withGate {
+		absentNodes = append(absentNodes, "approve_delivery")
+		var status string
+		if err := globalDB.db.QueryRowContext(ctx,
+			`SELECT status FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'approve_delivery' AND item_index = 0`,
+			string(created.ID),
+		).Scan(&status); err != nil {
+			t.Fatalf("read persisted gate output: %v", err)
+		}
+		if status != "succeeded" {
+			t.Fatalf("gate status = %q, want succeeded", status)
+		}
+	}
+	for _, inactiveNodeID := range absentNodes {
 		inactiveTaskID := fmt.Sprintf("loop.%s.g1.node.%s.0", created.ID, inactiveNodeID)
 		if _, err := globalDB.GetTask(ctx, inactiveTaskID); !errors.Is(err, taskpkg.ErrTaskNotFound) {
 			t.Fatalf("GetTask(inactive %s) error = %v, want %v", inactiveNodeID, err, taskpkg.ErrTaskNotFound)
@@ -6827,6 +6864,15 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRo
 	dependencies, err := globalDB.ListDependencies(ctx, joinTaskID)
 	if err != nil {
 		t.Fatalf("ListDependencies(join) error = %v", err)
+	}
+	if withGate {
+		if len(dependencies) != 0 {
+			t.Fatalf(
+				"downstream dependencies = %#v, want no generic dependency on coordinator-owned gate",
+				dependencies,
+			)
+		}
+		return
 	}
 	wantDependencyID := selectedTaskID
 	if got, want := len(dependencies), 1; got != want {
