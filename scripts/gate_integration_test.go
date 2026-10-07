@@ -474,6 +474,91 @@ printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
 		}
 	})
 
+	t.Run("Should verify recorded root scopes before reusing module lint evidence", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, scope string
+			wantCalls   int
+		}{
+			{"Should run module lint after a narrow root run", "./internal/api/...", 2},
+			{"Should reuse a recorded full root run", "./...", 0},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				repo := newGateTestRepo(t)
+				for _, path := range []string{".golangci.yml", "sdk/go/main.go", "magefiles/main.go", ".gitignore"} {
+					dest := filepath.Join(repo, path)
+					if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(dest, []byte("/.cache/\n"), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				fingerprint, err := runGate(t, repo, nil, "fingerprint")
+				if err != nil {
+					t.Fatalf("fingerprint: %v\n%s", err, fingerprint)
+				}
+				logPath := filepath.Join(t.TempDir(), "root-lint.log")
+				if err := os.WriteFile(logPath, []byte("0 issues.\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				record := map[string]any{
+					"gate": "go-lint", "fingerprint": strings.TrimSpace(fingerprint), "result": "pass",
+					"command": "env COMPOZY_GO_LINT_SCOPES=" + tc.scope + "  make go-lint", "log": logPath,
+				}
+				data, err := json.MarshalIndent(record, "", "  ")
+				if err != nil {
+					t.Fatal(err)
+				}
+				recordDir := filepath.Join(repo, ".cache/gate")
+				if err := os.MkdirAll(recordDir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(recordDir, "go-lint.json"), data, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				fakeBin := t.TempDir()
+				calls := filepath.Join(t.TempDir(), "calls")
+				if err := os.WriteFile(calls, nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				writeExecutable(t, fakeBin, "make", `#!/bin/sh
+printf '%s %s\n' "$COMPOZY_GO_LINT_SCOPES" "$*" >> "$GATE_TEST_CALLS"
+`)
+				writeExecutable(t, fakeBin, "go", "#!/bin/sh\nexit 0\n")
+				output, err := runGate(t, repo, []string{"PATH=" + fakeBin + ":" + os.Getenv("PATH"), "GATE_TEST_CALLS=" + calls}, "auto")
+				if err != nil {
+					t.Fatalf("gate: %v\n%s", err, output)
+				}
+				if !strings.Contains(output, "SKIP go-lint") {
+					t.Fatalf("root record was not current:\n%s", output)
+				}
+				actualCalls := readFile(t, calls)
+				if got := strings.Count(actualCalls, "go-lint"); got != tc.wantCalls {
+					t.Fatalf("lint calls = %d, want %d:\n%s", got, tc.wantCalls, output)
+				}
+				for _, module := range []string{"sdk/go", "magefiles"} {
+					id := strings.ReplaceAll(module, "/", "-") + "-lint"
+					if module == "magefiles" {
+						id = "mage-lint"
+					}
+					var inherited map[string]any
+					if err := json.Unmarshal([]byte(readFile(t, filepath.Join(recordDir, id+".json"))), &inherited); err != nil {
+						t.Fatal(err)
+					}
+					if tc.wantCalls == 0 {
+						if inherited["log"] != logPath {
+							t.Fatalf("full-scope evidence not reused for %s: %v", module, inherited)
+						}
+					} else if !strings.Contains(actualCalls, "./"+module+"/... go-lint") || inherited["log"] == logPath {
+						t.Fatalf("narrow evidence propagated to %s: calls %s, record %v", module, actualCalls, inherited)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should route Go-only example assets to Go lanes", func(t *testing.T) {
 		t.Parallel()
 		repo := newGateTestRepo(t)
