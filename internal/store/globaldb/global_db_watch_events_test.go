@@ -725,7 +725,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 		running.Status = automation.RunCompleted
 		running.SessionID = "sess-auto-watch"
-		running.EndedAt = timePointer(base.Add(3 * time.Minute))
+		running.EndedAt = new(base.Add(3 * time.Minute))
 		updated, err := globalDB.UpdateRun(ctx, running)
 		if err != nil {
 			t.Fatalf("UpdateRun(terminal) error = %v", err)
@@ -1759,7 +1759,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 		}
 		running.Status = automation.RunCompleted
 		running.SessionID = "sess-auto-integration"
-		running.EndedAt = timePointer(now.Add(42 * time.Second))
+		running.EndedAt = new(now.Add(42 * time.Second))
 		updated, err := globalDB.UpdateRun(ctx, running)
 		if err != nil {
 			t.Fatalf("UpdateRun(completed automation) error = %v", err)

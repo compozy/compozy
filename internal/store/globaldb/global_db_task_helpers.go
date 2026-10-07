@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -227,7 +227,7 @@ func normalizeTaskRunCapabilityIDs(values []string) []string {
 		seen[trimmed] = struct{}{}
 		normalized = append(normalized, trimmed)
 	}
-	sort.Strings(normalized)
+	slices.Sort(normalized)
 	return normalized
 }
 
@@ -303,8 +303,7 @@ func cloneNeedsAttention(attention *taskpkg.NeedsAttention) *taskpkg.NeedsAttent
 	if attention == nil {
 		return nil
 	}
-	clone := *attention
-	return &clone
+	return new(*attention)
 }
 
 func requireTaskValue(value string, label string) (string, error) {

@@ -61,8 +61,8 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 					t.Fatalf("binding ownership error = %v, want %v", err, tc.want)
 				}
 				if tc.reason != "" {
-					var reason *looppkg.ReasonError
-					if !errors.As(err, &reason) || reason.Code != tc.reason {
+					reason, reasonOK := errors.AsType[*looppkg.ReasonError](err)
+					if !reasonOK || reason.Code != tc.reason {
 						t.Fatalf("binding ownership reason = %v, want %s", err, tc.reason)
 					}
 				}
@@ -366,24 +366,21 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 		created, err := globalDB.CreateCheckpoint(
 			testutil.Context(t),
 			goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
-				Key:               key,
-				ControlEpoch:      1,
-				Phase:             "awaiting_control",
-				Status:            "paused",
-				TurnsUsed:         2,
-				TurnLimit:         10,
-				BrokenStreak:      1,
-				RecoveryStreak:    1,
-				ContextState:      "known",
-				UsageSequence:     &usageSequence,
-				ContextNudgeRatio: 0.75,
-				ControlActorKind:  "user",
-				ControlActorID:    "operator-1",
-				ControlRequestedAt: func() *time.Time {
-					value := now
-					return &value
-				}(),
-				UpdatedAt: now,
+				Key:                key,
+				ControlEpoch:       1,
+				Phase:              "awaiting_control",
+				Status:             "paused",
+				TurnsUsed:          2,
+				TurnLimit:          10,
+				BrokenStreak:       1,
+				RecoveryStreak:     1,
+				ContextState:       "known",
+				UsageSequence:      &usageSequence,
+				ContextNudgeRatio:  0.75,
+				ControlActorKind:   "user",
+				ControlActorID:     "operator-1",
+				ControlRequestedAt: new(now),
+				UpdatedAt:          now,
 			}},
 		)
 		if err != nil {

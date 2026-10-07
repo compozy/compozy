@@ -3,6 +3,7 @@ package extractor
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"strconv"
 	"strings"
@@ -55,22 +56,15 @@ func normalizeTurn(turn memcontract.TurnRecord, now func() time.Time) (memcontra
 }
 
 func turnHasExtractableContent(turn memcontract.TurnRecord) bool {
-	for _, message := range turn.Snapshot.Messages {
-		if strings.TrimSpace(message.Content) != "" {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(turn.Snapshot.Messages, func(message memcontract.TranscriptMessage) bool {
+		return strings.TrimSpace(message.Content) != ""
+	})
 }
 
 func mergeRequests(existing request, next request) request {
 	merged := existing
-	if next.turn.SinceMessageSeq < merged.turn.SinceMessageSeq {
-		merged.turn.SinceMessageSeq = next.turn.SinceMessageSeq
-	}
-	if next.turn.UntilMessageSeq > merged.turn.UntilMessageSeq {
-		merged.turn.UntilMessageSeq = next.turn.UntilMessageSeq
-	}
+	merged.turn.SinceMessageSeq = min(merged.turn.SinceMessageSeq, next.turn.SinceMessageSeq)
+	merged.turn.UntilMessageSeq = max(merged.turn.UntilMessageSeq, next.turn.UntilMessageSeq)
 	merged.turn.Snapshot.Messages = append(merged.turn.Snapshot.Messages, next.turn.Snapshot.Messages...)
 	merged.coalesceCount++
 	return merged

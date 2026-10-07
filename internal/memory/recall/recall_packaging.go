@@ -1,12 +1,13 @@
 package recall
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
+	"slices"
 
 	"fmt"
 
-	"sort"
 	"strings"
 	"time"
 
@@ -120,13 +121,8 @@ func groupBlocks(ranked []rankedCandidate, now time.Time) []memcontract.Block {
 		}
 		groups[key] = append(groups[key], packagedEntry(candidate, now))
 	}
-	sort.SliceStable(order, func(i, j int) bool {
-		left := blockMeta[order[i]]
-		right := blockMeta[order[j]]
-		if left.depth != right.depth {
-			return left.depth < right.depth
-		}
-		return order[i] < order[j]
+	slices.SortStableFunc(order, func(left, right string) int {
+		return cmp.Or(cmp.Compare(blockMeta[left].depth, blockMeta[right].depth), strings.Compare(left, right))
 	})
 
 	blocks := make([]memcontract.Block, 0, len(order))

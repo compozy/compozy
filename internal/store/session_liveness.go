@@ -107,12 +107,10 @@ func CloneSessionLivenessMeta(meta *SessionLivenessMeta) *SessionLivenessMeta {
 		Activity:      CloneSessionActivityMeta(meta.Activity),
 	}
 	if meta.SubprocessStartedAt != nil {
-		startedAt := meta.SubprocessStartedAt.UTC()
-		cloned.SubprocessStartedAt = &startedAt
+		cloned.SubprocessStartedAt = new(meta.SubprocessStartedAt.UTC())
 	}
 	if meta.LastUpdateAt != nil {
-		lastUpdateAt := meta.LastUpdateAt.UTC()
-		cloned.LastUpdateAt = &lastUpdateAt
+		cloned.LastUpdateAt = new(meta.LastUpdateAt.UTC())
 	}
 	return cloned
 }
@@ -135,16 +133,13 @@ func CloneSessionActivityMeta(meta *SessionActivityMeta) *SessionActivityMeta {
 		IdleSeconds:        meta.IdleSeconds,
 	}
 	if meta.TurnStartedAt != nil {
-		turnStartedAt := meta.TurnStartedAt.UTC()
-		cloned.TurnStartedAt = &turnStartedAt
+		cloned.TurnStartedAt = new(meta.TurnStartedAt.UTC())
 	}
 	if meta.LastActivityAt != nil {
-		lastActivityAt := meta.LastActivityAt.UTC()
-		cloned.LastActivityAt = &lastActivityAt
+		cloned.LastActivityAt = new(meta.LastActivityAt.UTC())
 	}
 	if meta.LastProgressAt != nil {
-		lastProgressAt := meta.LastProgressAt.UTC()
-		cloned.LastProgressAt = &lastProgressAt
+		cloned.LastProgressAt = new(meta.LastProgressAt.UTC())
 	}
 	return cloned
 }

@@ -8,7 +8,7 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -97,7 +97,7 @@ func TestProductionMigrationStreams(t *testing.T) {
 					foundBaseline = true
 				}
 			}
-			sort.Ints(versions)
+			slices.Sort(versions)
 			if !foundBaseline || len(versions) == 0 {
 				t.Fatalf("%s migrations have no 00001_baseline.sql", item.name)
 			}
@@ -930,7 +930,7 @@ func embeddedMigrationVersions(t *testing.T, stream store.MigrationStream) []int
 	if len(versions) == 0 {
 		t.Fatalf("%s migration directory contains no SQL migrations", stream.Name)
 	}
-	sort.Ints(versions)
+	slices.Sort(versions)
 	return versions
 }
 

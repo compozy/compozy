@@ -144,8 +144,7 @@ func normalizeGoalSessionOutboxRequest(
 	request.OriginSessionID = strings.TrimSpace(request.OriginSessionID)
 	request.LoopRunID = looppkg.RunID(strings.TrimSpace(string(request.LoopRunID)))
 	if request.BoundSessionID != nil {
-		normalizedBoundSessionID := strings.TrimSpace(*request.BoundSessionID)
-		request.BoundSessionID = &normalizedBoundSessionID
+		request.BoundSessionID = new(strings.TrimSpace(*request.BoundSessionID))
 	}
 	request.Cause = goal.SessionOutboxCause(strings.TrimSpace(string(request.Cause)))
 	request.CreatedAt = request.CreatedAt.UTC()

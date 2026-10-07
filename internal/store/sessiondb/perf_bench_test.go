@@ -14,7 +14,7 @@ func BenchmarkSessionDBQuery(b *testing.B) {
 	b.ReportAllocs()
 
 	sessionDB := openBenchmarkSessionDB(b, "sess-bench-query")
-	ctx := context.Background()
+	ctx := b.Context()
 	seedBenchmarkSessionEvents(b, sessionDB, 512, 64)
 
 	b.ResetTimer()
@@ -33,7 +33,7 @@ func BenchmarkSessionDBHistory(b *testing.B) {
 	b.ReportAllocs()
 
 	sessionDB := openBenchmarkSessionDB(b, "sess-bench-history")
-	ctx := context.Background()
+	ctx := b.Context()
 	seedBenchmarkSessionEvents(b, sessionDB, 512, 64)
 
 	b.ResetTimer()
@@ -52,7 +52,7 @@ func openBenchmarkSessionDB(b *testing.B, sessionID string) *SessionDB {
 	b.Helper()
 
 	sessionDB, err := OpenSessionDB(
-		context.Background(),
+		b.Context(),
 		testSessionDBOwner(sessionID),
 		filepath.Join(b.TempDir(), store.SessionDatabaseName),
 	)
@@ -83,7 +83,7 @@ func seedBenchmarkSessionEvents(b *testing.B, sessionDB *SessionDB, eventCount i
 		return timestamp
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	for idx := range eventCount {
 		event := store.SessionEvent{
 			TurnID:    fmt.Sprintf("turn-%03d", idx%turnCount),

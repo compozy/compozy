@@ -120,8 +120,7 @@ func (c *Controller) tiebreakerFailureDecision(
 	if call == nil {
 		call = &memcontract.LLMCall{PromptVersion: c.promptVersion}
 	} else {
-		cloned := *call
-		call = &cloned
+		call = new(*call)
 	}
 	call.Error = boundString(cause.Error(), maxDecisionReasonBytes)
 	result.Call = call

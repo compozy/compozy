@@ -3,6 +3,7 @@ package memory
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -86,12 +87,12 @@ func BuildHeaderListPage(headers []memcontract.Header, query HeaderListQuery) (H
 			filtered = append(filtered, header)
 		}
 	}
-	sort.Slice(filtered, func(left int, right int) bool {
+	slices.SortFunc(filtered, func(left, right memcontract.Header) int {
 		return compareHeaderListKeys(
-			headerListCursorPositionFromHeader(filtered[left]),
-			headerListCursorPositionFromHeader(filtered[right]),
+			headerListCursorPositionFromHeader(left),
+			headerListCursorPositionFromHeader(right),
 			normalized.Sort,
-		) < 0
+		)
 	})
 
 	fingerprint, err := headerListQueryFingerprint(normalized)

@@ -69,8 +69,8 @@ func (c EventCorrelation) Normalize() EventCorrelation {
 		ActorKind:            strings.TrimSpace(c.ActorKind),
 		ActorID:              strings.TrimSpace(c.ActorID),
 		ReleaseReason:        strings.TrimSpace(c.ReleaseReason),
+		LeaseUntil:           cloneNormalizedTimestamp(c.LeaseUntil),
 	}
-	normalized.LeaseUntil = cloneNormalizedTimestamp(c.LeaseUntil)
 	return normalized
 }
 

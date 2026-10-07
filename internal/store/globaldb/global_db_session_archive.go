@@ -130,8 +130,7 @@ func cloneArchiveTime(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}
-	cloned := value.UTC()
-	return &cloned
+	return new(value.UTC())
 }
 
 var _ store.SessionArchiveStore = (*SessionRepo)(nil)

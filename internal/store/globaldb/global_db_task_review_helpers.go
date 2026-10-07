@@ -111,8 +111,7 @@ func (fields runReviewScanFields) record(review taskpkg.RunReview) (taskpkg.RunR
 	review.Status = taskpkg.RunReviewStatus(strings.TrimSpace(fields.status))
 	review.Outcome = taskpkg.RunReviewOutcome(taskNullStringValue(fields.outcome))
 	if fields.confidence.Valid {
-		confidence := fields.confidence.Float64
-		review.Confidence = &confidence
+		review.Confidence = new(fields.confidence.Float64)
 	}
 	review.DeliveryID = taskNullStringValue(fields.deliveryID)
 	review.MissingWork = []byte(strings.TrimSpace(fields.missingWork))
@@ -191,12 +190,10 @@ func cloneRunReviewForStore(review taskpkg.RunReview) taskpkg.RunReview {
 	cloned := review
 	cloned.MissingWork = cloneTaskRawJSON(review.MissingWork)
 	if review.ReviewedBy != nil {
-		reviewedBy := *review.ReviewedBy
-		cloned.ReviewedBy = &reviewedBy
+		cloned.ReviewedBy = new(*review.ReviewedBy)
 	}
 	if review.Confidence != nil {
-		confidence := *review.Confidence
-		cloned.Confidence = &confidence
+		cloned.Confidence = new(*review.Confidence)
 	}
 	return cloned
 }

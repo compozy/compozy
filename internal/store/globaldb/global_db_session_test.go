@@ -1,7 +1,6 @@
 package globaldb
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"io/fs"
@@ -27,7 +26,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		db := openScanSessionInfoDB(t)
 		subprocessStartedAt := time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)
 		lastUpdateAt := time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)
-		row := db.QueryRowContext(context.Background(), `
+		row := db.QueryRowContext(t.Context(), `
 		SELECT
 			'sess-scan',
 			?,
@@ -281,7 +280,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		t.Parallel()
 
 		db := openScanSessionInfoDB(t)
-		row := db.QueryRowContext(context.Background(), `
+		row := db.QueryRowContext(t.Context(), `
 		SELECT
 			'sess-null',
 			?,
@@ -396,7 +395,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 		t.Parallel()
 
 		db := openScanSessionInfoDB(t)
-		row := db.QueryRowContext(context.Background(), `
+		row := db.QueryRowContext(t.Context(), `
 		SELECT
 			'sess-invalid-stall',
 			?,

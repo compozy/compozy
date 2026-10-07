@@ -34,8 +34,7 @@ func CloneSessionAdvertisedCommands(commands []SessionAdvertisedCommand) []Sessi
 	for _, command := range commands {
 		copyCommand := command
 		if command.Input != nil {
-			input := *command.Input
-			copyCommand.Input = &input
+			copyCommand.Input = new(*command.Input)
 		}
 		cloned = append(cloned, copyCommand)
 	}

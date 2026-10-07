@@ -48,7 +48,7 @@ func TestSessionDBLifecyclePersistsAcrossReopen(t *testing.T) {
 		}
 		if err := sessionDB.RecordTokenUsage(ctx, TokenUsage{
 			TurnID:       "turn-1",
-			OutputTokens: int64Pointer(42),
+			OutputTokens: new(int64(42)),
 		}); err != nil {
 			t.Fatalf("RecordTokenUsage() error = %v", err)
 		}
@@ -95,10 +95,8 @@ func TestSessionDBSupportsConcurrentReadersWithSingleWriter(t *testing.T) {
 
 		errCh := make(chan error, readerCount+1)
 		var writerWG sync.WaitGroup
-		writerWG.Add(1)
-		go func() {
-			defer writerWG.Done()
-			for i := 0; i < eventCount; i++ {
+		writerWG.Go(func() {
+			for i := range eventCount {
 				if err := sessionDB.Record(ctx, SessionEvent{
 					TurnID:    fmt.Sprintf("turn-%03d", i),
 					Type:      "agent_message",
@@ -109,14 +107,12 @@ func TestSessionDBSupportsConcurrentReadersWithSingleWriter(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 
 		var readersWG sync.WaitGroup
-		for i := 0; i < readerCount; i++ {
-			readersWG.Add(1)
-			go func() {
-				defer readersWG.Done()
-				for j := 0; j < eventCount; j++ {
+		for range readerCount {
+			readersWG.Go(func() {
+				for range eventCount {
 					events, err := sessionDB.Query(ctx, EventQuery{Limit: 10})
 					if err != nil {
 						errCh <- fmt.Errorf("reader: %w", err)
@@ -127,7 +123,7 @@ func TestSessionDBSupportsConcurrentReadersWithSingleWriter(t *testing.T) {
 						return
 					}
 				}
-			}()
+			})
 		}
 
 		writerWG.Wait()
@@ -2414,9 +2410,7 @@ func TestReadOnlyPoolLifecycle(t *testing.T) {
 		var readersWG sync.WaitGroup
 		errCh := make(chan error, readerCount)
 		for range readerCount {
-			readersWG.Add(1)
-			go func() {
-				defer readersWG.Done()
+			readersWG.Go(func() {
 				lease, err := pool.Open(ctx, testSessionDBOwner("sess-read-only-pool"), path)
 				if err != nil {
 					errCh <- fmt.Errorf("Open(pool): %w", err)
@@ -2435,7 +2429,7 @@ func TestReadOnlyPoolLifecycle(t *testing.T) {
 					errCh <- fmt.Errorf("Close(lease): %w", err)
 					return
 				}
-			}()
+			})
 		}
 		readersWG.Wait()
 		close(errCh)
@@ -2673,8 +2667,4 @@ func (r *readOnlyPoolTestReader) Close(ctx context.Context) error {
 		return r.onClose(ctx)
 	}
 	return nil
-}
-
-func int64Pointer(value int64) *int64 {
-	return &value
 }

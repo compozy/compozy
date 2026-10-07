@@ -2310,8 +2310,8 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 			JobID:     createdLoopJob.ID,
 			Status:    automation.RunDelegated,
 			Attempt:   1,
-			StartedAt: timePointer(startedAt),
-			EndedAt:   timePointer(startedAt.Add(time.Second)),
+			StartedAt: new(startedAt),
+			EndedAt:   new(startedAt.Add(time.Second)),
 			ProfileID: store.DefaultProfileID,
 			LoopRunID: string(createdLoopRun.ID),
 		})
@@ -2548,7 +2548,7 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	if got := nullableAutomationTimestamp(nil); got != nil {
 		t.Fatalf("nullableAutomationTimestamp(nil) = %#v, want nil", got)
 	}
-	if got, want := nullableAutomationTimestamp(timePointer(base)), any(store.FormatTimestamp(base)); got != want {
+	if got, want := nullableAutomationTimestamp(new(base)), any(store.FormatTimestamp(base)); got != want {
 		t.Fatalf("nullableAutomationTimestamp(value) = %#v, want %#v", got, want)
 	}
 }
@@ -3211,9 +3211,9 @@ func automationRunForJob(jobID string, status automation.RunStatus, attempt int,
 		JobID:     jobID,
 		Status:    status,
 		Attempt:   attempt,
-		StartedAt: timePointer(startedAt),
+		StartedAt: new(startedAt),
 		ProfileID: store.DefaultProfileID,
-		EndedAt:   timePointer(endedAt),
+		EndedAt:   new(endedAt),
 	}
 }
 
@@ -3223,9 +3223,9 @@ func automationRunForTrigger(triggerID string, status automation.RunStatus, atte
 		TriggerID: triggerID,
 		Status:    status,
 		Attempt:   attempt,
-		StartedAt: timePointer(startedAt),
+		StartedAt: new(startedAt),
 		ProfileID: store.DefaultProfileID,
-		EndedAt:   timePointer(endedAt),
+		EndedAt:   new(endedAt),
 	}
 }
 
@@ -3257,11 +3257,6 @@ func automationSuggestionForTest(id string, workspaceID string, dedupKey string)
 			Source:    automation.JobSourceDynamic,
 		},
 	}
-}
-
-func timePointer(value time.Time) *time.Time {
-	timestamp := value
-	return &timestamp
 }
 
 type countingAutomationCatalogExecutor struct {

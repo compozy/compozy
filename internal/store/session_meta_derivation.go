@@ -98,8 +98,7 @@ func CloneSessionDerivation(derivation *SessionDerivation) *SessionDerivation {
 	if derivation.Native != nil {
 		native := *derivation.Native
 		if derivation.Native.SettledAt != nil {
-			settled := derivation.Native.SettledAt.UTC()
-			native.SettledAt = &settled
+			native.SettledAt = new(derivation.Native.SettledAt.UTC())
 		}
 		cloned.Native = &native
 	}
@@ -124,8 +123,7 @@ func CloneSessionImportedContext(context *SessionImportedContext) *SessionImport
 	}
 	cloned := *context
 	if context.Consumed != nil {
-		consumed := *context.Consumed
-		cloned.Consumed = &consumed
+		cloned.Consumed = new(*context.Consumed)
 	}
 	return &cloned
 }

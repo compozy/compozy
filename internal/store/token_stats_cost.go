@@ -91,8 +91,7 @@ func tokenStatsRowCost(stat TokenStats) (TokenStatsCostSummary, bool) {
 
 	result := TokenStatsCostSummary{Status: status, Source: source}
 	if stat.TotalCost != nil {
-		total := *stat.TotalCost
-		result.TotalCost = &total
+		result.TotalCost = new(*stat.TotalCost)
 	}
 	if currency := normalizedCostCurrency(stat.CostCurrency); currency != "" {
 		result.Currency = &currency

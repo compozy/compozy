@@ -147,8 +147,7 @@ func (g *LoopRepo) commitRequestResponse(
 	state.stored.request.AnsweredDecision = state.decision
 	state.stored.request.ActorKind = state.actorKind
 	state.stored.request.ActorID = state.actorID
-	resolvedAt := state.mutation.RequestedAt
-	state.stored.request.ResolvedAt = &resolvedAt
+	state.stored.request.ResolvedAt = new(state.mutation.RequestedAt)
 	*result = looppkg.RespondResult{Request: state.stored.request, Coordinator: &coordinator, Won: true}
 	return nil
 }

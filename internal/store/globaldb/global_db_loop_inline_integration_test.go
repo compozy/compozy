@@ -581,7 +581,6 @@ func runInlineStartsConcurrently(
 	var workers sync.WaitGroup
 	workers.Add(len(runs))
 	for _, candidate := range runs {
-		candidate := candidate
 		go func() {
 			defer workers.Done()
 			<-start
@@ -615,7 +614,6 @@ func runInlineReplacementsConcurrently(
 	var workers sync.WaitGroup
 	workers.Add(len(requests))
 	for _, request := range requests {
-		request := request
 		go func() {
 			defer workers.Done()
 			<-start

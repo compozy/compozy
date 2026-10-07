@@ -206,8 +206,6 @@ func normalizeSchedulerBacklogQuery(query taskpkg.SchedulerBacklogQuery) taskpkg
 	if normalized.Limit <= 0 {
 		normalized.Limit = 50
 	}
-	if normalized.Limit > 500 {
-		normalized.Limit = 500
-	}
+	normalized.Limit = min(normalized.Limit, 500)
 	return normalized
 }

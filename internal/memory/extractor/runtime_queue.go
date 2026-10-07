@@ -194,14 +194,12 @@ func (r *Runtime) Enqueue(ctx context.Context, turn memcontract.TurnRecord) erro
 
 func (r *Runtime) queueRequestLocked(state *sessionState, req request) *Event {
 	if state.queued == nil {
-		queued := req
-		state.queued = &queued
+		state.queued = new(req)
 		return nil
 	}
 	if state.queued.coalesceCount+2 > r.coalesceMax {
 		dropped := *state.queued
-		queued := req
-		state.queued = &queued
+		state.queued = new(req)
 		r.droppedTurns++
 		return &Event{
 			Op:   EventDropped,

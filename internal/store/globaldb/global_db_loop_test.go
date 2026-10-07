@@ -1252,9 +1252,9 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
 			Payload: json.RawMessage(`{}`), Actor: actor,
 		})
-		var validationReason *looppkg.ReasonError
+		validationReason, validationReasonOK := errors.AsType[*looppkg.ReasonError](err)
 		if !errors.Is(err, looppkg.ErrRequestValidationFailed) ||
-			!errors.As(err, &validationReason) || validationReason.Code != looppkg.ReasonCodeRequestValidationFailed {
+			!validationReasonOK || validationReason.Code != looppkg.ReasonCodeRequestValidationFailed {
 			t.Fatalf("RespondRequest(invalid) error = %#v", err)
 		}
 		pending, err := globalDB.GetRequest(ctx, run.WorkspaceID, looppkg.RequestRef{
@@ -1301,9 +1301,9 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
 			Payload: answer, Actor: operatorActorContextForTest("operator:two"),
 		})
-		var conflictReason *looppkg.ReasonError
+		conflictReason, conflictReasonOK := errors.AsType[*looppkg.ReasonError](err)
 		if !errors.Is(err, looppkg.ErrRequestAlreadyAnswered) ||
-			!errors.As(err, &conflictReason) ||
+			!conflictReasonOK ||
 			conflictReason.Meta[looppkg.ReasonMetaRecordedDecision] != looppkg.RequestDecisionRespond {
 			t.Fatalf("RespondRequest(loser) error = %#v", err)
 		}
@@ -1477,9 +1477,7 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 		respondErrors := make(chan error, 2)
 		var responders sync.WaitGroup
 		for index := range 2 {
-			responders.Add(1)
-			go func(index int) {
-				defer responders.Done()
+			responders.Go(func() {
 				<-start
 				_, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
 					WorkspaceID: respondRun.WorkspaceID, RunID: respondRun.ID, NodeID: "select",
@@ -1487,7 +1485,7 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 					Actor:   operatorActorContextForTest(fmt.Sprintf("operator:%d", index)),
 				})
 				respondErrors <- err
-			}(index)
+			})
 		}
 		close(start)
 		responders.Wait()
@@ -1628,8 +1626,8 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select",
 			Payload: json.RawMessage(`{}`), Actor: operatorActorContextForTest("operator:late"),
 		})
-		var canceledReason *looppkg.ReasonError
-		if !errors.Is(err, looppkg.ErrRequestCanceled) || !errors.As(err, &canceledReason) ||
+		canceledReason, canceledReasonOK := errors.AsType[*looppkg.ReasonError](err)
+		if !errors.Is(err, looppkg.ErrRequestCanceled) || !canceledReasonOK ||
 			canceledReason.Code != looppkg.ReasonCodeRequestCanceled {
 			t.Fatalf("RespondRequest(canceled) error = %#v", err)
 		}
@@ -1838,7 +1836,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 				defer group.Done()
 				<-start
 				results[index], errorsByIndex[index] = globalDB.AmendNodeOutput(
-					context.Background(),
+					t.Context(),
 					looppkg.AmendInput{
 						WorkspaceID: run.WorkspaceID,
 						RunID:       run.ID,
@@ -3132,7 +3130,7 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 			go func(index int) {
 				defer waitGroup.Done()
 				<-start
-				results[index], errs[index] = globalDB.RequeueNode(context.Background(), looppkg.NodeRequeueMutation{
+				results[index], errs[index] = globalDB.RequeueNode(t.Context(), looppkg.NodeRequeueMutation{
 					WorkspaceID:      run.WorkspaceID,
 					RunID:            run.ID,
 					NodeID:           "finish",
@@ -3165,8 +3163,8 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if len(winnerEntry.Requeues) != 1 {
 			t.Fatalf("winner requeue provenance = %#v", winnerEntry.Requeues)
 		}
-		var reason *looppkg.ReasonError
-		if !errors.As(errs[loser], &reason) || reason.Code != looppkg.ReasonCodeAlreadyDecided {
+		reason, reasonOK := errors.AsType[*looppkg.ReasonError](errs[loser])
+		if !reasonOK || reason.Code != looppkg.ReasonCodeAlreadyDecided {
 			t.Fatalf("loser error = %v, want already_decided ReasonError", errs[loser])
 		}
 		if reason.Meta[looppkg.ReasonMetaActualState] != nodeLifecycleStateActive ||
@@ -3194,8 +3192,8 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		if !errors.Is(err, looppkg.ErrInvalidTransition) {
 			t.Fatalf("RequeueNode(terminal) error = %v, want ErrInvalidTransition", err)
 		}
-		var reason *looppkg.ReasonError
-		if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeRunTerminal ||
+		reason, reasonOK := errors.AsType[*looppkg.ReasonError](err)
+		if !reasonOK || reason.Code != looppkg.ReasonCodeRunTerminal ||
 			reason.Meta[looppkg.ReasonMetaActualState] != string(looppkg.StatusFailed) ||
 			reason.Meta[looppkg.ReasonMetaAllowedTransitions] != "" {
 			t.Fatalf("RequeueNode(terminal) ReasonError = %#v", reason)
@@ -5378,7 +5376,7 @@ func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 				defer wg.Done()
 				<-start
 				attempts[idx] = globalDB.CompareAndSwapLoopRunStatus(
-					context.Background(),
+					t.Context(),
 					run.ID,
 					looppkg.StatusRunning,
 					looppkg.StatusPaused,
@@ -5516,7 +5514,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 					looppkg.StatusRunning,
 				)
 				_, attempts[idx] = globalDB.CreateLoopRunForStart(
-					context.Background(),
+					t.Context(),
 					run,
 					dsl.ConcurrencyForbid,
 				)
@@ -5570,7 +5568,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 					looppkg.StatusRunning,
 				)
 				_, attempts[idx] = globalDB.CreateLoopRunForStart(
-					context.Background(),
+					t.Context(),
 					run,
 					dsl.ConcurrencyQueue,
 				)
@@ -5674,8 +5672,8 @@ func TestGlobalDBLoopNodePauseShouldFenceAndRestoreRetryState(t *testing.T) {
 	if !errors.Is(err, looppkg.ErrInvalidTransition) {
 		t.Fatalf("ResumeNode(unpaused) error = %v, want ErrInvalidTransition", err)
 	}
-	var reason *looppkg.ReasonError
-	if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeNodeNotPaused ||
+	reason, reasonOK := errors.AsType[*looppkg.ReasonError](err)
+	if !reasonOK || reason.Code != looppkg.ReasonCodeNodeNotPaused ||
 		reason.Meta[looppkg.ReasonMetaActualState] != nodeLifecycleStateActive ||
 		reason.Meta[looppkg.ReasonMetaAllowedTransitions] != "pause,cancel" {
 		t.Fatalf("ResumeNode(unpaused) ReasonError = %#v", reason)
@@ -6021,17 +6019,15 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for index := range results {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
-			results[index], errs[index] = globalDB.ResumeWait(context.Background(), looppkg.WaitResumeMutation{
+			results[index], errs[index] = globalDB.ResumeWait(t.Context(), looppkg.WaitResumeMutation{
 				WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1,
 				NodeID: "approval", ItemIndex: 0, Payload: []byte(`{"approved":true}`),
 				ClaimedByKind: "operator", ClaimedByID: fmt.Sprintf("operator:%d", index),
 				AdmissionAttempts: 3, RequestedAt: now.Add(time.Minute),
 			})
-		}(index)
+		})
 	}
 	close(start)
 	wg.Wait()
@@ -6466,18 +6462,16 @@ func TestGlobalDBLoopAdmissionClaimShouldSuppressConcurrentRedelivery(t *testing
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for index := range contenders {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			run := testLoopRun(fmt.Sprintf("looprun-admission-%d", index), now, looppkg.StatusRunning)
 			run.SetAdmission(looppkg.AdmissionIdentity{
 				SourceKey: "  review-source  ", EventKey: "  review:42  ", Horizon: 7 * 24 * time.Hour,
 			})
 			results[index], errs[index] = globalDB.CreateLoopRunForStart(
-				context.Background(), run, dsl.ConcurrencyAllow,
+				t.Context(), run, dsl.ConcurrencyAllow,
 			)
-		}(index)
+		})
 	}
 	close(start)
 	wg.Wait()
@@ -7754,8 +7748,8 @@ func TestGlobalDBLoopRecoveredChild(t *testing.T) {
 					},
 				},
 			},
+			Inputs: map[string]dsl.Input{"tasks": {Type: dsl.InputTypeString, Required: true}},
 		}
-		definition.Inputs = map[string]dsl.Input{"tasks": {Type: dsl.InputTypeString, Required: true}}
 		definition.Normalize()
 		resolved, err := looppkg.NewCompiler().Compile(definition)
 		if err != nil {
