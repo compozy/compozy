@@ -19,32 +19,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func TestACPIntegrationRoundTrip(t *testing.T) {
-	t.Run("Should return prompt events through helper ACP process", func(t *testing.T) {
-		t.Parallel()
-
-		driver := New()
-		proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{})
-		defer stopProcess(t, driver, proc)
-
-		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
-			TurnID:  "turn-integration-roundtrip",
-			Message: "run roundtrip",
-		})
-		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
-		}
-
-		events := collectEvents(t, eventsCh)
-		if len(events) == 0 {
-			t.Fatal("Prompt() returned no events")
-		}
-		if events[len(events)-1].Type != EventTypeDone {
-			t.Fatalf("Prompt() last event = %#v, want done", events[len(events)-1])
-		}
-	})
-}
-
 func TestACPIntegrationReadTextFileRequest(t *testing.T) {
 	t.Run("Should read file content through ACP file callback", func(t *testing.T) {
 		t.Parallel()

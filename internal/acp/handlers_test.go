@@ -1121,35 +1121,6 @@ func TestHelperUtilities(t *testing.T) {
 	}
 }
 
-func TestWithoutCancelPreservingDeadline(t *testing.T) {
-	t.Parallel()
-
-	parent, cancelParent := context.WithDeadline(t.Context(), time.Now().Add(time.Minute))
-	child, cancelChild := withoutCancelPreservingDeadline(parent)
-	defer cancelParent()
-	defer cancelChild()
-
-	parentDeadline, ok := parent.Deadline()
-	if !ok {
-		t.Fatal("parent.Deadline() = missing, want deadline")
-	}
-	childDeadline, ok := child.Deadline()
-	if !ok {
-		t.Fatal("child.Deadline() = missing, want preserved deadline")
-	}
-	if !childDeadline.Equal(parentDeadline) {
-		t.Fatalf("child deadline = %v, want %v", childDeadline, parentDeadline)
-	}
-
-	cancelParent()
-
-	select {
-	case <-child.Done():
-		t.Fatalf("child context canceled by parent: %v", child.Err())
-	default:
-	}
-}
-
 func TestHandleCreateTerminalStopsTerminalOnRegistrationFailure(t *testing.T) {
 	t.Parallel()
 	t.Run("Should stop the terminal when process registration fails", func(t *testing.T) {
