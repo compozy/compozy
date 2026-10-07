@@ -109,10 +109,20 @@ func TestNewRedactsMessageAndContentAttributesWithoutChangingCorrelation(t *test
 func TestNewWithFileRotation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldRotateStructuredLogFileWhenSizeCapIsReached", func(t *testing.T) {
+	t.Run("Should rotate structured log file when size cap is reached", func(t *testing.T) {
 		t.Parallel()
 
 		logFile := filepath.Join(t.TempDir(), "logs", "compozy.log")
+		if err := os.MkdirAll(filepath.Dir(logFile), 0o700); err != nil {
+			t.Fatalf("MkdirAll(logs) error = %v", err)
+		}
+		// Seed prior log history just below the cap; the logger's writes must cross it.
+		const maxSize = 1 << 20
+		historySize := maxSize - 1024 - len("{\"msg\":\"\"}\n")
+		seed := []byte(`{"msg":"` + strings.Repeat("x", historySize) + `"}` + "\n")
+		if err := os.WriteFile(logFile, seed, 0o600); err != nil {
+			t.Fatalf("WriteFile(log history) error = %v", err)
+		}
 		log, closeFn, err := New(
 			WithLevel("info"),
 			WithFile(logFile),
@@ -122,8 +132,8 @@ func TestNewWithFileRotation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		payload := strings.Repeat("x", 2048)
-		for i := range 700 {
+		payload := strings.Repeat("x", 256)
+		for i := range 8 {
 			log.Info("rotation-check", "index", i, "payload", payload)
 		}
 		if err := closeFn(); err != nil {

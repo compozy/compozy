@@ -486,7 +486,6 @@ func TestReconcileDriverPropagatesTimeoutToProjectorContexts(t *testing.T) {
 	t.Run("Should pass configured timeout to projector build contexts", func(t *testing.T) {
 		t.Parallel()
 
-		kernel, _ := openTestKernel(t)
 		timeout := 30 * time.Millisecond
 
 		var mu sync.Mutex
@@ -494,7 +493,7 @@ func TestReconcileDriverPropagatesTimeoutToProjectorContexts(t *testing.T) {
 		var buildErr error
 
 		driver, err := NewReconcileDriver(
-			kernel,
+			benchmarkRawStore{},
 			testDaemonActor(),
 			[]ProjectorRegistration{
 				newTestProjectorRegistration(testResourceKind, nil,
@@ -1048,12 +1047,11 @@ func TestReconcileDriverEventSinkCanReenterTrigger(t *testing.T) {
 	t.Run("Should allow event sink to reenter trigger without deadlock", func(t *testing.T) {
 		t.Parallel()
 
-		kernel, _ := openTestKernel(t)
 		ctx := testutil.Context(t)
 		sink := &reentrantTriggerSink{resultCh: make(chan error, 1)}
 
 		driver, err := NewReconcileDriver(
-			kernel,
+			benchmarkRawStore{},
 			testDaemonActor(),
 			[]ProjectorRegistration{
 				newTestProjectorRegistration(testResourceKind, nil,

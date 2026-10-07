@@ -18,6 +18,8 @@ import (
 )
 
 func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
+	t.Parallel()
+
 	// Invariant: extension collection rows and runtime probes share an exact owner-qualified identity; manual collisions fail before file writes.
 	// Owner: Settings collection service; canonical suite: mcp_runtime_status_test.go.
 	t.Run("Should include extension rows and reject reserved manual names without writing config", func(t *testing.T) {

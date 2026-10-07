@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -22,6 +23,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -44,7 +46,7 @@ issuer_url = "https://login.example.test"
 client_id = "desktop"
 client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 `)
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,7 +113,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +207,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -261,7 +263,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -320,7 +322,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -386,7 +388,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -479,7 +481,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 		workspaceID := "ws-roles"
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -659,7 +661,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "http")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -765,7 +767,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "uds")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -836,7 +838,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "uds")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -896,7 +898,7 @@ cost_reasoning_per_million = 30
 		const removedID = "ws_0123456789abcdef"
 		const retainedID = "ws_abcdef0123456789"
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -950,7 +952,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "http")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1005,7 +1007,7 @@ cost_reasoning_per_million = 30
 		ctx := WithMutationSource(context.Background(), "http")
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1083,7 +1085,7 @@ cost_reasoning_per_million = 30
 			ctx := WithMutationSource(context.Background(), "http")
 			homePaths := testHomePaths(t)
 			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-			db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+			db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 			if err != nil {
 				t.Fatalf("OpenGlobalDB() error = %v", err)
 			}
@@ -1172,7 +1174,7 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1234,7 +1236,7 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1306,7 +1308,7 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1492,7 +1494,7 @@ default_reasoning_effort = "high"
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1564,7 +1566,7 @@ default_reasoning_effort = "high"
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1647,7 +1649,7 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2235,7 +2237,7 @@ func TestConfigApplyServiceReloadClassifiesUnknownPathsConservatively(t *testing
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2296,7 +2298,7 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2399,7 +2401,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2480,7 +2482,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2556,7 +2558,7 @@ func TestConfigApplyServiceFailedRecordsPreserveLifecycleIntent(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -2698,7 +2700,7 @@ func providerModelCurationTestService(
 	ctx := context.Background()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	db, err := openSettingsTestGlobalDB(t, ctx, homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -2768,4 +2770,49 @@ func (f *fakeConfigRuntimeApplier) ApplyActiveConfig(
 		f.snapshots = append(f.snapshots, cloneActiveConfig(cfg))
 	}
 	return append([]ApplyFailure(nil), f.failures...)
+}
+
+// Settings assertions own config-apply behavior, not migration replay. Each
+// service still gets an isolated writable database copied from the closed seed.
+var (
+	settingsTestGlobalSeed     *globalseed.Seed
+	settingsTestGlobalSeedErr  error
+	settingsTestGlobalSeedOnce sync.Once
+)
+
+func TestMain(m *testing.M) {
+	os.Exit(runSettingsTests(m))
+}
+
+func runSettingsTests(m *testing.M) (code int) {
+	defer func() {
+		if err := settingsTestGlobalSeed.Close(); err != nil {
+			reportSettingsTestMainError("close global seed: %v", err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
+	return m.Run()
+}
+
+func reportSettingsTestMainError(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, "settings tests: "+format+"\n", args...); err != nil {
+		panic(err)
+	}
+}
+
+func openSettingsTestGlobalDB(t *testing.T, ctx context.Context, path string) (*globaldb.GlobalDB, error) {
+	t.Helper()
+	// Lazy setup keeps the MCP stdio helper subprocess free of database state.
+	settingsTestGlobalSeedOnce.Do(func() {
+		settingsTestGlobalSeed, settingsTestGlobalSeedErr = globalseed.New(context.Background())
+	})
+	if settingsTestGlobalSeedErr != nil {
+		return nil, fmt.Errorf("create settings global store seed: %w", settingsTestGlobalSeedErr)
+	}
+	if err := settingsTestGlobalSeed.Clone(path); err != nil {
+		return nil, fmt.Errorf("clone settings global store seed: %w", err)
+	}
+	return globaldb.OpenGlobalDB(ctx, path)
 }

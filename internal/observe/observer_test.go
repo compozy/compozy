@@ -26,6 +26,8 @@ import (
 )
 
 func TestAgentEventCachesResolvedAgentByRuntimeIdentity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should resolve auth once until the runtime selection changes", func(t *testing.T) {
 		t.Parallel()
 
@@ -139,6 +141,8 @@ func TestAgentEventCachesResolvedAgentByRuntimeIdentity(t *testing.T) {
 }
 
 func TestOnSessionStoppedClearsSessionSnapshot(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should clear session snapshot on stop", func(t *testing.T) {
 		t.Parallel()
 
@@ -209,6 +213,8 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 }
 
 func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should merge memory events after durable registry events", func(t *testing.T) {
 		t.Parallel()
 
@@ -258,6 +264,8 @@ func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
 }
 
 func TestObserverQueryEventsNormalizesMemoryWorkspaceFilter(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should translate public workspace id to memory workspace identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -303,6 +311,8 @@ func TestObserverQueryEventsNormalizesMemoryWorkspaceFilter(t *testing.T) {
 }
 
 func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should not fan memory source into session-scoped queries yet", func(t *testing.T) {
 		t.Parallel()
 
@@ -340,6 +350,8 @@ func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
 }
 
 func TestObserverQueryEventsKeepsWorktreeScopedEventsNarrow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should not merge unsequenced memory events into a worktree replay", func(t *testing.T) {
 		t.Parallel()
 

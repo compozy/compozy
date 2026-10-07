@@ -998,6 +998,8 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 }
 
 func TestStoreSearchAndReindex(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should isolate profile catalog identities during search", func(t *testing.T) {
 		t.Parallel()
 		testStoreSearchShouldIsolateProfileCatalogIdentity(t)
@@ -1206,13 +1208,17 @@ func TestStoreSearchAndReindex(t *testing.T) {
 
 		for idx := range maxSearchLimit + 5 {
 			filename := fmt.Sprintf("shared-%02d.md", idx)
-			if err := store.Write(t.Context(), memcontract.ScopeProfile, filename, mustMemoryContent(t, testMemoryMeta{
+			payload := mustMemoryContent(t, testMemoryMeta{
 				Name:        fmt.Sprintf("Shared signal %02d", idx),
 				Description: "Common token across many memories",
 				Type:        memcontract.TypeUser,
-			}, "Common token appears in every generated memory.\n")); err != nil {
-				t.Fatalf("Store.Write(%q) error = %v", filename, err)
+			}, "Common token appears in every generated memory.\n")
+			if err := os.WriteFile(filepath.Join(store.globalDir, filename), payload, filePerm); err != nil {
+				t.Fatalf("os.WriteFile(%q) error = %v", filename, err)
 			}
+		}
+		if _, err := store.Reindex(t.Context(), memcontract.ReindexOptions{Scope: memcontract.ScopeProfile}); err != nil {
+			t.Fatalf("Store.Reindex() error = %v", err)
 		}
 
 		results, err := store.Search(t.Context(), "common token", memcontract.SearchOptions{
@@ -1464,6 +1470,8 @@ func testStoreSearchShouldIsolateProfileCatalogIdentity(t *testing.T) {
 }
 
 func TestStoreConcurrentMutationDerivedState(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should index and log every concurrent workspace write", func(t *testing.T) {
 		t.Parallel()
 
