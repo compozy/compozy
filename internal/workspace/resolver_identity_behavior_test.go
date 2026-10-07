@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -109,7 +108,7 @@ func TestResolveMatchesWorkspaceBySameFilesystemRoot(t *testing.T) {
 	t.Run("Should resolve a registered alternate path to the same root", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		alternateRoot := symlinkWorkspaceRootForTest(t, root)
@@ -140,7 +139,7 @@ func TestResolveMatchesWorkspaceBySameFilesystemRoot(t *testing.T) {
 		resolver := newTestResolver(t, store)
 		missing := filepath.Join(t.TempDir(), "missing")
 
-		_, err := resolver.lookupWorkspaceBySameRoot(context.Background(), missing)
+		_, err := resolver.lookupWorkspaceBySameRoot(t.Context(), missing)
 		if !errors.Is(err, ErrWorkspaceNotFound) {
 			t.Fatalf("lookupWorkspaceBySameRoot(missing) error = %v, want ErrWorkspaceNotFound", err)
 		}
@@ -156,7 +155,7 @@ func TestRegisterRejectsSameFilesystemRoot(t *testing.T) {
 	t.Run("Should reject an alternate path to an existing root", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		alternateRoot := symlinkWorkspaceRootForTest(t, root)
@@ -178,7 +177,7 @@ func TestRegisterRejectsSameFilesystemRoot(t *testing.T) {
 func TestResolveMissingRootReturnsErrWorkspaceRootMissing(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := filepath.Join(t.TempDir(), "gone")
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -203,7 +202,7 @@ func TestResolveMissingRootReturnsErrWorkspaceRootMissing(t *testing.T) {
 func TestResolveCreatesAndLoadsStableWorkspaceIdentity(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	ws := Workspace{ID: "ws_identity", RootDir: root, Name: "repo"}
@@ -248,7 +247,7 @@ func TestResolveMatchesWorkspaceByStableWorkspaceIdentity(t *testing.T) {
 	t.Run("Should resolve a registered workspace by stable identity", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
 		canonical, err := canonicalRoot(root)
@@ -292,7 +291,7 @@ func TestResolveMatchesWorkspaceByStableWorkspaceIdentity(t *testing.T) {
 	t.Run("Should reject an unknown stable identity", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := newTestHomePaths(t)
 		store := newMockWorkspaceStore()
 		resolver := newTestResolver(t, store,
@@ -316,7 +315,7 @@ func TestResolveMatchesWorkspaceByStableWorkspaceIdentity(t *testing.T) {
 func TestResolveFailsClosedForInvalidWorkspaceIdentity(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".compozy", "workspace.toml"), `workspace_id = "invalid"
@@ -342,7 +341,7 @@ func TestResolveFailsClosedForPermissionDeniedWorkspaceIdentity(t *testing.T) {
 		t.Skip("permission-denied identity test is not reliable as root")
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
 	identityPath := filepath.Join(root, ".compozy", "workspace.toml")
@@ -374,7 +373,7 @@ realpath_at_creation = "/tmp/repo"
 func TestResolveSymlinkChangedUpdatesStoredRootDir(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	homePaths := newTestHomePaths(t)
 	parent := t.TempDir()
 	targetOne := filepath.Join(parent, "target-one")

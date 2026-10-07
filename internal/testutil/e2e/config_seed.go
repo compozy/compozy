@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -202,18 +203,15 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 }
 
 func cloneSessionConfig(cfg compozyconfig.SessionConfig) *compozyconfig.SessionConfig {
-	cloned := cfg
-	return &cloned
+	return new(cfg)
 }
 
 func cloneRolesConfig(cfg *compozyconfig.RolesConfig) *compozyconfig.RolesConfig {
-	cloned := compozyconfig.CloneRolesConfig(cfg)
-	return &cloned
+	return new(compozyconfig.CloneRolesConfig(cfg))
 }
 
 func cloneMemoryConfig(cfg *compozyconfig.MemoryConfig) *compozyconfig.MemoryConfig {
-	cloned := compozyconfig.CloneMemoryConfig(cfg)
-	return &cloned
+	return new(compozyconfig.CloneMemoryConfig(cfg))
 }
 
 func cloneToolsConfig(cfg *compozyconfig.ToolsConfig) *compozyconfig.ToolsConfig {
@@ -416,14 +414,5 @@ func defaultString(value string, fallback string) string {
 }
 
 func sortStrings(values []string) {
-	if len(values) < 2 {
-		return
-	}
-	for i := 0; i < len(values)-1; i++ {
-		for j := i + 1; j < len(values); j++ {
-			if values[j] < values[i] {
-				values[i], values[j] = values[j], values[i]
-			}
-		}
-	}
+	slices.Sort(values)
 }

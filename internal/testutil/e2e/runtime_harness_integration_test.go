@@ -91,7 +91,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	t.Parallel()
 
 	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	migrationExpectations := runtimeMigrationExpectations(ctx, t, harness.HomePaths.DatabaseFile)
 
@@ -230,7 +230,7 @@ func assertMigrationAppliedLogs(
 		AppliedCount int    `json:"applied_count"`
 	}
 	found := make(map[string]migrationLog, 2)
-	for _, line := range strings.Split(processLog, "\n") {
+	for line := range strings.SplitSeq(processLog, "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -296,7 +296,7 @@ func TestStartRuntimeHarnessRefusesLegacyDatabaseBeforeReadiness(t *testing.T) {
 		harness := newRuntimeHarness(t, &layout, binaryPath)
 		startDaemonProcess(t, harness, env)
 
-		waitCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		waitCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 		exitErr := harness.waitForExit(waitCtx)
 		if errors.Is(exitErr, context.DeadlineExceeded) {
@@ -386,7 +386,7 @@ func TestStartRuntimeHarnessRetriesHTTPPortConflicts(t *testing.T) {
 		t.Fatalf("harness.Config.HTTP.Port = %d, want retry onto a new port", got)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	var status compozycontract.StatusPayload
@@ -409,7 +409,7 @@ func TestStartRuntimeHarnessResolvesSeededWorkspaceThroughPublicSurface(t *testi
 		},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	if harness.WorkspaceID == "" {
@@ -450,7 +450,7 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 		},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 
 	created, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -516,9 +516,9 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 }
 
 func TestStartRuntimeHarnessRepeatedCyclesLeaveNoStaleDaemonArtifacts(t *testing.T) {
-	for cycle := 0; cycle < 3; cycle++ {
+	for cycle := range 3 {
 		harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 
 		var httpStatus compozycontract.StatusPayload
 		if err := harness.HTTPJSON(ctx, "GET", "/api/status", nil, &httpStatus); err != nil {
@@ -543,7 +543,7 @@ func TestStartRuntimeHarnessRepeatedCyclesLeaveNoStaleDaemonArtifacts(t *testing
 
 func TestStartRuntimeHarnessCLIStatusCanBeCapturedInRuntimeManifest(t *testing.T) {
 	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	stdout, stderr, err := harness.CLI.Run(ctx, "status", "-o", "json")

@@ -1,10 +1,11 @@
 package demoseed
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -58,11 +59,11 @@ func writeMemoryScope(dir string, stories []memoryStory) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("demo seed: create memory directory %q: %w", dir, err)
 	}
-	sort.Slice(stories, func(left int, right int) bool {
-		if stories[left].UpdatedAt.Equal(stories[right].UpdatedAt) {
-			return stories[left].Name < stories[right].Name
+	slices.SortFunc(stories, func(a, b memoryStory) int {
+		if a.UpdatedAt.Equal(b.UpdatedAt) {
+			return cmp.Compare(a.Name, b.Name)
 		}
-		return stories[left].UpdatedAt.After(stories[right].UpdatedAt)
+		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 	index := make([]string, 0, len(stories))
 	for _, story := range stories {

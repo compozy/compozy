@@ -178,6 +178,5 @@ func firstFrameActive(frame arrangeFrame) *WindowID {
 	if frame.activeID != nil {
 		return clonePointer(frame.activeID)
 	}
-	first := frame.windowIDs[0]
-	return &first
+	return new(frame.windowIDs[0])
 }

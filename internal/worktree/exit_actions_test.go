@@ -249,7 +249,7 @@ func TestExitActions(t *testing.T) {
 		t.Parallel()
 		fixture := newExitActionFixture(t, false)
 		opID, err := fixture.service.RunExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.Name,
+			t.Context(), fixture.item.WorkspaceID, fixture.item.Name,
 			ExitActionRequest{Action: ExitActionCommitPush},
 		)
 		if err != nil || opID != "op-exit" {
@@ -285,7 +285,7 @@ func TestExitActions(t *testing.T) {
 		t.Parallel()
 		fixture := newExitActionFixture(t, true)
 		opID, err := fixture.service.RunExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.ID,
+			t.Context(), fixture.item.WorkspaceID, fixture.item.ID,
 			ExitActionRequest{Action: ExitActionCommitPush, Message: "Keep this commit"},
 		)
 		if err != nil {
@@ -297,7 +297,7 @@ func TestExitActions(t *testing.T) {
 			t.Fatal("push phase did not start")
 		}
 		if err := fixture.service.CancelExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.Name, opID,
+			t.Context(), fixture.item.WorkspaceID, fixture.item.Name, opID,
 		); err != nil {
 			t.Fatalf("CancelExitAction() error = %v", err)
 		}
@@ -327,7 +327,7 @@ func TestExitActions(t *testing.T) {
 		}
 
 		err := fixture.service.CancelExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.ID, "op-exit",
+			t.Context(), fixture.item.WorkspaceID, fixture.item.ID, "op-exit",
 		)
 		if !errors.Is(err, storeErr) || errors.Is(err, ErrNotFound) ||
 			!strings.Contains(err.Error(), "read exit cancellation target") {
@@ -338,14 +338,14 @@ func TestExitActions(t *testing.T) {
 	t.Run("Should refuse a second durable operation before starting another worker", func(t *testing.T) {
 		t.Parallel()
 		fixture := newExitActionFixture(t, false)
-		if err := fixture.store.InsertExitOperation(context.Background(), ExitOperation{
+		if err := fixture.store.InsertExitOperation(t.Context(), ExitOperation{
 			ID: "op-active", WorkspaceID: fixture.item.WorkspaceID, WorktreeID: fixture.item.ID,
 			Action: string(ExitActionPush), State: "running", StartedAt: statusTestClock(),
 		}); err != nil {
 			t.Fatalf("seed active operation: %v", err)
 		}
 		_, err := fixture.service.RunExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.ID,
+			t.Context(), fixture.item.WorkspaceID, fixture.item.ID,
 			ExitActionRequest{Action: ExitActionCommit},
 		)
 		if !errors.Is(err, ErrOperationInProgress) {
@@ -360,7 +360,7 @@ func TestExitActions(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := Worktree{ID: "wt-exit", WorkspaceID: "ws-exit", State: StateReady}
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		finished := statusTestClock()
@@ -373,7 +373,7 @@ func TestExitActions(t *testing.T) {
 			Action: string(ExitActionPush), State: "running", StartedAt: finished.Add(time.Second),
 		}
 		service := NewService(store, &recordingGitRunner{})
-		if err := service.CancelExitAction(context.Background(), item.WorkspaceID, item.ID, "op-stale"); err != nil {
+		if err := service.CancelExitAction(t.Context(), item.WorkspaceID, item.ID, "op-stale"); err != nil {
 			t.Fatalf("CancelExitAction(stale) error = %v", err)
 		}
 		if got := exitOperation(store, "op-later"); got.State != "running" {
@@ -388,7 +388,7 @@ func TestExitActions(t *testing.T) {
 			ID: "wt-refresh", WorkspaceID: "ws-refresh", Branch: "feature/refresh",
 			Path: "/repo/refresh", State: StateReady, CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
 		}
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed refresh worktree: %v", err)
 		}
 		runner := &recordingGitRunner{responses: []gitResponse{
@@ -398,14 +398,14 @@ func TestExitActions(t *testing.T) {
 		}}
 		provider := &recordingExitForge{status: &ForgeStatus{Provider: "github"}}
 		service := NewService(store, runner, WithForge(provider), WithClock(statusTestClock))
-		service.refreshAfterExit(context.Background(), item)
+		service.refreshAfterExit(t.Context(), item)
 
 		if provider.statusCalls != 1 || len(provider.lastStatus.RemoteURLs) != 1 ||
 			provider.lastStatus.RemoteURLs[0] != "git@github.com:acme/repo.git" ||
 			provider.lastStatus.Branch != item.Branch {
 			t.Fatalf("forge refresh calls/request = %d/%#v", provider.statusCalls, provider.lastStatus)
 		}
-		cached, err := store.GetForgeStatus(context.Background(), item.WorkspaceID, item.ID)
+		cached, err := store.GetForgeStatus(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil || cached == nil || cached.Provider != "github" {
 			t.Fatalf("cached forge refresh = %#v, %v", cached, err)
 		}
@@ -418,7 +418,7 @@ func TestExitActions(t *testing.T) {
 				"# branch.upstream origin/feature/exit\x00# branch.ab +0 -0\x00",
 		)}}}
 		service := NewService(newMemoryWorktreeStore(), runner)
-		step, err := service.runExitPush(context.Background(), Worktree{Path: "/repo", Branch: "feature/exit"}, false)
+		step, err := service.runExitPush(t.Context(), Worktree{Path: "/repo", Branch: "feature/exit"}, false)
 		if err != nil || step.State != "skipped" || step.Reason != "already up to date" ||
 			containsCommandPrefix(invocationCommands(runner.invocations()), "push") {
 			t.Fatalf("runExitPush() = %#v, %v; calls=%#v", step, err, runner.invocations())
@@ -435,7 +435,7 @@ func TestExitActions(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		step, err := service.runExitPush(
-			context.Background(), Worktree{Path: "/repo", Branch: "feature/exit"}, false,
+			t.Context(), Worktree{Path: "/repo", Branch: "feature/exit"}, false,
 		)
 		if err != nil || step.Upstream != "fork/review" {
 			t.Fatalf("runExitPush() = %#v, %v, want configured upstream", step, err)
@@ -454,7 +454,7 @@ func TestExitActions(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		steps, err := service.runExitSequence(
-			context.Background(), ExitOperation{ID: "op-hook"}, Worktree{Path: "/repo", Branch: "feature/exit"},
+			t.Context(), ExitOperation{ID: "op-hook"}, Worktree{Path: "/repo", Branch: "feature/exit"},
 			&ExitPlan{CommitScope: ExitCommitScope{ChangedFiles: 1}},
 			ExitActionRequest{Action: ExitActionCommitPush, Message: "Run hooks"},
 		)
@@ -480,7 +480,7 @@ func TestExitActions(t *testing.T) {
 		events := &recordingEventSink{}
 		service := NewService(newMemoryWorktreeStore(), runner, WithEvents(events))
 		steps, err := service.runExitSequence(
-			context.Background(),
+			t.Context(),
 			ExitOperation{ID: "op-hook-output", WorkspaceID: "ws-hook", WorktreeID: "wt-hook"},
 			Worktree{Path: "/repo", Branch: "feature/exit"},
 			&ExitPlan{CommitScope: ExitCommitScope{ChangedFiles: 1}},
@@ -524,7 +524,7 @@ func TestExitActions(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		steps, err := service.runExitSequence(
-			context.Background(), ExitOperation{ID: "op-push-failure"},
+			t.Context(), ExitOperation{ID: "op-push-failure"},
 			Worktree{Path: "/repo", Branch: "feature/exit"},
 			&ExitPlan{CommitScope: ExitCommitScope{ChangedFiles: 1}},
 			ExitActionRequest{Action: ExitActionCommitPush},
@@ -540,7 +540,7 @@ func TestExitActions(t *testing.T) {
 		runner := &recordingGitRunner{responses: []gitResponse{{}, {}}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		step, err := service.runExitCommit(
-			context.Background(), ExitOperation{}, ExitActionCommit,
+			t.Context(), ExitOperation{}, ExitActionCommit,
 			Worktree{Path: "/repo"}, ExitCommitScope{}, "",
 		)
 		if err != nil || step.State != "skipped" || step.Reason != "nothing to commit" ||
@@ -556,7 +556,7 @@ func TestExitActions(t *testing.T) {
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
 		step, err := service.runExitCommit(
-			context.Background(), ExitOperation{}, ExitActionCommit,
+			t.Context(), ExitOperation{}, ExitActionCommit,
 			Worktree{Path: "/repo"}, ExitCommitScope{}, "",
 		)
 		if err != nil || step.State != "completed" || step.SHA != "deadbeef" ||
@@ -572,7 +572,7 @@ func TestExitActions(t *testing.T) {
 			ID: "wt-pr", WorkspaceID: "ws-pr", Path: "/repo", Branch: "feature/pr", State: StateReady,
 			CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
 		}
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed PR worktree: %v", err)
 		}
 		provider := &recordingExitForge{create: &ForgePRResult{
@@ -580,11 +580,11 @@ func TestExitActions(t *testing.T) {
 			URL: "https://secret@github.com/acme/repo/pull/51?token=bad#fragment",
 		}}
 		service := NewService(store, &recordingGitRunner{}, WithForge(provider), WithClock(statusTestClock))
-		step, err := service.runExitPR(context.Background(), item, &ExitPlan{
+		step, err := service.runExitPR(t.Context(), item, &ExitPlan{
 			Base: "main", RemoteURLs: []string{"https://github.com/acme/repo.git"},
 			Forge: &ForgeCapabilities{Provider: "github"},
 		}, ExitActionRequest{Action: ExitActionOpenPR, Title: "Exit", Body: "Ready", Draft: true})
-		cached, cacheErr := store.GetForgeStatus(context.Background(), item.WorkspaceID, item.ID)
+		cached, cacheErr := store.GetForgeStatus(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil || cacheErr != nil || step.PRStatus != "opened_existing" || step.PRNumber != 51 ||
 			step.URL != "https://github.com/acme/repo/pull/51" || cached == nil || cached.PRURL != step.URL || provider.createCalls != 1 ||
 			!provider.lastCreate.Draft || provider.lastCreate.Title != "Exit" || provider.lastCreate.Body != "Ready" ||
@@ -606,7 +606,7 @@ func TestExitActions(t *testing.T) {
 			CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
 		}
 		store := newMemoryWorktreeStore()
-		if err := store.Insert(context.Background(), item); err != nil {
+		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
 		provider := &recordingExitForge{create: &ForgePRResult{
@@ -615,7 +615,7 @@ func TestExitActions(t *testing.T) {
 		runner := &recordingGitRunner{}
 		service := NewService(store, runner, WithForge(provider), WithClock(statusTestClock))
 		step, err := service.runExitPR(
-			context.Background(),
+			t.Context(),
 			item,
 			&ExitPlan{
 				Base: "main", RemoteURLs: []string{"https://github.com/acme/repo.git"},
@@ -698,7 +698,7 @@ func newExitActionFixture(t *testing.T, blockPush bool) exitActionFixture {
 		CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
 	}
 	store := newMemoryWorktreeStore()
-	if err := store.Insert(context.Background(), item); err != nil {
+	if err := store.Insert(t.Context(), item); err != nil {
 		t.Fatalf("seed worktree: %v", err)
 	}
 	runner := &scriptedExitRunner{

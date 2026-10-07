@@ -1,9 +1,10 @@
 package diagnosticcontract
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -354,8 +355,8 @@ func categoryMapFromCodeSpecs(specs []DiagnosticCodeSpec) map[string]string {
 // DiagnosticCodeSpecs returns the sorted canonical diagnostic code registry.
 func DiagnosticCodeSpecs() []DiagnosticCodeSpec {
 	specs := append([]DiagnosticCodeSpec(nil), diagnosticCodeSpecs...)
-	sort.Slice(specs, func(i, j int) bool {
-		return specs[i].Code < specs[j].Code
+	slices.SortFunc(specs, func(a, b DiagnosticCodeSpec) int {
+		return cmp.Compare(a.Code, b.Code)
 	})
 	return specs
 }
@@ -366,7 +367,7 @@ func DiagnosticCodes() []string {
 	for _, spec := range diagnosticCodeSpecs {
 		codes = append(codes, spec.Code)
 	}
-	sort.Strings(codes)
+	slices.Sort(codes)
 	return codes
 }
 

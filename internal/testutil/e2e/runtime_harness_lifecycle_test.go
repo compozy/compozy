@@ -54,7 +54,7 @@ printf '%s\n' '{"status":"running","socket":"/tmp/compozy.sock","http_host":"127
 		waitCh: make(chan error),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultStartTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), defaultStartTimeout)
 	defer cancel()
 	if err := harness.waitForReady(ctx, time.Millisecond); err != nil {
 		t.Fatalf("waitForReady() error = %v", err)
@@ -68,7 +68,7 @@ func TestRuntimeHarnessWaitForReadyReturnsExitError(t *testing.T) {
 	waitCh <- errors.New("daemon exited")
 
 	harness := &RuntimeHarness{waitCh: waitCh}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 
 	if err := harness.waitForReady(ctx, time.Millisecond); err == nil {
@@ -172,7 +172,7 @@ func TestRuntimeHarnessStopLifecycle(t *testing.T) {
 		t.Parallel()
 
 		cmd := exec.CommandContext(
-			context.Background(),
+			t.Context(),
 			"sh",
 			"-c",
 			"trap 'exit 0' INT; while :; do sleep 1; done",
@@ -199,7 +199,7 @@ func TestRuntimeHarnessStopLifecycle(t *testing.T) {
 			},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		if err := harness.Stop(ctx); err != nil {
 			t.Fatalf("Stop() error = %v", err)
@@ -259,7 +259,7 @@ while :; do sleep 1; done
 			time.Sleep(10 * time.Millisecond)
 		}
 
-		canceledCtx, cancel := context.WithCancel(context.Background())
+		canceledCtx, cancel := context.WithCancel(t.Context())
 		cancel()
 		if err := harness.Stop(canceledCtx); !errors.Is(err, context.Canceled) {
 			t.Fatalf("Stop(canceled) error = %v, want context.Canceled", err)
@@ -268,12 +268,12 @@ while :; do sleep 1; done
 			t.Fatalf("pollExit() after canceled stop = (%v, %v), want running process", exited, err)
 		}
 
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		stopCtx, stopCancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 		defer stopCancel()
 		if err := harness.Stop(stopCtx); err != nil {
 			t.Fatalf("Stop(retry) error = %v", err)
 		}
-		if err := harness.Stop(context.Background()); err != nil {
+		if err := harness.Stop(t.Context()); err != nil {
 			t.Fatalf("Stop(cached) error = %v", err)
 		}
 	})
@@ -426,7 +426,7 @@ func TestRuntimeHarnessPromptSessionUntilRejectsNilPredicateBeforeRequest(t *tes
 		UDSClient:  server.Client(),
 	}
 
-	records, err := harness.PromptSessionUntil(context.Background(), "sess-nil-predicate", "hello", nil)
+	records, err := harness.PromptSessionUntil(t.Context(), "sess-nil-predicate", "hello", nil)
 	if err == nil {
 		t.Fatal("PromptSessionUntil(nil predicate) error = nil, want validation error")
 	}
@@ -453,7 +453,7 @@ func TestCLIClientRunInDirResolvesRelativePathsAgainstBaseWorkdir(t *testing.T) 
 			workdir:    baseDir,
 		}
 
-		stdout, stderr, err := client.RunInDir(context.Background(), "nested", "ignored")
+		stdout, stderr, err := client.RunInDir(t.Context(), "nested", "ignored")
 		if err != nil {
 			t.Fatalf("RunInDir() error = %v; stderr=%s", err, strings.TrimSpace(stderr))
 		}
@@ -506,7 +506,7 @@ func TestRuntimeHelpersCoverRequestAndTimingUtilities(t *testing.T) {
 
 	var payload map[string]string
 	if err := doJSONRequest(
-		context.Background(),
+		t.Context(),
 		server.Client(),
 		server.URL+"/ok",
 		http.MethodPost,
@@ -520,7 +520,7 @@ func TestRuntimeHelpersCoverRequestAndTimingUtilities(t *testing.T) {
 	}
 
 	if err := doJSONRequest(
-		context.Background(),
+		t.Context(),
 		server.Client(),
 		server.URL+"/bad",
 		http.MethodGet,
@@ -529,7 +529,7 @@ func TestRuntimeHelpersCoverRequestAndTimingUtilities(t *testing.T) {
 	); err == nil {
 		t.Fatal("doJSONRequest(/bad) error = nil, want non-nil")
 	}
-	if err := doJSONRequest(context.Background(), nil, server.URL+"/ok", http.MethodGet, nil, nil); err == nil {
+	if err := doJSONRequest(t.Context(), nil, server.URL+"/ok", http.MethodGet, nil, nil); err == nil {
 		t.Fatal("doJSONRequest(nil client) error = nil, want stable validation error")
 	}
 	if _, err := requestBody(make(chan int)); err == nil {

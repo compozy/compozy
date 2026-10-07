@@ -3,7 +3,6 @@ package corecmds
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"testing"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -181,7 +180,7 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.roles=/settings/roles",
 			"settings.skills=/settings/skills",
 		}
-		sort.Strings(actual)
+		slices.Sort(actual)
 		if !slices.Equal(actual, expected) {
 			t.Fatalf("settings destinations = %#v, want %#v", actual, expected)
 		}
@@ -203,7 +202,7 @@ func TestProviderAbsorption(t *testing.T) {
 			actual = append(actual, command.Action.View)
 			seen[command.Action.View]++
 		}
-		sort.Strings(actual)
+		slices.Sort(actual)
 		if !slices.Equal(actual, want) {
 			t.Fatalf("view ids = %#v, want %#v", actual, want)
 		}

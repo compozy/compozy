@@ -25,7 +25,7 @@ func TestAtomicWriteFileWindowsOverwrite(t *testing.T) {
 			t.Fatalf("WriteFile(seed) error = %v", err)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		readErr := make(chan error, 1)

@@ -251,7 +251,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: h.workspaceID,
 		Title:       "Recover orphaned run",
-		MaxAttempts: intPtr(1),
+		MaxAttempts: new(1),
 	}, humanActor)
 	if err != nil {
 		t.Fatalf("CreateTask(recoveryTask) error = %v", err)
@@ -488,7 +488,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "Failed task",
-			MaxAttempts: intPtr(1),
+			MaxAttempts: new(1),
 		}, humanActor)
 		if err != nil {
 			t.Fatalf("CreateTask(failedTask) error = %v", err)
@@ -826,7 +826,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 			WorkspaceID: h.workspaceID,
 			Title:       "Fail me",
 			Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
-			MaxAttempts: intPtr(1),
+			MaxAttempts: new(1),
 		}, alice)
 		if err != nil {
 			t.Fatalf("CreateTask(failTask) error = %v", err)
@@ -1000,8 +1000,4 @@ func newObserveTaskManager(
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 	return manager
-}
-
-func intPtr(value int) *int {
-	return &value
 }

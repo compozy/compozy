@@ -21,11 +21,16 @@ var (
 	tcpPortReservations  = make(map[int]struct{})
 )
 
-// Context returns a context canceled during test cleanup.
+// Context inherits test cancellation and provides a fresh timeout during cleanup.
 func Context(t testing.TB) context.Context {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	parent := t.Context()
+	if parent.Err() != nil {
+		// Cleanup callbacks need a fresh timeout after the test context is canceled.
+		parent = context.WithoutCancel(parent)
+	}
+	ctx, cancel := context.WithTimeout(parent, defaultTimeout)
 	t.Cleanup(cancel)
 	return ctx
 }
@@ -55,7 +60,7 @@ func FreeTCPPort(t testing.TB) int {
 		t.Fatalf("os.Getpid() = %d, want non-negative pid", pid)
 	}
 
-	listenerContext, cancel := context.WithTimeout(context.Background(), time.Second)
+	listenerContext, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 
 	listenConfig := net.ListenConfig{}

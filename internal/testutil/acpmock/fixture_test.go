@@ -1120,7 +1120,7 @@ func TestBuildDriverBinaryHonorsContextCancellation(t *testing.T) {
 		t.Fatalf("repoRootFromCaller() error = %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	err = buildDriverBinary(ctx, repoRoot, filepath.Join(t.TempDir(), driverBinaryName()))

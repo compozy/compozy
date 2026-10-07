@@ -2,9 +2,10 @@
 package corecmds
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 )
@@ -23,7 +24,9 @@ func New() (*Provider, error) {
 	commands = append(commands, settingsCommands()...)
 	commands = append(commands, viewCommands()...)
 	commands = append(commands, profileCommands()...)
-	sort.Slice(commands, func(left, right int) bool { return commands[left].ID < commands[right].ID })
+	slices.SortFunc(commands, func(a, b cmdpalette.Descriptor) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
 	seen := make(map[cmdpalette.CommandID]struct{}, len(commands))
 	for _, command := range commands {
 		if _, exists := seen[command.ID]; exists {

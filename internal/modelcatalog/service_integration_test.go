@@ -440,7 +440,9 @@ func openCatalogGlobalDB(t *testing.T) (*globaldb.GlobalDB, string) {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if closeErr := store.Close(testutil.Context(t)); closeErr != nil {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		if closeErr := store.Close(closeCtx); closeErr != nil {
 			t.Errorf("GlobalDB.Close() error = %v", closeErr)
 		}
 	})

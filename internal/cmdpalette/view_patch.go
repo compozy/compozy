@@ -187,7 +187,7 @@ func parseJSONPointer(pointer string) ([]string, error) {
 	parts := strings.Split(pointer[1:], "/")
 	for index, part := range parts {
 		if strings.Contains(part, "~") {
-			for cursor := 0; cursor < len(part); cursor++ {
+			for cursor := range len(part) {
 				if part[cursor] == '~' && (cursor+1 >= len(part) || (part[cursor+1] != '0' && part[cursor+1] != '1')) {
 					return nil, fmt.Errorf("contains invalid escape in segment %d", index)
 				}
