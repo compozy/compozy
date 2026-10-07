@@ -45,6 +45,8 @@ func TestValidObservedSessionID(t *testing.T) {
 }
 
 func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
+	t.Parallel()
+
 	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)

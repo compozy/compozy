@@ -1146,11 +1146,16 @@ func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {
 			},
 		},
 	}
+	fixtureRepo, _ := newReleasePreflightFixture(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			repo, pathDir := newReleasePreflightFixture(t)
+			repo := t.TempDir()
+			if err := os.CopyFS(repo, os.DirFS(fixtureRepo)); err != nil {
+				t.Fatalf("copy release preflight fixture: %v", err)
+			}
+			pathDir := filepath.Join(repo, "test-bin")
 			switch tt.contamination {
 			case "untracked":
 				contamination := filepath.Join(repo, "release-workflow-tools", "tool.sh")
