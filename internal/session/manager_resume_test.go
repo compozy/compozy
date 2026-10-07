@@ -205,7 +205,8 @@ func TestResumePreservesCrashStopClassificationFromRepairedMetadata(t *testing.T
 func TestResumeFallsBackToFreshStartWhenStoredACPSessionIsMissing(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
+	logs := newCaptureLogHandler()
+	h := newHarness(t, WithLogger(slog.New(logs)))
 	session := createSession(t, h)
 	originalACP := session.Info().ACPSessionID
 
@@ -252,6 +253,19 @@ func TestResumeFallsBackToFreshStartWhenStoredACPSessionIsMissing(t *testing.T) 
 	if meta := readMeta(t, session.MetaPath()); meta.State != string(StateActive) {
 		t.Fatalf("meta state after fallback resume = %q, want %q", meta.State, StateActive)
 	}
+
+	record, ok := logs.FindByMessage("session.resume.context_replay_fallback")
+	if !ok {
+		t.Fatalf("missing context_replay_fallback log: %#v", logs.Records())
+	}
+	if got, want := record.Level, slog.LevelInfo; got != want {
+		t.Fatalf("fallback log level = %v, want %v", got, want)
+	}
+	assertCapturedLogAttr(t, record, "session_id", session.ID)
+	assertCapturedLogAttr(t, record, "agent_name", "coder")
+	assertCapturedLogAttr(t, record, "provider", "claude")
+	assertCapturedLogAttr(t, record, "phase", "resume")
+	assertCapturedLogAttr(t, record, "fallback_reason", "load_session_resource_missing")
 }
 
 func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *testing.T) {
@@ -311,60 +325,6 @@ func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *t
 	if got := resumed.Info().StopDetail; got != resumeStopDetailAgentCrashed {
 		t.Fatalf("resumed StopDetail = %q, want %q", got, resumeStopDetailAgentCrashed)
 	}
-}
-
-func TestResumeMissingACPStateFallbackLogsAtInfoLevel(t *testing.T) {
-	t.Parallel()
-
-	logs := newCaptureLogHandler()
-	h := newHarness(t, WithLogger(slog.New(logs)))
-	session := createSession(t, h)
-	originalACP := session.Info().ACPSessionID
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
-		if opts.ResumeSessionID != "" {
-			return nil, fmt.Errorf(
-				"%w: load session %q for %q: %w",
-				acp.ErrLoadSessionFailed,
-				opts.ResumeSessionID,
-				opts.AgentName,
-				&acpsdk.RequestError{
-					Code:    -32002,
-					Message: "Resource not found: " + opts.ResumeSessionID,
-				},
-			)
-		}
-		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, resumed.ID)
-	})
-
-	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
-		t.Fatalf("first resume start ResumeSessionID = %q, want %q", got, originalACP)
-	}
-
-	record, ok := logs.FindByMessage("session.resume.context_replay_fallback")
-	if !ok {
-		t.Fatalf("missing context_replay_fallback log: %#v", logs.Records())
-	}
-	if got, want := record.Level, slog.LevelInfo; got != want {
-		t.Fatalf("fallback log level = %v, want %v", got, want)
-	}
-	assertCapturedLogAttr(t, record, "session_id", session.ID)
-	assertCapturedLogAttr(t, record, "agent_name", "coder")
-	assertCapturedLogAttr(t, record, "provider", "claude")
-	assertCapturedLogAttr(t, record, "phase", "resume")
-	assertCapturedLogAttr(t, record, "fallback_reason", "load_session_resource_missing")
 }
 
 func TestResumeFailureRestoresStoppedMetadata(t *testing.T) {
@@ -1227,4 +1187,73 @@ func hasACPOption(options []acp.SessionConfigOptionSelection, id string) bool {
 		}
 	}
 	return false
+}
+
+func TestResumeFailsWhenWorkspaceDirectoryMissing(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if err := os.RemoveAll(h.workspace); err != nil {
+		t.Fatalf("os.RemoveAll(%q) error = %v", h.workspace, err)
+	}
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(missing workspace dir) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), h.workspace) {
+		t.Fatalf("Resume(missing workspace dir) error = %v, want workspace path %q", err, h.workspace)
+	}
+}
+
+func TestResumeFailsWhenAgentRemoved(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+		ID:      h.workspaceID,
+		RootDir: h.workspace,
+		Name:    h.workspaceName,
+		Config:  h.cfg,
+		Agents: []compozyconfig.AgentDef{{
+			Name:     compozyconfig.DefaultAgentName,
+			Provider: "claude",
+			Prompt:   "You are a coding assistant.",
+		}},
+	})
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(missing agent) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), "coder") {
+		t.Fatalf("Resume(missing agent) error = %v, want agent name", err)
+	}
+}
+
+func TestResumeFailsWhenEventStoreIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if err := os.WriteFile(session.DBPath(), nil, 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", session.DBPath(), err)
+	}
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(empty event store) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), session.DBPath()) || !strings.Contains(err.Error(), "file is empty") {
+		t.Fatalf("Resume(empty event store) error = %v, want db path and empty-file detail", err)
+	}
 }

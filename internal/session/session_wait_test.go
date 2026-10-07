@@ -159,7 +159,8 @@ func TestWaitForBadgeMatchesSnapshotsAndEdges(t *testing.T) {
 	t.Run("Should return immediately when the snapshot already satisfies the predicate", func(t *testing.T) {
 		t.Parallel()
 
-		h, session, _ := newWaitTestHarness(t)
+		logs := newCaptureLogHandler()
+		h, session, _ := newWaitTestHarness(t, WithLogger(slog.New(logs)))
 		outcome, err := h.manager.WaitForBadge(testutil.Context(t), WaitRequest{
 			SessionID: session.ID,
 			Until:     []Badge{BadgeIdle},
@@ -171,6 +172,7 @@ func TestWaitForBadgeMatchesSnapshotsAndEdges(t *testing.T) {
 		if outcome.Outcome != WaitResultStateReached || outcome.State != BadgeIdle {
 			t.Fatalf("WaitForBadge() = %#v, want immediate idle", outcome)
 		}
+		assertWaitCompletionLog(t, logs, WaitResultStateReached)
 	})
 
 	t.Run("Should preserve a matching edge that is left before the waiter runs", func(t *testing.T) {
@@ -323,7 +325,8 @@ func TestWaitForBadgeHandlesIdentityConcurrencyAndCancellation(t *testing.T) {
 	t.Run("Should remove a canceled waiter", func(t *testing.T) {
 		t.Parallel()
 
-		h, session, _ := newWaitTestHarness(t)
+		logs := newCaptureLogHandler()
+		h, session, _ := newWaitTestHarness(t, WithLogger(slog.New(logs)))
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		result := startBadgeWaitWithContext(ctx, t, h.manager, WaitRequest{
 			SessionID: session.ID,
@@ -338,12 +341,14 @@ func TestWaitForBadgeHandlesIdentityConcurrencyAndCancellation(t *testing.T) {
 			t.Fatalf("WaitForBadge(canceled) = %#v, error = %v", got.outcome, got.err)
 		}
 		awaitWaitRegistrationCount(t, h.manager, session.ID, 0)
+		assertWaitCompletionLog(t, logs, WaitResultCanceled)
 	})
 
 	t.Run("Should report session gone when deletion fans out", func(t *testing.T) {
 		t.Parallel()
 
-		h, session, _ := newWaitTestHarness(t)
+		logs := newCaptureLogHandler()
+		h, session, _ := newWaitTestHarness(t, WithLogger(slog.New(logs)))
 		result := startBadgeWait(t, h.manager, WaitRequest{
 			SessionID: session.ID,
 			Until:     []Badge{BadgeWaitingForInput},
@@ -357,6 +362,7 @@ func TestWaitForBadgeHandlesIdentityConcurrencyAndCancellation(t *testing.T) {
 			t.Fatalf("WaitForBadge(gone) = %#v, error = %v", got.outcome, got.err)
 		}
 		awaitWaitRegistrationCount(t, h.manager, session.ID, 0)
+		assertWaitCompletionLog(t, logs, WaitResultSessionGone)
 	})
 }
 
@@ -456,7 +462,8 @@ func TestWaitForBadgeEnforcesBoundsAndGaplessResume(t *testing.T) {
 	t.Run("Should report overflow instead of silently dropping the sixty-fifth edge", func(t *testing.T) {
 		t.Parallel()
 
-		h, session, clock := newWaitTestHarness(t)
+		logs := newCaptureLogHandler()
+		h, session, clock := newWaitTestHarness(t, WithLogger(slog.New(logs)))
 		result := startBadgeWait(t, h.manager, WaitRequest{
 			SessionID: session.ID,
 			Until:     []Badge{BadgeWaitingForInput},
@@ -485,6 +492,8 @@ func TestWaitForBadgeEnforcesBoundsAndGaplessResume(t *testing.T) {
 		if resumed.Outcome != WaitResultOverflow {
 			t.Fatalf("WaitForBadge(overflow resume) = %#v, want overflow", resumed)
 		}
+		assertWaitCompletionLog(t, logs, WaitResultTimeout)
+		assertWaitCompletionLog(t, logs, WaitResultOverflow)
 	})
 
 	t.Run("Should deliver stopped before removing the active registration", func(t *testing.T) {
@@ -503,89 +512,6 @@ func TestWaitForBadgeEnforcesBoundsAndGaplessResume(t *testing.T) {
 			t.Fatalf("WaitForBadge(stopped) = %#v, error = %v", got.outcome, got.err)
 		}
 		awaitWaitRegistrationCount(t, h.manager, session.ID, 0)
-	})
-}
-
-func TestWaitForBadgeEmitsCompletionObservability(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should record state reached", func(t *testing.T) {
-		t.Parallel()
-
-		logs := newCaptureLogHandler()
-		h, session, _ := newWaitTestHarness(t, WithLogger(slog.New(logs)))
-		outcome, err := h.manager.WaitForBadge(testutil.Context(t), WaitRequest{
-			SessionID: session.ID,
-			Until:     []Badge{BadgeIdle},
-			Timeout:   time.Minute,
-		})
-		if err != nil || outcome.Outcome != WaitResultStateReached {
-			t.Fatalf("WaitForBadge() = %#v, error = %v", outcome, err)
-		}
-		assertWaitCompletionLog(t, logs, WaitResultStateReached)
-	})
-
-	t.Run("Should record timeout and resumed overflow", func(t *testing.T) {
-		t.Parallel()
-
-		logs := newCaptureLogHandler()
-		h, session, clock := newWaitTestHarness(t, WithLogger(slog.New(logs)))
-		result := startBadgeWait(t, h.manager, WaitRequest{
-			SessionID: session.ID,
-			Until:     []Badge{BadgeWaitingForInput},
-			Timeout:   time.Minute,
-		})
-		awaitWaitTimerCount(t, clock, 1)
-		clock.Advance(time.Minute)
-		timedOut := awaitWaitCall(t, result)
-		if timedOut.err != nil || timedOut.outcome.Outcome != WaitResultTimeout {
-			t.Fatalf("WaitForBadge(timeout) = %#v, error = %v", timedOut.outcome, timedOut.err)
-		}
-		for range WaitEdgeBufferSize + 1 {
-			h.manager.publishWaitBadgeEdge(session.Info(), BadgeRunning)
-		}
-		resumed, err := h.manager.WaitForBadge(testutil.Context(t), WaitRequest{
-			SessionID: session.ID,
-			Until:     []Badge{BadgeWaitingForInput},
-			Timeout:   time.Minute,
-			ResumeID:  timedOut.outcome.ResumeID,
-		})
-		if err != nil || resumed.Outcome != WaitResultOverflow {
-			t.Fatalf("WaitForBadge(overflow) = %#v, error = %v", resumed, err)
-		}
-		assertWaitCompletionLog(t, logs, WaitResultTimeout)
-		assertWaitCompletionLog(t, logs, WaitResultOverflow)
-	})
-
-	t.Run("Should record cancellation and session loss", func(t *testing.T) {
-		t.Parallel()
-
-		logs := newCaptureLogHandler()
-		h, session, _ := newWaitTestHarness(t, WithLogger(slog.New(logs)))
-		ctx, cancel := context.WithCancel(testutil.Context(t))
-		canceled := startBadgeWaitWithContext(ctx, t, h.manager, WaitRequest{
-			SessionID: session.ID,
-			Until:     []Badge{BadgeWaitingForInput},
-			Timeout:   time.Minute,
-		})
-		awaitWaitRegistrationCount(t, h.manager, session.ID, 1)
-		cancel()
-		if got := awaitWaitCall(t, canceled); got.err != nil || got.outcome.Outcome != WaitResultCanceled {
-			t.Fatalf("WaitForBadge(canceled) = %#v, error = %v", got.outcome, got.err)
-		}
-
-		gone := startBadgeWait(t, h.manager, WaitRequest{
-			SessionID: session.ID,
-			Until:     []Badge{BadgeWaitingForInput},
-			Timeout:   time.Minute,
-		})
-		awaitWaitRegistrationCount(t, h.manager, session.ID, 1)
-		h.manager.publishWaitSessionGone(session.Info())
-		if got := awaitWaitCall(t, gone); got.err != nil || got.outcome.Outcome != WaitResultSessionGone {
-			t.Fatalf("WaitForBadge(gone) = %#v, error = %v", got.outcome, got.err)
-		}
-		assertWaitCompletionLog(t, logs, WaitResultCanceled)
-		assertWaitCompletionLog(t, logs, WaitResultSessionGone)
 	})
 }
 

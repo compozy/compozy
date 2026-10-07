@@ -2125,12 +2125,6 @@ func TestApprovePermissionReturnsNotActiveForStoppedSession(t *testing.T) {
 func TestApprovePermissionMapsPendingLookupErrors(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
 	testCases := []struct {
 		name    string
 		hookErr error
@@ -2654,27 +2648,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 	}
 	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\noverlay block" {
 		t.Fatalf("start system prompt = %q, want overlay output", got)
-	}
-}
-
-func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t, WithPromptAssembler(nil))
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
-		t.Fatalf("start system prompt = %q, want raw agent prompt", got)
 	}
 }
 

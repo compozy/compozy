@@ -1104,3 +1104,43 @@ func (s *stubRecorder) Close(context.Context) error {
 	s.closeCalls++
 	return nil
 }
+
+func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
+	t.Run("Should reject a nil resolved workspace", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := resolveWorkspaceSessionAgentForType("coder", "", "", nil, nil)
+		if err == nil {
+			t.Fatal("resolveWorkspaceSessionAgent(nil workspace) error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "resolved workspace is required") {
+			t.Fatalf("resolveWorkspaceSessionAgent(nil workspace) error = %v", err)
+		}
+	})
+
+	t.Run("Should allow a nil agent resolver when a workspace is provided", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		resolvedWorkspace := &workspacepkg.ResolvedWorkspace{
+			Config: compozyconfig.DefaultWithHome(homePaths),
+			Agents: []compozyconfig.AgentDef{{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			}},
+		}
+
+		resolved, err := resolveWorkspaceSessionAgentForType("coder", "", "", resolvedWorkspace, nil)
+		if err != nil {
+			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) error = %v", err)
+		}
+		if got, want := resolved.Provider, "claude"; got != want {
+			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) provider = %q, want %q", got, want)
+		}
+	})
+}
