@@ -6867,7 +6867,10 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRo
 	}
 	if withGate {
 		if len(dependencies) != 0 {
-			t.Fatalf("downstream dependencies = %#v, want no generic dependency on coordinator-owned gate", dependencies)
+			t.Fatalf(
+				"downstream dependencies = %#v, want no generic dependency on coordinator-owned gate",
+				dependencies,
+			)
 		}
 		return
 	}
