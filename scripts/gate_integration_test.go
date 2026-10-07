@@ -17,6 +17,17 @@ import (
 func TestGateEvidenceBehavior(t *testing.T) {
 	t.Parallel()
 
+	// Keep each case's Git state isolated while paying seed initialization once.
+	template := newGateTestRepo(t)
+	newRepo := func(t *testing.T) string {
+		t.Helper()
+		repo := t.TempDir()
+		if err := os.CopyFS(repo, os.DirFS(template)); err != nil {
+			t.Fatalf("copy gate repository fixture: %v", err)
+		}
+		return repo
+	}
+
 	for _, mode := range []struct{ command, target string }{
 		{command: "codegen", target: "codegen-check"},
 		{command: "generate", target: "codegen"},
@@ -26,7 +37,7 @@ func TestGateEvidenceBehavior(t *testing.T) {
 			func(t *testing.T) {
 				t.Parallel()
 
-				repo := newGateTestRepo(t)
+				repo := newRepo(t)
 				callsPath := filepath.Join(t.TempDir(), "codegen-calls")
 				write := func(name, content string) {
 					t.Helper()
@@ -87,7 +98,7 @@ func TestGateEvidenceBehavior(t *testing.T) {
 	t.Run("Should fail the lane when tee cannot capture its log", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		fakeBin := t.TempDir()
 		callsPath := filepath.Join(t.TempDir(), "make-calls")
 		writeExecutable(t, fakeBin, "make", `#!/bin/sh
@@ -127,7 +138,7 @@ exit 23
 	t.Run("Should fail safely when no merge base is usable", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		fakeBin := t.TempDir()
 		callsPath := filepath.Join(t.TempDir(), "make-calls")
 		writeExecutable(t, fakeBin, "make", `#!/bin/sh
@@ -161,7 +172,7 @@ exit 0
 	t.Run("Should keep sensitive config changes in local scoped lanes", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		writeConfigChange(t, repo)
 
 		fakeBin := t.TempDir()
@@ -203,7 +214,7 @@ exit 0
 	t.Run("Should collapse redundant Go scopes when the whole module is required", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		packageDir := filepath.Join(repo, "internal", strings.Repeat("wide-scope-", 20))
 		if err := os.MkdirAll(packageDir, 0o755); err != nil {
 			t.Fatalf("create package directory: %v", err)
@@ -244,7 +255,7 @@ exit 0
 	t.Run("Should preserve the fingerprint after committing identical content", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		if err := os.WriteFile(filepath.Join(repo, "seed.txt"), []byte("updated\n"), 0o644); err != nil {
 			t.Fatalf("update repository seed: %v", err)
 		}
@@ -279,7 +290,7 @@ exit 0
 	t.Run("Should rerun a passing lane when its evidence log is missing", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		fakeBin := t.TempDir()
 		callsPath := filepath.Join(t.TempDir(), "make-calls")
 		writeExecutable(t, fakeBin, "make", `#!/bin/sh
@@ -346,7 +357,7 @@ exit 0
 		for _, tc := range cases {
 			t.Run("Should classify "+tc.path, func(t *testing.T) {
 				t.Parallel()
-				repo := newGateTestRepo(t)
+				repo := newRepo(t)
 				path := filepath.Join(repo, filepath.FromSlash(tc.path))
 				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 					t.Fatalf("create parent: %v", err)
@@ -391,7 +402,7 @@ exit 0
 			for _, name := range []string{"main.go", "go.mod", "go.sum"} {
 				t.Run("Should classify "+module+"/"+name, func(t *testing.T) {
 					t.Parallel()
-					repo := newGateTestRepo(t)
+					repo := newRepo(t)
 					dir := filepath.Join(repo, module)
 					if err := os.MkdirAll(dir, 0o755); err != nil {
 						t.Fatal(err)
@@ -431,7 +442,7 @@ exit 0
 
 	t.Run("Should reuse root lint evidence for module and Mage lanes", func(t *testing.T) {
 		t.Parallel()
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		for _, path := range []string{".golangci.yml", "sdk/go/main.go", "magefiles/main.go", "internal/extension/testdata/command-fixture-go/main.go"} {
 			dest := filepath.Join(repo, path)
 			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -494,7 +505,7 @@ printf '%s\n' "$*" >> "$GATE_TEST_CALLS"
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				repo := newGateTestRepo(t)
+				repo := newRepo(t)
 				for _, path := range []string{".golangci.yml", "sdk/go/main.go", "magefiles/main.go", ".gitignore"} {
 					dest := filepath.Join(repo, path)
 					if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -583,7 +594,7 @@ printf '%s %s\n' "$COMPOZY_GO_LINT_SCOPES" "$*" >> "$GATE_TEST_CALLS"
 
 	t.Run("Should route Go-only example assets to Go lanes", func(t *testing.T) {
 		t.Parallel()
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		module := "sdk/examples/notes-commands"
 		dir := filepath.Join(repo, module)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -629,7 +640,7 @@ printf '%s %s\n' "$COMPOZY_GO_LINT_SCOPES" "$*" >> "$GATE_TEST_CALLS"
 
 	t.Run("Should retain JavaScript lanes for a mixed SDK example", func(t *testing.T) {
 		t.Parallel()
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		dir := filepath.Join(repo, "sdk/examples/notes-commands")
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -668,7 +679,7 @@ printf '%s %s\n' "$COMPOZY_GO_LINT_SCOPES" "$*" >> "$GATE_TEST_CALLS"
 	t.Run("Should reject unknown assets before running classified lanes", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		if err := os.Mkdir(filepath.Join(repo, "imgs"), 0o755); err != nil {
 			t.Fatalf("create image directory: %v", err)
 		}
@@ -708,7 +719,7 @@ exit 0
 	t.Run("Should wait for a machine capacity slot before running affected lanes", func(t *testing.T) {
 		t.Parallel()
 
-		repo := newGateTestRepo(t)
+		repo := newRepo(t)
 		writeConfigChange(t, repo)
 		fakeBin := t.TempDir()
 		writeExecutable(t, fakeBin, "make", "#!/bin/sh\nexit 0\n")

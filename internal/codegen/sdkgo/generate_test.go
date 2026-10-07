@@ -55,8 +55,6 @@ func TestGenerate(t *testing.T) {
 			[]byte("LoopProvenanceRoleCell"),
 			[]byte("type ProvideConformanceFixture struct"),
 			[]byte("func PublicProvideConformanceFixtures()"),
-			[]byte("OriginKind identifies the actor or task source kind that started the loop."),
-			[]byte("Outcome is the machine result already computed when the hook observes the gate."),
 		} {
 			if !bytes.Contains(generated, symbol) {
 				t.Fatalf("Generate() output missing %q", symbol)

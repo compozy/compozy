@@ -19,7 +19,7 @@ func TestZoom(t *testing.T) {
 		opened := openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
 		rect := opened.Snapshot.Windows["w1"].FloatingRect
 		zoomed := executeTestCommand(t, environment.manager, "workspace-a", nil, ZoomWindowCommand{WindowID: "w1"})
-		if len(zoomed.Snapshot.Desktops) != 1 {
+		if !zoomed.Applied || len(zoomed.Snapshot.Desktops) != 1 {
 			t.Fatalf("zoom on an otherwise empty desktop created a desktop: %+v", zoomed.Snapshot.Desktops)
 		}
 		requireZoomedIsland(t, zoomed.Snapshot, "w1", "desktop-default")
@@ -387,16 +387,6 @@ func TestZoom(t *testing.T) {
 			t.Fatalf("heir %q did not inherit the return slot", ownerID)
 		}
 		requireValidSnapshot(t, closed.Snapshot)
-	})
-
-	t.Run("Should zoom without a client so agents can zoom from the CLI", func(t *testing.T) {
-		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
-		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
-		zoomed := executeTestCommand(t, environment.manager, "workspace-a", nil, ZoomWindowCommand{WindowID: "w1"})
-		if !zoomed.Applied || !zoomed.Snapshot.Windows["w1"].Zoomed {
-			t.Fatalf("clientless zoom = %+v", zoomed.Snapshot.Windows["w1"])
-		}
 	})
 
 	t.Run("Should restore and zoom a minimized window in one zoom command", func(t *testing.T) {

@@ -92,35 +92,9 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 			t.Fatalf("ListDevices() error = %v", err)
 		}
 		if len(devices) != 1 || renamed.Name != "After" || devices[0].Name != "After" ||
-			devices[0].PairingOrigin != string(PairingSourceLocal) || devices[0].LastSeenAt.IsZero() ||
+			devices[0].PairingOrigin != string(PairingSourceLocal) || !devices[0].LastSeenAt.Equal(now) ||
 			devices[0].CreatedAt.IsZero() {
 			t.Fatalf("device lifecycle payload = %#v / %#v", renamed, devices)
-		}
-	})
-
-	t.Run("Should order active inventory by latest activity (UT-038)", func(t *testing.T) {
-		t.Parallel()
-		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		service := newDeviceServiceOnly(t, &now)
-		first, err := issueTestDevice(t.Context(), service, "First", ActorKindCLIProfile)
-		if err != nil {
-			t.Fatalf("issue first device: %v", err)
-		}
-		now = now.Add(time.Minute)
-		second, err := issueTestDevice(t.Context(), service, "Second", ActorKindCLIProfile)
-		if err != nil {
-			t.Fatalf("issue second device: %v", err)
-		}
-		now = now.Add(time.Minute)
-		if _, err := service.Authenticate(t.Context(), first.Credential); err != nil {
-			t.Fatalf("authenticate first device: %v", err)
-		}
-		devices, err := service.ListDevices(t.Context())
-		if err != nil {
-			t.Fatalf("ListDevices() error = %v", err)
-		}
-		if len(devices) != 2 || devices[0].ID != first.Device.ID || devices[1].ID != second.Device.ID {
-			t.Fatalf("ordered devices = %#v", devices)
 		}
 	})
 

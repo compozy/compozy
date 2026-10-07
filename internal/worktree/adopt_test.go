@@ -15,29 +15,6 @@ import (
 func TestServiceAdopt(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should adopt an exact linked worktree without running bootstrap", func(t *testing.T) {
-		t.Parallel()
-		fixture := newAdoptionTestFixture(t)
-		item, err := fixture.service.Adopt(
-			t.Context(),
-			testWorktreeProfileID,
-			fixture.workspace.ID,
-			fixture.candidate,
-		)
-		if err != nil {
-			t.Fatalf("Adopt() error = %v", err)
-		}
-		if item.State != StateReady || item.Origin != OriginAdopted || item.Branch != "feature/adopt" ||
-			item.GitDir != fixture.adminGitDir || item.SetupState != SetupNone {
-			t.Fatalf("Adopt() = %#v, want ready adopted fingerprint", item)
-		}
-		for _, command := range invocationCommands(fixture.runner.invocations()) {
-			if strings.HasPrefix(command, "ls-files ") || strings.Contains(command, "worktree add") {
-				t.Fatalf("adoption ran bootstrap or mutated Git: %q", command)
-			}
-		}
-	})
-
 	t.Run("Should preserve the discovered label when adopting a detached worktree", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)
@@ -79,6 +56,15 @@ func TestServiceAdopt(t *testing.T) {
 		)
 		if err != nil {
 			t.Fatalf("Adopt(first) error = %v", err)
+		}
+		if first.State != StateReady || first.Origin != OriginAdopted || first.Branch != "feature/adopt" ||
+			first.GitDir != fixture.adminGitDir || first.SetupState != SetupNone {
+			t.Fatalf("Adopt() = %#v, want ready adopted fingerprint", first)
+		}
+		for _, command := range invocationCommands(fixture.runner.invocations()) {
+			if strings.HasPrefix(command, "ls-files ") || strings.Contains(command, "worktree add") {
+				t.Fatalf("adoption ran bootstrap or mutated Git: %q", command)
+			}
 		}
 		callsBefore := len(fixture.runner.invocations())
 		second, err := fixture.service.Adopt(

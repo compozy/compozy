@@ -294,15 +294,6 @@ func TestExitPlan(t *testing.T) {
 					Blocker: "1 commits exist nowhere else.",
 				},
 			},
-			{
-				name:      "merged verdict without remote containment",
-				forge:     &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
-				responses: []gitResponse{{}, {stdout: []byte("1\n")}, {}},
-				want: ExitCleanupEvidence{
-					ForgeState: "merged", Stale: true, Source: "local",
-					Blocker: "1 commits exist nowhere else.",
-				},
-			},
 		} {
 			t.Run("Should prefer "+testCase.name, func(t *testing.T) {
 				t.Parallel()

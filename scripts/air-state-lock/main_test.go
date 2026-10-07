@@ -27,11 +27,12 @@ import (
 const descendantHelperEnv = "COMPOZY_AIR_STATE_LOCK_DESCENDANT_HELPER"
 
 func TestAirStateLockProcess(t *testing.T) {
+	binary := buildAirStateLock(t, t.TempDir())
+
 	t.Run("Should hold the lock while the serialized command is running", func(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		binary := buildAirStateLock(t, tempDir)
 		lockPath := filepath.Join(tempDir, "dev-owner.lock")
 		readyPath := filepath.Join(tempDir, "command-ready")
 
@@ -97,7 +98,6 @@ func TestAirStateLockProcess(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		binary := buildAirStateLock(t, tempDir)
 		lockPath := filepath.Join(tempDir, "dev-owner.lock")
 		pidPath := filepath.Join(tempDir, "descendant.pid")
 

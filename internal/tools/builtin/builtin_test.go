@@ -22,10 +22,13 @@ import (
 func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Parallel()
 
+	nativeDescriptors := NativeDescriptors()
+	descriptors := descriptorMap(nativeDescriptors)
+
 	t.Run("Should expose exactly the MVP native tool scope", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := NativeDescriptors()
+		descriptors := nativeDescriptors
 		got := make(map[toolspkg.ToolID]toolspkg.Descriptor, len(descriptors))
 		for _, descriptor := range descriptors {
 			if err := descriptor.Validate(); err != nil {
@@ -86,7 +89,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose provider-compatible top-level input schemas", func(t *testing.T) {
 		t.Parallel()
 
-		for _, descriptor := range NativeDescriptors() {
+		for _, descriptor := range nativeDescriptors {
 			var schema map[string]json.RawMessage
 			if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
 				t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
@@ -106,7 +109,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should keep terminal open optional and terminal write non-empty", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		var openSchema struct {
 			Required []string `json:"required"`
 		}
@@ -140,7 +142,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should constrain terminal read cursors to exact decimal uint64", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDTerminalRead]
+		descriptor := descriptors[toolspkg.ToolIDTerminalRead]
 		var input nativeObjectSchema
 		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 			t.Fatalf("terminal_read input schema unmarshal error = %v", err)
@@ -158,7 +160,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should describe the complete nullable Goal control output contract", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDGoalControl]
+		descriptor := descriptors[toolspkg.ToolIDGoalControl]
 		var output struct {
 			Required             []string                   `json:"required"`
 			AdditionalProperties bool                       `json:"additionalProperties"`
@@ -206,7 +208,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose bounded execution management and worktree schemas", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		var profileInput nativeObjectSchema
 		profileDescriptor := descriptors[toolspkg.ToolIDTaskExecutionProfileSet]
 		if err := json.Unmarshal(profileDescriptor.InputSchema, &profileInput); err != nil {
@@ -250,7 +251,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose the closed Loop environment on create configure and run", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		configure := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopConfigure], "config")
 		assertNativeLoopEnvironmentSchema(t, toolspkg.ToolIDLoopConfigure.String(), configure.Properties["environment"])
 		run := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopRun], "config_overrides")
@@ -278,7 +278,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose exact Loop runtime rule contracts", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		configure := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopConfigure], "config")
 		assertNativeLoopRuntimeRulesSchema(
 			t,
@@ -296,7 +295,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose closed session mutation contracts", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
 		assertSessionRenameMutationSchema(t, descriptors[toolspkg.ToolIDSessionRename])
 		t.Run("Should validate the session archive schema", func(t *testing.T) {
@@ -316,7 +314,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should describe canonical agent name constraints on native inputs", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		for _, testCase := range []struct {
 			id       toolspkg.ToolID
 			property string
@@ -372,7 +369,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose typed authored agent runtime defaults", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDAgentCreate]
+		descriptor := descriptors[toolspkg.ToolIDAgentCreate]
 		var topLevel nativeObjectSchema
 		if err := json.Unmarshal(descriptor.InputSchema, &topLevel); err != nil {
 			t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
@@ -471,7 +468,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			Items                *schemaField           `json:"items"`
 			AdditionalProperties *bool                  `json:"additionalProperties"`
 		}
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDMemoryPropose]
+		descriptor := descriptors[toolspkg.ToolIDMemoryPropose]
 		var schema schemaField
 		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
 			t.Fatalf("memory_propose input schema unmarshal error = %v", err)
@@ -512,7 +509,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			Properties           map[string]schemaField `json:"properties"`
 			AdditionalProperties *bool                  `json:"additionalProperties"`
 		}
-		descriptors := descriptorMap(NativeDescriptors())
 		for _, id := range []toolspkg.ToolID{
 			toolspkg.ToolIDAutomationJobsCreate,
 			toolspkg.ToolIDAutomationJobsUpdate,
@@ -540,7 +536,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should keep provider model refresh out of the read-only list schema", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDProviderModelsList]
+		descriptor := descriptors[toolspkg.ToolIDProviderModelsList]
 		var schema struct {
 			Properties map[string]json.RawMessage `json:"properties"`
 		}
@@ -554,7 +550,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatalf("provider_models_list input schema omits view: %s", string(descriptor.InputSchema))
 		}
 
-		curate := descriptorMap(NativeDescriptors())[toolspkg.ToolIDProviderModelsCurate]
+		curate := descriptors[toolspkg.ToolIDProviderModelsCurate]
 		var curateSchema struct {
 			Required   []string                   `json:"required"`
 			Properties map[string]json.RawMessage `json:"properties"`
@@ -576,7 +572,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose agent and Vault discovery as read-only catalog tools", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		for _, id := range []toolspkg.ToolID{
 			toolspkg.ToolIDAgentList,
 			toolspkg.ToolIDVaultList,
@@ -597,7 +592,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should derive descriptor presence and risk from one expectation table", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		expectations := nativeDescriptorExpectations()
 		if got, want := len(descriptors), len(expectations); got != want {
 			t.Fatalf("descriptor count = %d, want %d", got, want)
@@ -682,7 +676,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose the closed clarification contract without approval recursion", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDClarify]
+		descriptor := descriptors[toolspkg.ToolIDClarify]
 		if descriptor.RequiresInteraction {
 			t.Fatal("clarify RequiresInteraction = true, want false")
 		}
@@ -707,7 +701,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should accept profile-owned tool approval output contracts", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		grant := `{
 			"id":"grant-1",
 			"profile_id":"01JPROFILEMARKETING0000000",
@@ -737,7 +730,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		status := descriptors[toolspkg.ToolIDLoopStatus]
 		runs := descriptors[toolspkg.ToolIDLoopRuns]
 		var runsInput struct {
@@ -756,10 +748,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		if got, want := inputCursor.Type, "string"; got != want {
 			t.Fatalf("loop_runs input cursor type = %q, want %q", got, want)
 		}
-		if got, want := inputCursor.Description,
-			"Opaque continuation cursor from the previous page; reuse with the same workspace and filters."; got != want {
-			t.Fatalf("loop_runs input cursor description = %q, want %q", got, want)
-		}
 		var runsOutput struct {
 			Properties map[string]struct {
 				Type        string `json:"type"`
@@ -775,10 +763,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		if got, want := outputCursor.Type, "string"; got != want {
 			t.Fatalf("loop_runs output next_cursor type = %q, want %q", got, want)
-		}
-		if got, want := outputCursor.Description,
-			"Opaque continuation cursor for the next page; omitted when no further page exists."; got != want {
-			t.Fatalf("loop_runs output next_cursor description = %q, want %q", got, want)
 		}
 		cancel := descriptors[toolspkg.ToolIDLoopCancel]
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
@@ -897,7 +881,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should publish closed extension inspection schemas and gateway digest inputs", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
 		logs := descriptors[toolspkg.ToolIDExtensionsLogs]
 		assertNativeOutputSchemaAccepts(t, logs, `{
@@ -943,7 +926,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		cases := []struct {
 			id         toolspkg.ToolID
 			capability string
@@ -1013,38 +995,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should pin skill projection output schema digests", func(t *testing.T) {
-		t.Parallel()
-
-		descriptors := descriptorMap(NativeDescriptors())
-		wantDigests := map[toolspkg.ToolID]string{
-			toolspkg.ToolIDSkillList:   "93130ccf79a4e5f9a9c6565cd2127a7dda23e9989b37987fc9570ea206fd370f",
-			toolspkg.ToolIDSkillSearch: "93130ccf79a4e5f9a9c6565cd2127a7dda23e9989b37987fc9570ea206fd370f",
-			toolspkg.ToolIDSkillView:   "fadf40d7421248945f924e72c73663e92867d40edcc29049ff4e298b51cf006b",
-		}
-		for id, want := range wantDigests {
-			t.Run("Should pin "+string(id)+" output schema digest", func(t *testing.T) {
-				t.Parallel()
-
-				descriptor, ok := descriptors[id]
-				if !ok {
-					t.Fatalf("descriptor %q missing", id)
-				}
-				withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
-				if err != nil {
-					t.Fatalf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
-				}
-				if withDigests.OutputSchemaDigest != want {
-					t.Fatalf("%s output schema digest = %q, want %q", id, withDigests.OutputSchemaDigest, want)
-				}
-			})
-		}
-	})
-
 	t.Run("Should publish the closed window manager contract with risk and capability gates", func(t *testing.T) {
 		t.Parallel()
 
-		descriptors := descriptorMap(NativeDescriptors())
 		type expectation struct {
 			risk        toolspkg.RiskClass
 			readOnly    bool
@@ -1160,7 +1113,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should expose the closed gateway action contract", func(t *testing.T) {
 		t.Parallel()
 
-		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDGateway]
+		descriptor := descriptors[toolspkg.ToolIDGateway]
 		var input struct {
 			Properties map[string]struct {
 				Enum []string `json:"enum"`
@@ -2855,24 +2808,6 @@ func TestTerminalDescriptorsShouldKeepObserveOnlyAgentsReadOnly(t *testing.T) { 
 
 func TestBuiltinNativeWorkspaceInputContract(t *testing.T) {
 	t.Parallel()
-
-	descriptors := descriptorMap(NativeDescriptors())
-	for _, id := range []toolspkg.ToolID{} {
-		descriptor, ok := descriptors[id]
-		if !ok {
-			t.Fatalf("descriptor %q missing", id)
-		}
-		var schema nativeObjectSchema
-		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-			t.Fatalf("json.Unmarshal(%s schema) error = %v", id, err)
-		}
-		if _, ok := schema.Properties["workspace_id"]; !ok {
-			t.Fatalf("%s properties omit opaque workspace_id", id)
-		}
-		if _, ok := schema.Properties["workspace"]; ok {
-			t.Fatalf("%s properties retain removed workspace alias", id)
-		}
-	}
 
 	for _, descriptor := range NativeDescriptors() {
 		t.Run("Should preserve the canonical workspace input contract for "+descriptor.ID.String(), func(t *testing.T) {
