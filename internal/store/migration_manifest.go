@@ -59,9 +59,7 @@ func loadMigrationDirectory(stream MigrationStream) (migrationDirectory, error) 
 			if err != nil {
 				return err
 			}
-			if version > maxVersion {
-				maxVersion = version
-			}
+			maxVersion = max(maxVersion, version)
 			versions = append(versions, version)
 			migrationCount++
 		}

@@ -182,12 +182,8 @@ func TestSignalRecorder(t *testing.T) {
 		t.Parallel()
 
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		t.Cleanup(func() {
-			releaseOnce.Do(func() {
-				close(release)
-			})
-		})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce)
 		source := newSignalRecorderFakeSource(nil)
 		source.release = release
 		source.blockUntilCanceled = true
@@ -208,9 +204,7 @@ func TestSignalRecorder(t *testing.T) {
 		}
 		source.waitForCancellation(t)
 		waitSignalRecorderStopped(t, recorder)
-		releaseOnce.Do(func() {
-			close(release)
-		})
+		releaseOnce()
 	})
 }
 

@@ -1,7 +1,6 @@
 package globaldb
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -485,7 +484,7 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 
 	t.Run("Should reject cross-workspace session bindings at the database boundary", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := t.Context()
 		globalDB := openTestGlobalDB(t)
 		workspaceA := registerSessionForGlobalTests(t, globalDB, "session-worktree-constraints")
 		workspaceB := registerWorkspaceForGlobalTests(
@@ -633,7 +632,7 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 
 	t.Run("Should dismiss a tombstone without cascading session or task-run history", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := t.Context()
 		globalDB := openTestGlobalDB(t)
 		sessionID := "session-worktree-history"
 		workspaceID := registerSessionForGlobalTests(t, globalDB, sessionID)

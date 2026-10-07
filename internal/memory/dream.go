@@ -156,10 +156,7 @@ func WithMinHours(hours float64) Option {
 // WithMinSessions overrides the completed-session threshold for the session gate.
 func WithMinSessions(count int) Option {
 	return func(service *Service) {
-		if count < 0 {
-			count = 0
-		}
-		service.minSessions = count
+		service.minSessions = max(count, 0)
 	}
 }
 

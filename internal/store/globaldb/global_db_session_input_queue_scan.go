@@ -164,8 +164,7 @@ func nullableInt64Pointer(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil
 	}
-	result := value.Int64
-	return &result
+	return new(value.Int64)
 }
 
 func parseOptionalSessionInputTimestamp(value sql.NullString) (*time.Time, error) {

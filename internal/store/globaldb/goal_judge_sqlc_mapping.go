@@ -46,8 +46,7 @@ func goalJudgeAttemptFromGenerated(
 		attempt.TokensUsed = row.TokensUsed.Int64
 	}
 	if row.CompletedAt.Valid {
-		value := row.CompletedAt.Time.UTC()
-		attempt.CompletedAt = &value
+		attempt.CompletedAt = new(row.CompletedAt.Time.UTC())
 	}
 	return attempt, nil
 }

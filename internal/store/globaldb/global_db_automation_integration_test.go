@@ -251,7 +251,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 					JobID:     job.ID,
 					Status:    automation.RunScheduled,
 					Attempt:   1,
-					StartedAt: timePointer(now),
+					StartedAt: new(now),
 				},
 				Since:           now.Add(-window),
 				Until:           now,
@@ -265,7 +265,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 					JobID:     job.ID,
 					Status:    automation.RunScheduled,
 					Attempt:   1,
-					StartedAt: timePointer(now),
+					StartedAt: new(now),
 				},
 				Since:           now.Add(-window),
 				Until:           now,
@@ -345,7 +345,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 			JobID:     casJob.ID,
 			Status:    automation.RunScheduled,
 			Attempt:   1,
-			StartedAt: timePointer(now),
+			StartedAt: new(now),
 		})
 		if err != nil {
 			t.Fatalf("CreateRun(existing reservation) error = %v", err)

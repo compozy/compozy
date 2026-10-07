@@ -262,8 +262,7 @@ func (v loopConfigScanValues) toConfig() (looppkg.LoopConfig, error) {
 		EnabledChecks:    json.RawMessage(v.enabledChecks),
 	}
 	if v.reattempt.Valid {
-		value := looppkg.ReattemptStrategy(v.reattempt.String)
-		cfg.ReattemptStrategy = &value
+		cfg.ReattemptStrategy = new(looppkg.ReattemptStrategy(v.reattempt.String))
 	}
 	if v.iterationCap.Valid {
 		cfg.IterationCap = new(int(v.iterationCap.Int64))
@@ -275,8 +274,7 @@ func (v loopConfigScanValues) toConfig() (looppkg.LoopConfig, error) {
 		cfg.BudgetWallSec = new(int(v.budgetWallSec.Int64))
 	}
 	if v.budgetOnExceeded.Valid {
-		value := dsl.BudgetExceeded(v.budgetOnExceeded.String)
-		cfg.BudgetOnExceeded = &value
+		cfg.BudgetOnExceeded = new(dsl.BudgetExceeded(v.budgetOnExceeded.String))
 	}
 	if v.noProgressWindow.Valid {
 		cfg.NoProgressWindow = new(int(v.noProgressWindow.Int64))

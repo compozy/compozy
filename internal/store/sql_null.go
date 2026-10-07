@@ -70,8 +70,7 @@ func NullInt64(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil
 	}
-	v := value.Int64
-	return &v
+	return new(value.Int64)
 }
 
 // NullFloat64 converts sql.NullFloat64 into a pointer.
@@ -79,6 +78,5 @@ func NullFloat64(value sql.NullFloat64) *float64 {
 	if !value.Valid {
 		return nil
 	}
-	v := value.Float64
-	return &v
+	return new(value.Float64)
 }

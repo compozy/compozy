@@ -196,8 +196,7 @@ func loopTimePointer(value sql.NullTime) *time.Time {
 	if !value.Valid {
 		return nil
 	}
-	normalized := value.Time.UTC()
-	return &normalized
+	return new(value.Time.UTC())
 }
 
 func loopPatchIntFlag(value bool) sql.NullInt64 {

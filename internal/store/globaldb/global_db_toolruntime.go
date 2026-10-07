@@ -223,8 +223,7 @@ func scanToolProcessRecord(rows *sql.Rows) (toolruntime.ProcessRecord, error) {
 		}
 	}
 	if exitCode.Valid {
-		value := int(exitCode.Int64)
-		record.ExitCode = &value
+		record.ExitCode = new(int(exitCode.Int64))
 	}
 	record.CreatedAt, parseErr = store.ParseTimestamp(createdAt)
 	if parseErr != nil {

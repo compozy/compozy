@@ -49,8 +49,8 @@ func TestProfileSecretRefsEnforceGrammarAndOwnership(t *testing.T) {
 		if !errors.Is(err, ErrProfileSecretEnvForbidden) {
 			t.Fatalf("ValidateProfileScopedRef() error = %v, want ErrProfileSecretEnvForbidden", err)
 		}
-		var typed *ProfileSecretError
-		if !errors.As(err, &typed) || typed.Code != "profile_secret_env_forbidden" {
+		typed, typedOK := errors.AsType[*ProfileSecretError](err)
+		if !typedOK || typed.Code != "profile_secret_env_forbidden" {
 			t.Fatalf("ValidateProfileScopedRef() error = %#v, want stable code", err)
 		}
 	})

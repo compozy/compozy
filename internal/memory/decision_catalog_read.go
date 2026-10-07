@@ -148,8 +148,7 @@ func scanStoredDecision(scanner interface{ Scan(dest ...any) error }) (storedDec
 	decision.Reason = nullableSQLString(reason)
 	decision.DecidedAt = timeFromUnixMillis(decidedAt)
 	if appliedAt.Valid {
-		parsed := timeFromUnixMillis(appliedAt.Int64)
-		decision.AppliedAt = &parsed
+		decision.AppliedAt = new(timeFromUnixMillis(appliedAt.Int64))
 	}
 	return decision, nil
 }

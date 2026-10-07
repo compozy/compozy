@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"uuid"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/google/uuid"
 )
 
 var _ toolspkg.ApprovalGrantStore = (*ApprovalGrantRepo)(nil)
@@ -71,7 +71,7 @@ func (g *ApprovalGrantRepo) PutApprovalGrant(
 	}
 	now := g.now().UTC()
 	if grant.ID == "" {
-		grant.ID = uuid.NewString()
+		grant.ID = uuid.NewV4().String()
 	}
 	if grant.CreatedAt.IsZero() {
 		grant.CreatedAt = now

@@ -80,7 +80,7 @@ func newTestEngine(
 	resolver.register("w2", "w2-generation-1")
 	path := filepath.Join(t.TempDir(), "state", DatabaseName)
 	fixedNow := time.Date(2026, 7, 19, 12, 0, 0, 123, time.UTC)
-	engine, err := Open(context.Background(), path, resolver, limits, WithClock(func() time.Time { return fixedNow }))
+	engine, err := Open(t.Context(), path, resolver, limits, WithClock(func() time.Time { return fixedNow }))
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -107,7 +107,7 @@ func applyPut(
 	options ApplyOptions,
 ) Entry {
 	t.Helper()
-	entries, err := engine.Apply(context.Background(), ws, domain, []Op{{
+	entries, err := engine.Apply(t.Context(), ws, domain, []Op{{
 		Kind: OpPut, Key: key, Value: value, IfRev: ifRev,
 	}}, options)
 	if err != nil {
@@ -128,7 +128,7 @@ func applyDelete(
 	ifRev uint64,
 ) Entry {
 	t.Helper()
-	entries, err := engine.Apply(context.Background(), ws, domain, []Op{{
+	entries, err := engine.Apply(t.Context(), ws, domain, []Op{{
 		Kind: OpDelete, Key: key, IfRev: ifRev,
 	}}, ApplyOptions{})
 	if err != nil {

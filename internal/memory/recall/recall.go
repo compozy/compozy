@@ -1,13 +1,14 @@
 package recall
 
 import (
+	"cmp"
 	"context"
+	"slices"
 
 	"errors"
 	"fmt"
 	"log/slog"
 	"math"
-	"sort"
 	"strings"
 	"time"
 
@@ -333,18 +334,20 @@ func recency(modTime time.Time, now time.Time) float64 {
 }
 
 func sortRanked(ranked []rankedCandidate) {
-	sort.SliceStable(ranked, func(i, j int) bool {
-		left := ranked[i]
-		right := ranked[j]
+	slices.SortStableFunc(ranked, func(left, right rankedCandidate) int {
 		if left.score != right.score {
-			return left.score > right.score
+			if left.score > right.score {
+				return -1
+			}
+			if left.score < right.score {
+				return 1
+			}
+			return 0
 		}
-		if left.scopeDepth() != right.scopeDepth() {
-			return left.scopeDepth() > right.scopeDepth()
-		}
-		if !left.ModTime.Equal(right.ModTime) {
-			return left.ModTime.After(right.ModTime)
-		}
-		return left.ChunkID < right.ChunkID
+		return cmp.Or(
+			cmp.Compare(right.scopeDepth(), left.scopeDepth()),
+			right.ModTime.Compare(left.ModTime),
+			strings.Compare(left.ChunkID, right.ChunkID),
+		)
 	})
 }

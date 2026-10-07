@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -67,7 +66,7 @@ func BenchmarkAssemblerPromptSectionDualIndex(b *testing.B) {
 	workspace := &workspacepkg.ResolvedWorkspace{
 		RootDir: filepath.Dir(env.store.workspaceDir),
 	}
-	ctx := context.Background()
+	ctx := b.Context()
 
 	for b.Loop() {
 		section, err := assembler.PromptSection(ctx, workspace)

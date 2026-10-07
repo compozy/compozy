@@ -6,7 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -107,11 +108,8 @@ func whitespaceProjectionEntryKeys(ctx context.Context, queries *sqlcgen.Queries
 			break
 		}
 	}
-	orderedKeys := make([]string, 0, len(keys))
-	for key := range keys {
-		orderedKeys = append(orderedKeys, key)
-	}
-	sort.Strings(orderedKeys)
+	orderedKeys := slices.AppendSeq(make([]string, 0, len(keys)), maps.Keys(keys))
+	slices.Sort(orderedKeys)
 	return orderedKeys, nil
 }
 

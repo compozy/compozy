@@ -1,11 +1,12 @@
 package sessiondb
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -377,8 +378,8 @@ func persistIncrementalTranscriptProjection(
 		}
 		identities = append(identities, identity)
 	}
-	sort.Slice(identities, func(i, j int) bool {
-		return identities[i].StartSequence < identities[j].StartSequence
+	slices.SortFunc(identities, func(left, right transcript.EntryIdentity) int {
+		return cmp.Compare(left.StartSequence, right.StartSequence)
 	})
 
 	// Each append rewrites only the independently rebuildable entries it affects.

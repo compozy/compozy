@@ -10,9 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -3625,11 +3626,7 @@ func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {
 
 	for _, table := range want {
 		if _, ok := have[table]; !ok {
-			keys := make([]string, 0, len(have))
-			for key := range have {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
+			keys := slices.Sorted(maps.Keys(have))
 			t.Fatalf("missing table %q, have %v", table, keys)
 		}
 	}

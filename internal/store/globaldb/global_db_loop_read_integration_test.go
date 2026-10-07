@@ -186,7 +186,7 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("advance fanout run error = %v", err)
 		}
-		for itemIndex := 0; itemIndex < 100; itemIndex++ {
+		for itemIndex := range 100 {
 			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs
 				(loop_run_id, generation, node_id, item_index, status, attempt)
 				VALUES (?, 1, 'finish', ?, 'running', 1)`, created.ID, itemIndex); err != nil {
@@ -255,19 +255,17 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 		var readerErrors [2]error
 		var waitGroup sync.WaitGroup
 		for readerIndex := range readerSequences {
-			waitGroup.Add(1)
-			go func(index int) {
-				defer waitGroup.Done()
+			waitGroup.Go(func() {
 				page, readErr := reads.Timeline(ctx, "ws-events", createdA.ID, looppkg.TimelineQuery{
 					View:     looppkg.TimelineViewAll,
 					AfterSeq: 1,
 					Limit:    2,
 				})
 				if readErr != nil {
-					readerErrors[index] = readErr
+					readerErrors[readerIndex] = readErr
 					return
 				}
-				readerSequences[index], readerErrors[index] = drainTimelineSequencesForReadTest(
+				readerSequences[readerIndex], readerErrors[readerIndex] = drainTimelineSequencesForReadTest(
 					ctx,
 					reads,
 					"ws-events",
@@ -275,7 +273,7 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 					page,
 					looppkg.TimelineQuery{View: looppkg.TimelineViewAll, AfterSeq: 1, Limit: 2},
 				)
-			}(readerIndex)
+			})
 		}
 		waitGroup.Wait()
 		if readerErrors[0] != nil || readerErrors[1] != nil ||

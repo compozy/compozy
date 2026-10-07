@@ -151,7 +151,7 @@ func TestAssemblerPromptSection(t *testing.T) {
 		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 		env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
 
-		got := env.promptSection(context.Background(), t)
+		got := env.promptSection(t.Context(), t)
 		for _, want := range []string{
 			memoryPromptIntro,
 			"Compozy memory snapshot v1 blocks=2 hash=",
@@ -175,7 +175,7 @@ func TestAssemblerPromptSection(t *testing.T) {
 
 		env := newAssemblerTestEnv(t)
 
-		got := env.promptSection(context.Background(), t)
+		got := env.promptSection(t.Context(), t)
 		if got != "" {
 			t.Fatalf("PromptSection() = %q, want empty string", got)
 		}
@@ -187,10 +187,10 @@ func TestAssemblerPromptSection(t *testing.T) {
 		env := newAssemblerTestEnv(t)
 		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		_, err := env.assembler.PromptSection(ctx, resolvedWorkspacePtr(env.workspace))
+		_, err := env.assembler.PromptSection(ctx, new(testResolvedWorkspace(env.workspace)))
 		if err != context.Canceled {
 			t.Fatalf("PromptSection() error = %v, want %v", err, context.Canceled)
 		}
@@ -223,11 +223,11 @@ func TestAssemblerCheckpointSummaryIsolation(t *testing.T) {
 			t.Fatalf("Write(workspace A checkpoint) error = %v", err)
 		}
 
-		sectionA, err := env.assembler.PromptSection(context.Background(), resolvedWorkspacePtr(workspaceA))
+		sectionA, err := env.assembler.PromptSection(t.Context(), new(testResolvedWorkspace(workspaceA)))
 		if err != nil {
 			t.Fatalf("PromptSection(workspace A) error = %v", err)
 		}
-		sectionB, err := env.assembler.PromptSection(context.Background(), resolvedWorkspacePtr(workspaceB))
+		sectionB, err := env.assembler.PromptSection(t.Context(), new(testResolvedWorkspace(workspaceB)))
 		if err != nil {
 			t.Fatalf("PromptSection(workspace B) error = %v", err)
 		}
@@ -249,7 +249,7 @@ func TestAssemblerAssembleRegressionMatchesPromptSectionAndBasePrompt(t *testing
 	env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 	env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
 
-	section := env.promptSection(context.Background(), t)
+	section := env.promptSection(t.Context(), t)
 	got := env.assemble(t)
 	want := section + "\n\n" + strings.TrimSpace(env.agent.Prompt)
 
@@ -268,7 +268,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		env.writeProfileIndex(t, "- [Original](profile.md) - old note")
 		service := NewSnapshotService(env.store, WithSnapshotClock(fixedSnapshotNow))
 
-		first, err := service.Capture(context.Background(), PromptSnapshotRequest{SessionID: "sess-1"})
+		first, err := service.Capture(t.Context(), PromptSnapshotRequest{SessionID: "sess-1"})
 		if err != nil {
 			t.Fatalf("Capture(first) error = %v", err)
 		}
@@ -278,7 +278,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		if !strings.Contains(first.Section, "old note") || strings.Contains(first.Section, "new note") {
 			t.Fatalf("first snapshot mutated after write/reload: %s", first.Section)
 		}
-		second, err := service.Capture(context.Background(), PromptSnapshotRequest{SessionID: "sess-2"})
+		second, err := service.Capture(t.Context(), PromptSnapshotRequest{SessionID: "sess-2"})
 		if err != nil {
 			t.Fatalf("Capture(second) error = %v", err)
 		}
@@ -301,7 +301,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		hashes := make([]string, 0, 6)
 		var initialGeneration uint64
 		for turn := range 3 {
-			snapshot, err := service.Capture(context.Background(), request)
+			snapshot, err := service.Capture(t.Context(), request)
 			if err != nil {
 				t.Fatalf("Capture(before write, turn %d) error = %v", turn+1, err)
 			}
@@ -323,7 +323,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		}
 
 		for turn := range 3 {
-			snapshot, err := service.Capture(context.Background(), request)
+			snapshot, err := service.Capture(t.Context(), request)
 			if err != nil {
 				t.Fatalf("Capture(after write, turn %d) error = %v", turn+1, err)
 			}
@@ -362,7 +362,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 			"- [Agent Workspace](feedback_agent_ws.md) - agent workspace",
 		)
 
-		snapshot, err := env.assembler.snapshots.Capture(context.Background(), PromptSnapshotRequest{
+		snapshot, err := env.assembler.snapshots.Capture(t.Context(), PromptSnapshotRequest{
 			WorkspaceID:   "ws-alpha",
 			WorkspaceRoot: env.workspace,
 			AgentName:     "reviewer",
@@ -400,7 +400,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 			WithSnapshotMaxCharacters(800),
 		)
 
-		snapshot, err := service.Capture(context.Background(), PromptSnapshotRequest{SessionID: "sess-1"})
+		snapshot, err := service.Capture(t.Context(), PromptSnapshotRequest{SessionID: "sess-1"})
 		if err != nil {
 			t.Fatalf("Capture() error = %v", err)
 		}
@@ -421,7 +421,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		env := newAssemblerTestEnv(t)
 		env.writeProfileIndex(t, "- [Parent](profile.md) - parent note")
 		service := NewSnapshotService(env.store, WithSnapshotClock(fixedSnapshotNow))
-		parent, err := service.Capture(context.Background(), PromptSnapshotRequest{
+		parent, err := service.Capture(t.Context(), PromptSnapshotRequest{
 			SessionID:   "parent",
 			AgentName:   "reviewer",
 			SessionType: session.SessionTypeUser,
@@ -431,7 +431,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		}
 		env.writeAgentIndex(t, memcontract.AgentTierWorkspace, "- [Child Private](feedback_child.md) - child private")
 
-		child, err := service.Capture(context.Background(), PromptSnapshotRequest{
+		child, err := service.Capture(t.Context(), PromptSnapshotRequest{
 			SessionID:      "child",
 			WorkspaceID:    "ws-alpha",
 			WorkspaceRoot:  env.workspace,
@@ -480,7 +480,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		}
 		service := NewSnapshotService(nil, WithProviderSnapshotSource(provider), WithSnapshotClock(fixedSnapshotNow))
 
-		snapshot, err := service.Capture(context.Background(), PromptSnapshotRequest{
+		snapshot, err := service.Capture(t.Context(), PromptSnapshotRequest{
 			SessionID:     "sess-provider",
 			WorkspaceID:   "ws-alpha",
 			WorkspaceRoot: "/work/compozy",
@@ -537,8 +537,7 @@ func newAssemblerTestEnv(t *testing.T) assemblerTestEnv {
 func (e assemblerTestEnv) assemble(t *testing.T) string {
 	t.Helper()
 
-	workspace := testResolvedWorkspace(e.workspace)
-	got, err := e.assembler.Assemble(context.Background(), e.agent, &workspace)
+	got, err := e.assembler.Assemble(t.Context(), e.agent, new(testResolvedWorkspace(e.workspace)))
 	if err != nil {
 		t.Fatalf("Assembler.Assemble() error = %v", err)
 	}
@@ -548,16 +547,11 @@ func (e assemblerTestEnv) assemble(t *testing.T) string {
 func (e assemblerTestEnv) promptSection(ctx context.Context, t *testing.T) string {
 	t.Helper()
 
-	got, err := e.assembler.PromptSection(ctx, resolvedWorkspacePtr(e.workspace))
+	got, err := e.assembler.PromptSection(ctx, new(testResolvedWorkspace(e.workspace)))
 	if err != nil {
 		t.Fatalf("Assembler.PromptSection() error = %v", err)
 	}
 	return got
-}
-
-func resolvedWorkspacePtr(root string) *workspacepkg.ResolvedWorkspace {
-	workspace := testResolvedWorkspace(root)
-	return &workspace
 }
 
 func (e assemblerTestEnv) writeProfileIndex(t *testing.T, content string) {

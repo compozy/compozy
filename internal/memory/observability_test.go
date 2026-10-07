@@ -39,7 +39,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 	t.Run("Should aggregate global and workspace memory event databases once", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		globalStore := newOpenTestStore(t,
@@ -225,7 +225,7 @@ func TestStoreHealthStats(t *testing.T) {
 	t.Run("Should include workspace database events in health derivation", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		globalStore := newOpenTestStore(t,

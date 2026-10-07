@@ -1,12 +1,13 @@
 package consolidation
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -374,11 +375,8 @@ func resolveWorkspaces(
 	for workspaceID, updatedAt := range latestByWorkspace {
 		candidates = append(candidates, workspaceCandidate{id: workspaceID, updatedAt: updatedAt})
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].updatedAt.Equal(candidates[j].updatedAt) {
-			return candidates[i].id < candidates[j].id
-		}
-		return candidates[i].updatedAt.After(candidates[j].updatedAt)
+	slices.SortFunc(candidates, func(left, right workspaceCandidate) int {
+		return cmp.Or(right.updatedAt.Compare(left.updatedAt), strings.Compare(left.id, right.id))
 	})
 
 	workspaces := make([]string, 0, len(candidates))

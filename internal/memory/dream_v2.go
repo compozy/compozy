@@ -1,14 +1,15 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
+	"slices"
 
 	"errors"
 	"fmt"
 	"math"
 
-	"sort"
 	"strings"
 	"time"
 
@@ -291,14 +292,20 @@ func scanDreamCandidate(scanner interface{ Scan(dest ...any) error }) (DreamCand
 }
 
 func sortDreamCandidates(candidates []DreamCandidate) {
-	sort.SliceStable(candidates, func(i, j int) bool {
-		if candidates[i].Score == candidates[j].Score {
-			if candidates[i].LastRecalledAt.Equal(candidates[j].LastRecalledAt) {
-				return candidates[i].ChunkID < candidates[j].ChunkID
+	slices.SortStableFunc(candidates, func(left, right DreamCandidate) int {
+		if left.Score != right.Score {
+			if left.Score > right.Score {
+				return -1
 			}
-			return candidates[i].LastRecalledAt.After(candidates[j].LastRecalledAt)
+			if left.Score < right.Score {
+				return 1
+			}
+			return 0
 		}
-		return candidates[i].Score > candidates[j].Score
+		return cmp.Or(
+			right.LastRecalledAt.Compare(left.LastRecalledAt),
+			strings.Compare(left.ChunkID, right.ChunkID),
+		)
 	})
 }
 

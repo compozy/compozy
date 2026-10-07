@@ -1,12 +1,14 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -55,11 +57,8 @@ func (s *Store) scan(ctx context.Context, scope memcontract.Scope, limit int) (_
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].modTime.Equal(candidates[j].modTime) {
-			return candidates[i].name < candidates[j].name
-		}
-		return candidates[i].modTime.After(candidates[j].modTime)
+	slices.SortFunc(candidates, func(left, right scanCandidate) int {
+		return cmp.Or(right.modTime.Compare(left.modTime), strings.Compare(left.name, right.name))
 	})
 
 	capacity := len(candidates)

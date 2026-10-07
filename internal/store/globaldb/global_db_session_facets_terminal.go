@@ -3,7 +3,7 @@ package globaldb
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -70,9 +70,8 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("store: iterate terminal approval facets: %w", err)
 	}
-	sort.Slice(
-		result.ByWorkspace,
-		func(i, j int) bool { return result.ByWorkspace[i].WorkspaceID < result.ByWorkspace[j].WorkspaceID },
-	)
+	slices.SortFunc(result.ByWorkspace, func(left, right store.WorkspaceSessionCatalogFacets) int {
+		return strings.Compare(left.WorkspaceID, right.WorkspaceID)
+	})
 	return nil
 }

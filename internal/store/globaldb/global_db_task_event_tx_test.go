@@ -994,7 +994,7 @@ func TestGlobalDBTaskEventCommitObserverShouldPublishRecoveredAfterCommit(t *tes
 	t.Run("Should detach and bound the committed observer context", func(t *testing.T) {
 		contextObserver := &taskEventContextObserver{}
 		globalDB.SetTaskEventCommitObserver(contextObserver)
-		callerCtx, cancelCaller := context.WithCancel(context.Background())
+		callerCtx, cancelCaller := context.WithCancel(t.Context())
 		cancelCaller()
 		globalDB.notifyCommittedTaskEvents(callerCtx, observer.records)
 		if contextObserver.err != nil {

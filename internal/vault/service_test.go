@@ -124,7 +124,7 @@ func TestServiceStoresEncryptedSecretsAndResolvesRefs(t *testing.T) {
 	t.Run("Should store encrypted vault value and resolve vault and env refs", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := newMemoryVaultStore()
 		now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 		service, err := NewService(
@@ -281,7 +281,7 @@ func TestServiceRejectsUnsupportedAndMissingSecretRefs(t *testing.T) {
 		{
 			name: "Should reject storing env refs",
 			run: func(service *Service) error {
-				_, err := service.PutSecret(context.Background(), "env:OPENROUTER_API_KEY", "api_key", "secret")
+				_, err := service.PutSecret(t.Context(), "env:OPENROUTER_API_KEY", "api_key", "secret")
 				return err
 			},
 			want: ErrUnsupportedSecretRef,
@@ -289,7 +289,7 @@ func TestServiceRejectsUnsupportedAndMissingSecretRefs(t *testing.T) {
 		{
 			name: "Should reject unsupported refs",
 			run: func(service *Service) error {
-				_, err := service.ResolveRef(context.Background(), "file:/tmp/secret")
+				_, err := service.ResolveRef(t.Context(), "file:/tmp/secret")
 				return err
 			},
 			want: ErrUnsupportedSecretRef,
@@ -297,7 +297,7 @@ func TestServiceRejectsUnsupportedAndMissingSecretRefs(t *testing.T) {
 		{
 			name: "Should report missing env refs",
 			run: func(service *Service) error {
-				_, err := service.ResolveRef(context.Background(), "env:MISSING_API_KEY")
+				_, err := service.ResolveRef(t.Context(), "env:MISSING_API_KEY")
 				return err
 			},
 			want: ErrMissingSecret,

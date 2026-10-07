@@ -651,7 +651,7 @@ func TestExecuteWrite(t *testing.T) {
 	t.Run("Should honor canceled retry waits", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		err := waitForWriteRetry(ctx, time.Hour)
 		if !errors.Is(err, context.Canceled) {

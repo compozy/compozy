@@ -106,14 +106,12 @@ func stringPointer(value sql.NullString) *string {
 	if !value.Valid {
 		return nil
 	}
-	result := value.String
-	return &result
+	return new(value.String)
 }
 
 func int64Pointer(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil
 	}
-	result := value.Int64
-	return &result
+	return new(value.Int64)
 }

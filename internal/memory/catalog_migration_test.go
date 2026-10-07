@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -384,7 +384,7 @@ func catalogSchemaObjects(t *testing.T, db *sql.DB) (objects []string) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate sqlite schema objects error = %v", err)
 	}
-	sort.Strings(objects)
+	slices.Sort(objects)
 	return objects
 }
 

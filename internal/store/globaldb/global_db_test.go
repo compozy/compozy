@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -5042,8 +5041,8 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReconcileSessions() error = %v", err)
 	}
-	sort.Strings(result.Indexed)
-	sort.Strings(result.Orphaned)
+	slices.Sort(result.Indexed)
+	slices.Sort(result.Orphaned)
 	if !testutil.EqualStringSlices(result.Indexed, []string{"sess-new"}) {
 		t.Fatalf("Indexed = %#v, want %#v", result.Indexed, []string{"sess-new"})
 	}
@@ -5284,8 +5283,8 @@ func assertEventSummaryIDs(t *testing.T, globalDB *GlobalDB, want []string) {
 	for _, event := range events {
 		got = append(got, event.ID)
 	}
-	sort.Strings(got)
-	sort.Strings(want)
+	slices.Sort(got)
+	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("event summary ids = %#v, want %#v", got, want)
 	}
@@ -5302,8 +5301,8 @@ func assertTokenStatAgents(t *testing.T, globalDB *GlobalDB, want []string) {
 	for _, stat := range stats {
 		got = append(got, stat.AgentName)
 	}
-	sort.Strings(got)
-	sort.Strings(want)
+	slices.Sort(got)
+	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("token stat agents = %#v, want %#v", got, want)
 	}
@@ -5320,8 +5319,8 @@ func assertPermissionLogIDs(t *testing.T, globalDB *GlobalDB, want []string) {
 	for _, entry := range entries {
 		got = append(got, entry.ID)
 	}
-	sort.Strings(got)
-	sort.Strings(want)
+	slices.Sort(got)
+	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("permission log ids = %#v, want %#v", got, want)
 	}
@@ -5408,13 +5407,11 @@ func stringPointerForTest(value string) *string {
 		return nil
 	}
 
-	copyValue := value
-	return &copyValue
+	return new(value)
 }
 
 func ptrTime(value time.Time) *time.Time {
-	copyValue := value.UTC()
-	return &copyValue
+	return new(value.UTC())
 }
 
 func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {

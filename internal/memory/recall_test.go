@@ -25,7 +25,7 @@ func TestNewRecallAugmenter(t *testing.T) {
 
 		augmenter := NewRecallAugmenter(newOpenTestStore(t, filepath.Join(t.TempDir(), "global")))
 
-		got, err := augmenter(context.Background(), nil, "hello")
+		got, err := augmenter(t.Context(), nil, "hello")
 		if err != nil {
 			t.Fatalf("Augment(nil session) error = %v", err)
 		}
@@ -33,7 +33,7 @@ func TestNewRecallAugmenter(t *testing.T) {
 			t.Fatalf("Augment(nil session) = %q, want original message", got)
 		}
 
-		got, err = augmenter(context.Background(), &session.Session{Type: session.SessionTypeUser}, "   ")
+		got, err = augmenter(t.Context(), &session.Session{Type: session.SessionTypeUser}, "   ")
 		if err != nil {
 			t.Fatalf("Augment(blank query) error = %v", err)
 		}
@@ -64,7 +64,7 @@ func TestNewRecallAugmenter(t *testing.T) {
 
 		augmenter := NewRecallAugmenter(store)
 		got, err := augmenter(
-			context.Background(),
+			t.Context(),
 			&session.Session{Type: session.SessionTypeUser, Workspace: workspaceRoot},
 			"auth migration sessions",
 		)
@@ -291,7 +291,7 @@ func TestStoreRecall(t *testing.T) {
 	t.Run("Should isolate profile recall while sharing workspace memory IT-058 IT-074", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		catalogPath := filepath.Join(baseDir, "compozy.db")
 		profileA := newOpenTestStore(
@@ -388,7 +388,7 @@ func TestStoreRecall(t *testing.T) {
 	t.Run("Should recall from chunk FTS with shadow precedence and live signals", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "compozy-home", memoryDirName)
 		workspaceRoot := filepath.Join(baseDir, "workspace")
@@ -467,7 +467,7 @@ func TestStoreRecall(t *testing.T) {
 	t.Run("Should record trivial recall skips without candidate lookup failure", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
@@ -493,7 +493,7 @@ func TestStoreRecall(t *testing.T) {
 	t.Run("Should recall CJK substrings through trigram FTS", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		store := newOpenTestStore(t,
@@ -536,7 +536,7 @@ func TestStoreRecall(t *testing.T) {
 	t.Run("Should not persist signals after recorder admission closes", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
@@ -592,7 +592,7 @@ func TestStoreRecallFailureAndUtilityPaths(t *testing.T) {
 
 		store := newOpenTestStore(t, filepath.Join(t.TempDir(), "global"))
 		packaged, err := store.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "auth migration sessions"},
 			memcontract.RecallOptions{TopK: 2},
 		)
@@ -609,7 +609,7 @@ func TestStoreRecallFailureAndUtilityPaths(t *testing.T) {
 
 		var nilStore *Store
 		if _, err := nilStore.Recall(
-			context.Background(),
+			t.Context(),
 			memcontract.Query{QueryText: "auth migration sessions"},
 			memcontract.RecallOptions{},
 		); err == nil {
@@ -630,7 +630,7 @@ func TestStoreRecallFailureAndUtilityPaths(t *testing.T) {
 	t.Run("Should record signal failure events without leaking secret material", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		baseDir := t.TempDir()
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
@@ -786,12 +786,8 @@ func TestRecallRecorderRegistry(t *testing.T) {
 		t.Parallel()
 
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		t.Cleanup(func() {
-			releaseOnce.Do(func() {
-				close(release)
-			})
-		})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce)
 		source := newRecallRecorderRegistrySource(release)
 		source.blockUntilCanceled = true
 		registry := newRecallRecorderRegistry()
@@ -852,9 +848,7 @@ func TestRecallRecorderRegistry(t *testing.T) {
 		if err := <-closeResult; err != nil && !errors.Is(err, context.Canceled) {
 			t.Fatalf("registry.close() error = %v, want nil or context canceled", err)
 		}
-		releaseOnce.Do(func() {
-			close(release)
-		})
+		releaseOnce()
 	})
 }
 
@@ -938,7 +932,7 @@ func packagedRecallEntries(packaged memcontract.Packaged) []memcontract.Packaged
 func closeRecallRecorders(t *testing.T, store *Store) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	if err := store.CloseRecallSignalRecorders(ctx); err != nil {
 		t.Fatalf("Store.CloseRecallSignalRecorders() error = %v", err)
@@ -970,7 +964,7 @@ func newRecallRecorderFactory(
 
 	return func(shouldStop func() bool, onStopped func()) (*memoryrecall.SignalRecorder, error) {
 		recorder, err := memoryrecall.NewSignalRecorder(
-			context.Background(),
+			t.Context(),
 			source,
 			memoryrecall.SignalRecorderConfig{QueueCapacity: 1},
 			slog.New(slog.DiscardHandler),
@@ -1082,7 +1076,7 @@ func assertRecallSignal(t *testing.T, db *sql.DB, chunkID string, workspaceID st
 		freshnessStartedAt int64
 	)
 	if err := db.QueryRowContext(
-		context.Background(),
+		t.Context(),
 		`SELECT recall_count, workspace_id, recall_score, freshness_started_at
 		 FROM memory_recall_signals WHERE chunk_id = ?`,
 		chunkID,

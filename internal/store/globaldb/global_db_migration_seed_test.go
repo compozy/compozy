@@ -11,7 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -354,7 +354,7 @@ func globalMigrationPrefixBefore(t *testing.T, excludedMigration string) store.M
 	if err != nil {
 		t.Fatalf("list global migration prefix: %v", err)
 	}
-	index := sort.SearchStrings(names, excludedMigration)
+	index, _ := slices.BinarySearch(names, excludedMigration)
 	return globalMigrationPrefix(t, names[:index]...)
 }
 
@@ -398,7 +398,7 @@ func canonicalGlobalMigrationNames() ([]string, error) {
 		}
 		names = append(names, entry.Name())
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names, nil
 }
 

@@ -321,8 +321,7 @@ func scanDreamRunRecord(scanner interface{ Scan(dest ...any) error }) (DreamRunR
 	record.AgentTier = memcontract.AgentTier(nullableSQLString(agentTierRaw)).Normalize()
 	record.StartedAt = timeFromUnixMillis(startedAt)
 	if finishedAt.Valid {
-		parsed := timeFromUnixMillis(finishedAt.Int64)
-		record.FinishedAt = &parsed
+		record.FinishedAt = new(timeFromUnixMillis(finishedAt.Int64))
 	}
 	record.Metadata = map[string]string{}
 	if strings.TrimSpace(metadataRaw) != "" {
