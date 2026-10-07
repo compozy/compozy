@@ -140,8 +140,7 @@ func askRequestExpiry(
 	if err != nil || duration <= 0 {
 		return nil, fmt.Errorf("%w: ask node %q expiry is invalid", ErrValidation, nodeID)
 	}
-	value := now.Add(duration)
-	return &value, nil
+	return new(now.Add(duration)), nil
 }
 
 func requestContextPayloads(contextMap map[string]any) (json.RawMessage, json.RawMessage, error) {

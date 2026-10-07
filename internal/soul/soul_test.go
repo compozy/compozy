@@ -17,7 +17,7 @@ func TestParseMarkdownOnlySoul(t *testing.T) {
 		t.Parallel()
 
 		cfg := testSoulConfig()
-		first, err := Parse(context.Background(), ParseRequest{
+		first, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "/tmp/work/.compozy/agents/coder/SOUL.md",
 			Content:    []byte("# Persona\r\nLead with clarity.\n"),
 			Config:     cfg,
@@ -25,7 +25,7 @@ func TestParseMarkdownOnlySoul(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Parse(first) error = %v", err)
 		}
-		second, err := Parse(context.Background(), ParseRequest{
+		second, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "/tmp/work/.compozy/agents/coder/SOUL.md",
 			Content:    []byte("# Persona\nLead with clarity.\n\n"),
 			Config:     cfg,
@@ -58,7 +58,7 @@ func TestParseStrictFrontmatterSoul(t *testing.T) {
 	t.Run("Should resolve allowlisted strict frontmatter and body", func(t *testing.T) {
 		t.Parallel()
 
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "agents/reviewer/SOUL.md",
 			Content: []byte(strings.Join([]string{
 				"---",
@@ -109,7 +109,7 @@ func TestParseWorkspaceRelativeSourcePath(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    ".compozy/agents/coder/SOUL.md",
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte("Lead with clarity."),
@@ -178,7 +178,7 @@ func TestParseRejectsAuthorityClaims(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath: "/home/user/project/.compozy/agents/reviewer/SOUL.md",
 				Content:    []byte(tt.content),
 				Config:     testSoulConfig(),
@@ -242,7 +242,7 @@ func TestParseRejectsForbiddenOwnerCategories(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath: "SOUL.md",
 				Content: []byte(strings.Join([]string{
 					"---",
@@ -335,7 +335,7 @@ func TestParseRejectsMalformedFrontmatterAndInvalidTypes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath: "SOUL.md",
 				Content:    []byte(tt.content),
 				Config:     testSoulConfig(),
@@ -386,7 +386,7 @@ func TestParseRejectsOversizedInputs(t *testing.T) {
 				MaxBodyBytes:           256,
 				ContextProjectionBytes: 256,
 			}
-			resolved, err := Parse(context.Background(), ParseRequest{
+			resolved, err := Parse(t.Context(), ParseRequest{
 				SourcePath: "SOUL.md",
 				Content:    []byte(tt.content),
 				Config:     cfg,
@@ -440,7 +440,7 @@ func TestResolveMissingAndDisabledSoul(t *testing.T) {
 				writeTestFile(t, filepath.Join(agentDir, FileName), "Lead with precision.")
 			}
 
-			resolved, err := Resolve(context.Background(), ResolveRequest{
+			resolved, err := Resolve(t.Context(), ResolveRequest{
 				AgentPath:     agentPath,
 				WorkspaceRoot: workspaceRoot,
 				Config:        tt.config,
@@ -467,7 +467,7 @@ func TestResolveClosedDiagnostics(t *testing.T) {
 	t.Run("Should reject empty agent path with sanitized diagnostic", func(t *testing.T) {
 		t.Parallel()
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			Config: testSoulConfig(),
 		})
 		if err == nil {
@@ -493,7 +493,7 @@ func TestResolveClosedDiagnostics(t *testing.T) {
 			t.Fatalf("Mkdir(SOUL.md) error = %v", err)
 		}
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
 			Config:        testSoulConfig(),
@@ -513,7 +513,7 @@ func TestContextCancellation(t *testing.T) {
 	t.Run("Should return context cancellation before parsing", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		_, err := Parse(ctx, ParseRequest{
@@ -534,7 +534,7 @@ func TestCompactProjection(t *testing.T) {
 	t.Run("Should reject impossible compact projection budgets", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := Parse(context.Background(), ParseRequest{
+		_, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "agents/coder/SOUL.md",
 			Content:    []byte("Keep the projection bounded."),
 			Config: compozyconfig.SoulConfig{
@@ -554,7 +554,7 @@ func TestCompactProjection(t *testing.T) {
 	t.Run("Should truncate compact projection without exposing full body", func(t *testing.T) {
 		t.Parallel()
 
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath: "agents/coder/SOUL.md",
 			Content: []byte(strings.Join([]string{
 				"---",
@@ -616,7 +616,7 @@ func TestResolvePathSafety(t *testing.T) {
 			t.Skipf("symlink unavailable: %v", err)
 		}
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
 			Config:        testSoulConfig(),
@@ -664,7 +664,7 @@ func TestResolveAfterAgentLoad(t *testing.T) {
 			t.Fatalf("Agent.Name = %q, want %q", got, want)
 		}
 
-		resolved, err := Resolve(context.Background(), ResolveRequest{
+		resolved, err := Resolve(t.Context(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
 			Config:        testSoulConfig(),

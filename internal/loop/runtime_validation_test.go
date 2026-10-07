@@ -17,7 +17,7 @@ func TestValidateResolvedRuntimeShouldHonorCatalogValidation(t *testing.T) {
 		t.Parallel()
 
 		_, err := loop.ValidateResolvedRuntime(
-			context.Background(), runtimeCatalogForTest{}, "task_07",
+			t.Context(), runtimeCatalogForTest{}, "task_07",
 			loop.ResolvedRuntime{Runtime: loop.RuntimeSpec{Provider: "flarp"}},
 		)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
@@ -29,7 +29,7 @@ func TestValidateResolvedRuntimeShouldHonorCatalogValidation(t *testing.T) {
 		t.Parallel()
 
 		_, err := loop.ValidateResolvedRuntime(
-			context.Background(), runtimeCatalogForTest{}, "task_08",
+			t.Context(), runtimeCatalogForTest{}, "task_08",
 			loop.ResolvedRuntime{Runtime: loop.RuntimeSpec{Provider: "cursor", Model: "unknown"}},
 		)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
@@ -41,7 +41,7 @@ func TestValidateResolvedRuntimeShouldHonorCatalogValidation(t *testing.T) {
 		t.Parallel()
 
 		got, err := loop.ValidateResolvedRuntime(
-			context.Background(), runtimeCatalogForTest{}, "task_09",
+			t.Context(), runtimeCatalogForTest{}, "task_09",
 			loop.ResolvedRuntime{Runtime: loop.RuntimeSpec{
 				Provider: "openrouter", Model: "anthropic/claude-opus-4-7",
 			}},
@@ -58,7 +58,7 @@ func TestValidateResolvedRuntimeShouldHonorCatalogValidation(t *testing.T) {
 		t.Parallel()
 
 		got, err := loop.ValidateResolvedRuntime(
-			context.Background(), runtimeCatalogForTest{}, "task_10",
+			t.Context(), runtimeCatalogForTest{}, "task_10",
 			loop.ResolvedRuntime{Runtime: loop.RuntimeSpec{Provider: "z-ai", Model: "glm-5"}},
 		)
 		if err != nil {
@@ -73,7 +73,7 @@ func TestValidateResolvedRuntimeShouldHonorCatalogValidation(t *testing.T) {
 		t.Parallel()
 
 		got, err := loop.ValidateResolvedRuntime(
-			context.Background(), nil, "task_11", loop.ResolvedRuntime{},
+			t.Context(), nil, "task_11", loop.ResolvedRuntime{},
 		)
 		if err != nil {
 			t.Fatalf("ValidateResolvedRuntime(empty) error = %v", err)
@@ -95,7 +95,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 					Match:   dsl.RuntimeMatch{Type: "frontend"},
 					Runtime: dsl.RuntimeSpec{Reasoning: reasoning},
 				}}}}
-				if err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+				if err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition); err != nil {
 					t.Fatalf("ValidateDefinitionRuntime(%q) error = %v", reasoning, err)
 				}
 			})
@@ -108,7 +108,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
 			Worker: dsl.RuntimeSpec{Reasoning: "invalid effort"},
 		}}}
-		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
 			Field: "reasoning", Value: "invalid effort", Reason: "unsupported_reasoning",
 		})
@@ -124,7 +124,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 				definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
 					Worker: dsl.RuntimeSpec{Speed: value},
 				}}}
-				if err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+				if err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition); err != nil {
 					t.Fatalf("ValidateDefinitionRuntime(%q) error = %v", value, err)
 				}
 			})
@@ -137,7 +137,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
 			Worker: dsl.RuntimeSpec{Speed: speedpkg.Speed("turbo")},
 		}}}
-		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
 			Field: "speed", Value: "turbo", Reason: "unsupported_speed",
 		})
@@ -156,7 +156,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 				},
 			}}},
 		}
-		if err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+		if err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition); err != nil {
 			t.Fatalf("ValidateDefinitionRuntime() error = %v", err)
 		}
 	})
@@ -171,7 +171,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 				Params: dsl.NodeParams{"runtime": "{{ .inputs.worker_runtime }}"},
 			}}},
 		}
-		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
 			Field: "graph.nodes.work.params.runtime", Value: "worker_runtime", Reason: "runtime_input_required",
 		})
@@ -186,7 +186,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 				"provider": "{{ .inputs.worker_runtime.provider }}", "model": "literal",
 			}},
 		}}}}
-		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
 			Field: "graph.nodes.work.params.runtime", Reason: "invalid_runtime_binding",
 		})
@@ -198,7 +198,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		definition := dsl.Definition{Contract: dsl.Contract{RuntimeRules: []dsl.RuntimeRule{{
 			Runtime: dsl.RuntimeSpec{Model: "opus"},
 		}}}}
-		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
 			Field: "runtime_rules[0].match", Reason: "selector_required",
 		})
@@ -238,7 +238,7 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				err := loop.ValidateDefinitionRuntime(context.Background(), nil, tc.definition)
+				err := loop.ValidateDefinitionRuntime(t.Context(), nil, tc.definition)
 				assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
 					Field: tc.field, Reason: "retired_key",
 				})
@@ -283,7 +283,7 @@ func TestValidateRuntimeRulesShouldAcceptTypeComplexityConjunction(t *testing.T)
 			definition := dsl.Definition{Contract: dsl.Contract{RuntimeRules: []dsl.RuntimeRule{{
 				Match: tc.match, Runtime: dsl.RuntimeSpec{Model: "opus"},
 			}}}}
-			err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+			err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition)
 			if tc.wantReason == "" {
 				if err != nil {
 					t.Fatalf("ValidateDefinitionRuntime() error = %v", err)

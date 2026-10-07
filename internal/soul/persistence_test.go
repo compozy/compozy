@@ -1,7 +1,6 @@
 package soul
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -18,7 +17,7 @@ func TestSoulPersistenceSnapshotHelpers(t *testing.T) {
 		t.Parallel()
 
 		cfg := compozyconfig.DefaultSoulConfig()
-		resolved, err := Parse(context.Background(), ParseRequest{
+		resolved, err := Parse(t.Context(), ParseRequest{
 			SourcePath:    "/workspace/agents/coder/" + FileName,
 			WorkspaceRoot: "/workspace",
 			Config:        cfg,

@@ -1,7 +1,6 @@
 package soul
 
 import (
-	"context"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -29,7 +28,7 @@ func TestManagedSoulAuthoringServiceVerifyUnchangedSoul(t *testing.T) {
 		writeTestFile(t, soulPath, "---\nprovider: claude\n---\nFirst invalid body.\n")
 
 		service := &ManagedSoulAuthoringService{}
-		target, err := service.resolveTarget(context.Background(), AuthoringTarget{
+		target, err := service.resolveTarget(t.Context(), AuthoringTarget{
 			WorkspaceID:   "ws-authoring",
 			WorkspaceRoot: workspaceRoot,
 			AgentName:     "coder",
@@ -41,7 +40,7 @@ func TestManagedSoulAuthoringServiceVerifyUnchangedSoul(t *testing.T) {
 			t.Fatalf("resolveTarget() error = %v", err)
 		}
 
-		current, err := service.currentSoulForMutation(context.Background(), target)
+		current, err := service.currentSoulForMutation(t.Context(), target)
 		if err != nil {
 			t.Fatalf("currentSoulForMutation() error = %v", err)
 		}
@@ -60,7 +59,7 @@ func TestManagedSoulAuthoringServiceVerifyUnchangedSoul(t *testing.T) {
 
 		writeTestFile(t, soulPath, "---\nprovider: openai\n---\nSecond invalid body.\n")
 
-		err = service.verifyUnchangedSoul(context.Background(), target, &current)
+		err = service.verifyUnchangedSoul(t.Context(), target, &current)
 		if !errors.Is(err, ErrAuthoringConflict) {
 			t.Fatalf("verifyUnchangedSoul() error = %v, want ErrAuthoringConflict", err)
 		}

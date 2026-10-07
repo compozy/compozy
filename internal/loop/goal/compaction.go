@@ -290,8 +290,7 @@ func contextUsageUsed(usage *ContextUsage) *int64 {
 	if usage == nil || !usage.Known {
 		return nil
 	}
-	value := usage.Used
-	return &value
+	return new(usage.Used)
 }
 
 func classifyCompactionResult(

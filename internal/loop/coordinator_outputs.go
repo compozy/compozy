@@ -1,10 +1,11 @@
 package loop
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,8 +28,7 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 			output.Attempt = 1
 		}
 		if output.ExpectedEpoch == nil {
-			expectedEpoch := output.Epoch
-			output.ExpectedEpoch = &expectedEpoch
+			output.ExpectedEpoch = new(output.Epoch)
 		}
 		outputs[key] = output
 	}
@@ -82,11 +82,8 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 	for _, output := range outputs {
 		ordered = append(ordered, output)
 	}
-	sort.Slice(ordered, func(i, j int) bool {
-		if ordered[i].NodeID == ordered[j].NodeID {
-			return ordered[i].ItemIndex < ordered[j].ItemIndex
-		}
-		return ordered[i].NodeID < ordered[j].NodeID
+	slices.SortFunc(ordered, func(a, b GenerationOutput) int {
+		return cmp.Or(cmp.Compare(a.NodeID, b.NodeID), cmp.Compare(a.ItemIndex, b.ItemIndex))
 	})
 	ordered, err := r.refreshRecoveredChildOutputs(ctx, run, generation, graph, topology, ordered)
 	if err != nil {
@@ -122,16 +119,13 @@ func selectFailedOutput(outputs []GenerationOutput) *GenerationOutput {
 		}
 		failure := classifyGenerationOutputFailure(output, task.Run{})
 		if failure.Class == FailureTargetUnavailable {
-			selected := output
-			return &selected
+			return new(output)
 		}
 		if failure.Code == string(tools.ErrorCodeInvalidInput) && invalidInput == nil {
-			selected := output
-			invalidInput = &selected
+			invalidInput = new(output)
 		}
 		if first == nil {
-			selected := output
-			first = &selected
+			first = new(output)
 		}
 	}
 	if invalidInput != nil {

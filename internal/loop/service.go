@@ -144,9 +144,7 @@ func cloneStartMetadata(metadata map[string]any) map[string]any {
 	if len(metadata) == 0 {
 		return map[string]any{}
 	}
-	cloned := make(map[string]any, len(metadata))
-	maps.Copy(cloned, metadata)
-	return cloned
+	return maps.Clone(metadata)
 }
 
 func (s *service) Configure(

@@ -43,16 +43,14 @@ func cloneActorIdentity(value *taskpkg.ActorIdentity) *taskpkg.ActorIdentity {
 	if value == nil {
 		return nil
 	}
-	clone := *value
-	return &clone
+	return new(*value)
 }
 
 func cloneOwnership(value *taskpkg.Ownership) *taskpkg.Ownership {
 	if value == nil {
 		return nil
 	}
-	clone := *value
-	return &clone
+	return new(*value)
 }
 
 func latestTime(values ...time.Time) time.Time {
@@ -73,8 +71,7 @@ func optionalTimePtr(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	clone := value.UTC()
-	return &clone
+	return new(value.UTC())
 }
 
 func firstTrimmed(values ...string) string {

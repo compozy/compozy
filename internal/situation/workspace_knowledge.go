@@ -12,7 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -121,7 +121,7 @@ func (c *workspaceKnowledgeCollector) collect(
 	if err != nil {
 		return fmt.Errorf("situation: read workspace knowledge directory %q: %w", relativeDir, err)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	for index, name := range names {
 		if c.scannedEntries >= workspaceKnowledgeMaxEntries || len(c.files) >= workspaceKnowledgeMaxFiles {

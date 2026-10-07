@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -106,22 +107,19 @@ func (i NodeWaitIntent) normalized() NodeWaitIntent {
 	i.ClaimedByKind = strings.TrimSpace(i.ClaimedByKind)
 	i.ClaimedByID = strings.TrimSpace(i.ClaimedByID)
 	if i.ResumeAt != nil {
-		value := i.ResumeAt.UTC()
-		i.ResumeAt = &value
+		i.ResumeAt = new(i.ResumeAt.UTC())
 	}
 	if i.NextEscalationAt != nil {
-		value := i.NextEscalationAt.UTC()
-		i.NextEscalationAt = &value
+		i.NextEscalationAt = new(i.NextEscalationAt.UTC())
 	}
 	if len(i.Expect) > 0 {
-		i.Expect = append(json.RawMessage(nil), i.Expect...)
+		i.Expect = slices.Clone(i.Expect)
 	}
 	if i.ClaimedAt != nil {
-		value := i.ClaimedAt.UTC()
-		i.ClaimedAt = &value
+		i.ClaimedAt = new(i.ClaimedAt.UTC())
 	}
 	if len(i.AheadPayload) > 0 {
-		i.AheadPayload = append(json.RawMessage(nil), i.AheadPayload...)
+		i.AheadPayload = slices.Clone(i.AheadPayload)
 	}
 	if !i.CreatedAt.IsZero() {
 		i.CreatedAt = i.CreatedAt.UTC()

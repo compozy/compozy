@@ -120,7 +120,6 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 	t.Parallel()
 
 	failureClass := FailureTransport
-	timeoutClass := FailureAttemptTimeout
 	nextAttemptAt := time.Date(2026, 8, 2, 12, 1, 0, 0, time.UTC)
 
 	t.Run("Should attach node and terminal effects", func(t *testing.T) {
@@ -157,9 +156,17 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 						{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 1,
 							Disposition: AttemptRetried, FailureClass: &failureClass, FailureCode: "network",
 							Cause: "down", NextAttemptAt: &nextAttemptAt, StartedAt: nextAttemptAt.Add(-time.Second)},
-						{LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 2,
-							Disposition: AttemptAbsorbed, FailureClass: &timeoutClass, FailureCode: "deadline",
-							Cause: "still down", StartedAt: nextAttemptAt},
+						{
+							LoopRunID:    "run-effect",
+							Generation:   2,
+							NodeID:       "fetch",
+							Attempt:      2,
+							Disposition:  AttemptAbsorbed,
+							FailureClass: new(FailureAttemptTimeout),
+							FailureCode:  "deadline",
+							Cause:        "still down",
+							StartedAt:    nextAttemptAt,
+						},
 					},
 					Events: []GenerationLifecycleEventIntent{{
 						Kind: GenerationLifecycleEventNodeRetryScheduled, NodeID: "fetch", Attempt: 2,

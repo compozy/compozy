@@ -365,9 +365,7 @@ func cloneInt64Map(src map[string]int64) map[string]int64 {
 	if len(src) == 0 {
 		return nil
 	}
-	dst := make(map[string]int64, len(src))
-	maps.Copy(dst, src)
-	return dst
+	return maps.Clone(src)
 }
 
 func logWatchEventsEvaluation(

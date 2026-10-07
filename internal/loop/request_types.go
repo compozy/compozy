@@ -77,8 +77,7 @@ func (i RequestIntent) normalized() RequestIntent {
 		i.Agents = dsl.ResponderAgentsDeny
 	}
 	if i.ExpiresAt != nil {
-		value := i.ExpiresAt.UTC()
-		i.ExpiresAt = &value
+		i.ExpiresAt = new(i.ExpiresAt.UTC())
 	}
 	i.OpenedAt = i.OpenedAt.UTC()
 	i.Context = cloneRawMessage(i.Context)

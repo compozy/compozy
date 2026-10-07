@@ -68,12 +68,10 @@ func (a NodeAttempt) normalized(loopRunID RunID) NodeAttempt {
 		a.StartedAt = a.StartedAt.UTC()
 	}
 	if a.EndedAt != nil {
-		value := a.EndedAt.UTC()
-		a.EndedAt = &value
+		a.EndedAt = new(a.EndedAt.UTC())
 	}
 	if a.NextAttemptAt != nil {
-		value := a.NextAttemptAt.UTC()
-		a.NextAttemptAt = &value
+		a.NextAttemptAt = new(a.NextAttemptAt.UTC())
 	}
 	return a
 }

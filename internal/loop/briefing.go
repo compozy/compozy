@@ -1,8 +1,9 @@
 package loop
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -228,8 +229,8 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 		gateResultApprovalKey: 0, string(NodeControlMutationQuarantine): 1, NodeWaitKindRequest: 2,
 		namespaceFailureKey: 3, "backoff": 4, "quota": 4,
 	}
-	sort.SliceStable(items, func(i, j int) bool {
-		return order[items[i].Kind] < order[items[j].Kind]
+	slices.SortStableFunc(items, func(a, b Blocker) int {
+		return cmp.Compare(order[a.Kind], order[b.Kind])
 	})
 	return items
 }
@@ -322,8 +323,7 @@ func terminalBriefing(result Briefing, source *BriefingSource) Briefing {
 	run := source.Run
 	result.Artifacts = labelTerminalArtifacts(result.Artifacts)
 	if source.Outcome != nil {
-		outcome := *source.Outcome
-		result.Outcome = &outcome
+		result.Outcome = new(*source.Outcome)
 	} else {
 		result.Outcome = &RunOutcome{Status: run.Status, Cause: unknownValue}
 	}

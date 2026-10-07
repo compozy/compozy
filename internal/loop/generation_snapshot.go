@@ -316,23 +316,19 @@ func (o GenerationOutput) normalized() GenerationOutput {
 	o.ArtifactName = strings.TrimSpace(o.ArtifactName)
 	o.Status = strings.TrimSpace(o.Status)
 	if o.ResolvedRuntime != nil {
-		normalized := normalizeResolvedRuntime(*o.ResolvedRuntime)
-		o.ResolvedRuntime = &normalized
+		o.ResolvedRuntime = new(normalizeResolvedRuntime(*o.ResolvedRuntime))
 	}
 	if o.Attempt == 0 {
 		o.Attempt = 1
 	}
 	if o.NextAttemptAt != nil {
-		value := o.NextAttemptAt.UTC()
-		o.NextAttemptAt = &value
+		o.NextAttemptAt = new(o.NextAttemptAt.UTC())
 	}
 	if o.FirstScheduledAt != nil {
-		value := o.FirstScheduledAt.UTC()
-		o.FirstScheduledAt = &value
+		o.FirstScheduledAt = new(o.FirstScheduledAt.UTC())
 	}
 	if o.ExpectedEpoch != nil {
-		value := *o.ExpectedEpoch
-		o.ExpectedEpoch = &value
+		o.ExpectedEpoch = new(*o.ExpectedEpoch)
 	}
 	return o
 }

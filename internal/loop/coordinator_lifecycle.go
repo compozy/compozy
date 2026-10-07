@@ -395,8 +395,7 @@ func applyFailureToAttempt(attempt *NodeAttempt, failure ClassifiedFailure) {
 	if attempt == nil {
 		return
 	}
-	failureClass := failure.Class
-	attempt.FailureClass = &failureClass
+	attempt.FailureClass = new(failure.Class)
 	attempt.FailureCode = failure.Code
 	attempt.Cause = failure.Cause
 	attempt.Hint = failure.Hint
@@ -477,6 +476,5 @@ func cloneTimePointer(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}
-	cloned := value.UTC()
-	return &cloned
+	return new(value.UTC())
 }

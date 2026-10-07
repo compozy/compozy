@@ -85,7 +85,7 @@ func TestRenderPromptProvenanceCacheStability(t *testing.T) {
 		t.Parallel()
 
 		service := NewService(Deps{Now: fixedNow})
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:           "sess-1",
 			AgentName:    "coder",
 			Provider:     "codex",
@@ -237,7 +237,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskProvenance(t *testing.T) {
 		),
 	})
 
-	payload, err := service.ContextForSession(context.Background(), &session.Info{
+	payload, err := service.ContextForSession(t.Context(), &session.Info{
 		ID:          "sess-1",
 		ProfileID:   store.DefaultProfileID,
 		Name:        "Coding Session",
@@ -470,7 +470,7 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 			},
 		})
 
-		bundle, err := service.BundleForActiveLease(context.Background(), taskpkg.ContextRequest{
+		bundle, err := service.BundleForActiveLease(t.Context(), taskpkg.ContextRequest{
 			ProfileID: store.DefaultProfileID,
 			SessionID: currentRun.SessionID,
 			RunID:     currentRun.ID,
@@ -550,7 +550,7 @@ func TestTaskStoreStubListRunReviewsSortsBeforeApplyingLimit(t *testing.T) {
 			},
 		}
 
-		reviews, err := store.ListRunReviews(context.Background(), taskpkg.RunReviewQuery{
+		reviews, err := store.ListRunReviews(t.Context(), taskpkg.RunReviewQuery{
 			TaskID: "task-1",
 			Limit:  1,
 		})
@@ -606,7 +606,7 @@ func TestTaskRunPromptOverlayByIDRejectsMismatchedRunTaskPair(t *testing.T) {
 			},
 		})
 
-		_, err := service.TaskRunPromptOverlayByID(context.Background(), taskRecord.ID, mismatchedRun.ID)
+		_, err := service.TaskRunPromptOverlayByID(t.Context(), taskRecord.ID, mismatchedRun.ID)
 		if !errors.Is(err, taskpkg.ErrValidation) {
 			t.Fatalf("TaskRunPromptOverlayByID() error = %v, want %v", err, taskpkg.ErrValidation)
 		}
@@ -645,7 +645,7 @@ func TestBundleForOperatorTaskRejectsOversizedUntrimmableBundle(t *testing.T) {
 		},
 	})
 
-	_, err := service.BundleForOperatorTask(context.Background(), taskpkg.OperatorTaskContextRequest{
+	_, err := service.BundleForOperatorTask(t.Context(), taskpkg.OperatorTaskContextRequest{
 		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
 		TaskID:    taskRecord.ID,
 		Now:       fixedTime(),
@@ -713,7 +713,7 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			},
 		})
 
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:          "sess-reviewer",
 			ProfileID:   store.DefaultProfileID,
 			AgentName:   "reviewer",
@@ -794,7 +794,7 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			},
 		})
 
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:          "sess-reviewer",
 			ProfileID:   store.DefaultProfileID,
 			AgentName:   "reviewer",
@@ -858,7 +858,7 @@ func TestContextForSessionKeepsTaskContextWhenBundleEnrichmentFails(t *testing.T
 			},
 		})
 
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:          "sess-active",
 			ProfileID:   store.DefaultProfileID,
 			AgentName:   "coder",
@@ -932,7 +932,7 @@ func TestContextForSessionKeepsTaskContextWhenBundleEnrichmentFails(t *testing.T
 			},
 		})
 
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:          "sess-reviewer",
 			ProfileID:   store.DefaultProfileID,
 			AgentName:   "reviewer",
@@ -1008,7 +1008,7 @@ func TestContextForSessionIncludesCompactSoulProjection(t *testing.T) {
 			},
 		})
 
-		payload, err := service.ContextForSession(context.Background(), &session.Info{
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
 			ID:             "sess-1",
 			ProfileID:      store.DefaultProfileID,
 			AgentName:      "coder",
@@ -1078,7 +1078,7 @@ func TestContextForSessionMissingOptionalServicesOmitsUnavailableSections(t *tes
 		SectionLimit: 3,
 	})
 
-	payload, err := service.ContextForSession(context.Background(), &session.Info{
+	payload, err := service.ContextForSession(t.Context(), &session.Info{
 		ID:          "sess-1",
 		AgentName:   "coder",
 		Provider:    "codex",
@@ -1117,7 +1117,7 @@ func TestPromptStartupSectionIncludesStartupIdentity(t *testing.T) {
 	}
 
 	rendered, err := service.PromptStartupSection(
-		context.Background(),
+		t.Context(),
 		session.StartupPromptContext{
 			SessionID:   "sess-start",
 			SessionName: "Startup",
@@ -1153,7 +1153,7 @@ func TestAugmentPrefixesFreshSituationWithoutRewritingMessage(t *testing.T) {
 
 	service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
 	augmented, err := service.Augment(
-		context.Background(),
+		t.Context(),
 		&session.Session{
 			ID:        "sess-1",
 			AgentName: "coder",
@@ -1187,7 +1187,7 @@ func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
 
 		service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
 		sess := newSituationCompactionSession()
-		first, err := service.Augment(context.Background(), sess, "first prompt")
+		first, err := service.Augment(t.Context(), sess, "first prompt")
 		if err != nil {
 			t.Fatalf("Augment(first) error = %v", err)
 		}
@@ -1198,7 +1198,7 @@ func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
 			t.Fatalf("Augment(first) = %s, want full self section", first)
 		}
 
-		second, err := service.Augment(context.Background(), sess, "second prompt")
+		second, err := service.Augment(t.Context(), sess, "second prompt")
 		if err != nil {
 			t.Fatalf("Augment(second) error = %v", err)
 		}
@@ -1224,12 +1224,12 @@ func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
 
 		service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
 		sess := newSituationCompactionSession()
-		if _, err := service.Augment(context.Background(), sess, "first prompt"); err != nil {
+		if _, err := service.Augment(t.Context(), sess, "first prompt"); err != nil {
 			t.Fatalf("Augment(first) error = %v", err)
 		}
 		sess.UpdatedAt = fixedTime().Add(time.Minute)
 
-		second, err := service.Augment(context.Background(), sess, "second prompt")
+		second, err := service.Augment(t.Context(), sess, "second prompt")
 		if err != nil {
 			t.Fatalf("Augment(second) error = %v", err)
 		}
@@ -1249,12 +1249,12 @@ func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
 
 		service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
 		sess := newSituationCompactionSession()
-		if _, err := service.Augment(context.Background(), sess, "first prompt"); err != nil {
+		if _, err := service.Augment(t.Context(), sess, "first prompt"); err != nil {
 			t.Fatalf("Augment(first) error = %v", err)
 		}
 		sess.ACPSessionID = "acp-2"
 
-		second, err := service.Augment(context.Background(), sess, "second prompt")
+		second, err := service.Augment(t.Context(), sess, "second prompt")
 		if err != nil {
 			t.Fatalf("Augment(second) error = %v", err)
 		}
@@ -1271,10 +1271,10 @@ func TestSituationHelperBranches(t *testing.T) {
 	t.Parallel()
 
 	service := NewService(Deps{Now: fixedNow})
-	if got, err := service.Augment(context.Background(), nil, "message"); err != nil || got != "message" {
+	if got, err := service.Augment(t.Context(), nil, "message"); err != nil || got != "message" {
 		t.Fatalf("Augment(nil session) = %q, %v; want original message", got, err)
 	}
-	canceledCtx, cancel := context.WithCancel(context.Background())
+	canceledCtx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := service.ContextForSession(canceledCtx, &session.Info{ID: "sess-1"}); err == nil {
 		t.Fatal("ContextForSession(canceled ctx) error = nil, want validation error")
@@ -1682,7 +1682,7 @@ func testSituationSoulSnapshot(t *testing.T, body string) soul.Snapshot {
 	t.Helper()
 
 	cfg := compozyconfig.DefaultSoulConfig()
-	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
+	resolved, err := soul.Parse(t.Context(), soul.ParseRequest{
 		SourcePath:    "/work/compozy/.compozy/agents/coder/SOUL.md",
 		WorkspaceRoot: "/work/compozy",
 		Content: []byte(strings.Join([]string{

@@ -107,8 +107,7 @@ func generationSnapshotPayloadPreservingIntents(
 
 func generationOutputsExpectCurrentEpoch(outputs []GenerationOutput) []GenerationOutput {
 	for index := range outputs {
-		expectedEpoch := outputs[index].Epoch
-		outputs[index].ExpectedEpoch = &expectedEpoch
+		outputs[index].ExpectedEpoch = new(outputs[index].Epoch)
 	}
 	return outputs
 }

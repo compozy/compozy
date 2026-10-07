@@ -3,7 +3,8 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -22,11 +23,7 @@ func RetiredRuntimeKeyPath(raw []byte) (string, bool) {
 func walkRetiredRuntimeKey(value any, path []string, parentKey string, criterion bool) (string, bool) {
 	switch typed := value.(type) {
 	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(typed))
 		for _, key := range keys {
 			nextPath := appendRuntimeKeyPath(path, key)
 			if key == "model_defaults" ||

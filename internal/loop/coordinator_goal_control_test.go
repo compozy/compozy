@@ -1,7 +1,6 @@
 package loop
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -26,7 +25,7 @@ func TestCoordinatorRunnerShouldQueueInitialGoalSegmentThroughWorkerPath(t *test
 			resolved,
 		)
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -134,7 +133,7 @@ func TestCoordinatorRunnerShouldPreserveMixedGenerationAtGoalControlBoundary(t *
 		)
 		runner.watchEventsLedger = ledger
 
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -286,7 +285,7 @@ func TestCoordinatorRunnerShouldPreserveDeferredGoalTerminals(t *testing.T) {
 				resolved,
 			)
 
-			deferred, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			deferred, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run(deferred) error = %v", err)
 			}
@@ -302,7 +301,7 @@ func TestCoordinatorRunnerShouldPreserveDeferredGoalTerminals(t *testing.T) {
 			outputStore.outputs[1] = deferredOutputs
 			liveRun.Status = task.TaskRunStatusCompleted
 			runs[liveRun.ID] = liveRun
-			settled, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			settled, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
 			if err != nil {
 				t.Fatalf("Run(settled) error = %v", err)
 			}
