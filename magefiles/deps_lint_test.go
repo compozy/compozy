@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -343,4 +344,28 @@ func TestGoWorkspaceVersion(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGoLintModuleCoverage(t *testing.T) {
+	t.Parallel()
+	t.Run("Should cover every tracked nested Go module", func(t *testing.T) {
+		t.Parallel()
+		command := exec.CommandContext(t.Context(), "git", "ls-files", "*go.mod")
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("list tracked modules: %v\n%s", err, output)
+		}
+		var tracked []string
+		for _, path := range strings.Fields(string(output)) {
+			if path != "go.mod" {
+				tracked = append(tracked, filepath.ToSlash(filepath.Dir(path)))
+			}
+		}
+		slices.Sort(tracked)
+		configured := slices.Clone(goLintModules)
+		slices.Sort(configured)
+		if !slices.Equal(configured, tracked) {
+			t.Fatalf("lint modules = %v, tracked modules = %v; update goLintModules", configured, tracked)
+		}
+	})
 }

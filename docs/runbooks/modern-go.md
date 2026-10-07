@@ -5,6 +5,8 @@
 `make go-lint` runs the root source policy and golangci-lint v2.13.1 using the
 repository `.golangci.yml`. `make lint` and the CI Go lint job call that same lane.
 An unset `COMPOZY_GO_LINT_SCOPES`, or `./...`, checks every row below.
+The Mage suite compares the dispatch list with tracked nested `go.mod` files,
+so adding a module requires updating lint coverage.
 
 | Directory | Declared Go version | Package scope / build tag |
 | --- | --- | --- |
