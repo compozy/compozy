@@ -51,9 +51,11 @@ describe("KnowledgeCreateDialog", () => {
     renderDialog();
 
     expect(screen.getByTestId("confirm-create-memory-btn")).toBeDisabled();
-    await user.type(screen.getByTestId("knowledge-create-name"), "Launch Memory");
+    await user.click(screen.getByTestId("knowledge-create-name"));
+    await user.paste("Launch Memory");
     expect(screen.getByTestId("confirm-create-memory-btn")).toBeDisabled();
-    await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
+    await user.click(screen.getByTestId("knowledge-create-content"));
+    await user.paste("Use the launch playbook.");
     expect(screen.getByTestId("confirm-create-memory-btn")).toBeEnabled();
   });
 
@@ -67,9 +69,12 @@ describe("KnowledgeCreateDialog", () => {
       "aria-checked",
       "true"
     );
-    await user.type(screen.getByTestId("knowledge-create-name"), "  Launch Memory  ");
-    await user.type(screen.getByTestId("knowledge-create-description"), "  contract  ");
-    await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
+    await user.click(screen.getByTestId("knowledge-create-name"));
+    await user.paste("  Launch Memory  ");
+    await user.click(screen.getByTestId("knowledge-create-description"));
+    await user.paste("  contract  ");
+    await user.click(screen.getByTestId("knowledge-create-content"));
+    await user.paste("Use the launch playbook.");
     await user.click(screen.getByTestId("confirm-create-memory-btn"));
 
     expect(onConfirm).toHaveBeenCalledWith({

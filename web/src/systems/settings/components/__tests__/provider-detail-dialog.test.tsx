@@ -141,7 +141,7 @@ function dialog() {
 }
 
 describe("ProviderDetailDialog", () => {
-  it("Should render the entity header with an icon well and no runtime selector on create", () => {
+  it("Should render the create header and safe native credential controls", () => {
     renderDialog({ mode: "create" });
 
     const header = dialog().querySelector('[data-slot="entity-dialog-header"]');
@@ -154,10 +154,6 @@ describe("ProviderDetailDialog", () => {
     // A provider surface configures a provider; it never chooses a runtime.
     expect(dialog().querySelector('[data-slot="runtime-selector"]')).toBeNull();
     expect(screen.queryByTestId("runtime-selector-trigger")).not.toBeInTheDocument();
-  });
-
-  it("Should hide native credentials and expose only the safe login descriptor", () => {
-    renderDialog({ mode: "create" });
 
     expect(
       screen.queryByTestId("settings-providers-editor-credential-slots")
@@ -201,14 +197,15 @@ describe("ProviderDetailDialog", () => {
     const secretRef = screen.getByTestId(
       "settings-providers-editor-credential-slot-0-secret-ref-input"
     );
-    await user.type(secretRef, "env:OPENAI_API_KEY");
+    await user.click(secretRef);
+    await user.paste("env:OPENAI_API_KEY");
     expect(
       screen.getByTestId("settings-providers-editor-credential-slot-0-value-unavailable")
     ).toBeVisible();
     expect(screen.queryByLabelText("Credential value")).not.toBeInTheDocument();
 
     await user.clear(secretRef);
-    await user.type(secretRef, "vault:providers/openai/api-key");
+    await user.paste("vault:providers/openai/api-key");
     expect(screen.getByLabelText("Credential value")).toBeVisible();
   });
 
@@ -247,7 +244,7 @@ describe("ProviderDetailDialog", () => {
     expect(screen.getByTestId("provider-detail-title")).toHaveTextContent("Edit Codex");
   });
 
-  it("Should keep runtime and model fields in the Advanced tier", async () => {
+  it("Should keep runtime fields in Advanced and require a runtime provider only for pi_acp", async () => {
     const user = userEvent.setup();
     renderDialog({ mode: "create" });
 
@@ -260,13 +257,7 @@ describe("ProviderDetailDialog", () => {
     expect(screen.getByTestId("settings-providers-editor-home-policy-input")).toBeVisible();
     // Advanced appends; the required basics never disappear.
     expect(screen.getByTestId("settings-providers-editor-name-input")).toBeVisible();
-  });
 
-  it("Should mark runtime provider as required only for the pi_acp harness", async () => {
-    const user = userEvent.setup();
-    renderDialog({ mode: "create" });
-
-    await user.click(screen.getByTestId("settings-providers-editor-mode-advanced"));
     const runtimeProvider = screen.getByTestId("settings-providers-editor-runtime-provider");
     expect(within(runtimeProvider).queryByText("required")).not.toBeInTheDocument();
 
@@ -300,6 +291,12 @@ describe("ProviderDetailDialog", () => {
     const user = userEvent.setup();
     renderDialog({ mode: "inspect", entry: nativeProvider });
 
+    expect(screen.getByTestId("inspect-login-descriptor-executable")).toHaveTextContent("codex");
+    expect(screen.getByTestId("inspect-login-descriptor-action")).toHaveTextContent(
+      "Next: Sign in with the provider CLI."
+    );
+    expect(screen.queryByText("codex login")).not.toBeInTheDocument();
+
     const summary = screen.getByTestId("provider-detail-summary");
     expect(summary).toBeVisible();
     expect(within(summary).getByTestId("provider-detail-summary-status")).toHaveTextContent(
@@ -331,16 +328,6 @@ describe("ProviderDetailDialog", () => {
 
     renderDialog({ mode: "inspect", entry: nativeProvider });
     expect(screen.getByTestId("provider-detail-delete")).toHaveTextContent("Delete provider");
-  });
-
-  it("Should expose only the safe login descriptor while inspecting a provider", () => {
-    renderDialog({ mode: "inspect", entry: nativeProvider });
-
-    expect(screen.getByTestId("inspect-login-descriptor-executable")).toHaveTextContent("codex");
-    expect(screen.getByTestId("inspect-login-descriptor-action")).toHaveTextContent(
-      "Next: Sign in with the provider CLI."
-    );
-    expect(screen.queryByText("codex login")).not.toBeInTheDocument();
   });
 
   it("Should reopen on the Simple tier after an Advanced edit of another provider", async () => {

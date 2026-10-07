@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse, type HttpHandler } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -122,6 +122,25 @@ function renderEditor(
   return { onPublished };
 }
 
+// Invariant: automatic validation preserves daemon diagnostics and publish gating.
+// Owner: the editor component integration; canonical suite: this file.
+async function editWithValidationClock(edit: () => void) {
+  // The edit replaces the initial mount debounce, which may still use a native timer.
+  vi.useFakeTimers({ shouldClearNativeTimers: true });
+  try {
+    edit();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+  } finally {
+    // RTL's async queries drain a timer after settling, so keep those on real time.
+    vi.useRealTimers();
+  }
+}
+
 function nodeCard(id: string): HTMLElement {
   const cards = screen.getAllByTestId("loop-editor-node");
   const card = cards.find(el => el.getAttribute("data-node-id") === id);
@@ -159,7 +178,11 @@ describe("LoopEditor", () => {
       dockCollapsed: true,
     });
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   // Regression: a suspended window disables the Loop read; with no data yet the
   // editor used to fall through to "Loop <name> not found" for a Loop that exists.
@@ -290,7 +313,9 @@ describe("LoopEditor", () => {
     await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
     fireEvent.click(nodeCard("implement"));
     const fanOut = await screen.findByTestId("loop-field-max_fan_out");
-    fireEvent.change(fanOut, { target: { value: "0" } });
+    await editWithValidationClock(() => {
+      fireEvent.change(fanOut, { target: { value: "0" } });
+    });
     // The daemon linter (mock) returns fan_out_unbounded → issue + node badge + gate.
     await waitFor(() =>
       expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error")
@@ -301,7 +326,9 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
     // Restoring a positive author bound clears the issue and re-enables Publish. A clean
     // verdict renders NO counter at all (US-028 AC-4) — not "0 issues".
-    fireEvent.change(fanOut, { target: { value: "32" } });
+    await editWithValidationClock(() => {
+      fireEvent.change(fanOut, { target: { value: "32" } });
+    });
     await waitFor(() =>
       expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument()
     );
@@ -657,8 +684,9 @@ describe("LoopEditor", () => {
 
     // Declaring a route ALONGSIDE the already-authored allow_fail is the EC-1 contradiction.
     fireEvent.click(nodeCard("execute_task"));
-    fireEvent.change(await screen.findByTestId("loop-field-on_error_route"), {
-      target: { value: "collect" },
+    const route = await screen.findByTestId("loop-field-on_error_route");
+    await editWithValidationClock(() => {
+      fireEvent.change(route, { target: { value: "collect" } });
     });
 
     // The gate is the daemon's verdict, surfaced by its own code — not a client-side rule.
@@ -671,7 +699,9 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
 
     // Resolving it to a single absorption mode clears the gate.
-    fireEvent.click(screen.getByTestId("loop-field-on_error_allow_fail"));
+    await editWithValidationClock(() => {
+      fireEvent.click(screen.getByTestId("loop-field-on_error_allow_fail"));
+    });
     await waitFor(() =>
       expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument()
     );

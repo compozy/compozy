@@ -261,6 +261,9 @@ describe("Marketplace installed-detail management", () => {
 
   it("Should preserve extension enablement, environment, diagnostics, and provenance", async () => {
     const user = userEvent.setup();
+    mocks.extensionInventory = [
+      { id: "agent:dep-reviewer", kind: "agent", live: true, name: "dep-reviewer" },
+    ];
     await renderDetail(extensionDetailData());
 
     // Setup opens itself only because something is missing; problems surface without a click.
@@ -273,6 +276,8 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByText("tool.provider")).toBeInTheDocument();
     expect(screen.getByText("gateway/status")).toBeInTheDocument();
     const advanced = await openRailCard(user, "Advanced");
+    expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("extension-skipped-components")).not.toBeInTheDocument();
     expect(within(advanced).getByText("Runtime handshake is healthy.")).toBeInTheDocument();
     expect(within(advanced).getByText("4242")).toBeInTheDocument();
     expect(within(advanced).getByText("1h 1m")).toBeInTheDocument();
@@ -340,19 +345,6 @@ describe("Marketplace installed-detail management", () => {
     const skipped = screen.getByTestId("extension-skipped-components");
     expect(within(skipped).getByText("mcp: legacy-events")).toBeInTheDocument();
     expect(within(skipped).getByText('unsupported transport "sse"')).toBeInTheDocument();
-  });
-
-  it("Should carry no format signal or Skipped section for a native extension", async () => {
-    const user = userEvent.setup();
-    mocks.extensionInventory = [
-      { id: "agent:dep-reviewer", kind: "agent", live: true, name: "dep-reviewer" },
-    ];
-
-    await renderDetail(extensionDetailData());
-    await openRailCard(user, "Advanced");
-
-    expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("extension-skipped-components")).not.toBeInTheDocument();
   });
 
   it("Should mark a declared environment name as bound when the daemon reports a binding", async () => {

@@ -228,11 +228,13 @@ describe("AutomationDetailPanel", () => {
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("delete-automation-btn"));
     const confirmButton = screen.getByTestId("confirm-delete-automation-btn");
-    await user.type(screen.getByLabelText("Type to confirm"), `${jobFixture.name}-wrong`);
+    await user.click(screen.getByLabelText("Type to confirm"));
+    await user.paste(`${jobFixture.name}-wrong`);
     expect(confirmButton).toBeDisabled();
 
     await user.clear(screen.getByLabelText("Type to confirm"));
-    await user.type(screen.getByLabelText("Type to confirm"), jobFixture.name);
+    await user.click(screen.getByLabelText("Type to confirm"));
+    await user.paste(jobFixture.name);
     expect(confirmButton).toBeEnabled();
     await user.click(confirmButton);
 
@@ -249,7 +251,8 @@ describe("AutomationDetailPanel", () => {
 
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("delete-automation-btn"));
-    await user.type(screen.getByLabelText("Type to confirm"), jobFixture.name);
+    await user.click(screen.getByLabelText("Type to confirm"));
+    await user.paste(jobFixture.name);
     await user.click(screen.getByTestId("confirm-delete-automation-btn"));
 
     await waitFor(() =>
