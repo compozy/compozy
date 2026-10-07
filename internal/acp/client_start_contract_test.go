@@ -686,7 +686,7 @@ func TestInspectSessionModels(t *testing.T) {
 				t.Fatalf("InspectSessionModels() error = %v, want caller cancellation", err)
 			}
 			if len(inspection.Options) != 0 || len(inspection.Models) != 0 {
-				t.Fatalf("cancelled inspection published partial results: %#v", inspection)
+				t.Fatalf("canceled inspection published partial results: %#v", inspection)
 			}
 		})
 	}
