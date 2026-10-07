@@ -6406,6 +6406,7 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 	)
 
 	statusStarted := make(chan struct{})
+	statusCanceled := make(chan struct{})
 	sessions := &blockingStatusSessionManager{
 		fakeSessionManager: &fakeSessionManager{
 			infos: []*session.Info{
@@ -6415,6 +6416,7 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 		},
 		blockSessionID: "sess-wake",
 		statusStarted:  statusStarted,
+		statusCanceled: statusCanceled,
 	}
 
 	bridge, err := newHarnessReentryBridge(t.Context(), resolver, nil, db, sessions, discardLogger())
@@ -6449,6 +6451,11 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 	case <-shutdownDone:
 	case <-time.After(2 * time.Second):
 		t.Fatal("shutdown() blocked while a session status lookup ignored cancellation")
+	}
+	select {
+	case <-statusCanceled:
+	default:
+		t.Fatal("shutdown() did not cancel the active session status lookup")
 	}
 }
 
@@ -6811,6 +6818,7 @@ type blockingStatusSessionManager struct {
 	*fakeSessionManager
 	blockSessionID string
 	statusStarted  chan struct{}
+	statusCanceled chan struct{}
 	statusOnce     sync.Once
 }
 
@@ -6982,14 +6990,16 @@ func (f *fakeSessionManager) ActivePromptRun(
 
 func (f *blockingStatusSessionManager) Status(ctx context.Context, id string) (*session.Info, error) {
 	if strings.TrimSpace(id) == strings.TrimSpace(f.blockSessionID) {
-		if f.statusStarted != nil {
-			f.statusOnce.Do(func() {
-				close(f.statusStarted)
-			})
+		block := false
+		f.statusOnce.Do(func() { block = true })
+		if block {
+			close(f.statusStarted)
+			<-ctx.Done()
+			close(f.statusCanceled)
+			return nil, ctx.Err()
 		}
-		<-ctx.Done()
-		return nil, ctx.Err()
 	}
+	// Only the active routing lookup blocks; shutdown's summary lookup can finish.
 	return f.fakeSessionManager.Status(ctx, id)
 }
 

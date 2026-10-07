@@ -9564,19 +9564,28 @@ func TestDaemonNativeTools(t *testing.T) {
 		catalogPath := filepath.Join(t.TempDir(), "memory.db")
 		memoryStore := memorypkg.NewStore(globalDir, memorypkg.WithCatalogDatabasePath(catalogPath))
 		openDaemonMemoryCatalog(t, memoryStore)
+		if err := memoryStore.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		// Health needs a catalog beyond the prompt scan cap, not 205 write operations.
+		// Seed the Markdown source of truth and build its real derived catalog once.
 		for idx := range 205 {
 			filename := fmt.Sprintf("ops-%03d.md", idx)
-			if err := memoryStore.Write(t.Context(),
-				memcontract.ScopeProfile,
-				filename,
+			if err := os.WriteFile(
+				filepath.Join(globalDir, filename),
 				nativeMemoryDocument(
 					fmt.Sprintf("Ops %03d", idx),
 					"Operational memory",
 					memcontract.TypeUser,
 					"memory admin health",
-				)); err != nil {
-				t.Fatalf("Write(%q) error = %v", filename, err)
+				),
+				0o644,
+			); err != nil {
+				t.Fatalf("WriteFile(%q) error = %v", filename, err)
 			}
+		}
+		if _, err := memoryStore.Reindex(t.Context(), memcontract.ReindexOptions{Scope: memcontract.ScopeProfile}); err != nil {
+			t.Fatalf("Store.Reindex() error = %v", err)
 		}
 		cfg := compozyconfig.Config{}
 		cfg.Memory.Enabled = true

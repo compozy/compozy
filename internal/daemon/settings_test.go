@@ -194,20 +194,27 @@ func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
 	t.Run("Should count every valid profile memory source header", func(t *testing.T) {
 		t.Parallel()
 
-		memoryStore := memorypkg.NewStore(filepath.Join(t.TempDir(), "memory"))
+		memoryDir := filepath.Join(t.TempDir(), "memory")
+		memoryStore := memorypkg.NewStore(memoryDir)
+		if err := memoryStore.EnsureDirs(); err != nil {
+			t.Fatalf("EnsureDirs() error = %v", err)
+		}
+		// Settings health owns the complete source count, not per-document write/index maintenance.
 		for idx := range 205 {
 			filename := fmt.Sprintf("settings-%03d.md", idx)
-			if err := memoryStore.Write(t.Context(),
-				memcontract.ScopeProfile,
-				filename,
+			if err := os.WriteFile(
+				filepath.Join(memoryDir, filename),
 				[]byte(memoryDocument(
 					fmt.Sprintf("Settings %03d", idx),
 					"Settings health",
 					memcontract.TypeReference,
 					"body",
-				))); err != nil {
-				t.Fatalf("Write(%q) error = %v", filename, err)
+				)), 0o644); err != nil {
+				t.Fatalf("WriteFile(%q) error = %v", filename, err)
 			}
+		}
+		if _, err := memoryStore.Reindex(t.Context(), memcontract.ReindexOptions{Scope: memcontract.ScopeProfile}); err != nil {
+			t.Fatalf("Reindex() error = %v", err)
 		}
 
 		surface := &settingsRuntimeSurface{memoryStore: memoryStore}

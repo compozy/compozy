@@ -4835,7 +4835,8 @@ func newDetachedHarnessTaskRuntimeForTest(
 		taskpkg.WithStore(db),
 		taskpkg.WithSessionExecutor(sessionBridge),
 		taskpkg.WithEventObserver(reentry),
-		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
+		// These scenarios exercise detached work and reentry, not cooperative-stop timing.
+		taskpkg.WithCancelGracePeriod(0),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
