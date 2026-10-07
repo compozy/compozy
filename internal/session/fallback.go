@@ -134,9 +134,8 @@ func (s fallbackSequence) log() *slog.Logger {
 // past, records a provider_failure marker attributed to the refused route. It returns
 // the accepted value, the last attempt index, and either nil, the accepted attempt's
 // error, or a deterministic exhaustion error naming every attempt.
-func bindWithFallback[T any](
+func (m *Manager) bindWithFallback[T any](
 	ctx context.Context,
-	m *Manager,
 	seq fallbackSequence,
 	primary FallbackRoute,
 	routes []FallbackRoute,

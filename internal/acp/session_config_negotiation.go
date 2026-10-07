@@ -35,9 +35,7 @@ func (d *Driver) applySessionMode(
 		return false, nil
 	}
 
-	_, err := sendControlRequest[acpsdk.SetSessionModeResponse](
-		ctx,
-		process,
+	_, err := process.sendControlRequest[acpsdk.SetSessionModeResponse](ctx,
 		acpsdk.AgentMethodSessionSetMode,
 		acpsdk.SetSessionModeRequest{
 			SessionId: acpsdk.SessionId(process.SessionID),
@@ -189,9 +187,7 @@ func (d *Driver) applySessionConfigOption(
 	if err != nil {
 		return err
 	}
-	response, err := sendControlRequest[acpsdk.SetSessionConfigOptionResponse](
-		ctx,
-		process,
+	response, err := process.sendControlRequest[acpsdk.SetSessionConfigOptionResponse](ctx,
 		acpsdk.AgentMethodSessionSetConfigOption,
 		request,
 	)

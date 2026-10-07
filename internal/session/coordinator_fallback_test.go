@@ -1,7 +1,6 @@
 package session
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -209,8 +208,7 @@ func createBundledCoordinatorSession(t *testing.T, h *harness) *Session {
 		Lineage: &store.SessionLineage{
 			SpawnRole: string(SessionTypeCoordinator),
 			TTLExpiresAt: func() *time.Time {
-				ttl := h.manager.now().UTC().Add(time.Hour)
-				return &ttl
+				return new(h.manager.now().UTC().Add(time.Hour))
 			}(),
 		},
 		Type: SessionTypeCoordinator,
@@ -224,7 +222,7 @@ func createBundledCoordinatorSession(t *testing.T, h *harness) *Session {
 func configureBundledBuiltinFallbackWorkspace(t *testing.T, h *harness) {
 	t.Helper()
 
-	resolved, err := h.resolver.Resolve(context.Background(), h.workspaceID)
+	resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
 	if err != nil {
 		t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
 	}

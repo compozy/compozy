@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -254,12 +255,7 @@ func verifySessionDBClearArtifact(
 }
 
 func isSessionDBClearArtifactSuffix(suffix string) bool {
-	for _, candidate := range sessionDBClearArtifactSuffixes {
-		if suffix == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(sessionDBClearArtifactSuffixes[:], suffix)
 }
 
 func discardSessionDBClearManifest(path string) error {

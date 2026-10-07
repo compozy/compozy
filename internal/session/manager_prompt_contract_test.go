@@ -1507,8 +1507,7 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		const wantTitle = "Checkout webhook retries"
 		persistenceStarted := make(chan struct{})
 		releasePersistence := make(chan struct{})
-		var releaseOnce sync.Once
-		release := func() { releaseOnce.Do(func() { close(releasePersistence) }) }
+		release := sync.OnceFunc(func() { close(releasePersistence) })
 		t.Cleanup(release)
 		catalog.registerHook = func(ctx context.Context, info store.SessionInfo) error {
 			if info.Name != wantTitle {
@@ -2218,8 +2217,10 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 			"ACP subprocess exited unexpectedly",
 			errors.New("acp subprocess exited: exit status 23"),
 		)
-		var typedProcessExit *acp.FailureError
-		if !errors.As(processExitErr, &typedProcessExit) || typedProcessExit.Kind != store.FailureProcess {
+		if typedProcessExit, ok := errors.AsType[*acp.FailureError](
+			processExitErr,
+		); !ok ||
+			typedProcessExit.Kind != store.FailureProcess {
 			t.Fatalf("process exit error = %#v, want typed process_exit failure", processExitErr)
 		}
 		proc.crash(processExitErr, "codex stderr after process exit")

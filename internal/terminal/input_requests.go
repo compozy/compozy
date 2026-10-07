@@ -161,8 +161,7 @@ func (s *session) PendingInput(id InputRequestID) (*PendingInputRequest, error) 
 	if err != nil {
 		return nil, err
 	}
-	projection := pending.projection
-	return &projection, nil
+	return new(pending.projection), nil
 }
 
 func (s *session) emitInputProvided(

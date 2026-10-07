@@ -1212,7 +1212,7 @@ func TestConfigureRuntime(t *testing.T) {
 			ReasoningEffort: "max",
 			Speed:           speedpkg.SpeedFast,
 			ACPOptions: []SessionConfigOptionSelection{
-				{ID: "thinking", BoolValue: boolPointer(true)},
+				{ID: "thinking", BoolValue: new(true)},
 				{ID: "context", ValueID: "large"},
 			},
 		})
@@ -1902,7 +1902,7 @@ func TestHermesDiscoveryModelIsReadOnlyForModernACP(t *testing.T) {
 			caps: Caps{ConfigOptions: []SessionConfigOption{modelOption}},
 		}
 		applied, err := New().applySessionModel(
-			context.Background(),
+			t.Context(),
 			process,
 			"openrouter:grok-4.6",
 		)

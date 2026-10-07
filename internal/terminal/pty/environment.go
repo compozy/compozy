@@ -1,8 +1,9 @@
 package pty
 
 import (
+	"maps"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -33,11 +34,7 @@ func environment(overrides map[string]string) []string {
 	}
 	values[environmentIdentity("TERM")] = environmentValue{key: "TERM", value: "xterm-256color"}
 	values[environmentIdentity("COLORTERM")] = environmentValue{key: "COLORTERM", value: "truecolor"}
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(values))
 	result := make([]string, 0, len(keys))
 	for _, key := range keys {
 		entry := values[key]

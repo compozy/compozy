@@ -80,8 +80,7 @@ func CloneResolution(value *Resolution) *Resolution {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 // ValidateResolution ensures an outcome uses a canonical status and reason pair.

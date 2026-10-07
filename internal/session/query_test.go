@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -925,8 +924,7 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 
 		base := time.Date(2026, 8, 15, 21, 0, 0, 0, time.UTC)
 		changed := func(offset time.Duration) *time.Time {
-			value := base.Add(offset)
-			return &value
+			return new(base.Add(offset))
 		}
 		catalog := &multiPagedRecordingSessionCatalog{
 			recordingSessionCatalog: newRecordingSessionCatalog(),
@@ -1158,11 +1156,11 @@ func (c *multiPagedRecordingSessionCatalog) PageSessions(
 		}
 		candidates = append(candidates, *info)
 	}
-	sort.Slice(candidates, func(i, j int) bool {
+	slices.SortFunc(candidates, func(a, b store.SessionInfo) int {
 		return compareSessionCatalogPosition(
-			sessionCatalogPosition(&candidates[i], query.Sort),
-			sessionCatalogPosition(&candidates[j], query.Sort),
-		) < 0
+			sessionCatalogPosition(&a, query.Sort),
+			sessionCatalogPosition(&b, query.Sort),
+		)
 	})
 	total := len(candidates)
 	if query.After != nil {
@@ -1422,8 +1420,7 @@ func TestManagerStatusReadsDoNotRepublishSettledSessions(t *testing.T) {
 // exited, so an interrupted start is classified from exit proof rather than
 // left as an unverifiable process.
 func exitedProcessLiveness(proc *AgentProcess) *store.SessionLivenessMeta {
-	startedAt := proc.StartedAt
-	return &store.SessionLivenessMeta{SubprocessPID: proc.PID, SubprocessStartedAt: &startedAt}
+	return &store.SessionLivenessMeta{SubprocessPID: proc.PID, SubprocessStartedAt: new(proc.StartedAt)}
 }
 
 func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {

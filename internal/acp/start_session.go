@@ -40,9 +40,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
 		SessionID:      loadRequest.SessionId,
 	}
-	loadResponse, err := sendControlRequest[wireSessionSetupResponse](
-		ctx,
-		process,
+	loadResponse, err := process.sendControlRequest[wireSessionSetupResponse](ctx,
 		acpsdk.AgentMethodSessionLoad,
 		loadWireRequest,
 	)
@@ -79,9 +77,7 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		McpServers:     newRequest.McpServers,
 		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
 	}
-	newResponse, err := sendControlRequest[wireSessionSetupResponse](
-		ctx,
-		process,
+	newResponse, err := process.sendControlRequest[wireSessionSetupResponse](ctx,
 		acpsdk.AgentMethodSessionNew,
 		newWireRequest,
 	)

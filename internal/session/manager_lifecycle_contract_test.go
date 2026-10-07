@@ -111,8 +111,7 @@ func TestStoppedSessionDiscardsLatePromptEvents(t *testing.T) {
 			func(t *testing.T) {
 				t.Parallel()
 				entered, release := make(chan struct{}), make(chan struct{})
-				var releaseOnce sync.Once
-				unblock := func() { releaseOnce.Do(func() { close(release) }) }
+				unblock := sync.OnceFunc(func() { close(release) })
 				t.Cleanup(unblock)
 				var enterOnce sync.Once
 				waitForRelease := func(ctx context.Context, recordType string) error {
@@ -708,11 +707,8 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 
 	const total = 8
 	var workers sync.WaitGroup
-	for i := range total {
-		workers.Add(1)
-		go func(index int) {
-			defer workers.Done()
-
+	for index := range total {
+		workers.Go(func() {
 			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 				AgentName: "coder",
 				Name:      fmt.Sprintf("session-%d", index),
@@ -728,7 +724,7 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Errorf("Stop(%q) error = %v", session.ID, err)
 			}
-		}(i)
+		})
 	}
 
 	workers.Wait()

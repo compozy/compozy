@@ -3,8 +3,9 @@ package acp
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
-	"sort"
 	"strings"
 	"time"
 
@@ -38,11 +39,7 @@ func toSDKMCPServers(servers []compozyconfig.MCPServer) []acpsdk.McpServer {
 		if strings.TrimSpace(server.Command) == "" {
 			continue
 		}
-		envKeys := make([]string, 0, len(server.Env))
-		for key := range server.Env {
-			envKeys = append(envKeys, key)
-		}
-		sort.Strings(envKeys)
+		envKeys := slices.Sorted(maps.Keys(server.Env))
 
 		env := make([]acpsdk.EnvVariable, 0, len(server.Env))
 		for _, key := range envKeys {

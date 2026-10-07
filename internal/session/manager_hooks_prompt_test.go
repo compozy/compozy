@@ -135,8 +135,7 @@ func TestCreateUsesPatchedPrompt(t *testing.T) {
 		map[string]hookspkg.Executor{
 			"patch-prompt": hookspkg.NewTypedNativeExecutor(
 				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.PromptPayload) (hookspkg.PromptPatch, error) {
-					prompt := "patched system prompt"
-					return hookspkg.PromptPatch{Prompt: &prompt}, nil
+					return hookspkg.PromptPatch{Prompt: new("patched system prompt")}, nil
 				},
 			),
 		},
@@ -181,8 +180,7 @@ func TestCreateAppliesStartupPromptOverlayAfterPromptPatch(t *testing.T) {
 						_ hookspkg.RegisteredHook,
 						_ hookspkg.PromptPayload,
 					) (hookspkg.PromptPatch, error) {
-						prompt := "patched system prompt"
-						return hookspkg.PromptPatch{Prompt: &prompt}, nil
+						return hookspkg.PromptPatch{Prompt: new("patched system prompt")}, nil
 					},
 				),
 			},

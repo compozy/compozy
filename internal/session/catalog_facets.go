@@ -1,10 +1,11 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -55,9 +56,9 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 			store.WorkspaceSessionCatalogFacets{WorkspaceID: workspaceID, Facets: facets},
 		)
 	}
-	sort.Slice(
+	slices.SortFunc(
 		durable.ByWorkspace,
-		func(i, j int) bool { return durable.ByWorkspace[i].WorkspaceID < durable.ByWorkspace[j].WorkspaceID },
+		func(a, b store.WorkspaceSessionCatalogFacets) int { return cmp.Compare(a.WorkspaceID, b.WorkspaceID) },
 	)
 	return durable, nil
 }

@@ -21,14 +21,14 @@ func TestFallbackLifecycleContextUsesManagerLifecycleContext(t *testing.T) {
 
 	lifecycleKey := contextKey("lifecycle")
 	requestKey := contextKey("request")
-	lifecycleCtx := context.WithValue(context.Background(), lifecycleKey, "manager")
+	lifecycleCtx := context.WithValue(t.Context(), lifecycleKey, "manager")
 	manager := &Manager{lifecycleCtx: lifecycleCtx}
 
 	if got := manager.fallbackLifecycleContext().Value(lifecycleKey); got != "manager" {
 		t.Fatalf("fallbackLifecycleContext() lifecycle value = %#v, want manager fallback", got)
 	}
 
-	requestCtx := context.WithValue(context.Background(), requestKey, "request")
+	requestCtx := context.WithValue(t.Context(), requestKey, "request")
 	if got := manager.hookLifecycleContext(requestCtx).Value(requestKey); got != "request" {
 		t.Fatalf("hookLifecycleContext(requestCtx) request value = %#v, want original request context", got)
 	}

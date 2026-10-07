@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -30,30 +31,28 @@ func cloneNonEmptyStringSlice(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
-	return append([]string(nil), values...)
+	return slices.Clone(values)
 }
 
 func cloneNonEmptyEnvSlice(values []acpsdk.EnvVariable) []acpsdk.EnvVariable {
 	if len(values) == 0 {
 		return nil
 	}
-	return append([]acpsdk.EnvVariable(nil), values...)
+	return slices.Clone(values)
 }
 
 func cloneStringPtr(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneIntPtr(value *int) *int {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func withoutCancelPreservingDeadline(ctx context.Context) (context.Context, context.CancelFunc) {

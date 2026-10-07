@@ -25,8 +25,7 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 		sess := createSession(t, h)
 		finishing := make(chan struct{})
 		release := make(chan struct{})
-		var once sync.Once
-		unblock := func() { once.Do(func() { close(release) }) }
+		unblock := sync.OnceFunc(func() { close(release) })
 		t.Cleanup(unblock)
 		h.manager.SetTurnEndNotifier(func(ctx context.Context, _ PromptRunIdentity) {
 			close(finishing)

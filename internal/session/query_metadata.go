@@ -1,12 +1,13 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -205,11 +206,8 @@ func sortSessionInfos(infos []*Info) []*Info {
 		out = append(out, info)
 	}
 
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
-			return out[i].ID < out[j].ID
-		}
-		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	slices.SortFunc(out, func(a, b *Info) int {
+		return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.ID, b.ID))
 	})
 
 	return out

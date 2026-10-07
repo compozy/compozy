@@ -136,7 +136,7 @@ func TestSessionEventBroadcaster(t *testing.T) {
 		defer cancel()
 
 		for sequence := int64(1); sequence <= sessionEventSubscriberBuffer+1; sequence++ {
-			manager.publishSessionEvent(context.Background(), &Session{ID: "sess-overflow"}, store.SessionEvent{
+			manager.publishSessionEvent(t.Context(), &Session{ID: "sess-overflow"}, store.SessionEvent{
 				SessionID: "sess-overflow",
 				Sequence:  sequence,
 				TurnID:    "turn-overflow",

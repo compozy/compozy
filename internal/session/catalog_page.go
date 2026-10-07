@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -136,11 +136,11 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 			candidates = append(candidates, *info)
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool {
+	slices.SortFunc(candidates, func(a, b store.SessionInfo) int {
 		return compareSessionCatalogPosition(
-			sessionCatalogPosition(&candidates[i], normalized.Sort),
-			sessionCatalogPosition(&candidates[j], normalized.Sort),
-		) < 0
+			sessionCatalogPosition(&a, normalized.Sort),
+			sessionCatalogPosition(&b, normalized.Sort),
+		)
 	})
 
 	page := ListPage{

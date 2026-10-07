@@ -43,11 +43,11 @@ func parseSessionDeleteTombstoneParts(name string) (sessionDeleteTombstoneState,
 	default:
 		return 0, "", "", fmt.Errorf("%w name %q", errInvalidSessionDeleteTombstone, name)
 	}
-	separator := strings.LastIndexByte(value, '.')
-	if separator <= 0 || separator == len(value)-1 {
+	encoded, suffix, found := strings.CutLast(value, ".")
+	if !found || encoded == "" || suffix == "" {
 		return 0, "", "", fmt.Errorf("%w name %q", errInvalidSessionDeleteTombstone, name)
 	}
-	decodedTarget, err := base64.RawURLEncoding.DecodeString(value[:separator])
+	decodedTarget, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
 		return 0, "", "", fmt.Errorf(
 			"%w target %q: %w",
@@ -65,7 +65,7 @@ func parseSessionDeleteTombstoneParts(name string) (sessionDeleteTombstoneState,
 			err,
 		)
 	}
-	return state, target, value[separator+1:], nil
+	return state, target, suffix, nil
 }
 
 func (m *Manager) cleanupDeleteTombstones() {

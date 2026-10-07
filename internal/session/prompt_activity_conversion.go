@@ -16,8 +16,7 @@ func deadlinePointer(value time.Time, ok bool) *time.Time {
 	if !ok || value.IsZero() {
 		return nil
 	}
-	deadline := value.UTC()
-	return &deadline
+	return new(value.UTC())
 }
 
 func jsonMarshalDeadlineWarning(activity acp.RuntimeActivity) (json.RawMessage, error) {
@@ -81,6 +80,5 @@ func timePtr(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	copyValue := value.UTC()
-	return &copyValue
+	return new(value.UTC())
 }

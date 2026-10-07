@@ -39,7 +39,7 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (st
 		!inactiveProcessExitVerified(meta) {
 		next.State = string(StateStopping)
 		next.StopVerificationFailed = true
-		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
+		next.StopReason = new(store.StopAgentCrashed)
 		next.StopDetail = classifyInterruptedStopDetail(
 			meta,
 			now,
@@ -48,7 +48,7 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (st
 		failureKind := store.FailureProcess
 		if state == StateStarting {
 			failureKind = store.FailureStartup
-			next.StopReason = resumeStopReasonPointer(store.StopError)
+			next.StopReason = new(store.StopError)
 			next.StopDetail = resumeStopDetailStartIncomplete
 		}
 		next.Failure = interruptedSessionFailure(meta.Failure, failureKind, next.StopDetail)
@@ -60,21 +60,21 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (st
 	switch state {
 	case StateActive:
 		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
+		next.StopReason = new(store.StopAgentCrashed)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, resumeStopDetailAgentCrashed)
 		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureProcess, next.StopDetail)
 		markInterruptedStall(&next, now)
 		return recoveredMeta(meta, &next)
 	case StateStopping:
 		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
+		next.StopReason = new(store.StopAgentCrashed)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, "stop did not complete")
 		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureProcess, next.StopDetail)
 		markInterruptedStall(&next, now)
 		return recoveredMeta(meta, &next)
 	case StateStarting:
 		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopError)
+		next.StopReason = new(store.StopError)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, resumeStopDetailStartIncomplete)
 		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureStartup, next.StopDetail)
 		next.ACPSessionID = nil

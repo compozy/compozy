@@ -289,6 +289,5 @@ func millisTimePointer(value *int64) *time.Time {
 	if value == nil {
 		return nil
 	}
-	result := time.UnixMilli(*value).UTC()
-	return &result
+	return new(time.UnixMilli(*value).UTC())
 }

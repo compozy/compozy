@@ -1,13 +1,14 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -336,10 +337,7 @@ func TestManagerTranscriptProjectionReads(t *testing.T) {
 		t.Parallel()
 
 		releaseSlowQuery := make(chan struct{})
-		var releaseSlowQueryOnce sync.Once
-		releaseSlowQueryFn := func() {
-			releaseSlowQueryOnce.Do(func() { close(releaseSlowQuery) })
-		}
+		releaseSlowQueryFn := sync.OnceFunc(func() { close(releaseSlowQuery) })
 		t.Cleanup(releaseSlowQueryFn)
 		slowRecorder := &blockingTranscriptRecorder{
 			filteringTranscriptRecorder: filteringTranscriptRecorder{},
@@ -642,9 +640,7 @@ func projectionChangesFromEvents(
 			filtered = append(filtered, entry)
 		}
 	}
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].Sequence < filtered[j].Sequence
-	})
+	slices.SortFunc(filtered, func(a, b transcript.Entry) int { return cmp.Compare(a.Sequence, b.Sequence) })
 	page := transcript.ChangePage{Generation: 0, MaxSequence: maxEventSequenceForTest(events)}
 	if len(filtered) > query.Limit {
 		page.HasMore = true

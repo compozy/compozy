@@ -215,8 +215,7 @@ func answerForStoredResolution(
 	}
 	for index, choice := range question.Choices {
 		if strings.TrimSpace(choice) == value {
-			selected := index
-			return toolspkg.ClarifyAnswer{Choice: &selected}
+			return toolspkg.ClarifyAnswer{Choice: new(index)}
 		}
 	}
 	return toolspkg.ClarifyAnswer{Text: value}

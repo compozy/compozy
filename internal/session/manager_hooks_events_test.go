@@ -32,8 +32,7 @@ func TestPromptUsesPatchedInputMessage(t *testing.T) {
 		map[string]hookspkg.Executor{
 			"patch-input": hookspkg.NewTypedNativeExecutor(
 				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPatch, error) {
-					message := "patched message"
-					return hookspkg.InputPreSubmitPatch{Message: &message}, nil
+					return hookspkg.InputPreSubmitPatch{Message: new("patched message")}, nil
 				},
 			),
 		},
@@ -508,12 +507,7 @@ func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
 
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
-	var releaseOnce sync.Once
-	releaseHook := func() {
-		releaseOnce.Do(func() {
-			close(release)
-		})
-	}
+	releaseHook := sync.OnceFunc(func() { close(release) })
 	t.Cleanup(releaseHook)
 
 	hooks := hookspkg.NewHooks(

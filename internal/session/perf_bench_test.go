@@ -1,7 +1,6 @@
 package session
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -45,7 +44,7 @@ func BenchmarkManagerListAllLarge(b *testing.B) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ReportAllocs()
 
 	var infos []*Info

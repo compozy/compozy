@@ -82,8 +82,7 @@ func (m *Manager) readDeriveSnapshot(
 	if err != nil {
 		return deriveSnapshot{}, nil, err
 	}
-	var once sync.Once
-	unlock := func() { once.Do(unlockConversation) }
+	unlock := sync.OnceFunc(unlockConversation)
 	defer func() {
 		if retErr != nil {
 			unlock()
