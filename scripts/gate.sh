@@ -157,7 +157,11 @@ classify() {
       pkg="sdk/examples/${pkg%%/*}"
       case "$path" in
         *.go | */go.mod | */go.sum) GO_MODULES="${GO_MODULES}${pkg}"$'\n' ;;
-        *) JS_FILTERS="${JS_FILTERS}./${pkg}"$'\n' ;;
+        *)
+          if [ ! -f "$pkg/package.json" ] && [ -f "$pkg/go.mod" ]; then
+            GO_MODULES="${GO_MODULES}${pkg}"$'\n'
+          fi
+          ;;
       esac
       if [ -f "$pkg/package.json" ]; then JS_FILTERS="${JS_FILTERS}./${pkg}"$'\n'; fi
       ;;

@@ -53,7 +53,8 @@ The default is `run` in CI and `split` locally.
 
 `bash scripts/gate.sh plan` reports the selected commands. SDK Go changes select
 module lint and race tests. Go source, `go.mod`, and `go.sum` changes under SDK
-examples select that module's Go lanes; examples with `package.json` also retain
+examples select that module's Go lanes. Non-document assets in Go-only examples
+also select Go lanes (for example, embedded templates); examples with `package.json` retain
 JavaScript lanes. Fixture changes select fixture lint and
 `make go-fixture-check GO_FIXTURE_MODULE=<module>` (build + vet against the local
 SDK, with a disposable binary). Their runtime consumers are
