@@ -424,9 +424,8 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 func TestMemoryHandlersDreamTrigger(t *testing.T) {
 	t.Parallel()
 
-	store, _ := newTestMemoryStore(t)
 	trigger := &stubDreamTrigger{enabled: true, triggered: true}
-	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, trigger)
+	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, nil, trigger)
 	engine := newTestRouter(t, handlers)
 
 	triggered := performRequest(
@@ -465,8 +464,7 @@ func TestMemoryHandlersDreamTrigger(t *testing.T) {
 func TestMemoryHandlersDreamTriggerDisabledAndBadJSON(t *testing.T) {
 	t.Parallel()
 
-	store, _ := newTestMemoryStore(t)
-	engine := newTestRouter(t, newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, nil))
+	engine := newTestRouter(t, newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, nil, nil))
 
 	badRequest := performRequest(t, engine, http.MethodPost, "/api/memory/dreams/trigger", []byte(`{`))
 	if badRequest.Code != http.StatusBadRequest {

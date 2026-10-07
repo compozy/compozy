@@ -1301,6 +1301,21 @@ func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
 
 func TestAuthoredContextProfileScope(t *testing.T) {
 	t.Parallel()
+
+	// Migrate once, then give each parallel isolation case its own database copy.
+	// Closing checkpoints the WAL before the immutable template is read.
+	templatePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	templateDB, err := globaldb.OpenGlobalDB(t.Context(), templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := templateDB.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, sidecar := range []string{"soul", "heartbeat"} {
 		for _, sourceKind := range []string{"workspace", "personal", "dot-compozy-home"} {
 			t.Run(
@@ -1335,7 +1350,11 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+					databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+					if err := os.WriteFile(databasePath, template, 0o600); err != nil {
+						t.Fatal(err)
+					}
+					db, err := globaldb.OpenGlobalDB(t.Context(), databasePath)
 					if err != nil {
 						t.Fatal(err)
 					}

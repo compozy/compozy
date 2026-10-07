@@ -23,6 +23,8 @@ func streamEventSummary(summary store.EventSummary, content json.RawMessage) sto
 }
 
 func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	callCount := 0
@@ -133,6 +135,8 @@ func TestStreamSessionHandlerEmitsTerminalErrorWhenTranscriptInitializationFails
 }
 
 func TestStreamLogsPollsForNewEvents(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	callCount := 0
