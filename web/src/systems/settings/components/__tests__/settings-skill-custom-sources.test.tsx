@@ -53,10 +53,8 @@ describe("SettingsSkillCustomSources", () => {
     const user = userEvent.setup();
     const { onAdd } = renderEditor();
 
-    await user.type(
-      screen.getByTestId("settings-page-skills-custom-sources-input"),
-      "~/client-acme/skills"
-    );
+    await user.click(screen.getByTestId("settings-page-skills-custom-sources-input"));
+    await user.paste("~/client-acme/skills");
     await user.click(screen.getByTestId("settings-page-skills-custom-sources-add"));
 
     expect(onAdd).toHaveBeenCalledWith("~/client-acme/skills");
@@ -69,10 +67,8 @@ describe("SettingsSkillCustomSources", () => {
     const user = userEvent.setup();
     const { onAdd } = renderEditor();
 
-    await user.type(
-      screen.getByTestId("settings-page-skills-custom-sources-input"),
-      "/Users/ana/team-skills"
-    );
+    await user.click(screen.getByTestId("settings-page-skills-custom-sources-input"));
+    await user.paste("/Users/ana/team-skills");
     await user.click(screen.getByTestId("settings-page-skills-custom-sources-add"));
 
     const error = screen.getByTestId("settings-page-skills-custom-sources-error");
@@ -88,10 +84,8 @@ describe("SettingsSkillCustomSources", () => {
     const user = userEvent.setup();
     const { onAdd } = renderEditor();
 
-    await user.type(
-      screen.getByTestId("settings-page-skills-custom-sources-input"),
-      "~/.agents/skills"
-    );
+    await user.click(screen.getByTestId("settings-page-skills-custom-sources-input"));
+    await user.paste("~/.agents/skills");
     await user.click(screen.getByTestId("settings-page-skills-custom-sources-add"));
 
     expect(screen.getByTestId("settings-page-skills-custom-sources-error")).toHaveTextContent(
@@ -104,10 +98,8 @@ describe("SettingsSkillCustomSources", () => {
     const user = userEvent.setup();
     const { onAdd } = renderEditor();
 
-    await user.type(
-      screen.getByTestId("settings-page-skills-custom-sources-input"),
-      "./vendor/skills"
-    );
+    await user.click(screen.getByTestId("settings-page-skills-custom-sources-input"));
+    await user.paste("./vendor/skills");
     await user.click(screen.getByTestId("settings-page-skills-custom-sources-add"));
 
     const error = screen.getByTestId("settings-page-skills-custom-sources-error");
@@ -120,10 +112,8 @@ describe("SettingsSkillCustomSources", () => {
     const user = userEvent.setup();
     const { onAdd } = renderEditor({ workspaceScope: true });
 
-    await user.type(
-      screen.getByTestId("settings-page-skills-custom-sources-input"),
-      "./vendor/skills"
-    );
+    await user.click(screen.getByTestId("settings-page-skills-custom-sources-input"));
+    await user.paste("./vendor/skills");
     await user.click(screen.getByTestId("settings-page-skills-custom-sources-add"));
 
     expect(onAdd).toHaveBeenCalledWith("./vendor/skills");
