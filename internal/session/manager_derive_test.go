@@ -427,6 +427,46 @@ func TestContinueSession(t *testing.T) {
 		}
 	})
 
+	t.Run("Should select the chosen runtime on the unbound child and bind it", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		opts := h.continueOpts(source, "idem_runtime")
+		opts.AgentName = compozyconfig.DefaultAgentName
+		opts.Runtime = &DeriveRuntime{Provider: "codex", ReasoningEffort: "high"}
+		result, err := h.manager.ContinueSession(testutil.Context(t), opts)
+		if err != nil {
+			t.Fatalf("ContinueSession(runtime codex) error = %v", err)
+		}
+		assertSelected := func(t *testing.T, info *Info) {
+			t.Helper()
+			selected := info.SelectedRuntime
+			if selected == nil || selected.Provider != "codex" || selected.ReasoningEffort != "high" ||
+				info.RuntimeSelectionRevision != 1 {
+				t.Fatalf("child selected runtime = %+v rev %d, want codex/high at rev 1",
+					selected, info.RuntimeSelectionRevision)
+			}
+		}
+		assertSelected(t, result.Child)
+		if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		h.restartManager(t)
+		resumed, err := h.manager.Resume(testutil.Context(t), result.Child.ID)
+		if err != nil {
+			t.Fatalf("Resume(child) error = %v", err)
+		}
+		assertSelected(t, resumed.Info())
+		startsBefore := len(h.driver.startCalls)
+		sendDeriveChildPrompt(t, h, result.Child.ID, "go", "msg_runtime_go", "idem_runtime_go")
+		h.driver.mu.Lock()
+		provider := h.driver.startCalls[startsBefore].ProviderName
+		h.driver.mu.Unlock()
+		if provider != "codex" {
+			t.Fatalf("first bind provider = %q, want the chosen codex runtime", provider)
+		}
+	})
+
 	t.Run("Should record the declared route and bind the first prompt on its command", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
@@ -447,6 +487,9 @@ func TestContinueSession(t *testing.T) {
 		result, err := h.manager.ContinueSession(testutil.Context(t), routed)
 		if err != nil {
 			t.Fatalf("ContinueSession(route 2) error = %v", err)
+		}
+		if selected := result.Child.SelectedRuntime; selected == nil || selected.Provider != "codex" {
+			t.Fatalf("child selected runtime = %+v, want route 2's provider", selected)
 		}
 		pending := h.childMeta(t, result.Child.ID).Derivation.PendingRoute
 		if pending == nil || pending.Index != 2 ||
@@ -1574,6 +1617,13 @@ func TestForkSession(t *testing.T) {
 				t.Fatalf("child runtime = %s/%s, want the source runtime %s/%s",
 					meta.Provider, meta.Model, sourceInfo.Provider, sourceInfo.Model)
 			}
+			// The unbound fork publishes no effective runtime: prompt surfaces read the
+			// selection, so it must name the source runtime, not the agent default.
+			if selected := child.SelectedRuntime; selected == nil || selected.Provider != sourceInfo.Provider ||
+				selected.Model != sourceInfo.Model || child.RuntimeSelectionRevision != 1 {
+				t.Fatalf("child selected runtime = %+v rev %d, want the source runtime %s/%s at rev 1",
+					selected, child.RuntimeSelectionRevision, sourceInfo.Provider, sourceInfo.Model)
+			}
 			if result.Seed != DeriveSeedReplay || result.ReplayMessageCount != 4 || h.driver.forkCallCount() != 0 {
 				t.Fatalf("result = %+v fork calls = %d, want replay of 4 messages without session/fork",
 					result, h.driver.forkCallCount())
@@ -2221,6 +2271,9 @@ func TestForkAccountInheritance(t *testing.T) {
 		result, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_route"))
 		if err != nil {
 			t.Fatalf("ForkSession() error = %v", err)
+		}
+		if selected := result.Child.SelectedRuntime; selected == nil || selected.Provider != "codex" {
+			t.Fatalf("child selected runtime = %+v, want route 2's provider", selected)
 		}
 		pending := h.childMeta(t, result.Child.ID).Derivation.PendingRoute
 		if pending == nil || pending.Index != 2 ||

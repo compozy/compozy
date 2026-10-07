@@ -54,6 +54,10 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 	}
 	result := make([]session.WorkSignal, 0)
 	for _, row := range rows {
+		// A session continued or forked from this one is not its child and keeps no work.
+		if store.HierarchyParentSessionID(row.Lineage) != id {
+			continue
+		}
 		info, err := s.manager.Status(ctx, row.ID)
 		if err != nil {
 			return nil, err

@@ -48,6 +48,31 @@ func TestSessionLineageNormalizeAndValidate(t *testing.T) {
 	})
 }
 
+func TestHierarchyParentSessionID(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		lineage *SessionLineage
+		want    string
+	}{
+		{name: "no lineage", lineage: nil, want: ""},
+		{name: "a root session", lineage: &SessionLineage{RootSessionID: "sess-a"}, want: ""},
+		{name: "a spawned child", lineage: &SessionLineage{ParentSessionID: " sess-a ", Kind: LineageKindSpawn}, want: "sess-a"},
+		{name: "a provenance child", lineage: &SessionLineage{ParentSessionID: "sess-a", Kind: LineageKindProvenance}, want: "sess-a"},
+		{name: "a recovery child", lineage: &SessionLineage{ParentSessionID: "sess-a", Kind: LineageKindRecovery}, want: "sess-a"},
+		{name: "a continued session", lineage: &SessionLineage{ParentSessionID: "sess-a", Kind: LineageKindContinue}, want: ""},
+		{name: "a forked session", lineage: &SessionLineage{ParentSessionID: "sess-a", Kind: " fork "}, want: ""},
+	} {
+		t.Run("Should resolve the hierarchy parent of "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := HierarchyParentSessionID(tc.lineage); got != tc.want {
+				t.Fatalf("HierarchyParentSessionID() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSessionLineageValidationRejectsInvalidPolicyAndBudget(t *testing.T) {
 	t.Parallel()
 

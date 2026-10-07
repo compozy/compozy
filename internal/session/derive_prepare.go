@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -96,7 +97,7 @@ func (m *Manager) prepareDerive(
 	if spec.kind == store.LineageKindFork {
 		runtime = forkRuntimeFromMeta(meta)
 	}
-	applyDeriveRuntime(&opts, runtime, routeSelection)
+	applyDeriveRuntime(&opts, runtime, routeSelection, agentDef.SpeedValue())
 	return preparedDerive{createOpts: opts, receipt: receipt}, nil
 }
 
@@ -128,7 +129,14 @@ func forkRuntimeFromMeta(meta *store.SessionMeta) *DeriveRuntime {
 	})
 }
 
-func applyDeriveRuntime(opts *CreateOpts, runtime *DeriveRuntime, route *FallbackRoute) {
+// applyDeriveRuntime applies an explicit runtime or declared route to the child; a
+// speed left unset takes the target agent's default, as the bind would resolve it.
+func applyDeriveRuntime(
+	opts *CreateOpts,
+	runtime *DeriveRuntime,
+	route *FallbackRoute,
+	defaultSpeed speedpkg.Speed,
+) {
 	switch {
 	case runtime != nil:
 		opts.Provider, opts.Model = runtime.Provider, runtime.Model
@@ -138,7 +146,16 @@ func applyDeriveRuntime(opts *CreateOpts, runtime *DeriveRuntime, route *Fallbac
 		opts.Provider, opts.Model = route.Provider, route.Model
 		opts.ReasoningEffort, opts.Speed = route.ReasoningEffort, route.Speed
 		opts.ACPOptions = acp.CloneSessionConfigOptionSelections(route.ACPOptions)
+	default:
+		return
 	}
+	if strings.TrimSpace(string(opts.Speed)) == "" {
+		opts.Speed = defaultSpeed
+	}
+	// The chosen runtime is the child's selected runtime, not only its create-time
+	// default: an unbound child publishes no effective runtime, so prompt surfaces read
+	// the selection, and a prompt without its own runtime binds it.
+	opts.deriveSelectsRuntime = true
 }
 
 // derivePendingRoute resolves a 1-based declared route through the fallback-account

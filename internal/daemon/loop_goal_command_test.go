@@ -656,6 +656,24 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
 		})
 
+		t.Run("Should reject a session continued from the caller", func(t *testing.T) {
+			t.Parallel()
+			fixture := newGoalCommandHandlerFixture(t)
+			status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+			status.info.Lineage = &store.SessionLineage{
+				ParentSessionID: "agent-operator", Kind: store.LineageKindContinue, OriginAgentName: "coder",
+			}
+			decision, err := fixture.service.Handle(
+				testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+				session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "uds"},
+				session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "reject a continued session"},
+			)
+			if err != nil {
+				t.Fatalf("Handle(continued session) error = %v", err)
+			}
+			assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
+		})
+
 		t.Run("Should reject a cyclic lineage", func(t *testing.T) {
 			t.Parallel()
 			fixture := newGoalCommandHandlerFixture(t)

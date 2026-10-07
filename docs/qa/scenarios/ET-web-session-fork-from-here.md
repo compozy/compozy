@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-14
 expected: A user session's row menu (sessions modal, window sidebar, agent detail) and its window overflow offer "Fork session…" right after "Continue with another agent…" (absent for archived, spawned, coordinator, and system rows). A durable user message shows "Fork from here" right before "Rewind to here" (absent for an optimistic tail, assistant messages, and read-only threads; disabled together with Rewind while the thread runs, a rewind is pending, or rewind is blocked). The dialog ("Fork session", eyebrow "Operate · Session", "Start a second session with the same agent and this conversation. This session stays unchanged.") shows the agent read-only as "{agent} · {provider}", the fork point "Whole session" (menus) or "Through “{first 60 characters}”" with a "Change" link that closes the dialog (message), the daemon-measured context line, "Uses the agent's own session clone." only when the preview reports `native_fork_possible`, and Open in (New window default). A cut whose turn has not settled reads "That turn hasn't settled yet." and keeps Fork session disabled; a transcript that changed after opening reads "Transcript changed — reopen to fork from the current state." with Fork session disabled and Cancel reading Close; other refusals show the daemon message verbatim. Fork session shows "Starting the new session…", creates exactly one child with the same agent, and opens it per Open in. The child's status line shows "Forked from {source title}"; the inspector shows Origin "fork · through {message id}" (message cut) or "fork" (whole) and Seed "replay" / "native clone · loaded" / "native clone · failed — carried context used". The source keeps every turn and its `max_sequence`.
 entry_points: web session window overflow (fork-menu-item); session row overflow (session-row-fork-{id}) in the sessions modal, window sidebar, and agent detail; user message action (user-message-fork); SessionForkDialog (session-fork-dialog, session-fork-agent, session-fork-point, session-fork-point-change, session-derive-preview, session-derive-preview-native, session-derive-placement, session-fork-submit, session-fork-submit-error); SessionOriginPill (session-origin-pill); inspector Origin section (ledger-origin, ledger-seed); GET …/derive/preview[?message_id=]; POST …/fork
-qa_status: pass
-bug_ids: BUG-20260928-message-actions-enabled-during-remote-turn
+qa_status: untested
+bug_ids: BUG-20260928-message-actions-enabled-during-remote-turn; BUG-20261006-derived-child-runtime-not-selected; BUG-20261006-derived-child-nested-under-source
 fix_status: fixed
-retest_status: pass
+retest_status: pending
 fix_commits: uncommitted (task_08 part B2)
 evidence: docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-fork-reopen-measuring.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl; docs/qa/evidence/2026-09-28-session-continue-fork-b2/fork-child-empty.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/before-fork-enabled-while-running.png; .compozy/tasks/session-continue-fork/evidence/visual/task_06/
 last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
@@ -60,3 +60,10 @@ Bruno, lab `…-r1-rewalk-…`. "Fork from here" on "Second step" measured "Carr
 qa-impact: 2026-09-30 shell rail Q2. At half width the child window keeps its full title: the head's time drops first, then the "Forked from" pill truncates its subject, and the agent name ellipsizes last; the actions never shrink. E2E-002 now asserts the child title is not truncated.
 
 qa-impact: 2026-09-30 shell-rail polish P6 — with the new default `new_window_policy = tab`, Open in › New window now asks for a split explicitly so the child still opens in its own window beside the source (unchanged from the walked behavior; session-derive E2E-002 covers it). Flag only.
+
+Fix 2026-10-06 (BUG-20261006-derived-child-runtime-not-selected; BUG-20261006-derived-child-nested-under-source): a fork child now starts with the
+source's runtime as its selected runtime, so its composer shows the source model (not the agent
+default) before the first message, and the child is a top-level row in every session list instead of
+nesting under its source. Walk: fork a session whose runtime differs from its agent's default, check
+the child's composer model and that the source row shows no thread count for it. Reset to untested.
+Regressions: `TestForkSession` (selected runtime), `session-hierarchy.test.ts`.
