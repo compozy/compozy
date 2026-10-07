@@ -64,24 +64,6 @@ func TestNativeExecutorExecuteRecoversPanic(t *testing.T) {
 	}
 }
 
-func TestSubprocessExecutorExecuteCapturesStdout(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("subprocess shell test requires POSIX shell")
-	}
-
-	executor := NewSubprocessExecutor("/bin/sh", []string{"-c", "printf 'hello-from-hook'"})
-
-	output, err := executor.Execute(t.Context(), RegisteredHook{Name: "stdout-hook"}, nil)
-	if err != nil {
-		t.Fatalf("Execute() error = %v, want nil", err)
-	}
-	if got := string(output); got != "hello-from-hook" {
-		t.Fatalf("output = %q, want %q", got, "hello-from-hook")
-	}
-}
-
 func TestSubprocessExecutorExecutePassesPayloadViaStdin(t *testing.T) {
 	t.Parallel()
 

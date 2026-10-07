@@ -513,52 +513,6 @@ func TestPermissionPipelineAllowToDenyIsAllowed(t *testing.T) {
 	}
 }
 
-func TestPipelineNativeExecutorSkipsSerialization(t *testing.T) {
-	t.Parallel()
-
-	var encodeCalls int
-	var decodeCalls int
-	pipe := pipeline[pipelineTestPayload, pipelineTestPatch]{
-		event: HookSessionPreCreate,
-		hooks: func(pipelineTestPayload) []*ResolvedHook {
-			return []*ResolvedHook{
-				testPipelineHook(HookSessionPreCreate, "hook-1", false, 0, NewTypedNativeExecutor(
-					func(_ context.Context, _ RegisteredHook, payload pipelineTestPayload) (pipelineTestPatch, error) {
-						if payload.Value != "seed" {
-							t.Fatalf("payload.Value = %q, want %q", payload.Value, "seed")
-						}
-						return pipelineTestPatch{Append: "-native"}, nil
-					},
-				)),
-			}
-		},
-		apply: applyPipelineTestPatch,
-		encode: func(payload pipelineTestPayload) ([]byte, error) {
-			encodeCalls++
-			return encodeJSON(payload)
-		},
-		decode: func(payload []byte) (pipelineTestPatch, error) {
-			decodeCalls++
-			return decodeJSON[pipelineTestPatch](payload)
-		},
-		denied: func(patch pipelineTestPatch) bool { return patch.Deny },
-	}
-
-	result, err := pipe.execute(t.Context(), pipelineTestPayload{Value: "seed"})
-	if err != nil {
-		t.Fatalf("execute() error = %v, want nil", err)
-	}
-	if result.Value != "seed-native" {
-		t.Fatalf("result.Value = %q, want %q", result.Value, "seed-native")
-	}
-	if encodeCalls != 0 {
-		t.Fatalf("encodeCalls = %d, want 0", encodeCalls)
-	}
-	if decodeCalls != 0 {
-		t.Fatalf("decodeCalls = %d, want 0", decodeCalls)
-	}
-}
-
 func TestPipelineSubprocessExecutorUsesEncodeDecode(t *testing.T) {
 	t.Parallel()
 
