@@ -18,42 +18,6 @@ import (
 func TestManagerSoulSessionSnapshots(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should snapshot valid soul on session start", func(t *testing.T) {
-		t.Parallel()
-
-		soulStore := newFakeSoulSnapshotStore()
-		h := newHarness(t, WithSoulSnapshotStore(soulStore))
-		writeSessionSoul(t, h.workspace, "coder", validSessionSoul("Reviewer", "Lead with clarity."))
-
-		session := createSession(t, h)
-		cleanupSessionStop(t, h, session.ID)
-
-		info := session.Info()
-		if info.SoulSnapshotID == "" || info.SoulDigest == "" {
-			t.Fatalf(
-				"session soul fields = snapshot %q digest %q, want populated",
-				info.SoulSnapshotID,
-				info.SoulDigest,
-			)
-		}
-		stored, ok := soulStore.snapshot(info.SoulSnapshotID)
-		if !ok {
-			t.Fatalf("snapshot %q was not persisted", info.SoulSnapshotID)
-		}
-		if stored.Digest != info.SoulDigest || stored.AgentName != "coder" || stored.WorkspaceID != h.workspaceID {
-			t.Fatalf("stored snapshot = %#v, want session digest/agent/workspace", stored)
-		}
-		meta := readMeta(t, session.MetaPath())
-		if meta.SoulSnapshotID != info.SoulSnapshotID || meta.SoulDigest != info.SoulDigest {
-			t.Fatalf("persisted meta soul = snapshot %q digest %q, want %q/%q",
-				meta.SoulSnapshotID,
-				meta.SoulDigest,
-				info.SoulSnapshotID,
-				info.SoulDigest,
-			)
-		}
-	})
-
 	t.Run("Should reject invalid soul on session start before driver starts", func(t *testing.T) {
 		t.Parallel()
 
@@ -170,7 +134,23 @@ func TestManagerSoulSessionSnapshots(t *testing.T) {
 		original := session.Info()
 		if original.SoulSnapshotID == "" || original.SoulDigest == "" {
 			t.Fatalf(
-				"original soul fields = snapshot %q digest %q, want populated",
+				"session soul fields = snapshot %q digest %q, want populated",
+				original.SoulSnapshotID,
+				original.SoulDigest,
+			)
+		}
+		stored, ok := soulStore.snapshot(original.SoulSnapshotID)
+		if !ok {
+			t.Fatalf("snapshot %q was not persisted", original.SoulSnapshotID)
+		}
+		if stored.Digest != original.SoulDigest || stored.AgentName != "coder" || stored.WorkspaceID != h.workspaceID {
+			t.Fatalf("stored snapshot = %#v, want session digest/agent/workspace", stored)
+		}
+		initialMeta := readMeta(t, session.MetaPath())
+		if initialMeta.SoulSnapshotID != original.SoulSnapshotID || initialMeta.SoulDigest != original.SoulDigest {
+			t.Fatalf("persisted meta soul = snapshot %q digest %q, want %q/%q",
+				initialMeta.SoulSnapshotID,
+				initialMeta.SoulDigest,
 				original.SoulSnapshotID,
 				original.SoulDigest,
 			)

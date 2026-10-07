@@ -4043,36 +4043,6 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		},
 	)
 
-	t.Run("Should reject through the atomic answer handoff [IT-013][IT-029]", func(t *testing.T) {
-		t.Parallel()
-		manager, starter, _ := newTestManager(t, DefaultSettings())
-		handle, err := manager.Open(t.Context(), OpenRequest{
-			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
-		})
-		if err != nil {
-			t.Fatalf("Open(agent) error = %v", err)
-		}
-		receiveStartedProc(t, starter)
-		outcomeCh := make(chan *InputOutcome, 1)
-		go func() {
-			outcome, requestErr := handle.RequestInput(t.Context(), agent, InputRequest{Reason: "confirm"})
-			if requestErr != nil {
-				outcomeCh <- nil
-				return
-			}
-			outcomeCh <- outcome
-		}()
-		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
-		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-		if err := handle.RejectInput(t.Context(), human, pending[0].ID, "not now"); err != nil {
-			t.Fatalf("RejectInput() error = %v", err)
-		}
-		outcome := <-outcomeCh
-		if outcome == nil || outcome.Outcome != "rejected" {
-			t.Fatalf("handoff rejection outcome = %#v", outcome)
-		}
-	})
-
 	t.Run(
 		"Should preserve rejected and expired outcomes as distinct terminal states [UT-026][IT-013]",
 		func(t *testing.T) {

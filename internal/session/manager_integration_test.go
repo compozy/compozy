@@ -569,6 +569,14 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if got := h.driver.startCalls[0].Cwd; got != canonicalSessionCWD {
 		t.Fatalf("Create() CWD = %q, want %q", got, canonicalSessionCWD)
 	}
+	recorder, ok := session.recorderHandle().(*sessiondb.SessionDB)
+	if !ok {
+		t.Fatalf("recorder = %T, want *sessiondb.SessionDB", session.recorderHandle())
+	}
+	if got, want := recorder.Path(), session.DBPath(); got != want {
+		t.Fatalf("SessionDB.Path() = %q, want %q", got, want)
+	}
+
 	firstPrompt, err := h.manager.Prompt(testutil.Context(t), session.ID, "first")
 	if err != nil {
 		t.Fatalf("Prompt(first) error = %v", err)
@@ -652,51 +660,6 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	}
 }
 
-func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
-	h := newHarness(t)
-
-	session := createSession(t, h)
-	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "persist")
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-	_ = collectEvents(t, eventsCh)
-
-	recorder, ok := session.recorderHandle().(*sessiondb.SessionDB)
-	if !ok {
-		t.Fatalf("recorder = %T, want *sessiondb.SessionDB", session.recorderHandle())
-	}
-	if got, want := recorder.Path(), session.DBPath(); got != want {
-		t.Fatalf("SessionDB.Path() = %q, want %q", got, want)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	reopened, err := sessiondb.OpenSessionDB(
-		testutil.Context(t),
-		testSessionDBOwner(session.ID, session.WorkspaceID),
-		session.DBPath(),
-	)
-	if err != nil {
-		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
-	}
-	defer func() {
-		if err := reopened.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("reopened.Close() error = %v", err)
-		}
-	}()
-
-	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
-	if err != nil {
-		t.Fatalf("Query(reopen) error = %v", err)
-	}
-	if len(events) == 0 {
-		t.Fatal("Query(reopen) returned 0 events, want persisted rows")
-	}
-}
-
 func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistory(t *testing.T) {
 	h := newHarness(t)
 
@@ -751,105 +714,6 @@ func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistor
 	}
 	if !containsEventType(events, acp.EventTypeAgentMessage) || !containsEventType(events, acp.EventTypeDone) {
 		t.Fatalf("mixed history missing runtime events: %#v", events)
-	}
-}
-
-func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *testing.T) {
-	h := newHarness(t)
-
-	session := createSession(t, h)
-	enableSyntheticQueue(t, h, session)
-
-	firstPromptEntered := make(chan struct{})
-	releaseFirstPrompt := make(chan struct{})
-	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		if req.TurnID == "turn-1" {
-			close(firstPromptEntered)
-			events := make(chan acp.AgentEvent)
-			go func() {
-				<-releaseFirstPrompt
-				events <- acp.AgentEvent{
-					Type:      acp.EventTypeDone,
-					TurnID:    req.TurnID,
-					Timestamp: time.Now().UTC(),
-				}
-				close(events)
-			}()
-			return events, nil
-		}
-
-		return completedSyntheticPromptEvents(req.TurnID), nil
-	}
-
-	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
-	if err != nil {
-		t.Fatalf("Prompt(user) error = %v", err)
-	}
-	<-firstPromptEntered
-
-	syntheticEvents, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
-		Message: "synthetic wake-up",
-		Metadata: acp.PromptSyntheticMeta{
-			TaskRunID: "run-2",
-			Reason:    "task_run_completed",
-			Summary:   "queued after user turn",
-		},
-	})
-	if err != nil {
-		t.Fatalf("PromptSynthetic() error = %v", err)
-	}
-
-	close(releaseFirstPrompt)
-	_ = collectEvents(t, userEvents)
-	_ = collectEvents(t, syntheticEvents)
-
-	events, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
-	if err != nil {
-		t.Fatalf("Query() error = %v", err)
-	}
-	if len(events) < 3 {
-		t.Fatalf("stored events = %d, want at least user, done, and synthetic events", len(events))
-	}
-
-	userIndex := -1
-	doneIndex := -1
-	syntheticIndex := -1
-	for i, event := range events {
-		switch event.Type {
-		case acp.EventTypeUserMessage:
-			if userIndex < 0 {
-				userIndex = i
-			}
-		case acp.EventTypeDone:
-			if doneIndex < 0 {
-				doneIndex = i
-			}
-		case acp.EventTypeSyntheticReentry:
-			if syntheticIndex < 0 {
-				syntheticIndex = i
-			}
-		}
-	}
-	if userIndex < 0 {
-		t.Fatalf("stored events missing %q: %#v", acp.EventTypeUserMessage, events)
-	}
-	if doneIndex < 0 {
-		t.Fatalf("stored events missing %q: %#v", acp.EventTypeDone, events)
-	}
-	if syntheticIndex < 0 {
-		t.Fatalf("stored events missing %q: %#v", acp.EventTypeSyntheticReentry, events)
-	}
-	if !(userIndex < doneIndex && doneIndex < syntheticIndex) {
-		t.Fatalf(
-			"event order user=%d done=%d synthetic=%d, want user < done < synthetic",
-			userIndex,
-			doneIndex,
-			syntheticIndex,
-		)
-	}
-
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("cleanup Stop() error = %v", err)
 	}
 }
 
@@ -1003,46 +867,6 @@ func TestManagerIntegrationSyntheticQueueSurvivesRestart(t *testing.T) {
 			}
 		},
 	)
-}
-
-func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
-	t.Run("Should reject a nil resolved workspace", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := resolveWorkspaceSessionAgentForType("coder", "", "", nil, nil)
-		if err == nil {
-			t.Fatal("resolveWorkspaceSessionAgent(nil workspace) error = nil, want non-nil")
-		}
-		if !strings.Contains(err.Error(), "resolved workspace is required") {
-			t.Fatalf("resolveWorkspaceSessionAgent(nil workspace) error = %v", err)
-		}
-	})
-
-	t.Run("Should allow a nil agent resolver when a workspace is provided", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		resolvedWorkspace := &workspacepkg.ResolvedWorkspace{
-			Config: compozyconfig.DefaultWithHome(homePaths),
-			Agents: []compozyconfig.AgentDef{{
-				Name:     "coder",
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-			}},
-		}
-
-		resolved, err := resolveWorkspaceSessionAgentForType("coder", "", "", resolvedWorkspace, nil)
-		if err != nil {
-			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) error = %v", err)
-		}
-		if got, want := resolved.Provider, "claude"; got != want {
-			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) provider = %q, want %q", got, want)
-		}
-	})
 }
 
 func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {

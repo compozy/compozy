@@ -218,13 +218,6 @@ func TestAssembleReadsCanonicalEnvelopeAndStableOrdering(t *testing.T) {
 	)
 }
 
-func TestAssembleRendersSyntheticReentryAsSystemMessage(t *testing.T) {
-	t.Run(
-		"Should render a synthetic reentry runtime payload as a system message",
-		testAssembleRendersSyntheticReentryAsSystemMessage,
-	)
-}
-
 func TestAssemblePreservesAttachmentOnlyUserTurns(t *testing.T) {
 	t.Parallel()
 

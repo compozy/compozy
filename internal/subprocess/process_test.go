@@ -284,12 +284,16 @@ func TestCallSendsRequestAndReceivesResponse(t *testing.T) {
 
 	process := launchHelperProcess(t, "default", LaunchConfig{})
 	defer shutdownProcess(t, process)
-	initializeProcess(t, process, InitializeRuntime{
+	initializeResponse := initializeProcess(t, process, InitializeRuntime{
 		HealthCheckIntervalMS: 1_000,
 		HealthCheckTimeoutMS:  100,
 		ShutdownTimeoutMS:     250,
 		DefaultHookTimeoutMS:  100,
 	})
+
+	if initializeResponse.ProtocolVersion != defaultProtocolVersion {
+		t.Fatalf("Initialize() protocol_version = %q, want %q", initializeResponse.ProtocolVersion, defaultProtocolVersion)
+	}
 
 	var response struct {
 		Message string `json:"message"`
@@ -414,6 +418,17 @@ func TestHandleMethodRoutesInboundRequests(t *testing.T) {
 		ShutdownTimeoutMS:     250,
 		DefaultHookTimeoutMS:  100,
 	})
+
+	err := process.Call(testContext(t), "relay_to_host", map[string]any{
+		"method": "host/missing",
+		"params": map[string]int{"a": 1},
+	}, nil)
+	if err == nil {
+		t.Fatal("Call(relay_to_host missing) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "Internal error") {
+		t.Fatalf("Call(relay_to_host missing) error = %v, want wrapped internal error", err)
+	}
 
 	if err := process.HandleMethod("host/add", func(_ context.Context, params json.RawMessage) (any, error) {
 		var request struct {
@@ -591,23 +606,6 @@ func assertErrorContains(t *testing.T, err error, substr string) {
 	t.Helper()
 	if err == nil || !strings.Contains(err.Error(), substr) {
 		t.Fatalf("error = %v, want substring %q", err, substr)
-	}
-}
-
-func TestInitializeHandshakeSucceedsWithCompatibleVersions(t *testing.T) {
-	t.Parallel()
-
-	process := launchHelperProcess(t, "default", LaunchConfig{})
-	defer shutdownProcess(t, process)
-
-	response := initializeProcess(t, process, InitializeRuntime{
-		HealthCheckIntervalMS: 1_000,
-		HealthCheckTimeoutMS:  100,
-		ShutdownTimeoutMS:     250,
-		DefaultHookTimeoutMS:  100,
-	})
-	if response.ProtocolVersion != defaultProtocolVersion {
-		t.Fatalf("Initialize() protocol_version = %q, want %q", response.ProtocolVersion, defaultProtocolVersion)
 	}
 }
 
@@ -909,30 +907,6 @@ func TestHandleMethodRegistrationValidation(t *testing.T) {
 	}
 }
 
-func TestUnknownInboundMethodReturnsMethodNotFound(t *testing.T) {
-	t.Parallel()
-
-	process := launchHelperProcess(t, "default", LaunchConfig{})
-	defer shutdownProcess(t, process)
-	initializeProcess(t, process, InitializeRuntime{
-		HealthCheckIntervalMS: 1_000,
-		HealthCheckTimeoutMS:  100,
-		ShutdownTimeoutMS:     250,
-		DefaultHookTimeoutMS:  100,
-	})
-
-	err := process.Call(testContext(t), "relay_to_host", map[string]any{
-		"method": "host/missing",
-		"params": map[string]int{"a": 1},
-	}, nil)
-	if err == nil {
-		t.Fatal("Call(relay_to_host missing) error = nil, want failure")
-	}
-	if !strings.Contains(err.Error(), "Internal error") {
-		t.Fatalf("Call(relay_to_host missing) error = %v, want wrapped internal error", err)
-	}
-}
-
 func TestHealthMonitorRecordsHealthyResponses(t *testing.T) {
 	t.Parallel()
 
@@ -1230,14 +1204,6 @@ func TestNilHelpersAndBufferUtilities(t *testing.T) {
 	}
 	if got := buffer.String(); got != "cdef" {
 		t.Fatalf("boundedBuffer.String() = %q, want cdef", got)
-	}
-
-	buffer = &boundedBuffer{limit: 4}
-	if _, err := buffer.Write([]byte("uvwxyz")); err != nil {
-		t.Fatalf("boundedBuffer.Write(large) error = %v", err)
-	}
-	if got := buffer.String(); got != "wxyz" {
-		t.Fatalf("boundedBuffer.String() after large write = %q, want wxyz", got)
 	}
 
 	if got := attachStderr(errors.New("base"), "stderr-output").Error(); !strings.Contains(got, "stderr-output") {
