@@ -85,8 +85,7 @@ func (e *ToolError) WithPartialResult(result ToolResult) *ToolError {
 		return nil
 	}
 	cloned := *e
-	partial := cloneToolResult(result)
-	cloned.PartialResult = &partial
+	cloned.PartialResult = new(cloneToolResult(result))
 	return &cloned
 }
 

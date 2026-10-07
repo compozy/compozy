@@ -1,7 +1,8 @@
 package mcppolicy
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 )
 
@@ -34,16 +35,12 @@ func ValidateHeaders(fixed, secret map[string]string, source HeaderSource, authE
 	for name, value := range secret {
 		headers = append(headers, namedHeader{name: name, value: value, source: source})
 	}
-	sort.Slice(headers, func(left, right int) bool {
-		leftName := strings.ToLower(headers[left].name)
-		rightName := strings.ToLower(headers[right].name)
-		if leftName == rightName {
-			if headers[left].source == headers[right].source {
-				return headers[left].name < headers[right].name
-			}
-			return headers[left].source < headers[right].source
-		}
-		return leftName < rightName
+	slices.SortFunc(headers, func(left, right namedHeader) int {
+		return cmp.Or(
+			strings.Compare(strings.ToLower(left.name), strings.ToLower(right.name)),
+			cmp.Compare(left.source, right.source),
+			strings.Compare(left.name, right.name),
+		)
 	})
 
 	seen := make(map[string]struct{}, len(headers))

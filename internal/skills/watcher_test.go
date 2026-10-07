@@ -20,7 +20,7 @@ func TestWatcherDetectChangesAddedSkill(t *testing.T) {
 	root := t.TempDir()
 	watcher := newTestWatcher(nil, time.Millisecond, root)
 
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() initial error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() initial changed = true, want false")
@@ -33,7 +33,7 @@ func TestWatcherDetectChangesAddedSkill(t *testing.T) {
 		skillWithDescription("added", "Added skill"),
 	)
 
-	changed, snapshots, changes, err := watcher.detectChanges(context.Background())
+	changed, snapshots, changes, err := watcher.detectChanges(t.Context())
 	if err != nil {
 		t.Fatalf("detectChanges() error = %v", err)
 	}
@@ -49,7 +49,7 @@ func TestWatcherDetectChangesAddedSkill(t *testing.T) {
 
 	watcher.commitSnapshots(snapshots)
 
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() after commit error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() after commit changed = true, want false")
@@ -63,7 +63,7 @@ func TestWatcherDetectChangesModifiedSkillByMTime(t *testing.T) {
 	skillPath := writeSkillFile(t, root, filepath.Join("mtime", skillFileName), skillWithDescription("mtime", "Alpha"))
 	watcher := newTestWatcher(nil, time.Millisecond, root)
 
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() initial error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() initial changed = true, want false")
@@ -73,7 +73,7 @@ func TestWatcherDetectChangesModifiedSkillByMTime(t *testing.T) {
 	rewriteSkillFile(t, skillPath, skillWithDescription("mtime", "Bravo"))
 	setFileTimes(t, skillPath, modTime)
 
-	changed, _, changes, err := watcher.detectChanges(context.Background())
+	changed, _, changes, err := watcher.detectChanges(t.Context())
 	if err != nil {
 		t.Fatalf("detectChanges() error = %v", err)
 	}
@@ -175,7 +175,7 @@ func TestWatcherDetectChangesDeletedSkill(t *testing.T) {
 	)
 	watcher := newTestWatcher(nil, time.Millisecond, root)
 
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() initial error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() initial changed = true, want false")
@@ -185,7 +185,7 @@ func TestWatcherDetectChangesDeletedSkill(t *testing.T) {
 		t.Fatalf("Remove(%q) error = %v", skillPath, err)
 	}
 
-	changed, _, changes, err := watcher.detectChanges(context.Background())
+	changed, _, changes, err := watcher.detectChanges(t.Context())
 	if err != nil {
 		t.Fatalf("detectChanges() error = %v", err)
 	}
@@ -207,13 +207,13 @@ func TestWatcherDetectChangesNoFalsePositiveWhenUnchanged(t *testing.T) {
 	writeSkillFile(t, root, filepath.Join("stable", skillFileName), skillWithDescription("stable", "Stable skill"))
 	watcher := newTestWatcher(nil, time.Millisecond, root)
 
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() initial error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() initial changed = true, want false")
 	}
 
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() second error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() second changed = true, want false")
@@ -233,7 +233,7 @@ func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
 			return []string{workspaceRoot}, nil
 		})
 
-		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 			t.Fatalf("detectChanges() initial error = %v", err)
 		} else if changed {
 			t.Fatal("detectChanges() initial changed = true, want false")
@@ -246,7 +246,7 @@ func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
 			skillWithDescription("dynamic", "Workspace dynamic skill"),
 		)
 
-		changed, _, changes, err := watcher.detectChanges(context.Background())
+		changed, _, changes, err := watcher.detectChanges(t.Context())
 		if err != nil {
 			t.Fatalf("detectChanges() error = %v", err)
 		}
@@ -320,7 +320,7 @@ func TestWatcherUsesExplicitAgentRootIdentity(t *testing.T) {
 			t.Fatalf("MkdirAll(%q) error = %v", root, err)
 		}
 		watcher := newTestWatcher(nil, time.Millisecond, root)
-		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 			t.Fatalf("detectChanges() initial error = %v", err)
 		} else if changed {
 			t.Fatal("detectChanges() initial changed = true, want false")
@@ -333,7 +333,7 @@ func TestWatcherUsesExplicitAgentRootIdentity(t *testing.T) {
 			t.Fatalf("WriteFile(%q) error = %v", agentFile, err)
 		}
 
-		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 			t.Fatalf("detectChanges() error = %v", err)
 		} else if changed {
 			t.Fatal("detectChanges() changed = true, want AGENT.md ignored in custom skill root")
@@ -348,7 +348,7 @@ func TestWatcherUsesExplicitAgentRootIdentity(t *testing.T) {
 		watcher.SetAgentRootsProvider(func(context.Context) ([]string, error) {
 			return []string{root}, nil
 		})
-		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 			t.Fatalf("detectChanges() initial error = %v", err)
 		} else if changed {
 			t.Fatal("detectChanges() initial changed = true, want false")
@@ -361,7 +361,7 @@ func TestWatcherUsesExplicitAgentRootIdentity(t *testing.T) {
 			t.Fatalf("WriteFile(%q) error = %v", agentFile, err)
 		}
 
-		changed, _, changes, err := watcher.detectChanges(context.Background())
+		changed, _, changes, err := watcher.detectChanges(t.Context())
 		if err != nil {
 			t.Fatalf("detectChanges() error = %v", err)
 		}
@@ -395,7 +395,7 @@ func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
 		t.Fatalf("watcher.interval = %v, want %v", watcher.interval, defaultWatcherInterval)
 	}
 
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() initial error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() initial changed = true, want false")
@@ -414,7 +414,7 @@ func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
 		skillWithDescription("workspace-compozy", "Workspace compozy skill"),
 	)
 
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() after workspace-only updates error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() after workspace-only updates changed = true, want false")
@@ -432,7 +432,7 @@ func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
 		registry := newTestRegistry(t, RegistryConfig{
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 
@@ -445,7 +445,7 @@ func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
 		watcher := NewWatcher(registry, time.Millisecond)
 		watcher.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
-		changed, _, changes, err := watcher.detectChanges(context.Background())
+		changed, _, changes, err := watcher.detectChanges(t.Context())
 		if err != nil {
 			t.Fatalf("detectChanges() error = %v", err)
 		}
@@ -472,7 +472,7 @@ func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
 		registry := newTestRegistry(t, RegistryConfig{
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 
@@ -480,7 +480,7 @@ func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
 		watcher := NewWatcher(registry, time.Millisecond)
 		watcher.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
-		changed, _, changes, err := watcher.detectChanges(context.Background())
+		changed, _, changes, err := watcher.detectChanges(t.Context())
 		if err != nil {
 			t.Fatalf("detectChanges() error = %v", err)
 		}
@@ -499,13 +499,13 @@ func TestWatcherStartRefreshesOnlyWhenGlobalStateChanges(t *testing.T) {
 	root := t.TempDir()
 	spy := newRefreshSpy()
 	watcher := newTestWatcher(spy, 10*time.Millisecond, root)
-	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 		t.Fatalf("detectChanges() baseline error = %v", err)
 	} else if changed {
 		t.Fatal("detectChanges() baseline changed = true, want false")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	done := make(chan struct{})
@@ -538,7 +538,7 @@ func TestWatcherStartStopsOnContextCancellation(t *testing.T) {
 
 	watcher := newTestWatcher(nil, 10*time.Millisecond, t.TempDir())
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		watcher.Start(ctx)
@@ -563,7 +563,7 @@ func TestWatcherPollCancellation(t *testing.T) {
 		root := t.TempDir()
 		spy := newRefreshSpy()
 		watcher := newTestWatcher(spy, time.Millisecond, root)
-		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
 			t.Fatalf("detectChanges() baseline error = %v", err)
 		} else if changed {
 			t.Fatal("detectChanges() baseline changed = true, want false")
@@ -574,7 +574,7 @@ func TestWatcherPollCancellation(t *testing.T) {
 			filepath.Join("pending", skillFileName),
 			skillWithDescription("pending", "Pending skill"),
 		)
-		ctx := newCancelAfterContext(context.Background(), 2)
+		ctx := newCancelAfterContext(t.Context(), 2)
 
 		err := watcher.pollOnce(ctx)
 		if !errors.Is(err, context.Canceled) {
@@ -596,7 +596,7 @@ func TestWatcherStartDoesNotRefreshWithoutChangesAcrossMultiplePolls(t *testing.
 	watcher := newTestWatcher(spy, 10*time.Millisecond, root)
 
 	for poll := range 3 {
-		if err := watcher.pollOnce(context.Background()); err != nil {
+		if err := watcher.pollOnce(t.Context()); err != nil {
 			t.Fatalf("pollOnce(%d) error = %v", poll, err)
 		}
 	}

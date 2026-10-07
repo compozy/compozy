@@ -19,7 +19,7 @@ func TestRegistryConcurrentReadAPIsAndSetEnabledContract(t *testing.T) {
 	t.Run("Should avoid races between read API clones and SetEnabled writes", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		registry, workspace := newRegistryReadWriteRaceFixtureContract(t)
@@ -40,9 +40,7 @@ func TestRegistryConcurrentReadAPIsAndSetEnabledContract(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for worker := range 8 {
-			wg.Add(1)
-			go func(worker int) {
-				defer wg.Done()
+			wg.Go(func() {
 				<-start
 				for iteration := range 1_000 {
 					select {
@@ -70,7 +68,7 @@ func TestRegistryConcurrentReadAPIsAndSetEnabledContract(t *testing.T) {
 						return
 					}
 				}
-			}(worker)
+			})
 		}
 
 		wg.Go(func() {
@@ -139,7 +137,7 @@ func newRegistryReadWriteRaceFixtureContract(t *testing.T) (*Registry, *workspac
 	registry := newTestRegistry(t, RegistryConfig{
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 

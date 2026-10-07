@@ -136,8 +136,7 @@ func (r ClarifyAnswerRequest) Normalize(question ClarifyQuestion) (ClarifyAnswer
 				index,
 			)
 		}
-		choice := index
-		return ClarifyAnswer{Choice: &choice}, nil
+		return ClarifyAnswer{Choice: new(index)}, nil
 	}
 	return ClarifyAnswer{Text: text}, nil
 }

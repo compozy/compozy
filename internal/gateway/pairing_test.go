@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"strings"
@@ -134,7 +133,7 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 		for range 2 {
 			wait.Go(func() {
 				<-start
-				_, redeemErr := service.RedeemPairing(context.Background(), RedeemRequest{
+				_, redeemErr := service.RedeemPairing(t.Context(), RedeemRequest{
 					Artifact: artifact.Artifact, Name: "Race", Kind: ActorKindOperatorDevice,
 					Source: PairingSourcePrivate,
 				})

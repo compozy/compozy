@@ -256,11 +256,9 @@ func workspaceResolvedSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []com
 
 func (r *Registry) evictExpiredWorkspaceLocked(now time.Time) {
 	cutoff := now.Add(-workspaceCacheTTL)
-	for workspace, entry := range r.wsCache {
-		if entry.lastAccess.Before(cutoff) {
-			delete(r.wsCache, workspace)
-		}
-	}
+	maps.DeleteFunc(r.wsCache, func(_ string, entry *wsCache) bool {
+		return entry.lastAccess.Before(cutoff)
+	})
 }
 
 func workspaceCacheKey(resolved *workspacepkg.ResolvedWorkspace) string {

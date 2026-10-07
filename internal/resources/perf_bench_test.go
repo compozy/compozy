@@ -100,7 +100,7 @@ func BenchmarkValidateAndCanonicalizeIfRegistered(b *testing.B) {
 	)
 	for b.Loop() {
 		canonical, validated, err = ValidateAndCanonicalizeIfRegistered(
-			context.Background(),
+			b.Context(),
 			registry,
 			testResourceKind,
 			scope,
@@ -171,7 +171,7 @@ func BenchmarkReconcileBuildProjectionInput(b *testing.B) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := b.Context()
 	var input projectionInput
 	for b.Loop() {
 		var err error

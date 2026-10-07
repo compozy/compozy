@@ -2,6 +2,7 @@ package skills
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -59,11 +60,7 @@ func parseActivationGates(raw any) (ActivationGates, error) {
 		return ActivationGates{}, fmt.Errorf("metadata.compozy.when must be a mapping, got %T", raw)
 	}
 
-	keys := make([]string, 0, len(when))
-	for key := range when {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(when))
 	for _, key := range keys {
 		if !slices.Contains(activationGateKeys, key) {
 			return ActivationGates{}, fmt.Errorf("metadata.compozy.when: unknown key %q", key)

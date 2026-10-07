@@ -4,7 +4,6 @@ package skills
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -202,7 +201,7 @@ func TestRegistryIntegrationRefreshPromotesSidecarBackedSkillToMarketplace(t *te
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
 
-		if err := registry.LoadAll(context.Background()); err != nil {
+		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 
@@ -228,7 +227,7 @@ func TestRegistryIntegrationRefreshPromotesSidecarBackedSkillToMarketplace(t *te
 			t.Fatalf("WriteSidecar() error = %v", err)
 		}
 
-		if err := registry.RefreshGlobal(context.Background()); err != nil {
+		if err := registry.RefreshGlobal(t.Context()); err != nil {
 			t.Fatalf("RefreshGlobal() error = %v", err)
 		}
 
@@ -281,14 +280,14 @@ func TestRegistryIntegrationRefreshBlocksTamperedMarketplaceSkill(t *testing.T) 
 		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
-	if err := registry.LoadAll(context.Background()); err != nil {
+	if err := registry.LoadAll(t.Context()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
 	rewriteSkillFile(t, skillPath, tampered)
 	actualHash := mustComputeDirectoryHash(t, filepath.Dir(skillPath))
 
-	if err := registry.RefreshGlobal(context.Background()); err != nil {
+	if err := registry.RefreshGlobal(t.Context()); err != nil {
 		t.Fatalf("RefreshGlobal() error = %v", err)
 	}
 

@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"errors"
+	"maps"
 	"sync"
 	"time"
 )
@@ -113,11 +114,9 @@ func (l *AuthFailureLimiter) Failure(source string, localOperator bool) {
 }
 
 func (l *AuthFailureLimiter) pruneExpired(now time.Time) {
-	for source, entry := range l.failures {
-		if now.Sub(entry.started) >= l.window {
-			delete(l.failures, source)
-		}
-	}
+	maps.DeleteFunc(l.failures, func(_ string, entry authFailureWindow) bool {
+		return now.Sub(entry.started) >= l.window
+	})
 }
 
 // Success clears failures after a source proves possession of a valid credential.
