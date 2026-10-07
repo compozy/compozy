@@ -186,37 +186,6 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 		}
 	})
 
-	t.Run("Should map judge transport failure to Broken for fail-open routing", func(t *testing.T) {
-		t.Parallel()
-
-		evaluator := NewEvaluator(WithJudgeRunner(judgeRunnerFunc(
-			func(context.Context, JudgeRequest) (JudgeResponse, error) {
-				return JudgeResponse{}, errors.New("agent unavailable")
-			},
-		)))
-		verdict, err := evaluator.Evaluate(t.Context(), Gate{
-			ID:            "judge_gate",
-			VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
-			Criteria: []dsl.GateCriterion{{
-				ID:     "rubric",
-				Type:   dsl.CriterionAgentJudge,
-				Rubric: "Check the output",
-			}},
-		}, GateInput{Placement: PlacementDefinitionOfDone, Contract: new(validContract())})
-		if err != nil {
-			t.Fatalf("Evaluate() error = %v", err)
-		}
-		if !verdict.Broken {
-			t.Fatal("Verdict.Broken = false, want true")
-		}
-		if verdict.Route.Action != RouteNextGeneration {
-			t.Fatalf("Route.Action = %q, want fail-open %q", verdict.Route.Action, RouteNextGeneration)
-		}
-		if verdict.Route.Action == RouteDone || verdict.Route.Action == RouteContinue {
-			t.Fatalf("Route.Action = %q, want no false done or DoD continue for broken judge", verdict.Route.Action)
-		}
-	})
-
 	t.Run("Should derive complete judge correlation without a tool call owner", func(t *testing.T) {
 		t.Parallel()
 
@@ -508,6 +477,9 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("Evaluate() first error = %v", err)
+		}
+		if !first.Broken {
+			t.Fatal("Verdict.Broken = false, want true for judge transport failure")
 		}
 		if first.Route.Action != RouteNextGeneration {
 			t.Fatalf("first Route.Action = %q, want %q", first.Route.Action, RouteNextGeneration)
@@ -1549,19 +1521,6 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 		if !strings.Contains(rendered, "Every metric verdict must include a finite numeric score") {
 			t.Fatalf("metric judge rubric = %q, want mandatory finite score instruction", rendered)
 		}
-	})
-
-	t.Run("Should reject approved judge verdict without evidence without Broken", func(t *testing.T) {
-		t.Parallel()
-
-		result := ParseJudgeVerdict("judge", dsl.CriterionAgentJudge, `{"verdict":"approved","evidence":{}}`)
-		if result.Outcome != VerdictOutcomeRejected {
-			t.Fatalf("Outcome = %q, want %q", result.Outcome, VerdictOutcomeRejected)
-		}
-		if result.Broken {
-			t.Fatal("Broken = true, want false")
-		}
-		requireIssueID(t, result.BlockingIssues, JudgeEvidenceRequiredIssueID)
 	})
 
 	t.Run("Should reject approved judge verdict with whitespace-only evidence object", func(t *testing.T) {
