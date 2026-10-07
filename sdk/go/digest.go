@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -30,7 +32,7 @@ func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
 		return nil, NewInvalidParamsError(err.Error(), nil)
 	}
 	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err != nil {
 			return nil, NewInvalidParamsError(err.Error(), nil)
 		}
@@ -87,11 +89,7 @@ func appendCanonicalValue(builder *strings.Builder, value any) error {
 		}
 		builder.WriteByte(']')
 	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(typed))
 		builder.WriteByte('{')
 		for i, key := range keys {
 			if i > 0 {

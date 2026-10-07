@@ -76,7 +76,6 @@ func TestGoUnitTestSafetyArgs(t *testing.T) {
 			t.Fatalf("goSDKTestArgs(true) = %v, want %v", got, want)
 		}
 	})
-
 }
 
 func TestParseGoTestShard(t *testing.T) {
@@ -356,7 +355,8 @@ func TestGoListPackagePaths(t *testing.T) {
 
 	t.Run("Should exclude Go download diagnostics from package selection", func(t *testing.T) {
 		t.Parallel()
-		cmd := exec.Command(
+		cmd := exec.CommandContext(
+			t.Context(),
 			"sh",
 			"-c",
 			"printf 'example.com/first\\nexample.com/second\\n'; printf 'go: downloading example.com/module v1.2.3\\n' >&2",

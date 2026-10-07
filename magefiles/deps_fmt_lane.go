@@ -109,16 +109,12 @@ func fmtLaneBase() (string, error) {
 	return "", fmt.Errorf("no usable merge base ref; set %s or %s", gateBaseEnvVar, goFmtFilesEnvVar)
 }
 
-// filterFmtTargets keeps existing root-module Go files: sdk/ carries its own
-// module and deleted paths would fail the formatter invocation.
+// filterFmtTargets keeps existing Go files across module boundaries.
 func filterFmtTargets(paths []string, exists func(string) bool) []string {
 	targets := make([]string, 0, len(paths))
 	for _, path := range paths {
 		trimmed := strings.TrimSpace(path)
 		if trimmed == "" || !strings.HasSuffix(trimmed, ".go") {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "sdk/") {
 			continue
 		}
 		if !exists(trimmed) {

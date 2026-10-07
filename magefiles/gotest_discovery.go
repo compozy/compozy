@@ -38,7 +38,7 @@ func listGoTopLevelTests(ctx context.Context, packagePath string, buildFlags ...
 	if err := json.Unmarshal(output, &packageFiles); err != nil {
 		return nil, fmt.Errorf("decode %s test files: %w", packagePath, err)
 	}
-	files := append(append([]string(nil), packageFiles.TestGoFiles...), packageFiles.XTestGoFiles...)
+	files := append(slices.Clone(packageFiles.TestGoFiles), packageFiles.XTestGoFiles...)
 	tests := make([]string, 0, len(files))
 	for _, name := range files {
 		fileTests, err := topLevelTestsInFile(filepath.Join(packageFiles.Dir, name))

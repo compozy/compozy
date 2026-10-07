@@ -11,6 +11,7 @@ import (
 )
 
 func gitShowFile(ctx context.Context, repoDir string, ref string, path string) (string, bool, error) {
+	//nolint:gosec // Trusted repository inputs are passed as separate Git arguments, without a shell.
 	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "show", ref+":"+path)
 	output, err := cmd.CombinedOutput()
 	if err == nil {
@@ -47,7 +48,7 @@ func gitCommandOutput(ctx context.Context, dir string, args ...string) (string, 
 }
 
 func gitTags(dir string) ([]string, error) {
-	cmd := exec.Command("git", "-C", dir, "tag", "--list", "v*")
+	cmd := exec.CommandContext(context.Background(), "git", "-C", dir, "tag", "--list", "v*")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("list assets tags in %q: %w", dir, err)
@@ -64,7 +65,7 @@ func gitTags(dir string) ([]string, error) {
 }
 
 func gitOutput(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.CommandContext(context.Background(), "git", args...)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)

@@ -11,6 +11,9 @@ linters:
   default: none
   enable:
     - bodyclose
+    - depguard
+    - forbidigo
+    - copyloopvar
     - dogsled
     - errcheck
     - funlen
@@ -36,12 +39,32 @@ linters:
   settings:
     depguard:
       rules:
-        main:
-          allow:
-            - $all
+        modern-go-root:
+          files:
+            - "${config-path}/**/*.go"
+            - "!${config-path}/sdk/**/*.go"
+            - "!${config-path}/internal/extension/testdata/**/*.go"
+          deny:
+            - pkg: github.com/google/uuid
+              desc: Use stdlib uuid.NewV4().String() (stdlib_uuid, Go 1.27).
+    copyloopvar:
+      check-alias: true
+    forbidigo:
+      analyze-types: true
+      exclude-godoc-examples: false
+      forbid:
+        - pattern: '^sort\.(Strings|Ints|Float64s|Slice|SliceStable|Sort|Stable)$'
+          pkg: "^sort$"
+          msg: Use slices.Sort, SortFunc or SortStableFunc, preserving ordering (slices_sort/slices_sort_func).
+        - pattern: '^errors\.As$'
+          pkg: "^errors$"
+          msg: Use errors.AsType with the same target type (errors_as_type).
     errcheck:
       check-type-assertions: true
       check-blank: true
+      # AsType returns a matched error value, not an operation failure.
+      exclude-functions:
+        - errors.AsType
     funlen:
       lines: 80
       statements: 60
@@ -77,6 +100,18 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # Declarative tooling/fixture tables keep literal paths and schema keys readable.
+      - linters: [goconst]
+        path: "(^magefiles/|^internal/extension/testdata/[^/]+-fixture-go/)"
+      # Boundary tables and the linear release transaction are deliberately kept together.
+      - linters: [funlen]
+        path: '^magefiles/(boundaries|web_assets_publish)\.go$'
+      - linters: [gocyclo]
+        path: '^magefiles/boundaries\.go$'
+      # Tooling paths are supplied by the repository/operator, not untrusted runtime input.
+      - linters: [gosec]
+        path: "^magefiles/"
+        text: "G(101|122|306|703):"
       - linters:
           - dupl
           - errcheck

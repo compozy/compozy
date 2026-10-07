@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/e2elane"
@@ -250,8 +251,8 @@ func noopCleanup() error {
 
 func runCleanups(cleanups []func() error) error {
 	var joined error
-	for idx := len(cleanups) - 1; idx >= 0; idx-- {
-		if err := cleanups[idx](); err != nil {
+	for _, cleanup := range slices.Backward(cleanups) {
+		if err := cleanup(); err != nil {
 			joined = errors.Join(joined, err)
 		}
 	}

@@ -380,6 +380,89 @@ exit 0
 		}
 	})
 
+	t.Run("Should select the owning Go lanes for nested module changes", func(t *testing.T) {
+		t.Parallel()
+		for _, module := range []string{
+			"sdk/go", "sdk/examples/notes-commands", "sdk/examples/clarify-tool",
+			"internal/extension/testdata/command-fixture-go",
+			"internal/extension/testdata/palette-fixture-go", "magefiles",
+		} {
+			for _, name := range []string{"main.go", "go.mod", "go.sum"} {
+				t.Run("Should classify "+module+"/"+name, func(t *testing.T) {
+					t.Parallel()
+					repo := newGateTestRepo(t)
+					dir := filepath.Join(repo, module)
+					if err := os.MkdirAll(dir, 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(filepath.Join(dir, name), []byte("changed\n"), 0o644); err != nil {
+						t.Fatal(err)
+					}
+					output, err := runGate(t, repo, nil, "plan")
+					if err != nil {
+						t.Fatalf("plan: %v\n%s", err, output)
+					}
+					want := "COMPOZY_GO_LINT_SCOPES='./" + module + "/...' make go-lint"
+					if !strings.Contains(output, want) {
+						t.Fatalf("missing %q:\n%s", want, output)
+					}
+					switch {
+					case module == "magefiles":
+						want = "-tags=mage ./magefiles"
+					case strings.HasPrefix(module, "internal/"):
+						want = "./internal/extension/..."
+					default:
+						want = "go -C " + module + " test -race"
+					}
+					if !strings.Contains(output, want) {
+						t.Fatalf("missing tests %q:\n%s", want, output)
+					}
+					if strings.Contains(output, "js filters:") || strings.Contains(output, "would stop:") {
+						t.Fatalf("Go-only change misclassified:\n%s", output)
+					}
+				})
+			}
+		}
+	})
+
+	t.Run("Should retain JavaScript lanes for a mixed SDK example", func(t *testing.T) {
+		t.Parallel()
+		repo := newGateTestRepo(t)
+		dir := filepath.Join(repo, "sdk/examples/notes-commands")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		runCommand(t, repo, "git", "add", "sdk")
+		runCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"user.name=Gate Test",
+			"-c",
+			"user.email=gate-test@example.com",
+			"commit",
+			"--quiet",
+			"-m",
+			"seed mixed example",
+		)
+		if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		output, err := runGate(t, repo, nil, "plan")
+		if err != nil {
+			t.Fatalf("plan: %v\n%s", err, output)
+		}
+		for _, want := range []string{"js filters: ./sdk/examples/notes-commands", "COMPOZY_GO_LINT_SCOPES='./sdk/examples/notes-commands/...'"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("missing %q:\n%s", want, output)
+			}
+		}
+	})
+
 	t.Run("Should reject unknown assets before running classified lanes", func(t *testing.T) {
 		t.Parallel()
 

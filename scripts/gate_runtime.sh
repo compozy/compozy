@@ -110,9 +110,10 @@ print_classification() {
 	if [ -n "$GO_SCOPES" ]; then
 		log "go scopes: $(normalized_go_scopes | tr '\n' ' ')"
   fi
-  if [ "$SDK_GO" -eq 1 ]; then
-    log "sdk/go lane: separate module (go -C sdk/go)"
+  if [ -n "$GO_MODULES" ]; then
+    log "go modules: $(printf '%s' "$GO_MODULES" | sort -u | tr '\n' ' ')"
   fi
+  if [ "$MAGE_LINT" -eq 1 ]; then log "mage lint: build tag mage"; fi
 	if [ -n "$JS_FILTERS" ]; then
 		log "js filters: $(printf '%s' "$JS_FILTERS" | sort -u | tr '\n' ' ')"
 	fi
@@ -128,5 +129,34 @@ print_classification() {
   if [ "$CATALOG_CHECK" -eq 1 ]; then log "catalog lanes: production installer + bridge runtime tests"; fi
   if [ "$NO_LANE_COUNT" -gt 0 ]; then
     log "no-lane (docs/instructions/CI): $NO_LANE_COUNT files"
+  fi
+}
+
+run_module_lanes() {
+  local module id
+  for module in $(printf '%s' "$GO_MODULES" | sort -u); do
+    id="$(printf '%s' "$module" | tr '/' '-')"
+    run_lane "$id-lint" env "COMPOZY_GO_LINT_SCOPES=./$module/..." make go-lint
+    case "$module" in
+      internal/extension/testdata/*) : ;;
+      *) run_lane "$id-test" env CGO_ENABLED=1 go -C "$module" test -race -p "$(go_test_p)" -parallel=4 ./... ;;
+    esac
+  done
+  if [ "$MAGE_LINT" -eq 1 ]; then
+    run_lane mage-lint env COMPOZY_GO_LINT_SCOPES=./magefiles/... make go-lint
+  fi
+}
+
+plan_module_lanes() {
+  local module
+  for module in $(printf '%s' "$GO_MODULES" | sort -u); do
+    log "would run: env COMPOZY_GO_LINT_SCOPES='./$module/...' make go-lint"
+    case "$module" in
+      internal/extension/testdata/*) : ;;
+      *) log "would run: CGO_ENABLED=1 go -C $module test -race -p $(go_test_p) -parallel=4 ./..." ;;
+    esac
+  done
+  if [ "$MAGE_LINT" -eq 1 ]; then
+    log "would run: env COMPOZY_GO_LINT_SCOPES='./magefiles/...' make go-lint"
   fi
 }

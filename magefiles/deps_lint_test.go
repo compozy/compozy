@@ -4,8 +4,10 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -172,13 +174,14 @@ func TestFormattersMode(t *testing.T) {
 func TestFilterFmtTargets(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep only existing root-module Go files, sorted and deduped", func(t *testing.T) {
+	t.Run("Should keep existing Go files across modules, sorted and deduped", func(t *testing.T) {
 		t.Parallel()
 
 		existing := map[string]bool{
 			"internal/loop/action.go": true,
 			"cmd/compozy/main.go":     true,
 			"magefiles/deps_lint.go":  true,
+			"sdk/go/client.go":        true,
 		}
 		paths := []string{
 			"internal/loop/action.go",
@@ -192,7 +195,7 @@ func TestFilterFmtTargets(t *testing.T) {
 			"magefiles/deps_lint.go",
 		}
 		got := filterFmtTargets(paths, func(path string) bool { return existing[path] })
-		want := []string{"cmd/compozy/main.go", "internal/loop/action.go", "magefiles/deps_lint.go"}
+		want := []string{"cmd/compozy/main.go", "internal/loop/action.go", "magefiles/deps_lint.go", "sdk/go/client.go"}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("filterFmtTargets() = %v, want %v", got, want)
 		}
@@ -201,7 +204,7 @@ func TestFilterFmtTargets(t *testing.T) {
 	t.Run("Should return an empty set when nothing qualifies", func(t *testing.T) {
 		t.Parallel()
 
-		got := filterFmtTargets([]string{"sdk/go/client.go", "docs/readme.md"}, func(string) bool { return true })
+		got := filterFmtTargets([]string{"docs/readme.md"}, func(string) bool { return true })
 		if len(got) != 0 {
 			t.Fatalf("filterFmtTargets() = %v, want empty", got)
 		}
@@ -238,4 +241,82 @@ func TestGolangciLintConcurrencyFor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGolangciLintTargets(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, raw string
+		want      []goLintTarget
+	}{
+		{name: "Should cover all supported modules by default", want: []goLintTarget{
+			{dir: ".", scopes: []string{"./..."}},
+			{dir: "sdk/go", scopes: []string{"./..."}},
+			{dir: "sdk/examples/notes-commands", scopes: []string{"./..."}},
+			{dir: "sdk/examples/clarify-tool", scopes: []string{"./..."}},
+			{dir: "internal/extension/testdata/command-fixture-go", scopes: []string{"./..."}},
+			{dir: "internal/extension/testdata/palette-fixture-go", scopes: []string{"./..."}},
+			{dir: "magefiles", scopes: []string{"./..."}, tags: "mage"},
+		}},
+		{name: "Should enter example modules without linting their empty parent", raw: "./sdk/examples/...", want: []goLintTarget{
+			{dir: "sdk/examples/notes-commands", scopes: []string{"./..."}},
+			{dir: "sdk/examples/clarify-tool", scopes: []string{"./..."}},
+		}},
+		{name: "Should keep a scoped root check narrow", raw: "./internal/config/...", want: []goLintTarget{{dir: ".", scopes: []string{"./internal/config/..."}}}},
+		{name: "Should resolve nested scopes relative to their module", raw: "./sdk/go/... ./magefiles/...", want: []goLintTarget{
+			{dir: "sdk/go", scopes: []string{"./..."}}, {dir: "magefiles", scopes: []string{"./..."}, tags: "mage"},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := golangciLintTargets(tc.raw); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("targets = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGoLintFixtureWorkspace(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve the local SDK without mutating fixture modules", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		module := "internal/extension/testdata/command-fixture-go"
+		original := "module fixture\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v99.0.0+incompatible\n"
+		writeTestFile(t, root, module+"/go.mod", original)
+		writeTestFile(t, root, "sdk/go/go.mod", "module github.com/compozy/compozy/sdk/go\n\ngo 1.26.4\n")
+		env, cleanup, err := goLintModuleEnv(root, module, map[string]string{"GOLANGCI_LINT_CACHE": "preserved"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cleanup()
+		command := exec.CommandContext(
+			t.Context(),
+			"go",
+			"list",
+			"-m",
+			"-f",
+			"{{.Dir}}",
+			"github.com/compozy/compozy/sdk/go",
+		)
+		command.Dir = filepath.Join(root, module)
+		command.Env = mergeEnvOverrides(os.Environ(), env)
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("resolve fixture SDK: %v\n%s", err, output)
+		}
+		if got, want := strings.TrimSpace(string(output)), filepath.Join(root, "sdk", "go"); got != want {
+			t.Fatalf("SDK = %q, want %q", got, want)
+		}
+		if got := readTestFile(t, root, module+"/go.mod"); got != original {
+			t.Fatalf("fixture module changed: %s", got)
+		}
+		if env["GOLANGCI_LINT_CACHE"] != "preserved" {
+			t.Fatal("lint cache override was lost")
+		}
+		cleanup()
+		if _, err := os.Stat(env["GOWORK"]); !os.IsNotExist(err) {
+			t.Fatalf("workspace retained after cleanup: %v", err)
+		}
+	})
 }

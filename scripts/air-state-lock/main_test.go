@@ -381,9 +381,9 @@ func processExited(pid int) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("read process %d state: %w", pid, err)
 	}
-	commandEnd := strings.LastIndexByte(string(status), ')')
-	if commandEnd < 0 || len(status) <= commandEnd+2 || status[commandEnd+1] != ' ' {
+	_, state, found := strings.CutLast(string(status), ")")
+	if !found || len(state) < 2 || state[0] != ' ' {
 		return false, fmt.Errorf("parse process %d state", pid)
 	}
-	return status[commandEnd+2] == 'Z', nil
+	return state[1] == 'Z', nil
 }
