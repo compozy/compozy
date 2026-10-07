@@ -34,6 +34,7 @@ const { LoopRunStory } = await import("../run-page/loop-run-story");
 const { LoopNodeRoster } = await import("../run-page/inspect/loop-node-roster");
 const { LoopRunArtifactList } = await import("../run-page/loop-run-artifact-list");
 const registerFixtures = await import("../stories/loop-run-register-fixtures");
+const graphEngFixtures = await import("../stories/loop-run-graph-eng-fixtures");
 const { registerPartialOutputsScenario } = registerFixtures;
 const { buildScenarioProps } = await import("../stories/loop-run-scenario-props");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
