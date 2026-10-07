@@ -31,12 +31,7 @@ import {
 } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
-import {
-  settingsUpdateApplyingFixture,
-  settingsUpdateBothAvailableFixture,
-  settingsUpdateRolledBackFixture,
-  settingsUpdateStatusFixture,
-} from "@/systems/settings/mocks/settings-update-fixture";
+import { settingsUpdateBothAvailableFixture } from "@/systems/settings/mocks/settings-update-fixture";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleAgent = "os-shell-agent";
@@ -506,24 +501,7 @@ test("E2E-137: grouping into a zoomed window keeps the frame zoomed and unzoom r
   await expect(settings).toBeVisible();
 });
 
-test("E2E-004: minimize exposes the dock state and restore remounts content", async ({
-  appPage,
-  runtime,
-}) => {
-  await prepareShell(appPage, runtime);
-  const tasks = await openDockApp(appPage, "Tasks", "tasks");
-
-  await tasks.getByRole("button", { name: "Minimize window" }).click();
-  await expect(tasks).toBeHidden();
-  const dockItem = appPage.getByRole("button", { name: "Tasks" });
-  await expect(dockItem).toHaveAttribute("data-state", "minimized");
-
-  await dockItem.click();
-  await expect(tasks).toBeVisible();
-  await expect(tasks.getByTestId("tasks-shell")).toBeVisible();
-});
-
-test("E2E-136: Sessions dock action starts creation cold and focuses an existing window", async ({
+test("E2E-136 / ENG-136: Session menu owns the catalog while the dock creates or focuses sessions", async ({
   appPage,
   runtime,
 }) => {
@@ -531,6 +509,12 @@ test("E2E-136: Sessions dock action starts creation cold and focuses an existing
   await switchWorkspace(appPage, workspace.id, workspace.name);
   await expect(appPage.getByRole("button", { name: /^Desktop 1 of 1:/ })).toBeEnabled();
   const sessionsDockButton = appPage.getByRole("button", { name: "Sessions", exact: true });
+
+  await openSessionsCatalog(appPage);
+  const sessionsModal = appPage.getByTestId("os-sessions-modal");
+  await expect(sessionsModal).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(sessionsModal).toHaveCount(0);
 
   await sessionsDockButton.click();
   const createDialog = appPage.getByTestId("session-create-dialog");
@@ -557,16 +541,6 @@ test("E2E-136: Sessions dock action starts creation cold and focuses an existing
   await sessionsDockButton.click();
   await expect(seededWindow).toBeVisible();
   await expect(windowFrame(seededWindow)).toHaveAttribute("data-focused", "");
-});
-
-test("ENG-136: Session menu owns the sessions catalog", async ({ appPage, runtime }) => {
-  await prepareShell(appPage, runtime);
-
-  await openSessionsCatalog(appPage);
-  const sessionsModal = appPage.getByTestId("os-sessions-modal");
-  await expect(sessionsModal).toBeVisible();
-  await appPage.keyboard.press("Escape");
-  await expect(sessionsModal).toHaveCount(0);
 });
 
 test("E2E-005: a direct task detail deep link returns to the catalog with Back", async ({
@@ -1984,7 +1958,7 @@ test("E2E-011: the compact stack round-trips with floating rects preserved", asy
     .toBe(true);
 });
 
-test("E2E-013: appearance preferences stay client-local while minimize remains authoritative", async ({
+test("E2E-004 / E2E-013: appearance stays client-local while minimize updates the dock and restore remounts content", async ({
   appPage,
   runtime,
 }) => {
@@ -2014,11 +1988,16 @@ test("E2E-013: appearance preferences stay client-local while minimize remains a
   await expect(windowFrame(tasksWindow)).toHaveAttribute("data-focused", "");
   await tasksWindow.getByRole("button", { name: "Minimize window" }).click();
   await expect(tasksWindow).toBeHidden();
+  await expect(appPage.getByRole("button", { name: "Tasks", exact: true })).toHaveAttribute(
+    "data-state",
+    "minimized"
+  );
   await expect
     .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID])
     .toMatchObject({ minimized: true });
   await appPage.getByRole("button", { name: "Tasks", exact: true }).click();
   await expect(tasksWindow).toBeVisible();
+  await expect(tasksWindow.getByTestId("tasks-shell")).toBeVisible();
   await expect
     .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID])
     .toMatchObject({ minimized: false });
@@ -4322,69 +4301,9 @@ test("operator sees one nested worktree tree across all three workspace-listing 
   }
 });
 
-/**
- * E2E-021 — the menubar indicator's whole lifecycle in a plain browser: absent by
- * default, present only while an update is genuinely offered, absent again the
- * moment an operation takes the channel, and it lands the operator on the Updates
- * section (US-029 AC-2, EC-4). The update projection describes the host install,
- * which the harness has no real feed for, so each shape is served at the API
- * boundary; every assertion is on what the SPA renders from it.
- */
-test("E2E-021: the menubar update indicator appears only while an update is offered and opens the Updates section", async ({
-  appPage,
-  runtime,
-}) => {
-  await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-
-  let updatePayload: unknown = settingsUpdateStatusFixture;
-  await appPage.route("**/api/settings/update", async route => {
-    await route.fulfill({ json: updatePayload });
-  });
-
-  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("os-desktop")).toBeVisible({ timeout: 20_000 });
-
-  const indicator = appPage.getByTestId("os-menubar-update");
-
-  // Up to date: absent from the DOM, not hidden with CSS.
-  await expect(indicator).toHaveCount(0);
-
-  // Offered: the indicator appears, with no count and no dropdown.
-  updatePayload = settingsUpdateBothAvailableFixture;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(indicator).toBeVisible({ timeout: 20_000 });
-  await expect(indicator).not.toHaveAttribute("aria-haspopup", "true");
-
-  // Applying: progress belongs to Settings, so the menubar goes quiet again.
-  updatePayload = settingsUpdateApplyingFixture;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(indicator).toHaveCount(0, { timeout: 20_000 });
-
-  // Failed: still no menubar error surface.
-  updatePayload = settingsUpdateRolledBackFixture;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(indicator).toHaveCount(0, { timeout: 20_000 });
-
-  // Offered again: activation lands on the Updates section.
-  updatePayload = settingsUpdateBothAvailableFixture;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(indicator).toBeVisible({ timeout: 20_000 });
-  await indicator.click();
-
-  const settingsWin = appWindow(appPage, "settings");
-  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
-  await expect(settingsOperatorSelectors(settingsWin).general.updates).toBeVisible({
-    timeout: 20_000,
-  });
-});
-
-/**
- * E2E-022 — the same journey with no pointer at all: the indicator is reachable by
- * keyboard, activates on Enter, and the apply affordance is reachable and
- * activatable in the Settings tab order (US-029 AC-4).
- */
-test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, and applies without a pointer", async ({
+// Presence across update states belongs to menubar-update-indicator.test.tsx.
+// This journey owns the real shell-to-Settings navigation wiring for both inputs.
+test("E2E-021 / E2E-022: update offers open Updates by pointer and keyboard and apply without a pointer", async ({
   appPage,
   runtime,
 }) => {
@@ -4414,12 +4333,22 @@ test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, an
   const indicator = appPage.getByTestId("os-menubar-update");
   await expect(indicator).toBeVisible({ timeout: 20_000 });
 
+  // Pointer activation and keyboard activation share the real navigation callback.
+  await indicator.click();
+  const settingsWin = appWindow(appPage, "settings");
+  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
+  await expect(settingsOperatorSelectors(settingsWin).general.updates).toBeVisible({
+    timeout: 20_000,
+  });
+  await settingsWin.getByRole("button", { name: "Close window" }).click();
+  await expect(settingsWin).toHaveCount(0);
+
   // Focus without a pointer, then activate with the keyboard.
   await indicator.focus();
   await expect(indicator).toBeFocused();
   await appPage.keyboard.press("Enter");
 
-  const settingsWin = appWindow(appPage, "settings");
   await expect(settingsWin).toBeVisible({ timeout: 20_000 });
   const settingsUI = settingsOperatorSelectors(settingsWin);
   await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });

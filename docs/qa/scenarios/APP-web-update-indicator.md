@@ -19,7 +19,7 @@ overlaps: APP-web-update-two-track; APP-app-auto-update
 Added 2026-08-16 for the Electron shell web update surface (ADR-006 S2). Task 07 owns the walk.
 
 PRD stories: US-029 (AC-1 available offer, AC-2 hidden by default, AC-4 keyboard activation; EC-4
-suppressed while an operation runs). Test ids: UT-049–UT-052, E2E-021, E2E-022.
+suppressed while an operation runs). Test ids: UT-049–UT-052 own the state matrix in `menubar-update-indicator.test.tsx`; combined E2E-021 / E2E-022 in `os-shell.spec.ts` owns pointer/keyboard navigation and apply.
 
 Branches to walk:
 

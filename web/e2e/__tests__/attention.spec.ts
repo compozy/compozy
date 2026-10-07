@@ -94,10 +94,16 @@ test.beforeEach(async ({ appPage: page, runtime }) => {
 });
 
 test.describe("E2E-009 attention bell", () => {
-  test("Should separate Needs you from Finished and count only needs-you", async ({
+  test("Should separate Needs you from Finished, count only needs-you, and acknowledge durably", async ({
     appPage: page,
     runtime,
+    browserArtifacts,
   }) => {
+    await page.locator(bell.trigger).click();
+    await expect(page.getByTestId(bell.empty)).toContainText("All quiet");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId(bell.popover)).toBeHidden();
+
     const workspace = await globalWorkspace(runtime);
     const failed = await createFailedSession(runtime, workspace);
     const done = await createDoneSession(runtime, workspace);
@@ -112,17 +118,7 @@ test.describe("E2E-009 attention bell", () => {
 
     await expect(page.locator(bell.trigger)).toHaveAccessibleName("Attention, 1 waiting");
     await expect(page.locator(`${bell.trigger} [data-slot="pill"]`)).toHaveText("1");
-  });
 
-  test("Should acknowledge a notification durably without changing its failed session", async ({
-    appPage: page,
-    runtime,
-    browserArtifacts,
-  }) => {
-    const workspace = await globalWorkspace(runtime);
-    const failed = await createFailedSession(runtime, workspace);
-    await page.locator(bell.trigger).click();
-    const popover = page.getByTestId(bell.popover);
     const row = popover.getByTestId(`os-attention-session-${failed.id}`);
     await expect(row).toBeVisible();
     await row
@@ -155,13 +151,6 @@ test.describe("E2E-009 attention bell", () => {
     await expect(page.getByTestId(bell.popover)).toBeHidden();
     await expect(sessionWindow(page, failed.id)).toBeVisible();
     await expect(page.locator('[data-slot="os-menubar-workspace"]')).toContainText(workspace.name);
-  });
-
-  test("Should render the quiet state rather than a blank popover at zero", async ({
-    appPage: page,
-  }) => {
-    await page.locator(bell.trigger).click();
-    await expect(page.getByTestId(bell.empty)).toContainText("All quiet");
   });
 
   test("Should state that a disconnected source is frozen and uncounted", async ({
@@ -244,27 +233,20 @@ test.describe("E2E-011 coalesced completions", () => {
 });
 
 test.describe("E2E-012 tab title count", () => {
-  test("Should carry the cross-workspace needs-you total and clear at zero", async ({
+  test("Should carry the cross-workspace needs-you total across navigation and clear at zero", async ({
     appPage: page,
     runtime,
   }) => {
     const workspace = await createWorkspace(runtime, "attention-title");
     await createFailedSession(runtime, workspace);
     await expect(page).toHaveTitle(/^\(1\) /);
+    const before = await page.title();
+    await page.goto(runtime.url("/settings/attention"));
+    await expect(page).toHaveTitle(before);
 
     await page.locator(bell.trigger).click();
     await page.getByTestId(bell.popover).getByRole("button", { name: "Clear all" }).click();
     await expect(page).not.toHaveTitle(/^\(/);
-  });
-
-  test("Should survive route navigation", async ({ appPage: page, runtime }) => {
-    const workspace = await globalWorkspace(runtime);
-    await createFailedSession(runtime, workspace);
-    await expect(page).toHaveTitle(/^\(1\) /);
-    const before = await page.title();
-
-    await page.goto(runtime.url("/settings/attention"));
-    await expect(page).toHaveTitle(before);
   });
 });
 
@@ -326,7 +308,7 @@ test.describe("E2E-013 Settings → Attention", () => {
 });
 
 test.describe("E2E-014 All workspaces breadth", () => {
-  test("Should widen to every workspace, grouped and labelled", async ({
+  test("Should widen to every workspace, grouped and labelled, and persist breadth across reload", async ({
     appPage: page,
     runtime,
   }) => {
@@ -336,10 +318,28 @@ test.describe("E2E-014 All workspaces breadth", () => {
     await createSession(runtime, second, attentionAgent);
     await reloadShell(page);
 
-    const modal = await openSessionsModal(page);
+    let modal = await openSessionsModal(page);
     await modal.getByTestId("os-sessions-modal-scope").click();
     await expect(modal.getByTestId(`os-sessions-modal-workspace-${first.id}`)).toBeVisible();
     await expect(modal.getByTestId(`os-sessions-modal-workspace-${second.id}`)).toBeVisible();
+    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await reloadShell(page);
+
+    modal = await openSessionsModal(page);
+    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    // Narrow again so the daemon-persisted breadth returns to its default for
+    // the suites that follow.
+    await modal.getByTestId("os-sessions-modal-scope").click();
+    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
   });
 
   test("Should isolate a failing workspace instead of blanking the list", async ({
@@ -361,39 +361,16 @@ test.describe("E2E-014 All workspaces breadth", () => {
     ).toBeVisible();
     await expect(modal.getByTestId(`os-sessions-modal-workspace-${healthy.id}`)).toBeVisible();
   });
-
-  test("Should persist the breadth across a reload", async ({ appPage: page }) => {
-    let modal = await openSessionsModal(page);
-    await modal.getByTestId("os-sessions-modal-scope").click();
-    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    await reloadShell(page);
-
-    modal = await openSessionsModal(page);
-    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    // Narrow again so the daemon-persisted breadth returns to its default for
-    // the suites that follow.
-    await modal.getByTestId("os-sessions-modal-scope").click();
-    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
-      "aria-pressed",
-      "false"
-    );
-  });
 });
 
 test.describe("E2E-015 sidebar badges and sort", () => {
-  test("Should render each badge with a distinct glyph and an accessible label", async ({
+  test("Should label badges accessibly and float needs-you sessions when attention-first is chosen", async ({
     appPage: page,
     runtime,
   }) => {
     const workspace = await globalWorkspace(runtime);
-    const failed = await createFailedSession(runtime, workspace);
     const done = await createDoneSession(runtime, workspace);
+    const failed = await createFailedSession(runtime, workspace);
 
     const modal = await openSessionsModal(page);
     await expect(
@@ -402,17 +379,6 @@ test.describe("E2E-015 sidebar badges and sort", () => {
     await expect(
       modal.getByTestId(`os-sessions-modal-session-${done.id}`).getByRole("img")
     ).toHaveAttribute("aria-label", "Session badge: done");
-  });
-
-  test("Should float needs-you sessions when attention-first is chosen", async ({
-    appPage: page,
-    runtime,
-  }) => {
-    const workspace = await globalWorkspace(runtime);
-    const done = await createDoneSession(runtime, workspace);
-    const failed = await createFailedSession(runtime, workspace);
-
-    const modal = await openSessionsModal(page);
     await modal.getByTestId("os-sessions-modal-sort-trigger").click();
     await page.getByTestId("os-sessions-modal-sort-attention").click();
 
