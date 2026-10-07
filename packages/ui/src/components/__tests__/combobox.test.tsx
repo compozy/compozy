@@ -118,6 +118,9 @@ describe("Combobox", () => {
     await waitFor(() => expect(within(document.body).getByText("Albuquerque")).toBeInTheDocument());
     await user.click(within(document.body).getByText("Albuquerque"));
     await waitFor(() => expect(changes.at(-1)?.map(c => c.value)).toEqual(["albuquerque"]));
+    await waitFor(() => {
+      expect(document.querySelectorAll("[data-slot=combobox-chip]")).toHaveLength(1);
+    });
     await user.click(input);
     await user.click(within(document.body).getByText("Berlin"));
     await waitFor(() =>
@@ -128,10 +131,7 @@ describe("Combobox", () => {
           .sort()
       ).toEqual(["albuquerque", "berlin"])
     );
-    await waitFor(() => {
-      const chip = document.querySelector("[data-slot=combobox-chip]");
-      expect(chip).not.toBeNull();
-    });
+    expect(document.querySelectorAll("[data-slot=combobox-chip]")).toHaveLength(2);
   });
 
   it("Should render the input trigger button through the combobox trigger primitive", async () => {

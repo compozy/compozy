@@ -666,7 +666,7 @@ jobs:
           CI: "true"
 
       - name: Upload desktop E2E artifacts
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: e2e-desktop-nightly-artifacts
