@@ -33,6 +33,8 @@ import (
 )
 
 func TestNewHonorsOptionsAndDefaults(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	engine := gin.New()
 	startedAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
@@ -131,6 +133,8 @@ func TestNewWithHomePathsRealignsDefaultConfig(t *testing.T) {
 }
 
 func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 
 	if _, err := New(WithHomePaths(homePaths), WithObserver(stubObserver{})); err == nil {
@@ -269,6 +273,8 @@ func TestNewRejectsResourceAuthWithoutResourceService(t *testing.T) {
 }
 
 func TestServerStartAndShutdownServeRequests(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
@@ -348,6 +354,8 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 }
 
 func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
@@ -1237,6 +1245,8 @@ func decodeServerJSON(t *testing.T, resp *http.Response, dest any) {
 }
 
 func TestServerStartReportsListenFailure(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	port := freeTCPPort(t)
 	cfg := testConfigForTest(homePaths)

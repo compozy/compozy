@@ -32,6 +32,8 @@ type bufferFlusher struct {
 func (bufferFlusher) Flush() {}
 
 func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	callCount := 0
@@ -93,6 +95,8 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 }
 
 func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		StatusFn: func(context.Context, string) (*session.Info, error) {
@@ -183,6 +187,8 @@ func TestStreamSessionHandlerEmitsTerminalErrorWhenTranscriptInitializationFails
 }
 
 func TestStreamLogsPollsForNewEvents(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	callCount := 0
@@ -341,6 +347,8 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 }
 
 func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	doneOnce := sync.OnceFunc(func() { close(done) })

@@ -1612,6 +1612,8 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 }
 
 func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -1649,6 +1651,8 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 }
 
 func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -1676,6 +1680,8 @@ func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 }
 
 func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -1704,6 +1710,8 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 }
 
 func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	infoA := newSessionInfo("sess-a")
 	infoB := newSessionInfo("sess-b")
@@ -1747,6 +1755,8 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 }
 
 func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	addDir := filepath.Join(t.TempDir(), "shared")
@@ -1801,6 +1811,8 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 }
 
 func TestListWorkspacesHandlerReturnsRegisteredRows(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	workspaces := stubWorkspaceService{
@@ -1933,6 +1945,8 @@ func TestRuntimeIdentityHandlerStaysIndependentFromRuntimeAggregation(t *testing
 }
 
 func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	sharedSkillDir := filepath.Join(rootDir, ".compozy", "skills", "marketing", "brief")
@@ -2037,6 +2051,8 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 }
 
 func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	addDir := filepath.Join(t.TempDir(), "shared")
@@ -2096,6 +2112,8 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 }
 
 func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	workspaces := stubWorkspaceService{
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
@@ -2123,6 +2141,8 @@ func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 }
 
 func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	workspaces := stubWorkspaceService{
@@ -2192,6 +2212,8 @@ func TestDeleteSessionHandlerReturnsNoContent(t *testing.T) {
 }
 
 func TestStopSessionHandlerReturnsStopped(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		StopFn: func(_ context.Context, id string) error {
@@ -2214,6 +2236,8 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 }
 
 func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	var gotOpts session.SendPromptOpts
 	manager := stubSessionManager{
@@ -3167,6 +3191,8 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 }
 
 func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ShouldCancelDeliveryOnlyAfterRequestCancellation", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		executionCtxCh := make(chan context.Context, 1)
@@ -3235,6 +3261,8 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 }
 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CancelPromptFn: func(_ context.Context, id string) (session.PromptCancelResult, error) {
@@ -3268,6 +3296,8 @@ func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 }
 
 func TestSessionEventsAndHistoryHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	var gotQuery store.EventQuery
 	manager := stubSessionManager{
@@ -3420,6 +3450,8 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 }
 
 func TestListAgentsAndHealthHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	writeAgentDef(t, homePaths, "coder")
 
@@ -3464,6 +3496,8 @@ func TestListAgentsAndHealthHandlers(t *testing.T) {
 }
 
 func TestListLogsAndApproveHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -3510,6 +3544,8 @@ func TestListLogsAndApproveHandlers(t *testing.T) {
 }
 
 func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 
 	t.Run("Should missing decision", func(t *testing.T) {
@@ -3640,6 +3676,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 }
 
 func TestErrorResponsesUseConsistentShape(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -3698,6 +3736,8 @@ func TestRequestLoggingClientIdentity(t *testing.T) {
 }
 
 func TestCORSHeadersPresentOnResponses(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {

@@ -263,23 +263,18 @@ func TestPutResourceHandlerMapsResourceErrors(t *testing.T) {
 		},
 	}
 
+	// Error projection is read-only; serial cases reuse the router and home.
+	var putErr error
+	engine := newTestRouter(t, newTestHandlersWithResources(
+		t, stubSessionManager{}, stubObserver{}, stubResourceService{
+			PutFn: func(context.Context, resources.RawDraft) (resources.RawRecord, error) {
+				return resources.RawRecord{}, putErr
+			},
+		}, newTestHomePaths(t),
+	))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			homePaths := newTestHomePaths(t)
-			engine := newTestRouter(
-				t,
-				newTestHandlersWithResources(
-					t,
-					stubSessionManager{},
-					stubObserver{},
-					stubResourceService{
-						PutFn: func(context.Context, resources.RawDraft) (resources.RawRecord, error) {
-							return resources.RawRecord{}, tt.err
-						},
-					},
-					homePaths,
-				),
-			)
+			putErr = tt.err
 
 			resp := performRequest(
 				t,

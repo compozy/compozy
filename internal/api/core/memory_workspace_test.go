@@ -34,12 +34,43 @@ import (
 func TestMemoryHandlersAndHelpers(t *testing.T) {
 	t.Parallel()
 
+	// API behavior owns this suite; each case keeps its own database and files,
+	// while the empty catalog schema is migrated once before parallel cases start.
+	templateDir := t.TempDir()
+	templatePath := filepath.Join(templateDir, "compozy.db")
+	templateStore := memory.NewStore(
+		filepath.Join(templateDir, "memory"),
+		memory.WithCatalogDatabasePath(templatePath),
+	)
+	if err := templateStore.OpenCatalog(t.Context()); err != nil {
+		t.Fatalf("OpenCatalog(template) error = %v", err)
+	}
+	// CloseCatalog checkpoints the WAL before closing, making the database file
+	// a complete, immutable source for independent copies.
+	if err := templateStore.CloseCatalog(t.Context()); err != nil {
+		t.Fatalf("CloseCatalog(template) error = %v", err)
+	}
+	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("ReadFile(template catalog) error = %v", err)
+	}
+	catalogPath := func(t *testing.T, path string) string {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatalf("MkdirAll(catalog directory) error = %v", err)
+		}
+		if err := os.WriteFile(path, template, 0o600); err != nil {
+			t.Fatalf("WriteFile(catalog copy) error = %v", err)
+		}
+		return path
+	}
+
 	setup := func(t *testing.T) (handlerFixture, string, *stubDreamTrigger) {
 		t.Helper()
 
 		store := memory.NewStore(
 			filepath.Join(t.TempDir(), "memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
+			memory.WithCatalogDatabasePath(catalogPath(t, filepath.Join(t.TempDir(), "compozy.db"))),
 		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -106,7 +137,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		homePaths := testutil.NewTestHomePaths(t)
 		memoryStore := memory.NewStore(
 			homePaths.MemoryDir,
-			memory.WithCatalogDatabasePath(homePaths.DatabaseFile),
+			memory.WithCatalogDatabasePath(catalogPath(t, homePaths.DatabaseFile)),
 		)
 		openCoreTestMemoryCatalog(t, memoryStore)
 		marketingStore := memoryStore.ForProfile(
@@ -340,7 +371,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		globalDir := filepath.Join(t.TempDir(), "memory")
 		store := memory.NewStore(
 			globalDir,
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
+			memory.WithCatalogDatabasePath(catalogPath(t, filepath.Join(t.TempDir(), "compozy.db"))),
 		)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -388,7 +419,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 		store := memory.NewStore(
 			filepath.Join(baseDir, "global-memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
+			memory.WithCatalogDatabasePath(catalogPath(t, filepath.Join(baseDir, "compozy.db"))),
 		)
 		openCoreTestMemoryCatalog(t, store)
 		base := store.ForWorkspace(workspaceRoot)
@@ -722,16 +753,22 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, workspace, _ := setup(t)
 		workspaceStore := fixture.Handlers.MemoryStore.ForWorkspace(workspace)
+		// This API contract counts beyond the prompt scan cap. Populate source
+		// documents in bulk, then build the real catalog once for the health read.
 		for idx := range 205 {
 			filename := fmt.Sprintf("health-%03d.md", idx)
-			if err := workspaceStore.Write(
-				t.Context(),
-				memcontract.ScopeWorkspace,
-				filename,
+			if err := os.WriteFile(
+				filepath.Join(workspace, compozyconfig.DirName, compozyconfig.MemoryDirName, filename),
 				[]byte(memoryDocument(t, fmt.Sprintf("Health %03d", idx), memcontract.TypeReference, "health count")),
+				0o600,
 			); err != nil {
-				t.Fatalf("Write(%q) error = %v", filename, err)
+				t.Fatalf("WriteFile(%q) error = %v", filename, err)
 			}
+		}
+		if _, err := workspaceStore.Reindex(t.Context(), memcontract.ReindexOptions{
+			Scope: memcontract.ScopeWorkspace, Workspace: workspace,
+		}); err != nil {
+			t.Fatalf("Reindex(workspace health fixture) error = %v", err)
 		}
 		query := url.Values{}
 		query.Set("workspace_id", workspace)
@@ -829,7 +866,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		workspace := filepath.Join(baseDir, "workspace")
 		store := memory.NewStore(
 			filepath.Join(baseDir, "global"),
-			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
+			memory.WithCatalogDatabasePath(catalogPath(t, filepath.Join(baseDir, "compozy.db"))),
 		).ForWorkspace(workspace)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
@@ -882,7 +919,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		workspace := filepath.Join(baseDir, "workspace")
 		store := memory.NewStore(
 			filepath.Join(baseDir, "global"),
-			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
+			memory.WithCatalogDatabasePath(catalogPath(t, filepath.Join(baseDir, "compozy.db"))),
 		).ForWorkspace(workspace)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
@@ -1116,7 +1153,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		store := memory.NewStore(
 			filepath.Join(t.TempDir(), "memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
+			memory.WithCatalogDatabasePath(catalogPath(t, filepath.Join(t.TempDir(), "compozy.db"))),
 		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -1256,7 +1293,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		store := memory.NewStore(
 			filepath.Join(t.TempDir(), "memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
+			memory.WithCatalogDatabasePath(catalogPath(t, filepath.Join(t.TempDir(), "compozy.db"))),
 		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
