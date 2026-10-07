@@ -90,7 +90,13 @@ func TestE2EACPHelperProcess(t *testing.T) {
 func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	t.Parallel()
 
-	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
+	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{
+		Workspace: WorkspaceSeedOptions{
+			Files: map[string]string{
+				"README.md": "shared harness workspace",
+			},
+		},
+	})
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	migrationExpectations := runtimeMigrationExpectations(ctx, t, harness.HomePaths.DatabaseFile)
@@ -173,6 +179,81 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	if got, want := loopTool.Tool.Descriptor.ToolID, toolspkg.ToolIDLoopStatus; got != want {
 		t.Fatalf("loop tool descriptor ID = %q, want %q", got, want)
 	}
+
+	// These checks share this daemon and must complete before the shutdown assertions.
+	t.Run("Should resolve the seeded workspace through the public surface", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+
+		if harness.WorkspaceID == "" {
+			t.Fatal("harness.WorkspaceID = empty, want resolved workspace id")
+		}
+
+		workspace, err := harness.GetWorkspace(ctx, harness.WorkspaceID)
+		if err != nil {
+			t.Fatalf("GetWorkspace(%q) error = %v", harness.WorkspaceID, err)
+		}
+		if got, want := workspace.RootDir, harness.WorkspaceRoot; got != want {
+			t.Fatalf("workspace.RootDir = %q, want %q", got, want)
+		}
+		if got, want := workspace.ID, harness.WorkspaceID; got != want {
+			t.Fatalf("workspace.ID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should capture CLI status in the runtime manifest", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+
+		stdout, stderr, err := harness.CLI.Run(ctx, "status", "-o", "json")
+		if err != nil {
+			t.Fatalf("CLI.Run(runtime status) error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+		}
+
+		var cliStatus compozycontract.StatusPayload
+		if err := json.Unmarshal([]byte(stdout), &cliStatus); err != nil {
+			t.Fatalf("json.Unmarshal(cli status) error = %v; stdout=%s", err, strings.TrimSpace(stdout))
+		}
+		if got, want := cliStatus.Daemon.Socket, harness.Config.Daemon.Socket; got != want {
+			t.Fatalf("cliStatus.Daemon.Socket = %q, want %q", got, want)
+		}
+		if got, want := cliStatus.Daemon.HTTPPort, harness.Config.HTTP.Port; got != want {
+			t.Fatalf("cliStatus.Daemon.HTTPPort = %d, want %d", got, want)
+		}
+
+		outputPath, err := harness.CaptureCLIOutput(
+			"runtime status",
+			[]string{"status", "-o", "json"},
+			stdout,
+			stderr,
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("CaptureCLIOutput() error = %v", err)
+		}
+		outputBytes, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", outputPath, err)
+		}
+		if !strings.Contains(string(outputBytes), `"transport": "cli"`) {
+			t.Fatalf("CLI output artifact = %s, want CLI transport record", string(outputBytes))
+		}
+
+		manifestBytes, err := os.ReadFile(harness.RuntimeManifestPath())
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", harness.RuntimeManifestPath(), err)
+		}
+		var manifest RuntimeArtifactManifest
+		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+			t.Fatalf("json.Unmarshal(runtime manifest) error = %v", err)
+		}
+		if got, want := manifest.Transport.SocketPath, harness.Config.Daemon.Socket; got != want {
+			t.Fatalf("manifest.Transport.SocketPath = %q, want %q", got, want)
+		}
+		if !runtimeManifestHasArtifact(manifest.CapturedArtifacts, ArtifactKindTransportOutputs, "transport_outputs") {
+			t.Fatalf("manifest.CapturedArtifacts = %#v, want transport_outputs entry", manifest.CapturedArtifacts.Artifacts)
+		}
+	})
 
 	if err := harness.Stop(ctx); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -398,36 +479,6 @@ func TestStartRuntimeHarnessRetriesHTTPPortConflicts(t *testing.T) {
 	}
 }
 
-func TestStartRuntimeHarnessResolvesSeededWorkspaceThroughPublicSurface(t *testing.T) {
-	t.Parallel()
-
-	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{
-		Workspace: WorkspaceSeedOptions{
-			Files: map[string]string{
-				"README.md": "shared harness workspace",
-			},
-		},
-	})
-
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-
-	if harness.WorkspaceID == "" {
-		t.Fatal("harness.WorkspaceID = empty, want resolved workspace id")
-	}
-
-	workspace, err := harness.GetWorkspace(ctx, harness.WorkspaceID)
-	if err != nil {
-		t.Fatalf("GetWorkspace(%q) error = %v", harness.WorkspaceID, err)
-	}
-	if got, want := workspace.RootDir, harness.WorkspaceRoot; got != want {
-		t.Fatalf("workspace.RootDir = %q, want %q", got, want)
-	}
-	if got, want := workspace.ID, harness.WorkspaceID; got != want {
-		t.Fatalf("workspace.ID = %q, want %q", got, want)
-	}
-}
-
 func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 	t.Parallel()
 
@@ -538,61 +589,6 @@ func TestStartRuntimeHarnessRepeatedCyclesLeaveNoStaleDaemonArtifacts(t *testing
 		if _, err := os.Stat(harness.Config.Daemon.Socket); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("cycle %d socket stat error = %v, want os.ErrNotExist", cycle, err)
 		}
-	}
-}
-
-func TestStartRuntimeHarnessCLIStatusCanBeCapturedInRuntimeManifest(t *testing.T) {
-	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-
-	stdout, stderr, err := harness.CLI.Run(ctx, "status", "-o", "json")
-	if err != nil {
-		t.Fatalf("CLI.Run(runtime status) error = %v; stderr=%s", err, strings.TrimSpace(stderr))
-	}
-
-	var cliStatus compozycontract.StatusPayload
-	if err := json.Unmarshal([]byte(stdout), &cliStatus); err != nil {
-		t.Fatalf("json.Unmarshal(cli status) error = %v; stdout=%s", err, strings.TrimSpace(stdout))
-	}
-	if got, want := cliStatus.Daemon.Socket, harness.Config.Daemon.Socket; got != want {
-		t.Fatalf("cliStatus.Daemon.Socket = %q, want %q", got, want)
-	}
-	if got, want := cliStatus.Daemon.HTTPPort, harness.Config.HTTP.Port; got != want {
-		t.Fatalf("cliStatus.Daemon.HTTPPort = %d, want %d", got, want)
-	}
-
-	outputPath, err := harness.CaptureCLIOutput(
-		"runtime status",
-		[]string{"status", "-o", "json"},
-		stdout,
-		stderr,
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("CaptureCLIOutput() error = %v", err)
-	}
-	outputBytes, err := os.ReadFile(outputPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", outputPath, err)
-	}
-	if !strings.Contains(string(outputBytes), `"transport": "cli"`) {
-		t.Fatalf("CLI output artifact = %s, want CLI transport record", string(outputBytes))
-	}
-
-	manifestBytes, err := os.ReadFile(harness.RuntimeManifestPath())
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", harness.RuntimeManifestPath(), err)
-	}
-	var manifest RuntimeArtifactManifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		t.Fatalf("json.Unmarshal(runtime manifest) error = %v", err)
-	}
-	if got, want := manifest.Transport.SocketPath, harness.Config.Daemon.Socket; got != want {
-		t.Fatalf("manifest.Transport.SocketPath = %q, want %q", got, want)
-	}
-	if !runtimeManifestHasArtifact(manifest.CapturedArtifacts, ArtifactKindTransportOutputs, "transport_outputs") {
-		t.Fatalf("manifest.CapturedArtifacts = %#v, want transport_outputs entry", manifest.CapturedArtifacts.Artifacts)
 	}
 }
 

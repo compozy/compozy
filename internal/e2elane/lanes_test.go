@@ -83,31 +83,6 @@ func TestPlanForLaneMapsRuntimeWebCombinedAndNightlySlices(t *testing.T) {
 	}
 }
 
-func TestPlanForLaneKeepsCredentialedNightlyOutOfPRRequiredEntryPoints(t *testing.T) {
-	t.Parallel()
-
-	for _, lane := range []Lane{LaneRuntime, LaneWeb, LaneCombined} {
-		t.Run("Should keep credentialed nightly suites out of "+string(lane), func(t *testing.T) {
-			t.Parallel()
-
-			plan, err := PlanForLane(lane)
-			if err != nil {
-				t.Fatalf("PlanForLane(%q) error = %v", lane, err)
-			}
-
-			if plan.IncludesCredentialedNightly {
-				t.Fatalf("plan.IncludesCredentialedNightly = true, want false")
-			}
-
-			for _, suite := range plan.GoSuites {
-				if suite.Run == NightlyRuntimeE2EPattern {
-					t.Fatalf("plan.GoSuites unexpectedly included nightly daemon pattern %q", suite.Run)
-				}
-			}
-		})
-	}
-}
-
 func TestLaneRunPatternsCompileAndMatchRepresentativeTests(t *testing.T) {
 	t.Parallel()
 

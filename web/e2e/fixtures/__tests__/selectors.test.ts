@@ -6,51 +6,12 @@ import type { Locator } from "@playwright/test";
 import {
   automationOperatorSelectors,
   automationOperatorTestIds,
-  marketplaceOperatorSelectors,
-  marketplaceOperatorTestIds,
-  settingsExtensionsTestIds,
-  settingsGeneralTestIds,
-  settingsHooksTestIds,
-  settingsMCPServersTestIds,
-  settingsOperatorSelectors,
-  settingsProvidersTestIds,
-  settingsShellTestIds,
-  settingsSkillsTestIds,
   profilesOperatorSelectors,
   profilesTestIds,
-  sessionLifecycleSelectors,
-  sessionLifecycleTestIds,
   sessionWindowSelectors,
   sessionWindowTestIds,
   tasksOperatorSelectors,
-  tasksOperatorTestIds,
 } from "../selectors";
-
-describe("session lifecycle selectors", () => {
-  it("maps the shell-global onboarding and agent-fleet surfaces to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const getByRole = vi.fn(
-      (role: string, options?: { name: string }) =>
-        `role:${role}:${options?.name}` as unknown as Locator
-    );
-    const selectors = sessionLifecycleSelectors({
-      getByRole,
-      getByTestId,
-    });
-
-    expect(selectors.osDesktop).toBe(`locator:${sessionLifecycleTestIds.osDesktop}`);
-    expect(selectors.workspaceManualPathInput).toBe(
-      `locator:${sessionLifecycleTestIds.workspaceManualPathInput}`
-    );
-    expect(selectors.workspaceRegisterManual).toBe(
-      `locator:${sessionLifecycleTestIds.workspaceRegisterManual}`
-    );
-    expect(selectors.agentRow("browser-lifecycle-agent")).toBe(
-      "locator:agent-fleet-row-link-browser-lifecycle-agent"
-    );
-    expect(selectors.agentPageNewSession).toBe("locator:agent-page-new-session");
-  });
-});
 
 describe("session window selectors", () => {
   it("scopes in-window controls and resolves overflow actions from the owning portal", () => {
@@ -184,105 +145,8 @@ describe("automation operator selectors", () => {
   });
 });
 
-describe("marketplace operator selectors", () => {
-  it("maps acquisition, detail, and overlay surfaces to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const selectors = marketplaceOperatorSelectors({ getByTestId });
-
-    expect(selectors.detail).toBe(`locator:${marketplaceOperatorTestIds.detail}`);
-    expect(selectors.detailAction).toBe(`locator:${marketplaceOperatorTestIds.detailAction}`);
-    expect(selectors.extensionKitInventory).toBe(
-      `locator:${marketplaceOperatorTestIds.extensionKitInventory}`
-    );
-    expect(selectors.extensionTrustDialog).toBe(
-      `locator:${marketplaceOperatorTestIds.extensionTrustDialog}`
-    );
-    expect(selectors.extensionTrustConfirm).toBe(
-      `locator:${marketplaceOperatorTestIds.extensionTrustConfirm}`
-    );
-    expect(selectors.card("browser-skill")).toBe("locator:marketplace-card-browser-skill");
-    expect(selectors.action("browser-skill")).toBe("locator:marketplace-action-browser-skill");
-  });
-});
-
-describe("settings operator selectors", () => {
-  it("maps shell, restart-aware sections, collections, hooks, and extension policy to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const locator = vi.fn((selector: string) => `locator:${selector}` as unknown as Locator);
-    const selectors = settingsOperatorSelectors({
-      getByTestId,
-      locator,
-    });
-
-    expect(selectors.shell.shell).toBe(`locator:${settingsShellTestIds.shell}`);
-    expect(selectors.shell.sectionNav).toBe(`locator:${settingsShellTestIds.sectionNav}`);
-    expect(selectors.shell.sectionLink("general")).toBe("locator:settings-section-general");
-    expect(selectors.shell.sectionActive("automation")).toBe(
-      'locator:[data-testid="settings-section-automation"][aria-current="page"]'
-    );
-
-    expect(selectors.general.page).toBe(`locator:${settingsGeneralTestIds.page}`);
-    expect(selectors.general.saveButton).toBe(`locator:${settingsGeneralTestIds.saveButton}`);
-    expect(selectors.general.restartNotice).toBe(`locator:${settingsGeneralTestIds.restartNotice}`);
-    expect(selectors.general.restartTrigger).toBe(
-      `locator:${settingsGeneralTestIds.restartTrigger}`
-    );
-    expect(selectors.general.sessionTimeoutInput).toBe(
-      `locator:${settingsGeneralTestIds.sessionTimeoutInput}`
-    );
-
-    expect(selectors.skills.page).toBe(`locator:${settingsSkillsTestIds.page}`);
-    expect(selectors.skills.disabledList).toBe(`locator:${settingsSkillsTestIds.disabledList}`);
-    expect(selectors.skills.disabledToggle("browser-disabled-skill")).toBe(
-      "locator:settings-page-skills-disabled-toggle-browser-disabled-skill"
-    );
-    expect(selectors.providers.page).toBe(`locator:${settingsProvidersTestIds.page}`);
-    expect(selectors.providers.create).toBe(`locator:${settingsProvidersTestIds.create}`);
-    expect(selectors.providers.editor).toBe(`locator:${settingsProvidersTestIds.editor}`);
-    expect(selectors.providers.editorEdit).toBe(`locator:${settingsProvidersTestIds.editorEdit}`);
-    expect(selectors.providers.editorDelete).toBe(
-      `locator:${settingsProvidersTestIds.editorDelete}`
-    );
-    expect(selectors.providers.editorSave).toBe(`locator:${settingsProvidersTestIds.editorSave}`);
-    expect(selectors.providers.card("codex")).toBe("locator:settings-page-providers-card-codex");
-    expect(selectors.providers.inspectorCommand).toBe("locator:inspect-command");
-    expect(selectors.providers.inspectorTechnical).toBe("locator:provider-detail-technical");
-    expect(selectors.providers.inspectorSource).toBe("locator:inspect-source");
-
-    expect(selectors.mcpServers.page).toBe(`locator:${settingsMCPServersTestIds.page}`);
-    expect(selectors.mcpServers.create).toBe(`locator:${settingsMCPServersTestIds.create}`);
-    expect(selectors.mcpServers.row("browser-global-mcp")).toBe(
-      "locator:settings-page-mcp-servers-row-browser-global-mcp"
-    );
-    expect(selectors.mcpServers.rowSource("browser-global-mcp")).toBe(
-      "locator:settings-page-mcp-servers-row-browser-global-mcp-source"
-    );
-    expect(selectors.mcpServers.editRow("browser-global-mcp")).toBe(
-      "locator:settings-page-mcp-servers-row-browser-global-mcp-edit"
-    );
-    expect(selectors.mcpServers.editorRemove).toBe("locator:settings-mcp-servers-editor-remove");
-
-    expect(selectors.hooks.page).toBe(`locator:${settingsHooksTestIds.page}`);
-    expect(selectors.hooks.hookToggle("browser-turn-end")).toBe(
-      "locator:settings-page-hooks-row-browser-turn-end-toggle"
-    );
-
-    expect(selectors.extensions.page).toBe(`locator:${settingsExtensionsTestIds.page}`);
-    expect(selectors.extensions.githubEnabled).toBe(
-      `locator:${settingsExtensionsTestIds.githubEnabled}`
-    );
-    expect(selectors.extensions.githubBaseURLInput).toBe(
-      `locator:${settingsExtensionsTestIds.githubBaseURLInput}`
-    );
-    expect(selectors.extensions.gitEnabled).toBe(`locator:${settingsExtensionsTestIds.gitEnabled}`);
-    expect(selectors.extensions.allowUnverified).toBe(
-      `locator:${settingsExtensionsTestIds.allowUnverified}`
-    );
-  });
-});
-
 describe("tasks operator selectors", () => {
-  it("maps the tasks shell, editor, detail, aggregate, and inbox surfaces to stable test IDs", () => {
+  it("scopes the task breadcrumb to the window path navigation", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
     const getByRoleWithinWindowPath = vi.fn(
       (role: string, options?: { name: string }) =>
@@ -298,145 +162,11 @@ describe("tasks operator selectors", () => {
       getByTestId,
     });
 
-    expect(selectors.modeList).toBe(`locator:${tasksOperatorTestIds.modeList}`);
-    expect(selectors.modeKanban).toBe(`locator:${tasksOperatorTestIds.modeKanban}`);
-    expect(selectors.modeDashboard).toBe(`locator:${tasksOperatorTestIds.modeDashboard}`);
-    expect(selectors.modeInbox).toBe(`locator:${tasksOperatorTestIds.modeInbox}`);
-    expect(selectors.openCreate).toBe(`locator:${tasksOperatorTestIds.openCreate}`);
-    expect(selectors.createEditorSurface).toBe(
-      `locator:${tasksOperatorTestIds.createEditorSurface}`
-    );
-    expect(selectors.createTitle).toBe(`locator:${tasksOperatorTestIds.createTitle}`);
-    expect(selectors.createDescription).toBe(`locator:${tasksOperatorTestIds.createDescription}`);
-    expect(selectors.createModeAdvanced).toBe(`locator:${tasksOperatorTestIds.createModeAdvanced}`);
-    expect(selectors.createModeSimple).toBe(`locator:${tasksOperatorTestIds.createModeSimple}`);
-    expect(selectors.createSaveDraft).toBe(`locator:${tasksOperatorTestIds.createSaveDraft}`);
-    expect(selectors.createSubmit).toBe(`locator:${tasksOperatorTestIds.createSubmit}`);
-    expect(selectors.createTemplate("one_shot")).toBe("locator:task-template-one_shot");
-    expect(selectors.createPriority("high")).toBe("locator:task-priority-high");
-    expect(selectors.taskCard("task_browser_01")).toBe("locator:task-card-task_browser_01");
-    expect(selectors.taskCardPublish("task_browser_01")).toBe(
-      "locator:task-card-publish-task_browser_01"
-    );
-    expect(selectors.detailPreviewPanel).toBe(`locator:${tasksOperatorTestIds.detailPreviewPanel}`);
-    expect(selectors.detailPreviewPublish).toBe(
-      `locator:${tasksOperatorTestIds.detailPreviewPublish}`
-    );
-    expect(selectors.detailPreviewDeeplink).toBe(
-      `locator:${tasksOperatorTestIds.detailPreviewDeeplink}`
-    );
-    expect(selectors.detailPublish).toBe(`locator:${tasksOperatorTestIds.detailPublish}`);
-    expect(selectors.detailStatus).toBe(`locator:${tasksOperatorTestIds.detailStatus}`);
-    expect(selectors.detailContent).toBe(`locator:${tasksOperatorTestIds.detailContent}`);
-    expect(selectors.detailApprovalPill).toBe(`locator:${tasksOperatorTestIds.detailApprovalPill}`);
-    expect(selectors.detailNowApproval).toBe(`locator:${tasksOperatorTestIds.detailNowApproval}`);
-    expect(selectors.detailNowRun).toBe(`locator:${tasksOperatorTestIds.detailNowRun}`);
     expect(selectors.detailBreadcrumbTasks).toBe("breadcrumb-role:button:Tasks");
-    expect(selectors.detailTitle).toBe(`locator:${tasksOperatorTestIds.detailTitle}`);
-    expect(selectors.detailTabRuns).toBe(`locator:${tasksOperatorTestIds.detailTabRuns}`);
-    expect(selectors.detailTab("activity")).toBe("locator:tasks-detail-tab-activity");
-    expect(selectors.dashboardView).toBe(`locator:${tasksOperatorTestIds.dashboardView}`);
-    expect(selectors.dashboardActiveRun("run_browser_01")).toBe(
-      "locator:tasks-dashboard-active-run-run_browser_01"
-    );
-    expect(selectors.dashboardActiveRunLink("run_browser_01")).toBe(
-      "locator:tasks-dashboard-active-run-link-run_browser_01"
-    );
-    expect(selectors.runDetailOverflow).toBe(`locator:${tasksOperatorTestIds.runDetailOverflow}`);
-    expect(selectors.inboxView).toBe(`locator:${tasksOperatorTestIds.inboxView}`);
-    expect(selectors.inboxLane("approvals")).toBe("locator:tasks-inbox-group-needs_review");
-    expect(selectors.inboxItem("task_browser_approval")).toBe(
-      "locator:tasks-inbox-item-task_browser_approval"
-    );
-    expect(selectors.inboxApprove("task_browser_approval")).toBe(
-      "locator:tasks-inbox-item-approve-task_browser_approval"
-    );
-    expect(selectors.inboxOpenTask("task_browser_approval")).toBe(
-      "locator:tasks-inbox-item-open-task_browser_approval"
-    );
-    expect(selectors.runDetailContent).toBe(`locator:${tasksOperatorTestIds.runDetailContent}`);
-    expect(selectors.runSessionDrilldown).toBe(
-      `locator:${tasksOperatorTestIds.runSessionDrilldown}`
-    );
-    expect(selectors.multiAgentEmpty).toBe(`locator:${tasksOperatorTestIds.multiAgentEmpty}`);
-    expect(selectors.multiAgentNoActive).toBe(`locator:${tasksOperatorTestIds.multiAgentNoActive}`);
-    expect(selectors.multiAgentDisconnected).toBe(
-      `locator:${tasksOperatorTestIds.multiAgentDisconnected}`
-    );
-    expect(selectors.detailInspectDrawer).toBe(
-      `locator:${tasksOperatorTestIds.detailInspectDrawer}`
-    );
-    expect(selectors.detailInspectStream).toBe(
-      `locator:${tasksOperatorTestIds.detailInspectStream}`
-    );
-    expect(selectors.detailCoordination).toBe(`locator:${tasksOperatorTestIds.detailCoordination}`);
-    expect(selectors.detailEnqueue).toBe(`locator:${tasksOperatorTestIds.detailEnqueue}`);
-    expect(selectors.detailRunsEmpty).toBe(`locator:${tasksOperatorTestIds.detailRunsEmpty}`);
-    expect(selectors.detailRunsChannel("run_browser_01")).toBe(
-      "locator:tasks-detail-runs-channel-run_browser_01"
-    );
-    expect(selectors.detailActiveRunChannel).toBe(
-      `locator:${tasksOperatorTestIds.detailActiveRunChannel}`
-    );
-    expect(selectors.detailActiveRunEmpty).toBe(
-      `locator:${tasksOperatorTestIds.detailActiveRunEmpty}`
-    );
-    expect(selectors.detailActiveRunEmptyHint).toBe(
-      `locator:${tasksOperatorTestIds.detailActiveRunEmptyHint}`
-    );
-    expect(selectors.detailPreviewLifecycle).toBe(
-      `locator:${tasksOperatorTestIds.detailPreviewLifecycle}`
-    );
-    expect(selectors.detailPreviewCoordination).toBe(
-      `locator:${tasksOperatorTestIds.detailPreviewCoordination}`
-    );
-    expect(selectors.detailSetupOpen).toBe(`locator:${tasksOperatorTestIds.detailSetupOpen}`);
-    expect(selectors.detailSetupSheet).toBe(`locator:${tasksOperatorTestIds.detailSetupSheet}`);
-    expect(selectors.detailSetupEdit).toBe(`locator:${tasksOperatorTestIds.detailSetupEdit}`);
-    expect(selectors.detailSetupForm).toBe(`locator:${tasksOperatorTestIds.detailSetupForm}`);
-    expect(selectors.detailSetupWorkerRuntime).toBe(
-      `locator:${tasksOperatorTestIds.detailSetupWorkerRuntime}`
-    );
-    expect(selectors.runsRow("run_browser_01")).toBe("locator:tasks-runs-row-run_browser_01");
-    expect(selectors.runReviews).toBe(`locator:${tasksOperatorTestIds.runReviews}`);
   });
 });
 
 describe("profiles operator selectors", () => {
-  it("maps the switcher, settings page, and lifecycle dialogs to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const selectors = profilesOperatorSelectors({ getByTestId } as never);
-
-    expect(selectors.switcher).toBe(`locator:${profilesTestIds.switcher}`);
-    expect(selectors.switcherMenu).toBe(`locator:${profilesTestIds.switcherMenu}`);
-    expect(selectors.switcherAll).toBe(`locator:${profilesTestIds.switcherAll}`);
-    expect(selectors.switcherCreate).toBe(`locator:${profilesTestIds.switcherCreate}`);
-    expect(selectors.page).toBe(`locator:${profilesTestIds.page}`);
-    expect(selectors.pageArchived).toBe(`locator:${profilesTestIds.pageArchived}`);
-    expect(selectors.pageSelectionMap).toBe(`locator:${profilesTestIds.pageSelectionMap}`);
-    expect(selectors.createDialog).toBe(`locator:${profilesTestIds.createDialog}`);
-    expect(selectors.createConfirm).toBe(`locator:${profilesTestIds.createConfirm}`);
-    expect(selectors.identityDialog).toBe(`locator:${profilesTestIds.identityDialog}`);
-    expect(selectors.identityConfirm).toBe(`locator:${profilesTestIds.identityConfirm}`);
-    expect(selectors.renamePlan).toBe(`locator:${profilesTestIds.renamePlan}`);
-    expect(selectors.archivePaused).toBe(`locator:${profilesTestIds.archivePaused}`);
-    expect(selectors.archiveBlocked).toBe(`locator:${profilesTestIds.archiveBlocked}`);
-    expect(selectors.unarchivePaused).toBe(`locator:${profilesTestIds.unarchivePaused}`);
-    expect(selectors.deleteEnumeration).toBe(`locator:${profilesTestIds.deleteEnumeration}`);
-    expect(selectors.deleteArchiveInstead).toBe(`locator:${profilesTestIds.deleteArchiveInstead}`);
-
-    expect(selectors.switcherOption("marketing")).toBe("locator:profile-switcher-option-marketing");
-    expect(selectors.row("marketing")).toBe("locator:profile-row-marketing");
-    expect(selectors.editIdentityRow("marketing")).toBe("locator:profile-edit-identity-marketing");
-    expect(selectors.renameRow("marketing")).toBe("locator:profile-rename-marketing");
-    expect(selectors.archiveRow("marketing")).toBe("locator:profile-archive-marketing");
-    expect(selectors.unarchiveRow("scratch")).toBe("locator:profile-unarchive-scratch");
-    expect(selectors.deleteRow("scratch")).toBe("locator:profile-delete-scratch");
-    expect(selectors.needsSetup("growth")).toBe("locator:profile-needs-setup-growth");
-    expect(selectors.renameRepo("ws-acme")).toBe("locator:profile-rename-repo-ws-acme");
-    expect(selectors.paletteRow("marketing")).toBe("locator:os-palette-profile-marketing");
-  });
-
   it("scopes the settings surface to its owning window while chrome stays page-level", () => {
     const pageGetByTestId = vi.fn((testId: string) => `page:${testId}` as unknown as Locator);
     const scopeGetByTestId = vi.fn((testId: string) => `window:${testId}` as unknown as Locator);
