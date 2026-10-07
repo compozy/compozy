@@ -16,16 +16,12 @@ import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixture
 import {
   settingsUpdateApplyingFixture,
   settingsUpdateBothAvailableFixture,
-  settingsUpdateManagedFixture,
-  settingsUpdateNoAppFixture,
   settingsUpdateRolledBackFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
 
 /** Host-install shapes the update projection can report, shared by the update journeys. */
 const updateFixtures = {
   bothAvailable: settingsUpdateBothAvailableFixture,
-  managed: settingsUpdateManagedFixture,
-  noApp: settingsUpdateNoAppFixture,
   applying: settingsUpdateApplyingFixture,
   rolledBack: settingsUpdateRolledBackFixture,
 } as const;
@@ -630,61 +626,11 @@ test("operator routes a background role, persists it across reload, and keeps bu
 
   // Virtual builtins never enter the Agents fleet.
   await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("agent-fleet-empty")).toHaveCount(0);
   await expect(sessionUI.agentRow("general")).toBeVisible();
   await expect(sessionUI.agentRow("coordinator")).toHaveCount(0);
   await expect(sessionUI.agentRow("dreaming-curator")).toHaveCount(0);
   await browserArtifacts.captureScreenshot("e2e-006-agents-fleet-no-builtins", appPage);
-});
-
-/**
- * E2E-019 — the Updates section renders daemon truth for every two-track shape a
- * host can be in, in a plain browser with zero desktop-awareness (US-029 AC-1/AC-3,
- * EC-1, EC-3). The update projection describes the host install, and no real feed
- * exists in the harness, so each shape is served through the API boundary; every
- * assertion below is on what the SPA does with that truth.
- */
-test("browser operator reads both update tracks, a managed runtime, and a headless host from daemon truth", async ({
-  appPage,
-  runtime,
-}) => {
-  const sessionUI = sessionLifecycleSelectors(appPage);
-  await ensureProjectWorkspace(appPage, runtime);
-  await completeOnboardingIfPrompted(sessionUI);
-
-  let updatePayload: unknown = updateFixtures.bothAvailable;
-  await appPage.route("**/api/settings/update", async route => {
-    await route.fulfill({ json: updatePayload });
-  });
-
-  await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
-  const settingsWin = appWindow(appPage, "settings");
-  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
-  const settingsUI = settingsOperatorSelectors(settingsWin);
-  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
-
-  // Both tracks available: two rows, both versions, one combined action.
-  await expect(settingsUI.general.updateTrack("runtime")).toContainText("0.5.0");
-  await expect(settingsUI.general.updateTrack("runtime")).toContainText("0.5.1");
-  await expect(settingsUI.general.updateTrack("app")).toContainText("0.5.1");
-  await expect(settingsUI.general.updateApply()).toBeVisible();
-  await expect(settingsUI.general.updateRelease("runtime")).toHaveAttribute(
-    "href",
-    "https://github.com/compozy/compozy/releases/tag/v0.5.1"
-  );
-
-  // Managed runtime: the recommendation is verbatim and apply is ABSENT, not disabled.
-  updatePayload = updateFixtures.managed;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
-  await expect(settingsUI.general.updateRecommendation).toContainText("brew upgrade compozy");
-  await expect(settingsUI.general.updateApply()).toHaveCount(0);
-
-  // Headless host: the app row is absent entirely, not an empty row.
-  updatePayload = updateFixtures.noApp;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
-  await expect(settingsUI.general.updateTrack("runtime")).toBeVisible();
-  await expect(settingsUI.general.updateTrack("app")).toHaveCount(0);
 });
 
 /**

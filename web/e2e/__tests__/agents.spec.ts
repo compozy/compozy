@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { appWindow, openAppWindow } from "../fixtures/os-navigation";
+import { openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -25,22 +25,6 @@ test.use({ viewport: { width: 1440, height: 900 } });
 
 test.beforeEach(async ({ appPage, runtime }) => {
   await ensureProjectWorkspace(appPage, runtime);
-});
-
-test("agent navigation renders the managed default agent after first-run setup", async ({
-  appPage,
-  runtime,
-}) => {
-  const ui = sessionLifecycleSelectors(appPage);
-
-  await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(ui);
-
-  const agentsWin = appWindow(appPage, "agents");
-  await expect(agentsWin).toBeVisible();
-  const fleet = sessionLifecycleSelectors(agentsWin);
-  await expect(agentsWin.getByTestId("agent-fleet-empty")).toHaveCount(0);
-  await expect(fleet.agentRow("general")).toBeVisible();
 });
 
 test.describe("seeded agent detail", () => {
