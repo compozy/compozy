@@ -64,7 +64,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		})
 		sess := newPromptSkillsSession("sess-refresh")
 
-		first, err := augmenter(context.Background(), sess, "list current skills")
+		first, err := augmenter(t.Context(), sess, "list current skills")
 		if err != nil {
 			t.Fatalf("augmenter(first) error = %v", err)
 		}
@@ -89,7 +89,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			},
 		}
 
-		second, err := augmenter(context.Background(), sess, "list current skills")
+		second, err := augmenter(t.Context(), sess, "list current skills")
 		if err != nil {
 			t.Fatalf("augmenter(second) error = %v, want live refresh", err)
 		}
@@ -129,7 +129,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		sess := newPromptSkillsSession("sess-resume")
 		sess.ACPSessionID = "acp-1"
 
-		first, err := augmenter(context.Background(), sess, "list current skills")
+		first, err := augmenter(t.Context(), sess, "list current skills")
 		if err != nil {
 			t.Fatalf("augmenter(first) error = %v", err)
 		}
@@ -137,7 +137,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			t.Fatalf("first prompt = %q, want enabled skill entry", first)
 		}
 
-		second, err := augmenter(context.Background(), sess, "list current skills again")
+		second, err := augmenter(t.Context(), sess, "list current skills again")
 		if err != nil {
 			t.Fatalf("augmenter(second) error = %v", err)
 		}
@@ -146,7 +146,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		}
 
 		sess.ACPSessionID = "acp-2"
-		third, err := augmenter(context.Background(), sess, "list current skills after resume")
+		third, err := augmenter(t.Context(), sess, "list current skills after resume")
 		if err != nil {
 			t.Fatalf("augmenter(third) error = %v", err)
 		}
@@ -206,7 +206,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		}
 		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
 			ProfileID: "profile-work",
-			Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/tmp/ws-1"},
+			ID:        "ws-1", RootDir: "/tmp/ws-1",
 		}}
 		augmenter := newSkillsCatalogAugmenter(
 			registry, nil, func() promptSkillsWorkspaceResolver { return resolver }, nil,
@@ -423,7 +423,7 @@ func TestSkillsCatalogAugmenterFiltersBeforeCatalogSignature(t *testing.T) {
 			},
 		}}
 		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-filter", RootDir: t.TempDir()},
+			ID: "ws-filter", RootDir: t.TempDir(),
 		}}
 		augmenter := newSkillsCatalogAugmenterState(
 			registry, nil, func() promptSkillsWorkspaceResolver { return resolver }, nil,
@@ -492,7 +492,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 			},
 		}
 		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: "/workspace"},
+			ID: "ws-command", RootDir: "/workspace",
 		}}
 		service := newSessionCommandService(
 			registry, nil, func() promptSkillsWorkspaceResolver { return resolver }, nil,
@@ -691,7 +691,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 			nameErr: fmt.Errorf("%w: %q", skillspkg.ErrAgentNotFound, "reviewer"),
 		}
 		workspaceResolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-extension", RootDir: "/workspace"},
+			ID: "ws-extension", RootDir: "/workspace",
 		}}
 		service := newSessionCommandService(
 			registry,
@@ -738,7 +738,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		}
 		resolverCalled := false
 		workspaceResolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-authored", RootDir: "/workspace"},
+			ID: "ws-authored", RootDir: "/workspace",
 		}}
 		service := newSessionCommandService(
 			registry,
@@ -772,7 +772,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		registry := &stubSessionCommandSkills{nameErr: skillspkg.ErrAgentNotFound}
 		resolverErr := errors.New("catalog unavailable")
 		workspaceResolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-extension", RootDir: "/workspace"},
+			ID: "ws-extension", RootDir: "/workspace",
 		}}
 		service := newSessionCommandService(
 			registry,
@@ -805,7 +805,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 			nameErr: skillspkg.ErrAgentNotFound,
 		}
 		workspaceResolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-extension", RootDir: "/workspace"},
+			ID: "ws-extension", RootDir: "/workspace",
 		}}
 		var resolver session.AgentResolver
 		service := newSessionCommandService(
@@ -912,11 +912,11 @@ func BenchmarkSkillsCatalogAugmenterCatalogReplayModes(b *testing.B) {
 	_ = registry
 	sess := newPromptSkillsSession("sess-bench")
 
-	full, err := augmenter(context.Background(), sess, "network note")
+	full, err := augmenter(b.Context(), sess, "network note")
 	if err != nil {
 		b.Fatalf("augmenter(full) error = %v", err)
 	}
-	compact, err := augmenter(context.Background(), sess, "network note")
+	compact, err := augmenter(b.Context(), sess, "network note")
 	if err != nil {
 		b.Fatalf("augmenter(compact) error = %v", err)
 	}
@@ -926,7 +926,7 @@ func BenchmarkSkillsCatalogAugmenterCatalogReplayModes(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		if _, err := augmenter(context.Background(), sess, "network note"); err != nil {
+		if _, err := augmenter(b.Context(), sess, "network note"); err != nil {
 			b.Fatalf("augmenter(repeated) error = %v", err)
 		}
 	}
@@ -951,10 +951,8 @@ func newPromptSkillsAugmenterForTest(
 	}
 	resolver := &stubPromptSkillsWorkspaceResolver{
 		resolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{
-				ID:      "ws-1",
-				RootDir: "/tmp/ws-1",
-			},
+			ID:      "ws-1",
+			RootDir: "/tmp/ws-1",
 		},
 	}
 	augmenter := newSkillsCatalogAugmenter(registry, nil, func() promptSkillsWorkspaceResolver {

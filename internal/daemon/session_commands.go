@@ -176,7 +176,7 @@ func (s *sessionCommandService) commandSkillCandidates(
 	}
 	hasAgentSnapshot := strings.TrimSpace(agent.Name) != ""
 	agent.Name = firstTrimmed(agent.Name, info.AgentName)
-	candidates, candidateErr := resolveSessionAgentProjection(sessionAgentProjection[[]skillspkg.CommandCandidate]{
+	candidates, candidateErr := (sessionAgentProjection[[]skillspkg.CommandCandidate]{
 		agent:                 agent,
 		hasConcreteDefinition: hasAgentSnapshot,
 		workspace:             workspace,
@@ -187,7 +187,7 @@ func (s *sessionCommandService) commandSkillCandidates(
 		byDefinition: func(resolvedAgent compozyconfig.AgentDef) ([]skillspkg.CommandCandidate, error) {
 			return s.registry.CommandCandidatesForAgentDefSession(ctx, workspace, resolvedAgent, info.ID)
 		},
-	})
+	}).resolve()
 	if candidateErr != nil {
 		return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
 	}

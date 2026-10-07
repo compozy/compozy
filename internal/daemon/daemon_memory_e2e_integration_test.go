@@ -471,7 +471,7 @@ func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
 			t.Fatal("MockAgentRegistration(memory-extractor-live-apply) = missing, want present")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		var roles compozycontract.SettingsRolesResponse
@@ -550,7 +550,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndNoncanonicalPathIsolation(t *test
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	noncanonicalPath := filepath.Join(harness.WorkspaceRoot, ".retired", "memory", "noncanonical-only.md")
@@ -869,7 +869,7 @@ func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
 		t.Fatal("MockAgentRegistration(memory-batch-reader) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	createBoundFixtureBackedSession(t, ctx, harness, "memory-batch-writer", "memory-batch-writer-session")
@@ -999,7 +999,7 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 		t.Fatal("MockAgentRegistration(memory-recall-agent) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
 	writeMemoryViaUDS(
@@ -1122,7 +1122,7 @@ func runDaemonE2EDreamRoleRoutesBuiltinIdentityAndModel(t *testing.T) {
 		},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	seedDreamEligibility(t, ctx, harness, "session-driver", diagnosticsPath)
 	triggerDreamEventually(t, ctx, harness, diagnosticsPath)
@@ -1188,7 +1188,7 @@ enabled = false
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	seedDreamEligibility(t, ctx, harness, "workspace-curator", diagnosticsPath)
 	triggerDreamEventually(t, ctx, harness, diagnosticsPath)

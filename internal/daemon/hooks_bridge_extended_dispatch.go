@@ -13,9 +13,7 @@ func (n *hooksNotifier) DispatchSpawnPreCreate(
 	ctx context.Context,
 	payload hookspkg.SpawnPreCreatePayload,
 ) (hookspkg.SpawnPreCreatePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSpawnPreCreate,
 		payload,
 		hookRuntime.DispatchSpawnPreCreate,
@@ -26,9 +24,7 @@ func (n *hooksNotifier) DispatchSpawnCreated(
 	ctx context.Context,
 	payload hookspkg.SpawnCreatedPayload,
 ) (hookspkg.SpawnCreatedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSpawnCreated,
 		payload,
 		hookRuntime.DispatchSpawnCreated,
@@ -39,9 +35,7 @@ func (n *hooksNotifier) DispatchSpawnParentStopped(
 	ctx context.Context,
 	payload hookspkg.SpawnParentStoppedPayload,
 ) (hookspkg.SpawnParentStoppedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSpawnParentStopped,
 		payload,
 		hookRuntime.DispatchSpawnParentStopped,
@@ -52,9 +46,7 @@ func (n *hooksNotifier) DispatchSpawnTTLExpired(
 	ctx context.Context,
 	payload hookspkg.SpawnTTLExpiredPayload,
 ) (hookspkg.SpawnTTLExpiredPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSpawnTTLExpired,
 		payload,
 		hookRuntime.DispatchSpawnTTLExpired,
@@ -65,9 +57,7 @@ func (n *hooksNotifier) DispatchSpawnReaped(
 	ctx context.Context,
 	payload hookspkg.SpawnReapedPayload,
 ) (hookspkg.SpawnReapedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSpawnReaped,
 		payload,
 		hookRuntime.DispatchSpawnReaped,
@@ -78,9 +68,7 @@ func (n *hooksNotifier) DispatchAgentSoulSnapshotResolved(
 	ctx context.Context,
 	payload hookspkg.AgentSoulSnapshotResolvedPayload,
 ) (hookspkg.AgentSoulSnapshotResolvedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAgentSoulSnapshotResolved,
 		payload,
 		hookRuntime.DispatchAgentSoulSnapshotResolved,
@@ -91,9 +79,7 @@ func (n *hooksNotifier) DispatchAgentSoulMutationAfter(
 	ctx context.Context,
 	payload hookspkg.AgentSoulMutationAfterPayload,
 ) (hookspkg.AgentSoulMutationAfterPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAgentSoulMutationAfter,
 		payload,
 		hookRuntime.DispatchAgentSoulMutationAfter,
@@ -104,9 +90,7 @@ func (n *hooksNotifier) DispatchAgentHeartbeatPolicyResolved(
 	ctx context.Context,
 	payload hookspkg.AgentHeartbeatPolicyResolvedPayload,
 ) (hookspkg.AgentHeartbeatPolicyResolvedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAgentHeartbeatPolicyResolved,
 		payload,
 		hookRuntime.DispatchAgentHeartbeatPolicyResolved,
@@ -117,9 +101,7 @@ func (n *hooksNotifier) DispatchAgentHeartbeatWakeBefore(
 	ctx context.Context,
 	payload hookspkg.AgentHeartbeatWakeBeforePayload,
 ) (hookspkg.AgentHeartbeatWakeBeforePayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAgentHeartbeatWakeBefore,
 		payload,
 		hookRuntime.DispatchAgentHeartbeatWakeBefore,
@@ -130,9 +112,7 @@ func (n *hooksNotifier) DispatchAgentHeartbeatWakeAfter(
 	ctx context.Context,
 	payload hookspkg.AgentHeartbeatWakeAfterPayload,
 ) (hookspkg.AgentHeartbeatWakeAfterPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookAgentHeartbeatWakeAfter,
 		payload,
 		hookRuntime.DispatchAgentHeartbeatWakeAfter,
@@ -143,9 +123,7 @@ func (n *hooksNotifier) DispatchSessionHealthUpdateAfter(
 	ctx context.Context,
 	payload hookspkg.SessionHealthUpdateAfterPayload,
 ) (hookspkg.SessionHealthUpdateAfterPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSessionHealthUpdateAfter,
 		payload,
 		hookRuntime.DispatchSessionHealthUpdateAfter,
@@ -156,9 +134,7 @@ func (n *hooksNotifier) DispatchSessionAttentionChanged(
 	ctx context.Context,
 	payload hookspkg.SessionAttentionChangedPayload,
 ) (hookspkg.SessionAttentionChangedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
+	return n.dispatchRuntime(ctx,
 		hookspkg.HookSessionAttentionChanged,
 		payload,
 		hookRuntime.DispatchSessionAttentionChanged,

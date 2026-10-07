@@ -72,7 +72,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 			{
 				name: "Should reject an empty registration id",
 				resolver: &daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{RootDir: t.TempDir()},
+					RootDir:     t.TempDir(),
 					WorkspaceID: "workspace-identity",
 				}},
 				message:     "has no registered runtime id: daemon: resolved workspace registry id is empty",
@@ -143,7 +143,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "workspace-registration", RootDir: root},
+				ID: "workspace-registration", RootDir: root,
 				WorkspaceID: "workspace-identity",
 			},
 		}
@@ -209,7 +209,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "workspace-registration", RootDir: root},
+				ID: "workspace-registration", RootDir: root,
 				WorkspaceID: "workspace-identity",
 			},
 		}
@@ -281,7 +281,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: root},
+				ID: "ws-1", RootDir: root,
 				WorkspaceID: "ws-1",
 			},
 		}
@@ -330,7 +330,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+				ID: "ws-1", RootDir: workspaceRoot,
 				WorkspaceID: "ws-1",
 			},
 		}
@@ -379,7 +379,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: root},
+				ID: "ws-1", RootDir: root,
 				WorkspaceID: "ws-1",
 			},
 		}
@@ -438,7 +438,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: root},
+				ID: "ws-1", RootDir: root,
 				WorkspaceID: "ws-1",
 			},
 		}
@@ -483,7 +483,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: root},
+				ID: "ws-1", RootDir: root,
 				WorkspaceID: "ws-1",
 			},
 		}
@@ -528,7 +528,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: root},
+				ID: "ws-1", RootDir: root,
 				WorkspaceID: "ws-1",
 			},
 		}

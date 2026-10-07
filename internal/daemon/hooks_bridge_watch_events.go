@@ -136,9 +136,7 @@ func dispatchTaskStatusChangedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskStatusChangedPayload,
 ) (hookspkg.TaskStatusChangedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookTaskStatusChanged,
 		payload,
 		hookRuntime.DispatchTaskStatusChanged,
@@ -171,7 +169,7 @@ func dispatchTaskBlockedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskBlockedPayload,
 ) (hookspkg.TaskBlockedPayload, error) {
-	result, err := dispatchRuntime(ctx, notifier, hookspkg.HookTaskBlocked, payload, hookRuntime.DispatchTaskBlocked)
+	result, err := notifier.dispatchRuntime(ctx, hookspkg.HookTaskBlocked, payload, hookRuntime.DispatchTaskBlocked)
 	notifier.notifyTaskBlockedObservers(ctx, result)
 	return result, err
 }
@@ -181,9 +179,7 @@ func dispatchTaskUnblockedWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskUnblockedPayload,
 ) (hookspkg.TaskUnblockedPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookTaskUnblocked,
 		payload,
 		hookRuntime.DispatchTaskUnblocked,
@@ -197,9 +193,7 @@ func dispatchTaskNeedsAttentionWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskNeedsAttentionPayload,
 ) (hookspkg.TaskNeedsAttentionPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookTaskNeedsAttention,
 		payload,
 		hookRuntime.DispatchTaskNeedsAttention,
@@ -213,9 +207,7 @@ func dispatchTaskRecoveredWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.TaskRecoveredPayload,
 ) (hookspkg.TaskRecoveredPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookTaskRecovered,
 		payload,
 		hookRuntime.DispatchTaskRecovered,
@@ -312,9 +304,7 @@ func dispatchLoopNodeTerminalWithWatchObservers(
 	notifier *hooksNotifier,
 	payload hookspkg.LoopNodeTerminalPayload,
 ) (hookspkg.LoopNodeTerminalPayload, error) {
-	result, err := dispatchRuntime(
-		ctx,
-		notifier,
+	result, err := notifier.dispatchRuntime(ctx,
 		hookspkg.HookLoopNodeTerminal,
 		payload,
 		hookRuntime.DispatchLoopNodeTerminal,

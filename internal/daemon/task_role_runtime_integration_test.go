@@ -77,7 +77,7 @@ func TestTaskRoleRuntimeWorktreeReuseIntegrationIT030(t *testing.T) {
 		activate := func(run task.Run) {
 			t.Helper()
 			runtime.OnTaskRunEnqueued(ctx, hooks.TaskRunEnqueuedPayload{
-				TaskRunContext: hooks.TaskRunContext{TaskID: run.TaskID, RunID: run.ID},
+				TaskID: run.TaskID, RunID: run.ID,
 			})
 			runtime.wg.Wait()
 		}

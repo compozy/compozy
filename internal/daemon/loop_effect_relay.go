@@ -247,8 +247,8 @@ func (r *loopEffectRelay) effectToolError(
 		ack.Code = loopEffectApprovalCode
 	default:
 		ack.Code = "effect_tool_failed"
-		var toolErr *toolspkg.ToolError
-		if errors.As(err, &toolErr) && toolErr.Code != "" {
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if ok && toolErr.Code != "" {
 			ack.Code = string(toolErr.Code)
 		}
 	}

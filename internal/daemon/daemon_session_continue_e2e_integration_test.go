@@ -53,7 +53,7 @@ func runDaemonE2ESessionContinueStaleSourceCLI(t *testing.T) {
 			AgentName:    "auto-title-agent",
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
 	source := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "Migration cleanup")
@@ -107,7 +107,7 @@ func runDaemonE2ESessionContinueCLI(t *testing.T) {
 			AgentName:    "auto-title-agent",
 		}},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
 	source := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "Migration cleanup")
@@ -172,8 +172,8 @@ func assertCLIExitCode(
 ) {
 	t.Helper()
 	_, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, args...)
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != want || !strings.Contains(stderr, message) {
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exitErr.ExitCode() != want || !strings.Contains(stderr, message) {
 		t.Fatalf("%v: err = %v stderr = %q, want exit %d with %q", args, err, stderr, want, message)
 	}
 }
@@ -207,7 +207,7 @@ func runDaemonE2ESessionForkCLI(t *testing.T) {
 		}},
 		MockAgents: specs,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
 
 	fork := func(agent string, key string) compozycontract.SessionDeriveResponse {

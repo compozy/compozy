@@ -1117,12 +1117,10 @@ func newHarnessIntegrationWorkspace(
 	}
 
 	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      "ws-harness",
-			RootDir: root,
-			Name:    "workspace",
-		},
-		Config: cfg,
+		ID:      "ws-harness",
+		RootDir: root,
+		Name:    "workspace",
+		Config:  cfg,
 		Agents: []compozyconfig.AgentDef{
 			{
 				Name:     "coder",

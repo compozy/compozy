@@ -362,7 +362,7 @@ func TestHookAgentEventHelpersHandlePointerAndAliasInputs(t *testing.T) {
 	}
 
 	warnHookAgentDispatch(testutil.Context(t), nil, hookspkg.HookToolPreCall, nil)
-	warnHookAgentDispatch(context.Background(), nil, hookspkg.HookToolPreCall, context.DeadlineExceeded)
+	warnHookAgentDispatch(t.Context(), nil, hookspkg.HookToolPreCall, context.DeadlineExceeded)
 
 	eventTimestamp := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
 	if got := hookEventTimestamp(eventTimestamp, time.Time{}); !got.Equal(eventTimestamp) {

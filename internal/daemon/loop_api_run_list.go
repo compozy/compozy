@@ -1,11 +1,12 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -162,15 +163,12 @@ func applyLoopRunListSummary(payload *contract.LoopRunPayload, summary looppkg.R
 }
 
 func sortLoopRunList(runs []contract.LoopRunPayload) {
-	sort.SliceStable(runs, func(i, j int) bool {
-		left, right := loopRunListRank(&runs[i]), loopRunListRank(&runs[j])
-		if left != right {
-			return left < right
-		}
-		if !runs[i].CreatedAt.Equal(runs[j].CreatedAt) {
-			return runs[i].CreatedAt.After(runs[j].CreatedAt)
-		}
-		return runs[i].ID > runs[j].ID
+	slices.SortStableFunc(runs, func(a, b contract.LoopRunPayload) int {
+		return cmp.Or(
+			cmp.Compare(loopRunListRank(&a), loopRunListRank(&b)),
+			b.CreatedAt.Compare(a.CreatedAt),
+			strings.Compare(b.ID, a.ID),
+		)
 	})
 }
 

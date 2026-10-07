@@ -34,7 +34,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		runtime := newTaskRoleRuntimeForTest(t, store, &taskRoleRuntimeSessions{})
 
-		_, ok, err := runtime.activationForRun(context.Background(), taskRecord, run)
+		_, ok, err := runtime.activationForRun(t.Context(), taskRecord, run)
 		if err != nil {
 			t.Fatalf("activationForRun() error = %v", err)
 		}
@@ -53,7 +53,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
@@ -129,7 +129,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 
 		returned := make(chan struct{})
 		go func() {
-			runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 				TaskID: taskRecord.ID, RunID: run.ID,
 			})
 			close(returned)
@@ -146,7 +146,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 			t.Fatal("OnTaskRunEnqueued blocked on session provisioning")
 		}
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		if err := runtime.shutdown(shutdownCtx); err != nil {
 			t.Fatalf("shutdown() error = %v", err)
@@ -169,7 +169,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := newShutdownOrderingSessionManager()
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 
@@ -185,7 +185,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		var shutdownErrs []error
 		d.shutdownRuntimeWorkers(shutdownCtx, &shutdownTargets{
@@ -220,7 +220,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
@@ -255,10 +255,10 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			TaskID: firstTask.ID, RunID: firstRun.ID,
 		})
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			TaskID: secondTask.ID, RunID: secondRun.ID,
 		})
 		runtime.wg.Wait()
@@ -312,10 +312,10 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			TaskID: firstTask.ID, RunID: firstRun.ID,
 		})
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			TaskID: secondTask.ID, RunID: secondRun.ID,
 		})
 		runtime.wg.Wait()
@@ -406,7 +406,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		runtime.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			TaskID: taskRecord.ID, RunID: run.ID,
 		})
 		runtime.wg.Wait()
@@ -456,7 +456,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		sessions := &taskRoleRuntimeSessions{}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		runtime.Recover(context.Background())
+		runtime.Recover(t.Context())
 
 		if got, want := sessions.createCount(), 2; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
@@ -487,7 +487,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		resolverErr := errors.New("loop worker must not resolve a starvation agent")
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{workspaces: &fakeSpawnWorkspaceResolver{err: resolverErr}},
@@ -510,7 +510,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -576,7 +576,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		sessions := &taskRoleRuntimeSessions{promptErrors: []error{dispatchErr, nil}}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		err := runtime.activateForStarvation(context.Background(), taskRecord, run, starvationSpawner{})
+		err := runtime.activateForStarvation(t.Context(), taskRecord, run, starvationSpawner{})
 		if !errors.Is(err, dispatchErr) {
 			t.Fatalf("first activateForStarvation() error = %v, want %v", err, dispatchErr)
 		}
@@ -595,7 +595,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -624,7 +624,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
-		err := runtime.activateForStarvation(context.Background(), taskRecord, run, starvationSpawner{})
+		err := runtime.activateForStarvation(t.Context(), taskRecord, run, starvationSpawner{})
 		if !errors.Is(err, dispatchErr) {
 			t.Fatalf("activateForStarvation() error = %v, want prompt error %v", err, dispatchErr)
 		}
@@ -660,7 +660,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 				},
 			}
 
-			if err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner); err != nil {
+			if err := runtime.activateForStarvation(t.Context(), taskRecord, run, spawner); err != nil {
 				t.Fatalf("activateForStarvation() error = %v", err)
 			}
 			if got, want := sessions.createCount(), 1; got != want {
@@ -696,7 +696,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 				},
 			}
 
-			if err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner); err != nil {
+			if err := runtime.activateForStarvation(t.Context(), taskRecord, run, spawner); err != nil {
 				t.Fatalf("activateForStarvation() error = %v", err)
 			}
 			if got, want := sessions.createCount(), 1; got != want {
@@ -727,7 +727,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			agents: reviewRouterAgentResolverStub{"docs-agent": spawnAgentDef("docs-agent", "docs")},
 		}
 
-		err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner)
+		err := runtime.activateForStarvation(t.Context(), taskRecord, run, spawner)
 		if !errors.Is(err, errStarvationSpawnUnresolvable) {
 			t.Fatalf("activateForStarvation() error = %v, want errStarvationSpawnUnresolvable", err)
 		}
@@ -746,7 +746,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -755,7 +755,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		runtime.wg.Wait()
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -780,7 +780,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		firstRuntime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		if err := firstRuntime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -791,7 +791,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 
 		reconstructed := newTaskRoleRuntimeForTest(t, store, sessions)
 		if err := reconstructed.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -813,7 +813,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -822,7 +822,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		runtime.wg.Wait()
 		if err := sessions.StopWithCause(
-			context.Background(),
+			t.Context(),
 			"role-1",
 			session.CauseUserRequested,
 			"explicit replacement",
@@ -831,7 +831,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -840,7 +840,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		runtime.wg.Wait()
 		if err := runtime.activateForStarvation(
-			context.Background(),
+			t.Context(),
 			taskRecord,
 			run,
 			starvationSpawner{},
@@ -863,7 +863,7 @@ func TestEscalationActorAdapterRequestWorkerSpawn(t *testing.T) {
 		t.Parallel()
 
 		adapter := escalationActorAdapter{tasks: &taskRuntime{}}
-		err := adapter.RequestWorkerSpawn(context.Background(), &schedulerpkg.RunSnapshot{})
+		err := adapter.RequestWorkerSpawn(t.Context(), &schedulerpkg.RunSnapshot{})
 		if !errors.Is(err, schedulerpkg.ErrSpawnUnresolvable) {
 			t.Fatalf("RequestWorkerSpawn() error = %v, want %v", err, schedulerpkg.ErrSpawnUnresolvable)
 		}

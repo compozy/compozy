@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"context"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -97,7 +96,7 @@ func BenchmarkLoopWatchEventsObserverEventPostRecordDoorbell(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			if err := observer.OnEventPostRecord(context.Background(), payload); err != nil {
+			if err := observer.OnEventPostRecord(b.Context(), payload); err != nil {
 				b.Fatalf("OnEventPostRecord(unrelated) error = %v", err)
 			}
 		}
@@ -118,14 +117,14 @@ func BenchmarkLoopWatchEventsObserverEventPostRecordDoorbell(b *testing.B) {
 		))
 		observer := newLoopWatchEventsObserverForBenchmark(b, watchStore)
 		payload := watchEventsPostRecordPayloadForDoorbellTest()
-		if err := observer.OnEventPostRecord(context.Background(), payload); err != nil {
+		if err := observer.OnEventPostRecord(b.Context(), payload); err != nil {
 			b.Fatalf("OnEventPostRecord(warm cache) error = %v", err)
 		}
 
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			if err := observer.OnEventPostRecord(context.Background(), payload); err != nil {
+			if err := observer.OnEventPostRecord(b.Context(), payload); err != nil {
 				b.Fatalf("OnEventPostRecord(cached CEL) error = %v", err)
 			}
 		}
@@ -154,7 +153,7 @@ func BenchmarkLoopWatchEventsObserverWorkerTerminal(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		if err := observer.OnTaskRunTerminal(context.Background(), payload); err != nil {
+		if err := observer.OnTaskRunTerminal(b.Context(), payload); err != nil {
 			b.Fatalf("OnTaskRunTerminal(worker) error = %v", err)
 		}
 	}
@@ -190,7 +189,7 @@ func newLoopWatchEventsObserverForBenchmark(
 	if err != nil {
 		b.Fatalf("newLoopWatchEventsObserver() error = %v", err)
 	}
-	if err := observer.Hydrate(context.Background()); err != nil {
+	if err := observer.Hydrate(b.Context()); err != nil {
 		b.Fatalf("Hydrate() error = %v", err)
 	}
 	return observer

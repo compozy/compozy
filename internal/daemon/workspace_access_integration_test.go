@@ -277,12 +277,10 @@ func newWorkspaceAccessIntegrationSession(
 	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig("test-workspace-access-driver")
 	resolved := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      workspaceAccessIntegrationHome,
-			RootDir: root,
-			Name:    "workspace",
-		},
-		Config: cfg,
+		ID:      workspaceAccessIntegrationHome,
+		RootDir: root,
+		Name:    "workspace",
+		Config:  cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,

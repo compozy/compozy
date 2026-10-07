@@ -98,7 +98,7 @@ func runAutoTitleRoleSingleChainOwnerIntegration(t *testing.T) {
 		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	// The agent chain route A1 launches the working mock: had it run, the role's primary
 	// attempt would have been accepted on A1 with no role fallback at all.
@@ -238,7 +238,7 @@ func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
 		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	root := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "")
 	if _, err := harness.PromptSession(ctx, root.ID, "Implement checkout retry fencing"); err != nil {
@@ -289,7 +289,7 @@ func runAutoTitleRolePostAcceptanceFailureIntegration(t *testing.T) {
 		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	root := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "")
 	if _, err := harness.PromptSession(ctx, root.ID, "Implement post-acceptance fencing"); err != nil {
@@ -402,7 +402,7 @@ func runAutoTitleRoleFallbackIntegration(t *testing.T) {
 		}}
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	session := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "")
 	if _, err := harness.PromptSession(ctx, session.ID, "Implement checkout retry fencing"); err != nil {
@@ -454,7 +454,7 @@ func runAutoTitleRoleLiveToggleIntegration(t *testing.T) {
 		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	disabled := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "")
 	waitForRuntimeCondition(t, "disabled auto-title session active", 10*time.Second, func() bool {
@@ -565,7 +565,7 @@ func runAutoTitleRoleAccountRouteIntegration(t *testing.T) {
 	routeCommand := registration.Command
 	fingerprint := compozyconfig.CommandFingerprint(routeCommand)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	var settings compozycontract.SettingsRolesResponse
 	if err := harness.UDSJSON(ctx, http.MethodGet, "/api/settings/roles", nil, &settings); err != nil {
@@ -653,7 +653,7 @@ func runAutoTitleRoleAcceptedStartFailureIntegration(t *testing.T) {
 		t.Fatal("MockAgentRegistration(auto-title-agent) = missing, want present")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	root := createFixtureBackedSession(t, ctx, harness, "auto-title-agent", "")
 	if _, err := harness.PromptSession(ctx, root.ID, "Implement checkout retry fencing"); err != nil {

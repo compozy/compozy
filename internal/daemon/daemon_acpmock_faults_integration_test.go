@@ -52,7 +52,7 @@ func TestDaemonE2EACPmockTransportStorm(t *testing.T) {
 			}
 		}()
 		if _, err := harness.PromptSessionHTTP(ctx, created.ID, "flood transport"); err != nil {
-			diagnosticCtx, cancelDiagnostic := context.WithTimeout(context.Background(), 5*time.Second)
+			diagnosticCtx, cancelDiagnostic := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancelDiagnostic()
 			if captureErr := harness.CaptureSessionEvents(diagnosticCtx, created.ID); captureErr != nil {
 				t.Logf("capture stalled storm: %v", captureErr)
@@ -248,7 +248,7 @@ func TestDaemonE2EACPmockCrashMidStreamRecoversInterruptedTurn(t *testing.T) {
 			t.Parallel()
 
 			harness, session := startRecoverableFaultMockSession(t)
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 			defer cancel()
 
 			promptStarted := time.Now()
@@ -342,7 +342,7 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 		t.Parallel()
 
 		harness := startFaultyMockHarness(t)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		taskRecord := createFaultyProfiledTask(t, ctx, harness)
@@ -458,7 +458,7 @@ func TestDaemonE2EACPmockInvalidFrameProjectsRuntimeFailure(t *testing.T) {
 		t.Parallel()
 
 		harness, session := startFaultyMockSession(t)
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger invalid frame")
@@ -484,7 +484,7 @@ func TestDaemonE2EACPmockPermissionDisconnectProjectsRuntimeFailure(t *testing.T
 		t.Parallel()
 
 		harness, session := startFaultyMockSession(t)
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger permission disconnect")
@@ -516,7 +516,7 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 			cfg.Session.Supervision.StopGrace = 0
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		stream, err := harness.PromptSessionHTTPUntil(
@@ -602,7 +602,7 @@ func startFaultyMockSession(
 
 	harness := startFaultyMockHarness(t, mutateConfig...)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	session := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-session")
 	return harness, session
@@ -612,7 +612,7 @@ func startRecoverableFaultMockSession(t testing.TB) (*e2etest.RuntimeHarness, co
 	t.Helper()
 
 	harness := startFaultyMockHarness(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	session := createFixtureBackedSession(t, ctx, harness, recoverableMockAgentName, "recoverable-fault-session")
 	return harness, session

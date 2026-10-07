@@ -45,7 +45,7 @@ func TestLoopProjectorShouldBuildAndApplyCatalogSnapshot(t *testing.T) {
 				Spec:    testLoopSpec(t, "loop-a", looppkg.SourceUser),
 			},
 		}
-		plan, err := projector.Build(context.Background(), records)
+		plan, err := projector.Build(t.Context(), records)
 		if err != nil {
 			t.Fatalf("projector.Build() error = %v", err)
 		}
@@ -55,7 +55,7 @@ func TestLoopProjectorShouldBuildAndApplyCatalogSnapshot(t *testing.T) {
 		if got, want := plan.Revision(), int64(7); got != want {
 			t.Fatalf("plan.Revision() = %d, want %d", got, want)
 		}
-		if err := projector.Apply(context.Background(), plan); err != nil {
+		if err := projector.Apply(t.Context(), plan); err != nil {
 			t.Fatalf("projector.Apply() error = %v", err)
 		}
 		snapshot := catalog.Snapshot()
@@ -720,11 +720,11 @@ func TestLoopSourceSyncerShouldProjectAndDeleteManagedRecords(t *testing.T) {
 			},
 		)
 
-		if err := syncer.Sync(context.Background()); err != nil {
+		if err := syncer.Sync(t.Context()); err != nil {
 			t.Fatalf("Sync(first) error = %v", err)
 		}
 		records, err := store.List(
-			context.Background(),
+			t.Context(),
 			loopSyncActor(),
 			resources.ResourceFilter{Kind: looppkg.ResourceKind},
 		)
@@ -739,11 +739,11 @@ func TestLoopSourceSyncerShouldProjectAndDeleteManagedRecords(t *testing.T) {
 		}
 
 		providerItems = nil
-		if err := syncer.Sync(context.Background()); err != nil {
+		if err := syncer.Sync(t.Context()); err != nil {
 			t.Fatalf("Sync(second) error = %v", err)
 		}
 		records, err = store.List(
-			context.Background(),
+			t.Context(),
 			loopSyncActor(),
 			resources.ResourceFilter{Kind: looppkg.ResourceKind},
 		)
@@ -778,8 +778,8 @@ func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
 
 		entered := make(chan int, 2)
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		defer releaseOnce.Do(func() { close(release) })
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		defer releaseOnce()
 		wantErr := errors.New("stop after provider")
 		var calls atomic.Int32
 		syncer := newLoopSourceSyncer(
@@ -797,7 +797,7 @@ func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
 
 		firstDone := make(chan error, 1)
 		go func() {
-			firstDone <- syncer.Sync(context.Background())
+			firstDone <- syncer.Sync(t.Context())
 		}()
 		if call := <-entered; call != 1 {
 			t.Fatalf("first provider call = %d, want 1", call)
@@ -805,7 +805,7 @@ func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
 
 		secondDone := make(chan error, 1)
 		go func() {
-			secondDone <- syncer.Sync(context.Background())
+			secondDone <- syncer.Sync(t.Context())
 		}()
 		select {
 		case call := <-entered:
@@ -813,7 +813,7 @@ func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
 		case <-time.After(25 * time.Millisecond):
 		}
 
-		releaseOnce.Do(func() { close(release) })
+		releaseOnce()
 		if err := <-firstDone; !errors.Is(err, wantErr) {
 			t.Fatalf("first Sync() error = %v, want %v", err, wantErr)
 		}

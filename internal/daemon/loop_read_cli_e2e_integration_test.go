@@ -14,7 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -64,7 +64,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			},
 		},
 	})
-	setupCtx, setupCancel := context.WithTimeout(context.Background(), 45*time.Second)
+	setupCtx, setupCancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer setupCancel()
 	createLoopViaHTTP(t, setupCtx, harness, loopEventsDefinition())
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadRetryLoopName)
@@ -1299,9 +1299,8 @@ func runLoopWithHumanGate(
 	harness *e2etest.RuntimeHarness,
 ) compozycontract.LoopRunPayload {
 	t.Helper()
-	enabled := true
 	request := compozycontract.RunLoopRequest{
-		ConfigOverrides: &compozycontract.LoopConfig{HumanGateEnabled: &enabled},
+		ConfigOverrides: &compozycontract.LoopConfig{HumanGateEnabled: new(true)},
 	}
 	var response compozycontract.RunLoopResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
@@ -1471,7 +1470,7 @@ func assertSettledLoopTaskList(t testing.TB, raw string, runID string) {
 func timelineJSONLSequences(t testing.TB, raw string) []int64 {
 	t.Helper()
 	sequences := make([]int64, 0)
-	for _, line := range strings.Split(strings.TrimSpace(raw), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(raw), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -1494,8 +1493,8 @@ func assertTimelineResumeParity(
 	for index := range complete {
 		want[index] = complete[index].Seq
 	}
-	sort.Slice(combined, func(i, j int) bool { return combined[i] < combined[j] })
-	sort.Slice(want, func(i, j int) bool { return want[i] < want[j] })
+	slices.Sort(combined)
+	slices.Sort(want)
 	if len(combined) != len(want) {
 		t.Fatalf("resumed/complete sequence counts = %d/%d; got=%v want=%v", len(combined), len(want), combined, want)
 	}

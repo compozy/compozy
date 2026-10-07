@@ -40,7 +40,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		}
 
 		for _, runID := range []string{"run-loop-worker", "run-plain-worker", "run-coordinator"} {
-			dispatcher.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			dispatcher.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 				RunID: runID,
 			})
 		}
@@ -73,7 +73,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		if got := loops.runIDs(); len(got) != 0 {
 			t.Fatalf("loop observer run IDs after nil recovery = %#v, want empty", got)
 		}
-		dispatcher.Recover(context.Background())
+		dispatcher.Recover(t.Context())
 
 		if got, want := loops.runIDs(), []string{"run-loop-worker"}; !slices.Equal(got, want) {
 			t.Fatalf("loop observer run IDs = %#v, want %#v", got, want)
@@ -96,7 +96,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		state := &bootState{tasks: &taskRuntime{}}
 		state.tasks.activation.Store(dispatcher)
 
-		(loopGoalRunActivator{state: state}).ActivateGoalRun(context.Background(), run)
+		(loopGoalRunActivator{state: state}).ActivateGoalRun(t.Context(), run)
 
 		if got, want := loops.runIDs(), []string{"run-goal-successor"}; !slices.Equal(got, want) {
 			t.Fatalf("loop observer run IDs = %#v, want %#v", got, want)
@@ -116,7 +116,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		state := &bootState{tasks: &taskRuntime{}}
 		state.tasks.activation.Store(dispatcher)
 
-		(loopWorkerRunActivator{state: state}).ActivateWorkerRun(context.Background(), run)
+		(loopWorkerRunActivator{state: state}).ActivateWorkerRun(t.Context(), run)
 
 		if got, want := loops.runIDs(), []string{"run-requeue-worker"}; !slices.Equal(got, want) {
 			t.Fatalf("loop observer run IDs = %#v, want %#v", got, want)
@@ -135,7 +135,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 			{
 				name: "initial", runID: "run-goal-initial", epoch: 1,
 				activate: func(dispatcher *taskRunActivationDispatcher, run taskpkg.Run) {
-					dispatcher.OnTaskRunEnqueued(context.Background(), activationDispatchPayload(run))
+					dispatcher.OnTaskRunEnqueued(t.Context(), activationDispatchPayload(run))
 				},
 			},
 			{
@@ -143,13 +143,13 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 				activate: func(dispatcher *taskRunActivationDispatcher, run taskpkg.Run) {
 					state := &bootState{tasks: &taskRuntime{}}
 					state.tasks.activation.Store(dispatcher)
-					(loopGoalRunActivator{state: state}).ActivateGoalRun(context.Background(), run)
+					(loopGoalRunActivator{state: state}).ActivateGoalRun(t.Context(), run)
 				},
 			},
 			{
 				name: "boot recovered", runID: "run-goal-recovered", epoch: 3,
 				activate: func(dispatcher *taskRunActivationDispatcher, _ taskpkg.Run) {
-					dispatcher.Recover(context.Background())
+					dispatcher.Recover(t.Context())
 				},
 			},
 		}
@@ -176,7 +176,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 					payload.LoopRunID != run.LoopRunID || payload.RunID != run.ID {
 					t.Fatalf("Goal activation payload = %#v", payload)
 				}
-				persisted, err := store.GetTaskRun(context.Background(), run.ID)
+				persisted, err := store.GetTaskRun(t.Context(), run.ID)
 				if err != nil {
 					t.Fatalf("GetTaskRun() error = %v", err)
 				}
@@ -204,7 +204,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
 		}
-		parent, cancel := context.WithCancel(context.Background())
+		parent, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		dispatcher.OnTaskRunEnqueued(parent, hookspkg.TaskRunEnqueuedPayload{
@@ -241,7 +241,7 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 			t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
 		}
 
-		dispatcher.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		dispatcher.OnTaskRunEnqueued(t.Context(), hookspkg.TaskRunEnqueuedPayload{
 			RunID: "run-loop-worker",
 		})
 

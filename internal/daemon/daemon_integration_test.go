@@ -397,7 +397,6 @@ func TestDetachedHarnessIntegration(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.run(t)
 		})
@@ -1796,16 +1795,12 @@ func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
 	}
 
 	payload := hookspkg.SessionPostCreatePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionPostCreate,
-			Timestamp: time.Now().UTC(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			ProfileID: store.DefaultProfileID,
-			SessionID: "sess-ext",
-			AgentName: "coder",
-			State:     string(session.StateActive),
-		},
+		Event:     hookspkg.HookSessionPostCreate,
+		Timestamp: time.Now().UTC(),
+		ProfileID: store.DefaultProfileID,
+		SessionID: "sess-ext",
+		AgentName: "coder",
+		State:     string(session.StateActive),
 	}
 	if _, err := d.hooks.DispatchSessionPostCreate(testutil.Context(t), payload); err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
@@ -1893,16 +1888,12 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 	})
 
 	payload := hookspkg.SessionPostCreatePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookSessionPostCreate,
-			Timestamp: time.Now().UTC(),
-		},
-		SessionContext: hookspkg.SessionContext{
-			SessionID: "sess-good",
-			ProfileID: store.DefaultProfileID,
-			AgentName: "coder",
-			State:     string(session.StateActive),
-		},
+		Event:     hookspkg.HookSessionPostCreate,
+		Timestamp: time.Now().UTC(),
+		SessionID: "sess-good",
+		ProfileID: store.DefaultProfileID,
+		AgentName: "coder",
+		State:     string(session.StateActive),
 	}
 	if _, err := d.hooks.DispatchSessionPostCreate(testutil.Context(t), payload); err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
@@ -1941,7 +1932,7 @@ func TestRunGracefulShutdownViaContextCancellation(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(t.Context())
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- d.Run(runCtx)
@@ -1983,7 +1974,7 @@ func TestRunGracefulShutdownViaSignal(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- d.Run(context.Background())
+		errCh <- d.Run(t.Context())
 	}()
 
 	<-d.readyCh
@@ -2182,7 +2173,7 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		Agents: []compozyconfig.AgentDef{testPromptAgent("Base prompt.")},
 	}
 	prompt, err := capturedDeps.PromptAssembler.Assemble(
-		context.Background(),
+		t.Context(),
 		testPromptAgent("Base prompt."),
 		&workspace,
 	)
@@ -2608,19 +2599,15 @@ args = [".compozy/hooks/capture-task-run.sh", ".compozy/task-run-enqueued.json"]
 		}
 
 		payload := hookspkg.TaskRunEnqueuedPayload{
-			PayloadBase: hookspkg.PayloadBase{
-				Event:     hookspkg.HookTaskRunEnqueued,
-				Timestamp: time.Date(2026, 4, 26, 19, 30, 0, 0, time.UTC),
-			},
-			TaskRunContext: hookspkg.TaskRunContext{
-				TaskID:      "task-1",
-				RunID:       "run-1",
-				WorkspaceID: resolvedWorkspace.ID,
+			Event:       hookspkg.HookTaskRunEnqueued,
+			Timestamp:   time.Date(2026, 4, 26, 19, 30, 0, 0, time.UTC),
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			WorkspaceID: resolvedWorkspace.ID,
 
-				AgentName:  "qa",
-				TaskStatus: "ready",
-				RunStatus:  "queued",
-			},
+			AgentName:      "qa",
+			TaskStatus:     "ready",
+			RunStatus:      "queued",
 			IdempotencyKey: "task.start.task-1",
 		}
 
@@ -2937,11 +2924,9 @@ description: Workspace preset skill
 		disableResult, err := runtimeDeps.Settings.ApplySection(
 			settingspkg.WithMutationSource(testutil.Context(t), "http"),
 			settingspkg.SectionUpdateRequest{
-				SectionRequest: settingspkg.SectionRequest{
-					Section: settingspkg.SectionSkills,
-					Scope:   settingspkg.ScopeUser,
-				},
-				Skills: &disabledSources,
+				Section: settingspkg.SectionSkills,
+				Scope:   settingspkg.ScopeUser,
+				Skills:  &disabledSources,
 			},
 		)
 		if err != nil {
@@ -2980,11 +2965,9 @@ description: Workspace preset skill
 		if _, err := runtimeDeps.Settings.ApplySection(
 			settingspkg.WithMutationSource(testutil.Context(t), "http"),
 			settingspkg.SectionUpdateRequest{
-				SectionRequest: settingspkg.SectionRequest{
-					Section: settingspkg.SectionSkills,
-					Scope:   settingspkg.ScopeUser,
-				},
-				Skills: &enabledSources,
+				Section: settingspkg.SectionSkills,
+				Scope:   settingspkg.ScopeUser,
+				Skills:  &enabledSources,
 			},
 		); err != nil {
 			t.Fatalf("ApplySection(enable agents) error = %v", err)
@@ -3068,7 +3051,7 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(t.Context())
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- d.Run(runCtx)

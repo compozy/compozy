@@ -247,8 +247,7 @@ func cloneGoalSessionID(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := strings.TrimSpace(*value)
-	return &cloned
+	return new(strings.TrimSpace(*value))
 }
 
 func (r *goalSessionOutboxRelay) currentTime() time.Time {

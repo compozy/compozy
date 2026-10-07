@@ -76,8 +76,7 @@ func (l *UpdateLock) StaleOwner() *UpdateLockOwner {
 	if l == nil || l.staleOwner == nil {
 		return nil
 	}
-	owner := *l.staleOwner
-	return &owner
+	return new(*l.staleOwner)
 }
 
 // Release clears the owner payload, unlocks, and closes update.lock.

@@ -294,7 +294,7 @@ func TestExtensionKitResourcesBindWorkspaceScope(t *testing.T) {
 		layouts := make(map[string]managedResourceValue[windowmanager.LayoutResource])
 
 		if err := syncer.collectDesiredExtensionKitResources(
-			context.Background(), ext, scope, "", jobs, triggers, layouts,
+			t.Context(), ext, scope, "", jobs, triggers, layouts,
 		); err != nil {
 			t.Fatalf("collectDesiredExtensionKitResources() error = %v", err)
 		}
@@ -430,7 +430,7 @@ func TestAgentSidecarsResolveAgentsWithinTheSameResourceScope(t *testing.T) {
 			}},
 		}
 
-		desired, err := syncer.desiredResources(context.Background())
+		desired, err := syncer.desiredResources(t.Context())
 		if err != nil {
 			t.Fatalf("desiredResources() error = %v", err)
 		}

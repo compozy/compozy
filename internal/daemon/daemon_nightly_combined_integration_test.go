@@ -52,7 +52,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesAndWritesWorkspace(t *testing.T) {
 	t.Run("Should resume an automation task and persist its local tool result", func(t *testing.T) {
 		harness := startNightlyCombinedTaskHarness(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 
 		var (
@@ -360,8 +360,8 @@ func nightlyCombinedPromptText(blocks []acpsdk.ContentBlock) string {
 		}
 	}
 	const userRequestMarker = "User request:"
-	if idx := strings.LastIndex(lastText, userRequestMarker); idx >= 0 {
-		return strings.TrimSpace(lastText[idx+len(userRequestMarker):])
+	if _, request, found := strings.CutLast(lastText, userRequestMarker); found {
+		return strings.TrimSpace(request)
 	}
 	return strings.TrimSpace(lastText)
 }

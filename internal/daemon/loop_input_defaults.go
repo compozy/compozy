@@ -3,7 +3,8 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -290,11 +291,7 @@ func validateLoopInputDefaultKey(raw string) (string, error) {
 
 func normalizeLoopInputDefaultValues(values map[string]any) (map[string]any, error) {
 	result := make(map[string]any, len(values))
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(values))
 	for _, rawKey := range keys {
 		key, err := validateLoopInputDefaultKey(rawKey)
 		if err != nil {

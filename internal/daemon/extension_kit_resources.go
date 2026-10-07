@@ -39,20 +39,23 @@ func (d *Daemon) newExtensionKitResourcePublisher(
 	if state == nil || state.resourceKernel == nil || state.resourceCodecs == nil {
 		return nil, nil
 	}
-	jobCodec, jobStore, err := resolveDaemonResourceStore[automationpkg.Job](
-		state, automationpkg.JobResourceKind, "extension automation job",
+	jobCodec, jobStore, err := state.resolveDaemonResourceStore[automationpkg.Job](
+		automationpkg.JobResourceKind,
+		"extension automation job",
 	)
 	if err != nil {
 		return nil, err
 	}
-	triggerCodec, triggerStore, err := resolveDaemonResourceStore[automationpkg.Trigger](
-		state, automationpkg.TriggerResourceKind, "extension automation trigger",
+	triggerCodec, triggerStore, err := state.resolveDaemonResourceStore[automationpkg.Trigger](
+		automationpkg.TriggerResourceKind,
+		"extension automation trigger",
 	)
 	if err != nil {
 		return nil, err
 	}
-	layoutCodec, layoutStore, err := resolveDaemonResourceStore[windowmanager.LayoutResource](
-		state, windowmanager.WindowLayoutResourceKind, "extension window layout",
+	layoutCodec, layoutStore, err := state.resolveDaemonResourceStore[windowmanager.LayoutResource](
+		windowmanager.WindowLayoutResourceKind,
+		"extension window layout",
 	)
 	if err != nil {
 		return nil, err

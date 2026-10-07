@@ -145,6 +145,5 @@ func cloneStringPointer(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }

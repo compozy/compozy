@@ -867,7 +867,7 @@ func testHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 	}
 
 	got, err := augmenter(
-		context.Background(),
+		t.Context(),
 		&session.Session{Type: session.SessionTypeUser},
 		"Base prompt.",
 	)

@@ -59,7 +59,7 @@ func TestPromptInputCompositeOrdersEnabledAugmentersByDescriptorOrder(t *testing
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 		}
 
-		got, err := augmenter(context.Background(), newPromptInputTestSession(""), "base")
+		got, err := augmenter(t.Context(), newPromptInputTestSession(""), "base")
 		if err != nil {
 			t.Fatalf("Augment() error = %v", err)
 		}
@@ -228,7 +228,7 @@ func TestPromptInputCompositeAppliesAggregateBudgetPolicies(t *testing.T) {
 				t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 			}
 
-			got, err := augmenter(context.Background(), newPromptInputTestSession(""), "base")
+			got, err := augmenter(t.Context(), newPromptInputTestSession(""), "base")
 			if err != nil {
 				t.Fatalf("Augment() error = %v", err)
 			}
@@ -271,7 +271,7 @@ func TestPromptInputCompositePreservesCurrentMessageForOverBudgetRewrite(t *test
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 		}
 
-		got, err := augmenter(context.Background(), newPromptInputTestSession(""), "base")
+		got, err := augmenter(t.Context(), newPromptInputTestSession(""), "base")
 		if err != nil {
 			t.Fatalf("Augment() error = %v", err)
 		}
@@ -347,7 +347,7 @@ func TestPromptInputCompositeCriticalFailureStopsPipeline(t *testing.T) {
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 		}
 
-		if _, err := augmenter(context.Background(), newPromptInputTestSession(""), "base"); err == nil {
+		if _, err := augmenter(t.Context(), newPromptInputTestSession(""), "base"); err == nil {
 			t.Fatal("Augment() error = nil, want critical failure")
 		} else if !strings.Contains(err.Error(), `prompt augmenter "boom"`) {
 			t.Fatalf("Augment() error = %v, want wrapped augmenter name", err)
@@ -390,7 +390,7 @@ func TestPromptInputCompositeContextCancellationStopsPipeline(t *testing.T) {
 		}
 
 		if _, err := augmenter(
-			context.Background(),
+			t.Context(),
 			newPromptInputTestSession(""),
 			"base",
 		); !errors.Is(
@@ -443,7 +443,7 @@ func TestPromptInputCompositeNoncriticalFailureWarnsAndContinues(t *testing.T) {
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 		}
 
-		got, err := augmenter(context.Background(), newPromptInputTestSession(""), "base")
+		got, err := augmenter(t.Context(), newPromptInputTestSession(""), "base")
 		if err != nil {
 			t.Fatalf("Augment() error = %v, want warning-only continuation", err)
 		}
@@ -498,7 +498,7 @@ func TestPromptInputCompositeBlankOutputPreservesLastValidMessage(t *testing.T) 
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 		}
 
-		got, err := augmenter(context.Background(), newPromptInputTestSession(""), "base")
+		got, err := augmenter(t.Context(), newPromptInputTestSession(""), "base")
 		if err != nil {
 			t.Fatalf("Augment() error = %v", err)
 		}
@@ -558,7 +558,7 @@ Remember auth migration sessions and workspace-scoped handling.
 		}
 
 		got, err := augmenter(
-			context.Background(),
+			t.Context(),
 			newPromptInputTestSession(workspaceRoot),
 			"auth migration sessions",
 		)
@@ -614,7 +614,7 @@ func TestPromptInputCompositeOmitsOverBudgetDurableMemoryRecall(t *testing.T) {
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
 		}
 
-		got, err := augmenter(context.Background(), newPromptInputTestSession(""), "hello")
+		got, err := augmenter(t.Context(), newPromptInputTestSession(""), "hello")
 		if err != nil {
 			t.Fatalf("Augment() error = %v", err)
 		}

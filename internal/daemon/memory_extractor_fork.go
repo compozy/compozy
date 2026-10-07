@@ -240,7 +240,7 @@ func (e *forkedMemoryExtractor) spawnExtractorSession(
 	correlation roleInvocationCorrelation,
 	turn memcontract.TurnRecord,
 ) (*session.Session, error) {
-	return invokeRoleWithFallback(ctx, role, correlation, func(
+	return role.invokeRoleWithFallback(ctx, correlation, func(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {

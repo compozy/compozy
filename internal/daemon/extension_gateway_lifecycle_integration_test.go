@@ -31,15 +31,11 @@ func TestDevelopmentExtensionGatewayConsentLifecycle(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	workspaceTwoRoot := t.TempDir()
 	workspaceOne := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID: workspaceID, Name: "gateway-dev", RootDir: workspaceRoot,
-		},
+		ID: workspaceID, Name: "gateway-dev", RootDir: workspaceRoot,
 		WorkspaceID: workspaceID,
 	}
 	workspaceTwo := workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID: "workspace-gateway-dev-2", Name: "gateway-dev-two", RootDir: workspaceTwoRoot,
-		},
+		ID: "workspace-gateway-dev-2", Name: "gateway-dev-two", RootDir: workspaceTwoRoot,
 		WorkspaceID: "workspace-gateway-dev-2",
 	}
 	workspaceResolver := newGatewayLifecycleWorkspaceResolver(workspaceOne, workspaceTwo)

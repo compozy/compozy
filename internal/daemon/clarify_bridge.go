@@ -10,10 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"uuid"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/google/uuid"
 )
 
 const clarifyObservabilityTimeout = 2 * time.Second
@@ -145,7 +146,7 @@ func newClarifyBridge(
 		summaries: summaries,
 		logger:    logger,
 		now:       time.Now,
-		newID:     uuid.NewString,
+		newID:     func() string { return uuid.NewV4().String() },
 	}
 	for _, option := range options {
 		if option != nil {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 )
@@ -120,12 +120,9 @@ func (h *viewPatchHub) subscribe(
 	h.nextID++
 	id := h.nextID
 	stream.subscribers[id] = updates
-	var once sync.Once
-	cancel := func() {
-		once.Do(func() {
-			h.removeSubscriber(profileLens, workspaceID, viewID, id, updates)
-		})
-	}
+	cancel := sync.OnceFunc(func() {
+		h.removeSubscriber(profileLens, workspaceID, viewID, id, updates)
+	})
 	return updates, cancel, nil
 }
 
@@ -159,7 +156,7 @@ func (h *viewPatchHub) ensureStreamLocked(
 	}
 	epoch = strings.TrimSpace(epoch)
 	if epoch == "" {
-		epoch = "vse_" + uuid.NewString()
+		epoch = "vse_" + uuid.NewV4().String()
 	}
 	stream := &viewPatchStream{
 		epoch: epoch, subscribers: make(map[uint64]chan cmdpalette.ViewPatchEvent),

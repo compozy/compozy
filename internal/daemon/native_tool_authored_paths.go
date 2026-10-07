@@ -111,7 +111,7 @@ func (n *daemonNativeTools) skillsForSessionAgent(
 	agent compozyconfig.AgentDef,
 	sessionID string,
 ) ([]*skills.Skill, error) {
-	return resolveSessionAgentProjection(sessionAgentProjection[[]*skills.Skill]{
+	return (sessionAgentProjection[[]*skills.Skill]{
 		agent:                 agent,
 		hasConcreteDefinition: true,
 		workspace:             workspace,
@@ -122,7 +122,7 @@ func (n *daemonNativeTools) skillsForSessionAgent(
 		byDefinition: func(resolvedAgent compozyconfig.AgentDef) ([]*skills.Skill, error) {
 			return n.deps.Skills.ForAgentDefSession(ctx, workspace, resolvedAgent, sessionID)
 		},
-	})
+	}).resolve()
 }
 
 type sessionAgentDefinitionReader interface {

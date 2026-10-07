@@ -131,14 +131,12 @@ func newCoordinatorTaskManagerIntegration(
 	}
 	notifier := newHooksNotifier(discardLogger(), func() time.Time { return now })
 	sessions := &coordinatorRuntimeSessionsWithRuntime{
-		coordinatorRuntimeSessions: coordinatorRuntimeSessions{
-			infos: []*session.Info{{
-				ID:          "manual-1",
-				Type:        session.SessionTypeUser,
-				WorkspaceID: "ws-int",
-				State:       session.StateActive,
-			}},
-		},
+		infos: []*session.Info{{
+			ID:          "manual-1",
+			Type:        session.SessionTypeUser,
+			WorkspaceID: "ws-int",
+			State:       session.StateActive,
+		}},
 	}
 	runtime, err := newCoordinatorRuntime(
 		ctx,
