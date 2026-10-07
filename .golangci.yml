@@ -47,8 +47,6 @@ linters:
           deny:
             - pkg: github.com/google/uuid
               desc: Use stdlib uuid.NewV4().String() (stdlib_uuid, Go 1.27).
-    copyloopvar:
-      check-alias: true
     forbidigo:
       analyze-types: true
       exclude-godoc-examples: false

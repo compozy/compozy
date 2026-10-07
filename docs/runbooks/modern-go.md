@@ -93,7 +93,7 @@ their generators and drift gates retain ownership.
 | `slices_sorted` | Review: collection nilness and ordering |
 | `time_tick_gc` | Review: Stop/Reset and lifecycle ownership |
 | `range_over_int` | modernize `rangeint` |
-| `loopvar_capture` | modernize `forvar` plus copyloopvar with alias checking |
+| `loopvar_capture` | modernize `forvar` plus default copyloopvar self-copy checks; renamed copies can preserve required mutation semantics |
 | `cmp_or` | Review: arguments are evaluated eagerly |
 | `reflect_type_for` | modernize `reflecttypefor` |
 | `http_servemux_patterns` | Review: method, malformed-path, wildcard and route precedence contracts |
