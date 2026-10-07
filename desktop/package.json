@@ -20,7 +20,8 @@
         "dev": "bun run build:runtime && bun run build:main && COMPOZY_DESKTOP_BUNDLE_ROOT=.artifacts/runtime electron .",
         "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings .",
         "test": "vitest run",
-        "test:e2e": "bun run build:e2e-update && playwright test --config playwright.config.ts",
+        "test:e2e": "bun run build:e2e-update && playwright test --config playwright.config.ts --grep-invert @nightly",
+        "test:e2e:nightly": "bun run build:e2e-update && playwright test --config playwright.config.ts --grep @nightly",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

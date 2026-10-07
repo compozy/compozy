@@ -8,7 +8,7 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: go-fixture-check deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e-desktop test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
+.PHONY: go-fixture-check deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e-desktop test-e2e-desktop-nightly test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
 
 DEMO_HOME ?= $(HOME)/.compozy-demo
 DEMO_PORT ?= 2124
@@ -60,6 +60,17 @@ test-e2e-desktop: web-build desktop-build
 	if [ "$$(uname -s)" = "Linux" ]; then runner="xvfb-run -a desktop/scripts/run-e2e-linux.sh"; fi; \
 	if [ -n "$$runner" ]; then $$runner; exit $$?; fi; \
 	$$runner bun run --cwd desktop test:e2e
+
+test-e2e-desktop-nightly: web-build desktop-build
+	@if [ "$$(uname -s)" = "Linux" ]; then \
+		xvfb-run -a sh -eu -c ' \
+			command -v openbox >/dev/null 2>&1 || { echo "Desktop E2E on Linux requires openbox." >&2; exit 1; }; \
+			openbox --sm-disable >/dev/null 2>&1 & window_manager_pid=$$!; \
+			cleanup() { kill "$$window_manager_pid" 2>/dev/null || true; wait "$$window_manager_pid" 2>/dev/null || true; }; trap cleanup EXIT INT TERM; \
+			bun run --cwd desktop test:e2e:nightly'; \
+	else \
+		bun run --cwd desktop test:e2e:nightly; \
+	fi
 
 test-e2e:
 	@$(MAGE_RUN) testE2E

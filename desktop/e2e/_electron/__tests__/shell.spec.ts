@@ -823,39 +823,6 @@ test("E2E-008 E2E-009: native chrome, geometry, and menu and shortcut zoom survi
   ).toBe(true);
 });
 
-test("native Edit shortcuts copy and paste editable renderer content", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
-  await completeOnboarding(product);
-  expect(
-    await desktop.app.evaluate(({ Menu }) => {
-      const edit = Menu.getApplicationMenu()?.items.find(item => item.label === "Edit");
-      return edit?.submenu?.items.map(item => item.role) ?? [];
-    })
-  ).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
-  await product.evaluate(() => {
-    const source = document.createElement("input");
-    source.setAttribute("aria-label", "Copy source");
-    source.value = "Copied through the Electron Edit menu";
-    const target = document.createElement("input");
-    target.setAttribute("aria-label", "Paste target");
-    document.body.append(source, target);
-    source.focus();
-    source.select();
-  });
-
-  const modifier = process.platform === "darwin" ? "Meta" : "Control";
-  await product.keyboard.press(`${modifier}+C`);
-  await product.getByRole("textbox", { name: "Paste target" }).focus();
-  await product.keyboard.press(`${modifier}+V`);
-
-  await expect(product.getByRole("textbox", { name: "Paste target" })).toHaveValue(
-    "Copied through the Electron Edit menu"
-  );
-});
-
 test("desktop-owned runtime resolves a provider available only on the login PATH", async ({
   launchDesktop,
 }) => {
@@ -921,7 +888,7 @@ test("E2E-010: external navigation opens only safe web URLs and never leaves the
     .toEqual(["https://example.com/safe", "https://example.com/top-level"]);
 });
 
-test("E2E-011: the daemon-served shell preserves the browser Settings journey and Chromium effects", async ({
+test("E2E-011: the daemon-served shell preserves Settings, Chromium effects, and native Edit shortcuts", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
@@ -966,6 +933,33 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
       chromium: navigator.userAgent.includes("Chrome/"),
     }))
   ).toEqual({ backdropFilter: true, chromium: true });
+
+  // Exercise native Edit integration on the same onboarded renderer.
+  expect(
+    await desktop.app.evaluate(({ Menu }) => {
+      const edit = Menu.getApplicationMenu()?.items.find(item => item.label === "Edit");
+      return edit?.submenu?.items.map(item => item.role) ?? [];
+    })
+  ).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
+  await product.evaluate(() => {
+    const source = document.createElement("input");
+    source.setAttribute("aria-label", "Copy source");
+    source.value = "Copied through the Electron Edit menu";
+    const target = document.createElement("input");
+    target.setAttribute("aria-label", "Paste target");
+    document.body.append(source, target);
+    source.focus();
+    source.select();
+  });
+
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  await product.keyboard.press(`${modifier}+C`);
+  await product.getByRole("textbox", { name: "Paste target" }).focus();
+  await product.keyboard.press(`${modifier}+V`);
+
+  await expect(product.getByRole("textbox", { name: "Paste target" })).toHaveValue(
+    "Copied through the Electron Edit menu"
+  );
 });
 
 test("E2E-018: the real Settings API projects a journaled runtime swap through restart", async ({
@@ -1859,7 +1853,7 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
 
 // Invariant: real desktop uptime and catalog activity keep per-client requests within a fixed budget.
 // Owner: packaged renderer and real daemon; canonical Electron shell E2E suite.
-test("Should bound catalog requests during sixty minutes of native desktop uptime", async ({
+test("@nightly Should bound catalog requests during sixty minutes of native desktop uptime", async ({
   launchDesktop,
 }, testInfo) => {
   test.setTimeout(90 * 60_000);
