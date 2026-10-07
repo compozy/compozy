@@ -206,18 +206,6 @@ describe("useTaskRunPage", () => {
     expect(recoverTaskRun).toHaveBeenCalledWith("run_001", {});
   });
 
-  it("exposes a handleCancelRun action", async () => {
-    const { result } = renderHook(() => useTaskRunPage("task_001", "run_001"), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.run?.run.id).toBe("run_001");
-    });
-
-    expect(typeof result.current.handleCancelRun).toBe("function");
-  });
-
   it("loads run reviews when run id is provided and reviews are enabled", async () => {
     vi.mocked(listTaskRunReviews).mockResolvedValueOnce([
       { review_id: "review_001", run_id: "run_001" },

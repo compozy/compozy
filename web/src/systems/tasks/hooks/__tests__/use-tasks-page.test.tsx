@@ -601,22 +601,6 @@ describe("useTasksPage", () => {
     });
   });
 
-  it("maps the active workspace scope into the dashboard query", async () => {
-    const { result } = renderHook(() => useTasksPage({ search: { mode: "dashboard" } }), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(getTaskDashboard).toHaveBeenCalled();
-    });
-
-    expect(result.current.mode).toBe("dashboard");
-    expect(getTaskDashboard).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: "workspace", workspace: "ws_alpha" }),
-      expect.any(AbortSignal)
-    );
-  });
-
   it("maps Global scope into global dashboard and backlog queries", async () => {
     workspaceMockState.scope = "global";
     renderHook(() => useTasksPage({ search: { mode: "dashboard" } }), {

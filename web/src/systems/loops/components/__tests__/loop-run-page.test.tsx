@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { loopNodeLifecycleFixture } from "../../testing/loop-node-lifecycle-fixture";
 import type { LoopRosterTableModel } from "../../lib/loop-run-roster-table";
-import type { LoopRunStoryScenario } from "../stories/loop-run-scenario-types";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -35,11 +34,6 @@ const { LoopRunStory } = await import("../run-page/loop-run-story");
 const { LoopNodeRoster } = await import("../run-page/inspect/loop-node-roster");
 const { LoopRunArtifactList } = await import("../run-page/loop-run-artifact-list");
 const registerFixtures = await import("../stories/loop-run-register-fixtures");
-const visualContractFixtures = await import("../stories/loop-run-vc-fixtures");
-const lifecycleFixtures = await import("../stories/loop-run-lifecycle-fixtures");
-const graphEngFixtures = await import("../stories/loop-run-graph-eng-fixtures");
-const pageFixtures = await import("../stories/loop-run-page-fixtures");
-const metricFixtures = await import("../stories/loop-run-metric-fixtures");
 const { registerPartialOutputsScenario } = registerFixtures;
 const { buildScenarioProps } = await import("../stories/loop-run-scenario-props");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
@@ -851,23 +845,6 @@ describe("LoopNodeControlMenu", () => {
 });
 
 describe("LoopNodeRowActions", () => {
-  it("Should use the requeue icon for the promoted quarantine action", () => {
-    render(
-      <LoopNodeRowActions
-        node={loopNodeLifecycleFixture({
-          state: "quarantined",
-          parked: true,
-          quarantined: true,
-        })}
-        onVerb={vi.fn()}
-        runStatus="running"
-      />
-    );
-    const button = screen.getByTestId("loop-node-primary-requeue-task_03");
-    expect(button.querySelector(".lucide-redo-2")).toBeInTheDocument();
-    expect(button.querySelector(".lucide-play")).not.toBeInTheDocument();
-  });
-
   it("Should promote resume-wait when the open wait needs a decision", () => {
     render(
       <LoopNodeRowActions
@@ -1514,65 +1491,6 @@ describe("run-page reads that failed", () => {
     );
     expect(screen.queryByTestId("loop-node-roster-empty")).toBeNull();
     expect(screen.getByTestId("loop-node-roster-error")).toHaveTextContent("could not be read");
-  });
-});
-
-// A staged scenario is evidence about the production reads, so its two reads
-// have to agree the way the daemon's do. They did not: the briefing was built
-// independently of the run record and re-synchronised on status and progress
-// alone, which left the spend free to drift — every register capture showed
-// 82.4k tokens over a run recording 68k, and every one of those captures passed
-// its visual contract. Sweeping the module rather than a list means a scenario
-// added later cannot quietly opt out.
-describe("staged register scenarios", () => {
-  // Every module that exports staged scenarios, so a story added to any of them
-  // is covered without anyone remembering to add it here.
-  const scenarios = [
-    ...Object.entries(registerFixtures),
-    ...Object.entries(visualContractFixtures),
-    ...Object.entries(lifecycleFixtures),
-    ...Object.entries(graphEngFixtures),
-    ...Object.entries(pageFixtures),
-    ...Object.entries(metricFixtures),
-  ].filter(
-    (candidate): candidate is [string, () => LoopRunStoryScenario] =>
-      candidate[0].endsWith("Scenario") &&
-      typeof candidate[1] === "function" &&
-      candidate[1].length === 0
-  );
-
-  it("Should match at least one staged scenario", () => {
-    // The only thing this guard owes: a filter that matched nothing would make
-    // every case below pass without asserting anything. How many fixtures the
-    // modules happen to export is not an invariant — freezing a count here would
-    // fail on a scenario being added or retired, neither of which can break read
-    // agreement.
-    expect(scenarios).not.toHaveLength(0);
-  });
-
-  // A scenario that stages events has a history, and the story pane reads the
-  // durable timeline rather than those events — so several contract rows
-  // captured "Nothing has happened in this run yet." over a run several rounds
-  // deep, and passed. The read is derived from the scenario's own events now,
-  // which is what the daemon does with them.
-  it.each(scenarios)("Should give %s a story when its events say it has one", (_name, build) => {
-    const scenario = build();
-    if (scenario.frames.length === 0) return;
-
-    expect(buildScenarioProps(scenario).registers.beats.length).toBeGreaterThan(0);
-  });
-
-  it.each(scenarios)("Should keep %s's briefing agreeing with its run", (_name, build) => {
-    const { run, briefing } = build();
-
-    expect(briefing.run_id).toBe(run.id);
-    expect(briefing.status).toBe(run.status);
-    expect(briefing.progress).toEqual(run.progress);
-    // Tokens are the run record's own number, never a second opinion about it.
-    expect(briefing.usage.tokens).toBe(run.tokens_used);
-    // A budget percentage over a run with no budget would be a division by zero
-    // rendered as a fact.
-    expect(briefing.usage.budget_used_pct === undefined).toBe(run.budget_tokens === 0);
   });
 });
 

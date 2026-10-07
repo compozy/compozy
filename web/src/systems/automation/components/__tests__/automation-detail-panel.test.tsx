@@ -176,6 +176,9 @@ describe("AutomationDetailPanel", () => {
     expect(onTriggerNow).toHaveBeenCalledOnce();
     expect(onBack).toHaveBeenCalledOnce();
     expect(onDelete).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("automation-detail-header").querySelector("[data-slot='page-head']")
+    ).toBeNull();
   });
 
   it("Should disable Run now when the automation runtime is unavailable", () => {
@@ -338,15 +341,6 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByTestId("job-enable-label")).toHaveTextContent("Disabled");
     fireEvent.click(screen.getByTestId("toggle-automation-btn"));
     expect(onToggleEnabled).toHaveBeenCalledWith(true);
-  });
-
-  it("Should render the detail header with the job name in the window-head slot", () => {
-    renderPanel();
-
-    const header = screen.getByTestId("automation-detail-header");
-    expect(header).toBeInTheDocument();
-    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("daily-review");
-    expect(header.querySelector("[data-slot='page-head']")).toBeNull();
   });
 
   it("renders manual jobs without implying a cron schedule", () => {

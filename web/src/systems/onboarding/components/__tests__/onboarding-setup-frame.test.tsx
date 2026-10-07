@@ -21,6 +21,10 @@ describe("OnboardingSetupFrame", () => {
     expect(first).toHaveAttribute("aria-current", "step");
     expect(second).toHaveAttribute("data-state", "upcoming");
     expect(second).toBeDisabled();
+    expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent(
+      "Claude Code · Claude Opus 4.8 · High · Existing sign-in"
+    );
+    expect(screen.getByTestId("onboarding-continue")).toHaveTextContent("Continue");
   });
 
   it("Should mark a passed step done and let the operator step back to it", async () => {
@@ -38,15 +42,6 @@ describe("OnboardingSetupFrame", () => {
     await user.click(first);
 
     expect(goToStep).toHaveBeenCalledWith(1);
-  });
-
-  it("Should summarise what the runtime step will save", () => {
-    render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
-
-    expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent(
-      "Claude Code · Claude Opus 4.8 · High · Existing sign-in"
-    );
-    expect(screen.getByTestId("onboarding-continue")).toHaveTextContent("Continue");
   });
 
   it("Should replace the summary with the configuration error and block Continue", () => {
@@ -120,18 +115,13 @@ describe("OnboardingSetupFrame", () => {
     const user = userEvent.setup();
     render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
 
+    expect(screen.queryByRole("button", { name: /close/i })).toBeNull();
+    expect(screen.queryByTestId("os-traffic-lights")).toBeNull();
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
 
     await user.click(document.body);
     expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
-  });
-
-  it("Should render no window controls — the panel cannot be closed, minimised or zoomed", () => {
-    render(<OnboardingSetupFrame wizard={onboardingWizardFixture()} />);
-
-    expect(screen.queryByRole("button", { name: /close/i })).toBeNull();
-    expect(screen.queryByTestId("os-traffic-lights")).toBeNull();
   });
 
   it("Should explain the project step and the home-folder skip in plain text", () => {

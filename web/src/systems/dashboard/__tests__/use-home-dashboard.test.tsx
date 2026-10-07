@@ -207,28 +207,6 @@ describe("useHomeDashboard", () => {
     expect(result.current.profileAggregate).toBe(true);
   });
 
-  it("Should scope the overview to a project workspace", async () => {
-    activeWorkspaceState.activeWorkspace = {
-      id: "ws-proj",
-      root_dir: "/Users/tester/dev/proj",
-      name: "proj",
-    };
-    activeWorkspaceState.activeWorkspaceId = "ws-proj";
-    activeWorkspaceState.runtimeWorkspaceId = "ws-proj";
-    activeWorkspaceState.scope = "workspace";
-    getHomeOverview.mockResolvedValue(makeHomeOverview());
-
-    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
-    await waitFor(() => {
-      expect(result.current.overviewStatus).toBe("ready");
-    });
-    expect(result.current.scope.workspaceParam).toBe("ws-proj");
-    expect(getHomeOverview).toHaveBeenCalledWith(
-      expect.objectContaining({ workspace: "ws-proj" }),
-      expect.anything()
-    );
-  });
-
   it("Should never issue a global overview or activity read for a project workspace on first mount", async () => {
     // Workspace-isolation guard: the queries stay disabled until menubar
     // workspace scope has a project id, so the daemon never sees an
@@ -262,6 +240,11 @@ describe("useHomeDashboard", () => {
     );
     expect(getHomeActivity).not.toHaveBeenCalledWith(
       expect.objectContaining({ workspace_id: undefined }),
+      expect.anything()
+    );
+    expect(result.current.scope.workspaceParam).toBe("ws-proj");
+    expect(getHomeOverview).toHaveBeenCalledWith(
+      expect.objectContaining({ workspace: "ws-proj" }),
       expect.anything()
     );
   });

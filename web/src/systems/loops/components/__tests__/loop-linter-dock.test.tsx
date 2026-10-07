@@ -21,10 +21,6 @@ describe("LoopLinterDock", () => {
     expect(screen.getByTestId("loop-linter-toggle")).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("Checking…");
     expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument();
-  });
-
-  it("Should show a neutral pending state before the first daemon verdict", () => {
-    render(<LoopLinterDock lint={emptyLintState()} validateFailed={false} onReveal={vi.fn()} />);
     expandDock();
     expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("Checking…");
     expect(screen.queryByTestId("loop-linter-issue")).not.toBeInTheDocument();

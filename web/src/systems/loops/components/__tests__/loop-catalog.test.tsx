@@ -134,20 +134,13 @@ describe("LoopCatalog", () => {
     const runButton = within(deliveryRow as HTMLElement).getByTestId(
       "loop-catalog-run-implement-tasks"
     );
+    const link = within(deliveryRow as HTMLElement).getByRole("link", {
+      name: "Open implement-tasks",
+    });
+    expect(link).not.toContainElement(runButton);
     fireEvent.click(runButton);
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onRun.mock.calls[0][0].name).toBe("implement-tasks");
-  });
-
-  it("Should keep the inline Run button outside the detail link", () => {
-    render(<Harness onRun={() => {}} />);
-    const deliveryRow = screen
-      .getByText("implement-tasks")
-      .closest("[data-testid='loop-catalog-row']");
-    const row = deliveryRow as HTMLElement;
-    const link = within(row).getByRole("link", { name: "Open implement-tasks" });
-    const runButton = within(row).getByTestId("loop-catalog-run-implement-tasks");
-    expect(link).not.toContainElement(runButton);
   });
 
   it("Should expose a loading-aware control for the next server page", () => {

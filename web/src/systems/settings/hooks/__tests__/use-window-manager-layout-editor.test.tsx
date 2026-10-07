@@ -141,16 +141,6 @@ describe("useWindowManagerLayoutEditor", () => {
     expect(result.current.draft.desktops[0]?.name).toBe("Mine");
     expect(result.current.dirty).toBe(true);
     expect(result.current.revision).toBe(42);
-  });
-
-  it("Should disarm Apply until the draft is reviewed against the new revision", () => {
-    const { result, rerender } = renderEditor(stateAt(41, "Build"));
-    act(() => {
-      result.current.updateDraft(renameDesktop(result.current.draft, "Mine"));
-    });
-
-    rerender({ state: stateAt(42, "Theirs"), profile: "marketing" });
-
     expect(result.current.reviewCurrent).toBe(false);
     expect(result.current.reviewed).toBe(null);
   });

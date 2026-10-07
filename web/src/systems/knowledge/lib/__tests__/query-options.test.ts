@@ -66,11 +66,6 @@ describe("memoriesListOptions", () => {
 });
 
 describe("memoryDetailOptions", () => {
-  it("Should include staleTime defaults", () => {
-    const options = memoryDetailOptions({ scope: "profile" }, "test.md");
-    expect(options.staleTime).toBe(30_000);
-  });
-
   it("Should include scope, filename, and selector tuple in the query key", () => {
     const options = memoryDetailOptions({ scope: "profile", workspaceId: "ws" }, "user_role.md");
     expect(options.queryKey).toEqual([

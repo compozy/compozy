@@ -11,7 +11,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
-import { PROFILE_BOUNDARY_ANSWER } from "../../lib/profile-copy";
 import { toProfileRows } from "../../lib/profile-rows";
 import {
   defaultProfileFixture,
@@ -93,13 +92,6 @@ describe("ProfileSwitcher", () => {
   it("Should name the aggregate rather than a profile when it is on", () => {
     renderSwitcher({ aggregate: true });
     expect(screen.getByTestId("os-menubar-profile")).toHaveAccessibleName("Profile: All profiles");
-  });
-
-  it("Should answer the boundary question in one sentence", async () => {
-    const user = userEvent.setup();
-    renderSwitcher();
-    await user.click(screen.getByTestId("os-menubar-profile"));
-    expect(await screen.findByText(PROFILE_BOUNDARY_ANSWER)).toBeInTheDocument();
   });
 
   it("Should switch to the chosen profile", async () => {

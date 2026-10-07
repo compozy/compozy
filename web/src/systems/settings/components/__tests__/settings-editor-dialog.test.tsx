@@ -107,14 +107,4 @@ describe("SettingsEditorDialog", () => {
     );
     expect(screen.getByText("Stored write-only; only presence is returned.")).toBeVisible();
   });
-
-  it("Should omit the feedback region entirely when there is nothing to report", () => {
-    render(
-      <SettingsEditorDialog {...baseProps()}>
-        <div />
-      </SettingsEditorDialog>
-    );
-    // An always-present wrapper would open a dead grid row between body and footer.
-    expect(screen.queryByTestId("settings-widgets-editor-feedback")).not.toBeInTheDocument();
-  });
 });

@@ -136,24 +136,13 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-parent-input")).toBeInTheDocument();
   });
 
-  it("Should expose exactly one close route", () => {
-    renderModal();
-
-    // The header owns dismissal; DialogContent's stock close stays disabled so
-    // the two never render together.
-    const closes = screen.getAllByRole("button", { name: /close/i });
-    expect(closes).toHaveLength(1);
-    expect(closes[0]).toHaveAttribute("data-slot", "entity-dialog-header-close");
-    expect(
-      screen.getByTestId("task-editor-modal").querySelector('[data-slot="dialog-close"]')
-    ).toBeNull();
-  });
-
   it("Should dismiss through the header close control", async () => {
     const user = userEvent.setup();
     const { onOpenChange } = renderModal();
 
-    await user.click(screen.getByRole("button", { name: /close/i }));
+    const closes = screen.getAllByRole("button", { name: /close/i });
+    expect(closes).toHaveLength(1);
+    await user.click(closes[0]!);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

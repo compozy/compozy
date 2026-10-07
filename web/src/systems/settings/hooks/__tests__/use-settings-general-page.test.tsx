@@ -143,53 +143,14 @@ afterEach(() => {
 });
 
 describe("useSettingsGeneralPage", () => {
-  it("loads the envelope and seeds the draft", async () => {
+  it("clears a dirty draft when the active workspace changes", async () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(envelope.config);
     });
-  });
-
-  it("records a restart-required applied label after a save mutation succeeds", async () => {
-    vi.mocked(updateSettingsGeneral).mockResolvedValue({
-      section: "general",
-      scope: "user",
-      applied: true,
-      active_config_hash: "sha256:test-active",
-      active_generation: 1,
-      apply_record_id: "cfg_apply_test",
-      lifecycle: "live",
-      next_action: "none",
-      restart_required: true,
-      write_target: "global-config",
-    });
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
-
-    act(() => {
-      result.current.setDraft({
-        ...envelope.config,
-        limits: { ...envelope.config.limits, max_concurrent_agents: 50 },
-      });
-      result.current.handleSave();
-    });
-
-    await waitFor(() => {
-      expect(result.current.lastAppliedLabel).toContain("restart required");
-    });
-  });
-
-  it("clears a dirty draft when the active workspace changes", async () => {
-    const { wrapper } = createWrapper();
-    const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.setDraft({

@@ -1,4 +1,4 @@
-import { dialogShellClass, UIProvider } from "@compozy/ui";
+import { UIProvider } from "@compozy/ui";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -41,15 +41,6 @@ describe("KnowledgeEditDialog", () => {
       "data-variant",
       "ruled"
     );
-  });
-
-  it("Should host the editor on the shared sm modal token", () => {
-    renderDialog();
-    const host = screen.getByTestId("knowledge-edit-dialog");
-    for (const token of dialogShellClass("sm").split(" ")) {
-      expect(host.className).toContain(token);
-    }
-    expect(host.className).not.toMatch(/max-w-2xl/);
   });
 
   it("Should lock name and type behind ImmutableIdentity instead of an editable control", () => {

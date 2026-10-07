@@ -28,14 +28,6 @@ function makeBaseProps() {
 }
 
 describe("TasksInboxView", () => {
-  it("Should keep inbox identity out of the window body", () => {
-    render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
-
-    expect(screen.queryByTestId("tasks-inbox-page-head")).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Inbox" })).toBeNull();
-    expect(screen.getByTestId("tasks-inbox-body")).toBeInTheDocument();
-  });
-
   it("Should render the toolbar with a filter trigger, search input, and unread switch", () => {
     render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
 

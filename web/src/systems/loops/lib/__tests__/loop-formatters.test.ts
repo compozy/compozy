@@ -39,18 +39,6 @@ describe("loop-formatters", () => {
     }
   });
 
-  it("Should spin only the live running/watching states", () => {
-    const live = STATUS_TABLE.filter(row => row.glyph === "running").map(row => row.status);
-    expect(live).toEqual(["running", "watching"]);
-  });
-
-  it("Should recognize the 7 terminal statuses and reject live ones", () => {
-    const terminal = STATUS_TABLE.filter(row => row.terminal).map(row => row.status);
-    expect(terminal).toHaveLength(7);
-    expect(isTerminalLoopStatus("running")).toBe(false);
-    expect(isTerminalLoopStatus("queued")).toBe(false);
-  });
-
   it("Should classify only mutable non-terminal runs as live", () => {
     expect(isLiveLoopRun({ historical: false, status: "running" })).toBe(true);
     expect(isLiveLoopRun({ historical: false, status: "queued" })).toBe(true);

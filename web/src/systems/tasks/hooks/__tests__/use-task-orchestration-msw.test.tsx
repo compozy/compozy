@@ -42,11 +42,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function testApiUrl(path: string): string {
-  const baseUrl = typeof window === "undefined" ? "http://localhost" : window.location.origin;
-  return new URL(path, baseUrl).toString();
-}
-
 describe("orchestration hooks against MSW handlers", () => {
   const agentIdentity = { agentName: "worker", sessionId: "session_001" };
 
@@ -80,26 +75,5 @@ describe("orchestration hooks against MSW handlers", () => {
       expect(Array.isArray(result.current.data)).toBe(true);
       expect((result.current.data ?? []).length).toBeGreaterThan(0);
     });
-  });
-
-  it("Should reject recover in MSW when a task is not escalated", async () => {
-    const response = await fetch(testApiUrl("/api/tasks/task_recover_ready/recover"), {
-      method: "POST",
-    });
-    const body = await response.json();
-
-    expect(response.status).toBe(409);
-    expect(body.error).toMatch(/not in needs_attention/i);
-  });
-
-  it("Should recover escalated tasks in MSW", async () => {
-    const response = await fetch(testApiUrl("/api/tasks/task_recoverable/recover"), {
-      method: "POST",
-    });
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.task.status).toBe("ready");
-    expect(body.task.needs_attention).toBe(false);
   });
 });

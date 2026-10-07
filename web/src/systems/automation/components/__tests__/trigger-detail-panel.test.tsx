@@ -217,6 +217,9 @@ describe("TriggerDetailPanel", () => {
     expect(screen.getByTestId("trigger-rule-card")).toHaveTextContent("Exact match on");
     expect(screen.getByTestId("trigger-prompt-preview")).toBeInTheDocument();
     expect(screen.queryByTestId("trigger-pause-line")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-job-btn")).not.toBeInTheDocument();
+    expect(screen.queryByText("Run now")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Next run/)).not.toBeInTheDocument();
   });
 
   it("Should read a loop trigger as start, with mapped inputs and no prompt", () => {
@@ -473,6 +476,8 @@ describe("TriggerDetailPanel", () => {
       "Runs will appear here after the first matching activation."
     );
     expect(screen.getByTestId("automation-run-history")).toHaveTextContent("no runs yet");
+    expect(screen.queryByTestId("trigger-rail-public-delivery")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-webhook-endpoint")).not.toBeInTheDocument();
   });
 
   it("Should publish the local webhook path and the secret's presence, never its value", () => {
@@ -487,22 +492,12 @@ describe("TriggerDetailPanel", () => {
     expect(rail).toHaveTextContent("Set");
     expect(rail).not.toHaveTextContent("sha256:deploy-webhook");
     expect(document.body.textContent).not.toContain("sha256:deploy-webhook");
-  });
-
-  it("Should read an AND filter as prose with both raw paths kept quiet", () => {
-    renderPanel({ runs: [], trigger: webhookTrigger });
-
     const rule = screen.getByTestId("trigger-rule-card");
     expect(rule).toHaveTextContent("Action is");
     expect(rule).toHaveTextContent("and branch is");
     expect(rule).toHaveTextContent("AND of");
     expect(rule).toHaveTextContent("data.action");
     expect(rule).toHaveTextContent("data.branch");
-  });
-
-  it("Should say public delivery is off rather than show a URL that would not answer", () => {
-    renderPanel({ runs: [], trigger: webhookTrigger });
-
     const ingress = screen.getByTestId("automation-trigger-ingress");
     expect(ingress).toHaveTextContent("Public webhooks are off");
     expect(ingress).toHaveTextContent("Open Remote access settings to publish one");
@@ -533,13 +528,6 @@ describe("TriggerDetailPanel", () => {
       "https://public.gateway.test/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123"
     );
     expect(ingress).toHaveTextContent("There is no queue for messages sent while it is offline");
-  });
-
-  it("Should omit the public delivery card for a trigger with no webhook endpoint", () => {
-    renderPanel({ runs: [] });
-
-    expect(screen.queryByTestId("trigger-rail-public-delivery")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("trigger-webhook-endpoint")).not.toBeInTheDocument();
   });
 
   it("Should keep raw runtime enums and the activation envelope behind Inspect", async () => {
@@ -667,13 +655,5 @@ describe("TriggerDetailPanel", () => {
         .join("")
     ).toContain(phrase);
     expect(describeTriggerWhen(trigger, "checkout-api").headline).toBe(headline);
-  });
-
-  it("Should never offer a manual fire — the daemon has no such route for triggers", () => {
-    renderPanel();
-
-    expect(screen.queryByTestId("trigger-job-btn")).not.toBeInTheDocument();
-    expect(screen.queryByText("Run now")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Next run/)).not.toBeInTheDocument();
   });
 });
