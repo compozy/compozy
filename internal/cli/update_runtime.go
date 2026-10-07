@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -221,10 +222,7 @@ func readArchivedAppCompletion(
 
 func archivedAppCompletion(operation *compozyupdate.Operation) (*compozyupdate.Operation, bool, error) {
 	if operation.App != nil && operation.App.Phase == compozyupdate.PhaseFailed {
-		message := strings.TrimSpace(operation.LastError)
-		if message == "" {
-			message = "desktop app update failed"
-		}
+		message := cmp.Or(strings.TrimSpace(operation.LastError), "desktop app update failed")
 		return operation, true, errors.New("cli: " + message)
 	}
 	return operation, true, nil

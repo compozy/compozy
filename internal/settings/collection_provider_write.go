@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
-	"sort"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -31,11 +32,7 @@ func (s *service) buildMCPServerItems(
 		return nil, err
 	}
 
-	names := make([]string, 0, len(sources))
-	for name := range sources {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(sources))
 
 	items := make([]mcpCollectionItem, 0, len(names))
 	for _, name := range names {

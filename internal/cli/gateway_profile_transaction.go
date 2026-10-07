@@ -148,12 +148,10 @@ func newGatewayProfileTransactionJournal(plan gatewayProfileTransactionPlan) (ga
 		PairingStartedAt: plan.pairingStartedAt.UTC(),
 	}
 	if plan.operation == gatewayProfileTransactionUpsert || plan.operation == gatewayProfileTransactionPair {
-		profile := plan.profile
-		journal.DesiredProfile = &profile
+		journal.DesiredProfile = new(plan.profile)
 	}
 	if plan.previousExists {
-		profile := plan.previousProfile
-		journal.PreviousProfile = &profile
+		journal.PreviousProfile = new(plan.previousProfile)
 	}
 	credential := strings.TrimSpace(plan.credential)
 	if credential != "" {

@@ -1,10 +1,11 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -175,10 +176,7 @@ func resolveNonInteractiveInstallSelection(
 		return installWizardSelection{}, errors.New("cli: install provider is required")
 	}
 
-	selectedModel := strings.TrimSpace(model)
-	if selectedModel == "" {
-		selectedModel = strings.TrimSpace(input.SuggestedModels[selectedProvider])
-	}
+	selectedModel := cmp.Or(strings.TrimSpace(model), strings.TrimSpace(input.SuggestedModels[selectedProvider]))
 	if selectedModel == "" && input.ModelRequired[selectedProvider] {
 		return installWizardSelection{}, fmt.Errorf(
 			"cli: install model is required for provider %q",
@@ -214,7 +212,7 @@ func buildInstallWizardInput(cfg *compozyconfig.Config) installWizardInput {
 		seen[name] = struct{}{}
 		providers = append(providers, name)
 	}
-	sort.Strings(providers)
+	slices.Sort(providers)
 
 	suggestedModels := make(map[string]string, len(providers))
 	modelRequired := make(map[string]bool, len(providers))

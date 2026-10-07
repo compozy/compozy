@@ -91,8 +91,8 @@ func TestAppConfigLifecycleMatchesSharedCorpus(t *testing.T) {
 				t.Fatalf("configOverlay.Apply() error = %v", err)
 			}
 			err := cfg.App.Validate()
-			var validationErr ValidationError
-			if !errors.As(err, &validationErr) || validationErr.Path != appUpdateCheckIntervalPath {
+			validationErr, validationErrOK := errors.AsType[ValidationError](err)
+			if !validationErrOK || validationErr.Path != appUpdateCheckIntervalPath {
 				t.Fatalf("AppConfig.Validate() error = %#v, want path %q", err, appUpdateCheckIntervalPath)
 			}
 		})

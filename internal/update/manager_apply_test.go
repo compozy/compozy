@@ -2,7 +2,6 @@ package update
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -138,7 +137,7 @@ func TestManagerApplyRelease(t *testing.T) {
 		defer server.Close()
 		manager.httpClient = server.Client()
 
-		applied, err := manager.ApplyRelease(context.Background(), release)
+		applied, err := manager.ApplyRelease(t.Context(), release)
 		if err != nil {
 			t.Fatalf("ApplyRelease() error = %v", err)
 		}
@@ -182,7 +181,7 @@ func TestManagerApplyRelease(t *testing.T) {
 		defer server.Close()
 		manager.httpClient = server.Client()
 
-		_, err := manager.ApplyRelease(context.Background(), release)
+		_, err := manager.ApplyRelease(t.Context(), release)
 		if err != nil {
 			t.Fatalf("ApplyRelease() error = %v", err)
 		}
@@ -216,8 +215,8 @@ func TestManagerApplyRelease(t *testing.T) {
 		manager.httpClient = server.Client()
 
 		_, err := manager.ApplyRelease(t.Context(), release)
-		var sizeErr *ArtifactSizeError
-		if !errors.As(err, &sizeErr) {
+		sizeErr, sizeErrOK := errors.AsType[*ArtifactSizeError](err)
+		if !sizeErrOK {
 			t.Fatalf("ApplyRelease() error = %v, want ArtifactSizeError", err)
 		}
 		if sizeErr.Kind != ArtifactKindBinary || sizeErr.Size != 9 || sizeErr.Limit != 8 {
@@ -251,9 +250,9 @@ func TestManagerApplyRelease(t *testing.T) {
 		defer server.Close()
 		manager.httpClient = server.Client()
 
-		_, err := manager.ApplyRelease(context.Background(), release)
-		var sizeErr *ArtifactSizeError
-		if !errors.As(err, &sizeErr) {
+		_, err := manager.ApplyRelease(t.Context(), release)
+		sizeErr, sizeErrOK := errors.AsType[*ArtifactSizeError](err)
+		if !sizeErrOK {
 			t.Fatalf("ApplyRelease() error = %v, want ArtifactSizeError", err)
 		}
 		if sizeErr.Kind != ArtifactKindArchive || sizeErr.Limit != DefaultArtifactPolicy().MaxArchiveBytes {
@@ -287,7 +286,7 @@ func TestManagerApplyRelease(t *testing.T) {
 			},
 		}
 
-		_, err = manager.ApplyRelease(context.Background(), release)
+		_, err = manager.ApplyRelease(t.Context(), release)
 		if err == nil {
 			t.Fatal("ApplyRelease() error = nil, want missing bundle asset error")
 		}
@@ -316,7 +315,7 @@ func TestManagerApplyRelease(t *testing.T) {
 		defer server.Close()
 		manager.httpClient = server.Client()
 
-		_, err := manager.ApplyRelease(context.Background(), release)
+		_, err := manager.ApplyRelease(t.Context(), release)
 		if err == nil {
 			t.Fatal("ApplyRelease() error = nil, want provenance failure")
 		}
@@ -353,7 +352,7 @@ func TestManagerApplyRelease(t *testing.T) {
 		defer server.Close()
 		manager.httpClient = server.Client()
 
-		_, err = manager.ApplyRelease(context.Background(), release)
+		_, err = manager.ApplyRelease(t.Context(), release)
 		if err == nil {
 			t.Fatal("ApplyRelease() error = nil, want checksum mismatch")
 		}
@@ -385,7 +384,7 @@ func TestManagerApplyRelease(t *testing.T) {
 		defer server.Close()
 		manager.httpClient = server.Client()
 
-		_, err := manager.ApplyRelease(context.Background(), release)
+		_, err := manager.ApplyRelease(t.Context(), release)
 		if err == nil {
 			t.Fatal("ApplyRelease() error = nil, want corrupt archive failure")
 		}
@@ -417,7 +416,7 @@ func TestManagerApplyRelease(t *testing.T) {
 		defer server.Close()
 		manager.httpClient = server.Client()
 
-		_, err := manager.ApplyRelease(context.Background(), release)
+		_, err := manager.ApplyRelease(t.Context(), release)
 		if err == nil {
 			t.Fatal("ApplyRelease() error = nil, want download failure")
 		}
@@ -455,7 +454,7 @@ func TestManagerDownloadFile(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), checksumsAssetName)
 
 		err := manager.downloadFile(
-			context.Background(),
+			t.Context(),
 			"https://example.invalid/checksums.txt",
 			targetPath,
 			maxChecksumsBytes,
@@ -504,7 +503,7 @@ func TestManagerDownloadFile(t *testing.T) {
 		manager.httpClient = server.Client()
 		targetPath := filepath.Join(t.TempDir(), checksumsAssetName)
 
-		err := manager.downloadFile(context.Background(), server.URL, targetPath, maxChecksumsBytes)
+		err := manager.downloadFile(t.Context(), server.URL, targetPath, maxChecksumsBytes)
 		if err == nil {
 			t.Fatal("downloadFile() error = nil, want oversized chunked response failure")
 		}

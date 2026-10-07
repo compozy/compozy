@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -89,11 +89,7 @@ func prepareMCPSecretEnvValues(
 	if server.EffectiveTransport() != compozyconfig.MCPServerTransportStdio {
 		return nil, validationError(errors.New("settings: MCP secret_env values require stdio transport"))
 	}
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(values))
 
 	writes := make([]preparedSecretWrite, 0, len(values))
 	for _, key := range keys {
@@ -149,11 +145,9 @@ func setMCPSecretEnvRef(server *compozyconfig.MCPServer, envName string, ref str
 	if server.SecretEnv == nil {
 		server.SecretEnv = make(map[string]string)
 	}
-	for key := range server.SecretEnv {
-		if strings.TrimSpace(key) == envName {
-			delete(server.SecretEnv, key)
-		}
-	}
+	maps.DeleteFunc(server.SecretEnv, func(key, _ string) bool {
+		return strings.TrimSpace(key) == envName
+	})
 	server.SecretEnv[envName] = ref
 }
 
@@ -413,11 +407,7 @@ func (s *service) prepareOwnedMCPSecretDeletes(
 		return nil, err
 	}
 	owned := ownedMCPSecretRefs(prefix, server)
-	refs := make([]string, 0, len(owned))
-	for ref := range owned {
-		refs = append(refs, ref)
-	}
-	sort.Strings(refs)
+	refs := slices.Sorted(maps.Keys(owned))
 	snapshots := make([]ownedMCPSecretSnapshot, 0, len(refs))
 	for _, ref := range refs {
 		metadata, metadataErr := s.providerSecrets.GetMetadata(ctx, ref)

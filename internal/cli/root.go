@@ -143,8 +143,7 @@ func configureRootClientTargetReporting(cmd *cobra.Command, deps *commandDeps) {
 		if !target.isRemoteGateway() || pendingTarget != nil {
 			return nil
 		}
-		resolved := target
-		pendingTarget = &resolved
+		pendingTarget = new(target)
 		return nil
 	}
 	cmd.PersistentPostRunE = func(command *cobra.Command, _ []string) error {

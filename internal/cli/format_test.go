@@ -120,7 +120,7 @@ func TestWorkspaceResolutionFormatting(t *testing.T) {
 			t.Parallel()
 
 			cmd := &cobra.Command{Use: "format-test"}
-			cmd.SetContext(context.Background())
+			cmd.SetContext(t.Context())
 			cmd.Flags().String(outputFlagName, tt.format, "")
 			var stdout bytes.Buffer
 			cmd.SetOut(&stdout)

@@ -384,8 +384,8 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 			if !strings.Contains(err.Error(), tt.wantError) {
 				t.Fatalf("EditConfigOverlay() error = %v, want path %q", err, tt.wantError)
 			}
-			var validationError ValidationError
-			if !errors.As(err, &validationError) || validationError.Path != tt.wantError {
+			validationError, validationErrorOK := errors.AsType[ValidationError](err)
+			if !validationErrorOK || validationError.Path != tt.wantError {
 				t.Fatalf("EditConfigOverlay() error = %#v, want ValidationError path %q", err, tt.wantError)
 			}
 		})
@@ -459,8 +459,8 @@ func TestLoopsConfigShouldRejectInvalidAutopauseWithoutMutatingRules(t *testing.
 			if err == nil {
 				t.Fatal("Validate() error = nil, want invalid autopause rule")
 			}
-			var validationError ValidationError
-			if !errors.As(err, &validationError) || validationError.Code != loopAutopauseRuleInvalidCode ||
+			validationError, validationErrorOK := errors.AsType[ValidationError](err)
+			if !validationErrorOK || validationError.Code != loopAutopauseRuleInvalidCode ||
 				validationError.Path != tt.wantPath || !strings.Contains(validationError.Message, tt.wantMessage) {
 				t.Fatalf(
 					"Validate() error = %#v, want code %q path %q containing %q",

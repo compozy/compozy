@@ -70,8 +70,8 @@ func TestShellConfig(t *testing.T) {
 				t.Parallel()
 
 				err := testCase.cfg.Validate()
-				var validationErr ValidationError
-				if !errors.As(err, &validationErr) {
+				validationErr, validationErrOK := errors.AsType[ValidationError](err)
+				if !validationErrOK {
 					t.Fatalf("Validate() error = %v, want ValidationError", err)
 				}
 				if validationErr.Path != testCase.path {

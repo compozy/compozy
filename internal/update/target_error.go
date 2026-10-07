@@ -27,8 +27,8 @@ func (e *TargetError) Unwrap() error {
 
 // ErrorTarget returns the track carried by a planning error.
 func ErrorTarget(err error) (Target, bool) {
-	var targetErr *TargetError
-	if !errors.As(err, &targetErr) || targetErr == nil || targetErr.Target == "" {
+	targetErr, targetErrOK := errors.AsType[*TargetError](err)
+	if !targetErrOK || targetErr == nil || targetErr.Target == "" {
 		return "", false
 	}
 	return targetErr.Target, true

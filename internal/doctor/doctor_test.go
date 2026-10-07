@@ -97,7 +97,7 @@ func TestDeadEntityProbe(t *testing.T) {
 			t.Fatalf("Register(dead entity probe) error = %v", err)
 		}
 		runner := NewRunner(registry)
-		items, err := runner.Run(context.Background(), RunOptions{Only: []string{contract.CategoryMCP}})
+		items, err := runner.Run(t.Context(), RunOptions{Only: []string{contract.CategoryMCP}})
 		if err != nil {
 			t.Fatalf("Run(mcp) error = %v", err)
 		}
@@ -131,7 +131,7 @@ func TestDeadEntityProbe(t *testing.T) {
 			Workspaces: deadEntityProbeWorkspaceSource{workspaces: []workspacepkg.Workspace{{ID: "ws-empty"}}},
 			Kind:       store.DeadEntityKindExtension,
 		}
-		items, err := probe.Run(context.Background(), &ProbeEnv{})
+		items, err := probe.Run(t.Context(), &ProbeEnv{})
 		if err != nil {
 			t.Fatalf("Run(empty) error = %v", err)
 		}
@@ -190,7 +190,7 @@ func TestRunner(t *testing.T) {
 		}
 		runner := NewRunner(registry)
 
-		items, err := runner.Run(context.Background(), RunOptions{})
+		items, err := runner.Run(t.Context(), RunOptions{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -220,7 +220,7 @@ func TestRunner(t *testing.T) {
 		}
 		runner := NewRunner(registry)
 
-		items, err := runner.Run(context.Background(), RunOptions{})
+		items, err := runner.Run(t.Context(), RunOptions{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -304,7 +304,7 @@ func TestRunner(t *testing.T) {
 		}
 		runner := NewRunner(registry)
 
-		items, err := runner.Run(context.Background(), RunOptions{ProbeTimeout: time.Millisecond})
+		items, err := runner.Run(t.Context(), RunOptions{ProbeTimeout: time.Millisecond})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -387,7 +387,7 @@ func TestRuntimeMemoryProbe(t *testing.T) {
 				UptimeSeconds:           60,
 			},
 		}}
-		items, err := probe.Run(context.Background(), &ProbeEnv{})
+		items, err := probe.Run(t.Context(), &ProbeEnv{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -414,7 +414,7 @@ func TestRuntimeMemoryProbe(t *testing.T) {
 		probe := &RuntimeMemoryProbe{Source: runtimeMemorySnapshotSourceStub{
 			snapshot: RuntimeMemorySnapshot{Phase: "disabled"},
 		}}
-		items, err := probe.Run(context.Background(), &ProbeEnv{})
+		items, err := probe.Run(t.Context(), &ProbeEnv{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
@@ -452,7 +452,7 @@ func TestSubprocessHealthProbe(t *testing.T) {
 			}},
 		}}
 
-		items, err := probe.Run(context.Background(), &ProbeEnv{})
+		items, err := probe.Run(t.Context(), &ProbeEnv{})
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}

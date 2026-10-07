@@ -30,8 +30,7 @@ func writeBootstrapFailure(
 		Message: cause.Error(),
 	}
 	if compatibilityFailure, ok := errors.AsType[*bootstrapCompatibilityFailure](cause); ok {
-		compatibility := compatibilityFailure.bootstrapCompatibility
-		event.Compatibility = &compatibility
+		event.Compatibility = new(compatibilityFailure.bootstrapCompatibility)
 	}
 	if err := writeBootstrapEvent(cmd, event); err != nil {
 		return err

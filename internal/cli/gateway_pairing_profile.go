@@ -166,6 +166,6 @@ func gatewayPairingRequestNotSent(err error) bool {
 	if requestError, ok := errors.AsType[*gatewayPairingRequestError](err); ok {
 		return requestError.requestNotSent
 	}
-	var operationError *net.OpError
-	return errors.As(err, &operationError) && operationError.Op == "dial"
+	operationError, operationErrorOK := errors.AsType[*net.OpError](err)
+	return operationErrorOK && operationError.Op == "dial"
 }

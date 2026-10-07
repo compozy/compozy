@@ -18,7 +18,7 @@ func TestSkillsSectionDiagnostics(t *testing.T) {
 	t.Run("Should expose skill resolution diagnostics from runtime", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		runtime := &diagnosticSkillsRuntime{

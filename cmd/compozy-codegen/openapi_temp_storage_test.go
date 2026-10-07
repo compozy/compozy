@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,7 +15,7 @@ func TestCodegenOpenAPITempStorage(t *testing.T) {
 		}
 
 		openapiPath := filepath.Join(t.TempDir(), "openapi", "compozy.json")
-		if err := writeOpenAPI(context.Background(), openapiPath); err != nil {
+		if err := writeOpenAPI(t.Context(), openapiPath); err != nil {
 			t.Fatalf("writeOpenAPI(%q) error = %v", openapiPath, err)
 		}
 

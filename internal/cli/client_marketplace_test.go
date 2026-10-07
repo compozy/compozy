@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -122,7 +121,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 				), nil
 			})},
 		}
-		_, err := client.SearchMarketplace(context.Background(), "", 20, "", MarketplaceReadScope{
+		_, err := client.SearchMarketplace(t.Context(), "", 20, "", MarketplaceReadScope{
 			Scope: contract.SettingsLayeredScopeProfile, Profile: "marketing",
 		})
 		if err != nil {

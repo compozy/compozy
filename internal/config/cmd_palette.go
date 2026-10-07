@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -54,11 +54,7 @@ func (c CmdPaletteConfig) Validate() error {
 		}
 	}
 	owners := make(map[string]string, len(c.Aliases))
-	commandIDs := make([]string, 0, len(c.Aliases))
-	for commandID := range c.Aliases {
-		commandIDs = append(commandIDs, commandID)
-	}
-	sort.Strings(commandIDs)
+	commandIDs := slices.Sorted(maps.Keys(c.Aliases))
 	for _, commandID := range commandIDs {
 		alias := c.Aliases[commandID]
 		path := fmt.Sprintf("cmd_palette.aliases[%q]", commandID)

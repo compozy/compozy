@@ -170,8 +170,8 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 			{"install", "--profile", "marketing"},
 		} {
 			_, _, err := executeRootCommand(t, commandDeps{}, args...)
-			var profileErr *profileCommandError
-			if !errors.As(err, &profileErr) || profileErr.payload.Error.Code != profileSelectionUnsupportedCode {
+			profileErr, profileErrOK := errors.AsType[*profileCommandError](err)
+			if !profileErrOK || profileErr.payload.Error.Code != profileSelectionUnsupportedCode {
 				t.Fatalf(
 					"executeRootCommand(%v) error = %v, want %s payload",
 					args,

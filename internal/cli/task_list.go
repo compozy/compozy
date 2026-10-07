@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strings"
@@ -147,10 +148,10 @@ func parseTaskListFilters(
 	if err := validateTaskLast(limit); err != nil {
 		return TaskListQuery{}, err
 	}
-	sortKey := taskpkg.CatalogSort(strings.ToLower(strings.TrimSpace(sortRaw))).Normalize()
-	if sortKey == "" {
-		sortKey = taskpkg.CatalogSortRecent
-	}
+	sortKey := cmp.Or(
+		taskpkg.CatalogSort(strings.ToLower(strings.TrimSpace(sortRaw))).Normalize(),
+		taskpkg.CatalogSortRecent,
+	)
 	if sortKey != taskpkg.CatalogSortRecent && sortKey != taskpkg.CatalogSortPriority {
 		return TaskListQuery{}, errors.New("cli: --sort must be recent or priority")
 	}
@@ -265,10 +266,7 @@ func formatTaskLoopProvenance(provenance *contract.LoopProvenance) string {
 	if provenance == nil {
 		return ""
 	}
-	identity := strings.TrimSpace(provenance.LoopName)
-	if identity == "" {
-		identity = strings.TrimSpace(provenance.RunID)
-	}
+	identity := cmp.Or(strings.TrimSpace(provenance.LoopName), strings.TrimSpace(provenance.RunID))
 	suffix := taskLoopCoordinatorLabel
 	if provenance.Role == contract.LoopProvenanceRoleCell {
 		suffix = "cell"

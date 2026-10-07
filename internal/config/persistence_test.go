@@ -609,8 +609,8 @@ func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 			WriteScopeWorkspace,
 			[]string{"skills", "poll_interval"},
 		)
-		var sourceErr *SkillSourceValidationError
-		if !errors.As(err, &sourceErr) {
+		sourceErr, sourceErrOK := errors.AsType[*SkillSourceValidationError](err)
+		if !sourceErrOK {
 			t.Fatalf("ValidateConfigWriteScope() error = %v, want SkillSourceValidationError", err)
 		}
 		if sourceErr.Code != "workspace_scope_field_forbidden" || sourceErr.Field != "poll_interval" {

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"strconv"
 	"strings"
 	"time"
@@ -281,10 +282,7 @@ func sessionRepairActionSummary(items []SessionRepairActionRecord) string {
 	}
 	parts := make([]string, 0, len(items))
 	for _, item := range items {
-		ref := item.EventID
-		if ref == "" {
-			ref = item.ToolCallID
-		}
+		ref := cmp.Or(item.EventID, item.ToolCallID)
 		parts = append(parts, repairSummaryPart(item.Code, item.TurnID, ref))
 	}
 	return strings.Join(parts, ", ")

@@ -39,8 +39,8 @@ func TestDefaultsAgentNameValidation(t *testing.T) {
 
 			defaults := DefaultsConfig{Agent: test.agent}
 			err := defaults.Validate()
-			var validationErr ValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, validationErrOK := errors.AsType[ValidationError](err)
+			if !validationErrOK {
 				t.Fatalf("DefaultsConfig.Validate() error = %T, want ValidationError", err)
 			}
 			if got, want := validationErr.Path, "defaults.agent"; got != want {
@@ -85,8 +85,8 @@ func TestDefaultsAgentNameValidation(t *testing.T) {
 		t.Parallel()
 
 		err := (DefaultsConfig{Agent: "audio designer"}).Validate()
-		var validationErr ValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrOK := errors.AsType[ValidationError](err)
+		if !validationErrOK {
 			t.Fatalf("DefaultsConfig.Validate() error = %T, want ValidationError", err)
 		}
 		if got, want := validationErr.Path, "defaults.agent"; got != want {

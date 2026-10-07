@@ -20,15 +20,13 @@ func (b *loopFollowTimelineBuffer) Push(entry looppkg.TimelineEntry) []looppkg.T
 		return append(ready, entry)
 	}
 	if b.pending == nil {
-		copyEntry := entry
-		b.pending = &copyEntry
+		b.pending = new(entry)
 		b.count = 1
 		return nil
 	}
 	if b.pending.Kind != entry.Kind {
 		previous, _ := b.Flush()
-		copyEntry := entry
-		b.pending = &copyEntry
+		b.pending = new(entry)
 		b.count = 1
 		return []looppkg.TimelineEntry{previous}
 	}

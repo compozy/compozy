@@ -2,6 +2,7 @@ package settings
 
 import (
 	"maps"
+	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
@@ -20,8 +21,7 @@ func cloneBoolPtr(value *bool) *bool {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneProviderItem(value *ProviderItem) ProviderItem {
@@ -55,8 +55,7 @@ func cloneHookDecl(value hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned.SecretEnv = cloneStringMap(value.SecretEnv)
 	cloned.Metadata = cloneStringMap(value.Metadata)
 	if value.Matcher.ToolReadOnly != nil {
-		toolReadOnly := *value.Matcher.ToolReadOnly
-		cloned.Matcher.ToolReadOnly = &toolReadOnly
+		cloned.Matcher.ToolReadOnly = new(*value.Matcher.ToolReadOnly)
 	}
 	return cloned
 }
@@ -65,16 +64,12 @@ func cloneStringMap(values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return nil
 	}
-	cloned := make(map[string]string, len(values))
-	maps.Copy(cloned, values)
-	return cloned
+	return maps.Clone(values)
 }
 
 func cloneAllowedKinds(values []resources.ResourceKind) []resources.ResourceKind {
 	if len(values) == 0 {
 		return nil
 	}
-	cloned := make([]resources.ResourceKind, len(values))
-	copy(cloned, values)
-	return cloned
+	return slices.Clone(values)
 }

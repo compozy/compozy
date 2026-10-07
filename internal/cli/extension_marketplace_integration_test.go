@@ -207,12 +207,10 @@ func TestExtensionInstallCommandIntegrationCreatesManagedInstallAndRegistryRecor
 			&extensionRegistrySourceStub{
 				name: "github",
 				infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
-					return &registrypkg.Detail{Listing: registrypkg.Listing{
-						Slug:    slug,
+					return &registrypkg.Detail{Slug: slug,
 						Name:    "integration-ext",
 						Version: "1.0.0",
-						Source:  "github",
-					}}, nil
+						Source:  "github"}, nil
 				},
 				downloadFunc: func(_ context.Context, slug string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 					return newExtensionDownloadResult(
@@ -273,9 +271,7 @@ func TestExtensionMarketplacePortableInstallParityIntegration(t *testing.T) {
 			&extensionRegistrySourceStub{
 				name: "github",
 				infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
-					return &registrypkg.Detail{Listing: registrypkg.Listing{
-						Slug: slug, Name: name, Version: version, Source: "github",
-					}}, nil
+					return &registrypkg.Detail{Slug: slug, Name: name, Version: version, Source: "github"}, nil
 				},
 				downloadFunc: func(_ context.Context, slug string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 					return newExtensionDownloadResult(
@@ -433,12 +429,10 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 			&extensionRegistrySourceStub{
 				name: "github",
 				infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
-					return &registrypkg.Detail{Listing: registrypkg.Listing{
-						Slug:    slug,
+					return &registrypkg.Detail{Slug: slug,
 						Name:    "integration-update-ext",
 						Version: latestVersion,
-						Source:  "github",
-					}}, nil
+						Source:  "github"}, nil
 				},
 				downloadFunc: func(_ context.Context, slug string, opts registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 					version := firstNonEmpty(opts.Version, latestVersion)

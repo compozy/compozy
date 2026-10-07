@@ -119,8 +119,8 @@ func TestGatewayClientTargetErrorsAndIsolation(t *testing.T) {
 		if authErr == nil || strings.Contains(authErr.Error(), "unreachable") {
 			t.Fatalf("GetGatewayStatus(auth) error = %v, want distinct authentication failure", authErr)
 		}
-		var apiErr *daemonAPIError
-		if !errors.As(authErr, &apiErr) || apiErr.payload.Code != "gateway_device_unauthenticated" {
+		apiErr, apiErrOK := errors.AsType[*daemonAPIError](authErr)
+		if !apiErrOK || apiErr.payload.Code != "gateway_device_unauthenticated" {
 			t.Fatalf("GetGatewayStatus(auth) error = %T %v, want gateway_device_unauthenticated", authErr, authErr)
 		}
 	})
@@ -196,8 +196,8 @@ func TestGatewayClientTargetErrorsAndIsolation(t *testing.T) {
 		healthyClient := &daemonClient{target: healthyTarget, httpClient: &http.Client{Transport: transport}}
 		for attempt := range 3 {
 			_, err := revokedClient.GetGatewayStatus(t.Context())
-			var apiErr *daemonAPIError
-			if !errors.As(err, &apiErr) || apiErr.payload.Code != "gateway_device_unauthenticated" {
+			apiErr, apiErrOK := errors.AsType[*daemonAPIError](err)
+			if !apiErrOK || apiErr.payload.Code != "gateway_device_unauthenticated" {
 				t.Fatalf("revoked attempt %d error = %T %v", attempt, err, err)
 			}
 			status, err := healthyClient.GetGatewayStatus(t.Context())
@@ -1171,8 +1171,8 @@ func TestGatewayProfileTransactions(t *testing.T) {
 		}
 		started := make(chan struct{})
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce)
 		gatewayAPI := &gatewayPairingAPIStub{
 			issued: contract.GatewayIssuedCredentialPayload{
 				Credential: testGatewayCredential('c'),
@@ -1233,7 +1233,7 @@ func TestGatewayProfileTransactions(t *testing.T) {
 			"--address", "https://gateway.example", "--overwrite", "-o", "json",
 		)
 		assertGatewayClientErrorCode(t, secondErr, "gateway_profile_busy")
-		releaseOnce.Do(func() { close(release) })
+		releaseOnce()
 		if err := <-firstResult; err != nil {
 			t.Fatalf("first pairing error = %v", err)
 		}

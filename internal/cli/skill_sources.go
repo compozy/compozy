@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -129,10 +130,7 @@ func skillSourcesBundle(record skillSourcesRecord) outputBundle {
 func skillSourceRows(sources []contract.SettingsSkillSourcePayload) [][]string {
 	rows := make([][]string, 0, len(sources))
 	for _, source := range sources {
-		globalPath := source.GlobalPath
-		if globalPath == "" {
-			globalPath = source.Path
-		}
+		globalPath := cmp.Or(source.GlobalPath, source.Path)
 		rows = append(rows, []string{
 			source.Slug,
 			skillSourceState(source),

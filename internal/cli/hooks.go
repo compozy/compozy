@@ -3,7 +3,8 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -466,11 +467,7 @@ func hookMetadataRows(metadata map[string]string) [][]string {
 		return nil
 	}
 
-	keys := make([]string, 0, len(metadata))
-	for key := range metadata {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(metadata))
 
 	rows := make([][]string, 0, len(keys))
 	for _, key := range keys {

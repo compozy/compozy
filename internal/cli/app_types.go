@@ -80,11 +80,17 @@ type appInstallation struct {
 	Executable string
 }
 
-var (
-	compiledAppStateSchema     *jsonschema.Schema
-	compiledAppStateSchemaErr  error
-	compiledAppStateSchemaOnce sync.Once
-)
+var compiledAppStateSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
+	var definition any
+	if err := json.Unmarshal(appschema.Definition, &definition); err != nil {
+		return nil, fmt.Errorf("decode canonical schema: %w", err)
+	}
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("app-state.schema.json", definition); err != nil {
+		return nil, fmt.Errorf("register canonical schema: %w", err)
+	}
+	return compiler.Compile("app-state.schema.json")
+})
 
 func resolveAppStatus(
 	ctx context.Context,
@@ -187,8 +193,7 @@ func overlayAppUpdateOperation(
 		operation,
 	)
 	report.Update.OperationID = projected.Operation.ID
-	percent := projected.Operation.Percent
-	report.Update.Percent = &percent
+	report.Update.Percent = new(projected.Operation.Percent)
 	if phase, ok := compozyupdate.PhaseForUI(
 		projected.Operation.ActiveTarget,
 		projected.Operation.Phase,
@@ -258,21 +263,9 @@ func validateAppStateJSON(raw []byte) error {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return fmt.Errorf("decode JSON: %w", err)
 	}
-	compiledAppStateSchemaOnce.Do(func() {
-		var definition any
-		if err := json.Unmarshal(appschema.Definition, &definition); err != nil {
-			compiledAppStateSchemaErr = fmt.Errorf("decode canonical schema: %w", err)
-			return
-		}
-		compiler := jsonschema.NewCompiler()
-		if err := compiler.AddResource("app-state.schema.json", definition); err != nil {
-			compiledAppStateSchemaErr = fmt.Errorf("register canonical schema: %w", err)
-			return
-		}
-		compiledAppStateSchema, compiledAppStateSchemaErr = compiler.Compile("app-state.schema.json")
-	})
-	if compiledAppStateSchemaErr != nil {
-		return compiledAppStateSchemaErr
+	schema, err := compiledAppStateSchema()
+	if err != nil {
+		return err
 	}
-	return compiledAppStateSchema.Validate(value)
+	return schema.Validate(value)
 }

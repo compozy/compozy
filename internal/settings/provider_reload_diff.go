@@ -1,8 +1,9 @@
 package settings
 
 import (
+	"maps"
 	"reflect"
-	"sort"
+	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -21,11 +22,7 @@ func diffProviderSettings(
 	for providerID := range desired {
 		providerIDs[providerID] = struct{}{}
 	}
-	orderedIDs := make([]string, 0, len(providerIDs))
-	for providerID := range providerIDs {
-		orderedIDs = append(orderedIDs, providerID)
-	}
-	sort.Strings(orderedIDs)
+	orderedIDs := slices.Sorted(maps.Keys(providerIDs))
 
 	changed := make([]string, 0, len(orderedIDs))
 	for _, providerID := range orderedIDs {

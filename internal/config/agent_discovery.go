@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -74,7 +74,7 @@ func loadAgentDefsFromRoot(root WorkspaceDiscoveryRoot) (agents []AgentDef, err 
 	if err != nil {
 		return nil, fmt.Errorf("read agents directory %q: %w", dirPath, err)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	agents = make([]AgentDef, 0, len(names))
 	for _, name := range names {

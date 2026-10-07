@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -169,7 +169,7 @@ func listGatewayProfileTransactionJournals(
 	if err != nil {
 		return nil, fmt.Errorf("cli: list gateway profile transaction journals: %w", err)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	journals = make([]gatewayProfileTransactionJournal, 0, len(names))
 	for _, name := range names {
 		profile, ok := gatewayProfileTransactionProfileFromJournalName(name)

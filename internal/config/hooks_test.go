@@ -66,8 +66,8 @@ args = ["-c", "printf '{\"message\":\"marketing\"}'"]
 
 	writeFile(t, profilePath, profileConfig+"\n[observability]\nenabled = false\n")
 	_, err = LoadForHome(homePaths, WithProfile("marketing"))
-	var validation ValidationError
-	if !errors.As(err, &validation) || validation.Code != "profile_config_key_denied" {
+	validation, validationOK := errors.AsType[ValidationError](err)
+	if !validationOK || validation.Code != "profile_config_key_denied" {
 		t.Fatalf("LoadForHome(profile observability) error = %#v, want profile_config_key_denied", err)
 	}
 }

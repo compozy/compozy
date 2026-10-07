@@ -284,13 +284,11 @@ func newLayoutBalanceCommand(deps commandDeps) *cobra.Command {
 			}
 			var group *windowmanager.GroupID
 			if groupSet {
-				value := windowmanager.GroupID(strings.TrimSpace(groupID))
-				group = &value
+				group = new(windowmanager.GroupID(strings.TrimSpace(groupID)))
 			}
 			var split *windowmanager.NodeID
 			if splitSet {
-				value := windowmanager.NodeID(strings.TrimSpace(splitID))
-				split = &value
+				split = new(windowmanager.NodeID(strings.TrimSpace(splitID)))
 			}
 			request, err := flags.request(
 				cmd,

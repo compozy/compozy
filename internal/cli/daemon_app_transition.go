@@ -250,8 +250,7 @@ func parseOptionalAppWatchdog(value string) (*time.Time, error) {
 		return nil, nil
 	}
 	if value == "clear" {
-		deadline := time.Time{}
-		return &deadline, nil
+		return new(time.Time{}), nil
 	}
 	deadline, err := time.Parse(time.RFC3339Nano, value)
 	if err != nil {

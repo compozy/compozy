@@ -308,22 +308,19 @@ func cloneRuntimeState(state *RuntimeOperationState) *RuntimeOperationState {
 	if state == nil {
 		return nil
 	}
-	cloned := *state
-	return &cloned
+	return new(*state)
 }
 
 func cloneAppState(state *AppOperationState) *AppOperationState {
 	if state == nil {
 		return nil
 	}
-	cloned := *state
-	return &cloned
+	return new(*state)
 }
 
 func cloneHolder(holder *Holder) *Holder {
 	if holder == nil {
 		return nil
 	}
-	cloned := *holder
-	return &cloned
+	return new(*holder)
 }

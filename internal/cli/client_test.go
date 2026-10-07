@@ -151,8 +151,8 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 			"ext.notes.capture",
 			contract.CmdPaletteInvokeRequest{Workspace: "workspace-1", Args: map[string]any{}},
 		)
-		var paletteErr *cmdPaletteAPIError
-		if !errors.As(err, &paletteErr) || err.Error() != `invalid arguments — missing required "title"` {
+		_, paletteErrOK := errors.AsType[*cmdPaletteAPIError](err)
+		if !paletteErrOK || err.Error() != `invalid arguments — missing required "title"` {
 			t.Fatalf("InvokeCmdPaletteCommand() error = %#v", err)
 		}
 	})
@@ -187,8 +187,8 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 			"workspace-1",
 			contract.UpdateSettingsWindowManagerRequest{Shortcuts: &shortcuts},
 		)
-		var mutationErr *cmdPaletteMutationAPIError
-		if !errors.As(err, &mutationErr) || err.Error() !=
+		_, mutationErrOK := errors.AsType[*cmdPaletteMutationAPIError](err)
+		if !mutationErrOK || err.Error() !=
 			`shortcut conflict — meta+KeyN is used by "session.new". Re-run with --overwrite to take it.` {
 			t.Fatalf("UpdateCmdPaletteBindings() error = %#v", err)
 		}
@@ -1003,7 +1003,7 @@ func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 			},
 		}
 
-		me, err := client.AgentMe(context.Background(), agentidentity.Credentials{
+		me, err := client.AgentMe(t.Context(), agentidentity.Credentials{
 			SessionID: "sess-1",
 			AgentName: "coder",
 		})
@@ -1038,7 +1038,7 @@ func TestUnixSocketClientAgentNotifySendsIdentityAndDecodesOutcome(t *testing.T)
 		})},
 	}
 
-	result, err := client.AgentNotify(context.Background(), AgentNotifyRequest{
+	result, err := client.AgentNotify(t.Context(), AgentNotifyRequest{
 		Title: "Done", Body: "No blockers",
 	}, credentials)
 	if err != nil {
@@ -1077,7 +1077,7 @@ func TestUnixSocketClientUpdateSettingsAttentionRoundTripsContract(t *testing.T)
 		})},
 	}
 
-	result, err := client.UpdateSettingsAttention(context.Background(), want)
+	result, err := client.UpdateSettingsAttention(t.Context(), want)
 	if err != nil {
 		t.Fatalf("UpdateSettingsAttention() error = %v", err)
 	}
@@ -1112,7 +1112,7 @@ func TestUnixSocketClientUpdateSettingsShellRoundTripsContract(t *testing.T) {
 		})},
 	}
 
-	result, err := client.UpdateSettingsShell(context.Background(), want)
+	result, err := client.UpdateSettingsShell(t.Context(), want)
 	if err != nil {
 		t.Fatalf("UpdateSettingsShell() error = %v", err)
 	}
@@ -1150,7 +1150,7 @@ func TestUnixSocketClientSessionAttentionReadsUseCanonicalRoutes(t *testing.T) {
 		})},
 	}
 
-	summary, err := client.GetSessionAttentionSummary(context.Background())
+	summary, err := client.GetSessionAttentionSummary(t.Context())
 	if err != nil {
 		t.Fatalf("GetSessionAttentionSummary() error = %v", err)
 	}
@@ -1158,7 +1158,7 @@ func TestUnixSocketClientSessionAttentionReadsUseCanonicalRoutes(t *testing.T) {
 		t.Fatalf("GetSessionAttentionSummary() = %#v, want 2/1", summary)
 	}
 	interactions, err := client.ListSessionInteractions(
-		context.Background(), "sess-1", []string{" pending ", "", "orphaned"},
+		t.Context(), "sess-1", []string{" pending ", "", "orphaned"},
 	)
 	if err != nil {
 		t.Fatalf("ListSessionInteractions() error = %v", err)
@@ -1263,7 +1263,7 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 		t.Parallel()
 
 		response, err := client.RunLoop(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"release",
 			contract.RunLoopRequest{Inputs: map[string]any{"target": "prod"}},
@@ -1282,7 +1282,7 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 		t.Parallel()
 
 		err := client.ApproveLoopRun(
-			context.Background(),
+			t.Context(),
 			"ws-1",
 			"run-1",
 			contract.ApproveLoopRunRequest{GateID: "human", Decision: contract.LoopGateDecisionApprove},
@@ -1315,7 +1315,7 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 		{
 			name: "Should reject nil task execution profile request",
 			run: func() error {
-				_, err := client.SetTaskExecutionProfile(context.Background(), "task-1", nil)
+				_, err := client.SetTaskExecutionProfile(t.Context(), "task-1", nil)
 				return err
 			},
 			want: "cli: task execution profile request is required",
@@ -1323,7 +1323,7 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 		{
 			name: "Should reject nil task worktree policy request",
 			run: func() error {
-				_, err := client.SetTaskWorktreePolicy(context.Background(), "task-1", nil)
+				_, err := client.SetTaskWorktreePolicy(t.Context(), "task-1", nil)
 				return err
 			},
 			want: "cli: task worktree policy request is required",
@@ -1331,7 +1331,7 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 		{
 			name: "Should reject nil task run review request",
 			run: func() error {
-				_, err := client.RequestTaskRunReview(context.Background(), "run-1", nil)
+				_, err := client.RequestTaskRunReview(t.Context(), "run-1", nil)
 				return err
 			},
 			want: "cli: task run review request is required",
@@ -1339,7 +1339,7 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 		{
 			name: "Should reject nil task run review verdict request",
 			run: func() error {
-				_, err := client.SubmitTaskRunReviewVerdict(context.Background(), "review-1", nil)
+				_, err := client.SubmitTaskRunReviewVerdict(t.Context(), "review-1", nil)
 				return err
 			},
 			want: "cli: task run review verdict request is required",
@@ -1463,7 +1463,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	}
 
 	t.Run("Should claim next task", func(t *testing.T) {
-		claim, err := client.AgentTaskClaimNext(context.Background(), AgentTaskClaimNextRequest{
+		claim, err := client.AgentTaskClaimNext(t.Context(), AgentTaskClaimNextRequest{
 			WorkspaceID:          "ws-1",
 			RequiredCapabilities: []string{"go"},
 			PriorityMin:          2,
@@ -1479,7 +1479,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	})
 	t.Run("Should return no work", func(t *testing.T) {
 		noWork, err := client.AgentTaskClaimNext(
-			context.Background(),
+			t.Context(),
 			AgentTaskClaimNextRequest{WorkspaceID: "empty"},
 			credentials,
 		)
@@ -1492,7 +1492,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	})
 	t.Run("Should heartbeat claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskHeartbeat(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskHeartbeatRequest{LeaseSeconds: 60},
 			credentials,
@@ -1503,7 +1503,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	})
 	t.Run("Should complete claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskComplete(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
 			credentials,
@@ -1514,7 +1514,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	})
 	t.Run("Should fail claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskFail(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskFailRequest{
 				Error:    "boom",
@@ -1528,7 +1528,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	})
 	t.Run("Should release claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskRelease(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskReleaseRequest{Reason: "handoff"},
 			credentials,
@@ -1569,7 +1569,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			},
 		}
 		_, err := client.AgentTaskRelease(
-			context.Background(),
+			t.Context(),
 			"run-1",
 			AgentTaskReleaseRequest{},
 			agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"},
@@ -1759,7 +1759,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should list tools", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.ListTools(context.Background(), ToolQuery{
+		response, err := client.ListTools(t.Context(), ToolQuery{
 			WorkspaceID: "ws-1",
 			SessionID:   "sess-1",
 			AgentName:   "coder",
@@ -1775,7 +1775,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should search tools", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.SearchTools(context.Background(), ToolSearchRequest{
+		response, err := client.SearchTools(t.Context(), ToolSearchRequest{
 			Query:       " skill ",
 			Limit:       2,
 			WorkspaceID: " ws-1 ",
@@ -1791,7 +1791,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should get tool info", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.GetTool(context.Background(), toolspkg.ToolIDSkillView.String(), ToolQuery{
+		response, err := client.GetTool(t.Context(), toolspkg.ToolIDSkillView.String(), ToolQuery{
 			WorkspaceID: "ws-1",
 		})
 		if err != nil {
@@ -1805,7 +1805,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should invoke tool", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.InvokeTool(context.Background(), toolspkg.ToolIDToolInfo.String(), ToolInvokeRequest{
+		response, err := client.InvokeTool(t.Context(), toolspkg.ToolIDToolInfo.String(), ToolInvokeRequest{
 			SessionID:            " sess-1 ",
 			Input:                json.RawMessage(`{"tool_id":"compozy__skill_view"}`),
 			SensitiveInputFields: []string{" token "},
@@ -1864,7 +1864,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should list toolsets", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.ListToolsets(context.Background(), ToolQuery{AgentName: "coder"})
+		response, err := client.ListToolsets(t.Context(), ToolQuery{AgentName: "coder"})
 		if err != nil {
 			t.Fatalf("ListToolsets() error = %v", err)
 		}
@@ -1876,7 +1876,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should get toolset", func(t *testing.T) {
 		t.Parallel()
 
-		response, err := client.GetToolset(context.Background(), toolspkg.ToolsetIDCatalog.String(), ToolQuery{
+		response, err := client.GetToolset(t.Context(), toolspkg.ToolsetIDCatalog.String(), ToolQuery{
 			SessionID: "sess-1",
 		})
 		if err != nil {
@@ -2032,7 +2032,7 @@ func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tc.run(context.Background())
+			err := tc.run(t.Context())
 
 			toolErr, toolErrMatched := errors.AsType[*toolAPIError](err)
 			if !toolErrMatched {
@@ -2122,7 +2122,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			},
 		}
 
-		bind, err := client.BindHostedMCP(context.Background(), mcppkg.HostedBindRequest{
+		bind, err := client.BindHostedMCP(t.Context(), mcppkg.HostedBindRequest{
 			SessionID: "sess-1",
 			Nonce:     "nonce-test",
 		})
@@ -2133,7 +2133,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			t.Fatalf("BindHostedMCP() = %#v, want bind response", bind)
 		}
 
-		projection, err := client.HostedMCPProjection(context.Background(), " bind-1 ")
+		projection, err := client.HostedMCPProjection(t.Context(), " bind-1 ")
 		if err != nil {
 			t.Fatalf("HostedMCPProjection() error = %v", err)
 		}
@@ -2143,7 +2143,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 
 		var streamedDigest string
 		err = client.StreamHostedMCPProjection(
-			context.Background(),
+			t.Context(),
 			" bind-1 ",
 			" digest-1 ",
 			func(snapshot mcppkg.HostedProjectionResponse) error {
@@ -2158,7 +2158,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			t.Fatalf("streamed digest = %q, want digest-3", streamedDigest)
 		}
 
-		call, err := client.CallHostedMCP(context.Background(), mcppkg.HostedCallRequest{
+		call, err := client.CallHostedMCP(t.Context(), mcppkg.HostedCallRequest{
 			BindID:   "bind-1",
 			ToolName: "skill_view",
 			Input:    json.RawMessage(`{"ok":true}`),
@@ -2171,7 +2171,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 		}
 
 		if err := client.ReleaseHostedMCP(
-			context.Background(),
+			t.Context(),
 			mcppkg.HostedReleaseRequest{BindID: "bind-1"},
 		); err != nil {
 			t.Fatalf("ReleaseHostedMCP() error = %v", err)
@@ -2198,7 +2198,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			})},
 		}
 
-		call, err := client.CallHostedMCP(context.Background(), mcppkg.HostedCallRequest{
+		call, err := client.CallHostedMCP(t.Context(), mcppkg.HostedCallRequest{
 			BindID: "bind-1", ToolName: "skill_view", Input: json.RawMessage(`{"ok":true}`),
 		})
 		if err != nil {
@@ -2227,7 +2227,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 				}),
 			},
 		}
-		err := client.StreamHostedMCPProjection(context.Background(), "bind-1", "", nil)
+		err := client.StreamHostedMCPProjection(t.Context(), "bind-1", "", nil)
 		if err == nil {
 			t.Fatal("StreamHostedMCPProjection(error event) error = nil, want redacted error")
 		}
@@ -2278,7 +2278,7 @@ func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {
 
 		var events []SSEEvent
 		err := client.StreamSessionEvents(
-			context.Background(),
+			t.Context(),
 			" sess-1 ",
 			SessionEventQuery{Type: "tool_call", AgentName: "coder", Last: 2},
 			"evt-0",
@@ -2333,21 +2333,21 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 			Metadata: json.RawMessage(`{"source":"cli-test"}`),
 		}
 
-		published, err := client.PublishTask(context.Background(), " task-1 ", request)
+		published, err := client.PublishTask(t.Context(), " task-1 ", request)
 		if err != nil {
 			t.Fatalf("PublishTask() error = %v", err)
 		}
 		if published.Task.ID == "" || published.Run.ID == "" {
 			t.Fatalf("PublishTask() = %#v, want task and run", published)
 		}
-		started, err := client.StartTask(context.Background(), " task-1 ", request)
+		started, err := client.StartTask(t.Context(), " task-1 ", request)
 		if err != nil {
 			t.Fatalf("StartTask() error = %v", err)
 		}
 		if started.Task.ID != published.Task.ID {
 			t.Fatalf("StartTask() task id = %q, want %q", started.Task.ID, published.Task.ID)
 		}
-		approved, err := client.ApproveTask(context.Background(), " task-1 ", request)
+		approved, err := client.ApproveTask(t.Context(), " task-1 ", request)
 		if err != nil {
 			t.Fatalf("ApproveTask() error = %v", err)
 		}
@@ -2398,7 +2398,7 @@ func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
 			},
 		}
 
-		contextRecord, err := client.AgentContext(context.Background(), credentials)
+		contextRecord, err := client.AgentContext(t.Context(), credentials)
 		if err != nil {
 			t.Fatalf("AgentContext() error = %v", err)
 		}
@@ -2406,7 +2406,7 @@ func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
 			t.Fatalf("AgentContext() = %#v, want caller context", contextRecord)
 		}
 
-		spawn, err := client.AgentSpawn(context.Background(), AgentSpawnRequest{
+		spawn, err := client.AgentSpawn(t.Context(), AgentSpawnRequest{
 			AgentName: "worker",
 			SpawnRole: "reviewer",
 		}, credentials)
@@ -2504,7 +2504,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			},
 		}
 
-		record, err := client.UploadSessionAttachment(context.Background(), "sess-1", filePath)
+		record, err := client.UploadSessionAttachment(t.Context(), "sess-1", filePath)
 		if err != nil {
 			t.Fatalf("UploadSessionAttachment() error = %v", err)
 		}
@@ -2547,7 +2547,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			})},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		_, err := client.UploadSessionAttachment(ctx, "sess-1", filePath)
 		if !errors.Is(err, transportErr) {
@@ -2592,7 +2592,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			})},
 		}
 
-		_, err := client.UploadSessionAttachment(context.Background(), "sess-1", filePath)
+		_, err := client.UploadSessionAttachment(t.Context(), "sess-1", filePath)
 		if err == nil || !strings.Contains(err.Error(), "exceeds maximum file size") {
 			t.Fatalf("UploadSessionAttachment() error = %v, want daemon size rejection", err)
 		}
@@ -2642,7 +2642,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 		}
 
 		_, err := client.UploadSessionAttachment(
-			context.Background(),
+			t.Context(),
 			"sess-1",
 			filepath.Join(t.TempDir(), "missing.png"),
 		)
@@ -3081,7 +3081,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	status, err := client.DaemonStatus(ctx)
 	if err != nil || status.Status != "running" {
@@ -3516,7 +3516,7 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 		}
 
 		repaired, err := client.RepairSession(
-			context.Background(),
+			t.Context(),
 			"sess-1",
 			SessionRepairQuery{DryRun: true, Force: true},
 		)
@@ -4041,7 +4041,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should preserve workspace suggestion routes", func(t *testing.T) {
 		suggestions, err := client.ListAutomationSuggestions(
@@ -4444,7 +4444,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should list tasks", func(t *testing.T) {
 		tasks, err := client.ListTasks(ctx, TaskListQuery{
@@ -5111,7 +5111,7 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 	}
 
 	err := client.doSSE(
-		context.Background(),
+		t.Context(),
 		"/api/logs/stream",
 		logsListValues(LogsListQuery{Since: time.Now().UTC()}),
 		"cursor-9",

@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -17,7 +16,7 @@ func TestMCPServerTargetSelectorValidation(t *testing.T) {
 	t.Run("Should reject invalid put selectors without mutating MCP sources", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
@@ -59,7 +58,7 @@ command = "config-before"
 	t.Run("Should reject invalid delete selectors without mutating MCP sources", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
@@ -102,7 +101,7 @@ func TestMCPServerDefinitionMutationsInvalidatePendingOAuthSessions(t *testing.T
 	t.Run("Should invalidate pending state before deleting durable auth state", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
