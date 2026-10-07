@@ -35,67 +35,6 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *testing.T) {
-	acpmock.RequireDriver(t)
-	t.Parallel()
-
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "multi_agent_fixture.json"),
-			FixtureAgent: "alpha",
-			AgentName:    "mock-alpha",
-		}},
-	})
-
-	registration, ok := harness.MockAgentRegistration("mock-alpha")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
-	}
-
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
-	defer cancel()
-
-	session := createFixtureBackedSession(t, ctx, harness, "mock-alpha", "launch-alpha")
-	stream, err := harness.PromptSession(ctx, session.ID, "hello alpha")
-	if err != nil {
-		t.Fatalf("PromptSession() error = %v", err)
-	}
-	if len(stream) == 0 {
-		t.Fatal("PromptSession() stream = empty, want mock agent updates")
-	}
-
-	transcriptResp, err := harness.SessionTranscript(ctx, session.ID)
-	if err != nil {
-		t.Fatalf("SessionTranscript() error = %v", err)
-	}
-	gotTranscript := joinTranscriptContent(sessionTranscriptMessages(transcriptResp))
-	if !strings.Contains(gotTranscript, "alpha says hi") || !strings.Contains(gotTranscript, "alpha follow-up") {
-		t.Fatalf("transcript = %q, want both alpha assistant messages", gotTranscript)
-	}
-
-	if err := harness.CaptureSessionTranscript(ctx, session.ID); err != nil {
-		t.Fatalf("CaptureSessionTranscript() error = %v", err)
-	}
-	if err := harness.CaptureSessionEvents(ctx, session.ID); err != nil {
-		t.Fatalf("CaptureSessionEvents() error = %v", err)
-	}
-	if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
-		t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
-	}
-
-	providerCallsPath, ok := harness.Artifacts.ArtifactPath(e2etest.ArtifactKindProviderCalls)
-	if !ok {
-		t.Fatal("ArtifactPath(provider_calls) = missing, want present")
-	}
-	providerCalls, err := os.ReadFile(providerCallsPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", providerCallsPath, err)
-	}
-	if !strings.Contains(string(providerCalls), "alpha-hello") {
-		t.Fatalf("provider_calls artifact = %s, want alpha diagnostics", string(providerCalls))
-	}
-}
-
 func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
@@ -597,76 +536,107 @@ func TestDaemonE2EMockAgentsRemainIsolated(t *testing.T) {
 	t.Parallel()
 
 	fixturePath := mockFixturePath(t, "multi_agent_fixture.json")
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		MockAgents: []e2etest.MockAgentSpec{
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: "alpha",
-				AgentName:    "mock-alpha",
+	t.Run("Should launch fixture agents and preserve transcript and diagnostic isolation", func(t *testing.T) {
+		t.Parallel()
+
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "alpha",
+					AgentName:    "mock-alpha",
+				},
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "beta",
+					AgentName:    "mock-beta",
+				},
 			},
-			{
-				FixturePath:  fixturePath,
-				FixtureAgent: "beta",
-				AgentName:    "mock-beta",
-			},
-		},
+		})
+
+		alphaReg, ok := harness.MockAgentRegistration("mock-alpha")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
+		}
+		betaReg, ok := harness.MockAgentRegistration("mock-beta")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-beta) = missing, want present")
+		}
+
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+		defer cancel()
+
+		alphaSession := createFixtureBackedSession(t, ctx, harness, "mock-alpha", "alpha-session")
+		stream, err := harness.PromptSession(ctx, alphaSession.ID, "hello alpha")
+		if err != nil {
+			t.Fatalf("PromptSession(alpha) error = %v", err)
+		}
+		if len(stream) == 0 {
+			t.Fatal("PromptSession(alpha) stream = empty, want mock agent updates")
+		}
+		betaSession := createFixtureBackedSession(t, ctx, harness, "mock-beta", "beta-session")
+		if _, err := harness.PromptSession(ctx, betaSession.ID, "hello beta"); err != nil {
+			t.Fatalf("PromptSession(beta) error = %v", err)
+		}
+
+		alphaTranscript, err := harness.SessionTranscript(ctx, alphaSession.ID)
+		if err != nil {
+			t.Fatalf("SessionTranscript(alpha) error = %v", err)
+		}
+		betaTranscript, err := harness.SessionTranscript(ctx, betaSession.ID)
+		if err != nil {
+			t.Fatalf("SessionTranscript(beta) error = %v", err)
+		}
+
+		alphaContent := joinTranscriptContent(sessionTranscriptMessages(alphaTranscript))
+		betaContent := joinTranscriptContent(sessionTranscriptMessages(betaTranscript))
+		if !strings.Contains(alphaContent, "alpha says hi") || !strings.Contains(alphaContent, "alpha follow-up") ||
+			strings.Contains(alphaContent, "beta only") {
+			t.Fatalf("alpha transcript = %q, want only alpha content", alphaContent)
+		}
+		if !strings.Contains(betaContent, "beta only") || strings.Contains(betaContent, "alpha says hi") {
+			t.Fatalf("beta transcript = %q, want only beta content", betaContent)
+		}
+
+		alphaDiagnostics, err := acpmock.ReadDiagnostics(alphaReg.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(alpha) error = %v", err)
+		}
+		betaDiagnostics, err := acpmock.ReadDiagnostics(betaReg.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(beta) error = %v", err)
+		}
+		alphaPromptDiagnostics := acpmock.PromptDiagnostics(alphaDiagnostics)
+		betaPromptDiagnostics := acpmock.PromptDiagnostics(betaDiagnostics)
+		if len(alphaPromptDiagnostics) != 1 || alphaPromptDiagnostics[0].AgentName != "alpha" {
+			t.Fatalf("alpha diagnostics = %#v, want one alpha record", alphaDiagnostics)
+		}
+		if len(betaPromptDiagnostics) != 1 || betaPromptDiagnostics[0].AgentName != "beta" {
+			t.Fatalf("beta diagnostics = %#v, want one beta record", betaDiagnostics)
+		}
+
+		if err := harness.CaptureSessionTranscript(ctx, alphaSession.ID); err != nil {
+			t.Fatalf("CaptureSessionTranscript() error = %v", err)
+		}
+		if err := harness.CaptureSessionEvents(ctx, alphaSession.ID); err != nil {
+			t.Fatalf("CaptureSessionEvents() error = %v", err)
+		}
+		if err := harness.CaptureMockAgentDiagnostics(alphaReg); err != nil {
+			t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
+		}
+
+		providerCallsPath, ok := harness.Artifacts.ArtifactPath(e2etest.ArtifactKindProviderCalls)
+		if !ok {
+			t.Fatal("ArtifactPath(provider_calls) = missing, want present")
+		}
+		providerCalls, err := os.ReadFile(providerCallsPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", providerCallsPath, err)
+		}
+		if !strings.Contains(string(providerCalls), "alpha-hello") {
+			t.Fatalf("provider_calls artifact = %s, want alpha diagnostics", string(providerCalls))
+		}
 	})
-
-	alphaReg, ok := harness.MockAgentRegistration("mock-alpha")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
-	}
-	betaReg, ok := harness.MockAgentRegistration("mock-beta")
-	if !ok {
-		t.Fatal("MockAgentRegistration(mock-beta) = missing, want present")
-	}
-
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
-	defer cancel()
-
-	alphaSession := createFixtureBackedSession(t, ctx, harness, "mock-alpha", "alpha-session")
-	if _, err := harness.PromptSession(ctx, alphaSession.ID, "hello alpha"); err != nil {
-		t.Fatalf("PromptSession(alpha) error = %v", err)
-	}
-	betaSession := createFixtureBackedSession(t, ctx, harness, "mock-beta", "beta-session")
-	if _, err := harness.PromptSession(ctx, betaSession.ID, "hello beta"); err != nil {
-		t.Fatalf("PromptSession(beta) error = %v", err)
-	}
-
-	alphaTranscript, err := harness.SessionTranscript(ctx, alphaSession.ID)
-	if err != nil {
-		t.Fatalf("SessionTranscript(alpha) error = %v", err)
-	}
-	betaTranscript, err := harness.SessionTranscript(ctx, betaSession.ID)
-	if err != nil {
-		t.Fatalf("SessionTranscript(beta) error = %v", err)
-	}
-
-	alphaContent := joinTranscriptContent(sessionTranscriptMessages(alphaTranscript))
-	betaContent := joinTranscriptContent(sessionTranscriptMessages(betaTranscript))
-	if !strings.Contains(alphaContent, "alpha says hi") || strings.Contains(alphaContent, "beta only") {
-		t.Fatalf("alpha transcript = %q, want only alpha content", alphaContent)
-	}
-	if !strings.Contains(betaContent, "beta only") || strings.Contains(betaContent, "alpha says hi") {
-		t.Fatalf("beta transcript = %q, want only beta content", betaContent)
-	}
-
-	alphaDiagnostics, err := acpmock.ReadDiagnostics(alphaReg.DiagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics(alpha) error = %v", err)
-	}
-	betaDiagnostics, err := acpmock.ReadDiagnostics(betaReg.DiagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics(beta) error = %v", err)
-	}
-	alphaPromptDiagnostics := acpmock.PromptDiagnostics(alphaDiagnostics)
-	betaPromptDiagnostics := acpmock.PromptDiagnostics(betaDiagnostics)
-	if len(alphaPromptDiagnostics) != 1 || alphaPromptDiagnostics[0].AgentName != "alpha" {
-		t.Fatalf("alpha diagnostics = %#v, want one alpha record", alphaDiagnostics)
-	}
-	if len(betaPromptDiagnostics) != 1 || betaPromptDiagnostics[0].AgentName != "beta" {
-		t.Fatalf("beta diagnostics = %#v, want one beta record", betaDiagnostics)
-	}
 }
 
 func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {

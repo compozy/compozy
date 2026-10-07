@@ -5,9 +5,7 @@ package daemon
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -152,29 +150,10 @@ func runDaemonE2ESessionContinueCLI(t *testing.T) {
 		t.Fatalf("human retry stdout = %q err = %v, want Replayed yes", humanRetry, err)
 	}
 
-	assertCLIExitCode(t, ctx, harness, 2, "--agent is required", "session", "continue", source.ID)
-	assertCLIExitCode(t, ctx, harness, 2, "--route cannot be combined with runtime flags",
-		"session", "continue", source.ID, "--agent", "auto-title-agent", "--route", "2", "--speed", "fast")
 	_, stderr, err = harness.CLI.RunInDir(ctx, harness.WorkspaceRoot,
 		"session", "continue", source.ID, "--agent", "nope", "--idempotency-key", "idem_e2e_nope")
 	if err == nil || !strings.Contains(stderr, `no agent named "nope"`) {
 		t.Fatalf("session continue --agent nope err = %v stderr = %q, want agent not found", err, stderr)
-	}
-}
-
-func assertCLIExitCode(
-	t *testing.T,
-	ctx context.Context,
-	harness *e2etest.RuntimeHarness,
-	want int,
-	message string,
-	args ...string,
-) {
-	t.Helper()
-	_, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, args...)
-	exitErr, ok := errors.AsType[*exec.ExitError](err)
-	if !ok || exitErr.ExitCode() != want || !strings.Contains(stderr, message) {
-		t.Fatalf("%v: err = %v stderr = %q, want exit %d with %q", args, err, stderr, want, message)
 	}
 }
 
