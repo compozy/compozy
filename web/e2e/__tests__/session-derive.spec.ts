@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sessionWindow, switchWorkspace, windowFrame } from "../fixtures/os-navigation";
+import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -196,12 +196,10 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
 
     const childWin = sessionWindow(appPage, child!.id);
     await expect(childWin).toBeVisible();
-    await expect(windowFrame(childWin).getByTestId("session-origin-pill")).toContainText(
-      "Forked from"
-    );
+    await expect(childWin.getByTestId("session-origin-pill")).toContainText("Forked from");
     // The child opens beside its source at half width: the head's meta (agent,
     // origin pill, time) yields before the window title ever truncates.
-    const childTitle = windowFrame(childWin).locator('[data-slot="topbar-title"] button');
+    const childTitle = childWin.locator('[data-slot="topbar-title"] button');
     await expect(childTitle).toHaveText("New session");
     await expect
       .poll(() => childTitle.evaluate(element => element.scrollWidth <= element.clientWidth))
@@ -237,7 +235,8 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     const sourceWin = sessionWindow(appPage, source.id);
     await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
 
-    await windowFrame(sourceWin).getByTestId("session-topbar-overflow").click();
+    // A frame can retain sibling tabs from the fork step; the session surface owns its head.
+    await sessionWindowSelectors(sourceWin, appPage).topbarOverflow.click();
     await appPage.getByTestId("continue-menu-item").click();
     const dialog = appPage.getByTestId("session-continue-dialog");
     await expect(dialog).toBeVisible();
@@ -266,7 +265,7 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
 
     const childWin = sessionWindow(appPage, child!.id);
     await expect(childWin).toBeVisible();
-    await expect(windowFrame(childWin).getByTestId("session-origin-pill")).toHaveText(
+    await expect(childWin.getByTestId("session-origin-pill")).toHaveText(
       `Continued from ${sourceAgent}`
     );
     await expect(childWin.getByTestId("session-origin-divider")).toContainText("Continued from");
