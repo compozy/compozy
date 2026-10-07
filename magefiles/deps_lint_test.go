@@ -284,7 +284,7 @@ func TestGoLintFixtureWorkspace(t *testing.T) {
 		module := "internal/extension/testdata/command-fixture-go"
 		original := "module fixture\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v99.0.0+incompatible\n"
 		writeTestFile(t, root, module+"/go.mod", original)
-		writeTestFile(t, root, "sdk/go/go.mod", "module github.com/compozy/compozy/sdk/go\n\ngo 1.26.4\n")
+		writeTestFile(t, root, "sdk/go/go.mod", "module github.com/compozy/compozy/sdk/go\n\ngo 1.27.1\n")
 		env, cleanup, err := goLintModuleEnv(root, module, map[string]string{"GOLANGCI_LINT_CACHE": "preserved"})
 		if err != nil {
 			t.Fatal(err)
@@ -319,4 +319,28 @@ func TestGoLintFixtureWorkspace(t *testing.T) {
 			t.Fatalf("workspace retained after cleanup: %v", err)
 		}
 	})
+}
+
+func TestGoWorkspaceVersion(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, first, second, want string }{
+		{"Should select the newer SDK requirement", "1.26.4", "1.27.1", "1.27.1"},
+		{"Should select the newer fixture requirement", "1.27.1", "1.26.4", "1.27.1"},
+		{"Should compare patch versions numerically", "1.26.9", "1.26.10", "1.26.10"},
+		{"Should compare minor versions numerically", "1.9", "1.26.4", "1.26.4"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeTestFile(t, root, "fixture/go.mod", "module fixture\n\ngo "+tc.first+"\n")
+			writeTestFile(t, root, "sdk/go.mod", "module sdk\n\ngo "+tc.second+"\n")
+			got, err := goWorkspaceVersion([]string{filepath.Join(root, "fixture"), filepath.Join(root, "sdk")})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("workspace Go version = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

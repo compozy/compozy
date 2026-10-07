@@ -18,7 +18,8 @@ An unset `COMPOZY_GO_LINT_SCOPES`, or `./...`, checks every row below.
 
 Fixture authoring tests copy the module and replace the SDK with `sdk/go`.
 Lint resolves that same local SDK through a disposable Go workspace containing
-only the fixture and SDK modules. Its workspace and sum file are removed after
+only the fixture and SDK modules. The workspace Go directive is the maximum of
+the member module requirements. Its workspace and sum file are removed after
 lint. The checked-in fixture modules and their runtime build behavior are unchanged.
 A `GOFLAGS=-modfile=...` override is unsuitable here: the bundled `go/packages`
 queries the Go version with modules disabled, which rejects that flag.
