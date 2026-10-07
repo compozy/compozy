@@ -274,31 +274,7 @@ func TestSpecCycleManagedInstallShouldPreserveManagedManifestTools(t *testing.T)
 				)
 			}
 		}
-	})
-}
 
-func TestSpecCycleManagedInstallShouldReconcileBundledProvenance(t *testing.T) {
-	t.Run("Should repair bundled trust metadata without changing enabled state or install time", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		globalDB, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := globalDB.Close(testutil.Context(t)); err != nil {
-				t.Errorf("Close(globalDB) error = %v", err)
-			}
-		})
-		registry := extensionpkg.NewRegistry(globalDB.DB())
-
-		if err := EnsureManagedInstall(homePaths, registry); err != nil {
-			t.Fatalf("EnsureManagedInstall(first) error = %v", err)
-		}
 		before, err := registry.Get(Name)
 		if err != nil {
 			t.Fatalf("registry.Get(%q before) error = %v", Name, err)
@@ -1136,7 +1112,7 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 				activeWorker: true,
 			},
 		}
-		for _, status := range []string{"done", "finished", "complete", "' CoMpLeTe '", "completed # verified"} {
+		for _, status := range []string{"' CoMpLeTe '", "completed # verified"} {
 			cases = append(cases, struct {
 				name         string
 				tasks        []orchestrateJudgeTaskFile

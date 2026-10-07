@@ -358,6 +358,7 @@ func TestReviewArtifactStoreFinalize(t *testing.T) {
 		workspace, store, written := writeFinalizeFixture(t)
 		validBefore := readReviewArtifact(t, workspace, written.Files[0].Path)
 		invalidBefore := readReviewArtifact(t, workspace, written.Files[1].Path)
+		pendingBefore := readReviewArtifact(t, workspace, written.Files[2].Path)
 
 		output, err := store.Finalize(t.Context(), reviewArtifactScope(workspace), finalizeReviewRoundInput{
 			TaskName: "delivery", Round: 1,
@@ -372,24 +373,17 @@ func TestReviewArtifactStoreFinalize(t *testing.T) {
 		if got := readReviewArtifact(t, workspace, written.Files[1].Path); got != invalidBefore {
 			t.Fatalf("Finalize() mutated invalid issue bytes:\n%s", got)
 		}
-	})
-
-	t.Run("Should leave pending files untouched and counted", func(t *testing.T) {
-		t.Parallel()
-
-		workspace, store, written := writeFinalizeFixture(t)
-		pendingBefore := readReviewArtifact(t, workspace, written.Files[2].Path)
-		output, err := store.Finalize(t.Context(), reviewArtifactScope(workspace), finalizeReviewRoundInput{
+		if pendingAfter := readReviewArtifact(t, workspace, written.Files[2].Path); pendingAfter != pendingBefore {
+			t.Fatal("Finalize() changed pending issue bytes")
+		}
+		repeated, err := store.Finalize(t.Context(), reviewArtifactScope(workspace), finalizeReviewRoundInput{
 			TaskName: "delivery", Round: 1,
 		})
 		if err != nil {
-			t.Fatalf("Finalize() error = %v", err)
+			t.Fatalf("second Finalize() error = %v", err)
 		}
-		if output.Pending != 1 {
-			t.Fatalf("Finalize().Pending = %d, want 1", output.Pending)
-		}
-		if pendingAfter := readReviewArtifact(t, workspace, written.Files[2].Path); pendingAfter != pendingBefore {
-			t.Fatal("Finalize() changed pending issue bytes")
+		if repeated != output {
+			t.Fatalf("second Finalize() = %#v, want %#v", repeated, output)
 		}
 	})
 
@@ -434,24 +428,6 @@ func TestReviewArtifactStoreFinalize(t *testing.T) {
 		}
 		if got := readReviewArtifact(t, workspace, written.Files[2].Path); got != validUnresolvedBefore {
 			t.Fatalf("Finalize() modified valid-unresolved artifact; got:\n%s\nwant:\n%s", got, validUnresolvedBefore)
-		}
-	})
-
-	t.Run("Should be idempotent when finalizing an already finalized round", func(t *testing.T) {
-		t.Parallel()
-
-		workspace, store, _ := writeFinalizeFixture(t)
-		input := finalizeReviewRoundInput{TaskName: "delivery", Round: 1}
-		first, err := store.Finalize(t.Context(), reviewArtifactScope(workspace), input)
-		if err != nil {
-			t.Fatalf("first Finalize() error = %v", err)
-		}
-		second, err := store.Finalize(t.Context(), reviewArtifactScope(workspace), input)
-		if err != nil {
-			t.Fatalf("second Finalize() error = %v", err)
-		}
-		if second != first {
-			t.Fatalf("second Finalize() = %#v, want %#v", second, first)
 		}
 	})
 
