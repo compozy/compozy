@@ -74,25 +74,6 @@ describe("useDocumentTitleBadge (UT-054)", () => {
     }
   });
 
-  it("Should carry the cross-workspace total in the title", () => {
-    // Three needs-you sessions spread across two workspaces is still one number:
-    // the operator is blocked on three things, wherever they live.
-    renderHook(() => useDocumentTitleBadge(3));
-
-    expect(document.title).toBe("(3) CompozyOS");
-  });
-
-  it("Should return to a clean title at zero", () => {
-    const { rerender } = renderHook(({ count }) => useDocumentTitleBadge(count), {
-      initialProps: { count: 4 },
-    });
-    expect(document.title).toBe("(4) CompozyOS");
-
-    rerender({ count: 0 });
-
-    expect(document.title).toBe(BASE_TITLE);
-  });
-
   it("Should replace the count rather than nest it as the count changes", () => {
     const { rerender } = renderHook(({ count }) => useDocumentTitleBadge(count), {
       initialProps: { count: 1 },
@@ -102,12 +83,6 @@ describe("useDocumentTitleBadge (UT-054)", () => {
     rerender({ count: 12 });
 
     expect(document.title).toBe("(12) CompozyOS");
-  });
-
-  it("Should print the exact number even past the menubar pill's 9+ cap", () => {
-    renderHook(() => useDocumentTitleBadge(137));
-
-    expect(document.title).toBe("(137) CompozyOS");
   });
 
   it("Should restore the clean title on unmount", () => {

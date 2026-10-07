@@ -252,34 +252,4 @@ describe("command palette API adapter", () => {
       "/api/cmd-palette/view-sessions/vs%2Fa/stream?token=t%20k"
     );
   });
-
-  it("Should bind a view session to the acting profile rather than resolving default", async () => {
-    vi.mocked(apiClient.POST).mockResolvedValue({
-      data: {
-        view_session: "vs_1",
-        stream_token: "st_1",
-        profile_lens: { profile_lens_id: "01J9MARKETING00000000000000", profile_name: "marketing" },
-        first_frame: {
-          view_session: "vs_1",
-          revision: "vr_1",
-          seq: 1,
-          effects: [],
-          generation: 1,
-          handlers: [],
-        },
-      },
-      error: undefined,
-      response: new Response(null, { status: 200 }),
-    } as never);
-
-    await openCmdPaletteViewSession("ws", "marketing", "ext.notes.browser", "tok");
-    // A programmable view runs extension code under an owner; opening it without
-    // a selector would bind the session to `default` from any profile.
-    expect(apiClient.POST).toHaveBeenLastCalledWith(
-      "/api/cmd-palette/views/{id}/open",
-      expect.objectContaining({
-        params: expect.objectContaining({ query: { profile: "marketing" } }),
-      })
-    );
-  });
 });

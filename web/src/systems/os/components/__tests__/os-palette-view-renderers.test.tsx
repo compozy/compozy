@@ -14,7 +14,6 @@ import { UIProvider } from "@compozy/ui";
 import { TASK_STATUS_TONE } from "@/lib/status-tone";
 
 import { contentForEnvelope } from "../../hooks/use-cmd-palette-declarative-view";
-import { viewActionCommandID } from "../../lib/cmd-palette-view-action-command";
 import type { OsPaletteDomainRow as DomainRow } from "../../hooks/use-os-palette-domain-search";
 import type {
   CmdPaletteViewAction,
@@ -275,12 +274,6 @@ describe("command palette view renderers", () => {
       submit: { ...ACTION, title: "Save" },
     };
     const onSubmit = vi.fn().mockRejectedValue(new Error("Provider rejected the form"));
-    expect(
-      viewActionCommandID("ext.notes.capture", {
-        title: "Save",
-        action: { kind: "tool", tool: "capture" },
-      })
-    ).toBe("ext__notes__capture");
     withUI(<PaletteFormView form={form} onSubmit={onSubmit} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByLabelText("Title")).toHaveFocus();

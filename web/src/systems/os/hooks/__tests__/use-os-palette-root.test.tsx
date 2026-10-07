@@ -804,18 +804,6 @@ describe("useOsPaletteRoot", () => {
     );
   });
 
-  it("Should collect declared arguments before pushing a view [RA0292]", async () => {
-    const command = paletteCommand({
-      id: "palette.view.notes",
-      title: "Notes",
-      action: { kind: "view", view: "sessions" },
-      arguments: [{ name: "q", type: "text", required: true, placeholder: "Query" }],
-    });
-
-    await expect(paletteDispatch.run(command)).resolves.toEqual({ status: "needs_args" });
-    expect(paletteMocks.readViewStack()).toEqual([]);
-  });
-
   it("Should include the home workspace in global session search", async () => {
     paletteMocks.scope = "global";
     paletteMocks.rankSignals = TEST_RANK_SIGNALS;

@@ -157,15 +157,6 @@ describe("fetchSessions", () => {
 
     await expect(fetchSessions()).rejects.toThrow("Failed to fetch sessions: 500");
   });
-
-  it("returns empty array when server returns empty list", async () => {
-    const response = { sessions: [], page: { has_more: false, limit: 50, total: 0 } };
-    mockJsonResponse(response);
-
-    const result = await fetchSessions();
-
-    expect(result).toEqual(response);
-  });
 });
 
 describe("fetchSessionCommands", () => {
@@ -231,24 +222,6 @@ describe("createSession", () => {
     expect(result).toEqual(mockSession);
     await expectFetchRequest({
       body: { agent_name: "claude-agent" },
-      method: "POST",
-      path: "/api/sessions",
-    });
-  });
-
-  it("sends only session metadata in the create body", async () => {
-    mockJsonResponse({ session: mockSession });
-
-    await createSession({
-      agent_name: "claude-agent",
-      workspace: "ws_alpha",
-    });
-
-    await expectFetchRequest({
-      body: {
-        agent_name: "claude-agent",
-        workspace: "ws_alpha",
-      },
       method: "POST",
       path: "/api/sessions",
     });

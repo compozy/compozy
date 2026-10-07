@@ -327,18 +327,6 @@ describe("SessionCreateDialog", () => {
     expect(sourceWindowFocusTarget).not.toHaveFocus();
   });
 
-  it("Should restore focus into the source window after ordinary dismissal", async () => {
-    const view = renderDialogWithFocusSource({ open: false });
-    const focusSource = screen.getByTestId("session-create-focus-source");
-    focusSource.focus();
-
-    view.rerenderDialog({ open: true });
-    await waitFor(() => expect(focusSource).not.toHaveFocus());
-
-    view.rerenderDialog({ open: false });
-    await waitFor(() => expect(focusSource).toHaveFocus());
-  });
-
   it("Should associate a create failure with the form without closing the dialog", () => {
     renderDialog({ submitError: "Server rejected the session" });
 

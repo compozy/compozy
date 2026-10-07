@@ -478,16 +478,10 @@ describe("GeneralSettingsPage", () => {
     pageState.restart.isVisible = true;
     pageState.restart.isRestartRequired = true;
     render(<GeneralSettingsPage />);
+    expect(screen.getByTestId("settings-page-general-restart-notice")).toBeInTheDocument();
     const button = screen.getByRole("button", { name: "Restart CompozyOS" });
     fireEvent.click(button);
     expect(pageState.restart.trigger).toHaveBeenCalledTimes(1);
-  });
-
-  it("renders the restart banner once the restart banner state reports visible", () => {
-    pageState.restart.isVisible = true;
-    pageState.restart.isRestartRequired = true;
-    render(<GeneralSettingsPage />);
-    expect(screen.getByTestId("settings-page-general-restart-notice")).toBeInTheDocument();
   });
 
   it("wires the save bar buttons to the page-level handlers", () => {

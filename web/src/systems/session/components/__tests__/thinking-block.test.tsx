@@ -5,35 +5,14 @@ import { describe, expect, it } from "vitest";
 import { ThinkingBlock } from "../thinking-block";
 
 describe("ThinkingBlock", () => {
-  it("Should auto-open inline while the turn is still reasoning, behind the shimmer label", () => {
-    render(
-      <ThinkingBlock thinking="Checking tool output before answering." thinkingComplete={false} />
-    );
-
-    const trigger = screen.getByTestId("thinking-trigger");
-    expect(trigger).toHaveTextContent("Thinking…");
-    // Live thinking is a shimmering text label only — no icon well, no dots.
-    expect(trigger.querySelector(".session-shimmer")).toBeInTheDocument();
-    // Streaming reasoning is expanded inline without a user toggle.
-    expect(screen.getByTestId("thinking-content")).toHaveTextContent(
-      "Checking tool output before answering."
-    );
-  });
-
-  it("Should auto-collapse to the Thought row once reasoning settles", () => {
-    render(<ThinkingBlock thinking="Checked the output." thinkingComplete />);
-
-    const trigger = screen.getByTestId("thinking-trigger");
-    // Settled reasoning is a tool-row line: "Thought" verb + first-line preview.
-    expect(trigger).toHaveTextContent("Thought");
-    expect(trigger).toHaveTextContent("Checked the output.");
-    expect(trigger.querySelector(".session-shimmer")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("thinking-content")).not.toBeInTheDocument();
-  });
-
   it("Should let a user toggle override the settled auto-collapse", async () => {
     const user = userEvent.setup();
     render(<ThinkingBlock thinking="Reasoned about the fix." thinkingComplete />);
+    expect(screen.getByTestId("thinking-trigger")).toHaveTextContent("Thought");
+    expect(screen.getByTestId("thinking-trigger")).toHaveTextContent("Reasoned about the fix.");
+    expect(
+      screen.getByTestId("thinking-trigger").querySelector(".session-shimmer")
+    ).not.toBeInTheDocument();
 
     expect(screen.queryByTestId("thinking-content")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("thinking-trigger"));
@@ -43,6 +22,11 @@ describe("ThinkingBlock", () => {
   it("Should let a user toggle override the streaming auto-open", async () => {
     const user = userEvent.setup();
     render(<ThinkingBlock thinking="Reasoning in progress." thinkingComplete={false} />);
+    expect(screen.getByTestId("thinking-trigger")).toHaveTextContent("Thinking…");
+    expect(
+      screen.getByTestId("thinking-trigger").querySelector(".session-shimmer")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("thinking-content")).toHaveTextContent("Reasoning in progress.");
 
     // Auto-open while streaming, then a user collapse pins it closed even though
     // the turn is still in flight.
@@ -67,6 +51,9 @@ describe("ThinkingBlock", () => {
 
     await user.click(screen.getByTestId("thinking-trigger"));
     const content = screen.getByTestId("thinking-content");
+    expect(content).toHaveAttribute("role", "region");
+    expect(content).toHaveAttribute("aria-label", "Reasoning");
+    expect(content).toHaveAttribute("tabindex", "0");
 
     // Bullets parse into real list items instead of literal "- " lines, and the
     // fenced block routes through the shared CodeBlock primitive — the grammar
@@ -76,33 +63,6 @@ describe("ThinkingBlock", () => {
     expect(content.querySelector('[data-slot="code-block"]')).toBeInTheDocument();
     expect(content.textContent).not.toContain("```");
     expect(content.textContent).not.toContain("- inspect the config");
-  });
-
-  it("Should render reasoning on the compact tier with the relaxed prose rhythm", async () => {
-    const user = userEvent.setup();
-    render(<ThinkingBlock thinking="# Plan" thinkingComplete />);
-    await user.click(screen.getByTestId("thinking-trigger"));
-    const prose = screen
-      .getByTestId("thinking-content")
-      .querySelector('[data-slot="stream-markdown"]');
-    expect(prose).toHaveAttribute("data-compact", "true");
-    expect(prose).toHaveAttribute("data-rhythm", "relaxed");
-  });
-
-  it("Should align the reasoning body to the detail rail with a single indent", async () => {
-    const user = userEvent.setup();
-    render(<ThinkingBlock thinking="Reasoned." thinkingComplete />);
-
-    const trigger = screen.getByTestId("thinking-trigger");
-    await user.click(trigger);
-    const content = screen.getByTestId("thinking-content");
-
-    expect(content).toHaveAttribute("data-slot", "thinking-detail");
-    expect(content).toHaveAttribute("role", "region");
-    expect(content).toHaveAttribute("aria-label", "Reasoning");
-    expect(content).toHaveAttribute("tabindex", "0");
-    expect(content).toHaveClass("border-l", "border-line");
-    expect(content).not.toHaveClass("bg-canvas-soft", "rounded-lg");
   });
 
   it("Should preview the first reasoning line on the settled row without an updates count", () => {

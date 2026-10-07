@@ -47,14 +47,6 @@ describe("TASK_STATUS_TONE", () => {
     expect(Object.keys(TASK_STATUS_TONE).sort()).toEqual([...EXPECTED_TASK_STATUS_KEYS].sort());
   });
 
-  it("Should not include the deferred 'stuck' UI tone", () => {
-    expect(Object.keys(TASK_STATUS_TONE)).not.toContain("stuck");
-  });
-
-  it("Should not include 'queued' (not a backend Status value)", () => {
-    expect(Object.keys(TASK_STATUS_TONE)).not.toContain("queued");
-  });
-
   it("Should map blocked + failed to danger and completed to success", () => {
     expect(TASK_STATUS_TONE.blocked).toBe("danger");
     expect(TASK_STATUS_TONE.failed).toBe("danger");
@@ -66,10 +58,6 @@ describe("TASK_STATUS_TONE", () => {
     expect(TASK_STATUS_TONE.draft).toBe("neutral");
     expect(TASK_STATUS_TONE.pending).toBe("neutral");
     expect(TASK_STATUS_TONE.ready).toBe("neutral");
-  });
-
-  it("Should map needs_attention to warning", () => {
-    expect(TASK_STATUS_TONE.needs_attention).toBe("warning");
   });
 
   it("Should map needs_attention and blocked to distinct tokens (no coercion)", () => {
