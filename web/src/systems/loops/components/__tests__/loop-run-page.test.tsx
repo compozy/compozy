@@ -2451,3 +2451,112 @@ describe("E2E-019: run graph motion and non-color state signals", () => {
     }
   });
 });
+
+// Invariant: request forms send the schema's exact value through the route's real
+// mutation state; a successful response cannot replace the durable read projection.
+// Owner: run-page components composed with useLoopRunRequestsState and MSW I/O.
+describe("RunRequests and RunEnumRequest route composition", () => {
+  it.each(["ask", "enum"] as const)(
+    "E2E-022: Should submit the %s story request without optimistically resolving it",
+    async kind => {
+      const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+      const { HttpResponse } = await import("msw");
+      const { compozyApiMock } = await import("@/storybook/openapi-msw");
+      const { createMswFetch } = await import("@/test/msw-fetch");
+      const { storybookSystemHandlerGroups } = await import("@/storybook/msw");
+      const { useLoopRun } = await import("../../hooks/use-loops");
+      const { useLoopRunRequestsState } =
+        await import("@/systems/os/apps/loops/use-loop-run-requests-state");
+      const { GRAPH_ENG_RUN_ID, pendingEnumAskRequest, releaseTrainRunDetail } =
+        await import("../../mocks");
+      const { primaryWorkspaceFixture } = await import("@/systems/workspace/mocks");
+      const { STORY_NOW } = await import("../stories/loop-run-page-fixture-world");
+      const storyHandlers = Object.values(storybookSystemHandlerGroups).flat();
+      const fixture =
+        kind === "enum"
+          ? { ...releaseTrainRunDetail, requests: [pendingEnumAskRequest] }
+          : releaseTrainRunDetail;
+      const requests: unknown[] = [];
+      const responses: Array<{ status: number; body: unknown }> = [];
+      const mswFetch = createMswFetch(() => [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", () =>
+          HttpResponse.json(fixture)
+        ),
+        ...storyHandlers,
+      ]);
+      vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input.clone() : new Request(input, init);
+        const answering =
+          request.method === "POST" && new URL(request.url).pathname.endsWith("/respond");
+        if (answering) requests.push(await request.clone().json());
+        const response = await mswFetch(input, init);
+        if (answering)
+          responses.push({ status: response.status, body: await response.clone().json() });
+        return response;
+      });
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      function RequestRoute() {
+        const query = useLoopRun(primaryWorkspaceFixture.id, GRAPH_ENG_RUN_ID);
+        const requestState = useLoopRunRequestsState(primaryWorkspaceFixture.id, GRAPH_ENG_RUN_ID);
+        const detail = query.data;
+        if (!detail) return null;
+        return (
+          <LoopRunNeedsYouCard
+            run={detail.run}
+            request={null}
+            requests={(detail.requests ?? []).map(request =>
+              projectLoopRequest(request, {
+                nowMs: STORY_NOW,
+                runStatus: detail.run.status,
+              })
+            )}
+            requestState={requestState}
+            fallbackFacts={[]}
+            showApproval={false}
+            onDecision={vi.fn()}
+          />
+        );
+      }
+      const rendered = render(
+        <QueryClientProvider client={client}>
+          <RequestRoute />
+        </QueryClientProvider>
+      );
+      try {
+        const card = await screen.findByTestId("loop-request-card");
+        expect(card).toBeVisible();
+        if (kind === "enum") {
+          expect(within(card).getByTestId("loop-request-field-decision")).toBeVisible();
+          fireEvent.click(within(card).getByRole("radio", { name: "approve" }));
+        } else {
+          fireEvent.change(within(card).getByTestId("loop-request-field-regions"), {
+            target: { value: '["us-east"]' },
+          });
+          fireEvent.click(within(card).getByTestId("loop-request-option-canary-true"));
+        }
+        const submit = within(card).getByTestId("loop-request-submit");
+        expect(submit).toBeEnabled();
+        fireEvent.click(submit);
+        await waitFor(() =>
+          expect(responses).toEqual([
+            { status: 200, body: expect.objectContaining({ state: "answered" }) },
+          ])
+        );
+        expect(requests).toEqual([
+          expect.objectContaining({
+            payload:
+              kind === "enum" ? { decision: "approve" } : { regions: ["us-east"], canary: true },
+          }),
+        ]);
+        await waitFor(() => expect(submit).toBeEnabled());
+        expect(within(card).queryByTestId("loop-request-resolution")).not.toBeInTheDocument();
+      } finally {
+        rendered.unmount();
+        client.clear();
+        vi.unstubAllGlobals();
+      }
+    }
+  );
+});

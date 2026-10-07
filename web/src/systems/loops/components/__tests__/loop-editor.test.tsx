@@ -989,3 +989,129 @@ describe("LoopEditor", () => {
     expect(field).toHaveTextContent("params.cwd is retired; use params.environment.directory");
   });
 });
+
+// Invariant: route/ask/strategy edits survive the Graph/DSL round-trip, and clearing
+// the route default reports the owning linter error. Component owner: LoopEditor.
+describe("LoopEditor graph grammar", () => {
+  beforeEach(() => {
+    // jsdom supplies no layout and the global ResizeObserver is inert. React Flow
+    // intentionally hides nodes until measurement; provide only that browser I/O.
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(190);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
+    vi.stubGlobal(
+      "DOMMatrixReadOnly",
+      class {
+        m22 = 1;
+      }
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class implements ResizeObserver {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe(target: Element) {
+          queueMicrotask(() =>
+            this.callback(
+              [
+                {
+                  target,
+                  contentRect: new DOMRectReadOnly(0, 0, 190, 100),
+                  borderBoxSize: [],
+                  contentBoxSize: [],
+                  devicePixelContentBoxSize: [],
+                },
+              ],
+              this
+            )
+          );
+        }
+        unobserve() {}
+        disconnect() {}
+      }
+    );
+    window.localStorage.removeItem(LOOP_EDITOR_CHROME_STORAGE_KEY);
+    loopEditorChromeStore.trigger.chromeVisibilityChanged({
+      palette: false,
+      inspector: false,
+      dockCollapsed: true,
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("E2E-029: editor grammar round-trips and reports a missing route default", async () => {
+    // ChromeCalmDefault uses these exact args and detail/loop handlers.
+    const { RELEASE_TRAIN_LOOP_NAME, releaseTrainDetail } = await import("../../mocks");
+    renderEditor(RELEASE_TRAIN_LOOP_NAME, [detailHandler(releaseTrainDetail)]);
+    expect(await screen.findByTestId("loop-editor")).toBeVisible();
+    openPaletteRail();
+
+    fireEvent.click(screen.getByTestId("loop-palette-item-route"));
+    fireEvent.change(screen.getByTestId("loop-field-id"), { target: { value: "decision_route" } });
+    fireEvent.click(screen.getByTestId("loop-palette-item-ask"));
+    fireEvent.change(screen.getByTestId("loop-field-id"), {
+      target: { value: "release_approval" },
+    });
+    fireEvent.change(screen.getByTestId("loop-field-ask_prompt"), {
+      target: { value: "Approve the release regions?" },
+    });
+    fireEvent.change(screen.getByTestId("loop-field-ask_expect"), {
+      target: {
+        value:
+          '{"type":"object","required":["approved"],"properties":{"approved":{"type":"boolean"}}}',
+      },
+    });
+
+    fireEvent.click(nodeCard("decision_route"));
+    fireEvent.change(await screen.findByTestId("loop-route-default"), {
+      target: { value: "release_approval" },
+    });
+    fireEvent.click(nodeCard("rollout"));
+    fireEvent.change(await screen.findByTestId("loop-field-bind_as"), {
+      target: { value: "artifact" },
+    });
+    fireEvent.click(screen.getByTestId("loop-strategy-kind-race"));
+    fireEvent.click(screen.getByTestId("loop-strategy-kind-best_effort"));
+    fireEvent.change(screen.getByTestId("loop-strategy-threshold"), { target: { value: "75%" } });
+
+    fireEvent.click(screen.getByTestId("loop-editor-view-dsl"));
+    const dsl = await screen.findByTestId("loop-editor-dsl");
+    expect(dsl).toBeVisible();
+    for (const fragment of [
+      "decision_route",
+      "release_approval",
+      "Approve the release regions?",
+      "best_effort",
+      "75%",
+      "bind_as: artifact",
+    ]) {
+      expect(dsl).toHaveTextContent(fragment);
+    }
+
+    fireEvent.click(screen.getByTestId("loop-editor-view-graph"));
+    const graph = await screen.findByTestId("loop-editor-canvas");
+    expect(graph).toBeVisible();
+    const route = nodeCard("decision_route");
+    expect(graph).toContainElement(route);
+    await waitFor(() => expect(route).toBeVisible());
+    fireEvent.click(route);
+    expect(route).toHaveAttribute("data-node-selected", "true");
+    expect(screen.getByTestId("loop-inspector-name")).toHaveTextContent("decision_route");
+    const routeDefault = await screen.findByTestId("loop-route-default");
+    expect(routeDefault).toBeVisible();
+    expect(routeDefault).toHaveValue("release_approval");
+    await waitFor(() =>
+      expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument()
+    );
+    fireEvent.change(routeDefault, { target: { value: "" } });
+    expect(await screen.findByTestId("loop-linter-error-count")).toBeVisible();
+    expandLinterDock();
+    expect(screen.getByTitle("route_default_missing")).toBeVisible();
+    expect(
+      screen
+        .getAllByTestId("loop-linter-issue")
+        .some(issue => issue.contains(screen.getByTitle("route_default_missing")))
+    ).toBe(true);
+  });
+});
