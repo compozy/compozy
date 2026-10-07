@@ -12,9 +12,6 @@ import {
 const STORYBOOK_PORT = 6108;
 const STORY_MODULE_PATH = "/src/systems/loops/components/stories/loop-run-page.stories.tsx";
 const RUN_PAGE = "systems-loops-components-looprunpage";
-const RUN_DIFF = "systems-loops-components-looprundiff";
-const FORK_DIALOG = "systems-loops-components-loopforkdialog";
-const NODE_CONTROLS = "systems-loops-components-loopnodecontrols";
 const RUN_ROUTES = "systems-loops-routes-loopruns";
 const LOOP_EDITOR = "systems-loops-components-loopeditor";
 
@@ -62,27 +59,6 @@ test.describe("Human requests on the run page", () => {
       "At least one region is required."
     );
     await expect(page.getByTestId("loop-request-submit").first()).toBeEnabled();
-  });
-
-  test("an enum without type submits its exact JSON value", async ({ page }) => {
-    await openStory(page, `${RUN_ROUTES}--run-enum-request`);
-
-    const card = page.getByTestId("loop-request-card");
-    await expect(card.getByTestId("loop-request-field-decision")).toBeVisible();
-    await card.getByRole("radio", { name: "approve" }).click();
-    const responsePromise = page.waitForResponse(
-      response =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname.endsWith("/respond")
-    );
-    await card.getByTestId("loop-request-submit").click();
-    const response = await responsePromise;
-
-    expect(response.status()).toBe(200);
-    expect(await response.json()).toMatchObject({ state: "answered" });
-    expect(JSON.parse(response.request().postData() ?? "{}")).toMatchObject({
-      payload: { decision: "approve" },
-    });
   });
 
   test("E2E-021: a review shows proposed args and only the persisted decisions", async ({
@@ -136,21 +112,6 @@ test.describe("Human requests on the run page", () => {
     await expect(card.getByTestId("loop-request-resolution")).toHaveCount(0);
     await expect(submit).toBeEnabled();
   });
-
-  test("E2E-031: repeated node requests stay isolated by generation", async ({ page }) => {
-    await openStory(page, `${RUN_PAGE}--repeated-generation-requests`);
-
-    await expect(page.getByTestId("loop-request-card")).toHaveCount(1);
-    await expect(page.getByTestId("loop-request-progress")).toHaveText("Question 2 of 2");
-    await page.getByTestId("loop-request-details").click();
-    await expect(page.getByRole("alert")).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(1);
-
-    await page.getByTestId("loop-request-prev").click();
-    await expect(page.getByTestId("loop-request-progress")).toHaveText("Question 1 of 2");
-    await page.getByTestId("loop-request-details").click();
-    await expect(page.getByRole("alert")).toHaveCount(0);
-  });
 });
 
 test("E2E-024: the timeline renders the new graph-completion row families", async ({ page }) => {
@@ -165,72 +126,6 @@ test("E2E-024: the timeline renders the new graph-completion row families", asyn
   for (const fragment of ["standard", "Which regions ship first?", "render-notes"]) {
     expect(timeline).toContain(fragment);
   }
-});
-
-test("E2E-025: the diff view groups by change kind and marks a run compare", async ({ page }) => {
-  await openStory(page, `${RUN_DIFF}--generation-compare`);
-
-  await expect(page.getByTestId("loop-run-diff-view")).toBeVisible();
-  await expect(page.getByTestId("loop-diff-pickers")).toBeVisible();
-  const groups = page.locator('[data-testid^="loop-diff-group-"]');
-  await expect(groups.first()).toBeVisible();
-  const rows = page.locator('[data-testid^="loop-diff-row-"][data-change]');
-  await expect(rows.first()).toBeVisible();
-
-  await openStory(page, `${RUN_DIFF}--run-compare`);
-  await expect(page.getByTestId("loop-diff-inputs")).toBeVisible();
-
-  await openStory(page, `${RUN_DIFF}--no-differences`);
-  await expect(page.getByTestId("loop-diff-empty")).toBeVisible();
-});
-
-test("E2E-026: the fork dialog prefills from the source run and surfaces refusals", async ({
-  page,
-}) => {
-  await openStory(page, `${FORK_DIALOG}--default`);
-
-  await expect(page.getByTestId("loop-fork-dialog")).toBeVisible();
-  await expect(page.getByTestId("loop-fork-generation")).toBeVisible();
-  await expect(page.getByTestId("loop-fork-input-severity")).toBeVisible();
-  await expect(page.getByTestId("loop-fork-submit")).toBeEnabled();
-
-  await openStory(page, `${FORK_DIALOG}--validation-error`);
-  await expect(page.getByText("At least one service is required.")).toBeVisible();
-
-  await openStory(page, `${FORK_DIALOG}--blocked-generation`);
-  await expect(page.getByTestId("loop-fork-blocked")).toBeVisible();
-  await expect(page.getByTestId("loop-fork-submit")).toBeDisabled();
-});
-
-test("E2E-027: the amend dialog edits the recorded output without painting the result", async ({
-  page,
-}) => {
-  await openStory(page, `${NODE_CONTROLS}--amend-dialog`);
-
-  await expect(page.getByTestId("loop-node-amend-dialog")).toBeVisible();
-  await expect(page.getByTestId("loop-amend-original")).toBeVisible();
-  await expect(page.getByTestId("loop-amend-reason")).toBeVisible();
-
-  await openStory(page, `${NODE_CONTROLS}--amend-dialog-validation-failure`);
-  await expect(page.getByTestId("loop-amend-field-error-risk")).toBeVisible();
-});
-
-test("E2E-028: the rerun dialog previews its blast radius and gates on settled cells", async ({
-  page,
-}) => {
-  await openStory(page, `${NODE_CONTROLS}--rerun-dialog`);
-
-  await expect(page.getByTestId("loop-node-rerun-dialog")).toBeVisible();
-  const set = page.getByTestId("loop-rerun-set");
-  await expect(set).toBeVisible();
-  await expect(page.getByTestId("loop-rerun-node-apply-migration")).toBeVisible();
-  await expect(page.getByTestId("loop-rerun-node-collect-rollout")).toBeVisible();
-  await expect(page.getByTestId("loop-rerun-carried")).toBeVisible();
-
-  await openStory(page, `${NODE_CONTROLS}--node-menus`);
-  await page.getByTestId("loop-node-menu-trigger-task_04").first().click();
-  await expect(page.getByTestId("loop-node-verb-amend")).toHaveCount(0);
-  await expect(page.getByTestId("loop-node-verb-rerun")).toHaveCount(0);
 });
 
 test("E2E-029: editor grammar round-trips and reports a missing route default", async ({

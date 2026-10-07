@@ -2137,3 +2137,158 @@ describe("LoopRunStepsProgress fold", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 });
+
+// Component-owned dialog and diff behavior formerly exercised through Storybook E2E.
+// Keep these in the canonical run-page suite; real daemon journeys remain in web/e2e.
+describe("Loop run dialogs and diff", () => {
+  it("Should prefill a fork from its source and surface field and generation refusals", async () => {
+    const { LoopForkDialog } = await import("../run-page/loop-fork-dialog");
+    const { releaseTrainDetail, releaseTrainRun, RELEASE_TRAIN_LOOP_NAME } =
+      await import("../../mocks");
+    const onSubmit = vi.fn();
+    const props = {
+      open: true,
+      loopName: RELEASE_TRAIN_LOOP_NAME,
+      generations: [3, 2, 1],
+      defaultGeneration: 2,
+      inputSchema: releaseTrainDetail.definition.inputs,
+      sourceInputs: releaseTrainRun.inputs ?? {},
+      onOpenChange: vi.fn(),
+      onSubmit,
+    };
+    const { rerender } = render(<LoopForkDialog {...props} />);
+    expect(screen.getByTestId("loop-fork-dialog")).toBeVisible();
+    expect(screen.getByTestId("loop-fork-generation")).toBeVisible();
+    expect(screen.getByTestId("loop-fork-input-severity")).toBeVisible();
+    expect(screen.getByTestId("loop-fork-submit")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("loop-fork-submit"));
+    expect(onSubmit).toHaveBeenCalledWith({
+      generation: 2,
+      inputs: props.sourceInputs,
+      reason: "",
+    });
+
+    rerender(
+      <LoopForkDialog {...props} fieldErrors={{ services: "At least one service is required." }} />
+    );
+    expect(screen.getByText("At least one service is required.")).toBeVisible();
+    rerender(
+      <LoopForkDialog {...props} blockedReason="Generation 5 does not exist on this run." />
+    );
+    expect(screen.getByTestId("loop-fork-blocked")).toBeVisible();
+    expect(screen.getByTestId("loop-fork-submit")).toBeDisabled();
+  });
+
+  it("Should keep the recorded amend output visible while showing daemon field errors", () => {
+    const props = {
+      open: true,
+      node: loopNodeLifecycleFixture({
+        nodeId: "render-notes",
+        paused: true,
+        state: "paused",
+        outputStatus: "succeeded",
+        itemIndex: 0,
+      }),
+      originalOutput: { risk: "high", summary: "Rollout for billing" },
+      outputSchema: {
+        type: "object",
+        required: ["risk"],
+        properties: {
+          risk: { type: "string", enum: ["low", "medium", "high"] },
+          summary: { type: "string" },
+        },
+      },
+      onOpenChange: vi.fn(),
+      onConfirm: vi.fn(),
+    };
+    const { rerender } = render(<LoopNodeAmendDialog {...props} />);
+    expect(screen.getByTestId("loop-node-amend-dialog")).toBeVisible();
+    expect(screen.getByTestId("loop-amend-original")).toBeVisible();
+    expect(screen.getByTestId("loop-amend-original")).toHaveTextContent('risk: "high"');
+    expect(screen.getByTestId("loop-amend-reason")).toBeVisible();
+    rerender(
+      <LoopNodeAmendDialog
+        {...props}
+        fieldErrors={{ risk: "risk must be one of low, medium, high." }}
+      />
+    );
+    expect(screen.getByTestId("loop-amend-field-error-risk")).toHaveTextContent(
+      "risk must be one of low, medium, high."
+    );
+    expect(screen.getByTestId("loop-amend-original")).toHaveTextContent('risk: "high"');
+  });
+
+  it("Should preview rerun and carried nodes while withholding amend and rerun from running cells", async () => {
+    const { LoopNodeRerunDialog } = await import("../run-page/loop-node-rerun-dialog");
+    const { unmount } = render(
+      <LoopNodeRerunDialog
+        open
+        node={loopNodeLifecycleFixture({
+          nodeId: "apply-migration",
+          outputStatus: "succeeded",
+          itemIndex: 0,
+        })}
+        rerunSet={{
+          fromNode: "apply-migration",
+          rerunNodes: ["apply-migration", "collect-rollout", "render-notes"],
+          carriedNodes: ["services", "triage", "standard", "rollout"],
+        }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-node-rerun-dialog")).toBeVisible();
+    expect(screen.getByTestId("loop-rerun-set")).toBeVisible();
+    expect(screen.getByTestId("loop-rerun-node-apply-migration")).toBeVisible();
+    expect(screen.getByTestId("loop-rerun-node-collect-rollout")).toBeVisible();
+    expect(screen.getByTestId("loop-rerun-carried")).toHaveTextContent(
+      "4 nodes carry forward unchanged."
+    );
+    unmount();
+    render(
+      <LoopNodeControlMenu
+        node={loopNodeLifecycleFixture({ nodeId: "task_04", outputStatus: "running" })}
+        runStatus="running"
+        onVerb={vi.fn()}
+      />
+    );
+    await userEvent.click(screen.getByTestId("loop-node-menu-trigger-task_04"));
+    expect(screen.queryByTestId("loop-node-verb-amend")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-node-verb-rerun")).not.toBeInTheDocument();
+  });
+
+  it("Should render grouped generation differences, run inputs, and an empty comparison", async () => {
+    const { LoopRunDiffView } = await import("../run-diff/loop-run-diff-view");
+    const { LoopRunDiffPickers } = await import("../run-diff/loop-run-diff-pickers");
+    const { projectLoopDiff } = await import("../../lib/loop-run-diff-model");
+    const { generationDiffFixture, runDiffFixture, emptyDiffFixture } = await import("../../mocks");
+    const { rerender } = render(
+      <LoopRunDiffView
+        view={projectLoopDiff(generationDiffFixture)}
+        pickers={
+          <LoopRunDiffPickers
+            mode="generation"
+            generations={[3, 2, 1]}
+            baseGeneration={3}
+            againstGeneration={2}
+            againstRunId=""
+            runs={[]}
+            onModeChange={vi.fn()}
+            onBaseGenerationChange={vi.fn()}
+            onAgainstGenerationChange={vi.fn()}
+            onAgainstRunChange={vi.fn()}
+          />
+        }
+      />
+    );
+    expect(screen.getByTestId("loop-run-diff-view")).toBeVisible();
+    expect(screen.getByTestId("loop-diff-pickers")).toBeVisible();
+    expect(screen.getAllByTestId(/^loop-diff-group-/)[0]).toBeVisible();
+    expect(screen.getAllByTestId(/^loop-diff-row-/)[0]).toBeVisible();
+    expect(screen.getAllByTestId(/^loop-diff-row-/)[0]).toHaveAttribute("data-change");
+    rerender(<LoopRunDiffView view={projectLoopDiff(runDiffFixture)} />);
+    expect(screen.getByTestId("loop-diff-inputs")).toBeVisible();
+    rerender(<LoopRunDiffView view={projectLoopDiff(emptyDiffFixture)} />);
+    expect(screen.getByTestId("loop-diff-empty")).toBeVisible();
+  });
+});

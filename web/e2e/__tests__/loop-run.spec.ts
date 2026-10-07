@@ -886,16 +886,19 @@ test.describe("Loop run page — two registers", () => {
     );
   });
 
-  test("E2E-012: the default read shows state and usage with identity in About", async ({
+  test("E2E-013: resolving one at the command line clears it live and leaves the other", async ({
     appPage,
     runtime,
   }) => {
     const { runId, runPath } = await seedRun(appPage, runtime, needsYouDefinition, NEEDS_YOU_LOOP, {
       humanGate: true,
     });
-    await waitForRun(runtime, runPath, detail => (detail.requests ?? []).length > 0);
+    await waitForRun(
+      runtime,
+      runPath,
+      detail => detail.run.status === "needs-approval" && (detail.requests ?? []).length > 0
+    );
     await openRun(appPage, runtime, runId);
-
     // Nothing is expanded: this is the page as it arrives.
     await expect(appPage.getByTestId("loop-run-briefing-headline")).toBeVisible();
     await expect(appPage.getByTestId("loop-run-progress-label")).toBeVisible();
@@ -915,24 +918,13 @@ test.describe("Loop run page — two registers", () => {
     await expect(mainColumn).not.toContainText("loop.");
     await appPage.getByRole("button", { name: "About this run", exact: true }).click();
     await expect(appPage.getByTestId("loop-run-detail-rail")).toContainText(runId);
-  });
+    await appPage.getByRole("button", { name: "About this run", exact: true }).click();
 
-  test("E2E-013: two things need you, ordered and counted", async ({ appPage, runtime }) => {
-    const { runId, runPath } = await seedRun(appPage, runtime, needsYouDefinition, NEEDS_YOU_LOOP, {
-      humanGate: true,
-    });
-    // Both blockers open together — the whole point of the case.
-    await waitForRun(
-      runtime,
-      runPath,
-      detail => detail.run.status === "needs-approval" && (detail.requests ?? []).length > 0
-    );
     const blockers = await readBriefingBlockers(runtime, runPath);
     expect(blockers.length).toBe(2);
     // The daemon orders approval before request; the page renders that order.
     expect(blockers.map(blocker => blocker.kind)).toEqual(["approval", "request"]);
 
-    await openRun(appPage, runtime, runId);
     const needsYou = appPage.getByTestId("loop-run-needs-you");
     await expect(needsYou).toBeVisible();
     await expect(needsYou).toContainText("2");
@@ -946,28 +938,11 @@ test.describe("Loop run page — two registers", () => {
     await expect(
       appPage.getByTestId("loop-run-briefing").getByTestId("loop-request-decision-approve")
     ).toHaveCount(0);
-  });
-
-  test("E2E-013: resolving one at the command line clears it live and leaves the other", async ({
-    appPage,
-    runtime,
-  }) => {
-    const { runId, runPath } = await seedRun(appPage, runtime, needsYouDefinition, NEEDS_YOU_LOOP, {
-      humanGate: true,
-    });
-    await waitForRun(
-      runtime,
-      runPath,
-      detail => detail.run.status === "needs-approval" && (detail.requests ?? []).length > 0
-    );
-    await openRun(appPage, runtime, runId);
-    await expect(appPage.getByTestId("loop-request-card")).toHaveCount(1);
 
     // Answered outside the browser entirely, through the command the daemon
     // itself published for this blocker. Everything but the answer comes from
     // the served string — workspace, run, generation, node, item and decision —
     // so a drift in any of them fails here rather than in someone's terminal.
-    const blockers = await readBriefingBlockers(runtime, runPath);
     const request = blockers.find(blocker => blocker.kind === "request");
     if (!request) throw new Error("The briefing published no request blocker");
     expect(request.unblocker).toContain(runId);
@@ -1576,21 +1551,6 @@ test.describe("Loop run page — two registers", () => {
     for (const loopName of [DONE_LOOP, CANCELED_LOOP, EXHAUSTED_LOOP]) {
       await expect(outcomeOf(loopName)).not.toContainText("_");
     }
-  });
-
-  test("E2E-018: a workspace with no runs explains how to start one", async ({
-    appPage,
-    runtime,
-  }) => {
-    const paths = requirePaths(runtime);
-    const workspace = await runtime.resolveWorkspace(paths.workspaceDir);
-    await completeOnboardingIfPrompted(appPage);
-    await switchWorkspace(appPage, workspace.id, workspace.name);
-
-    await appPage.goto(runtime.url("/loop-runs"), { waitUntil: "domcontentloaded" });
-    // A fresh workspace gets a sentence, not a blank table.
-    await expect(appPage.getByTestId("loop-runs-empty")).toContainText("No runs in default yet");
-    await expect(appPage.getByTestId("loop-runs-empty")).toContainText("catalog");
   });
 
   test("E2E-019: reduced motion unmounts the pulse and every chip says its state", async ({

@@ -20,4 +20,4 @@ story: As a Loop operator, I can see exactly what changed between two attempts w
 
 src: .compozy/tasks/graph-eng/task_08.md
 
-2026-08-18 loop-ui-polish: page moved onto the canonical ListingPage gutter, pickers moved to styled Selects with per-side status pills (single header band), group eyebrows neutral, redundant per-row change pill removed. E2E-025 re-anchored and passing; blocked-verify because the walk contract (/qa-execution) is operator-invoked — walk pending.
+2026-08-18 loop-ui-polish: page moved onto the canonical ListingPage gutter, pickers moved to styled Selects with per-side status pills (single header band), group eyebrows neutral, redundant per-row change pill removed. Comparison rendering now lives in `web/src/systems/loops/components/__tests__/loop-run-page.test.tsx` → `Should render grouped generation differences, run inputs, and an empty comparison` (moved from Storybook E2E-025 during test-pyramid cleanup); blocked-verify because the walk contract (/qa-execution) is operator-invoked — walk pending.

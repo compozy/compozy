@@ -45,9 +45,6 @@ const browserLifecycleFixture = path.resolve(
 );
 
 const handoffAgentName = "browser-lifecycle-agent";
-const draftTitle = "Draft handoff smoke task";
-const draftDescription =
-  "Saved intent for bookend coverage. No run should be queued until publish.";
 
 function handoffAgentSessionPath(sessionId: string): string {
   return `/agents/${handoffAgentName}/sessions/${sessionId}`;
@@ -73,64 +70,6 @@ test.use({
       ],
     },
   },
-});
-
-test("creating a task is saved intent, no run is enqueued and labels never imply autonomy", async ({
-  appPage,
-  runtime,
-}) => {
-  await ensureProjectWorkspace(appPage, runtime);
-  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(appPage);
-
-  const tasksWin = appWindow(appPage, "tasks");
-  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
-  await expect(tasksWin).toBeVisible();
-  await expect(appPage).toHaveURL(/\/tasks$/);
-
-  await tasksUI.openCreate.click();
-  await expect(appPage).toHaveURL(/\/tasks\/new$/);
-  await selectRecurringTaskTemplate(tasksUI);
-  await expect(tasksUI.createSaveDraft).toContainText("Save draft");
-  await tasksUI.createPriority("medium").click();
-  await tasksUI.createTitle.fill(draftTitle);
-  await tasksUI.createDescription.fill(draftDescription);
-  await tasksUI.createSaveDraft.click();
-  await expect(tasksUI.createEditorSurface).toBeHidden();
-
-  let draftId = "";
-  await expect
-    .poll(async () => {
-      const payload = await runtime.requestJSON<{
-        tasks: Array<{ id: string; status: string; title: string }>;
-      }>(`/api/tasks?include_drafts=true&query=${encodeURIComponent(draftTitle)}&limit=10`);
-      const created = payload.tasks.find(task => task.title === draftTitle);
-      draftId = created?.id ?? "";
-      return created?.status ?? "";
-    })
-    .toBe("draft");
-
-  if (draftId === "") {
-    throw new Error(`Expected a created draft task for "${draftTitle}".`);
-  }
-
-  await expect(tasksUI.detailTitle).toHaveText(draftTitle);
-  await expect(tasksUI.detailStatus).toHaveText(/draft/i);
-
-  const publishButton = tasksUI.detailPublish;
-  await expect(publishButton).toBeVisible();
-  await expect(publishButton).toHaveAttribute("title", /coordinator handoff/i);
-  await expect(tasksUI.detailEnqueue).toBeHidden();
-  await expect(tasksUI.detailCoordination).toBeHidden();
-
-  await tasksUI.detailTab("runs").click();
-  await expect(tasksUI.detailRunsEmpty).toContainText(/saved intent only/i);
-  await expect(tasksUI.detailRunsEmpty).toContainText(/publish, start, or approve/i);
-
-  const runsPayload = await runtime.requestJSON<{
-    runs: Array<{ id: string; status: string }>;
-  }>(`/api/tasks/${encodeURIComponent(draftId)}/runs?limit=10`);
-  expect(runsPayload.runs).toHaveLength(0);
 });
 
 test("publishing a draft hands off to the coordinator without retired coordination channels", async ({
@@ -181,6 +120,21 @@ test("publishing a draft hands off to the coordinator without retired coordinati
       return created?.status ?? "";
     })
     .toBe("draft");
+
+  await expect(tasksUI.detailTitle).toHaveText(publishedTitle);
+  await expect(tasksUI.detailStatus).toHaveText(/draft/i);
+  await expect(tasksUI.detailPublish).toBeVisible();
+  await expect(tasksUI.detailPublish).toHaveAttribute("title", /coordinator handoff/i);
+  await expect(tasksUI.detailEnqueue).toBeHidden();
+  await expect(tasksUI.detailCoordination).toBeHidden();
+  await tasksUI.detailTab("runs").click();
+  await expect(tasksUI.detailRunsEmpty).toContainText(/saved intent only/i);
+  await expect(tasksUI.detailRunsEmpty).toContainText(/publish, start, or approve/i);
+  const runsPayload = await runtime.requestJSON<{
+    runs: Array<{ id: string; status: string }>;
+  }>(`/api/tasks/${encodeURIComponent(draftId)}/runs?limit=10`);
+  expect(runsPayload.runs).toHaveLength(0);
+  await tasksUI.detailTab("overview").click();
 
   const publishResponsePromise = appPage.waitForResponse(response => {
     return (

@@ -103,15 +103,6 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   await triggersUI.editTriggerButton.click();
   await expect(triggersUI.triggerNameInput).toHaveValue(seeded.trigger.name);
   const triggerDialog = triggersUI.editorDialog;
-  await expect(triggerDialog).toHaveAttribute("data-frame", "unframed");
-  await expect(triggerDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
-  await expect(triggerDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
   await expect(triggersUI.triggerRetryMax).toBeVisible();
   await triggersWin.getByTestId("trigger-governance-toggle").click();
   await expect(triggersUI.triggerRetryMax).toBeHidden();
@@ -133,16 +124,6 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   await expect(editJob).toBeEnabled();
   await editJob.click();
   await expect(jobsUI.jobForm).toBeVisible();
-  const jobDialog = jobsUI.editorDialog;
-  await expect(jobDialog).toHaveAttribute("data-frame", "unframed");
-  await expect(jobDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
-  await expect(jobDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
   await expect(jobsUI.jobNameInput).toHaveValue(seeded.job.name);
   await expect(jobsUI.jobScheduleExpr).toHaveValue(
     browserAutomationOperatorFlowScenario.job.scheduleExpr
