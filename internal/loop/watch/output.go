@@ -29,7 +29,7 @@ type OutputRef struct {
 	SettledAt     *time.Time             `json:"settled_at,omitempty"`
 	Subscriptions []EventSubscriptionRef `json:"subscriptions,omitempty"`
 	Cursors       map[string]int64       `json:"cursors,omitempty"`
-	CursorVersion int                    `json:"cursor_version,omitempty"`
+	CursorVersion int                    `json:"cursor_version,omitzero"`
 	Events        json.RawMessage        `json:"events,omitempty"`
 }
 

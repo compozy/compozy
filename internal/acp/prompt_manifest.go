@@ -9,7 +9,7 @@ type DeliveredSpan struct {
 	Key          string `json:"key"`
 	Kind         string `json:"kind"`
 	Bytes        int64  `json:"bytes"`
-	Tokens       *int64 `json:"tokens,omitempty"`
+	Tokens       *int64 `json:"tokens,omitzero"`
 	Unchanged    bool   `json:"unchanged"`
 	StartupDedup bool   `json:"startup_dedup,omitzero"`
 	Delivery     string `json:"delivery,omitempty"`

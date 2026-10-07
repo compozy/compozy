@@ -299,16 +299,16 @@ type Scope struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
 	RunID       string `json:"run_id,omitempty"`
-	Generation  int64  `json:"generation,omitempty"`
+	Generation  int64  `json:"generation,omitzero"`
 	AgentName   string `json:"agent_name,omitempty"`
 	ActorKind   string `json:"actor_kind,omitempty"`
-	Operator    bool   `json:"operator,omitempty"`
+	Operator    bool   `json:"operator,omitzero"`
 }
 
 // SearchQuery describes a registry search request.
 type SearchQuery struct {
 	Query string `json:"query"`
-	Limit int    `json:"limit,omitempty"`
+	Limit int    `json:"limit,omitzero"`
 }
 
 // ToolView is a descriptor plus effective diagnostics for a caller.
@@ -324,7 +324,7 @@ type CallRequest struct {
 	ToolCallID           string          `json:"tool_call_id,omitempty"`
 	TurnID               string          `json:"turn_id,omitempty"`
 	RunID                string          `json:"run_id,omitempty"`
-	Generation           int64           `json:"generation,omitempty"`
+	Generation           int64           `json:"generation,omitzero"`
 	ProfileID            string          `json:"profile_id,omitempty"`
 	SessionID            string          `json:"session_id,omitempty"`
 	WorkspaceID          string          `json:"workspace_id,omitempty"`
@@ -383,7 +383,7 @@ type ToolCallEvent struct {
 	SessionID            string            `json:"session_id,omitempty"`
 	TurnID               string            `json:"turn_id,omitempty"`
 	RunID                string            `json:"run_id,omitempty"`
-	Generation           int64             `json:"generation,omitempty"`
+	Generation           int64             `json:"generation,omitzero"`
 	AgentName            string            `json:"agent_name,omitempty"`
 	ActorKind            string            `json:"actor_kind,omitempty"`
 	Risk                 RiskClass         `json:"risk,omitempty"`
@@ -393,8 +393,8 @@ type ToolCallEvent struct {
 	ApprovalMode         string            `json:"approval_mode,omitempty"`
 	Decision             string            `json:"decision,omitempty"`
 	ReasonCodes          []ReasonCode      `json:"reason_codes,omitempty"`
-	DurationMS           int64             `json:"duration_ms,omitempty"`
-	ResultBytes          int64             `json:"result_bytes,omitempty"`
+	DurationMS           int64             `json:"duration_ms,omitzero"`
+	ResultBytes          int64             `json:"result_bytes,omitzero"`
 	Truncated            bool              `json:"truncated"`
 	CorrelationID        string            `json:"correlation_id,omitempty"`
 	ErrorCode            ErrorCode         `json:"error_code,omitempty"`

@@ -15,11 +15,11 @@ type coordinatorActionRunMetadata struct {
 	Attempt             int                    `json:"attempt"`
 	Epoch               int64                  `json:"epoch"`
 	SessionHandle       string                 `json:"session_handle,omitempty"`
-	GoalSegmentEpoch    int64                  `json:"goal_segment_epoch,omitempty"`
+	GoalSegmentEpoch    int64                  `json:"goal_segment_epoch,omitzero"`
 	ContinuationKind    string                 `json:"continuation_kind,omitempty"`
 	ResumeFromTaskRunID string                 `json:"resume_from_task_run_id,omitempty"`
 	ResumeFromSessionID string                 `json:"resume_from_session_id,omitempty"`
-	DeathCheckpoint     *DeathResumeCheckpoint `json:"death_resume_checkpoint,omitempty"`
+	DeathCheckpoint     *DeathResumeCheckpoint `json:"death_resume_checkpoint,omitzero"`
 	ReviewedParamsRef   string                 `json:"reviewed_params_ref,omitempty"`
 	OutputSchema        dsl.Schema             `json:"output_schema,omitempty"`
 }

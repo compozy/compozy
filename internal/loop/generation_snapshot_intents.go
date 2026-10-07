@@ -52,16 +52,16 @@ const (
 type GenerationLifecycleEventIntent struct {
 	Kind            GenerationLifecycleEventKind `json:"kind"`
 	GateID          string                       `json:"gate_id,omitempty"`
-	ItemIndex       int                          `json:"item_index,omitempty"`
+	ItemIndex       int                          `json:"item_index,omitzero"`
 	Route           gate.RouteAction             `json:"route,omitempty"`
 	Reason          string                       `json:"reason,omitempty"`
-	BestGeneration  *int64                       `json:"best_generation,omitempty"`
+	BestGeneration  *int64                       `json:"best_generation,omitzero"`
 	NodeID          string                       `json:"node_id,omitempty"`
-	Attempt         int                          `json:"attempt,omitempty"`
-	IssuedEpoch     int64                        `json:"issued_epoch,omitempty"`
+	Attempt         int                          `json:"attempt,omitzero"`
+	IssuedEpoch     int64                        `json:"issued_epoch,omitzero"`
 	NextAttemptAt   *time.Time                   `json:"next_attempt_at,omitempty"`
 	FailureClass    FailureClass                 `json:"failure_class,omitempty"`
-	Failure         *ClassifiedFailure           `json:"failure,omitempty"`
+	Failure         *ClassifiedFailure           `json:"failure,omitzero"`
 	Disposition     AttemptDisposition           `json:"disposition,omitempty"`
 	QuarantineEntry json.RawMessage              `json:"quarantine_entry,omitempty"`
 	AttentionFlag   string                       `json:"attention_flag,omitempty"`
@@ -79,12 +79,12 @@ type GenerationLifecycleEventIntent struct {
 	Effects                 []RenderedEffectIntent `json:"effects,omitempty"`
 	Predicate               string                 `json:"predicate,omitempty"`
 	DiagnosticCode          string                 `json:"diagnostic_code,omitempty"`
-	Cost                    uint64                 `json:"cost,omitempty"`
-	CostLimit               uint64                 `json:"cost_limit,omitempty"`
-	Warning                 bool                   `json:"warning,omitempty"`
+	Cost                    uint64                 `json:"cost,omitzero"`
+	CostLimit               uint64                 `json:"cost_limit,omitzero"`
+	Warning                 bool                   `json:"warning,omitzero"`
 	SelectedRoute           string                 `json:"selected_route,omitempty"`
 	MatchedWhen             string                 `json:"matched_when,omitempty"`
-	DefaultRoute            bool                   `json:"default_route,omitempty"`
+	DefaultRoute            bool                   `json:"default_route,omitzero"`
 	ItemIndexes             []int                  `json:"item_indexes,omitempty"`
 }
 

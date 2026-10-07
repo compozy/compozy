@@ -180,11 +180,11 @@ type CriterionResult struct {
 	Prompt              string              `json:"prompt,omitempty"`
 	Outcome             VerdictOutcome      `json:"outcome"`
 	Passed              bool                `json:"passed"`
-	Broken              bool                `json:"broken,omitempty"`
-	ExitCode            *int                `json:"exit_code,omitempty"`
+	Broken              bool                `json:"broken,omitzero"`
+	ExitCode            *int                `json:"exit_code,omitzero"`
 	Stdout              string              `json:"stdout,omitempty"`
 	Stderr              string              `json:"stderr,omitempty"`
-	Score               *float64            `json:"score,omitempty"`
+	Score               *float64            `json:"score,omitzero"`
 	Evidence            json.RawMessage     `json:"evidence,omitempty"`
 	BlockingIssues      []BlockingIssue     `json:"blocking_issues,omitempty"`
 	Warnings            []DiagnosticWarning `json:"warnings,omitempty"`
@@ -240,10 +240,10 @@ type Verdict struct {
 	// Payload carries the first aggregate verdict-source evidence or payload.
 	Payload json.RawMessage `json:"payload,omitempty"`
 	// Broken marks fail-open transport failure; consumers must use Route for control flow.
-	Broken                 bool                `json:"broken,omitempty"`
+	Broken                 bool                `json:"broken,omitzero"`
 	Warnings               []DiagnosticWarning `json:"warnings,omitempty"`
 	Route                  RouteDecision       `json:"route"`
-	NextBrokenJudgeStreak  int                 `json:"next_broken_judge_streak,omitempty"`
+	NextBrokenJudgeStreak  int                 `json:"next_broken_judge_streak,omitzero"`
 	BlockingIssueSignature []string            `json:"blocking_issue_signature,omitempty"`
 }
 

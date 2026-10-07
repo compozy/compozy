@@ -22,12 +22,12 @@ type sessionListInput struct {
 	Parent        string `json:"parent,omitempty"`
 	Root          string `json:"root,omitempty"`
 	Query         string `json:"q,omitempty"`
-	Resumable     bool   `json:"resumable,omitempty"`
+	Resumable     bool   `json:"resumable,omitzero"`
 	Archive       string `json:"archive,omitempty"`
-	IncludeHealth bool   `json:"include_health,omitempty"`
+	IncludeHealth bool   `json:"include_health,omitzero"`
 	Sort          string `json:"sort,omitempty"`
 	Cursor        string `json:"cursor,omitempty"`
-	Limit         int    `json:"limit,omitempty"`
+	Limit         int    `json:"limit,omitzero"`
 }
 
 func (n *daemonNativeTools) sessionList(

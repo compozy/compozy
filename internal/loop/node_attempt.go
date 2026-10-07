@@ -44,7 +44,7 @@ type NodeAttempt struct {
 	NodeID        NodeID             `json:"node_id"`
 	ItemIndex     int                `json:"item_index"`
 	Attempt       int                `json:"attempt"`
-	FailureClass  *FailureClass      `json:"failure_class,omitempty"`
+	FailureClass  *FailureClass      `json:"failure_class,omitzero"`
 	FailureCode   string             `json:"failure_code,omitempty"`
 	Cause         string             `json:"cause,omitempty"`
 	Hint          string             `json:"hint,omitempty"`

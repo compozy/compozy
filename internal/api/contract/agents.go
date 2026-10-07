@@ -109,9 +109,9 @@ type TaskRunLeaseSummaryPayload struct {
 // AgentTaskContextPayload is the bounded active-task section in `/agent/context`.
 type AgentTaskContextPayload struct {
 	Available bool                        `json:"available"`
-	Task      *TaskReferencePayload       `json:"task,omitempty"`
-	Lease     *TaskRunLeaseSummaryPayload `json:"lease,omitempty"`
-	Bundle    *taskpkg.ContextBundle      `json:"bundle,omitempty"`
+	Task      *TaskReferencePayload       `json:"task,omitzero"`
+	Lease     *TaskRunLeaseSummaryPayload `json:"lease,omitzero"`
+	Bundle    *taskpkg.ContextBundle      `json:"bundle,omitzero"`
 }
 
 // AgentContextSectionMetaPayload reports bounding/truncation metadata for context sections.
@@ -170,7 +170,7 @@ type AgentSpawnRequest struct {
 	SpawnRole        string                       `json:"spawn_role"`
 	TTLSeconds       int64                        `json:"ttl_seconds"`
 	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
-	NotifyCreator    *bool                        `json:"notify_creator,omitempty"`
+	NotifyCreator    *bool                        `json:"notify_creator,omitzero"`
 	Permissions      SpawnPermissionPolicyPayload `json:"permissions"`
 	IdempotencyKey   string                       `json:"idempotency_key,omitempty"`
 }

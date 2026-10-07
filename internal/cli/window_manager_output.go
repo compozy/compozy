@@ -171,8 +171,8 @@ func windowManagerWindowListBundle(snapshot contract.WindowManagerSnapshot) outp
 
 type windowManagerWindowListItem struct {
 	contract.WindowManagerWindow
-	StackID     *windowmanager.NodeID `json:"stack_id,omitempty"`
-	MemberOrder *int                  `json:"member_order,omitempty"`
+	StackID     *windowmanager.NodeID `json:"stack_id,omitzero"`
+	MemberOrder *int                  `json:"member_order,omitzero"`
 	Active      bool                  `json:"active"`
 	NavDepth    int                   `json:"nav_depth"`
 }

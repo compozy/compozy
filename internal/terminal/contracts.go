@@ -49,7 +49,7 @@ type Actor struct {
 	ProfileID  string    `json:"profile_id"`
 	SessionID  string    `json:"session_id,omitempty"`
 	RunID      string    `json:"run_id,omitempty"`
-	Generation int64     `json:"generation,omitempty"`
+	Generation int64     `json:"generation,omitzero"`
 }
 
 type Capabilities struct {
@@ -82,7 +82,7 @@ type ExecRequest struct {
 }
 
 type OutputShape struct {
-	MaxBytes int    `json:"max_bytes,omitempty"`
+	MaxBytes int    `json:"max_bytes,omitzero"`
 	Strategy string `json:"strategy,omitempty"`
 	Grep     string `json:"grep,omitempty"`
 }
@@ -93,10 +93,10 @@ type ExecResult struct {
 	Output       string    `json:"output"`
 	Truncated    bool      `json:"truncated"`
 	Untrusted    bool      `json:"untrusted"`
-	Spill        *SpillRef `json:"spill,omitempty"`
+	Spill        *SpillRef `json:"spill,omitzero"`
 	DurationMs   int64     `json:"duration_ms"`
 	CommandID    string    `json:"command_id"`
-	StillRunning bool      `json:"still_running,omitempty"`
+	StillRunning bool      `json:"still_running,omitzero"`
 	TerminalID   *ID       `json:"terminal_id"`
 }
 
@@ -115,8 +115,8 @@ type RunRef struct {
 
 type Exit struct {
 	Cause  string    `json:"cause"`
-	Code   *int      `json:"code,omitempty"`
-	Signal *string   `json:"signal,omitempty"`
+	Code   *int      `json:"code,omitzero"`
+	Signal *string   `json:"signal,omitzero"`
 	At     time.Time `json:"at"`
 }
 
@@ -130,10 +130,10 @@ type Info struct {
 	Mode         Mode         `json:"mode"`
 	State        string       `json:"state"`
 	Viewers      int          `json:"viewers"`
-	BoundRun     *RunRef      `json:"bound_run,omitempty"`
+	BoundRun     *RunRef      `json:"bound_run,omitzero"`
 	Capabilities Capabilities `json:"capabilities"`
 	CreatedAt    time.Time    `json:"created_at"`
-	Exit         *Exit        `json:"exit,omitempty"`
+	Exit         *Exit        `json:"exit,omitzero"`
 }
 
 type AttachOptions struct {
@@ -177,7 +177,7 @@ type ReadResult struct {
 	Truncated bool            `json:"truncated"`
 	Busy      bool            `json:"busy"`
 	Untrusted bool            `json:"untrusted"`
-	Spill     *SpillRef       `json:"spill,omitempty"`
+	Spill     *SpillRef       `json:"spill,omitzero"`
 }
 
 type WaitCondition struct {
@@ -188,7 +188,7 @@ type WaitCondition struct {
 
 type WaitResult struct {
 	Reason    string `json:"reason"`
-	ExitCode  *int   `json:"exit_code,omitempty"`
+	ExitCode  *int   `json:"exit_code,omitzero"`
 	Screen    string `json:"screen"`
 	Untrusted bool   `json:"untrusted"`
 }
@@ -269,7 +269,7 @@ type CommandRow struct {
 	ProfileName string          `json:"profile_name"`
 	Actor       Actor           `json:"actor"`
 	Command     string          `json:"command"`
-	ArgvDigest  *string         `json:"argv_digest,omitempty"`
+	ArgvDigest  *string         `json:"argv_digest,omitzero"`
 	Cwd         string          `json:"cwd"`
 	StartedAt   time.Time       `json:"started_at"`
 	DurationMs  *int64          `json:"duration_ms"`
@@ -280,7 +280,7 @@ type CommandRow struct {
 	Approval    string          `json:"approval"`
 	OutputBytes int64           `json:"output_bytes"`
 	Truncated   bool            `json:"truncated"`
-	RecordingID *string         `json:"recording,omitempty"`
+	RecordingID *string         `json:"recording,omitzero"`
 	OutputTail  []OutputSegment `json:"output_tail"`
 }
 
@@ -320,7 +320,7 @@ const (
 type OutputSegment struct {
 	Kind       OutputSegmentKind `json:"kind"`
 	Text       string            `json:"text,omitempty"`
-	Characters int               `json:"characters,omitempty"`
+	Characters int               `json:"characters,omitzero"`
 }
 
 type Manager interface {

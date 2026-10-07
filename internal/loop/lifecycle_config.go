@@ -41,7 +41,7 @@ type ResolvedLifecycleConfig struct {
 	RetryBackoffBase       time.Duration            `json:"retry_backoff_base"`
 	RetryBackoffMax        time.Duration            `json:"retry_backoff_max"`
 	RetryNonRetryable      []string                 `json:"retry_non_retryable"`
-	Deadline               *time.Duration           `json:"deadline,omitempty"`
+	Deadline               *time.Duration           `json:"deadline,omitzero"`
 	LivenessSilenceWindow  time.Duration            `json:"liveness_silence_window"`
 	ResumeDeathStreakLimit int                      `json:"resume_death_streak_limit"`
 	PredicateCostLimit     uint64                   `json:"predicate_cost_limit"`

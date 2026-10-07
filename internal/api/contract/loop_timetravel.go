@@ -6,12 +6,12 @@ type LoopDiffEndpoint struct {
 	RunID      string        `json:"run_id"`
 	Generation int64         `json:"generation"`
 	Status     LoopRunStatus `json:"status"`
-	AsOf       bool          `json:"as_of,omitempty"`
+	AsOf       bool          `json:"as_of,omitzero"`
 }
 
 type LoopDiffValue struct {
 	Inline json.RawMessage `json:"inline,omitempty"`
-	Size   int             `json:"size,omitempty"`
+	Size   int             `json:"size,omitzero"`
 	Hash   string          `json:"hash,omitempty"`
 }
 
@@ -23,7 +23,7 @@ type LoopDiffInputRow struct {
 
 type LoopDiffNodeRow struct {
 	NodeID    string        `json:"node_id"`
-	ItemIndex int           `json:"item_index,omitempty"`
+	ItemIndex int           `json:"item_index,omitzero"`
 	Change    string        `json:"change"`
 	Base      LoopDiffValue `json:"base,omitzero"`
 	Against   LoopDiffValue `json:"against,omitzero"`
@@ -41,13 +41,13 @@ type LoopDiffResponse struct {
 	Against              LoopDiffEndpoint     `json:"against"`
 	Inputs               []LoopDiffInputRow   `json:"inputs"`
 	Nodes                []LoopDiffNodeRow    `json:"nodes"`
-	Terminal             *LoopDiffTerminalRow `json:"terminal,omitempty"`
-	DefinitionDivergence bool                 `json:"definition_divergence,omitempty"`
+	Terminal             *LoopDiffTerminalRow `json:"terminal,omitzero"`
+	DefinitionDivergence bool                 `json:"definition_divergence,omitzero"`
 }
 
 type RerunLoopRequest struct {
 	FromNode  string `json:"from_node"`
-	ItemIndex *int   `json:"item_index,omitempty"`
+	ItemIndex *int   `json:"item_index,omitzero"`
 	Reason    string `json:"reason,omitempty"`
 	RequestID string `json:"request_id,omitempty"`
 }
@@ -58,7 +58,7 @@ type RerunLoopResponse struct {
 	ParentGeneration int64    `json:"parent_generation"`
 	RerunNodes       []string `json:"rerun_nodes"`
 	Carried          int      `json:"carried"`
-	Replayed         bool     `json:"replayed,omitempty"`
+	Replayed         bool     `json:"replayed,omitzero"`
 }
 
 type ForkLoopRequest struct {
@@ -70,5 +70,5 @@ type ForkLoopRequest struct {
 
 type ForkLoopResponse struct {
 	Run      LoopRunPayload `json:"run"`
-	Replayed bool           `json:"replayed,omitempty"`
+	Replayed bool           `json:"replayed,omitzero"`
 }

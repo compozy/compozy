@@ -57,8 +57,8 @@ type windowManagerCommandResult struct {
 	Applied     bool                       `json:"applied"`
 	Changes     windowmanager.ChangeSet    `json:"changes"`
 	Diagnostics []windowmanager.Diagnostic `json:"diagnostics"`
-	Client      *windowmanager.ClientView  `json:"client,omitempty"`
-	RebasedFrom *windowmanager.Revision    `json:"rebased_from,omitempty"`
+	Client      *windowmanager.ClientView  `json:"client,omitzero"`
+	RebasedFrom *windowmanager.Revision    `json:"rebased_from,omitzero"`
 }
 
 type windowManagerPreviewResult struct {
@@ -68,7 +68,7 @@ type windowManagerPreviewResult struct {
 	Changed     bool                       `json:"changed"`
 	Changes     windowmanager.ChangeSet    `json:"changes"`
 	Diagnostics []windowmanager.Diagnostic `json:"diagnostics"`
-	Client      *windowmanager.ClientView  `json:"client,omitempty"`
+	Client      *windowmanager.ClientView  `json:"client,omitzero"`
 	Snapshot    windowmanager.Snapshot     `json:"snapshot"`
 }
 

@@ -30,7 +30,7 @@ type Event struct {
 	WorkspaceID     WorkspaceID `json:"workspace"`
 	CatalogRevision string      `json:"revision,omitempty"`
 	CommandID       CommandID   `json:"command_id,omitempty"`
-	Pinned          *bool       `json:"pinned,omitempty"`
+	Pinned          *bool       `json:"pinned,omitzero"`
 	Source          string      `json:"source,omitempty"`
 	ExecutionSite   ActionKind  `json:"exec_site,omitempty"`
 	Outcome         string      `json:"outcome,omitempty"`

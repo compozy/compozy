@@ -16,26 +16,26 @@ type CreateTask struct {
 	Title              string          `json:"title"`
 	Description        string          `json:"description,omitempty"`
 	Priority           Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int            `json:"max_attempts,omitempty"`
-	Draft              bool            `json:"draft,omitempty"`
-	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
+	MaxAttempts        *int            `json:"max_attempts,omitzero"`
+	Draft              bool            `json:"draft,omitzero"`
+	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitzero"`
 	ApprovalPolicy     ApprovalPolicy  `json:"approval_policy,omitempty"`
 	Owner              *Ownership      `json:"owner,omitempty"`
-	WakeCreator        *bool           `json:"wake_creator,omitempty"`
+	WakeCreator        *bool           `json:"wake_creator,omitzero"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
 // Patch captures the mutable task fields accepted by update operations.
 type Patch struct {
-	Title              *string          `json:"title,omitempty"`
-	Description        *string          `json:"description,omitempty"`
-	Priority           *Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Metadata           *json.RawMessage `json:"metadata,omitempty"`
+	Title              *string          `json:"title,omitzero"`
+	Description        *string          `json:"description,omitzero"`
+	Priority           *Priority        `json:"priority,omitzero"`
+	MaxAttempts        *int             `json:"max_attempts,omitzero"`
+	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitzero"`
+	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitzero"`
+	Metadata           *json.RawMessage `json:"metadata,omitzero"`
 	Owner              *Ownership       `json:"owner,omitempty"`
-	ClearOwner         bool             `json:"clear_owner,omitempty"`
+	ClearOwner         bool             `json:"clear_owner,omitzero"`
 }
 
 // CancelTask captures the task-level cancellation request payload.
@@ -70,7 +70,7 @@ type Execution struct {
 	Task        Task            `json:"task"`
 	Run         Run             `json:"run"`
 	Action      ExecutionAction `json:"action"`
-	ExistingRun bool            `json:"existing_run,omitempty"`
+	ExistingRun bool            `json:"existing_run,omitzero"`
 }
 
 // AddDependency captures one dependency-edge creation request.
@@ -83,11 +83,11 @@ type AddDependency struct {
 // EnqueueRun captures the mutable inputs accepted when queuing a task run.
 type EnqueueRun struct {
 	TaskID             string          `json:"task_id"`
-	RunKind            RunKind         `json:"run_kind,omitempty"`
+	RunKind            RunKind         `json:"run_kind,omitzero"`
 	LoopRunID          string          `json:"loop_run_id,omitempty"`
 	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
 	DesignationGroupID string          `json:"designation_group_id,omitempty"`
-	WorktreePerRun     bool            `json:"worktree_per_run,omitempty"`
+	WorktreePerRun     bool            `json:"worktree_per_run,omitzero"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
@@ -112,7 +112,7 @@ type RunFailure struct {
 // ForceRecoveryOptions controls operator/agent force-operation policy.
 type ForceRecoveryOptions struct {
 	AllowAgentForce    bool `json:"allow_agent_force"`
-	RateLimitPerMinute int  `json:"rate_limit_per_minute,omitempty"`
+	RateLimitPerMinute int  `json:"rate_limit_per_minute,omitzero"`
 }
 
 // ForceReleaseRun captures one operator/agent force release request.
@@ -149,7 +149,7 @@ type BulkForceRunRequest struct {
 type BulkForceRunItem struct {
 	RunID string `json:"run_id"`
 	OK    bool   `json:"ok"`
-	Run   *Run   `json:"run,omitempty"`
+	Run   *Run   `json:"run,omitzero"`
 	Err   error  `json:"-"`
 }
 
@@ -205,7 +205,7 @@ type SchedulerPauseState struct {
 
 // SchedulerStatus reports scheduler-wide pause state and live backlog counts.
 type SchedulerStatus struct {
-	Counters               *SchedulerCounters `json:"counters,omitempty"`
+	Counters               *SchedulerCounters `json:"counters,omitzero"`
 	Paused                 bool               `json:"paused"`
 	PausedBy               string             `json:"paused_by,omitempty"`
 	PausedAt               time.Time          `json:"paused_at,omitzero"`
@@ -239,14 +239,14 @@ type SchedulerResumeRequest struct {
 // SchedulerDrainRequest captures one drain invocation.
 type SchedulerDrainRequest struct {
 	Reason  string        `json:"reason,omitempty"`
-	Timeout time.Duration `json:"timeout,omitempty"`
+	Timeout time.Duration `json:"timeout,omitzero"`
 }
 
 // SchedulerDrainResult reports the final state observed by one drain invocation.
 type SchedulerDrainResult struct {
 	Status          SchedulerStatus `json:"status"`
 	Completed       bool            `json:"completed"`
-	TimedOut        bool            `json:"timed_out,omitempty"`
+	TimedOut        bool            `json:"timed_out,omitzero"`
 	RemainingClaims int             `json:"remaining_claims"`
 	StartedAt       time.Time       `json:"started_at"`
 	CompletedAt     time.Time       `json:"completed_at"`
@@ -254,10 +254,10 @@ type SchedulerDrainResult struct {
 
 // SchedulerBacklogQuery captures read filters for queued scheduler backlog.
 type SchedulerBacklogQuery struct {
-	Limit         int    `json:"limit,omitempty"`
+	Limit         int    `json:"limit,omitzero"`
 	Scope         Scope  `json:"scope,omitempty"`
 	WorkspaceID   string `json:"workspace_id,omitempty"`
-	IncludePaused bool   `json:"include_paused,omitempty"`
+	IncludePaused bool   `json:"include_paused,omitzero"`
 }
 
 // SchedulerBacklogRun joins one queued run with the task that owns it.
@@ -282,8 +282,8 @@ type ForceRunMutationResult struct {
 
 // ForceRunInputInvalidation reports the session-input fence committed with a force mutation.
 type ForceRunInputInvalidation struct {
-	QueueGeneration int64 `json:"queue_generation,omitempty"`
-	CanceledInputs  int   `json:"canceled_inputs,omitempty"`
+	QueueGeneration int64 `json:"queue_generation,omitzero"`
+	CanceledInputs  int   `json:"canceled_inputs,omitzero"`
 }
 
 // RecoverRunRequest captures one operator/agent recovery request for a needs_attention run.

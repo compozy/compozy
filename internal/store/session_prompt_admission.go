@@ -43,13 +43,13 @@ type SessionPromptAdmissionResult struct {
 	Status                string            `json:"status"`
 	Mode                  string            `json:"mode,omitempty"`
 	QueueEntryID          string            `json:"queue_entry_id,omitempty"`
-	QueuePosition         int               `json:"queue_position,omitempty"`
-	QueueGeneration       int64             `json:"queue_generation,omitempty"`
+	QueuePosition         int               `json:"queue_position,omitzero"`
+	QueueGeneration       int64             `json:"queue_generation,omitzero"`
 	Delivery              string            `json:"delivery,omitempty"`
 	SteerDelivery         SteerDeliveryMode `json:"steer_delivery,omitempty"`
 	PreviousTurnID        string            `json:"previous_turn_id,omitempty"`
 	NewTurnID             string            `json:"new_turn_id,omitempty"`
-	CanceledQueuedEntries int               `json:"canceled_queued_entries,omitempty"`
+	CanceledQueuedEntries int               `json:"canceled_queued_entries,omitzero"`
 	Goal                  json.RawMessage   `json:"goal,omitempty"`
 }
 

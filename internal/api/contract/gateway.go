@@ -12,7 +12,7 @@ type GatewayStatusPayload struct {
 	Addresses []GatewayAddressPayload  `json:"addresses"`
 	Devices   []GatewayDevicePayload   `json:"devices"`
 	Bindings  []GatewayIngressPayload  `json:"bindings"`
-	Refusal   *GatewayRefusalPayload   `json:"refusal,omitempty"`
+	Refusal   *GatewayRefusalPayload   `json:"refusal,omitzero"`
 }
 
 // GatewayAuditPayload is one completed, redacted security posture audit.

@@ -13,7 +13,7 @@ var ErrConflict = errors.New("extension inputs changed since preparation")
 // Value is one install/update input: exactly one of Value or VaultRef must be supplied.
 type Value struct {
 	Value    json.RawMessage `json:"value,omitempty"`
-	VaultRef *string         `json:"vault_ref,omitempty"`
+	VaultRef *string         `json:"vault_ref,omitzero"`
 }
 
 // Instance addresses one exact cell; values do not cross profile or workspace boundaries.

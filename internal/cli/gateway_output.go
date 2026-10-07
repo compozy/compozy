@@ -23,7 +23,7 @@ type gatewayProfileRecord struct {
 
 type gatewayProfileMutationRecord struct {
 	Profile gatewayProfileRecord           `json:"profile"`
-	Device  *contract.GatewayDevicePayload `json:"device,omitempty"`
+	Device  *contract.GatewayDevicePayload `json:"device,omitzero"`
 	Status  string                         `json:"status"`
 }
 

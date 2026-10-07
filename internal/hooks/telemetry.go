@@ -48,7 +48,7 @@ type hookTraceEntry struct {
 	Hook     string          `json:"hook"`
 	Outcome  HookRunOutcome  `json:"outcome"`
 	Duration time.Duration   `json:"duration"`
-	Required bool            `json:"required,omitempty"`
+	Required bool            `json:"required,omitzero"`
 	Error    string          `json:"error,omitempty"`
 	Patch    json.RawMessage `json:"patch,omitempty"`
 }

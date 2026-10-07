@@ -108,7 +108,7 @@ type RuntimeRunArtifact struct {
 type RuntimeTransportArtifact struct {
 	HTTPBaseURL string `json:"http_base_url,omitempty"`
 	HTTPHost    string `json:"http_host,omitempty"`
-	HTTPPort    int    `json:"http_port,omitempty"`
+	HTTPPort    int    `json:"http_port,omitzero"`
 	UDSBaseURL  string `json:"uds_base_url,omitempty"`
 	SocketPath  string `json:"socket_path,omitempty"`
 	CLIBinary   string `json:"cli_binary,omitempty"`
@@ -122,7 +122,7 @@ type TransportOutputArtifact struct {
 	Command    []string `json:"command,omitempty"`
 	URL        string   `json:"url,omitempty"`
 	Method     string   `json:"method,omitempty"`
-	StatusCode int      `json:"status_code,omitempty"`
+	StatusCode int      `json:"status_code,omitzero"`
 	Stdout     string   `json:"stdout,omitempty"`
 	Stderr     string   `json:"stderr,omitempty"`
 	Error      string   `json:"error,omitempty"`
@@ -144,7 +144,7 @@ type ToolHostOperationDiagnostic struct {
 	Outcome          ToolHostOperationOutcome `json:"outcome,omitempty"`
 	Error            string                   `json:"error,omitempty"`
 	SideEffectPath   string                   `json:"side_effect_path,omitempty"`
-	SideEffectExists bool                     `json:"side_effect_exists,omitempty"`
+	SideEffectExists bool                     `json:"side_effect_exists,omitzero"`
 }
 
 // ToolHostDiagnosticsArtifact groups tool-host observations for one session.

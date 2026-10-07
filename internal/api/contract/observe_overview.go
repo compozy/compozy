@@ -70,7 +70,7 @@ type OverviewUsagePayload struct {
 	RetentionDays int                           `json:"retention_days"`
 	Truncated     bool                          `json:"truncated"`
 	TotalTokens   int64                         `json:"total_tokens"`
-	EstimatedCost *float64                      `json:"estimated_cost,omitempty"`
+	EstimatedCost *float64                      `json:"estimated_cost,omitzero"`
 	CostCurrency  string                        `json:"cost_currency,omitempty"`
 	CostStatus    string                        `json:"cost_status,omitempty"`
 	Days          []OverviewUsageDayPayload     `json:"days"`
@@ -106,8 +106,8 @@ type OverviewAgentSharePayload struct {
 type OverviewPulsePayload struct {
 	WindowDays     int                            `json:"window_days"`
 	Buckets        []OverviewPulseBucketPayload   `json:"buckets"`
-	Busiest        *OverviewPulseBucketPayload    `json:"busiest,omitempty"`
-	LongestSession *OverviewLongestSessionPayload `json:"longest_session,omitempty"`
+	Busiest        *OverviewPulseBucketPayload    `json:"busiest,omitzero"`
+	LongestSession *OverviewLongestSessionPayload `json:"longest_session,omitzero"`
 }
 
 // OverviewPulseBucketPayload is one hour-by-weekday event count; weekday 0 is Sunday.

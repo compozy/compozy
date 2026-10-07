@@ -1,9 +1,9 @@
 package contract
 
 type UpdateSettingsCmdPaletteRequest struct {
-	FallbackAgentEnabled *bool              `json:"fallback_agent_enabled,omitempty"`
-	Personalization      *bool              `json:"personalization,omitempty"`
-	Aliases              *map[string]string `json:"aliases,omitempty"`
+	FallbackAgentEnabled *bool              `json:"fallback_agent_enabled,omitzero"`
+	Personalization      *bool              `json:"personalization,omitzero"`
+	Aliases              *map[string]string `json:"aliases,omitzero"`
 }
 
 type SettingsCmdPaletteResponse struct {

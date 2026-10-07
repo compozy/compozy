@@ -230,7 +230,7 @@ func marshalDiffVerdict(record gate.VerdictRecord, exists bool) (json.RawMessage
 	}
 	value := struct {
 		Outcome        gate.VerdictOutcome `json:"outcome"`
-		Score          *float64            `json:"score,omitempty"`
+		Score          *float64            `json:"score,omitzero"`
 		BlockingIssues json.RawMessage     `json:"blocking_issues"`
 		Criteria       json.RawMessage     `json:"criteria"`
 	}{record.Outcome, record.Score, record.BlockingIssues, record.Criteria}
@@ -313,7 +313,7 @@ func marshalDiffRoute(route RouteCause, exists bool) (json.RawMessage, error) {
 		Route       NodeID `json:"route"`
 		Cause       string `json:"cause"`
 		MatchedWhen string `json:"matched_when,omitempty"`
-		Default     bool   `json:"default,omitempty"`
+		Default     bool   `json:"default,omitzero"`
 	}{route.Route, route.Cause, route.MatchedWhen, route.Default}
 	raw, err := json.Marshal(value)
 	if err != nil {

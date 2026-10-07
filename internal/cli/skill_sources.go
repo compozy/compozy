@@ -22,7 +22,7 @@ type skillSourcesRecord struct {
 	Scope       string                                          `json:"scope"`
 	WorkspaceID string                                          `json:"workspace_id,omitempty"`
 	Sources     []contract.SettingsSkillSourcePayload           `json:"sources"`
-	Inherits    *contract.SettingsSkillSourceInheritancePayload `json:"inherits,omitempty"`
+	Inherits    *contract.SettingsSkillSourceInheritancePayload `json:"inherits,omitzero"`
 	workspace   string
 }
 

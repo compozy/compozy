@@ -25,7 +25,7 @@ type wireSessionUpdateEnvelope struct {
 
 type wirePromptResponse struct {
 	StopReason acpsdk.StopReason `json:"stopReason"`
-	Usage      *wireUsage        `json:"usage,omitempty"`
+	Usage      *wireUsage        `json:"usage,omitzero"`
 }
 
 // wireNewSessionRequest keeps the workspace extension on the top-level
@@ -49,28 +49,28 @@ type wireLoadSessionRequest struct {
 }
 
 type wireUsage struct {
-	InputTokens       *int64 `json:"inputTokens,omitempty"`
-	OutputTokens      *int64 `json:"outputTokens,omitempty"`
-	TotalTokens       *int64 `json:"totalTokens,omitempty"`
-	ThoughtTokens     *int64 `json:"thoughtTokens,omitempty"`
-	CachedReadTokens  *int64 `json:"cachedReadTokens,omitempty"`
-	CachedWriteTokens *int64 `json:"cachedWriteTokens,omitempty"`
+	InputTokens       *int64 `json:"inputTokens,omitzero"`
+	OutputTokens      *int64 `json:"outputTokens,omitzero"`
+	TotalTokens       *int64 `json:"totalTokens,omitzero"`
+	ThoughtTokens     *int64 `json:"thoughtTokens,omitzero"`
+	CachedReadTokens  *int64 `json:"cachedReadTokens,omitzero"`
+	CachedWriteTokens *int64 `json:"cachedWriteTokens,omitzero"`
 	// compat(v0.4.0→v0.5.0, remove in v0.6.0)
-	LegacyCacheReadTokens  *int64 `json:"cacheReadTokens,omitempty"`
-	LegacyCacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
+	LegacyCacheReadTokens  *int64 `json:"cacheReadTokens,omitzero"`
+	LegacyCacheWriteTokens *int64 `json:"cacheWriteTokens,omitzero"`
 }
 
 type wireUsageUpdate struct {
 	Meta          json.RawMessage `json:"_meta,omitempty"`
 	SessionUpdate string          `json:"sessionUpdate"`
-	Used          *int64          `json:"used,omitempty"`
-	Size          *int64          `json:"size,omitempty"`
-	Cost          *wireCost       `json:"cost,omitempty"`
+	Used          *int64          `json:"used,omitzero"`
+	Size          *int64          `json:"size,omitzero"`
+	Cost          *wireCost       `json:"cost,omitzero"`
 }
 
 type wireCost struct {
-	Amount   *float64 `json:"amount,omitempty"`
-	Currency *string  `json:"currency,omitempty"`
+	Amount   *float64 `json:"amount,omitzero"`
+	Currency *string  `json:"currency,omitzero"`
 }
 
 func (p *AgentProcess) handleInbound(
@@ -129,8 +129,8 @@ func handleInboundRequest[Req any, Resp any](
 
 type readTextFileToolInput struct {
 	Path  string `json:"path"`
-	Line  *int   `json:"line,omitempty"`
-	Limit *int   `json:"limit,omitempty"`
+	Line  *int   `json:"line,omitzero"`
+	Limit *int   `json:"limit,omitzero"`
 }
 
 type writeTextFileToolInput struct {
@@ -141,9 +141,9 @@ type writeTextFileToolInput struct {
 type createTerminalToolInput struct {
 	Command         string               `json:"command"`
 	Args            []string             `json:"args,omitempty"`
-	Cwd             *string              `json:"cwd,omitempty"`
+	Cwd             *string              `json:"cwd,omitzero"`
 	Env             []acpsdk.EnvVariable `json:"env,omitempty"`
-	OutputByteLimit *int                 `json:"outputByteLimit,omitempty"`
+	OutputByteLimit *int                 `json:"outputByteLimit,omitzero"`
 }
 
 func (p *AgentProcess) handleReadTextFile(

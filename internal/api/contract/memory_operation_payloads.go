@@ -65,8 +65,8 @@ type MemoryHealthPayload struct {
 	WorkspaceCount     int        `json:"workspace_count"`
 	DreamEnabled       bool       `json:"dream_enabled"`
 	DreamAgent         string     `json:"dream_agent,omitempty"`
-	DreamMinHours      float64    `json:"dream_min_hours,omitempty"`
-	DreamMinSessions   int        `json:"dream_min_sessions,omitempty"`
+	DreamMinHours      float64    `json:"dream_min_hours,omitzero"`
+	DreamMinSessions   int        `json:"dream_min_sessions,omitzero"`
 	DreamCheckInterval string     `json:"dream_check_interval,omitempty"`
 	IndexedFiles       int        `json:"indexed_files"`
 	OrphanedFiles      int        `json:"orphaned_files"`

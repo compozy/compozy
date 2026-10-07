@@ -113,7 +113,7 @@ func rerunRequestDigest(run Run, input RerunInput) (string, error) {
 		Kind      string `json:"kind"`
 		RunID     RunID  `json:"run_id"`
 		FromNode  NodeID `json:"from_node"`
-		ItemIndex *int   `json:"item_index,omitempty"`
+		ItemIndex *int   `json:"item_index,omitzero"`
 		Reason    string `json:"reason,omitempty"`
 	}{timeTravelKindRerun, run.ID, input.FromNode, input.ItemIndex, strings.TrimSpace(input.Reason)})
 }

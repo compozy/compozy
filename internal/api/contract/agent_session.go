@@ -12,7 +12,7 @@ type AgentSessionPayload struct {
 	Name      string                 `json:"name,omitempty"`
 	Type      session.Type           `json:"type,omitempty"`
 	State     session.State          `json:"state"`
-	Lineage   *SessionLineagePayload `json:"lineage,omitempty"`
+	Lineage   *SessionLineagePayload `json:"lineage,omitzero"`
 	CreatedAt time.Time              `json:"created_at"`
 	UpdatedAt time.Time              `json:"updated_at"`
 }

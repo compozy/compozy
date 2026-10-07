@@ -49,7 +49,7 @@ type ClassifiedFailure struct {
 	Cause         string         `json:"cause"`
 	Hint          string         `json:"hint,omitempty"`
 	Target        string         `json:"target,omitempty"`
-	RetryAfter    *time.Duration `json:"retry_after,omitempty"`
+	RetryAfter    *time.Duration `json:"retry_after,omitzero"`
 	RetryEligible bool           `json:"retry_eligible"`
 }
 

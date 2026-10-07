@@ -19,7 +19,7 @@ type MarketplaceListingPayload struct {
 	Installable      bool                         `json:"installable"`
 	InstallBlocker   string                       `json:"install_blocker,omitempty"`
 	DigestSHA256     string                       `json:"digest_sha256"`
-	NameConflict     *MarketplaceOriginPayload    `json:"name_conflict,omitempty"`
+	NameConflict     *MarketplaceOriginPayload    `json:"name_conflict,omitzero"`
 	EntryID          string                       `json:"entry_id"`
 	Name             string                       `json:"name"`
 	Description      string                       `json:"description"`
@@ -36,7 +36,7 @@ type MarketplaceListingPayload struct {
 	InstalledVersion string                       `json:"installed_version,omitempty"`
 	UpdateAvailable  bool                         `json:"update_available"`
 	ManagePath       string                       `json:"manage_path,omitempty"`
-	Trust            *ExtensionTrustReportPayload `json:"trust,omitempty"`
+	Trust            *ExtensionTrustReportPayload `json:"trust,omitzero"`
 }
 
 // MarketplaceInputBindingPayload identifies the sole allowed materialization target.
@@ -62,7 +62,7 @@ type MarketplaceExtensionDetailPayload struct {
 // MarketplaceEntryResponse is one exact detail resolved by entry_id.
 type MarketplaceEntryResponse struct {
 	Entry     MarketplaceListingPayload          `json:"entry"`
-	Extension *MarketplaceExtensionDetailPayload `json:"extension,omitempty"`
+	Extension *MarketplaceExtensionDetailPayload `json:"extension,omitzero"`
 }
 
 // MarketplaceRefreshSourcePayload reports one feed-backed refresh outcome.
@@ -147,7 +147,7 @@ type MarketplaceServerPayload struct {
 	Launch      string          `json:"launch"`
 	Status      string          `json:"status,omitempty"`
 	RuntimeName string          `json:"runtime_name,omitempty"`
-	Auth        *MCPAuthSummary `json:"auth,omitempty"`
+	Auth        *MCPAuthSummary `json:"auth,omitzero"`
 	Profile     string          `json:"profile,omitempty"`
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 }

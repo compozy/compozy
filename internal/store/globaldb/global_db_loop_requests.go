@@ -16,7 +16,7 @@ import (
 var _ looppkg.RequestStore = (*LoopRepo)(nil)
 
 type requestCursor struct {
-	NullExpiry bool      `json:"null_expiry,omitempty"`
+	NullExpiry bool      `json:"null_expiry,omitzero"`
 	Primary    time.Time `json:"primary"`
 	Secondary  time.Time `json:"secondary,omitzero"`
 	RowID      int64     `json:"row_id"`

@@ -56,13 +56,13 @@ type RunReviewSummary struct {
 type ContextBundle struct {
 	Task               Reference           `json:"task"`
 	LatestEventSeq     int64               `json:"latest_event_seq"`
-	CurrentRun         *RunSummary         `json:"current_run,omitempty"`
+	CurrentRun         *RunSummary         `json:"current_run,omitzero"`
 	PriorAttempts      []RunSummary        `json:"prior_attempts"`
 	RecentEvents       []TimelineItem      `json:"recent_events"`
 	HandoffSummary     string              `json:"handoff_summary,omitempty"`
 	Limits             RuntimeLimits       `json:"limits"`
-	ExecutionProfile   *ExecutionProfile   `json:"execution_profile,omitempty"`
-	ReviewContinuation *ReviewContinuation `json:"review_continuation,omitempty"`
+	ExecutionProfile   *ExecutionProfile   `json:"execution_profile,omitzero"`
+	ReviewContinuation *ReviewContinuation `json:"review_continuation,omitzero"`
 	ReviewHistory      []RunReviewSummary  `json:"review_history"`
 }
 

@@ -46,12 +46,12 @@ type terminalRunCommandIntent struct {
 	Version       int                            `json:"version"`
 	EventIDs      []string                       `json:"event_ids"`
 	Result        json.RawMessage                `json:"result,omitempty"`
-	Failure       *RunFailure                    `json:"failure,omitempty"`
-	Cancellation  *terminalRunCancellationIntent `json:"cancellation,omitempty"`
+	Failure       *RunFailure                    `json:"failure,omitzero"`
+	Cancellation  *terminalRunCancellationIntent `json:"cancellation,omitzero"`
 	Diagnostic    string                         `json:"diagnostic,omitempty"`
 	StopRequired  bool                           `json:"stop_required"`
 	StopReason    StopReason                     `json:"stop_reason,omitempty"`
-	RecoveryAudit *terminalRunRecoveryIntent     `json:"recovery_audit,omitempty"`
+	RecoveryAudit *terminalRunRecoveryIntent     `json:"recovery_audit,omitzero"`
 }
 
 // TerminalRunCommand is an opaque durable receipt plus immutable terminal intent.

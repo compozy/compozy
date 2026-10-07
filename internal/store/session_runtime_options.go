@@ -13,14 +13,14 @@ import (
 type SessionACPOptionSelection struct {
 	ID        string `json:"id"`
 	ValueID   string `json:"value_id,omitempty"`
-	BoolValue *bool  `json:"bool_value,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitzero"`
 }
 
 // SessionRuntimeDetails keeps optional ACP selections and recovery metadata
 // compact while preserving their flat session metadata JSON fields.
 type SessionRuntimeDetails struct {
 	ACPOptions      []SessionACPOptionSelection `json:"acp_options,omitempty"`
-	RuntimeRecovery *SessionRuntimeRecovery     `json:"runtime_recovery,omitempty"`
+	RuntimeRecovery *SessionRuntimeRecovery     `json:"runtime_recovery,omitzero"`
 }
 
 // Normalize trims values, copies boolean pointers, and orders selections by ID.

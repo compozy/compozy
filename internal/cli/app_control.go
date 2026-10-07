@@ -35,7 +35,7 @@ type appControlResponse struct {
 	SchemaVersion int                     `json:"schema_version"`
 	ID            int                     `json:"id"`
 	Result        json.RawMessage         `json:"result,omitempty"`
-	Error         *appCommandErrorPayload `json:"error,omitempty"`
+	Error         *appCommandErrorPayload `json:"error,omitzero"`
 }
 
 func appControlRunning(

@@ -8,7 +8,7 @@ import (
 
 // ClarificationAnswerRequest resolves one live clarification through a public transport.
 type ClarificationAnswerRequest struct {
-	ChoiceIndex *int   `json:"choice_index,omitempty"`
+	ChoiceIndex *int   `json:"choice_index,omitzero"`
 	Text        string `json:"text,omitempty"`
 }
 

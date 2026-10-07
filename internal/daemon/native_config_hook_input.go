@@ -52,7 +52,7 @@ type hooksInfoInput struct {
 
 type hooksEventsInput struct {
 	Family   string `json:"family,omitempty"`
-	SyncOnly bool   `json:"sync_only,omitempty"`
+	SyncOnly bool   `json:"sync_only,omitzero"`
 }
 
 type hooksRunsInput struct {
@@ -61,7 +61,7 @@ type hooksRunsInput struct {
 	Event     string `json:"event,omitempty"`
 	Outcome   string `json:"outcome,omitempty"`
 	Since     string `json:"since,omitempty"`
-	Last      int    `json:"last,omitempty"`
+	Last      int    `json:"last,omitzero"`
 }
 
 func (i hooksRunsInput) query() (store.HookRunQuery, error) {
@@ -98,18 +98,18 @@ type hookMutationInput struct {
 	Name      string                `json:"name"`
 	Scope     string                `json:"scope,omitempty"`
 	Workspace string                `json:"workspace,omitempty"`
-	Event     *string               `json:"event,omitempty"`
-	Mode      *string               `json:"mode,omitempty"`
-	Required  *bool                 `json:"required,omitempty"`
-	Priority  *int                  `json:"priority,omitempty"`
-	Timeout   *string               `json:"timeout,omitempty"`
-	Matcher   *hookspkg.HookMatcher `json:"matcher,omitempty"`
-	Command   *string               `json:"command,omitempty"`
-	Args      *[]string             `json:"args,omitempty"`
-	Env       *map[string]string    `json:"env,omitempty"`
-	SecretEnv *map[string]string    `json:"secret_env,omitempty"`
-	Enabled   *bool                 `json:"enabled,omitempty"`
-	Source    *string               `json:"source,omitempty"`
+	Event     *string               `json:"event,omitzero"`
+	Mode      *string               `json:"mode,omitzero"`
+	Required  *bool                 `json:"required,omitzero"`
+	Priority  *int                  `json:"priority,omitzero"`
+	Timeout   *string               `json:"timeout,omitzero"`
+	Matcher   *hookspkg.HookMatcher `json:"matcher,omitzero"`
+	Command   *string               `json:"command,omitzero"`
+	Args      *[]string             `json:"args,omitzero"`
+	Env       *map[string]string    `json:"env,omitzero"`
+	SecretEnv *map[string]string    `json:"secret_env,omitzero"`
+	Enabled   *bool                 `json:"enabled,omitzero"`
+	Source    *string               `json:"source,omitzero"`
 }
 
 func (i hookMutationInput) newDecl() (hookspkg.HookDecl, error) {

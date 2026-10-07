@@ -15,13 +15,13 @@ type sessionRuntimeSetInput struct {
 	WorkspaceID      string                                 `json:"workspace"`
 	SessionID        string                                 `json:"session_id"`
 	Runtime          contract.PromptRuntimeSelectionPayload `json:"runtime"`
-	ExpectedRevision *int64                                 `json:"expected_revision,omitempty"`
+	ExpectedRevision *int64                                 `json:"expected_revision,omitzero"`
 }
 
 type sessionRuntimeClearInput struct {
 	WorkspaceID      string `json:"workspace"`
 	SessionID        string `json:"session_id"`
-	ExpectedRevision *int64 `json:"expected_revision,omitempty"`
+	ExpectedRevision *int64 `json:"expected_revision,omitzero"`
 }
 
 func (n *daemonNativeTools) sessionRuntimeSet(

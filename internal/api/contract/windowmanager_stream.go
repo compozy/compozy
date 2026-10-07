@@ -36,7 +36,7 @@ type WindowManagerSnapshotFrame struct {
 	WorkspaceID windowmanager.WorkspaceID `json:"workspace_id"`
 	Revision    WindowManagerRevision     `json:"revision"`
 	Snapshot    WindowManagerSnapshot     `json:"snapshot"`
-	Client      *WindowManagerClientView  `json:"client,omitempty"`
+	Client      *WindowManagerClientView  `json:"client,omitzero"`
 }
 
 // WindowManagerEventFrame carries one event strictly after the snapshot fence.

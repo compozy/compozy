@@ -16,14 +16,14 @@ type sessionContinueInput struct {
 	Workspace           string                                  `json:"workspace,omitempty"`
 	SessionID           string                                  `json:"session_id"`
 	Agent               string                                  `json:"agent"`
-	Runtime             *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
-	Route               int                                     `json:"route,omitempty"`
+	Runtime             *contract.PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
+	Route               int                                     `json:"route,omitzero"`
 	Name                string                                  `json:"name,omitempty"`
 	Message             string                                  `json:"message,omitempty"`
 	IdempotencyKey      string                                  `json:"idempotency_key"`
-	ExpectedEpoch       *int64                                  `json:"expected_epoch,omitempty"`
-	ExpectedGeneration  *int64                                  `json:"expected_generation,omitempty"`
-	ExpectedMaxSequence *int64                                  `json:"expected_max_sequence,omitempty"`
+	ExpectedEpoch       *int64                                  `json:"expected_epoch,omitzero"`
+	ExpectedGeneration  *int64                                  `json:"expected_generation,omitzero"`
+	ExpectedMaxSequence *int64                                  `json:"expected_max_sequence,omitzero"`
 }
 
 // sessionContinue binds compozy__session_continue to the manager's derive primitive;
@@ -84,9 +84,9 @@ type sessionForkInput struct {
 	MessageID           string `json:"message_id,omitempty"`
 	Name                string `json:"name,omitempty"`
 	IdempotencyKey      string `json:"idempotency_key"`
-	ExpectedEpoch       *int64 `json:"expected_epoch,omitempty"`
-	ExpectedGeneration  *int64 `json:"expected_generation,omitempty"`
-	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitempty"`
+	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
+	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
 }
 
 // sessionFork binds compozy__session_fork to the manager's derive primitive; the

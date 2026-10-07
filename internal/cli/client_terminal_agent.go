@@ -18,8 +18,8 @@ type TerminalExecRequest struct {
 	Args    []string                `json:"args,omitempty"`
 	Cwd     string                  `json:"cwd,omitempty"`
 	Env     map[string]string       `json:"env,omitempty"`
-	YieldMs int                     `json:"yield_ms,omitempty"`
-	Visible bool                    `json:"visible,omitempty"`
+	YieldMs int                     `json:"yield_ms,omitzero"`
+	Visible bool                    `json:"visible,omitzero"`
 	Output  terminalpkg.OutputShape `json:"output"`
 }
 

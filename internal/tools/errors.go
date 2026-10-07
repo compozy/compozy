@@ -74,8 +74,8 @@ type ToolError struct {
 	ToolID        ToolID           `json:"tool_id,omitempty"`
 	Message       string           `json:"message"`
 	ReasonCodes   []ReasonCode     `json:"reason_codes,omitempty"`
-	Operator      *OperatorFailure `json:"operator,omitempty"`
-	PartialResult *ToolResult      `json:"partial_result,omitempty"`
+	Operator      *OperatorFailure `json:"operator,omitzero"`
+	PartialResult *ToolResult      `json:"partial_result,omitzero"`
 	Err           error            `json:"-"`
 }
 

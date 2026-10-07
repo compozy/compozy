@@ -17,7 +17,7 @@ type SessionCatalogResponse struct {
 type SessionCatalogPagePayload struct {
 	NextCursor string `json:"next_cursor,omitempty"`
 	HasMore    bool   `json:"has_more"`
-	Total      *int   `json:"total,omitempty"`
+	Total      *int   `json:"total,omitzero"`
 	Limit      int    `json:"limit"`
 }
 

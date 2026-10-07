@@ -3,8 +3,8 @@ package dsl
 // NodeLifecycleState keeps optional reliability grammar off the hot Node value.
 type NodeLifecycleState struct {
 	Deadline       string          `json:"deadline,omitempty"        yaml:"deadline,omitempty"`
-	ResultContract *ResultContract `json:"result_contract,omitempty" yaml:"result_contract,omitempty"`
-	OnError        *ErrorPolicy    `json:"on_error,omitempty"        yaml:"on_error,omitempty"`
+	ResultContract *ResultContract `json:"result_contract,omitzero"  yaml:"result_contract,omitempty"`
+	OnError        *ErrorPolicy    `json:"on_error,omitzero"         yaml:"on_error,omitempty"`
 	TriggerEffects `                                                   yaml:",inline"`
 	OnParentClose  ParentClosePolicy `json:"on_parent_close,omitempty" yaml:"on_parent_close,omitempty"`
 }
@@ -23,9 +23,9 @@ type ResultContract struct {
 
 // ErrorPolicy combines error flow with observational effects.
 type ErrorPolicy struct {
-	Route     NodeID       `json:"route,omitempty"      yaml:"route,omitempty"`
-	AllowFail bool         `json:"allow_fail,omitempty" yaml:"allow_fail,omitempty"`
-	Effects   []EffectSpec `json:"effects,omitempty"    yaml:"effects,omitempty"`
+	Route     NodeID       `json:"route,omitempty"     yaml:"route,omitempty"`
+	AllowFail bool         `json:"allow_fail,omitzero" yaml:"allow_fail,omitempty"`
+	Effects   []EffectSpec `json:"effects,omitempty"   yaml:"effects,omitempty"`
 }
 
 // ParentClosePolicy controls what happens to an awaited child when its parent closes.

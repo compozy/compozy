@@ -55,10 +55,10 @@ type hookBindingCodecSpec struct {
 	Event              hookspkg.HookEvent        `json:"event"`
 	Source             hookspkg.HookSource       `json:"source"`
 	Mode               hookspkg.HookMode         `json:"mode,omitempty"`
-	Required           bool                      `json:"required,omitempty"`
-	Priority           int32                     `json:"priority,omitempty"`
-	PrioritySet        bool                      `json:"priority_set,omitempty"`
-	Timeout            time.Duration             `json:"timeout,omitempty"`
+	Required           bool                      `json:"required,omitzero"`
+	Priority           int32                     `json:"priority,omitzero"`
+	PrioritySet        bool                      `json:"priority_set,omitzero"`
+	Timeout            time.Duration             `json:"timeout,omitzero"`
 	Matcher            hookspkg.HookMatcher      `json:"matcher"`
 	ExecutorKind       hookspkg.HookExecutorKind `json:"executor_kind,omitempty"`
 	Command            string                    `json:"command,omitempty"`
@@ -67,7 +67,7 @@ type hookBindingCodecSpec struct {
 	Env                map[string]string         `json:"env,omitempty"`
 	SecretEnv          map[string]string         `json:"secret_env,omitempty"`
 	Metadata           map[string]string         `json:"metadata,omitempty"`
-	SkillSource        hookspkg.HookSkillSource  `json:"skill_source,omitempty"`
+	SkillSource        hookspkg.HookSkillSource  `json:"skill_source,omitzero"`
 }
 
 var _ resources.TypedProjector[hookspkg.HookDecl] = (*hookBindingProjector)(nil)

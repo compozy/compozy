@@ -86,7 +86,7 @@ type configSetRecord struct {
 	Lifecycle        string `json:"lifecycle"`
 	ApplyRecordID    string `json:"apply_record_id,omitempty"`
 	Applied          bool   `json:"applied"`
-	ActiveGeneration int64  `json:"active_generation,omitempty"`
+	ActiveGeneration int64  `json:"active_generation,omitzero"`
 	ActiveConfigHash string `json:"active_config_hash,omitempty"`
 	NextAction       string `json:"next_action,omitempty"`
 	RestartRequired  bool   `json:"restart_required"`
@@ -103,7 +103,7 @@ type configUnsetRecord struct {
 	Lifecycle        string `json:"lifecycle"`
 	ApplyRecordID    string `json:"apply_record_id,omitempty"`
 	Applied          bool   `json:"applied"`
-	ActiveGeneration int64  `json:"active_generation,omitempty"`
+	ActiveGeneration int64  `json:"active_generation,omitzero"`
 	ActiveConfigHash string `json:"active_config_hash,omitempty"`
 	NextAction       string `json:"next_action,omitempty"`
 	RestartRequired  bool   `json:"restart_required"`
@@ -130,15 +130,15 @@ type configValidateRecord struct {
 	ConfigFile    string                            `json:"config_file"`
 	Redacted      bool                              `json:"redacted"`
 	Errors        []configValidationError           `json:"errors,omitempty"`
-	DotEnv        *compozyconfig.DotEnvRepairReport `json:"dot_env,omitempty"`
+	DotEnv        *compozyconfig.DotEnvRepairReport `json:"dot_env,omitzero"`
 }
 
 type configValidationError struct {
 	Code    string `json:"code"`
 	Path    string `json:"path,omitempty"`
 	File    string `json:"file,omitempty"`
-	Line    int    `json:"line,omitempty"`
-	Column  int    `json:"column,omitempty"`
+	Line    int    `json:"line,omitzero"`
+	Column  int    `json:"column,omitzero"`
 	Message string `json:"message"`
 }
 

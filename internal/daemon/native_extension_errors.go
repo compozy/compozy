@@ -16,7 +16,7 @@ import (
 )
 
 type nativeExtensionUpdatePartialPayload struct {
-	OperationError *contract.ExtensionOperationErrorPayload `json:"operation_error,omitempty"`
+	OperationError *contract.ExtensionOperationErrorPayload `json:"operation_error,omitzero"`
 	Updates        []contract.ManagedExtensionUpdatePayload `json:"updates"`
 	FailedTarget   string                                   `json:"failed_target"`
 	CompletedCount int                                      `json:"completed_count"`

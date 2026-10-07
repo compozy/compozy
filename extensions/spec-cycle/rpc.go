@@ -53,7 +53,7 @@ type rpcResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id"`
 	Result  any             `json:"result,omitempty"`
-	Error   *rpcError       `json:"error,omitempty"`
+	Error   *rpcError       `json:"error,omitzero"`
 }
 
 type rpcError struct {

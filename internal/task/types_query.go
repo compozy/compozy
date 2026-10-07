@@ -47,7 +47,7 @@ type Query struct {
 	Search        string          `json:"search,omitempty"`
 	CreatedByKind ActorKind       `json:"created_by_kind,omitempty"`
 	CreatedByRef  string          `json:"created_by_ref,omitempty"`
-	Limit         int             `json:"limit,omitempty"`
+	Limit         int             `json:"limit,omitzero"`
 }
 
 // RunQuery captures the supported task-run filters and an explicit profile or
@@ -55,10 +55,10 @@ type Query struct {
 type RunQuery struct {
 	ReadScope          store.ReadScope `json:"read_scope,omitzero"`
 	TaskID             string          `json:"task_id,omitempty"`
-	Status             RunStatus       `json:"status,omitempty"`
+	Status             RunStatus       `json:"status,omitzero"`
 	SessionID          string          `json:"session_id,omitempty"`
 	DesignationGroupID string          `json:"designation_group_id,omitempty"`
-	Limit              int             `json:"limit,omitempty"`
+	Limit              int             `json:"limit,omitzero"`
 }
 
 // EventQuery captures the supported list filters for task-event reads.
@@ -66,14 +66,14 @@ type EventQuery struct {
 	TaskID    string `json:"task_id,omitempty"`
 	RunID     string `json:"run_id,omitempty"`
 	EventType string `json:"event_type,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+	Limit     int    `json:"limit,omitzero"`
 }
 
 // StartTaskSession captures the task and run context needed to allocate a dedicated session.
 type StartTaskSession struct {
 	Task             Task              `json:"task"`
 	Run              Run               `json:"run"`
-	ExecutionProfile *ExecutionProfile `json:"execution_profile,omitempty"`
+	ExecutionProfile *ExecutionProfile `json:"execution_profile,omitzero"`
 	Actor            ActorContext      `json:"actor"`
 }
 
@@ -93,5 +93,5 @@ type RunBootRecovery struct {
 	SessionState   string                `json:"session_state,omitempty"`
 	Classification string                `json:"classification,omitempty"`
 	Detail         string                `json:"detail,omitempty"`
-	StopRequired   bool                  `json:"stop_required,omitempty"`
+	StopRequired   bool                  `json:"stop_required,omitzero"`
 }

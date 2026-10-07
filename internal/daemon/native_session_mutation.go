@@ -24,7 +24,7 @@ type sessionCreateInput struct {
 	Agent       string                      `json:"agent"`
 	Name        string                      `json:"name,omitempty"`
 	Worktree    string                      `json:"worktree,omitempty"`
-	NewWorktree *sessionCreateWorktreeInput `json:"new_worktree,omitempty"`
+	NewWorktree *sessionCreateWorktreeInput `json:"new_worktree,omitzero"`
 }
 
 type sessionPromptInput struct {
@@ -36,8 +36,8 @@ type sessionPromptInput struct {
 	IdempotencyKey string                                  `json:"idempotency_key"`
 	Mode           string                                  `json:"mode,omitempty"`
 	ExpectedTurnID string                                  `json:"expected_turn_id,omitempty"`
-	Wait           bool                                    `json:"wait,omitempty"`
-	Runtime        *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	Wait           bool                                    `json:"wait,omitzero"`
+	Runtime        *contract.PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
 }
 
 type sessionRewindInput struct {

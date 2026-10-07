@@ -90,7 +90,7 @@ type pluginEntry struct {
 	License     string                          `json:"license,omitempty"`
 	Category    string                          `json:"category,omitempty"`
 	Keywords    []string                        `json:"keywords,omitempty"`
-	Acquisition *pluginsource.AcquisitionRecord `json:"acquisition,omitempty"`
+	Acquisition *pluginsource.AcquisitionRecord `json:"acquisition,omitzero"`
 	Contents    PluginContents                  `json:"contents"`
 }
 

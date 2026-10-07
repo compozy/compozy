@@ -98,7 +98,7 @@ type Authority struct {
 type CallerScope struct {
 	SessionID   string `json:"session_id,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
-	Operator    bool   `json:"operator,omitempty"`
+	Operator    bool   `json:"operator,omitzero"`
 }
 
 // ActorContext carries the authenticated principal, ingress origin, resolved task authority, caller scope,
@@ -122,7 +122,7 @@ type Task struct {
 	Title          string         `json:"title"`
 	Description    string         `json:"description,omitempty"`
 	Priority       Priority       `json:"priority,omitempty"`
-	MaxAttempts    int            `json:"max_attempts,omitempty"`
+	MaxAttempts    int            `json:"max_attempts,omitzero"`
 	Status         Status         `json:"status"`
 	ApprovalPolicy ApprovalPolicy `json:"approval_policy,omitempty"`
 	ApprovalState  ApprovalState  `json:"approval_state,omitempty"`
@@ -133,13 +133,13 @@ type Task struct {
 	// automatically once its blocking dependencies complete (opt-in; default
 	// false preserves the explicit-execution-boundary contract). Clustered with
 	// Paused to keep Task within the 512-byte gocritic copy threshold.
-	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
-	Paused             bool            `json:"paused,omitempty"`
+	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitzero"`
+	Paused             bool            `json:"paused,omitzero"`
 	WakeCreator        bool            `json:"wake_creator"`
 	PausedBy           string          `json:"paused_by,omitempty"`
 	PausedAt           time.Time       `json:"paused_at,omitzero"`
 	PausedReason       string          `json:"paused_reason,omitempty"`
-	NeedsAttention     *NeedsAttention `json:"needs_attention,omitempty"`
+	NeedsAttention     *NeedsAttention `json:"needs_attention,omitzero"`
 	CreatedBy          ActorIdentity   `json:"created_by"`
 	Origin             Origin          `json:"origin"`
 	CreatedAt          time.Time       `json:"created_at"`

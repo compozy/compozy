@@ -79,11 +79,11 @@ type TimelineQuery struct {
 }
 type TimelineEntry struct {
 	Seq        int64        `json:"seq"`
-	FirstSeq   int64        `json:"first_seq,omitempty"`
+	FirstSeq   int64        `json:"first_seq,omitzero"`
 	Kind       RunEventKind `json:"kind"`
-	Generation int64        `json:"generation,omitempty"`
+	Generation int64        `json:"generation,omitzero"`
 	NodeID     NodeID       `json:"node_id,omitempty"`
-	Attempt    int          `json:"attempt,omitempty"`
+	Attempt    int          `json:"attempt,omitzero"`
 	Title      string       `json:"title"`
 	At         time.Time    `json:"at"`
 }

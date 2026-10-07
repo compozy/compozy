@@ -76,6 +76,6 @@ type SkillDiagnosticPayload struct {
 	WinningPath        string                            `json:"winning_path,omitempty"`
 	VerificationStatus SkillVerificationStatus           `json:"verification_status"`
 	Warnings           []SkillVerificationWarningPayload `json:"warnings,omitempty"`
-	Failure            *SkillVerificationFailurePayload  `json:"failure,omitempty"`
+	Failure            *SkillVerificationFailurePayload  `json:"failure,omitzero"`
 	ActivationReasons  []SkillActivationReasonPayload    `json:"activation_reasons,omitempty"`
 }

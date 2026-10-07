@@ -16,7 +16,7 @@ type WindowManagerDesktop struct {
 type WindowManagerFloatingStack struct {
 	ID        windowmanager.NodeID         `json:"id"`
 	WindowIDs []windowmanager.WindowID     `json:"window_ids"`
-	ActiveID  *windowmanager.WindowID      `json:"active_id,omitempty"`
+	ActiveID  *windowmanager.WindowID      `json:"active_id,omitzero"`
 	Rect      windowmanager.NormalizedRect `json:"rect"`
 	Minimized bool                         `json:"minimized"`
 }
@@ -32,12 +32,12 @@ type WindowManagerLayoutGroup struct {
 type WindowManagerLayoutNode struct {
 	ID        windowmanager.NodeID      `json:"id"`
 	Kind      windowmanager.NodeKind    `json:"kind"`
-	WindowID  *windowmanager.WindowID   `json:"window_id,omitempty"`
-	Axis      *windowmanager.Axis       `json:"axis,omitempty"`
+	WindowID  *windowmanager.WindowID   `json:"window_id,omitzero"`
+	Axis      *windowmanager.Axis       `json:"axis,omitzero"`
 	Children  []WindowManagerLayoutNode `json:"children,omitempty"`
 	Weights   []float64                 `json:"weights,omitempty"`
 	WindowIDs []windowmanager.WindowID  `json:"window_ids,omitempty"`
-	ActiveID  *windowmanager.WindowID   `json:"active_id,omitempty"`
+	ActiveID  *windowmanager.WindowID   `json:"active_id,omitzero"`
 }
 
 func windowManagerDesktopsFromDomain(desktops []windowmanager.Desktop) []WindowManagerDesktop {

@@ -16,8 +16,8 @@ type TerminalCreateRequest = contract.TerminalCreateRequest
 
 type TerminalExitRecord struct {
 	Cause  string    `json:"cause"`
-	Code   *int      `json:"code,omitempty"`
-	Signal *string   `json:"signal,omitempty"`
+	Code   *int      `json:"code,omitzero"`
+	Signal *string   `json:"signal,omitzero"`
 	At     time.Time `json:"at"`
 }
 

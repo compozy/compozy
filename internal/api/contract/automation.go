@@ -27,10 +27,10 @@ type AutomationSchedulerStatePayload struct {
 	LastScheduledAt           *time.Time                           `json:"last_scheduled_at,omitempty"`
 	LastFireID                string                               `json:"last_fire_id,omitempty"`
 	CatchUpPolicy             automationpkg.SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds       int                                  `json:"misfire_grace_seconds,omitempty"`
-	ConsecutiveResumeFailures int                                  `json:"consecutive_resume_failures,omitempty"`
+	MisfireGraceSeconds       int                                  `json:"misfire_grace_seconds,omitzero"`
+	ConsecutiveResumeFailures int                                  `json:"consecutive_resume_failures,omitzero"`
 	LastMisfireAt             *time.Time                           `json:"last_misfire_at,omitempty"`
-	MisfireCount              int                                  `json:"misfire_count,omitempty"`
+	MisfireCount              int                                  `json:"misfire_count,omitzero"`
 	UpdatedAt                 *time.Time                           `json:"updated_at,omitempty"`
 }
 
@@ -58,9 +58,9 @@ type JobPayload struct {
 	AgentName    string                           `json:"agent_name"`
 	WorkspaceID  string                           `json:"workspace_id,omitempty"`
 	Prompt       string                           `json:"prompt"`
-	Schedule     *automationpkg.ScheduleSpec      `json:"schedule,omitempty"`
-	Task         *automationpkg.JobTaskConfig     `json:"task,omitempty"`
-	LoopTarget   *automationpkg.LoopTarget        `json:"loop_target,omitempty"`
+	Schedule     *automationpkg.ScheduleSpec      `json:"schedule,omitzero"`
+	Task         *automationpkg.JobTaskConfig     `json:"task,omitzero"`
+	LoopTarget   *automationpkg.LoopTarget        `json:"loop_target,omitzero"`
 	Enabled      bool                             `json:"enabled"`
 	Retry        automationpkg.RetryConfig        `json:"retry"`
 	FireLimit    automationpkg.FireLimitConfig    `json:"fire_limit"`
@@ -68,7 +68,7 @@ type JobPayload struct {
 	CreatedAt    time.Time                        `json:"created_at"`
 	UpdatedAt    time.Time                        `json:"updated_at"`
 	NextRun      *time.Time                       `json:"next_run,omitempty"`
-	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitempty"`
+	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
 }
 
 // AutomationSuggestionPayload is a workspace-scoped, consent-first Job proposal.
