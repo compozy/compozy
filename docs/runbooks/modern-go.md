@@ -165,10 +165,94 @@ forbidigo, depguard, copyloopvar, type checking, or formatting.
 
 ## Retained exclusions
 
-Controller: fill this section from all worker reports after integration, recording
-`rule | file:line or pattern/count | semantic/generated/justified-exclusion | reason`.
-Any retained prohibited call needs a site-specific documented lint exception;
-no blanket Modern Go suppression is permitted.
+These sites still match a Modern Go guideline pattern after the issue #482 migration.
+Each is kept because the modern form would change behavior, ownership, or a contract,
+or because the file is generated output or a test input. Classifications are
+`semantic` (the modern form is not equivalent), `generated` (owned by a generator), and
+`justified-exclusion` (a pattern match where the rule does not apply). Counts come
+from the per-slice audits and are approximate; recount before relying on one.
+
+### Site-specific lint exceptions
+
+A retained call or tag that a configured linter rejects carries a line-local
+`//nolint:<linter> // <reason>` comment. No blanket Modern Go suppression exists, and
+there are no `depguard` exceptions. List the current set with
+`git grep -n -E 'nolint:(forbidigo|modernize|copyloopvar|depguard)' -- '*.go'`.
+
+| Site | Linter | Guideline | Reason |
+| --- | --- | --- | --- |
+| `internal/cli/gateway_pairing_profile.go:112` | forbidigo | `errors_as_type` | Target interface has only `errorPayload()`, not `Error()`; `errors.AsType` cannot take it |
+| `internal/cli/gateway_profile_recovery.go:346` | forbidigo | `errors_as_type` | Same `errorPayload` target |
+| `internal/cli/gateway_client_test.go:1310` | forbidigo | `errors_as_type` | Same `errorPayload` target |
+| `internal/worktree/exit_plan.go:351` | forbidigo | `errors_as_type` | Target is `interface{ ExitCode() int }`, which does not implement `error` |
+| `internal/automation/schedule_test.go:1535` | forbidigo | `slices_sort_func` | The fake's less returns true for nil/nil `ScheduledAt`; a valid three-way comparator changes its order |
+| `internal/api/contract/loops.go:387` | modernize | `json_omitzero` | `Runtime` keeps `omitempty,omitzero`: OpenAPI reflection needs `omitempty`, JSON uses `omitzero` |
+| `internal/api/contract/loops_runtime.go:44` | modernize | `json_omitzero` | Same dual tag on `Worker` |
+| `internal/api/contract/loops_runtime.go:46` | modernize | `json_omitzero` | Same dual tag on `Judge` |
+| `sdk/go/types.go:136` | modernize | `json_omitzero` | `omitempty` is a no-op on the `DescribeResources` value struct; `omitzero` would drop the zero object from the wire |
+
+
+### Review-enforced retained patterns
+
+These patterns pass lint, either because no analyzer covers them or because the
+analyzer does not flag the retained form. Keep them unless the stated reason no longer
+holds. During integration, 21 `errors.As` sites moved to `errors.AsType`, and bare
+`context.WithoutCancel` cleanup calls moved to `testutil.Context(t)` (fresh 45-second
+timeout); neither is retained.
+
+| Guideline | Scope (counts / representative sites) | Classification | Reason |
+| --- | --- | --- | --- |
+| `loopvar_capture` | ~40 renamed per-iteration copies: `internal/cli/config_flatten.go:21` (`nextPath := key`), `internal/automation/list_resource_catalog.go:36,101`, `internal/task/manager_test.go:2748`, store value normalizers | justified-exclusion | Not redundant self-copies: the copy is mutated, normalized, or kept as a snapshot while the loop variable is still used. Default copyloopvar and modernize `forvar` flag only `x := x` |
+| `testing_t_context` | ~196 `context.Background()` calls in or captured by `t.Cleanup` callbacks and returned cleanup functions (daemon 56, api 28, settings 26, session 23, tools 19, store 13, task 9, platform 9, cli 7, extension 6): `internal/settings/config_apply_service_test.go`, `internal/api/udsapi/server_test.go`, `internal/terminal/journal/service_test.go` | semantic | `t.Context()` is canceled before cleanup runs; Close, Shutdown, drain, and ROLLBACK need a live context |
+| `testing_t_context` | 9 `TestMain` seed setups: `internal/cli/testmain_test.go`, `internal/session/testmain_test.go`, `internal/store/globaldb/global_db_test.go:101` | justified-exclusion | No `testing.TB` exists in `TestMain`; the seed has process lifetime |
+| `testing_t_context` | ~33 helpers, fakes, and interface implementations without `testing.TB` (cli integration daemon 15, task fake store 7, api 2, daemon 2, tools 2, extension 2, session 1, loop 1, e2e `testContext` 1): `internal/cli/cli_integration_test.go`, `internal/task/manager_test.go`, `internal/loop/action_test.go:1610` | justified-exclusion | Threading `testing.TB` would change test-double interfaces or non-test signatures |
+| `testing_t_context` | ~19 process and subprocess lifetimes: helper entrypoints `internal/acp/client_process_lifecycle_test.go:75`, stdio MCP servers `internal/mcp/executor_test.go:2607`, process-group kill `internal/toolruntime/interrupt_unix_test.go:23` | semantic | The process runs until EOF, exit, or an ordered cleanup kill; test cancellation would kill it early through `CommandContext` or reorder shutdown |
+| `testing_t_context` | 4 runtimes stopped by cleanup: terminal reapers `internal/api/udsapi/udsapi_integration_test.go:2854` and `internal/api/core/terminal_wire_integration_test.go:87`, MCP server `internal/mcp/executor_test.go:1874`, finalization hook `internal/session/manager_prompt_contract_test.go:1277` | semantic | Cleanup Shutdown or Session.Close must run before the runtime stops; the hook keeps an independent 45-second context |
+| `testing_t_context` | Non-test lifetimes: CLI/Mage command roots, SDK runtimes, example and fixture mains; compiled source strings in `internal/extension/tool_provider_test.go`; outer captures `internal/daemon/perf_bench_test.go:350` (already `WithTimeout(WithoutCancel(ctx), time.Second)`) and `internal/testutil/testutil_test.go:22` (asserts cancellation) | justified-exclusion | Not a test-scoped context, or already detached and bounded |
+| `sync_waitgroup_go` | 17 `Add` calls under an admission lock or with `Done` owned by another method: `internal/session/manager_delete_reconciliation.go:64`, `internal/memory/extractor/runtime_queue.go:170`, `internal/extension/manager_startup_transaction.go:211` | semantic | Admission must happen under the lock before unlock or commit; `wg.Go` moves it to goroutine start and changes shutdown ordering |
+| `sync_waitgroup_go` | `Add(n)` batches: `wg.Add(2)` in `internal/daemon/clarify_keepalive_test.go` and `internal/daemon/daemon_test.go`; batched launches in memory runtimes | semantic | Completion bookkeeping is admitted as one batch before launch |
+| `sync_waitgroup_go` | 198 `.Add(1)` grep hits on typed atomics (extension 34, session 30, tools 30, api 24, cli 23, daemon 18, store 17, platform 17, loop 2, gates 2, task 1): `internal/codegen/storeschema/atlas.go:263` | justified-exclusion | Atomic counters, sequences, and gauges; not `sync.WaitGroup` |
+| `sync_once_func`, `sync_once_value` | ~173 struct-owned `sync.Once` fields and multi-callback guards (session 79, daemon 29, extension 16, platform 15, store 13, api 7, cli 7, tools 5, task 2): `internal/terminal/pty/pipe.go`, `internal/cli/connect_ssh_transport.go:176`, `internal/modelcatalog/service_refresh.go:175` | semantic | Zero-value lifecycle gates shared by several methods or `Do` sites, often memoizing a Close error; `OnceFunc`/`OnceValue` need constructor changes and alter zero-value and panic behavior |
+| `sync_once_func`, `sync_once_value` | 5 per-call captures: `internal/daemon/agent_skill_sync_staged.go:52`, `internal/gateway/mutation_gate.go:98`, `internal/memory/dream_test.go:1317`, `internal/mcp/executor_test.go:1593`, `sdk/go/transport.go:85` | semantic | The first caller's context, argument, or error decides the result; an argumentless wrapper cannot bind it |
+| `sync_once_func` | Driver registration: `internal/store/migrate_test.go:661` | semantic | Keeps `sync.Once` one-shot panic behavior if global SQL driver registration fails |
+| `new_expression` | Behavioral and exported pointer helpers in every slice: `cloneProviderModelPtr` (cli), `budgetExceededPtr` (daemon), `cloneTimePointer` (task), `nullStringPtr` in `internal/store/globaldb/global_db_loop_normalize.go:158` | semantic | Nil guards, defaulting, trimming, UTC conversion, SQL-null mapping, or deep copy; exported signatures stay, and bodies use `new(value)` where equivalent |
+| `new_expression` | Mutated or read-back temporaries: `internal/skills/resource_test.go:322`, `sdk/go/extension_command.go:31-37`, store `after`/`call`/`merged` locals | semantic | The value is mutated or read after its address is taken, or shared across assertions; a fresh allocation changes identity |
+| `slices_clone`, `bytes_clone` | 705+ `append([]T(nil), s...)` copies (tools 176, cli 166, loop 117, api 113, task 67, store 63, gates 3; daemon, session, platform, extension uncounted): `sdk/go/tool_request.go:57`, `magefiles/gotest_lane.go:328`, `sdk/go/extensiontest/harness.go:25` | semantic | Append-to-nil returns nil for an empty non-nil input; `Clone` keeps it non-nil, which changes JSON `null` versus `[]`, test equality, and `exec.Cmd.Env` (nil inherits) |
+| `slices_clone` | `internal/marketplace/store_source.go` `sourceContentRevision` make/copy | semantic | Produces non-nil content from nil before JSON hashing; `Clone` could change the digest |
+| `maps_clone`, `maps_copy` | `internal/providers/prestart_cache.go:392`, `internal/outboundpolicy/policy.go:183`, `internal/gateway/connection_registry.go:73`, `internal/extension/manifest_tool_toml.go` `copyTable`, `internal/automation/trigger_clone.go` | semantic | Must return a non-nil map for nil input, or performs a deep or transformed copy |
+| `url_clone` | `internal/cli/profile_read_scope.go` `cloneQueryValues`, `internal/cli/client_transport.go` `withFreshStreamTicket`, `internal/testutil/mcpfixture/oauth.go:350` | semantic | Returns a writable non-nil map and collapses empty value slices to nil; `url.Values.Clone` preserves both |
+| `slices_sorted`, `slices_collect` | ~17 `slices.AppendSeq(make(...), maps.Keys(m))` plus `slices.Sort` (loop 9, extension 6, cli 2): `internal/config/persistence_helpers.go` `sortedStringKeys`, `internal/config/builtin_agents.go`; preallocated results in `internal/acp/negotiation_error.go` | semantic | Helper and DTO boundaries return a non-nil empty slice; `Sorted` and `Collect` return nil for empty input |
+| `slices_sorted`, `slices_collect` | Trimmed, filtered, or projected keys: settings MCP environment-key collectors, `internal/daemon/model_catalog_staging.go`, task accumulators | semantic | Not a raw map-key collection |
+| `slices_sort` | 5 `"sort"` imports: `internal/automation/list_resource_catalog.go:7` (`sort.Search` :183), `internal/automation/model/list.go:6` (:359, :373), `internal/memory/header_list.go:7` (:229), `internal/daemon/harness_reentry_queue.go:4` (:15), `internal/automation/schedule_test.go:8` (the `sort.Slice` exception above) | semantic | `sort.Search` is an upper-bound search: pagination needs the first key strictly greater than the cursor, and the reentry queue inserts after equal wake times to keep FIFO ties. `slices.BinarySearchFunc` returns the lower bound |
+| `slices_sort_func` | `internal/providers/prestart_cache.go` `rebaseAccessOrderLocked` | semantic | Custom less over unique cache keys, not a legacy sort call; eviction and tie order stay |
+| `slices_index_func` | `internal/task/live.go` `splitTreeView` | semantic | No match falls back to index 0 (the root), not -1 |
+| `errors_as_type` | 4 non-error interface targets (lint exceptions above); `internal/agentidentity/identity_test.go:307` only names `errors.As` in a message | semantic | `errors.AsType` requires a target type that implements `error` |
+| `errors_is` | 5 strict `err != io.EOF` checks: `internal/loop/coordinator_goal_control.go`, `internal/loop/dsl/strategy.go`, `internal/marketplace/entry_input.go` | semantic | JSON decoder end-of-input checks; `errors.Is` would also accept errors that wrap EOF |
+| `context_cancel_cause`, `context_timeout_deadline_cause`, `errors_join` | Existing cancellation and error contracts (platform slice) | semantic | Adding causes or joining errors changes observable error text and matching |
+| `range_over_int` | 10 index-consuming loops: `internal/cli/output_format_args.go:17`, `internal/worktree/git_porcelain.go:200`, `internal/terminal/mode_preamble.go:31` | semantic | The body advances the index to consume a flag value, escape bytes, or a record |
+| `range_over_int` | Custom stride, nonzero or reverse start, or dynamic end (loop 15 in 13 files; daemon, platform, extension): YAML key/value pairs, chunked hashing, reverse cleanup | semantic | Not a `0..n-1` unit-step loop |
+| `strings_split_seq` | 11 `Split`/`Fields` sites in 11 `internal/loop` files; api, cli, extension, and store keep similar materialized results | semantic | The result is indexed, counted, sliced, joined, or used for line numbers |
+| `strings_cut`, `strings_bytes_cut_last` | Offset-dependent parsers: store Markdown and snippet scanners, `internal/toolmeta/preview_terminal.go:29`, `internal/extension/extension_validation.go` `lineStart`, `internal/codegen/storeschema/sqlite_index_expression.go` | semantic | Need numeric offsets for line/column, nesting, or ordering, or match either slash (`LastIndexAny`) |
+| `time_tick_gc` | `time.NewTicker` sites with an owner (daemon 15 and session 16 production sites, plus other slices): `internal/retention/periodic.go`, `internal/scheduler/scheduler.go`, `magefiles/verifylock.go:70` | semantic | Each ticker is stopped, reset, or injected by a bounded owner; none is a process-lifetime loop |
+| `generic_methods` | Free generic helpers and exported generic APIs: `internal/listcursor/cursor.go`, `internal/resources/{codec,typed,projector}.go`, `internal/api/spec/response_body.go`, `retry.DoValue`, `frontmatter.Format` | justified-exclusion | No single owned receiver type; exported APIs have callers across packages and keep their signatures |
+| `promoted_field_literals` | Named fields such as `ReadScope`, `Capabilities`, `AcceptedCapabilities`; pointer embeds; existing embedded value expressions | justified-exclusion | Named fields are not promoted, pointer-embedded paths are out of scope, and an embedded value expression would have to be rebuilt |
+| `http_servemux_patterns` | `internal/api/httpapi/gateway_auth.go` (Gin auth classification), `extensions/spec-cycle/rpc.go` (JSON-RPC method switch) | justified-exclusion | Not HTTP route dispatch |
+| `http_servemux_patterns` | `internal/testutil/mcpfixture/http.go`, `oauth.go` | semantic | ServeMux would change method dispatch, path cleaning, HEAD handling, and the custom 405 body |
+| `cmp_or` | Lazy fallbacks in `internal/cli` (`connect_ssh.go`, `root.go`, and seven more files) | semantic | `cmp.Or` evaluates every argument; these call the clock, environment, or a function only when needed |
+| `maps_delete_func` | `magefiles/gotest_census_update.go:164-179` | semantic | Pruning can return a filesystem error mid-iteration; a bool predicate cannot |
+| `maps_keys_values_iter` | Direct single-pass map loops (task slice) | justified-exclusion | Nothing is materialized; mutation and snapshot loops stay explicit |
+| `reflect_type_for` | `internal/mcp/serve_projection.go:103` | semantic | The type comes from a runtime value |
+| `min_max` | `internal/extension/host_api_rate_limit.go` `minFloat` | semantic | Built-in `min` differs for NaN and signed zero |
+| `json_omitzero` | 2,924 strings, 730 slices, 126 maps (1,238 bool, numeric, and pointer tags were migrated) | semantic | The guideline keeps `omitempty` for empty strings, slices, and maps, including `json.RawMessage` and named enum strings |
+| `json_omitzero` | 183 fields whose type has `IsZero`, including `*time.Time` and `SessionEventPayload` via `EventCorrelation.IsZero` | semantic | `omitzero` calls `IsZero`; a non-nil pointer to zero or a domain-zero value would disappear from the wire |
+| `json_omitzero` | 16 interface fields | semantic | Keeps nil interface distinct from an interface holding a typed nil or zero value |
+| `json_omitzero` | 1 struct no-op (`sdk/go/types.go:136`) and 3 dual-tag contract fields (lint exceptions above) | semantic | See the lint exception reasons |
+| `json_omitzero` | 1,467 source tags in the Go SDK generator's reachable type graph | generated | `internal/codegen/sdkgo/type_render.go` copies tag text verbatim into generated SDK code |
+| `json_omitzero` | 2,984 tags in generated Go; 30 test-input fields; 6 testdata fields | generated | Generated output and fixture or schema inputs stay unchanged |
+| All rules (generated files) | 66 generated Go files plus SQL and `atlas.sum` in the persistence slice, `internal/terminal/wire/opcodes_generated.go`, `sdk/go/contracts/capabilities_gen.go:20` | generated | Never hand-edited. `capabilities_gen.go` uses append-to-nil because the template `internal/codegen/sdkgo/contracts_render.go:109` emits it; change the template and regenerate |
+| `any` | `internal/codegen/storeschema/sqlc.go`, `sqlc_test.go` | generated | Literal `interface{}` is generator normalization input and its fixture, not a declaration |
+| All rules (test inputs) | `internal/extension/testdata/**` (for example `secret-guard/main.go:182`, `secret-guard/main_test.go:61`) and golden inputs | justified-exclusion | Their bytes are the contract. The two `*-fixture-go` modules are linted modules, not test inputs |
+| `json_v2` | All `encoding/json` imports | justified-exclusion | Not applicable to this migration; v1 encoding is preserved |
 
 ## Change impact
 
