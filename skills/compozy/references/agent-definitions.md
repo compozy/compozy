@@ -156,6 +156,10 @@ Profiles cannot read or restore each other's revisions. Session targets retain t
 Profile; an explicit status/wake session must belong to the selected Profile and agent. Managed
 extension SOUL.md and HEARTBEAT.md sources remain protected from writes.
 
+A `SOUL.md` that still carries the retired memory-policy frontmatter key from an earlier release stays
+valid: any value is accepted and ignored. `compozy agent soul validate` reports no diagnostic, the key is
+never rendered into a session, and CompozyOS does not rewrite the file.
+
 ## Setup Workflow
 
 1. Set common defaults in $COMPOZY_HOME/config.toml.

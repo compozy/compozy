@@ -56,13 +56,14 @@ bytes; stop the daemon cleanly; back up the home.
    policy applies. The extension loads with the memory entries dropped and one `extension.retired_entries_ignored`
    warning; a Host API call to `memory/recall` returns JSON-RPC `-32601`.
 4. No memory tables remain and `status` carries no `memory` object (`compozy status -o json | jq 'has("memory")'`
-   → `false`, `schema_version` `2026-10-07`, one global entry in `schema_streams`). The `memory.consolidated`
+   → `false`, `schema_version` `2026-10-07`, one global entry in `daemon.schema_streams`). The `memory.consolidated`
    trigger is gone while its run history stays; the `dream` and `memory-extractor` sessions are gone. Their
    retained session directories, metadata, and databases keep identical hashes after boot and repeated
    reconciliation, and no catalog row reappears. Each unsupported session emits one WARN
    `observe.session_recovery_skipped` per observer lifetime with `session_id`, `session_type`, `spawn_role`,
-   and `reason`. A normal `user` session directory with valid metadata and database but no catalog row is
-   recovered into the catalog.
+   and `reason` (`unknown_session_type` or `retired_spawn_role`). A normal `user` session directory with valid
+   metadata and database but no catalog row, and an orphan whose spawn role is a custom advisory role, are
+   recovered into the catalog. This recovery boundary is permanent, not a v0.6.0 shim.
 5. The Markdown memory files, `_inbox/` candidates, `knowledge/` directory, and `ledger.jsonl` are present with
    unchanged hashes; nothing reads them.
 6. The Web desktop opens the saved layout without the Knowledge window, the session window renders with no
@@ -72,8 +73,9 @@ bytes; stop the daemon cleanly; back up the home.
    produce no usage marker.
 8. `compozy agent soul validate` reports the SOUL valid with no diagnostic for `memory_policy`, the file is not
    rewritten, and the persona applies in a new session.
-9. Roles: `compozy roles list` shows `coordinator` and `auto_title` only; `roles show dream` fails with
-   `role_unknown`.
+9. Roles: `compozy roles list` shows `coordinator` and `auto_title` only; `compozy roles show dream` exits 71 and
+   prints `error: Role operation failed` / `role_unknown: dream` (with `-o json`, `diagnostic.code` is
+   `role_unknown`; `GET /api/roles/dream` returns 404 with the same diagnostic).
 
 Rollback is a full restore of the pre-upgrade backup; do not run an older binary against the upgraded databases.
 
@@ -83,7 +85,8 @@ keep `teardown.json` with `clean: true`. Files may stay for forensics; processes
 QA impact 2026-10-07 (memory removal): new in this change; no prior verdict. Automated owners: the global and session
 upgrade integration suites, the config archive tests, and the layout reconcile tests; this scenario is the real
 run. The shims (config archive, SOUL, tool-ID, and extension ignore filters) are scheduled for removal in v0.6.0
-and this scenario retires with them.
+and this scenario retires with them, except the session recovery boundary in step 4, which is permanent: move
+its checks into a durable recovery scenario before retiring this one.
 
 Recovery boundary follow-up: `internal/observe/reconcile_test.go` owns real-database repeated-reconcile,
 file-preservation and normal-orphan recovery coverage; `internal/daemon/daemon_integration_test.go` owns the

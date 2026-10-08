@@ -43,6 +43,10 @@ normalizes, and commits the complete topology atomically.
   The daemon migrates a stored version 3 arrangement on load and persists it once under the next
   revision, so caches keyed by revision refetch: a former focus desktop becomes a regular desktop whose
   owner stays zoomed on it with its return anchor; layout history resets.
+- On load the daemon also drops windows whose app is no longer registered, renormalizes the topology,
+  rewrites a retired Settings sub-route to `/settings`, and persists the result once under the next
+  revision (it logs `windowmanager.snapshot_reconciled`). Persisted `window_layout` resources follow the
+  same registered-app rule.
 
 Read the current revision before mutating:
 

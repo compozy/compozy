@@ -68,9 +68,10 @@ granted through agent definitions or inspected through `compozy toolsets info`.
 | `compozy__mcp_auth`        | Redacted MCP OAuth status for configured servers.                                                      |
 | `compozy__clarify`         | One operator question through the read-only `compozy__clarify` tool; the wait is unbounded by default. |
 
-Toolsets expose current canonical tool IDs only. `compozy__session_compact` (risk `write`, input
-`{session_id}`, **experimental**) asks the session's own agent to compact its context through the
-command the agent advertises. It follows an unstable upstream agent contract. See
+Toolsets expose current canonical tool IDs only. `compozy__session_compact` (risk `mutating`, input
+`{session_id}`, **experimental**) asks the agent of an idle session in the caller's workspace to
+compact its own context through the command that agent advertises. It follows an unstable upstream
+agent contract. See
 [Session compaction](/docs/sessions/compaction).
 
 ## How toolsets help operators

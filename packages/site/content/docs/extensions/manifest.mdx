@@ -328,18 +328,25 @@ The selected Gateway tier must be declared. Workspace-scoped connectivity provid
 
 ## Retired manifest entries
 
-Manifests written before the memory removal keep loading. A manifest that still provides the memory
-backend surface, requires a `memory/*` Host API method, or lists the `memory:read` and `memory:write`
-consent atoms or the `memory.read` marketplace ceiling entry loads with those entries dropped.
-CompozyOS logs one `extension.retired_entries_ignored` warning per load and `compozy extension list`
-shows the extension as loaded. A running extension that calls `memory/recall`, `memory/store`, or
-`memory/forget` gets JSON-RPC method-not-found (`-32601`). An unknown entry outside that retired family keeps
-failing validation.
+Manifests written before the memory removal keep loading. CompozyOS drops these retired entries from
+a TOML or JSON manifest before it validates the rest:
 
-Hook matcher keys `compaction_reason` and `compaction_strategy` in a manifest are ignored with a
-warning and the hook keeps running; `compaction_trigger` replaces them. See the
-[hook event catalog](/docs/hooks/event-catalog). The shim that drops the retired entries is removed
-in v0.6.0. [Migration guide](/docs/migration#memory-removal).
+- `capabilities.provides` entries for the removed memory backend surface;
+- `permissions.requires` entries `memory/recall`, `memory/store`, `memory/forget`, `memory.read`, and
+  `memory.write`;
+- the hook matcher keys `compaction_reason` and `compaction_strategy` on a `[[resources.hooks]]`
+  entry. The hook keeps running and observes every compaction; `compaction_trigger` replaces the
+  two keys. See the [hook declaration format](/docs/hooks/declaration#matchers).
+
+Each manifest load that dropped anything logs one `extension.retired_entries_ignored` warning with
+the extension name and the dropped entries, for example `permissions.requires=memory/store` or
+`hooks[0].compaction_reason`. `compozy extension list` shows the extension as loaded. An unknown
+entry outside that retired family keeps failing validation.
+
+A running extension that calls `memory/recall`, `memory/store`, or `memory/forget` gets the
+JSON-RPC method-not-found error (`-32601`), the same response as any other unknown Host API method.
+The shim that drops the retired entries is removed in v0.6.0. See the
+[migration guide](/docs/migration#memory-removal).
 
 ## Resource-only manifests
 

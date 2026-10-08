@@ -241,24 +241,50 @@ include `tool_input`; denied payloads omit it so rejected input is not exposed t
 
 ## Context Events (experimental)
 
-| Event                  | Sync | Payload                    | Patch                    | Fires when                                                            |
-| ---------------------- | ---- | -------------------------- | ------------------------ | --------------------------------------------------------------------- |
-| `context.pre_compact`  | yes  | `ContextCompactionPayload` | `ContextCompactionPatch` | On the first update of an agent compaction CompozyOS observes.        |
-| `context.post_compact` | yes  | `ContextCompactionPayload` | `ContextCompactionPatch` | At the first terminal status (`completed`, `failed`, or `cancelled`). |
+| Event                  | Sync | Payload                     | Patch                     | Fires when                                                                        |
+| ---------------------- | ---- | --------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| `context.pre_compact`  | yes  | `ContextPreCompactPayload`  | `ContextPreCompactPatch`  | On the first update CompozyOS observes for an agent compaction id.                |
+| `context.post_compact` | yes  | `ContextPostCompactPayload` | `ContextPostCompactPatch` | At the first terminal status (`completed`, `failed`, or `cancelled`) for that id. |
 
 Context events are observation-only and experimental: they follow the unstable ACP compaction
 contract and may change. CompozyOS never compacts a session itself; the agent owns its context
 window. These hooks fire only when the agent honors the ACP compaction capability, once per
 compaction id (`post_compact` at most once), whether a person requested the compaction with
 [Compact now](/docs/sessions/compaction#compact-now-experimental) or the agent started it on its own.
-They never fire for an agent that does not honor the capability.
+They never fire for an agent that does not honor the capability. When the first update CompozyOS
+observes for an id is already terminal, both events fire for it, `context.pre_compact` first.
 
-The payload carries `event`, `session_id`, `turn_id`, `compaction_id`, and `trigger` (`requested`
-when the compaction happened during a turn started for a compact request, otherwise `agent`).
-`context.post_compact` adds `status`, `summary`, and `error` when the agent sent them. The patch can
-only set `labels`, a map of string keys to string values. A patch with `deny`, `deny_reason`,
-`summary`, or `context_blocks` is an invalid patch: a hook cannot veto, delay, or rewrite an agent's
-compaction.
+Both events run after CompozyOS has recorded the observed compaction snapshot, so the hook sees a
+compaction that already happened. A failing hook, including a `required` one, is logged as a
+`session: hook dispatch failed` warning and never changes the compaction or the turn.
+
+The two events share one payload shape and one patch shape. In the daemon they are the single types
+`ContextCompactionPayload` and `ContextCompactionPatch`; `ContextPreCompactPayload`,
+`ContextPostCompactPayload`, and the matching `ContextPreCompactPatch` and `ContextPostCompactPatch`
+are aliases of them. Hook introspection (`compozy hooks events`, `GET /api/hooks/events`) names the
+event-specific types, and the Go and TypeScript SDKs generate both the event-specific types and the
+shared pair with identical fields.
+
+| Field                | Events | Meaning                                                                                                                                                                                               |
+| -------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event`, `timestamp` | both   | The event name and the time of the agent update that triggered the dispatch.                                                                                                                          |
+| Session fields       | both   | The common session fields above, plus `profile_id`, `worktree_id`, `acp_session_id`, `state`, `soul_snapshot_id`, `soul_digest`, `created_at`, and `updated_at` when available.                       |
+| `turn_id`            | both   | The turn that carried the compaction.                                                                                                                                                                 |
+| `compaction_id`      | both   | The compaction's identifier. Both events for one compaction carry the same value.                                                                                                                     |
+| `trigger`            | both   | `requested` when the compaction happened on a turn CompozyOS started to ask for it (Compact now, `compozy session compact`, the `compozy__session_compact` tool, or a Goal); `agent` for every other. |
+| `status`             | post   | The first terminal status: `completed`, `failed`, or `cancelled`. Absent on `context.pre_compact`.                                                                                                    |
+| `summary`            | post   | The agent's summary text, when it sent one.                                                                                                                                                           |
+| `error`              | post   | The agent's error text, when it sent one.                                                                                                                                                             |
+
+The patch has one optional field, `labels`, a map of string keys to string values. It is accepted
+and applied as a no-op annotation: it does not change the payload, a later hook's input, or the
+compaction, and the hook run keeps the patch only while the daemon log level is `debug`. The patch
+is decoded strictly, so a patch with any other field (`deny`, `deny_reason`, `summary`, or
+`context_blocks`, for example) is invalid. The hook run is recorded as `failed` with the error
+`hooks: decode patch for hook "<name>": json: unknown field "<field>"`. A sync hook that is not
+`required` is skipped and the chain continues, a `required` sync hook ends the chain, and an async
+hook logs `hook.dispatch.async_failed`. In every case the compaction continues, because a hook
+cannot veto, delay, or rewrite an agent's compaction.
 
 ## Example Payloads And Patches
 
@@ -358,6 +384,54 @@ compaction.
 ```json
 {
   "cancel": true
+}
+```
+
+### Observe a finished compaction
+
+A config declaration that runs for compactions the agent started on its own:
+
+```toml
+[[hooks.declarations]]
+name = "audit-agent-compaction"
+event = "context.post_compact"
+mode = "sync"
+timeout = "3s"
+command = "./hooks/audit-compaction"
+
+[hooks.declarations.matcher]
+compaction_trigger = "agent"
+```
+
+`context.post_compact` payload (`ContextPostCompactPayload`):
+
+```json
+{
+  "event": "context.post_compact",
+  "timestamp": "2026-10-08T14:02:19Z",
+  "session_id": "sess_9f4a",
+  "agent_name": "coder",
+  "workspace_id": "ws_checkout",
+  "workspace": "/Users/you/src/checkout",
+  "state": "active",
+  "created_at": "2026-10-08T13:10:02Z",
+  "updated_at": "2026-10-08T14:02:19Z",
+  "turn_id": "turn_42",
+  "compaction_id": "c1f0b8f4-6a52-4d7e-9b0c-2f3a8d1e5c77",
+  "trigger": "agent",
+  "status": "completed",
+  "summary": "Kept the checkout refactor plan and the open review comments."
+}
+```
+
+`ContextPostCompactPatch` attaching a label. It is the only field the patch accepts, and it has no
+effect on the compaction:
+
+```json
+{
+  "labels": {
+    "audited": "true"
+  }
 }
 ```
 

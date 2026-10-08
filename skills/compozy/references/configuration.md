@@ -250,8 +250,11 @@ Trigger events are `session.created`, `session.stopped`, `hook.<hook_name>.compl
 (default `16384`, between `1024` and `max_replay_bytes`). They bound every transcript replay into a new
 agent session: resume without native load, runtime or model replacement, account fallback, prompt
 recovery, and `session continue|fork`. The replay never exceeds `max_replay_bytes`; one message over
-`max_message_bytes` is truncated. CompozyOS has no compaction settings: the agent owns its context
-window, and compaction is observed or requested through the experimental surfaces in
+`max_message_bytes` is truncated. Validation rejects `max_message_bytes` outside 1024 through
+`max_replay_bytes`, so lowering `max_replay_bytes` below the default `max_message_bytes` (16384) requires
+lowering `max_message_bytes` too. Edit these keys in `config.toml`; `compozy config set` does not accept
+them. CompozyOS has no compaction settings: the agent owns its context window,
+and compaction is observed or requested through the experimental surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
 

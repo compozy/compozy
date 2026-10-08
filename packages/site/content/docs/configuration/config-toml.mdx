@@ -105,16 +105,46 @@ global and workspace MCP sidecars for session and runtime resolution.
 
 ## Archived retired settings
 
-A `config.toml` that still carries settings for features CompozyOS removed does not fail the load.
-When the loader finds a retired setting (a table, a trigger entry, or a hook matcher key) in the
-global, a profile, or a workspace file, it removes the setting, appends it to the end of the same
-file as a commented block that starts with
-`# Archived retired memory and compaction settings; these values are inactive.`, rewrites the file
-atomically, and logs `config.retired_keys_archived` once. The load always continues, and the next
-load finds nothing to archive. The archived values stay in the file as comments and no longer apply.
+A `config.toml` that still carries settings for features CompozyOS removed does not fail on those
+settings. Whenever the loader reads the global file, a profile file, or a workspace file, it archives
+these retired settings in place:
 
-Setting a retired key with `compozy config set` is still refused. The
-[migration guide](/docs/migration#memory-removal) lists the retired settings and the upgrade steps.
+- the `memory` table and all of its sub-tables, in any TOML form (table headers, dotted keys, or
+  inline tables);
+- the Dream, memory extractor, memory controller, and checkpoint summary role tables under `roles`;
+- the CompozyOS-side compaction table under `session`;
+- every `[[automation.triggers]]` entry for the removed memory-consolidation event;
+- the `compaction_reason` and `compaction_strategy` keys of a hook `matcher`. The hook declaration
+  and its other matcher keys stay active; see [Hook declarations](/docs/hooks/declaration#matchers).
+
+The [migration guide](/docs/migration#memory-removal) lists the exact keys and the upgrade steps.
+
+For each file that holds any of them, the loader:
+
+1. removes the retired settings from the live file and leaves every other setting and comment as it
+   was;
+2. appends the removed values to the end of the same file as a commented block. A blank line and the
+   line `# Archived retired memory and compaction settings; these values are inactive.` open the
+   block, and every archived TOML line starts with `# `. A retired matcher key is archived next to
+   the `name` of the hook it came from;
+3. rewrites the file atomically, only after the remaining settings decode;
+4. logs a `config.retired_keys_archived` warning once, with the `path` of the file and a `keys` field
+   that lists the archived settings, sorted and comma-separated, for example
+   `keys=hooks.declarations.matcher.compaction_reason,memory,roles.dream`.
+
+The archived values stay in the file as comments and no longer apply. The next load finds nothing to
+archive, leaves the file byte for byte unchanged, and logs nothing. The archive step is a
+compatibility shim that CompozyOS removes in v0.6.0.
+
+The rewrite is guarded against concurrent edits. Just before it writes, the loader re-reads the file
+and requires the same file with the same bytes. If an editor, another process, or another daemon
+changed or replaced the file in between, nothing is written, your edit is kept, and the load fails
+with `migrate config file "<path>": config changed during retirement migration`. Load again and the
+current content is archived. A file the loader cannot replace, for example one in a read-only
+directory, also fails the load with the write error, so make the directory writable before
+upgrading.
+
+Setting a retired key with `compozy config set` is still refused.
 
 ## Complete Annotated Example
 
@@ -1156,6 +1186,16 @@ report the omission as `truncated` and `omitted_count`. Bounding never fails a r
 Invalid values fail config validation with
 `session.derive.max_replay_bytes must be at least 4096` or
 `session.derive.max_message_bytes must be between 1024 and session.derive.max_replay_bytes`.
+The two bounds are checked together against the effective values, so lowering `max_replay_bytes`
+below the `max_message_bytes` default of `16384` also requires lowering `max_message_bytes`. For
+example, `max_replay_bytes = 8192` alone fails with the second error; set both keys:
+
+```toml
+[session.derive]
+max_replay_bytes = 8192
+max_message_bytes = 4096
+```
+
 A workspace `.compozy/config.toml` may override either key for sessions in that workspace.
 
 ## `[agents.soul]`
@@ -2035,6 +2075,11 @@ one relay serves every workspace in the daemon.
 `context_nudge_ratio = 0.0` is explicit and disables context nudging. A config change cannot alter
 the ratio of an existing Run, including after daemon restart or a later generation.
 
+When the Goal's last known context use reaches the ratio of the context size, the Goal compacts through
+the agent's own compaction command, or reseeds when the agent advertises none. While the context is
+unknown, for example after a compaction until the agent reports both usage and a positive size again,
+no nudge fires. See [Goal compaction](/docs/sessions/compaction#goal).
+
 Goal defaults follow the normal config precedence: built-in defaults, then global
 `$COMPOZY_HOME/config.toml`, then the resolved workspace's `.compozy/config.toml`. The Run start resolves
 that effective config once and persists the selected values. Later config generations apply only to
@@ -2187,11 +2232,12 @@ name.
 | `executor.env`     | string map   | empty                                               | String keys and values.                                               | Nested env form.                                                      |
 
 Supported matcher fields are `agent_name`, `agent_type`, `workspace_id`, `workspace_root`,
-`session_type`, `input_class`, `acp_event_type`, `turn_id`, `tool_name`, `tool_namespace`,
+`session_type`, `input_class`, `acp_event_type`, `turn_id`, `tool_id`, `tool_name`,
 `tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, and `compaction_trigger`.
-`compaction_trigger` is `requested` or `agent` and narrows `context.pre_compact` and
-`context.post_compact`, which observe real agent compactions; see
-[Hook declarations](/docs/hooks/declaration).
+Each event family accepts only some of them. `compaction_trigger` is `requested` or `agent` and
+narrows `context.pre_compact` and `context.post_compact`, which observe real agent compactions;
+`compaction_reason` and `compaction_strategy` are retired and archived on load. See
+[Hook declarations](/docs/hooks/declaration#matchers).
 
 Current hook events are:
 

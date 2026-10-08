@@ -171,14 +171,18 @@ fences together. An unsettled cut turn fails with `session_turn_in_progress`; an
 `acp_session_id`) when the agent cloned its own session, otherwise `replay`; a failed clone request is
 reported in `derived.native_fork_error`.
 
-`compozy__session_compact` (toolset `compozy__sessions`, risk `write`, **experimental**) asks the
-session's own agent to compact its context. Pass `session_id`; the result is
-`{session_id, prompt_id, command, status: "accepted"}`, where `command` is the `compact` or `compress`
-command the agent advertises. The compaction turn is sent as `/<command>` in maintenance delivery
-mode, so it carries no skill expansion, augmenters, or startup instructions. Errors are
-`session_busy` (a turn is running or another compact request is in flight) and
-`compaction_unsupported` (the agent advertises neither command). Observe the outcome through the
-session's `compaction` history item; the CLI form, `compozy session compact <session-id>`, waits for it.
+`compozy__session_compact` (toolset `compozy__sessions`, risk `mutating`, **experimental**) requests the
+agent's advertised native compaction on one idle session in the caller's workspace. Pass `session_id`
+(required; no other input); the result is `{session_id, prompt_id, command, status: "accepted"}`, where
+`command` is `compact` or `compress`, the command the agent advertises. The compaction turn is sent as
+`/<command>` in maintenance delivery mode, so it carries no skill expansion, augmenters, or startup
+instructions. The tool returns the receipt only and never waits. A running turn (the caller's own session
+is always mid-turn), another in-flight request, or an agent advertising neither command is a `409` that
+surfaces as a `tool_conflict` tool error carrying the underlying message; the stable `session_busy` and
+`compaction_unsupported` codes belong to the CLI, HTTP, and UDS error payloads. A session that is not
+active fails as invalid input. Observe the outcome through the session's transcript Compaction item and
+`compactions[]` usage markers (`compozy session history` returns the raw ledger rows instead); the CLI
+form, `compozy session compact <session-id>`, waits and prints the outcome.
 
 `compozy__session_runtime_set` persists complete next-prompt intent without starting or
 reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept optional

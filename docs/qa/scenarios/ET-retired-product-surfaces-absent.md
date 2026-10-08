@@ -66,20 +66,30 @@ Absent surfaces:
   the command catalog and `compozy help` list no `memory`.
 - HTTP and UDS: `GET /api/memory`, `/api/settings/memory`, and `/api/workspaces/{id}/memory/**` return 404, the same
   response as any unknown API path, on both transports; the OpenAPI catalog has no memory operation;
-  `component=memory` is an invalid event filter; `type=dream` is an invalid session type;
-  `PATCH /api/settings/roles` rejects removed role fields with the strict-JSON unknown-field error.
+  `component=memory` is an invalid event filter (`invalid event summary component "memory"`); `type=dream` is an
+  invalid session type (CLI: `session: list query is invalid: unsupported type "dream"`);
+  `PATCH /api/settings/roles` rejects a removed role key with the strict-JSON unknown-field error
+  (HTTP 400, `settings validation error: decode roles settings request: unknown_field: dream`);
+  `GET /api/roles/dream` returns 404 with `diagnostic.code` `role_unknown`.
 - Status: `compozy status -o json | jq 'has("memory")'` → `false` (HTTP and UDS payloads agree); `schema_version`
-  is `2026-10-07`.
+  is `2026-10-07`; `daemon.schema_streams` lists the single global stream.
 - Agent plane: the native tool catalog, toolset list, and hosted MCP surface offer no `compozy__memory_*` tool, no
   `compozy__memory` or `compozy__memory_admin` toolset, and no `compozy_host__memory__*` tool; the builtin
   `dreaming-curator` agent does not exist; a Host API call to `memory/*` from a running extension returns
   JSON-RPC `-32601`.
-- Config: `compozy config set memory.enabled true` (any `memory.*`) is refused with
-  `cli: config path "memory.enabled" is not supported by config set`; the retired `session.compaction.*` and
-  `roles.dream|checkpoint_summary|memory_extractor|memory_controller` paths are refused as unknown or unsupported;
-  the native `compozy__config_set` refuses the same paths deterministically.
+- Config: `compozy config set memory.enabled true` (any `memory.*`) exits 1 with
+  `error: cli: config path "memory.enabled" is not supported by config set` and writes nothing; the retired
+  `session.compaction.*` and `roles.dream|checkpoint_summary|memory_extractor|memory_controller` paths get the same
+  message with their own path (`config set` has no separate "retired" wording: every path outside its writable
+  table, such as `foo.bar`, is refused identically), and `compozy config get roles.dream.enabled` exits 1 with
+  `error: cli: config path "roles.dream.enabled" not found`. The native `compozy__config_set` refuses the same paths
+  deterministically with a `tool_denied` tool error whose reason code is `config_path_forbidden`. `compozy roles show
+  dream` exits 71 (`error: Role operation failed` / `role_unknown: dream`), and `compozy roles list` lists only
+  `coordinator` and `auto_title`.
 - Automation: creating a trigger with `event = "memory.consolidated"` fails the existing trigger-event validation on
-  CLI, HTTP, and the native tool; the trigger event catalog does not list it.
+  CLI, HTTP, and the native tool (CLI: `automation validation error: trigger.event "memory.consolidated" has no
+  activation producer; supported events are session.created, session.stopped, hook.<hook_name>.completed, webhook,
+  and ext.*`); the trigger event catalog does not list it.
 - Web: the dock, Go menu, and command palette show no Knowledge; `/knowledge` renders the standard not-found
   route; `/settings/memory` renders not-found (inside a restored Settings window it lands on the overview);
   Settings lists 18 sections with no Memory; Settings → Roles shows two panels (Coordinator, Auto title);

@@ -120,7 +120,8 @@ compozy session compact sess_1234 -o json
 HTTP and UDS expose `POST /api/workspaces/{workspace_id}/sessions/{session_id}/compact`; agents use
 `compozy__session_compact`. A running turn or another compact request in flight returns
 `409 session_busy`, and an agent that advertises neither command returns
-`409 compaction_unsupported`.
+`409 compaction_unsupported`. A stopped session returns `400 session_not_promptable`. The native tool
+reports both refusals as `tool_conflict`.
 The request, its responses, and what it leaves in the transcript are in
 [Context compaction](/docs/sessions/compaction#compact-now-experimental).
 

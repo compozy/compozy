@@ -33,7 +33,7 @@ the new agent process received and confirm:
 - one `session.replay.bounded` log record per rebuild that omitted messages, with `omitted_count` and
   `first_user_pinned: true`;
 - the session keeps answering, and asking for the pinned first-message fact and for a fact inside the
-  protected tail both succeed; lowering `[session.derive] max_replay_bytes` yields a smaller replay;
+  protected tail both succeed; lowering `[session.derive] max_replay_bytes` yields a smaller replay (below 16384 also lower `max_message_bytes`, which validation requires to stay between 1024 and `max_replay_bytes`);
 - no `project_checkpoint_summary.md` appears in either workspace and no checkpoint block reaches the
   agent; nothing from the second workspace appears in the first workspace's replay.
 

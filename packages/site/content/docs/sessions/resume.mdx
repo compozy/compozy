@@ -218,10 +218,10 @@ are additional evidence, not replacements for earlier events.
 
 A normal prompt on an eligible stopped session first tries ACP `session/load`. When the agent cannot
 load its own conversation, CompozyOS starts a fresh agent session and sends the stored transcript as one
-bounded replay. The same bound applies when a runtime or model replacement, an account fallback, or a
-prompt recovery starts a new agent session. The bound is `[session.derive] max_replay_bytes` (default
-131072): the newest messages and the original request are kept, older ones are replaced by an omission
-note, and the agent is told where to read them. See
+bounded replay. The same bound applies when a runtime or model replacement, an account fallback, a
+prompt recovery, or a conversation rewind starts a new agent session. The bound is
+`[session.derive] max_replay_bytes` (default 131072): the newest messages and the original request are
+kept, older ones are replaced by an omission note, and the agent is told where to read them. See
 [Context compaction](/docs/sessions/compaction#rebuilt-sessions-and-bounded-replay) for the exact block
 and rules.
 

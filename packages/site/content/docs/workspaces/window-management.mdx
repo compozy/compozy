@@ -180,6 +180,21 @@ the client's focused window on the same desktop, then a floating placement. A zo
 `return_anchor` is the slot unzoom takes it back to. Preserve `source_group` and `return_anchor.zoomed`
 during raw document round trips instead of constructing or editing this recovery state.
 
+### Retired apps in saved layouts
+
+A saved layout can name an app that CompozyOS no longer ships. When the daemon loads a workspace's
+saved window topology, it removes every window whose app is no longer registered, including the same
+windows inside undo and redo history and recently closed entries. It then renormalizes the affected
+desktops, rewrites a Settings window's saved `/settings/memory` route to `/settings`, persists the
+result once, and logs `windowmanager.snapshot_reconciled` with the `workspace_id` and the new
+`revision`. The next load changes nothing.
+
+Declarative `window_layout` resources follow the same rule. The daemon rewrites stored ones once at
+boot, drops the removed windows from their participant slots, and logs
+`window_manager.layout_reconciled` with the `resource_id`; layout listings always show the reconciled
+form. A layout document passed to `compozy layout apply` must carry the current snapshot `version`,
+which is `4`.
+
 ## Agent and transport access
 
 The lazy `compozy__window_manager` toolset exposes 26 desktop, window, and layout tools with structured

@@ -247,15 +247,15 @@ config file.
 
 ## Special Cases
 
-| Case                               | Behavior                                                                                                                                                                           |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Missing `config.toml`              | Treated as absent. Built-in defaults remain active.                                                                                                                                |
-| Missing `mcp.json`                 | Treated as absent.                                                                                                                                                                 |
-| Unknown TOML key                   | Config load fails.                                                                                                                                                                 |
-| Retired memory or compaction table | Archived on load as a commented block at the end of the same file; the load continues. See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings). |
-| Unknown JSON field in `mcp.json`   | Sidecar parse fails.                                                                                                                                                               |
-| Daemon boot config                 | Daemon startup uses the home config for boot settings. The general config loader applies MCP sidecars for session/runtime resolution.                                              |
-| `~` expansion                      | Implemented for `daemon.socket`; home paths are resolved from `COMPOZY_HOME` or OS user home.                                                                                      |
+| Case                                 | Behavior                                                                                                                                                                                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missing `config.toml`                | Treated as absent. Built-in defaults remain active.                                                                                                                                                                                                                       |
+| Missing `mcp.json`                   | Treated as absent.                                                                                                                                                                                                                                                        |
+| Unknown TOML key                     | Config load fails.                                                                                                                                                                                                                                                        |
+| Retired memory or compaction setting | Archived on load as a commented block at the end of the same file; the load continues. A file that changes during the rewrite, or cannot be replaced, fails the load instead. See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings). |
+| Unknown JSON field in `mcp.json`     | Sidecar parse fails.                                                                                                                                                                                                                                                      |
+| Daemon boot config                   | Daemon startup uses the home config for boot settings. The general config loader applies MCP sidecars for session/runtime resolution.                                                                                                                                     |
+| `~` expansion                        | Implemented for `daemon.socket`; home paths are resolved from `COMPOZY_HOME` or OS user home.                                                                                                                                                                             |
 
 ## Related Pages
 

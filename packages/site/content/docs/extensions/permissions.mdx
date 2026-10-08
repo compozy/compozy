@@ -36,8 +36,9 @@ ERROR permissions.requires[0]  unknown Host API permission
 
 Both SDKs export the method names as typed constants, so a typo fails before the daemon sees it.
 
-The retired `memory/*` methods are the one exception: a manifest that still requires them keeps
-loading with those entries dropped. See [Retired manifest entries](/docs/extensions/manifest#retired-manifest-entries).
+The retired `memory/*` methods, together with the `memory.read` and `memory.write` entries, are the one
+exception: a manifest that still requires them keeps loading with those entries dropped. See
+[Retired manifest entries](/docs/extensions/manifest#retired-manifest-entries).
 
 ## Derived consent areas
 

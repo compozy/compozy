@@ -67,9 +67,10 @@ The parser is strict. Any unknown frontmatter key fails validation with a typed
 `SoulDiagnostic`. Forbidden operational fields are listed below.
 
 A retired memory frontmatter key is the one exception the parser still recognizes. A `SOUL.md` that
-declares it stays valid: the key is ignored, so it is not rendered into the `Agent Soul` prompt block
-and is not returned in the parsed frontmatter. CompozyOS does not rewrite the file; saving the Soul
-from the Web editor writes it back without the key. See
+declares it stays valid whatever value it holds: the key raises no diagnostic and is ignored, so it
+is not rendered into the `Agent Soul` prompt block, does not change the snapshot digest, and is not
+returned in the parsed frontmatter. CompozyOS does not rewrite the file; saving the Soul from the
+Web editor writes it back without the key. The exception is removed in v0.6.0. See
 [Memory removal](/docs/migration#memory-removal).
 
 ## Forbidden fields and sections
