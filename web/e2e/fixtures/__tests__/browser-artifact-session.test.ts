@@ -25,7 +25,7 @@ describe("captureRouteState", () => {
           <a data-testid="trigger-run-open-run_003" href="/session/sess_003"></a>
         </div>
       </section>
-      <form data-testid="automation-job-form"></form>
+      <form data-entity="job" data-testid="automation-form"></form>
     `;
 
     const routeState = await captureRouteState({

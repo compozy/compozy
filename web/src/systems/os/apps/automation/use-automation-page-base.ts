@@ -40,22 +40,24 @@ export function automationUnavailableMessage(
 }
 
 /**
- * Consumes the one-shot `?create=1|loop` deep link. Waits for the active
- * workspace before opening the create editor (the draft binds workspace scope),
- * then strips the consumed params so a cancel or reload does not re-open the
- * dialog and the list is not silently filtered by `loop` or `start`.
+ * Consumes the one-shot `?create=1|loop` deep link. Waits until the project or
+ * Global lens is resolved (the draft binds its location); a Loop seed also
+ * needs a project, since the Loop lives in one. Then strips the consumed params
+ * so a cancel or reload does not re-open the dialog and the list is not
+ * silently filtered by `loop` or `start`.
  */
 export function useAutomationCreateSeed(
   seed: AutomationEditorSeed | null,
-  activeWorkspaceId: string | null | undefined,
+  workspace: { activeWorkspaceId: string | null | undefined; resolved: boolean },
   openCreate: (seed: AutomationEditorSeed) => void
 ): void {
   const navigate = useNavigate();
   const store = useStore(automationCreateSeedLogic);
   useEffect(() => {
     store.trigger.seedObserved({
-      activeWorkspaceId,
+      activeWorkspaceId: workspace.activeWorkspaceId,
       seed,
+      workspaceResolved: workspace.resolved,
       consume: consumed => {
         openCreate(consumed);
         void navigate({
@@ -70,7 +72,7 @@ export function useAutomationCreateSeed(
         });
       },
     });
-  }, [activeWorkspaceId, navigate, openCreate, seed, store]);
+  }, [navigate, openCreate, seed, store, workspace.activeWorkspaceId, workspace.resolved]);
 }
 
 /**
@@ -80,7 +82,7 @@ export function useAutomationCreateSeed(
  */
 export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
   const navigate = useNavigate();
-  const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
+  const { activeWorkspace, activeWorkspaceId, pending, workspaces } = useActiveWorkspace();
   const settingsQuery = useSettingsAutomation();
 
   const start = automationsStartView(search) ?? null;
@@ -126,6 +128,8 @@ export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
   return {
     activeWorkspace,
     activeWorkspaceId,
+    /** The project or Global lens is known (no longer loading). */
+    workspaceResolved: !pending,
     automationRuntime: settingsQuery.data?.runtime ?? null,
     clearFilters,
     enabledFilter: search.enabled ?? null,

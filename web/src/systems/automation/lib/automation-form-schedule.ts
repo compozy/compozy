@@ -6,6 +6,7 @@
 
 import type { CreateAutomationJobRequest } from "../types";
 import { humanizeFireWindow } from "./automation-formatters";
+import type { AutomationNextRun } from "./automation-detail";
 import { describeSchedule } from "./automation-sentence";
 import {
   compileCron,
@@ -158,4 +159,46 @@ export function scheduleReadout(
     valid: true,
     text: `Runs once, ${formatRelative(date, now)} (${formatAbsoluteUtc(date)} UTC), then stops.`,
   };
+}
+
+export interface ScheduleNextRuns {
+  /** `null` when the schedule can't be read; `[]` with a reason when nothing is upcoming. */
+  runs: AutomationNextRun[] | null;
+  emptyReason: string | null;
+}
+
+function toNextRuns(dates: readonly Date[], now: number, oneTime: boolean): AutomationNextRun[] {
+  return dates.map((date, index) => ({
+    index: index + 1,
+    relative: formatRelative(date, now),
+    absolute: formatAbsoluteUtc(date),
+    isFirst: index === 0,
+    oneTime,
+  }));
+}
+
+/** The editor preview's upcoming fire times for a draft schedule. */
+export function scheduleNextRuns(
+  schedule: JobSchedule,
+  now: number,
+  count: number
+): ScheduleNextRuns {
+  if (schedule.mode === "cron") {
+    const dates = cronNext(schedule.expr ?? "", count, now);
+    if (dates === null) return { runs: null, emptyReason: null };
+    return dates.length === 0
+      ? { runs: [], emptyReason: "No upcoming runs in the next year for this expression." }
+      : { runs: toNextRuns(dates, now, false), emptyReason: null };
+  }
+  if (schedule.mode === "every") {
+    const interval = parseDuration(schedule.interval ?? "");
+    if (interval === null) return { runs: null, emptyReason: null };
+    const dates = Array.from({ length: count }, (_, tick) => new Date(now + interval * (tick + 1)));
+    return { runs: toNextRuns(dates, now, false), emptyReason: null };
+  }
+  const date = localInputToDate(schedule.time ?? "");
+  if (!date) return { runs: null, emptyReason: null };
+  return date.getTime() <= now
+    ? { runs: [], emptyReason: "That time is in the past. It would never run." }
+    : { runs: toNextRuns([date], now, true), emptyReason: null };
 }
