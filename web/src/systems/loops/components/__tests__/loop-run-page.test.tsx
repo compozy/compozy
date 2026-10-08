@@ -2333,6 +2333,57 @@ describe("Nested child runs", () => {
     }
   });
 
+  it("Should stop paging a child's round after a page fails, leaving the retry to the poll", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const rosterReads: URL[] = [];
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      onRequest: url => {
+        if (url.pathname.endsWith("/r-8f21a0/nodes")) rosterReads.push(url);
+      },
+      handlers: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+          ({ params, request }) => {
+            if (params.run_id !== "r-8f21a0") return undefined;
+            // Page one promises more; the next page is the one the daemon fails.
+            return new URL(request.url).searchParams.has("cursor")
+              ? HttpResponse.json({ error: "roster unavailable" }, { status: 500 })
+              : HttpResponse.json({
+                  run_id: "r-8f21a0",
+                  loop_name: "fix-one-batch",
+                  run_status: "running",
+                  nodes: [],
+                  fanout_rollups: [],
+                  next_cursor: "1",
+                });
+          }
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("Couldn't read this child run")
+      );
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // One read for page one, one for the page that failed — and no more.
+      expect(rosterReads).toHaveLength(2);
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
   it("Should say a child could not be read when its briefing fails, keeping what did arrive", async () => {
     const { HttpResponse } = await import("msw");
     const { compozyApiMock } = await import("@/storybook/openapi-msw");

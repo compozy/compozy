@@ -51,13 +51,16 @@ export function useLoopChildRun(runId: string): LoopChildRunRead {
   const pages = roster.data?.pages ?? [];
   const pageCount = pages.length;
   const atCap = pageCount >= CHILD_ROSTER_PAGE_CAP;
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = roster;
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = roster;
   // Keyed on the page count too: a page can arrive and the fetch flag settle
-  // within one render, and the next page still has to be asked for.
+  // within one render, and the next page still has to be asked for. A page that
+  // failed is not asked for again here — the next poll retries it, so a
+  // struggling daemon is not met with a tight loop of requests.
   useEffect(() => {
-    if (!hasNextPage || isFetchingNextPage || pageCount >= CHILD_ROSTER_PAGE_CAP) return;
+    if (!hasNextPage || isFetchingNextPage || isFetchNextPageError) return;
+    if (pageCount >= CHILD_ROSTER_PAGE_CAP) return;
     void fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, pageCount, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, pageCount, fetchNextPage]);
 
   const run = detail.data?.run ?? null;
   // The page clock stops with the parent; a child still running keeps ticking.
