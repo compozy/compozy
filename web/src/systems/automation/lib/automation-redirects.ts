@@ -25,7 +25,9 @@ export function redirectLegacyAutomationURL(
 ): LegacyAutomationRedirect | null {
   const detail = LEGACY_DETAIL.exec(pathname);
   if (detail) {
-    return { pathname: `/automations/${detail[1]}/${detail[2]}`, search: {} };
+    // The detail page keeps the listing search for Back, like the daemon's rewrite.
+    const { create: _create, ...listing } = validateAutomationsSearch(search);
+    return { pathname: `/automations/${detail[1]}/${detail[2]}`, search: listing };
   }
   const list = LEGACY_LIST.exec(pathname);
   if (!list) return null;

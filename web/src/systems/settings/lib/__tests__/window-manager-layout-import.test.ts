@@ -54,7 +54,10 @@ function wireDocument(version: number) {
       },
     ],
     windows: {
-      "w-jobs": wireWindow("w-jobs", "jobs", "/jobs/morning-digest", {}),
+      "w-jobs": wireWindow("w-jobs", "jobs", "/jobs/morning-digest", {
+        q: "digest",
+        source: "dynamic",
+      }),
       "w-triggers": wireWindow("w-triggers", "triggers", "/triggers", {
         event: "session.stopped",
       }),
@@ -72,8 +75,16 @@ describe("parseImportedWindowManagerLayoutDocument", () => {
     expect(Object.keys(document.windows)).toEqual(["w-jobs", "w-triggers", "w-tasks"]);
     expect(document.windows["w-jobs"]).toMatchObject({
       app: "automations",
-      route: { pathname: "/automations/jobs/morning-digest", search: {} },
-      navStack: [{ pathname: "/automations/jobs/morning-digest", search: {} }],
+      route: {
+        pathname: "/automations/jobs/morning-digest",
+        search: { q: "digest", source: "dynamic" },
+      },
+      navStack: [
+        {
+          pathname: "/automations/jobs/morning-digest",
+          search: { q: "digest", source: "dynamic" },
+        },
+      ],
     });
     expect(document.windows["w-triggers"]).toMatchObject({
       app: "automations",

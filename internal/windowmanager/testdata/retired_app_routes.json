@@ -26,6 +26,23 @@
     {
         "app": "jobs",
         "input": {
+            "pathname": "/jobs/morning-digest",
+            "search": {
+                "q": "digest",
+                "source": "dynamic"
+            }
+        },
+        "expected": {
+            "pathname": "/automations/jobs/morning-digest",
+            "search": {
+                "q": "digest",
+                "source": "dynamic"
+            }
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
             "pathname": "/jobs",
             "search": {
                 "create": "loop",
@@ -229,6 +246,23 @@
         "expected": {
             "pathname": "/automations/jobs/x",
             "search": {}
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers/deploy-webhook",
+            "search": {
+                "enabled": true,
+                "view": "cards"
+            }
+        },
+        "expected": {
+            "pathname": "/automations/triggers/deploy-webhook",
+            "search": {
+                "enabled": true,
+                "view": "cards"
+            }
         }
     }
 ]
