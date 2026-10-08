@@ -1,6 +1,4 @@
-import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import {
@@ -10,11 +8,6 @@ import {
   useAutomationEditor,
   useAutomationJobs,
   useAutomationTriggers,
-  useDeleteAutomationJob,
-  useDeleteAutomationTrigger,
-  useTriggerAutomationJob,
-  useUpdateAutomationJob,
-  useUpdateAutomationTrigger,
   type AutomationJob,
   type AutomationTrigger,
   type AutomationView,
@@ -22,7 +15,8 @@ import {
 } from "@/systems/automation";
 import { useProfileReadScope } from "@/systems/profiles";
 
-import { automationPendingLogic } from "./automation-pending-store";
+import { deriveAutomationListingState } from "./automation-listing-state";
+import { useAutomationRowActions } from "./use-automation-row-actions";
 import {
   automationUnavailableMessage,
   useAutomationCreateSeed,
@@ -49,22 +43,7 @@ function withSeedClose<T extends { editor: { onCancel: () => void } | null }>(
   };
 }
 
-/** Which list failed when exactly one of the two loads failed (Business Rule 17). */
-export type AutomationPartialFailure = "schedule" | "event" | null;
-
-export interface AutomationStartCounts {
-  all: number | null;
-  schedule: number | null;
-  event: number | null;
-}
-
-function viewKey(view: Pick<AutomationView, "kind" | "id">): string {
-  return `${view.kind}:${view.id}`;
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
+export type { AutomationPartialFailure, AutomationStartCounts } from "./automation-listing-state";
 
 /** Merged listing model: both lists, one sort, honest totals and counts. */
 export function mergeAutomationViews(
@@ -102,9 +81,6 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   const page = useAutomationPageBase(search);
   const navigate = useNavigate();
   const profile = useProfileReadScope();
-  const pendingStore = useStore(automationPendingLogic);
-  const pendingIds = useSelector(pendingStore, snapshot => snapshot.context.pendingIds);
-  const [deleteTarget, setDeleteTarget] = useState<AutomationView | null>(null);
 
   // Both lists load in every Start view so the view counts and the window total stay
   // honest on a cold load; a Start view only decides which kind renders. Task targets
@@ -129,54 +105,35 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   const jobs = showJobs ? jobsQuery.jobs : [];
   const triggers = showTriggers ? loadedTriggers : [];
 
-  const triggersQueryError = fetchTriggers ? triggersQuery.error : null;
   const unavailableMessage = automationUnavailableMessage(
     page.automationRuntime,
     jobsQuery.error,
-    triggersQueryError
+    fetchTriggers ? triggersQuery.error : null
   );
-  // Only a rendered kind can fail the listing; the other kind's failure reads "—" in its count.
-  const jobsError = showJobs ? jobsQuery.error : null;
-  const triggersError = showTriggers ? triggersQuery.error : null;
-  const shownKinds = Number(showJobs) + Number(showTriggers);
-  const failedKinds = Number(jobsError !== null) + Number(triggersError !== null);
-  const loadError =
-    unavailableMessage === null && shownKinds > 0 && failedKinds === shownKinds
-      ? (jobsError ?? triggersError)
-      : null;
-  const partialFailure: AutomationPartialFailure =
-    unavailableMessage !== null || loadError !== null
-      ? null
-      : jobsError
-        ? "schedule"
-        : triggersError
-          ? "event"
-          : null;
-
-  const counts: AutomationStartCounts = {
-    schedule: jobsQuery.error || !jobsQuery.data ? null : jobsQuery.total,
-    event: !fetchTriggers
-      ? 0
-      : triggersQuery.error || !triggersQuery.data
-        ? null
-        : triggersQuery.total,
-    all: null,
-  };
-  counts.all =
-    counts.schedule === null || counts.event === null ? null : counts.schedule + counts.event;
+  const { loadError, partialFailure, counts, isLoading, firstRun } = deriveAutomationListingState({
+    jobs: {
+      shown: showJobs,
+      fetched: true,
+      error: jobsQuery.error,
+      loaded: Boolean(jobsQuery.data),
+      loading: jobsQuery.isLoading,
+      total: jobsQuery.total,
+    },
+    triggers: {
+      shown: showTriggers,
+      fetched: fetchTriggers,
+      error: triggersQuery.error,
+      loaded: Boolean(triggersQuery.data),
+      loading: triggersQuery.isLoading,
+      total: triggersQuery.total,
+    },
+    unavailableMessage,
+    itemCount: items.length,
+    hasActiveFilters: page.hasActiveFilters,
+  });
   /** Window count = both totals for the current filters; unknown until both answer. */
   const total = counts.all;
 
-  const isLoading =
-    items.length === 0 &&
-    ((showJobs && jobsQuery.isLoading) || (showTriggers && triggersQuery.isLoading));
-
-  const firstRun =
-    !isLoading &&
-    items.length === 0 &&
-    !page.hasActiveFilters &&
-    partialFailure === null &&
-    loadError === null;
   // Suggestions are workspace-scoped: never in Global scope or the all-profiles aggregate.
   const suggestionsWorkspaceId =
     firstRun && search.scope !== "global" && !profile.aggregate && page.activeWorkspaceId
@@ -213,57 +170,15 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     seed => editor.openCreate({ loop: seed.loop, start: seed.start })
   );
 
-  const updateJob = useUpdateAutomationJob();
-  const updateTrigger = useUpdateAutomationTrigger();
-  const runJob = useTriggerAutomationJob();
-  const deleteJob = useDeleteAutomationJob();
-  const deleteTrigger = useDeleteAutomationTrigger();
+  const actions = useAutomationRowActions({
+    unavailable: unavailableMessage !== null,
+    findEntity,
+    openEdit: editor.openEdit,
+  });
 
-  const requestAction = (id: string, run: () => Promise<void>) =>
-    pendingStore.trigger.actionRequested({ id, permitted: unavailableMessage === null, run });
-
-  const toggleEnabled = (view: AutomationView, enabled: boolean) => {
-    const verb = enabled ? "on" : "off";
-    requestAction(`toggle:${viewKey(view)}`, async () => {
-      try {
-        const mutation = view.kind === "job" ? updateJob : updateTrigger;
-        await mutation.mutateAsync({ data: { enabled }, id: view.id, profile: view.profileName });
-        toast.success(`Turned ${verb} ${view.name}.`);
-      } catch {
-        toast.error(`Couldn't turn ${verb} ${view.name}. Try again.`);
-      }
-    });
-  };
-
-  const runNow = (view: AutomationView) => {
-    if (!view.canRunNow) return;
-    requestAction(`run:${viewKey(view)}`, async () => {
-      try {
-        const run = await runJob.mutateAsync({ id: view.id, profile: view.profileName });
-        toast.success(`Queued run ${run.id}.`);
-      } catch (error) {
-        toast.error(errorMessage(error, `Couldn't start ${view.name}. Try again.`));
-      }
-    });
-  };
-
-  const edit = (view: AutomationView) => {
-    const entity = findEntity(view);
-    if (!entity || !view.canEdit) return;
-    editor.openEdit(entity);
-  };
-
-  const confirmDelete = async () => {
-    const view = deleteTarget;
-    if (!view) return;
-    const mutation = view.kind === "job" ? deleteJob : deleteTrigger;
-    await mutation.mutateAsync({ id: view.id, profile: view.profileName });
-    toast.success(`Deleted ${view.name}.`);
-    setDeleteTarget(null);
-  };
-
-  const create = (start: "schedule" | "event" | "webhook" | null = page.start) =>
-    editor.openCreate({ start: start ?? "schedule" });
+  /** "New automation": the given start, else the current Start view, else a schedule. */
+  const create = (start?: "schedule" | "event" | "webhook" | null) =>
+    editor.openCreate({ start: (start === undefined ? page.start : start) ?? "schedule" });
 
   const loadMore = () => {
     if (showJobs && jobsQuery.hasNextPage) void jobsQuery.fetchNextPage();
@@ -272,14 +187,11 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
 
   return {
     ...page,
+    ...actions,
     canLoadMore: (showJobs && jobsQuery.hasNextPage) || (showTriggers && triggersQuery.hasNextPage),
-    confirmDelete,
     copyLink: copyAutomationLink,
     counts,
     create,
-    deletePending: deleteJob.isPending || deleteTrigger.isPending,
-    deleteTarget,
-    edit,
     editorDialogProps: withSeedClose(editor.editorDialogProps, closeSeed),
     firstRun,
     suggestionsWorkspaceId,
@@ -287,8 +199,6 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     isFetchingMore: jobsQuery.isFetchingNextPage || triggersQuery.isFetchingNextPage,
     isLoading,
     isPaused: jobsQuery.isPaused || triggersQuery.isPaused,
-    isRunPending: (view: AutomationView) => pendingIds.has(`run:${viewKey(view)}`),
-    isTogglePending: (view: AutomationView) => pendingIds.has(`toggle:${viewKey(view)}`),
     items,
     loadError,
     loadMore,
@@ -299,9 +209,6 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
       void jobsQuery.refetch();
       if (fetchTriggers) void triggersQuery.refetch();
     },
-    runNow,
-    setDeleteTarget,
-    toggleEnabled,
     total,
     unavailableMessage,
   };
