@@ -34,11 +34,12 @@ fences while usage refreshes. Commit a usage or settlement event between the usa
 projection read: the next refresh must still emit its sequence, turn ID, and kind.
 
 Replay recorded agent compaction frames and inspect the marker `{turn_id, sequence, at, compaction_id, trigger,
-status, context_used, context_size}` in CLI human, `-o json`, TOON, HTTP, and UDS output; the removed
+status}` plus `context_used` and `context_size` in CLI human, `-o json`, TOON, HTTP, and UDS output; the two context
+fields are omitted (absent, not `null`) when the reading before the compaction was unknown, and the removed
 `from_sequence`, `to_sequence`, `pressure`, `strategy`, and `span_archived` fields are absent. After a terminal
-compaction `context.used` is null with `state: "unknown"` on rereads, reopens, and a daemon restart until the
-agent sends a later usage report. A `session.compaction_fired` row recorded before the upgrade appears in
-`compozy session events` as opaque history and never produces a marker.
+compaction the context is `state: "unknown"` with `used`, `size`, and `ratio` absent on rereads, reopens, and a
+daemon restart until the agent sends a later usage report with a context reading. A `session.compaction_fired` row
+recorded before the upgrade appears in `compozy session events` as opaque history and never produces a marker.
 
 Execution owner: session-context tasks 05/06. Task 04 completes real injected delivery rows before this walk.
 
