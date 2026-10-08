@@ -731,7 +731,7 @@ describe("OsDock", () => {
 
     const tabBar = document.querySelector('[data-slot="os-dock-tabbar"]');
     if (!(tabBar instanceof HTMLElement)) throw new Error("Expected the compact tab bar");
-    expect(tabBar.querySelectorAll('[data-slot="os-dock-item"]')).toHaveLength(10);
+    expect(tabBar.querySelectorAll('[data-slot="os-dock-item"]')).toHaveLength(9);
     expect(screen.getByRole("button", { name: "Tasks — 2 need you" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();

@@ -219,6 +219,8 @@ import { Route as AgentDetailRoute } from "../agents.$name.index";
 import { Route as AgentSettingsRoute } from "../agents.$name.settings";
 import { Route as AgentsRoute } from "../agents.index";
 import { Route as HomeRoute } from "../index";
+import { Route as JobDetailRoute } from "../automations.jobs.$jobId";
+import { Route as AutomationsRoute } from "../automations";
 import { Route as LoopRunDetailRoute } from "../loop-runs.$runId";
 import { Route as LoopRunsRoute } from "../loop-runs";
 import { Route as LoopConfigureRoute } from "../loops.$name.configure";

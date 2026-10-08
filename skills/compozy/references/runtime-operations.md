@@ -141,7 +141,7 @@ role. It logs `observe.session_recovery_skipped` once per session per observer l
 `session_id`, `session_type`, `spawn_role`, and `reason` (`unknown_session_type` or
 `retired_spawn_role`), and never deletes, moves, or rewrites those files. This boundary is permanent,
 not a temporary compatibility shim. Orphaned directories of a known type, including sessions with a
-custom advisory spawn role, still recover into the catalog. Global migration `00128` deletes the catalog
+custom advisory spawn role, still recover into the catalog. Global migration `00130` deletes the catalog
 rows of legacy `dream` sessions and of `memory-extractor` and `checkpoint-summary` spawn-role sessions
 (matched by spawn role, independent of session type); their session directories stay on disk.
 
