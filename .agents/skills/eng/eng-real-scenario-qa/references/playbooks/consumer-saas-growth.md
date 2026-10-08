@@ -33,8 +33,8 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
 
 ## Disruption probe seeds
 
-- **silent_event_drop** at minute 6 — overwrite a knowledge file with the previous day's event volume showing the activation event went to zero.
-- **variant_assignment_skew** at minute 14 — knowledge file reporting variant B is getting 70/30 of traffic (assignment bug).
+- **silent_event_drop** at minute 6 — task event reporting the previous day's event volume with the activation event at zero.
+- **variant_assignment_skew** at minute 14 — task event reporting variant B is getting 70/30 of traffic (assignment bug).
 - **lifecycle_send_misfire** at minute 20 — task event recording an email send to a suppressed segment.
 
 ---
@@ -62,10 +62,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
     {
       "id": "ws_growth_lab",
       "name": "growth-lab",
-      "purpose": "Experiment design, A/B variant ownership, decision memos",
-      "knowledge_files": [
-        "workspace/experiment-ledger.md"
-      ]
+      "purpose": "Experiment design, A/B variant ownership, decision memos"
     },
     {
       "id": "ws_product_design",
@@ -75,10 +72,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
     {
       "id": "ws_data_science",
       "name": "data-science",
-      "purpose": "Event tracking, segmentation SQL, statistical readouts",
-      "knowledge_files": [
-        "workspace/event-volume-yesterday.md"
-      ]
+      "purpose": "Event tracking, segmentation SQL, statistical readouts"
     },
     {
       "id": "ws_lifecycle_marketing",
@@ -91,7 +85,7 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "id": "growth-pm-agent",
       "role": "Growth PM",
       "persona": "Growth PM. Owns sprint sequence and experiment decisions.",
-      "system_prompt": "You are the Growth PM at Lumen Notes. Hold the sprint sequence in growth-lab task artifacts, decide experiment ship/hold based on activation funnel evidence, and unblock owners. Reference the experiment ledger and the activation funnel definition before any decision.",
+      "system_prompt": "You are the Growth PM at Lumen Notes. Hold the sprint sequence in growth-lab task artifacts, decide experiment ship/hold based on activation funnel evidence, and unblock owners. Decide from the activation funnel (signup, first save, third save in week one; `first_save` is the load-bearing event) before any decision.",
       "workspace": "ws_growth_lab"
     },
     {
@@ -133,30 +127,8 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
       "id": "lifecycle-marketer-agent",
       "role": "Lifecycle Marketer",
       "persona": "Lifecycle Marketer. Owns the day-3 send and suppression rules.",
-      "system_prompt": "You are the Lifecycle Marketer at Lumen Notes. Hold the day-3 lifecycle send timing and suppression rules. Never send to suppressed segments. Coordinate lifecycle copy with the frontend engineer on lifecycle-marketing task artifacts and review the lifecycle email TSX before scheduling.",
+      "system_prompt": "You are the Lifecycle Marketer at Lumen Notes. Hold the day-3 lifecycle send timing and suppression rules. Never send to suppressed segments: paid users, support-escalation contacts from the last 7 days, users in the active-investigation segment, and users with the marketing opt-out flag. Coordinate lifecycle copy with the frontend engineer on lifecycle-marketing task artifacts and review the lifecycle email TSX before scheduling.",
       "workspace": "ws_lifecycle_marketing"
-    }
-  ],
-  "knowledge_files": [
-    {
-      "path": "global/operator-style.md",
-      "content": "# Operator narrative style\n\nOutcomes-first, short sentences. Reference the activation funnel, the experiment ledger, the data-science weekly, the suppression rules. Never use evaluation or testing language.\n"
-    },
-    {
-      "path": "global/activation-funnel.md",
-      "content": "# Activation funnel\n\nSignup -> first save -> third save in week one. The activation event 'first_save' is the single load-bearing event. If it stops firing, the funnel readout is meaningless. Always confirm event volume before reading conversion deltas.\n"
-    },
-    {
-      "path": "global/suppression-rules.md",
-      "content": "# Suppression rules\n\nNever email: paid users, support-escalation contacts in the last 7 days, users in the active-investigation segment, users with marketing-opt-out flag. Lifecycle marketer is responsible for enforcing these on every send.\n"
-    },
-    {
-      "path": "workspace/experiment-ledger.md",
-      "content": "# Experiment ledger\n\n## Open\n- act-2026-04 — Variant A vs B post-signup landing. Owner: Priya. Success metric: first_save rate within 24h. Min sample: 4,000 per arm.\n\n## Past\n- act-2026-02 — Day-3 lifecycle email subject test. Verdict: empathy subject won by 6.2%.\n- act-2026-03 — Onboarding step reduction. Verdict: no significant lift; held current flow.\n"
-    },
-    {
-      "path": "workspace/event-volume-yesterday.md",
-      "content": "# Event volume yesterday\n\n- signup: 12,430 events\n- first_save: 7,812 events\n- third_save: 3,019 events\n\nLast updated 24h ago. Refresh before any experiment launch.\n"
     }
   ],
   "open_tasks": [
@@ -266,13 +238,13 @@ Stress profile: many small artifacts (TS modules, SQL migration, lifecycle email
     {
       "type": "silent_event_drop",
       "seed_at_minute": 6,
-      "delivery": "knowledge_file",
-      "expected_recovery": "Data scientist reads the updated event-volume knowledge file, posts the anomaly to data-science task artifacts within 5 minutes, and blocks experiment launch from growth-lab task artifacts until the analytics engineer confirms the activation tracking module is wired."
+      "delivery": "task_event",
+      "expected_recovery": "Data scientist reads the event-volume task event, posts the anomaly to data-science task artifacts within 5 minutes, and blocks experiment launch from growth-lab task artifacts until the analytics engineer confirms the activation tracking module is wired."
     },
     {
       "type": "variant_assignment_skew",
       "seed_at_minute": 14,
-      "delivery": "knowledge_file",
+      "delivery": "task_event",
       "expected_recovery": "Experiment engineer reproduces the skew, fixes the deterministic split, posts the verdict to growth-lab task artifacts within 10 minutes."
     },
     {
