@@ -235,7 +235,7 @@ test("E2E-001 / E2E-002 / E2E-014: fresh boot stays empty before pointer and CLI
     ).toHaveAttribute("aria-current", "page");
 
     const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-    expect(snapshot.version).toBe(4);
+    expect(snapshot.version).toBe(5);
     expect(snapshot.revision).toBe(0);
     expect(snapshot.desktops.map(desktop => [desktop.id, desktop.name])).toEqual([
       ["desktop-default", "Desktop 1"],

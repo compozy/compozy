@@ -198,7 +198,8 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
       .getByRole("navigation", { name: "Window path" })
       .getByRole("button", { exact: true, name: "Automations" })
       .click();
-    await expect(appPage).toHaveURL(/\/automations$/);
+    // Back restores the listing it came from, Start view included (UT-062).
+    await expect(appPage).toHaveURL(/\/automations\?start=schedule$/);
     await expect(ui.automationsShell).toBeVisible();
     await ui.automationsCreate.click();
     await expect(ui.editorDialog).toBeVisible();
