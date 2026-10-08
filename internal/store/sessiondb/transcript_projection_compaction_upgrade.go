@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -66,7 +67,7 @@ func restoreCompactionTranscriptEntry(
 		return err
 	}
 	events = slices.DeleteFunc(events, func(event store.SessionEvent) bool { return event.Archived })
-	identity, toolRoutes, err := rebuildCompactionEntryIdentity(ctx, tx, sessionID, key, events)
+	identity, toolRoutes, err := rebuildCompactionEntryIdentity(ctx, tx, sessionID, key)
 	if err != nil {
 		return err
 	}
@@ -108,7 +109,6 @@ func rebuildCompactionEntryIdentity(
 	ctx context.Context,
 	tx *sql.Tx,
 	sessionID, key string,
-	events []store.SessionEvent,
 ) (transcript.EntryIdentity, map[string]string, error) {
 	prefix, _, ok := strings.Cut(key, ":s")
 	generation, err := strconv.ParseInt(strings.TrimPrefix(prefix, "g"), 10, 64)
@@ -125,12 +125,22 @@ func rebuildCompactionEntryIdentity(
 	if err != nil {
 		return transcript.EntryIdentity{}, nil, err
 	}
-	for _, event := range events {
+	// Assigned events may return after a different entry already completed their original assistant.
+	contextEvents, err := sqlcgen.New(tx).ListTranscriptEntryContextForUpgrade(ctx, key)
+	if err != nil {
+		return transcript.EntryIdentity{}, nil, fmt.Errorf("store: load restored entry context: %w", err)
+	}
+	for _, row := range contextEvents {
+		event, err := sessionEventFromSQLC(row.ID, row.Sequence, row.TurnID,
+			row.Type, row.AgentName, row.Content, row.Archived, row.Timestamp, sessionID)
+		if err != nil {
+			return transcript.EntryIdentity{}, nil, err
+		}
 		assignment, err := projector.Assign(ctx, event)
 		if err != nil {
 			return transcript.EntryIdentity{}, nil, err
 		}
-		if assignment.Entry.Key != key {
+		if row.TranscriptEntryKey == key && assignment.Entry.Key != key {
 			return transcript.EntryIdentity{}, nil, fmt.Errorf(
 				"%w: inconsistent restored entry %q",
 				transcript.ErrProjectionCorrupt,
@@ -147,6 +157,7 @@ func rebuildCompactionEntryIdentity(
 		)
 	}
 	toolRoutes := projector.ToolRoutes()
+	maps.DeleteFunc(toolRoutes, func(_ string, entryKey string) bool { return entryKey != key })
 	// A later boundary can complete the entry even when rewind now excludes that boundary from history.
 	boundary, err := sqlcgen.New(tx).GetNextTranscriptBoundaryEventForUpgrade(ctx, key)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

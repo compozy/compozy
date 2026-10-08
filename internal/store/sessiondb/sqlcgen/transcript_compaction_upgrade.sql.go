@@ -71,3 +71,45 @@ func (q *Queries) ListMissingUnarchivedCompactionEntries(ctx context.Context) ([
 	}
 	return items, nil
 }
+
+const listTranscriptEntryContextForUpgrade = `-- name: ListTranscriptEntryContextForUpgrade :many
+SELECT e.id, e.sequence, e.turn_id, e.type, e.agent_name, e.content, e.archived, e.timestamp, e.transcript_entry_key
+FROM events AS e
+WHERE e.sequence BETWEEN (SELECT MIN(a.sequence) FROM events AS a WHERE a.transcript_entry_key = ?1)
+                     AND (SELECT MAX(a.sequence) FROM events AS a WHERE a.transcript_entry_key = ?1)
+  AND e.transcript_entry_key <> ''
+ORDER BY e.sequence ASC
+`
+
+func (q *Queries) ListTranscriptEntryContextForUpgrade(ctx context.Context, entryKey string) ([]Event, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptEntryContextForUpgrade, entryKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Event{}
+	for rows.Next() {
+		var i Event
+		if err := rows.Scan(
+			&i.ID,
+			&i.Sequence,
+			&i.TurnID,
+			&i.Type,
+			&i.AgentName,
+			&i.Content,
+			&i.Archived,
+			&i.Timestamp,
+			&i.TranscriptEntryKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
