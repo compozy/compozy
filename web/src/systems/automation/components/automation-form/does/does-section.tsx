@@ -15,6 +15,7 @@ import type { AgentPayload } from "@/systems/agent";
 import { LoopTargetFields } from "@/systems/loops";
 
 const TASK_SCHEDULE_ONLY = "Only scheduled automations can create tasks";
+const FROM_LOOP_PAGE = "Chosen from the Loop page";
 
 const DOES_CHOICES: readonly AutomationChoice<AutomationDoes>[] = [
   {
@@ -68,10 +69,13 @@ export function DoesSection({
   mode,
   number,
 }: DoesSectionProps) {
-  const targetLocked = mode === "edit" || lockedLoop !== undefined;
+  const seededFromLoop = mode === "create" && lockedLoop !== undefined;
+  const targetLocked = mode === "edit" || seededFromLoop;
   const choices = DOES_CHOICES.map(choice => {
     if (targetLocked) {
-      if (choice.value !== form.does) return { ...choice, lockedReason: "Locked" };
+      if (choice.value !== form.does) {
+        return { ...choice, lockedReason: seededFromLoop ? FROM_LOOP_PAGE : "Locked" };
+      }
       const name = fixedTargetName(draft, choice.value);
       return name
         ? { ...choice, description: <AutomationLockLine>{name}</AutomationLockLine> }
@@ -89,7 +93,9 @@ export function DoesSection({
       description={
         mode === "edit"
           ? "The agent and the kind of target stay. The message can change."
-          : "What should happen?"
+          : seededFromLoop
+            ? `${FROM_LOOP_PAGE}.`
+            : "What should happen?"
       }
       number={number}
       title="Does"

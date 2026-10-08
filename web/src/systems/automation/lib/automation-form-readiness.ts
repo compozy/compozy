@@ -19,6 +19,8 @@ export interface AutomationFormReadinessContext {
   now: number;
   daysCleared: boolean;
   loopCompatible: boolean;
+  /** The one-shot time the edited automation was saved with; unchanged, it may be past. */
+  savedAtTime?: string;
 }
 
 function locationValid(draft: AutomationFormDraft): boolean {
@@ -27,7 +29,14 @@ function locationValid(draft: AutomationFormDraft): boolean {
 
 function startValid(draft: AutomationFormDraft, ctx: AutomationFormReadinessContext): boolean {
   if (draft.start === "schedule") {
-    return scheduleReadout(draft.schedule, ctx.now, { daysCleared: ctx.daysCleared }).valid;
+    const keptPastAt =
+      ctx.mode === "edit" &&
+      draft.schedule.mode === "at" &&
+      ctx.savedAtTime !== undefined &&
+      draft.schedule.time === ctx.savedAtTime;
+    return (
+      keptPastAt || scheduleReadout(draft.schedule, ctx.now, { daysCleared: ctx.daysCleared }).valid
+    );
   }
   if (draft.start === "webhook") {
     const hasIds = Boolean(draft.endpoint_slug?.trim()) && Boolean(draft.webhook_id?.trim());
@@ -45,13 +54,24 @@ function startValid(draft: AutomationFormDraft, ctx: AutomationFormReadinessCont
   return true;
 }
 
-/** Index of each condition row whose field or value is still empty. */
-export function incompleteConditionRows(filter: AutomationFormDraft["filter"]): Set<number> {
-  const rows = new Set<number>();
-  Object.entries(filter ?? {}).forEach(([key, value], index) => {
-    if (key.trim() === "" || String(value).trim() === "") rows.add(index);
+export type ConditionProblem = "empty" | "duplicate";
+
+/** Each condition row that can't be saved: a blank field or value, or a field used twice. */
+export function incompleteConditionRows(
+  conditions: AutomationFormDraft["conditions"]
+): Map<number, ConditionProblem> {
+  const problems = new Map<number, ConditionProblem>();
+  const seen = new Set<string>();
+  conditions.forEach((condition, index) => {
+    const key = condition.key.trim();
+    if (key === "" || condition.value.trim() === "") {
+      problems.set(index, "empty");
+    } else if (seen.has(key)) {
+      problems.set(index, "duplicate");
+    }
+    if (key !== "") seen.add(key);
   });
-  return rows;
+  return problems;
 }
 
 function targetValid(draft: AutomationFormDraft, ctx: AutomationFormReadinessContext): boolean {
@@ -75,7 +95,7 @@ export function automationFormReady(
   ctx: AutomationFormReadinessContext
 ): boolean {
   const conditionsValid =
-    draft.start === "schedule" || incompleteConditionRows(draft.filter).size === 0;
+    draft.start === "schedule" || incompleteConditionRows(draft.conditions).size === 0;
   return (
     draft.name.trim() !== "" &&
     locationValid(draft) &&

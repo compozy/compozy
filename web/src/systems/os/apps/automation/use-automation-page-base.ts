@@ -5,6 +5,7 @@ import { useStore } from "@xstate/store-react";
 import type { ListingViewMode } from "@compozy/ui";
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
+import { notifyUser } from "@/lib/user-feedback";
 
 import {
   AutomationApiError,
@@ -41,8 +42,9 @@ export function automationUnavailableMessage(
 
 /**
  * Consumes the one-shot `?create=1|loop` deep link. Waits until the project or
- * Global lens is resolved (the draft binds its location); a Loop seed also
- * needs a project, since the Loop lives in one. Then strips the consumed params
+ * Global lens is resolved (the draft binds its location). A Loop seed needs a
+ * project, since the Loop lives in one: in Global it says so instead of
+ * opening. Either way it strips the consumed params
  * so a cancel or reload does not re-open the dialog and the list is not
  * silently filtered by `loop` or `start`.
  */
@@ -58,8 +60,9 @@ export function useAutomationCreateSeed(
       activeWorkspaceId: workspace.activeWorkspaceId,
       seed,
       workspaceResolved: workspace.resolved,
-      consume: consumed => {
-        openCreate(consumed);
+      consume: (consumed, outcome) => {
+        if (outcome === "open") openCreate(consumed);
+        else notifyUser({ message: "Pick a project to automate a Loop.", tone: "info" });
         void navigate({
           replace: true,
           search: current => ({

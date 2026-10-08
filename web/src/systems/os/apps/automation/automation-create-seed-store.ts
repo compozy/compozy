@@ -9,7 +9,8 @@ interface AutomationCreateSeedState {
 type AutomationCreateSeedEvents = {
   seedObserved: {
     activeWorkspaceId: string | null | undefined;
-    consume: (seed: AutomationEditorSeed) => void;
+    /** `needs-project`: a Loop seed in Global — the Loop lives in a project. */
+    consume: (seed: AutomationEditorSeed, outcome: "open" | "needs-project") => void;
     seed: AutomationEditorSeed | null;
     workspaceResolved: boolean;
   };
@@ -27,11 +28,11 @@ export const automationCreateSeedLogic = createStoreLogic<
       if (seed === null) {
         return context.consumedKey === null ? undefined : { consumedKey: null };
       }
+      if (!event.workspaceResolved || context.consumedKey === seed.key) return;
       // Global (no project) is a resolved lens for a plain create; a Loop seed needs its project.
-      const ready =
-        event.workspaceResolved && (seed.loop === undefined || Boolean(event.activeWorkspaceId));
-      if (!ready || context.consumedKey === seed.key) return;
-      enqueue.effect(() => event.consume(seed));
+      const outcome =
+        seed.loop !== undefined && !event.activeWorkspaceId ? "needs-project" : "open";
+      enqueue.effect(() => event.consume(seed, outcome));
       return { consumedKey: seed.key };
     },
   },

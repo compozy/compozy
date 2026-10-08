@@ -5,7 +5,13 @@
 // Boundary OUT: save mutations and navigation (use-automation-editor suite).
 import { agentFixtures } from "@/systems/agent/mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render as renderTestingLibrary, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render as renderTestingLibrary,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,6 +39,7 @@ vi.mock("@/systems/profiles", async importOriginal => ({
 
 import { AutomationEditorDialog } from "../automation-editor-dialog";
 import {
+  automationCondition,
   createAutomationFormDraft,
   type AutomationEditorSection,
   type AutomationFormDraft,
@@ -60,6 +67,7 @@ interface HarnessProps {
   section?: AutomationEditorSection;
   agents?: typeof agentFixtures;
   agentsLoading?: boolean;
+  isPending?: boolean;
   submitError?: string | null;
   submitErrorField?: "name" | null;
   onSubmit?: (draft: AutomationFormDraft) => void;
@@ -72,6 +80,7 @@ function EditorHarness({
   section,
   agents = agentFixtures,
   agentsLoading,
+  isPending = false,
   submitError = null,
   submitErrorField = null,
   onSubmit = vi.fn(),
@@ -86,7 +95,7 @@ function EditorHarness({
       agentsLoading={agentsLoading}
       editor={{
         draft,
-        isPending: false,
+        isPending,
         lockedLoop,
         mode,
         onCancel: vi.fn(),
@@ -267,6 +276,7 @@ describe("AutomationEditorDialog", () => {
       target: { value: "2026-10-08T09:00" },
     });
     expect(readout()).toHaveTextContent("Runs once, in 14h (Thu Oct 8, 09:00 UTC), then stops.");
+    expect(sentence()).toHaveTextContent("Once on Thu Oct 8 at 09:00 UTC,");
   });
 
   it("UT-096 flags a past time and a malformed expression, and offers no time-zone control", () => {
@@ -423,6 +433,13 @@ describe("AutomationEditorDialog", () => {
     );
     expect(status()).toHaveTextContent("Needs a fix");
     expect(screen.getByTestId("automation-does-agent")).toBeDisabled();
+    // m-13: the lock says why — the Loop page chose the target.
+    expect(screen.getByTestId("automation-form-does")).toHaveTextContent(
+      "Chosen from the Loop page."
+    );
+    expect(screen.getByTestId("automation-does-agent")).toHaveTextContent(
+      "Chosen from the Loop page"
+    );
     unmount();
 
     render(<EditorHarness agents={[]} draft={readyDraft({ agent_name: "" })} />);
@@ -476,7 +493,7 @@ describe("AutomationEditorDialog", () => {
     render(
       <EditorHarness
         draft={readyDraft({
-          filter: { "data.stop_reason": "completed" },
+          conditions: [automationCondition("data.stop_reason", "completed")],
           event: "session.stopped",
         })}
       />
@@ -545,6 +562,119 @@ describe("AutomationEditorDialog", () => {
     const selector = screen.getByTestId("automation-agent-input");
     expect(selector).toBeDisabled();
     expect(selector).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("m-14 keeps conditions as rows: one field twice needs a fix, blank rows never collide", () => {
+    render(<EditorHarness draft={readyDraft({ start: "event" })} />);
+
+    fireEvent.click(screen.getByTestId("automation-condition-add"));
+    fireEvent.click(screen.getByTestId("automation-condition-add"));
+    fireEvent.change(screen.getByTestId("automation-condition-field-0"), {
+      target: { value: "data.stop_reason" },
+    });
+    fireEvent.change(screen.getByTestId("automation-condition-field-1"), {
+      target: { value: "data.stop_reason" },
+    });
+    fireEvent.change(screen.getByTestId("automation-condition-value-0"), {
+      target: { value: "error" },
+    });
+    fireEvent.change(screen.getByTestId("automation-condition-value-1"), {
+      target: { value: "timeout" },
+    });
+
+    expect(screen.getByTestId("automation-form-only-if")).toHaveTextContent(
+      "This field already has a condition. Remove one of them."
+    );
+    expect(status()).toHaveTextContent("Needs a fix");
+
+    fireEvent.click(screen.getByTestId("automation-condition-remove-1"));
+    expect(screen.queryByTestId("automation-condition-field-1")).not.toBeInTheDocument();
+    expect(status()).toHaveTextContent("Ready");
+  });
+
+  it("m-15 disables the days and the clock when the schedule isn't a days-and-time shape", () => {
+    render(<EditorHarness draft={readyDraft()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Every hour" }));
+
+    expect(screen.getByRole("button", { name: "Monday" })).toBeDisabled();
+    expect(screen.getByLabelText("Time")).toBeDisabled();
+    expect(readout()).toHaveTextContent("0 * * * *");
+
+    fireEvent.click(screen.getByRole("button", { name: "Weekdays 9am" }));
+    expect(screen.getByRole("button", { name: "Monday" })).toBeEnabled();
+  });
+
+  it("m-16 saves an edit that keeps a one-shot time already past, but not a new past time", () => {
+    render(
+      <EditorHarness
+        draft={readyDraft({ schedule: { mode: "at", time: "2026-10-01T09:00:00Z" } })}
+        mode="edit"
+      />
+    );
+
+    expect(status()).toHaveTextContent("Ready");
+    expect(submit()).toBeEnabled();
+
+    fireEvent.change(screen.getByLabelText("Date and time"), {
+      target: { value: "2026-10-02T09:00" },
+    });
+    expect(status()).toHaveTextContent("Needs a fix");
+  });
+
+  it("m-19 never submits while a save is pending", () => {
+    const onSubmit = vi.fn();
+    render(<EditorHarness draft={readyDraft()} isPending onSubmit={onSubmit} />);
+
+    expect(submit()).toBeDisabled();
+    expect(submit()).toHaveTextContent("Saving…");
+    fireEvent.submit(screen.getByTestId("automation-form"));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("m-19 keeps a save error visible across the preview swap", () => {
+    render(<EditorHarness draft={readyDraft()} mode="edit" submitError="automation: changed" />);
+
+    togglePreview();
+    expect(screen.getByTestId("automation-form-error")).toHaveTextContent("automation: changed");
+    togglePreview();
+    expect(screen.getByTestId("automation-form-error")).toHaveTextContent("automation: changed");
+  });
+
+  it("m-19 carries missed-run settings across Repeats, Once and back", () => {
+    render(
+      <EditorHarness
+        draft={readyDraft({
+          schedule: {
+            mode: "cron",
+            expr: "0 9 * * *",
+            catch_up_policy: "replay",
+            misfire_grace_seconds: 30,
+          },
+        })}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("automation-schedule-mode-at"));
+    fireEvent.click(screen.getByTestId("automation-schedule-mode-every"));
+    fireEvent.click(screen.getByTestId("automation-schedule-mode-cron"));
+
+    togglePreview();
+    const request = screen.getByTestId("automation-request-payload");
+    expect(request).toHaveTextContent('"catch_up_policy": "replay"');
+    expect(request).toHaveTextContent('"misfire_grace_seconds": 30');
+  });
+
+  it("m-19 refreshes the relative readout at the next minute boundary", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-08T08:58:30Z"));
+    render(<EditorHarness draft={readyDraft({ schedule: { mode: "cron", expr: "0 9 * * *" } })} />);
+    expect(readout()).toHaveTextContent("next in 2 min");
+
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(readout()).toHaveTextContent("next in 1 min");
   });
 
   it("Should keep the dialog open through a nested picker interaction", async () => {

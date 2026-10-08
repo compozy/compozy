@@ -4,35 +4,35 @@ import { useId } from "react";
 import { Button, FieldDescription } from "@compozy/ui";
 
 import type { AutomationFormModel } from "../../../hooks/use-automation-form";
+import { automationCondition, type AutomationCondition } from "../../../lib/automation-form-draft";
 import { conditionFieldLabel, conditionFieldOptions } from "../../../lib/automation-form-events";
-import type { AutomationTriggerFilter } from "../../../types";
 import { AutomationFormSection } from "../automation-form-section";
 import { ConditionRow } from "./condition-row";
 
-type Entry = [string, string];
-
 interface OnlyIfSectionProps {
-  filter: AutomationTriggerFilter;
+  conditions: readonly AutomationCondition[];
   form: AutomationFormModel;
 }
 
 /** 03 Only if (events and links): optional exact-match conditions, all of which must match. */
-export function OnlyIfSection({ filter, form }: OnlyIfSectionProps) {
+export function OnlyIfSection({ conditions, form }: OnlyIfSectionProps) {
   const datalistId = useId();
-  const rows = Object.entries(filter) as Entry[];
   const fieldOptions = conditionFieldOptions(form.eventDef);
   const openPayload = form.eventDef ? form.eventDef.openPayload === true : true;
 
-  const commit = (next: Entry[]) => form.onFilterChange(Object.fromEntries(next));
+  const update = (id: string, patch: Partial<AutomationCondition>) =>
+    form.onConditionsChange(
+      conditions.map(condition => (condition.id === id ? { ...condition, ...patch } : condition))
+    );
   const handleAdd = () => {
-    const used = new Set(rows.map(([key]) => key));
+    const used = new Set(conditions.map(condition => condition.key));
     // Prefer a payload field: envelope keys rarely narrow an event.
     const candidates = [
       ...fieldOptions.filter(option => option.startsWith("data.")),
       ...fieldOptions,
     ];
     const nextKey = candidates.find(option => !used.has(option)) ?? "";
-    commit([...rows, [nextKey, ""]]);
+    form.onConditionsChange([...conditions, automationCondition(nextKey)]);
   };
 
   return (
@@ -51,25 +51,23 @@ export function OnlyIfSection({ filter, form }: OnlyIfSectionProps) {
           ))}
         </datalist>
       ) : null}
-      {rows.length > 0 ? (
+      {conditions.length > 0 ? (
         <div className="flex flex-col gap-2">
-          {rows.map(([field, value], index) => (
+          {conditions.map((condition, index) => (
             <ConditionRow
               datalistId={datalistId}
-              field={field}
+              field={condition.key}
               fieldOptions={fieldOptions}
-              incomplete={form.incompleteConditions.has(index)}
               index={index}
-              key={field || "new-condition"}
-              onFieldChange={next =>
-                commit(rows.map((row, i) => (i === index ? [next, row[1]] : row)))
+              key={condition.id}
+              onFieldChange={key => update(condition.id, { key })}
+              onRemove={() =>
+                form.onConditionsChange(conditions.filter(row => row.id !== condition.id))
               }
-              onRemove={() => commit(rows.filter((_, i) => i !== index))}
-              onValueChange={next =>
-                commit(rows.map((row, i) => (i === index ? [row[0], next] : row)))
-              }
+              onValueChange={value => update(condition.id, { value })}
               openPayload={openPayload}
-              value={value}
+              problem={form.conditionProblems.get(index)}
+              value={condition.value}
             />
           ))}
         </div>

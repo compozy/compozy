@@ -11,6 +11,7 @@ import {
 import type { AutomationEditorSection } from "@/systems/automation";
 import { AutomationEditorDialog } from "@/systems/automation/components/automation-editor-dialog";
 import {
+  automationCondition,
   createAutomationFormDraft,
   type AutomationFormDraft,
 } from "@/systems/automation/lib/automation-form-draft";
@@ -49,7 +50,7 @@ function readyEvent(): AutomationFormDraft {
     ...createAutomationFormDraft(ACTIVE_WORKSPACE_ID, { start: "event" }),
     name: "summarize-failures",
     agent_name: storyAgentNames.support,
-    filter: { "data.stop_reason": "error" },
+    conditions: [automationCondition("data.stop_reason", "error")],
     prompt:
       'Session {{ .Data.session_id }} stopped with reason "{{ .Data.stop_reason }}". ' +
       "Summarize what went wrong and one suggested next step.",

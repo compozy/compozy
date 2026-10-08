@@ -34,6 +34,7 @@ import {
   type AutomationRequestProjection,
 } from "./automation-requests";
 import type { AutomationDoes, AutomationDraft, AutomationStart } from "./automation-sentence";
+import { localInputToDate, toRfc3339 } from "./cron-engine";
 import { getEventDef } from "./trigger-catalog";
 import { parseEventSelection } from "./trigger-event-id";
 import { retainValidFilters } from "./trigger-preview";
@@ -47,8 +48,51 @@ const WEBHOOK_EVENT = "webhook";
 
 type TriggerOnlyFields = Pick<
   CreateAutomationTriggerRequest,
-  "endpoint_slug" | "filter" | "webhook_id" | "webhook_secret_value"
+  "endpoint_slug" | "webhook_id" | "webhook_secret_value"
 >;
+
+/**
+ * One "Only if" row. Rows stay a list while editing so two rows on one field
+ * (or two blank rows) can't collide; the request projects them to the
+ * daemon's `filter` object.
+ */
+export interface AutomationCondition {
+  id: string;
+  key: string;
+  value: string;
+}
+
+let conditionSequence = 0;
+
+/** A condition row with a fresh identity for list rendering. */
+export function automationCondition(key = "", value = ""): AutomationCondition {
+  conditionSequence += 1;
+  return { id: `condition-${conditionSequence}`, key, value };
+}
+
+/** The daemon `filter` object for a condition list; blank keys are not sent. */
+export function automationConditionsFilter(
+  conditions: readonly AutomationCondition[]
+): Record<string, string> {
+  const filter: Record<string, string> = {};
+  for (const condition of conditions) {
+    const key = condition.key.trim();
+    if (key !== "") filter[key] = condition.value;
+  }
+  return filter;
+}
+
+/** Keeps only the rows whose field fits the event (the trigger form's rule). */
+function retainValidConditions(
+  conditions: readonly AutomationCondition[],
+  def: ReturnType<typeof getEventDef>
+): AutomationCondition[] {
+  return conditions.filter(
+    condition =>
+      condition.key.trim() === "" ||
+      Object.keys(retainValidFilters({ [condition.key]: condition.value }, def)).length > 0
+  );
+}
 
 /**
  * Shared fields once (name, target, location, reliability), the job's
@@ -61,6 +105,7 @@ export type AutomationFormDraft = CreateAutomationJobRequest &
   TriggerOnlyFields & {
     start: AutomationStart;
     event: string;
+    conditions: AutomationCondition[];
   };
 
 export interface CreateAutomationFormDraftOptions {
@@ -79,7 +124,7 @@ export function createAutomationFormDraft(
     ...job,
     start: "schedule",
     event: DEFAULT_EVENT,
-    filter: {},
+    conditions: [],
   };
   const seeded = loop
     ? {
@@ -95,7 +140,7 @@ export function createAutomationFormDraft(
 
 /** Edit draft for a persisted job. */
 export function automationJobToFormDraft(job: AutomationJob): AutomationFormDraft {
-  return { ...automationJobToDraft(job), start: "schedule", event: DEFAULT_EVENT, filter: {} };
+  return { ...automationJobToDraft(job), start: "schedule", event: DEFAULT_EVENT, conditions: [] };
 }
 
 /** Edit draft for a persisted trigger; a webhook trigger is a link start. */
@@ -107,7 +152,7 @@ export function automationTriggerToFormDraft(trigger: AutomationTrigger): Automa
     schedule: createAutomationJobDraft().schedule,
     start: isWebhook ? "webhook" : "event",
     event: isWebhook ? DEFAULT_EVENT : event,
-    filter: filter ?? {},
+    conditions: Object.entries(filter ?? {}).map(([key, value]) => automationCondition(key, value)),
     endpoint_slug,
     webhook_id,
   };
@@ -146,9 +191,18 @@ export function setAutomationFormStart(
   }
   if (start !== "schedule") {
     const def = getEventDef(parseEventSelection(automationFormEvent(next)).catalogId);
-    next.filter = retainValidFilters(next.filter ?? {}, def);
+    next.conditions = retainValidConditions(next.conditions, def);
   }
   return next;
+}
+
+/** Switches the event; conditions that no longer fit it are dropped. */
+export function setAutomationFormEvent(
+  draft: AutomationFormDraft,
+  event: string
+): AutomationFormDraft {
+  const def = getEventDef(parseEventSelection(event).catalogId);
+  return { ...draft, event, conditions: retainValidConditions(draft.conditions, def) };
 }
 
 /** Switches Does. A task forces retries off: the task owns its own retries. */
@@ -208,7 +262,7 @@ export function automationFormTriggerDraft(
     agent_name: draft.agent_name,
     prompt: draft.prompt,
     event: automationFormEvent(draft),
-    filter: draft.filter ?? {},
+    filter: automationConditionsFilter(draft.conditions),
     scope: isWebhook ? "global" : draft.scope,
     target_kind: draft.target_kind,
     loop_target: draft.loop_target,
@@ -254,6 +308,21 @@ export function projectAutomationFormRequest(
     : projectAutomationTriggerRequest(automationFormTriggerDraft(draft), mode);
 }
 
+/**
+ * The builder's `at` value is a UTC wall-clock `datetime-local` string; the
+ * sentence reads an instant, so it gets the RFC 3339 form.
+ */
+function sentenceSchedule(
+  schedule: AutomationFormDraft["schedule"],
+  daysCleared: boolean
+): NonNullable<AutomationDraft["schedule"]> {
+  const time =
+    schedule.mode === "at" && schedule.time
+      ? toRfc3339(localInputToDate(schedule.time)) || schedule.time
+      : schedule.time;
+  return { ...schedule, time, ...(daysCleared ? { days: [] } : {}) };
+}
+
 /** The draft shape `describeAutomation` reads; `days: []` marks a cleared day picker. */
 export function automationFormSentenceDraft(
   draft: AutomationFormDraft,
@@ -263,11 +332,9 @@ export function automationFormSentenceDraft(
   return {
     start: draft.start,
     schedule:
-      draft.start === "schedule"
-        ? { ...draft.schedule, ...(daysCleared ? { days: [] } : {}) }
-        : undefined,
+      draft.start === "schedule" ? sentenceSchedule(draft.schedule, daysCleared) : undefined,
     event: draft.start === "event" ? draft.event : undefined,
-    filter: draft.filter ?? undefined,
+    filter: automationConditionsFilter(draft.conditions),
     webhook: { slug: draft.endpoint_slug, webhookId: draft.webhook_id },
     target: {
       kind: does,

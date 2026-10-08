@@ -130,7 +130,7 @@ export function AutomationForm({
               </Field>
             </AutomationFormSection>
             <StartsSection draft={draft} form={form} mode={mode} />
-            {hasConditions ? <OnlyIfSection filter={draft.filter ?? {}} form={form} /> : null}
+            {hasConditions ? <OnlyIfSection conditions={draft.conditions} form={form} /> : null}
             <DoesSection
               agents={agents}
               agentsError={agentsError}
