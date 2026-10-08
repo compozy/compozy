@@ -9,6 +9,29 @@ import (
 	"context"
 )
 
+const getTranscriptEntryUpgradeCutoff = `-- name: GetTranscriptEntryUpgradeCutoff :one
+SELECT CAST(COALESCE(MAX(MAX(f.sequence - 1,
+                             json_extract(f.content, '$.raw.to_sequence'),
+                             bounds.last_sequence)), 0) AS INTEGER) AS cutoff_sequence
+FROM events AS f
+CROSS JOIN (
+  SELECT MIN(assigned.sequence) AS first_sequence, MAX(assigned.sequence) AS last_sequence
+  FROM events AS assigned WHERE assigned.transcript_entry_key = ?1) AS bounds
+WHERE f.type = 'session.compaction_fired'
+  AND bounds.first_sequence >= json_extract(f.content, '$.raw.from_sequence')
+  AND bounds.last_sequence <= json_extract(f.content, '$.raw.to_sequence')
+`
+
+// A fired event precedes archival and can represent a failed attempt. The last
+// attempt covering every assigned event identifies the successful cut: subsequent
+// compaction spans only inspect unarchived events and cannot cover this entry.
+func (q *Queries) GetTranscriptEntryUpgradeCutoff(ctx context.Context, entryKey string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTranscriptEntryUpgradeCutoff, entryKey)
+	var cutoff_sequence int64
+	err := row.Scan(&cutoff_sequence)
+	return cutoff_sequence, err
+}
+
 const listMissingUnarchivedCompactionEntries = `-- name: ListMissingUnarchivedCompactionEntries :many
 SELECT e.transcript_entry_key
 FROM events AS e
@@ -46,29 +69,16 @@ func (q *Queries) ListMissingUnarchivedCompactionEntries(ctx context.Context) ([
 	return items, nil
 }
 
-const listTranscriptEntryContextForUpgrade = `-- name: ListTranscriptEntryContextForUpgrade :many
+const listTranscriptKeyedEventsThrough = `-- name: ListTranscriptKeyedEventsThrough :many
 SELECT e.id, e.sequence, e.turn_id, e.type, e.agent_name, e.content, e.archived, e.timestamp, e.transcript_entry_key
 FROM events AS e
-WHERE e.sequence <= (
-    SELECT MAX(MAX(f.sequence - 1,
-                   json_extract(f.content, '$.raw.to_sequence'),
-                   bounds.last_sequence))
-    FROM events AS f
-    CROSS JOIN (
-      SELECT MIN(assigned.sequence) AS first_sequence, MAX(assigned.sequence) AS last_sequence
-      FROM events AS assigned WHERE assigned.transcript_entry_key = ?1) AS bounds
-    WHERE f.type = 'session.compaction_fired'
-      AND bounds.first_sequence >= json_extract(f.content, '$.raw.from_sequence')
-      AND bounds.last_sequence <= json_extract(f.content, '$.raw.to_sequence'))
+WHERE e.sequence <= ?1
   AND e.transcript_entry_key <> ''
 ORDER BY e.sequence ASC
 `
 
-// A fired event precedes archival and can represent a failed attempt. The last
-// attempt covering every assigned event identifies the successful cut: subsequent
-// compaction spans only inspect unarchived events and cannot cover this entry.
-func (q *Queries) ListTranscriptEntryContextForUpgrade(ctx context.Context, entryKey string) ([]Event, error) {
-	rows, err := q.db.QueryContext(ctx, listTranscriptEntryContextForUpgrade, entryKey)
+func (q *Queries) ListTranscriptKeyedEventsThrough(ctx context.Context, throughSequence int64) ([]Event, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptKeyedEventsThrough, throughSequence)
 	if err != nil {
 		return nil, err
 	}

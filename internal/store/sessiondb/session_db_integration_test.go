@@ -2904,6 +2904,132 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 		})
 	}
 
+	// Invariant: entries archived by different successful compactions restore from one ordered replay with their original identities.
+	t.Run("Should restore entries archived by separate compactions with distinct cutoffs", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		prefix, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registerTestSQLDBCleanup(t, "separate compaction prefix", prefix)
+		if err := store.Apply(
+			ctx,
+			prefix,
+			sessionMigrationPrefixBefore(t, "00009_unarchive_compaction_spans.sql"),
+		); err != nil {
+			t.Fatal(err)
+		}
+		owner := testSessionDBOwner("sess-separate-compaction-upgrade")
+		if _, err := prefix.ExecContext(
+			ctx,
+			`INSERT INTO session_db_owner (singleton,session_id,workspace_id) VALUES (1,?,?)`,
+			owner.SessionID,
+			owner.WorkspaceID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := initializeTranscriptProjectionState(ctx, prefix); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+		previous := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+		write := func(events ...acp.AgentEvent) {
+			t.Helper()
+			input := make([]SessionEvent, 0, len(events))
+			for _, event := range events {
+				input = append(input, canonicalStoreEvent(t, event, "coder"))
+			}
+			if _, err := previous.writeEventBatch(ctx, input); err != nil {
+				t.Fatal(err)
+			}
+		}
+		write(
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "first", Text: "First question"},
+			acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "first", Text: "First answer"},
+			acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "first"},
+			acp.AgentEvent{Type: "session.compaction_fired", TurnID: "first-compaction",
+				Raw: json.RawMessage(`{"from_sequence":1,"to_sequence":3}`)},
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "second", Text: "Second question"},
+			acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "second", Text: "Second answer"},
+			acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "second"},
+		)
+		before, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		identities := make(map[string]transcript.EntryIdentity, len(before.Entries))
+		for _, entry := range before.Entries {
+			key := fmt.Sprintf("g0:s%d", entry.StartSequence)
+			identity, found, err := (projectionSQLResolver{db: prefix}).EntryIdentity(ctx, key)
+			if err != nil || !found {
+				t.Fatalf("previous identity %q=%#v/%v/%v", key, identity, found, err)
+			}
+			identities[key] = identity
+		}
+		for _, archive := range []store.EventArchiveRequest{
+			{FromSequence: 1, ToSequence: 3},
+			{FromSequence: 5, ToSequence: 7},
+		} {
+			if _, err := previous.writeArchiveEvents(ctx, archive); err != nil {
+				t.Fatal(err)
+			}
+		}
+		archived, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range archived.Entries {
+			if _, tracked := identities[fmt.Sprintf("g0:s%d", entry.StartSequence)]; tracked &&
+				entry.StartSequence != 4 {
+				t.Fatalf("archived page still projects %#v", entry)
+			}
+		}
+		write(acp.AgentEvent{Type: "session.compaction_fired", TurnID: "second-compaction",
+			Raw: json.RawMessage(`{"from_sequence":5,"to_sequence":7}`)})
+		if err := prefix.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for attempt := range 2 {
+			reopened, err := OpenSessionDB(ctx, owner, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := reopened.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+			if err != nil {
+				t.Fatal(err)
+			}
+			restored := 0
+			for _, entry := range page.Entries {
+				key := fmt.Sprintf("g0:s%d", entry.StartSequence)
+				want, tracked := identities[key]
+				if !tracked {
+					continue
+				}
+				restored++
+				identity, found, err := (projectionSQLResolver{db: reopened.db}).EntryIdentity(ctx, key)
+				if err != nil || !found || identity != want {
+					t.Fatalf(
+						"open %d restored identity %q=%#v/%v/%v want=%#v",
+						attempt,
+						key,
+						identity,
+						found,
+						err,
+						want,
+					)
+				}
+			}
+			if restored != len(identities) {
+				t.Fatalf("open %d restored %d of %d entries: %#v", attempt, restored, len(identities), page.Entries)
+			}
+			if err := reopened.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
 	// Invariant: previously projected and physically cut entries regain navigation and routes without changing live identities.
 	t.Run("Should restore real archived projections and tool routes with stable rewind exclusions", func(t *testing.T) {
 		t.Parallel()
