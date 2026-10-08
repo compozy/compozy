@@ -194,13 +194,13 @@ test("operator manages workspace suggestions and inspects a real automation run 
     // Edit is a route-chrome action for an automation the operator owns.
     await expect(triggersUI.editAutomationButton).toBeEnabled();
     await triggersUI.editAutomationButton.click();
-    await expect(triggersUI.triggerNameInput).toHaveValue(seeded.trigger.name);
+    await expect(triggersUI.nameInput).toHaveValue(seeded.trigger.name);
     const triggerDialog = triggersUI.editorDialog;
-    await expect(triggersUI.triggerRetryMax).toBeVisible();
-    await triggersWin.getByTestId("trigger-governance-toggle").click();
-    await expect(triggersUI.triggerRetryMax).toBeHidden();
-    await triggersWin.getByTestId("trigger-governance-toggle").click();
-    await expect(triggersUI.triggerRetryMax).toBeVisible();
+    await expect(triggersUI.retryMax).toBeVisible();
+    await triggersWin.getByTestId("automation-options-toggle").click();
+    await expect(triggersUI.retryMax).toBeHidden();
+    await triggersWin.getByTestId("automation-options-toggle").click();
+    await expect(triggersUI.retryMax).toBeVisible();
     await appPage.keyboard.press("Escape");
     await expect(triggerDialog).toBeHidden();
 
@@ -217,13 +217,13 @@ test("operator manages workspace suggestions and inspects a real automation run 
     const editJob = jobsUI.editAutomationButton;
     await expect(editJob).toBeEnabled();
     await editJob.click();
-    await expect(jobsUI.jobForm).toBeVisible();
-    await expect(jobsUI.jobNameInput).toHaveValue(seeded.job.name);
-    await expect(jobsUI.jobScheduleExpr).toHaveValue(
+    await expect(jobsUI.form).toBeVisible();
+    await expect(jobsUI.nameInput).toHaveValue(seeded.job.name);
+    await expect(jobsUI.scheduleExpr).toHaveValue(
       browserAutomationOperatorFlowScenario.job.scheduleExpr
     );
     await appPage.keyboard.press("Escape");
-    await expect(jobsUI.jobForm).toBeHidden();
+    await expect(jobsUI.form).toBeHidden();
 
     await jobsUI.detailRunNow.click();
 

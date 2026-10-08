@@ -8,7 +8,11 @@ import { act, renderHook } from "@testing-library/react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AutomationApiError, validateAutomationDetailSearch } from "@/systems/automation";
+import {
+  AutomationApiError,
+  automationDetailSearchFrom,
+  validateAutomationDetailSearch,
+} from "@/systems/automation";
 import { LoopsApiError } from "@/systems/loops";
 import {
   dependencyReviewJob,
@@ -259,5 +263,15 @@ describe("validateAutomationDetailSearch", () => {
       })
     ).toEqual({ start: "event", q: "digest", view: "cards", edit: "options" });
     expect(validateAutomationDetailSearch({ edit: "everything" })).toEqual({});
+  });
+
+  it("Should carry the listing filters into a detail link but never the one-shot create seed (UT-062)", () => {
+    expect(
+      automationDetailSearchFrom({ start: "schedule", q: "digest", target: "agent", view: "cards" })
+    ).toEqual({ start: "schedule", q: "digest", target: "agent", view: "cards" });
+    expect(automationDetailSearchFrom({ create: "loop", loop: "software-delivery" })).toEqual({});
+    expect(automationDetailSearchFrom({ loop: "software-delivery" })).toEqual({
+      loop: "software-delivery",
+    });
   });
 });

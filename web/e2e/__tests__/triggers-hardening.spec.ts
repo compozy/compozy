@@ -49,9 +49,9 @@ const sensitivePattern =
 async function addWebhookBranchFilter(
   ui: ReturnType<typeof automationOperatorSelectors>
 ): Promise<void> {
-  await ui.triggerFilterAdd.click();
-  await ui.triggerFilterKey(0).fill("data.branch");
-  await ui.triggerFilterValue(0).fill("main");
+  await ui.conditionAdd.click();
+  await ui.conditionField(0).fill("data.branch");
+  await ui.conditionValue(0).fill("main");
 }
 
 interface AutomationTrigger {
@@ -186,25 +186,25 @@ test("operator manages a webhook trigger and verifies authentication replay and 
 
     await ui.automationsCreate.click();
     await expect(ui.editorDialog).toBeVisible();
-    await expect(ui.submitTriggerForm).toBeDisabled();
-    await ui.triggerNameInput.fill(initialName);
-    await ui.triggerAgentInput.click();
+    await expect(ui.formSubmit).toBeDisabled();
+    await ui.nameInput.fill(initialName);
+    await ui.agentInput.click();
     await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
-    await ui.triggerEventOption("webhook").click();
-    await expect(ui.triggerEndpointSlugInput).toBeVisible();
-    await ui.triggerPromptInput.fill(prompt);
+    await ui.startChoice("webhook").click();
+    await expect(ui.webhookSlug).toBeVisible();
+    await ui.promptInput.fill(prompt);
     await addWebhookBranchFilter(ui);
-    await ui.triggerEndpointSlugInput.fill(initialEndpointSlug);
-    await ui.triggerWebhookIDInput.fill(webhookID);
-    await ui.triggerWebhookSecretValueInput.fill(webhookSecret);
-    await expect(ui.submitTriggerForm).toBeEnabled();
+    await ui.webhookSlug.fill(initialEndpointSlug);
+    await ui.webhookId.fill(webhookID);
+    await ui.webhookSecret.fill(webhookSecret);
+    await expect(ui.formSubmit).toBeEnabled();
 
     const createResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/automation/triggers"
     );
-    await ui.submitTriggerForm.click();
+    await ui.formSubmit.click();
     const createBody = await (await createResponse).text();
     expect(createBody).not.toMatch(sensitivePattern);
     await expect(ui.editorDialog).toBeHidden();
@@ -221,16 +221,16 @@ test("operator manages a webhook trigger and verifies authentication replay and 
 
     await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
-    await ui.triggerNameInput.fill(editedName);
-    await ui.triggerPromptInput.fill(editedPrompt);
-    await ui.triggerEndpointSlugInput.fill(editedEndpointSlug);
+    await ui.nameInput.fill(editedName);
+    await ui.promptInput.fill(editedPrompt);
+    await ui.webhookSlug.fill(editedEndpointSlug);
     const updateResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "PATCH" &&
         new URL(response.url()).pathname ===
           `/api/automation/triggers/${encodeURIComponent(created.id)}`
     );
-    await ui.submitTriggerForm.click();
+    await ui.formSubmit.click();
     const updateBody = await (await updateResponse).text();
     expect(updateBody).not.toMatch(sensitivePattern);
     await expect(ui.editorDialog).toBeHidden();
@@ -966,8 +966,8 @@ async function assertTriggersViewportMatrix(
     );
     await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
-    await expect(ui.triggerEndpointSlugInput).toBeVisible();
-    await expect(ui.submitTriggerForm).toBeEnabled();
+    await expect(ui.webhookSlug).toBeVisible();
+    await expect(ui.formSubmit).toBeEnabled();
     await browserArtifacts.captureScreenshot(
       `triggers-lifecycle-editor-viewport-${width}`,
       appPage

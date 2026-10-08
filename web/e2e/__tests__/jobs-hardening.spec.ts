@@ -49,8 +49,8 @@ const sensitivePattern =
 async function enableCronExpressionEditing(
   ui: ReturnType<typeof automationOperatorSelectors>
 ): Promise<void> {
-  await ui.jobScheduleCustom.click();
-  await expect(ui.jobScheduleExpr).toBeEditable();
+  await ui.scheduleExpressionToggle.click();
+  await expect(ui.scheduleExpr).toBeEditable();
 }
 
 interface AutomationJob {
@@ -201,28 +201,28 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
     await expect(ui.automationsShell).toBeVisible();
     await ui.automationsCreate.click();
     await expect(ui.editorDialog).toBeVisible();
-    await expect(ui.submitJobForm).toBeDisabled();
+    await expect(ui.formSubmit).toBeDisabled();
     const initialName = uniqueName("jobs-lifecycle");
-    await ui.jobNameInput.fill(initialName);
-    await ui.jobAgentInput.click();
+    await ui.nameInput.fill(initialName);
+    await ui.agentInput.click();
     await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
-    await expect(ui.jobAgentInput).toContainText(automationAgentName);
-    await ui.jobPromptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
+    await expect(ui.agentInput).toContainText(automationAgentName);
+    await ui.promptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
     await enableCronExpressionEditing(ui);
-    await ui.jobScheduleExpr.fill("");
-    await expect(ui.submitJobForm).toBeDisabled();
-    await ui.jobScheduleExpr.fill(browserAutomationOperatorFlowScenario.job.scheduleExpr);
-    await ui.jobGovernanceToggle.click();
-    await expect(ui.jobFireLimitMax).toBeVisible();
-    await ui.jobFireLimitMax.fill("24");
-    await ui.jobFireLimitWindow.fill("1h");
+    await ui.scheduleExpr.fill("");
+    await expect(ui.formSubmit).toBeDisabled();
+    await ui.scheduleExpr.fill(browserAutomationOperatorFlowScenario.job.scheduleExpr);
+    await ui.optionsToggle.click();
+    await expect(ui.fireLimitMax).toBeVisible();
+    await ui.fireLimitMax.fill("24");
+    await ui.fireLimitWindow.fill("1h");
 
     const createResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/automation/jobs"
     );
-    await ui.submitJobForm.click();
+    await ui.formSubmit.click();
     expect((await createResponse).ok()).toBe(true);
     await expect(ui.editorDialog).toBeHidden();
     const created = await waitForJobByName(runtime, initialName);
@@ -234,17 +234,17 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
     await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
     const editedName = `${initialName}-edited`;
-    await ui.jobNameInput.fill(editedName);
-    await ui.jobPromptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
+    await ui.nameInput.fill(editedName);
+    await ui.promptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
     await enableCronExpressionEditing(ui);
-    await ui.jobScheduleExpr.fill(browserAutomationOperatorFlowScenario.job.updatedScheduleExpr);
+    await ui.scheduleExpr.fill(browserAutomationOperatorFlowScenario.job.updatedScheduleExpr);
     const updateResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "PATCH" &&
         new URL(response.url()).pathname ===
           `/api/automation/jobs/${encodeURIComponent(created.id)}`
     );
-    await ui.submitJobForm.click();
+    await ui.formSubmit.click();
     expect((await updateResponse).ok()).toBe(true);
     await expect(ui.editorDialog).toBeHidden();
     await expect(windowTitle(jobsWin)).toContainText(editedName);
@@ -757,9 +757,9 @@ async function assertJobsLifecycleViewportMatrix(
     await browserArtifacts.captureScreenshot(`jobs-lifecycle-history-viewport-${width}`, appPage);
     await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
-    await expect(ui.jobForm).toBeVisible();
-    await expect(ui.jobScheduleExpr).toBeVisible();
-    await expect(ui.submitJobForm).toBeEnabled();
+    await expect(ui.form).toBeVisible();
+    await expect(ui.scheduleExpr).toBeVisible();
+    await expect(ui.formSubmit).toBeEnabled();
     await browserArtifacts.captureScreenshot(`jobs-lifecycle-editor-viewport-${width}`, appPage);
     await appPage.keyboard.press("Escape");
     await expect(ui.editorDialog).toBeHidden();
