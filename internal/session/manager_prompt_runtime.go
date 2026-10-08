@@ -188,6 +188,9 @@ func (m *Manager) replacePromptRuntime(
 		plan.spec.command,
 	)
 	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
+	if plan.spec.resumeReplay {
+		session.setPendingResumeReplay(plan.spec.resumeReplayBlock)
+	}
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		cleanupCtx, cancel := m.lifecycleCleanupContext()

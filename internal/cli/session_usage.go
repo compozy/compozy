@@ -17,7 +17,7 @@ func newSessionUsageCommand(deps commandDeps) *cobra.Command {
   # Read the usage contract as JSON for scripts
   compozy session usage sess_1234 -o json
 
-  # Inspect each turn and replay compaction span
+  # Inspect each turn and native compaction marker
   compozy session usage sess_1234 --turns`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -39,7 +39,7 @@ func newSessionUsageCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionUsageBundle(record))
 		},
 	}
-	command.Flags().BoolVar(&turns, "turns", false, "Show per-turn usage, deliveries, and replay compaction spans")
+	command.Flags().BoolVar(&turns, "turns", false, "Show per-turn usage, deliveries, and native compaction markers")
 	return command
 }
 

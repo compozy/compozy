@@ -40,7 +40,7 @@ func (m *Manager) prepareSessionLaunch(
 		return acp.StartOpts{}, startupFailure("session native provider startup failed", err)
 	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, runtime.agent, startOpts)
-	if spec.resumeReplay {
+	if spec.resumeReplay && spec.resumeReplayBlock == "" {
 		tools, toolErr := concreteDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse)
 		if toolErr != nil {
 			return acp.StartOpts{}, startupFailure("session replay tool surface resolution failed", toolErr)

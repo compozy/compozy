@@ -25,8 +25,9 @@ type SessionAdvertisedCommandState struct {
 // SessionRuntimeBindingState keeps optional runtime failure and selection state compact inside SessionMeta.
 // Embedding preserves the flat session metadata JSON contract.
 type SessionRuntimeBindingState struct {
-	RuntimeFailure   *string                       `json:"runtime_failure,omitzero"`
-	RuntimeSelection *SessionRuntimeSelectionState `json:"runtime_selection,omitzero"`
+	RuntimeFailure      *string                       `json:"runtime_failure,omitzero"`
+	RuntimeSelection    *SessionRuntimeSelectionState `json:"runtime_selection,omitzero"`
+	PendingResumeReplay string                        `json:"pending_resume_replay,omitempty"`
 }
 
 // SessionProviderExecutionState keeps resolved provider execution settings compact inside SessionMeta.
@@ -239,8 +240,26 @@ func (m *SessionMeta) SetRuntimeSelection(selection *SessionRuntimeSelectionStat
 	m.clearEmptyRuntimeBindingState()
 }
 
+func (m *SessionMeta) PendingResumeReplayValue() string {
+	if m == nil || m.SessionRuntimeBindingState == nil {
+		return ""
+	}
+	return m.PendingResumeReplay
+}
+
+func (m *SessionMeta) SetPendingResumeReplay(block string) {
+	if m.SessionRuntimeBindingState == nil {
+		if block == "" {
+			return
+		}
+		m.SessionRuntimeBindingState = &SessionRuntimeBindingState{}
+	}
+	m.PendingResumeReplay = block
+	m.clearEmptyRuntimeBindingState()
+}
+
 func (m *SessionMeta) clearEmptyRuntimeBindingState() {
-	if m.RuntimeFailure == nil && m.RuntimeSelection == nil {
+	if m.RuntimeFailure == nil && m.RuntimeSelection == nil && m.PendingResumeReplay == "" {
 		m.SessionRuntimeBindingState = nil
 	}
 }

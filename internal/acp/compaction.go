@@ -84,6 +84,7 @@ func (p *AgentProcess) handleCompactionUpdate(raw wireSessionNotification, kind 
 	snapshot.Terminal = isCompactionTerminal(state.snapshot.Status) && !state.terminalSeen
 	if snapshot.Terminal {
 		state.terminalSeen = true
+		p.invalidatePromptOccupancy()
 	}
 	p.emitPromptEvent(AgentEvent{
 		Type: EventTypeCompaction, SessionID: string(raw.SessionID), TurnID: p.activeTurnID(),

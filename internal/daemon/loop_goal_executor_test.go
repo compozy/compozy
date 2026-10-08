@@ -245,6 +245,45 @@ func TestLoopGoalContextRuntimeShouldUseLatestTypedSessionEvidence(t *testing.T)
 }
 
 func TestReconstructManagedGoalPromptResultShouldRequireExactOrderedTerminalWindow(t *testing.T) {
+	for _, test := range []struct{ first, current string }{
+		{"completed", "failed"},
+		{"failed", "completed"},
+	} {
+		t.Run("Should use corrected "+test.current+" status for live and recovered compaction", func(t *testing.T) {
+			t.Parallel()
+			promptID := "corrected-compaction"
+			rows := []store.SessionEvent{
+				managedGoalRecoveryEvent(t, 1, promptID, acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: test.first, Terminal: true},
+				}),
+				managedGoalRecoveryEvent(t, 2, promptID, acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: test.current},
+				}),
+				managedGoalRecoveryEvent(t, 3, promptID, acp.AgentEvent{
+					Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn,
+				}),
+			}
+			reader := staticLoopSessionEventReader{events: rows}
+			result := looppkg.ActionPromptResult{PromptID: promptID, EventStartSeq: 1, EventEndSeq: 3}
+			live, err := readManagedGoalCompaction(t.Context(), reader,
+				&store.SessionInputQueueEntry{SessionID: "session-corrected", PromptID: promptID}, result)
+			if err != nil || live == nil || live.CompactionID != "c1" || live.Status != test.current {
+				t.Fatalf("live compaction=%#v err=%v", live, err)
+			}
+			recovered, _, found, err := reconstructManagedGoalPromptResult(
+				t.Context(),
+				reader,
+				"session-corrected",
+				promptID,
+			)
+			if err != nil || !found || recovered.Compaction == nil || recovered.Compaction.CompactionID != "c1" ||
+				recovered.Compaction.Status != test.current {
+				t.Fatalf("recovered result=%#v found=%v err=%v", recovered, found, err)
+			}
+		})
+	}
 	t.Run(
 		"Should recover ordered text structured output and reported zero usage across unrelated sequence gaps",
 		func(t *testing.T) {

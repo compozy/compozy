@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -419,5 +420,62 @@ func assertBoundedRebuildPrompt(t *testing.T, prompt, sourceID string) {
 	pointer := "Earlier messages were omitted. Read them with the compozy__session_history tool (session_id: " + sourceID + ") when you need them."
 	if !strings.Contains(prompt, pointer) {
 		t.Fatal("replay has no source history pointer")
+	}
+}
+
+func assertCompactionRequestSource(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID, promptID, source string,
+) {
+	t.Helper()
+	rows, err := harness.SessionEvents(ctx, sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requested := 0
+	for _, row := range rows.Events {
+		if row.Type != "session.compaction.requested" || row.TurnID != promptID {
+			continue
+		}
+		requested++
+		decoded, err := transcript.UnmarshalAgentEvent(string(row.Content))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var requestFact struct {
+			RequestedBy string `json:"requested_by"`
+		}
+		if err := json.Unmarshal(decoded.Raw, &requestFact); err != nil {
+			t.Fatal(err)
+		}
+		if requestFact.RequestedBy != source {
+			t.Fatalf("requested_by = %q, want %q", requestFact.RequestedBy, source)
+		}
+	}
+	if requested != 1 {
+		t.Fatalf("requested facts = %d, want 1", requested)
+	}
+}
+
+func assertMaintenanceCommandDiagnostics(t *testing.T, harness *e2etest.RuntimeHarness, agent string) {
+	t.Helper()
+	registration, ok := harness.MockAgentRegistration(agent)
+	if !ok {
+		t.Fatal("mock registration missing")
+	}
+	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prompts := acpmock.PromptDiagnostics(records)
+	if len(prompts) != 8 {
+		t.Fatalf("received prompts = %#v, want four baseline and four compact commands", prompts)
+	}
+	for _, index := range []int{1, 3, 5, 7} {
+		if prompts[index].Prompt != "/compact" {
+			t.Fatalf("received prompt[%d] = %q, want literal compact command", index, prompts[index].Prompt)
+		}
 	}
 }

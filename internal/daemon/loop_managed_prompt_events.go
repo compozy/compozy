@@ -104,7 +104,7 @@ func readManagedGoalCompaction(
 		if err != nil {
 			return nil, err
 		}
-		if event.Compaction != nil && event.Compaction.Terminal {
+		if event.Compaction != nil {
 			outcome = &looppkg.ActionCompactionOutcome{
 				CompactionID: event.Compaction.CompactionID,
 				Status:       event.Compaction.Status,

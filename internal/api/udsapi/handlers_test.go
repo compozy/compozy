@@ -1860,6 +1860,46 @@ func TestPromptSessionHandlerReturnsRawSSEStreamWhenRequested(t *testing.T) {
 			t.Fatalf("events = [%s %s], want [agent_message done]", records[0].Event, records[1].Event)
 		}
 	})
+	t.Run("Should preserve typed redacted compaction snapshots without raw data", func(t *testing.T) {
+		t.Parallel()
+		observation := &acp.CompactionObservation{
+			CompactionID: "compact-raw", Status: "failed",
+			Summary: "Retained summary token=secret", Error: "access_token=secret", Terminal: true,
+		}
+		redacted := transcript.RedactAgentEvent(acp.AgentEvent{Compaction: observation}).Compaction
+		manager := stubSessionManager{
+			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 1)
+				events <- acp.AgentEvent{
+					Type: acp.EventTypeCompaction, SessionID: "sess-123", TurnID: "turn-1",
+					Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC), Compaction: redacted,
+				}
+				close(events)
+				return events, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt?format=raw",
+			[]byte(`{"message":"hello","message_id":"msg-compact","idempotency_key":"idem-compact"}`))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d; body=%s", recorder.Code, recorder.Body.String())
+		}
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) != 1 || records[0].Event != acp.EventTypeCompaction {
+			t.Fatalf("frames = %#v", records)
+		}
+		var payload contract.AgentEventPayload
+		if err := json.Unmarshal(records[0].Data, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Compaction == nil || payload.Compaction.CompactionID != "compact-raw" ||
+			payload.Compaction.Status != "failed" || payload.Compaction.Summary != redacted.Summary ||
+			payload.Compaction.Error != redacted.Error || string(payload.Raw) != "null" ||
+			strings.Contains(string(records[0].Data), "secret") {
+			t.Fatalf("snapshot frame = %s", records[0].Data)
+		}
+	})
 }
 
 func TestSessionInputClearHandlerUsesSharedQueueContract(t *testing.T) {

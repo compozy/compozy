@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -278,6 +280,53 @@ func TestTranscriptCompactionRedaction(t *testing.T) {
 				t.Fatalf("disabled redaction subprocess: %v\n%s", err, output)
 			}
 		})
+	}
+
+	if os.Getenv(helperEnv) != "1" {
+		for _, test := range []struct {
+			name    string
+			summary string
+		}{
+			{
+				name:    "Should bound summaries expanded by final secret redaction",
+				summary: strings.Repeat("token=x ", 2048),
+			},
+			{
+				name:    "Should retain valid UTF-8 when final secret redaction expands summaries",
+				summary: "token=x " + strings.Repeat("界", 5458),
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				observation := &acp.CompactionObservation{
+					CompactionID: "bounded", Status: "completed", Summary: test.summary, Terminal: true,
+				}
+				event := acp.AgentEvent{Type: acp.EventTypeCompaction, Compaction: observation}
+				redacted := RedactAgentEvent(event)
+				stored, err := MarshalAgentEvent(event)
+				if err != nil {
+					t.Fatalf("MarshalAgentEvent() error = %v", err)
+				}
+				var payload canonicalEventPayload
+				if err := json.Unmarshal([]byte(stored), &payload); err != nil {
+					t.Fatalf("decode canonical compaction: %v", err)
+				}
+				canonical := canonicalEventPayload{Type: acp.EventTypeCompaction, Summary: test.summary}
+				redactCanonicalPayload(&canonical)
+				for _, summary := range []string{redacted.Compaction.Summary, payload.Summary, canonical.Summary} {
+					if len(summary) > 16*1024 || !utf8.ValidString(summary) ||
+						!strings.HasSuffix(summary, " [summary truncated]") ||
+						strings.Contains(summary, "token=x") || !strings.Contains(summary, "token=[REDACTED]") {
+						t.Fatalf("summary bytes=%d valid=%t, want bounded redacted UTF-8 with truncation marker",
+							len(summary), utf8.ValidString(summary))
+					}
+				}
+				if payload.Summary != redacted.Compaction.Summary || canonical.Summary != payload.Summary ||
+					observation.Summary != test.summary {
+					t.Fatal("live and persisted summaries must agree without mutating the source")
+				}
+			})
+		}
 	}
 
 	t.Run("Should redact snapshot fields without mutating the source event", func(t *testing.T) {

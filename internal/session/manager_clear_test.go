@@ -38,6 +38,10 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 		collectEvents(t, firstEvents)
 
 		originalACP := session.Info().ACPSessionID
+		h.manager.stageResumeReplay(session.ID, "deferred history before clear")
+		if err := h.manager.persistSessionMetadataOnly(session); err != nil {
+			t.Fatal(err)
+		}
 
 		cleared, err := h.manager.ClearConversation(testutil.Context(t), session.ID)
 		if err != nil {
@@ -90,6 +94,13 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			t.Fatalf("Prompt(after clear) error = %v", err)
 		}
 		collectEvents(t, secondEvents)
+		if strings.Contains(h.driver.promptCalls[1].Message, "deferred history before clear") {
+			t.Fatal("ordinary prompt restored cleared pending replay")
+		}
+		clearedMeta := readMeta(t, cleared.metaPath)
+		if got := clearedMeta.PendingResumeReplayValue(); got != "" {
+			t.Fatalf("pending replay after clear = %q", got)
+		}
 
 		stored = readStoredEvents(t, cleared)
 		if got := len(stored); got == 0 {

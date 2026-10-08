@@ -23,6 +23,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 
 	atlasmigrate "ariga.io/atlas/sql/migrate"
 	"github.com/compozy/compozy/internal/store"
@@ -437,4 +438,60 @@ func restoreRecoveryCompactionFixture(t *testing.T, path string) {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func maintenanceCompactionFixture(t *testing.T, recoverDriver, nativeLoad bool) string {
+	t.Helper()
+	fixturePath := mockFixturePath(t, "native_compaction_fixture.json")
+	if recoverDriver || nativeLoad {
+		fixture, err := acpmock.LoadFixture(fixturePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for ai := range fixture.Agents {
+			fixture.Agents[ai].LoadSession = new(nativeLoad)
+			for ti := range fixture.Agents[ai].Turns {
+				turn := &fixture.Agents[ai].Turns[ti]
+				if recoverDriver && turn.Name == "compact-now" {
+					control := &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel}
+					pause := acpmock.Step{Kind: acpmock.StepKindDriverControl, DriverControl: control}
+					turn.Steps = append(turn.Steps[:1], append([]acpmock.Step{pause}, turn.Steps[1:]...)...)
+				}
+			}
+		}
+		data, err := json.Marshal(fixture)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixturePath = filepath.Join(t.TempDir(), "recovery-compaction.json")
+		if err := os.WriteFile(fixturePath, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return fixturePath
+}
+
+func assertMaintenanceNativeLoad(t *testing.T, records []acpmock.DiagnosticsRecord) {
+	t.Helper()
+	loads, creates := 0, 0
+	for _, record := range records {
+		switch record.LifecycleEvent {
+		case "session_load":
+			loads++
+		case "session_new":
+			creates++
+		}
+	}
+	if loads != 1 || creates != 2 {
+		t.Fatalf("load/new = %d/%d, want one native load and initial/replacement new only", loads, creates)
+	}
+}
+
+func cleanupMaintenanceDaemon(t *testing.T, daemon *Daemon) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := daemon.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
 }

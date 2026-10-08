@@ -218,6 +218,9 @@ func (m *Manager) stageResumeReplay(sessionID string, replayBlock string) {
 	if target == "" || block == "" {
 		return
 	}
+	if session, ok := m.Get(target); ok {
+		session.setPendingResumeReplay(block)
+	}
 	m.resumeReplayMu.Lock()
 	defer m.resumeReplayMu.Unlock()
 	if m.resumeReplays == nil {
@@ -238,6 +241,23 @@ func (m *Manager) consumeResumeReplay(sessionID string, replayBlock string) {
 	if target == "" || block == "" {
 		return
 	}
+	if session, ok := m.Get(target); ok {
+		session.persistMu.Lock()
+		defer session.persistMu.Unlock()
+		session.mu.Lock()
+		pending := session.pendingResumeReplay
+		if pending == block {
+			session.pendingResumeReplay = ""
+		}
+		session.mu.Unlock()
+		if pending == block {
+			if err := m.writeMeta(session); err != nil {
+				session.setPendingResumeReplay(pending)
+				m.sessionLogger(session).Error("session.replay.consumption_persist_failed", "error", err)
+				return
+			}
+		}
+	}
 	m.resumeReplayMu.Lock()
 	defer m.resumeReplayMu.Unlock()
 	if m.resumeReplays[target] == replayBlock {
@@ -253,4 +273,10 @@ func (m *Manager) clearResumeReplay(sessionID string) {
 	m.resumeReplayMu.Lock()
 	defer m.resumeReplayMu.Unlock()
 	delete(m.resumeReplays, target)
+}
+
+func (s *Session) setPendingResumeReplay(block string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingResumeReplay = strings.TrimSpace(block)
 }

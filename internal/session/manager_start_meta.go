@@ -53,6 +53,7 @@ func sessionStartSpecFromMeta(
 		advertisedCommands:       store.CloneSessionAdvertisedCommands(meta.AdvertisedCommandsValue()),
 		derivation:               store.CloneSessionDerivation(meta.Derivation),
 		importedContext:          store.CloneSessionImportedContext(meta.ImportedContext),
+		resumeReplayBlock:        meta.PendingResumeReplayValue(),
 	}
 	if spec.creationProfile != nil {
 		spec.runtimeMode = spec.creationProfile.RuntimeMode
