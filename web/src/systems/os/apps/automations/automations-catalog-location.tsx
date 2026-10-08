@@ -210,8 +210,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
         pending={page.deletePending}
         target={page.deleteTarget}
       />
-      <AutomationEditorDialog {...page.editorDialogProps[0]} />
-      <AutomationEditorDialog {...page.editorDialogProps[1]} />
+      <AutomationEditorDialog {...page.editorDialogProps} />
     </>
   );
 }

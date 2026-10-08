@@ -2,7 +2,7 @@ import { Clock } from "lucide-react";
 
 import type { JobNextRun } from "../../../lib/job-preview";
 import { AutomationNextRuns } from "../../automation-detail/automation-next-runs";
-import { PreviewCard } from "../../trigger-form/preview/preview-card";
+import { PreviewCard } from "../../automation-form/preview/preview-card";
 
 const WONT_REGISTER_PREFIX = "Won't register";
 const EMPTY_CLASS =

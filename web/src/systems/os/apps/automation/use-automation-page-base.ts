@@ -12,6 +12,7 @@ import {
   automationRouteHasActiveFilters,
   automationsStartView,
   type AutomationDoes,
+  type AutomationEditorSeed,
   type AutomationScope,
   type AutomationSource,
   type AutomationsRouteSearch,
@@ -20,23 +21,6 @@ import {
 import { automationCreateSeedLogic } from "./automation-create-seed-store";
 import { type SettingsAutomationSection, useSettingsAutomation } from "@/systems/settings";
 import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
-
-/** One-shot editor deep link: `?create=1&start=…` or `?create=loop&start=…&loop=…`. */
-export interface AutomationCreateSeed {
-  /** Start preselection; `event`/`webhook` open the event editor, otherwise schedules. */
-  start?: "schedule" | "event" | "webhook";
-  /** When set, the editor opens with Does = Start a Loop for this Loop. */
-  loop?: string;
-}
-
-/** The seed a route search carries, or null when it opens no editor. */
-export function automationCreateSeedOf(
-  search: AutomationsRouteSearch
-): AutomationCreateSeed | null {
-  if (search.create === "loop")
-    return search.loop ? { start: search.start, loop: search.loop } : null;
-  return search.create === "1" ? { start: search.start } : null;
-}
 
 const UNAVAILABLE_OFF =
   "Automations are turned off. Turn on automations in Settings, then restart CompozyOS.";
@@ -56,27 +40,24 @@ export function automationUnavailableMessage(
 }
 
 /**
- * Consumes the one-shot create deep link. Waits for the active workspace before
- * opening the editor (drafts bind workspace scope), then strips the consumed
- * params so a cancel or reload does not re-open the dialog and the list is not
- * silently filtered by `loop` or `start`.
+ * Consumes the one-shot `?create=1|loop` deep link. Waits for the active
+ * workspace before opening the create editor (the draft binds workspace scope),
+ * then strips the consumed params so a cancel or reload does not re-open the
+ * dialog and the list is not silently filtered by `loop` or `start`.
  */
 export function useAutomationCreateSeed(
-  seed: AutomationCreateSeed | null,
+  seed: AutomationEditorSeed | null,
   activeWorkspaceId: string | null | undefined,
-  open: (seed: AutomationCreateSeed) => void
+  openCreate: (seed: AutomationEditorSeed) => void
 ): void {
   const navigate = useNavigate();
   const store = useStore(automationCreateSeedLogic);
-  const key = seed ? `${seed.start ?? ""}:${seed.loop ?? ""}` : null;
-  const start = seed?.start;
-  const loop = seed?.loop;
   useEffect(() => {
     store.trigger.seedObserved({
       activeWorkspaceId,
-      key,
-      consume: () => {
-        open({ start, loop });
+      seed,
+      consume: consumed => {
+        openCreate(consumed);
         void navigate({
           replace: true,
           search: current => ({
@@ -89,7 +70,7 @@ export function useAutomationCreateSeed(
         });
       },
     });
-  }, [activeWorkspaceId, key, loop, navigate, open, start, store]);
+  }, [activeWorkspaceId, navigate, openCreate, seed, store]);
 }
 
 /**

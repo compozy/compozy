@@ -1,17 +1,29 @@
+// Suite: Automation editor (S3)
+// Invariant: one dialog builds any automation; the draft, sentence bar, readiness and
+// displayed request agree, and edit mode locks what the daemon can't change.
+// Boundary IN: AutomationEditorDialog + AutomationForm + useAutomationForm over a controlled draft.
+// Boundary OUT: save mutations and navigation (use-automation-editor suite).
 import { agentFixtures } from "@/systems/agent/mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render as renderTestingLibrary, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AutomationEditorDialog } from "../automation-editor-dialog";
-import {
-  createAutomationJobDraft,
-  createAutomationTriggerDraft,
-} from "../../lib/automation-drafts";
-import { createAutomationDialogHandle } from "../../lib/dialog-handle";
-import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../../types";
+vi.mock("@/systems/loops/hooks/use-loops", async () => {
+  const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
+  return {
+    useLoops: () => ({
+      error: null,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isError: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+      loops: loopCatalogFixtures,
+    }),
+  };
+});
 
 const aggregateDestination = vi.hoisted(() => ({ value: null as string | null }));
 vi.mock("@/systems/profiles", async importOriginal => ({
@@ -19,15 +31,21 @@ vi.mock("@/systems/profiles", async importOriginal => ({
   useAggregateDestination: () => aggregateDestination.value,
 }));
 
+import { AutomationEditorDialog } from "../automation-editor-dialog";
+import {
+  createAutomationFormDraft,
+  type AutomationEditorSection,
+  type AutomationFormDraft,
+} from "../../lib/automation-form-draft";
+
 const WORKSPACES = [
-  { id: "ws_test", name: "test-workspace" },
+  { id: "ws_test", name: "checkout-api" },
   { id: "ws_beta", name: "beta-workspace" },
 ];
+const AGENT = agentFixtures[0].name;
 
 function render(ui: ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderTestingLibrary(ui, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -35,313 +53,515 @@ function render(ui: ReactElement) {
   });
 }
 
-function JobEditorHarness({
-  mode = "create",
-  onCancel,
-  onSubmit,
-}: {
+interface HarnessProps {
+  draft?: AutomationFormDraft;
   mode?: "create" | "edit";
-  onCancel: () => void;
-  onSubmit: (draft: CreateAutomationJobRequest) => void;
-}) {
-  const [draft, setDraft] = useState<CreateAutomationJobRequest>(() =>
-    createAutomationJobDraft("ws_test")
-  );
+  lockedLoop?: string;
+  section?: AutomationEditorSection;
+  agents?: typeof agentFixtures;
+  agentsLoading?: boolean;
+  submitError?: string | null;
+  submitErrorField?: "name" | null;
+  onSubmit?: (draft: AutomationFormDraft) => void;
+}
 
+function EditorHarness({
+  draft: initial,
+  mode = "create",
+  lockedLoop,
+  section,
+  agents = agentFixtures,
+  agentsLoading,
+  submitError = null,
+  submitErrorField = null,
+  onSubmit = vi.fn(),
+}: HarnessProps) {
+  const [draft, setDraft] = useState<AutomationFormDraft>(
+    () => initial ?? createAutomationFormDraft("ws_test")
+  );
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
-      agents={agentFixtures}
+      agents={agents}
+      agentsLoading={agentsLoading}
       editor={{
         draft,
         isPending: false,
-        kind: "jobs",
+        lockedLoop,
         mode,
-        onCancel,
+        onCancel: vi.fn(),
         onChange: setDraft,
         onSubmit: () => onSubmit(draft),
+        section,
+        submitError,
+        submitErrorField,
       }}
       workspaces={WORKSPACES}
     />
   );
 }
 
-function TriggerEditorHarness({
-  mode = "create",
-  onCancel,
-  onSubmit,
-}: {
-  mode?: "create" | "edit";
-  onCancel: () => void;
-  onSubmit: (draft: CreateAutomationTriggerRequest) => void;
-}) {
-  const [draft, setDraft] = useState<CreateAutomationTriggerRequest>(() =>
-    createAutomationTriggerDraft("ws_test")
-  );
-
-  return (
-    <AutomationEditorDialog
-      activeWorkspaceId="ws_test"
-      agents={agentFixtures}
-      editor={{
-        draft,
-        isPending: false,
-        kind: "triggers",
-        mode,
-        onCancel,
-        onChange: setDraft,
-        onSubmit: () => onSubmit(draft),
-      }}
-      workspaces={WORKSPACES}
-    />
-  );
+function readyDraft(overrides: Partial<AutomationFormDraft> = {}): AutomationFormDraft {
+  return {
+    ...createAutomationFormDraft("ws_test"),
+    name: "morning-digest",
+    agent_name: AGENT,
+    prompt: "Summarize yesterday's sessions.",
+    ...overrides,
+  };
 }
 
-function DetachedTriggerHarness() {
-  const [handle] = useState(() => createAutomationDialogHandle());
-  const [editor, setEditor] = useState<{
-    draft: CreateAutomationJobRequest;
-    isPending: boolean;
-    kind: "jobs";
-    mode: "create";
-    onCancel: () => void;
-    onChange: (draft: CreateAutomationJobRequest) => void;
-    onSubmit: () => void;
-  } | null>(null);
+const sentence = () => screen.getByTestId("automation-editor-sentence");
+const status = () => screen.getByTestId("automation-editor-status");
+const submit = () => screen.getByTestId("automation-form-submit");
+const readout = () => screen.getByTestId("automation-schedule-readout");
 
-  return (
-    <>
-      <button
-        data-testid="open-detached-editor"
-        onClick={() =>
-          setEditor({
-            draft: createAutomationJobDraft("ws_test"),
-            isPending: false,
-            kind: "jobs",
-            mode: "create",
-            onCancel: () => setEditor(null),
-            onChange: draft => setEditor(current => (current ? { ...current, draft } : current)),
-            onSubmit: () => undefined,
-          })
-        }
-        type="button"
-      >
-        Open
-      </button>
-      <AutomationEditorDialog
-        activeWorkspaceId="ws_test"
-        editor={editor}
-        handle={handle}
-        workspaces={WORKSPACES}
-      />
-    </>
-  );
+function sectionTitles(): string[] {
+  return screen
+    .getAllByRole("heading", { level: 3 })
+    .map(heading => heading.textContent ?? "")
+    .filter(text => /^\d{2}/.test(text));
 }
+
+function pickAgent(name = AGENT) {
+  fireEvent.click(screen.getByTestId("automation-agent-input"));
+  fireEvent.click(screen.getByTestId(`agent-command-item-${name}`));
+}
+
+function togglePreview() {
+  fireEvent.click(screen.getByTestId("automation-preview-toggle"));
+}
+
+beforeEach(() => {
+  aggregateDestination.value = null;
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-07T19:00:00Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("AutomationEditorDialog", () => {
-  beforeEach(() => {
-    aggregateDestination.value = null;
-  });
+  it("UT-090 shows Name, Starts, Does and Options, and an event start inserts Only if before Does", () => {
+    render(<EditorHarness />);
 
-  it("Should render the job editor with the Automation · Job eyebrow, Create job title, and job form", () => {
-    const onCancel = vi.fn();
-    const onSubmit = vi.fn();
-
-    render(<JobEditorHarness onCancel={onCancel} onSubmit={onSubmit} />);
-
-    const dialog = screen.getByTestId("automation-editor-dialog");
-    expect(dialog).toBeInTheDocument();
-    expect(dialog).toHaveAttribute("data-frame", "unframed");
-
-    const header = dialog.querySelector('[data-slot="dialog-header"]');
-    expect(header).not.toBeNull();
-    expect(header).toHaveAttribute("data-variant", "ruled");
-    // The header is the shared entity primitive, not a local definition:
-    // its accent icon well only exists in `EntityDialogHeader`.
-    expect(header?.querySelector('[data-slot="entity-dialog-header"]')).not.toBeNull();
-    expect(header?.querySelector('[data-slot="entity-dialog-header-icon"]')).not.toBeNull();
-
-    expect(within(header as HTMLElement).getByText("Automation · Job")).toBeInTheDocument();
-    expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
-    // Scope is menubar-owned; the editor states the landing read-only.
-    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
-      "Creates in test-workspace"
+    const header = screen
+      .getByTestId("automation-editor-dialog")
+      .querySelector('[data-slot="dialog-header"]') as HTMLElement;
+    expect(within(header).getByText("Automation")).toBeInTheDocument();
+    expect(within(header).getByText("New automation")).toBeInTheDocument();
+    expect(header).toHaveTextContent(
+      "Choose when it starts and what it does. You can turn it off any time."
     );
-    expect(
-      screen
-        .getByTestId("workspace-scope-statement")
-        .closest('[data-slot="entity-dialog-footer-hint"]')
-    ).not.toBeNull();
-    expect(screen.queryByTestId("automation-trigger-form")).not.toBeInTheDocument();
+    expect(sectionTitles()).toEqual(["01Name", "02Starts", "03Does"]);
+    expect(screen.getByTestId("automation-form-options")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("automation-start-event"));
+
+    expect(sectionTitles()).toEqual(["01Name", "02Starts", "03Only if", "04Does"]);
   });
 
-  it("Should keep submit disabled until every required field is valid and emit the job draft on submit", () => {
+  it("UT-091 rewrites the sentence on each change and gates Create on Ready", () => {
     const onSubmit = vi.fn();
+    render(<EditorHarness onSubmit={onSubmit} />);
 
-    render(<JobEditorHarness onCancel={vi.fn()} onSubmit={onSubmit} />);
+    expect(sentence()).toHaveAttribute("aria-live", "polite");
+    expect(sentence()).toHaveTextContent("Every day at 09:00 UTC, ask an agent.");
+    expect(status()).toHaveTextContent("Needs a fix");
+    expect(submit()).toBeDisabled();
+    expect(submit()).toHaveTextContent("Create automation");
 
-    expect(screen.getByTestId("submit-job-form")).toBeDisabled();
-
-    fireEvent.change(screen.getByTestId("job-name-input"), {
-      target: { value: "nightly-docs" },
+    fireEvent.change(screen.getByTestId("automation-name-input"), {
+      target: { value: "morning-digest" },
     });
-    expect(screen.getByTestId("submit-job-form")).toBeDisabled();
-
-    fireEvent.click(screen.getByTestId("job-agent-input"));
-    fireEvent.click(screen.getByTestId(`agent-command-item-${agentFixtures[0].name}`));
-    fireEvent.change(screen.getByTestId("job-prompt-input"), {
-      target: { value: "Summarize the latest commits." },
+    pickAgent();
+    fireEvent.change(screen.getByTestId("automation-prompt-input"), {
+      target: { value: "Summarize yesterday." },
     });
 
-    expect(screen.getByTestId("submit-job-form")).toBeEnabled();
+    expect(sentence()).toHaveTextContent(
+      `Every day at 09:00 UTC, ask ${AGENT} to summarize yesterday.`
+    );
+    expect(status()).toHaveTextContent("Ready");
+    expect(submit()).toBeEnabled();
 
-    fireEvent.click(screen.getByTestId("submit-job-form"));
-
+    fireEvent.click(submit());
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agent_name: agentFixtures[0].name,
-        name: "nightly-docs",
-        prompt: "Summarize the latest commits.",
-      })
+      expect.objectContaining({ name: "morning-digest", agent_name: AGENT, start: "schedule" })
     );
   });
 
-  it("Should render the trigger editor with the Automation · Trigger eyebrow, Create trigger title, and trigger form", () => {
-    render(<TriggerEditorHarness onCancel={vi.fn()} onSubmit={vi.fn()} />);
+  it("UT-092 states where the automation lands: the project, or Global for links", () => {
+    render(<EditorHarness />);
 
-    const header = screen
-      .getByTestId("automation-editor-dialog")
-      .querySelector('[data-slot="dialog-header"]');
-    expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).getByText("Automation · Trigger")).toBeInTheDocument();
-    expect(within(header as HTMLElement).getByText("Create trigger")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-trigger-form")).toBeInTheDocument();
-    expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument();
-  });
-
-  it("Should preserve the agent catalog loading state through the job target selector", () => {
-    render(
-      <AutomationEditorDialog
-        activeWorkspaceId="ws_test"
-        agents={[]}
-        agentsLoading
-        editor={{
-          draft: createAutomationJobDraft("ws_test"),
-          isPending: false,
-          kind: "jobs",
-          mode: "create",
-          onCancel: vi.fn(),
-          onChange: vi.fn(),
-          onSubmit: vi.fn(),
-        }}
-        workspaces={WORKSPACES}
-      />
+    expect(screen.getByTestId("automation-destination")).toHaveTextContent(
+      "Creates in checkout-api."
     );
 
-    const selector = screen.getByTestId("job-agent-input");
-    expect(selector).toBeDisabled();
-    expect(selector).toHaveTextContent("Loading agents…");
-    expect(selector).toHaveAttribute("aria-busy", "true");
-  });
+    fireEvent.click(screen.getByTestId("automation-start-webhook"));
 
-  it("Should preserve an agent catalog error through the trigger target selector", async () => {
-    const user = userEvent.setup();
-    render(
-      <AutomationEditorDialog
-        activeWorkspaceId="ws_test"
-        agents={[]}
-        agentsError="Agent catalog is unavailable."
-        editor={{
-          draft: createAutomationTriggerDraft("ws_test"),
-          isPending: false,
-          kind: "triggers",
-          mode: "create",
-          onCancel: vi.fn(),
-          onChange: vi.fn(),
-          onSubmit: vi.fn(),
-        }}
-        workspaces={WORKSPACES}
-      />
-    );
-
-    const selector = screen.getByTestId("trigger-agent-input");
-    expect(selector).toHaveTextContent("Unable to load agents");
-    expect(selector).toHaveAttribute("aria-invalid", "true");
-
-    await user.click(selector);
-    expect(screen.getByTestId("agent-command-empty")).toHaveTextContent(
-      "Agent catalog is unavailable."
+    expect(screen.getByTestId("automation-destination")).toHaveTextContent(
+      "Creates a Global automation."
     );
   });
 
-  it("Should render the Edit trigger title for the triggers edit mode", () => {
+  it("Should show the aggregate destination for a new automation", () => {
     aggregateDestination.value = "default";
-    render(<TriggerEditorHarness mode="edit" onCancel={vi.fn()} onSubmit={vi.fn()} />);
-
-    const header = screen
-      .getByTestId("automation-editor-dialog")
-      .querySelector('[data-slot="dialog-header"]');
-    expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).getByText("Automation · Trigger")).toBeInTheDocument();
-    expect(within(header as HTMLElement).getByText("Edit trigger")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-trigger-form")).toBeInTheDocument();
-    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
-  });
-
-  it.each([
-    {
-      name: "job",
-      renderEditor: () => <JobEditorHarness onCancel={vi.fn()} onSubmit={vi.fn()} />,
-    },
-    {
-      name: "trigger",
-      renderEditor: () => <TriggerEditorHarness onCancel={vi.fn()} onSubmit={vi.fn()} />,
-    },
-  ])("Should show the aggregate destination for a new $name", ({ renderEditor }) => {
-    aggregateDestination.value = "default";
-
-    render(renderEditor());
+    render(<EditorHarness />);
 
     expect(screen.getByTestId("profile-destination-chip")).toHaveTextContent("default");
   });
 
-  it("Should open and stay open when editor state is driven by a detached trigger button", async () => {
-    const user = userEvent.setup();
+  it("UT-093 puts a name conflict on the Name field and any other save error in the dialog", () => {
+    const message = "An automation named morning-digest already exists.";
+    const { unmount } = render(
+      <EditorHarness draft={readyDraft()} submitError={message} submitErrorField="name" />
+    );
 
-    render(<DetachedTriggerHarness />);
+    const nameField = screen.getByTestId("automation-name-input").closest('[data-slot="field"]');
+    expect(nameField).toHaveTextContent(message);
+    expect(screen.queryByTestId("automation-form-error")).not.toBeInTheDocument();
+    unmount();
 
-    await user.click(screen.getByTestId("open-detached-editor"));
-
-    const dialog = screen.getByTestId("automation-editor-dialog");
-    expect(dialog).toBeInTheDocument();
-    expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
-
-    const header = dialog.querySelector('[data-slot="dialog-header"]');
-    expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).getByText("Automation · Job")).toBeInTheDocument();
-    expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();
+    render(
+      <EditorHarness draft={readyDraft()} mode="edit" submitError="automation: job was changed" />
+    );
+    expect(screen.getByTestId("automation-form-error")).toHaveTextContent(
+      "automation: job was changed"
+    );
+    expect(screen.getByTestId("automation-name-input")).toHaveValue("morning-digest");
   });
 
-  it("Should keep the trigger editor open when selecting an extension event", async () => {
-    const user = userEvent.setup();
-    const onCancel = vi.fn();
+  it("UT-094 builds a schedule from quick picks and days, and an empty day set needs a fix", () => {
+    render(<EditorHarness draft={readyDraft()} />);
 
-    render(<TriggerEditorHarness onCancel={onCancel} onSubmit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Weekdays 9am" }));
+    expect(readout()).toHaveTextContent("Every weekday at 09:00 UTC · next in 14h · 0 9 * * 1-5");
+    expect(screen.getByRole("button", { name: "Weekdays 9am" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
 
-    await user.click(screen.getByTestId("trigger-event-ext"));
+    fireEvent.click(screen.getByRole("button", { name: "Mondays 8am" }));
+    fireEvent.click(screen.getByRole("button", { name: "Monday" }));
+
+    expect(sentence()).toHaveTextContent("on some days");
+    expect(readout()).toHaveTextContent("Pick at least one day.");
+    expect(status()).toHaveTextContent("Needs a fix");
+
+    fireEvent.click(screen.getByRole("button", { name: "Friday" }));
+    expect(readout()).toHaveTextContent("Every Friday at 08:00 UTC · next in 1d 13h · 0 8 * * 5");
+    expect(status()).toHaveTextContent("Ready");
+  });
+
+  it("UT-095 reads out Every… and Once in plain words", () => {
+    render(<EditorHarness draft={readyDraft()} />);
+
+    fireEvent.click(screen.getByTestId("automation-schedule-mode-every"));
+    fireEvent.click(screen.getByRole("button", { name: "30m" }));
+    expect(readout()).toHaveTextContent("Runs every 30 minutes, starting right after you save.");
+
+    fireEvent.click(screen.getByTestId("automation-schedule-mode-at"));
+    fireEvent.change(screen.getByLabelText("Date and time"), {
+      target: { value: "2026-10-08T09:00" },
+    });
+    expect(readout()).toHaveTextContent("Runs once, in 14h (Thu Oct 8, 09:00 UTC), then stops.");
+  });
+
+  it("UT-096 flags a past time and a malformed expression, and offers no time-zone control", () => {
+    render(<EditorHarness draft={readyDraft()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit expression" }));
+    fireEvent.change(screen.getByLabelText("Cron expression"), { target: { value: "0 9 * *" } });
+    expect(screen.getByLabelText("Cron expression")).toHaveAttribute("aria-invalid", "true");
+    expect(readout()).toHaveTextContent("Needs 5 parts: min · hour · day · month · weekday.");
+    expect(status()).toHaveTextContent("Needs a fix");
+
+    fireEvent.click(screen.getByTestId("automation-schedule-mode-at"));
+    fireEvent.change(screen.getByLabelText("Date and time"), {
+      target: { value: "2026-10-01T09:00" },
+    });
+    expect(readout()).toHaveTextContent("That time is in the past. It would never run.");
+    expect(screen.queryByLabelText(/time zone/i)).not.toBeInTheDocument();
+  });
+
+  it("UT-097 offers exactly four events, and a hook start needs its name", () => {
+    render(<EditorHarness draft={readyDraft()} />);
+    fireEvent.click(screen.getByTestId("automation-start-event"));
+
+    const events = within(screen.getByRole("radiogroup", { name: "What happens" }))
+      .getAllByRole("radio")
+      .map(card => card.textContent);
+    expect(events).toEqual([
+      expect.stringContaining("A session starts"),
+      expect.stringContaining("A session stops"),
+      expect.stringContaining("A hook finishes"),
+      expect.stringContaining("An extension sends an event"),
+    ]);
+    expect(screen.queryByText(/memory/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("automation-event-hook.completed"));
+
+    expect(screen.getByLabelText("Hook name")).toBeInTheDocument();
+    expect(screen.getByText(/fires\./)).toHaveTextContent("Runs when hook.<name>.completed fires.");
+    expect(sentence()).toHaveTextContent("When a hook completes");
+    expect(status()).toHaveTextContent("Needs a fix");
+
+    fireEvent.change(screen.getByLabelText("Hook name"), { target: { value: "transform" } });
+    expect(sentence()).toHaveTextContent("When the transform hook completes in checkout-api");
+    expect(status()).toHaveTextContent("Ready");
+  });
+
+  it("UT-098 shows the link fields with a write-only secret the request redacts", () => {
+    render(<EditorHarness draft={readyDraft()} />);
+    fireEvent.click(screen.getByTestId("automation-start-webhook"));
+
+    expect(screen.getByTestId("automation-webhook-global-note")).toHaveTextContent(
+      "Link automations are always Global. They aren't tied to one project."
+    );
+    fireEvent.change(screen.getByLabelText("Link name"), { target: { value: "deploy" } });
+    fireEvent.change(screen.getByLabelText("Webhook id"), { target: { value: "wbh_abc123" } });
+    const secret = screen.getByLabelText(/Signing secret/);
+    expect(secret).toHaveAttribute("type", "password");
+    expect(screen.getByText(/CompozyOS never shows it again\./)).toBeInTheDocument();
+    fireEvent.change(secret, { target: { value: "whsec_demo" } });
+
+    expect(sentence()).toHaveTextContent("When another app calls the deploy link,");
+    expect(status()).toHaveTextContent("Ready");
+
+    togglePreview();
+    const request = screen.getByTestId("automation-request-payload");
+    expect(request).toHaveTextContent("POST /api/automation/triggers");
+    expect(request).toHaveTextContent('"scope": "global"');
+    expect(request).toHaveTextContent("[redacted]");
+    expect(request).not.toHaveTextContent("whsec_demo");
+  });
+
+  it("UT-099 keeps conditions to events and links, names fields plainly, and flags empty values", () => {
+    render(<EditorHarness draft={readyDraft()} />);
+    expect(screen.queryByTestId("automation-form-only-if")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("automation-start-event"));
+    const onlyIf = screen.getByTestId("automation-form-only-if");
+    expect(onlyIf).toHaveTextContent("Optional. Every condition must match.");
+
+    fireEvent.click(screen.getByTestId("automation-condition-add"));
+    const field = screen.getByTestId("automation-condition-field-0");
+    expect(
+      within(field).getByRole("option", { name: "Stop reason (data.stop_reason)" })
+    ).toBeInTheDocument();
+    fireEvent.change(field, { target: { value: "data.stop_reason" } });
+
+    expect(onlyIf).toHaveTextContent("Add a value or remove this condition.");
+    expect(status()).toHaveTextContent("Needs a fix");
+
+    fireEvent.change(screen.getByTestId("automation-condition-value-0"), {
+      target: { value: "timeout" },
+    });
+    expect(sentence()).toHaveTextContent("with stop reason timeout");
+    expect(status()).toHaveTextContent("Ready");
+
+    fireEvent.click(screen.getByTestId("automation-event-session.created"));
+    expect(screen.queryByTestId("automation-condition-field-0")).not.toBeInTheDocument();
+  });
+
+  it("UT-100 shows the agent message hint per start and the Loop inputs with event mapping", () => {
+    render(<EditorHarness draft={readyDraft()} />);
+    expect(screen.getByText("Sent as written.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("automation-start-event"));
+    const details = screen.getByRole("group", { name: "Event details" });
+    expect(
+      within(details)
+        .getAllByRole("button")
+        .map(chip => chip.textContent)
+    ).toEqual(["session_id", "agent_name", "stop_reason", "workspace"]);
+    const prompt = screen.getByTestId("automation-prompt-input") as HTMLTextAreaElement;
+    prompt.setSelectionRange(prompt.value.length, prompt.value.length);
+    fireEvent.click(within(details).getByRole("button", { name: "Insert stop_reason" }));
+    expect(screen.getByTestId("automation-prompt-input")).toHaveValue(
+      "Summarize yesterday's sessions.{{ .Data.stop_reason }}"
+    );
+
+    fireEvent.click(screen.getByTestId("automation-does-loop"));
+    fireEvent.click(screen.getByTestId("loop-target-select"));
+    fireEvent.click(screen.getByText("review-and-fix", { selector: "[cmdk-item] *" }));
+    expect(screen.getByTestId("loop-target-fields")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-input-mapping")).toBeInTheDocument();
+    expect(sentence()).toHaveTextContent("start the Loop review-and-fix.");
+  });
+
+  it("UT-101 keeps Create a task to schedules and moves a task selection to Ask an agent", () => {
+    render(<EditorHarness draft={readyDraft()} />);
+
+    fireEvent.click(screen.getByTestId("automation-does-task"));
+    expect(screen.getByTestId("automation-task-title")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("automation-start-event"));
+
+    const task = screen.getByTestId("automation-does-task");
+    expect(task).toBeDisabled();
+    expect(task).toHaveTextContent("Only scheduled automations can create tasks");
+    expect(screen.getByTestId("automation-does-agent")).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByTestId("automation-task-title")).not.toBeInTheDocument();
+  });
+
+  it("UT-102 needs a fix when the Loop can't start this way or no agent exists", () => {
+    const { unmount } = render(
+      <EditorHarness
+        draft={{
+          ...createAutomationFormDraft("ws_test", { start: "event", loop: "implement-tasks" }),
+          name: "release-on-stop",
+        }}
+        lockedLoop="implement-tasks"
+      />
+    );
+
+    expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
+      "implement-tasks can't be started by an event. Choose a Loop that allows event starts, or start it on a schedule."
+    );
+    expect(status()).toHaveTextContent("Needs a fix");
+    expect(screen.getByTestId("automation-does-agent")).toBeDisabled();
+    unmount();
+
+    render(<EditorHarness agents={[]} draft={readyDraft({ agent_name: "" })} />);
+    expect(screen.getByTestId("automation-agent-input")).toBeInTheDocument();
+    expect(status()).toHaveTextContent("Needs a fix");
+    expect(submit()).toBeDisabled();
+  });
+
+  it("UT-103 folds Options behind a summary and opens it when editing, retrying or off", () => {
+    const { unmount } = render(<EditorHarness draft={readyDraft()} />);
+
+    expect(screen.getByTestId("automation-options-summary")).toHaveTextContent(
+      "No retries · up to 12/hour · skip missed · on"
+    );
+    expect(screen.queryByTestId("automation-enabled-toggle")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("automation-options-toggle"));
+    expect(screen.getByTestId("automation-missed-runs")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("automation-retry-backoff"));
+    expect(screen.getByTestId("automation-options-summary")).toHaveTextContent(
+      "Up to 3 retries · up to 12/hour · skip missed · on"
+    );
+
+    fireEvent.click(screen.getByTestId("automation-does-task"));
+    expect(screen.getByTestId("automation-retry-backoff")).toBeDisabled();
+    expect(screen.getByTestId("automation-form-options")).toHaveTextContent(
+      "The task handles its own retries."
+    );
+
+    fireEvent.click(screen.getByTestId("automation-start-event"));
+    expect(screen.queryByTestId("automation-missed-runs")).not.toBeInTheDocument();
+    unmount();
+
+    const { unmount: unmountOff } = render(
+      <EditorHarness draft={readyDraft({ enabled: false })} />
+    );
+    expect(screen.getByTestId("automation-enabled-toggle")).toBeInTheDocument();
+    unmountOff();
+
+    render(<EditorHarness draft={readyDraft()} mode="edit" />);
+    expect(screen.getByTestId("automation-enabled-toggle")).toBeInTheDocument();
+  });
+
+  it("Should open at Options when the editor is asked for that section", () => {
+    render(<EditorHarness draft={readyDraft()} section="options" />);
+
+    expect(screen.getByTestId("automation-retry-backoff")).toBeInTheDocument();
+  });
+
+  it("UT-104 swaps the body for the preview, keeping values, per start kind", () => {
+    render(
+      <EditorHarness
+        draft={readyDraft({
+          filter: { "data.stop_reason": "completed" },
+          event: "session.stopped",
+        })}
+      />
+    );
+
+    togglePreview();
+    expect(screen.queryByTestId("automation-name-input")).not.toBeInTheDocument();
+    expect(screen.getByTestId("automation-preview-toggle")).toHaveTextContent("Back to form");
+    const preview = screen.getByTestId("automation-preview");
+    expect(preview).toHaveTextContent("Thu Oct 8, 09:00");
+    expect(preview).toHaveTextContent("Sun Oct 11, 09:00");
+    expect(preview).not.toHaveTextContent("Mon Oct 12, 09:00");
+    expect(preview).toHaveTextContent("POST /api/automation/jobs");
+
+    togglePreview();
+    expect(screen.getByTestId("automation-name-input")).toHaveValue("morning-digest");
+
+    fireEvent.click(screen.getByTestId("automation-start-event"));
+    togglePreview();
+    expect(screen.getByTestId("automation-preview")).toHaveTextContent(
+      "won't start on this sample"
+    );
+    expect(screen.getByTestId("automation-preview")).toHaveTextContent(
+      "Stop reason must be completed."
+    );
+    expect(screen.getByTestId("automation-preview")).toHaveTextContent(
+      "POST /api/automation/triggers"
+    );
+  });
+
+  it("UT-105 locks the start and target kind in edit mode and says why", () => {
+    render(<EditorHarness draft={readyDraft()} mode="edit" />);
+
+    const header = screen
+      .getByTestId("automation-editor-dialog")
+      .querySelector('[data-slot="dialog-header"]') as HTMLElement;
+    expect(within(header).getByText("Edit automation")).toBeInTheDocument();
+    expect(header).toHaveTextContent("Changes apply from the next run.");
+    expect(submit()).toHaveTextContent("Save changes");
+    expect(screen.getByTestId("automation-destination")).toHaveTextContent(
+      "Saves to checkout-api."
+    );
+
+    const starts = screen.getByTestId("automation-form-starts");
+    expect(starts).toHaveTextContent("Can't change after creating. Make a new automation instead.");
+    expect(screen.getByTestId("automation-start-schedule")).toHaveTextContent(
+      "Every day at 09:00 UTC"
+    );
+    expect(screen.getByTestId("automation-start-event")).toBeDisabled();
+    expect(screen.getByTestId("automation-start-event")).toHaveTextContent("Locked");
+    expect(screen.getByTestId("automation-start-webhook")).toBeDisabled();
+
+    expect(screen.getByTestId("automation-form-does")).toHaveTextContent(
+      "The agent and the kind of target stay. The message can change."
+    );
+    expect(screen.getByTestId("automation-does-agent")).toHaveTextContent(AGENT);
+    expect(screen.getByTestId("automation-does-loop")).toBeDisabled();
+    expect(screen.getByTestId("automation-does-task")).toBeDisabled();
+    expect(screen.getByTestId("automation-agent-input")).toBeDisabled();
+    expect(screen.getByTestId("automation-prompt-input")).toBeEnabled();
+  });
+
+  it("Should preserve the agent catalog loading state through the agent selector", () => {
+    render(<EditorHarness agents={[]} agentsLoading />);
+
+    const selector = screen.getByTestId("automation-agent-input");
+    expect(selector).toBeDisabled();
+    expect(selector).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("Should keep the dialog open through a nested picker interaction", async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined });
+    render(<EditorHarness />);
+
+    await user.click(screen.getByTestId("automation-start-event"));
+    await user.click(screen.getByTestId("automation-event-ext"));
 
     expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
-    expect(screen.getByTestId("trigger-ext-ext-input")).toBeInTheDocument();
-    expect(screen.getByTestId("trigger-ext-event-input")).toBeInTheDocument();
-    expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
-    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Extension")).toBeInTheDocument();
+    expect(sentence()).toHaveTextContent("When an extension event fires");
   });
 
   it("Should not render the dialog content when editor is null", () => {
     render(<AutomationEditorDialog editor={null} />);
 
     expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument();
   });
 });

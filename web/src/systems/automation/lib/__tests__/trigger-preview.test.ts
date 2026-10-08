@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createAutomationTriggerDraft } from "../automation-drafts";
-import {
-  availableDataFields,
-  filterKeyOptions,
-  getEventDef,
-  listEventGroups,
-} from "../trigger-catalog";
+import { availableDataFields, filterKeyOptions, getEventDef } from "../trigger-catalog";
 import {
   composeEventId,
   formatEventKind,
@@ -19,7 +14,7 @@ import {
   webhookUrl,
   type JsonRow,
 } from "../trigger-preview";
-import { buildVariableChips, renderTemplate, tokenizeTemplate } from "../trigger-template";
+import { renderTemplate, tokenizeTemplate } from "../trigger-template";
 import type { CreateAutomationTriggerRequest } from "../../types";
 
 function draftFor(
@@ -29,22 +24,6 @@ function draftFor(
 }
 
 describe("trigger-catalog", () => {
-  it("orders groups canonically and only includes matching events when searched", () => {
-    const groups = listEventGroups();
-    expect(groups.map(bucket => bucket.group)).toEqual([
-      "Session lifecycle",
-      "Memory",
-      "Hooks",
-      "External",
-      "Extensions",
-    ]);
-
-    const filtered = listEventGroups("webhook");
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0].group).toBe("External");
-    expect(filtered[0].events[0].id).toBe("webhook");
-  });
-
   it("exposes open-payload data fields and envelope filter keys", () => {
     const stopped = getEventDef("session.stopped");
     expect(stopped).toBeDefined();
@@ -106,17 +85,6 @@ describe("trigger-event-id", () => {
 });
 
 describe("trigger-template", () => {
-  it("builds chips from the real envelope roots plus data fields", () => {
-    const chips = buildVariableChips(["data.session_id"]);
-    expect(chips).toEqual([
-      "{{ .Kind }}",
-      "{{ .Scope }}",
-      "{{ .WorkspaceID }}",
-      "{{ .Source }}",
-      "{{ .Data.session_id }}",
-    ]);
-  });
-
   it("renders resolved variables and flags missing ones", () => {
     const env = {
       kind: "session.stopped",
@@ -156,7 +124,7 @@ describe("trigger-template", () => {
 });
 
 describe("buildTriggerPreview", () => {
-  it("summarizes the trigger and highlights filtered keys in the sample JSON", () => {
+  it("highlights filtered keys in the sample JSON and renders the prompt", () => {
     const draft = draftFor({
       event: "session.stopped",
       scope: "workspace",
@@ -166,16 +134,10 @@ describe("buildTriggerPreview", () => {
       prompt: "Session {{ .Data.session_id }} stopped: {{ .Data.stop_reason }}.",
     });
 
-    const preview = buildTriggerPreview(draft, {
-      workspaces: [{ id: "ws_checkout_api", name: "checkout-api" }],
-    });
-
-    const summaryText = preview.summary.map(segment => segment.text).join("");
-    expect(summaryText).toBe(
-      "When session.stopped happens in checkout-api, if stop_reason = error, run summarizer."
-    );
+    const preview = buildTriggerPreview(draft);
 
     expect(preview.matchState).toBe("match");
+    expect(preview.failingCondition).toBeNull();
     expect(preview.matchLabel).toBe("matches this sample");
 
     const highlighted = preview.json.filter(
@@ -195,13 +157,14 @@ describe("buildTriggerPreview", () => {
     });
     const preview = buildTriggerPreview(draft);
     expect(preview.matchState).toBe("nomatch");
-    expect(preview.matchLabel).toBe("won't fire on this sample");
+    expect(preview.matchLabel).toBe("won't start on this sample");
+    expect(preview.failingCondition).toEqual({ key: "data.stop_reason", value: "completed" });
   });
 
-  it("fires on every event with no conditions", () => {
+  it("starts on every event with no conditions", () => {
     const preview = buildTriggerPreview(draftFor({ event: "session.created", filter: {} }));
     expect(preview.matchState).toBe("all");
-    expect(preview.matchLabel).toBe("fires on every event");
+    expect(preview.matchLabel).toBe("starts on every event");
   });
 
   it("builds the real webhook endpoint and curl for webhook triggers", () => {
@@ -221,26 +184,6 @@ describe("buildTriggerPreview", () => {
         .join("") ?? "";
     expect(curlText).toContain("X-Compozy-Webhook-Signature: sha256=…");
     expect(curlText).toContain("X-Compozy-Webhook-Timestamp: …");
-    // summary uses "globally" for webhooks, never a workspace.
-    expect(preview.summary.map(segment => segment.text).join("")).toContain("globally");
-  });
-
-  it("derives the reliability badge from retry, fire limit, and enabled state", () => {
-    expect(
-      buildTriggerPreview(
-        draftFor({
-          retry: { strategy: "backoff", max_retries: 2, base_delay: "5s" },
-          fire_limit: { max: 4, window: "1h" },
-          enabled: true,
-        })
-      ).reliabilityBadge
-    ).toBe("Backoff ×2 · 4/1h · enabled");
-
-    expect(
-      buildTriggerPreview(
-        draftFor({ retry: { strategy: "none", max_retries: 0, base_delay: "" }, enabled: false })
-      ).reliabilityBadge
-    ).toContain("No retry");
   });
 });
 

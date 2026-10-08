@@ -1,6 +1,7 @@
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import type { AutomationScope, AutomationSource } from "../types";
-import type { AutomationDoes } from "./automation-sentence";
+import type { AutomationEditorSection } from "./automation-form-draft";
+import type { AutomationDoes, AutomationStart } from "./automation-sentence";
 
 /** Start view on the listing; `webhook` is only an editor preselection (`create=1`). */
 export type AutomationsStartParam = "schedule" | "event" | "webhook";
@@ -14,7 +15,32 @@ export interface AutomationsRouteSearch {
   target?: AutomationDoes;
   loop?: string;
   view?: "cards";
+  /**
+   * One-shot editor deep links, stripped once consumed:
+   * `?create=1[&start=schedule|event|webhook]` opens New automation with Starts chosen;
+   * `?create=loop&loop=<name>[&start=…]` also fixes Does to that Loop;
+   * `?edit=1|options` on a detail route opens Edit (at Options for "Set up retries").
+   */
   create?: "1" | "loop";
+  edit?: "1" | AutomationEditorSection;
+}
+
+/** What a `create` deep link asks the editor to open with. */
+export interface AutomationEditorSeed {
+  /** Identity of the request, so a re-render never opens it twice. */
+  key: string;
+  start: AutomationStart;
+  loop?: string;
+}
+
+/** The editor request a `create` deep link carries, or `null`. */
+export function automationEditorSeed(search: AutomationsRouteSearch): AutomationEditorSeed | null {
+  const start: AutomationStart = search.start ?? "schedule";
+  if (search.create === "1") return { key: `create:${start}`, start };
+  if (search.create === "loop" && search.loop) {
+    return { key: `loop:${search.loop}:${start}`, start, loop: search.loop };
+  }
+  return null;
 }
 
 /** Listing Start view; an editor-only `webhook` preselection is not a view. */
@@ -66,6 +92,12 @@ function parseCreate(value: unknown): AutomationsRouteSearch["create"] {
   return undefined;
 }
 
+function parseEdit(value: unknown): AutomationsRouteSearch["edit"] {
+  if (value === "options") return "options";
+  if (value === "1" || value === 1 || value === true) return "1";
+  return undefined;
+}
+
 function parseStart(
   value: unknown,
   create: AutomationsRouteSearch["create"]
@@ -87,6 +119,7 @@ export function validateAutomationsSearch(raw: Record<string, unknown>): Automat
     loop: normalizeListingSearchValue(raw.loop),
     view: raw.view === "cards" ? "cards" : undefined,
     create,
+    edit: parseEdit(raw.edit),
   };
   for (const key of Object.keys(search) as (keyof AutomationsRouteSearch)[]) {
     if (search[key] === undefined) delete search[key];

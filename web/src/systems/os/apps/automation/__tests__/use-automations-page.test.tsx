@@ -240,8 +240,8 @@ describe("useAutomationsPage", () => {
     const { result } = renderHook(() => useAutomationsPage({ create: "1", start: "event" }), {
       wrapper: wrapper(),
     });
-    await waitFor(() => expect(result.current.editorDialogProps[1].editor).not.toBeNull());
-    expect(result.current.editorDialogProps[0].editor).toBeNull();
+    await waitFor(() => expect(result.current.editorDialogProps.editor).not.toBeNull());
+    expect(result.current.editorDialogProps.editor?.draft.start).toBe("event");
     const strip = mocks.navigate.mock.calls.find(([call]) => call.replace === true)?.[0];
     expect(strip.search({ create: "1", start: "event", q: "x" })).toEqual({
       create: undefined,
