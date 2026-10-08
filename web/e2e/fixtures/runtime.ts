@@ -70,7 +70,6 @@ export interface BrowserRuntimeOptions {
   extensionsAllowUnverified?: boolean;
   host?: string;
   modelsDevEnabled?: boolean;
-  memoryEnabled?: boolean;
   /** Pins `window_manager.new_window_policy` for specs whose invariants need one placement. */
   newWindowPolicy?: "floating" | "beside_focus" | "tab";
   readyTimeoutMs?: number;
@@ -201,7 +200,6 @@ async function createBrowserRuntimeAttempt(
         host: boundHost,
         includeMockAgentProvider: (options.seed?.mockAgents?.length ?? 0) > 0,
         modelsDevEnabled: options.modelsDevEnabled,
-        memoryEnabled: options.memoryEnabled,
         marketplaceCatalogBaseURL: marketplaceCatalog?.baseURL,
         newWindowPolicy: options.newWindowPolicy,
         port: httpPort,
@@ -598,7 +596,6 @@ async function createRuntimePaths(): Promise<RuntimePaths> {
 
   await mkdir(path.join(homeDir, "agents"), { recursive: true });
   await mkdir(path.join(homeDir, "skills"), { recursive: true });
-  await mkdir(path.join(homeDir, "memory"), { recursive: true });
   await mkdir(path.join(homeDir, "sessions"), { recursive: true });
   await mkdir(path.join(homeDir, "logs"), { recursive: true });
   await mkdir(path.join(homeDir, "bin"), { recursive: true });
