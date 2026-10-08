@@ -4,7 +4,7 @@ description: Create an automation that starts an agent whenever a session stops 
 ---
 
 At the end of this page you will have an automation that reads "When a session stops in checkout-api
-with stop reason error, ask summarizer." Each time a session in the project fails, `summarizer` reads
+with an error, ask summarizer." Each time a session in the project fails, `summarizer` reads
 what happened and writes it down, so the failure is explained by the time you look.
 
 This is the event version of [Run an agent every morning](/docs/automation/run-an-agent-every-morning):
@@ -41,7 +41,7 @@ Without a condition, every session that stops — including every clean one — 
 Every condition must match. The sentence bar now reads:
 
 ```text
-When a session stops in checkout-api with stop reason error, ask an agent.   Needs a fix
+When a session stops in checkout-api with an error, ask an agent.   Needs a fix
 ```
 
 "ask an agent" is still a placeholder because nothing is chosen under **Does** yet.
@@ -59,7 +59,7 @@ Summarize session {{ .Data.session_id }}. It stopped with {{ .Data.stop_reason }
 Each run fills the chips in from the event that started it. The sentence bar reads:
 
 ```text
-When a session stops in checkout-api with stop reason error, ask summarizer.   Ready
+When a session stops in checkout-api with an error, ask summarizer.   Ready
 ```
 
 **Create a task** is disabled here with the reason "Only scheduled automations can create tasks".
@@ -137,12 +137,14 @@ the same data from `compozy__automation_triggers_list`.
 ## Start a Loop instead
 
 To run a whole [Loop](/docs/loops) when a session fails, open the Loop's page and choose **Automate ▾
-→ When something happens**. The same dialog opens with **Does → Start this Loop** already set to that
-Loop. Static inputs are filled the same every time; **Fill from the event** maps an event detail,
-such as the session id, into a Loop input.
+→ When something happens**. The same dialog opens with **Does → Start a Loop** locked to that Loop.
+Static inputs are filled the same every time; the mapping rows under "Fill Loop inputs from the event
+details." take an event detail, such as the session id, into a Loop input.
 
-If the Loop can't be started by an event, the dialog says so and reads **Needs a fix** — choose a Loop
-that allows event starts, or start it on a schedule.
+The menu only offers the starts the Loop allows. If you pick a Loop under **Start a Loop** in the
+dialog that can't be started by an event, the dialog warns, for example "release-train can't be
+started by an event. Choose a Loop that allows event starts, or start it on a schedule.", and reads
+**Needs a fix**.
 
 To react to a request from another app instead, such as a CI run or a deploy, choose **When another
 app calls a link**; see [Link automations (webhooks)](/docs/automation/webhooks).

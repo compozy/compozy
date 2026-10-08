@@ -5,7 +5,7 @@ type: feature
 
 The Web UI's separate Jobs and Triggers windows are now one **Automations** window. Every automation reads as one sentence — how it starts, optional conditions, what it does — with its last-run result and an On/Off switch on the row, so a failed run is visible without opening anything. One detail page and one "New automation" dialog serve schedules, events, and links; the start you pick decides whether CompozyOS stores a job or a trigger.
 
-- `last_run` (`id`, `status`, `started_at`, `ended_at`, `skip_reason`) is on every job and trigger from `compozy automation jobs|triggers`, `GET /api/automation/{jobs,triggers}` (HTTP and UDS), and `compozy__automation_{jobs,triggers}_{list,get}`. The CLI tables gain a **Last run** column; `-o toon` adds `last_run_status` and `last_run_started_at`.
+- `last_run` (`id`, `status`, `started_at`, `ended_at`, `skip_reason`) is on every job and trigger from `compozy automation jobs|triggers`, `GET /api/automation/{jobs,triggers}` (HTTP and UDS), and `compozy__automation_{jobs,triggers}_{list,get}`. The CLI tables gain a **Last Run** column; `-o toon` adds `last_run_status` and `last_run_started_at`.
 - The list commands, routes, and tools accept `target=agent|loop|task` (`--target` on the CLI).
 - The dock has one Automations launcher; the command palette gains "New scheduled automation" and "New automation on an event"; Loop pages replace "Add trigger" and "Add schedule" with **Automate ▾**; Settings → Automation uses plainer labels and writes the same `config.toml` keys.
 - CLI verbs, HTTP/UDS routes, tool ids, and `[[automation.jobs]]` / `[[automation.triggers]]` are unchanged.
