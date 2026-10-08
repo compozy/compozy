@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 
 import { Button, FieldError, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
-import { conditionFieldLabel } from "../../../lib/automation-form-events";
+import { conditionFieldLabel, conditionFieldName } from "../../../lib/automation-form-events";
 import type { ConditionProblem } from "../../../lib/automation-form-readiness";
 
 const PROBLEM_TEXT: Record<ConditionProblem, string> = {
@@ -40,12 +40,15 @@ export function ConditionRow({
 }: ConditionRowProps) {
   const errorId = `automation-condition-error-${index}`;
   const incomplete = problem !== undefined;
+  const valueLabel = field.trim()
+    ? `Value for ${conditionFieldName(field.trim())}`
+    : "Condition value";
   return (
     <div className="flex flex-col gap-1">
       <div className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_auto] items-center gap-2">
         {openPayload ? (
           <Input
-            aria-label="Field"
+            aria-label="Condition field"
             className={MONO}
             data-testid={`automation-condition-field-${index}`}
             list={datalistId}
@@ -55,7 +58,7 @@ export function ConditionRow({
           />
         ) : (
           <NativeSelect
-            aria-label="Field"
+            aria-label="Condition field"
             className="w-full"
             data-testid={`automation-condition-field-${index}`}
             onChange={event => onFieldChange(event.target.value)}
@@ -74,7 +77,7 @@ export function ConditionRow({
         <Input
           aria-describedby={incomplete ? errorId : undefined}
           aria-invalid={incomplete}
-          aria-label="Value"
+          aria-label={valueLabel}
           className={MONO}
           data-testid={`automation-condition-value-${index}`}
           onChange={event => onValueChange(event.target.value)}
