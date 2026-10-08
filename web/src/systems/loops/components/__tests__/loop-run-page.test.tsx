@@ -2434,11 +2434,15 @@ describe("Nested child runs", () => {
     try {
       const step = screen.getByTestId("loop-run-step-fix_batch");
       await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
-      await waitFor(() =>
-        expect(
-          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-meta")
-        ).toHaveTextContent(/1 of 4 steps · 6m 0\ds/)
-      );
+      // The child started six minutes before the story clock and the page clock
+      // is frozen at 0, so a reading of at least six minutes can only come from
+      // the child's own live clock. How far past six depends on the suite's pace.
+      await waitFor(() => {
+        const meta = within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-meta");
+        const reading = /1 of 4 steps · (\d+)m (\d+)s/.exec(meta.textContent ?? "");
+        expect(reading).not.toBeNull();
+        expect(Number(reading![1]) * 60 + Number(reading![2])).toBeGreaterThanOrEqual(360);
+      });
     } finally {
       rendered.unmount();
       cleanup();
