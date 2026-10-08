@@ -5437,7 +5437,7 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 				seedMemoryRetirementStream(t, prior)
 			}
 			keptQueries := []string{
-				`SELECT * FROM sessions WHERE id IN ('kept-user','kept-title') ORDER BY id`,
+				`SELECT * FROM sessions WHERE id IN ('kept-user','kept-title','kept-reviewer') ORDER BY id`,
 				`SELECT * FROM tasks WHERE id='kept-task'`,
 				`SELECT * FROM loop_runs WHERE id='kept-loop'`,
 				`SELECT * FROM agent_soul_revisions WHERE id='kept-soul'`,
@@ -5463,8 +5463,8 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 				}
 				for _, query := range []string{
 					`SELECT count(*) FROM sqlite_master WHERE name GLOB 'memory_*' OR name = 'goose_db_version_memory'`,
-					`SELECT count(*) FROM sessions WHERE session_type='dream' OR spawn_role='memory-extractor'`,
-					`SELECT count(*) FROM sessions WHERE parent_session_id='kept-user' AND id <> 'kept-title'`,
+					`SELECT count(*) FROM sessions WHERE session_type='dream' OR spawn_role IN ('memory-extractor','checkpoint-summary')`,
+					`SELECT count(*) FROM sessions WHERE parent_session_id='kept-user' AND id NOT IN ('kept-title','kept-reviewer')`,
 					`SELECT count(*) FROM pragma_foreign_key_check`,
 				} {
 					var count int
@@ -5475,13 +5475,15 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 						t.Fatalf("%s = %d, want zero", query, count)
 					}
 				}
-				var eventSession sql.NullString
-				if err := upgraded.db.QueryRowContext(ctx, `SELECT session_id FROM agent_heartbeat_wake_events WHERE id='retired-wake'`).
-					Scan(&eventSession); err != nil {
-					t.Fatal(err)
-				}
-				if eventSession.Valid {
-					t.Fatalf("heartbeat audit retains deleted session %q", eventSession.String)
+				for _, eventID := range []string{"retired-wake", "retired-checkpoint-wake"} {
+					var eventSession sql.NullString
+					if err := upgraded.db.QueryRowContext(ctx, `SELECT session_id FROM agent_heartbeat_wake_events WHERE id=?`, eventID).
+						Scan(&eventSession); err != nil {
+						t.Fatal(err)
+					}
+					if eventSession.Valid {
+						t.Fatalf("heartbeat audit %s retains deleted session %q", eventID, eventSession.String)
+					}
 				}
 				status, err := store.Status(ctx, upgraded.db, MigrationStream())
 				if err != nil {
@@ -5504,6 +5506,9 @@ func seedMemoryRetirementKeptState(t *testing.T, db *sql.DB) {
 		('kept-user','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user',NULL,NULL,7,0,'2026-10-07','2026-10-07'),
 		('retired-dream','00000000000000000000000000','coder','workspace','retirement-ws','stopped','dream',NULL,NULL,3,1,'2026-10-07','2026-10-07'),
 		('retired-extractor','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user','memory-extractor','kept-user',4,1,'2026-10-07','2026-10-07'),
+		('retired-checkpoint','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user','checkpoint-summary','kept-user',4,1,'2026-10-07','2026-10-07'),
+		('retired-checkpoint-dream','00000000000000000000000000','coder','workspace','retirement-ws','stopped','dream','checkpoint-summary','kept-user',4,1,'2026-10-07','2026-10-07'),
+		('kept-reviewer','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user','reviewer','kept-user',0,0,'2026-10-07','2026-10-07'),
 		('kept-title','00000000000000000000000000','coder','workspace','retirement-ws','stopped','user','auto-title','kept-user',0,0,'2026-10-07','2026-10-07')`,
 		`INSERT INTO tasks (id,profile_id,scope,workspace_id,title,status,created_by_kind,created_by_ref,origin_kind,origin_ref,created_at,updated_at) VALUES ('kept-task','00000000000000000000000000','workspace','retirement-ws','Keep task','open','daemon','daemon','daemon','daemon','2026-10-07','2026-10-07')`,
 		`INSERT INTO loop_runs (id,profile_id,workspace_id,loop_name,status,last_progress_at,inputs_json) VALUES ('kept-loop','00000000000000000000000000','retirement-ws','kept','done','2026-10-07','{}')`,
@@ -5514,7 +5519,7 @@ func seedMemoryRetirementKeptState(t *testing.T, db *sql.DB) {
 			t.Fatalf("seed kept state: %v", err)
 		}
 	}
-	for _, id := range []string{"retired-dream", "retired-extractor"} {
+	for _, id := range []string{"retired-dream", "retired-extractor", "retired-checkpoint", "retired-checkpoint-dream"} {
 		for _, statement := range []string{
 			`INSERT INTO session_health (session_id,workspace_id,agent_name,state,health,active_prompt,attachable,eligible_for_wake,updated_at) VALUES (?,'retirement-ws','coder','stopped','healthy',0,1,0,'2026-10-07')`,
 			`INSERT INTO token_stats (id,session_id,agent_name,input_tokens,output_tokens,updated_at) VALUES (?,?,'coder',21,8,'2026-10-07')`,
@@ -5536,7 +5541,7 @@ func seedMemoryRetirementKeptState(t *testing.T, db *sql.DB) {
 	}
 	if _, err := db.ExecContext(
 		t.Context(),
-		`INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,session_id,source,result,reason,created_at,expires_at) VALUES ('retired-wake','retirement-ws','coder','retired-dream','manual','sent','wake_sent','2026-10-07','2026-10-08')`,
+		`INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,session_id,source,result,reason,created_at,expires_at) VALUES ('retired-wake','retirement-ws','coder','retired-dream','manual','sent','wake_sent','2026-10-07','2026-10-08'), ('retired-checkpoint-wake','retirement-ws','coder','retired-checkpoint','manual','sent','wake_sent','2026-10-07','2026-10-08')`,
 	); err != nil {
 		t.Fatal(err)
 	}

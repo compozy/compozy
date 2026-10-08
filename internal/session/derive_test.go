@@ -39,7 +39,7 @@ func deriveTestMessages(count int, bodyBytes int) []transcript.Message {
 func TestBoundReplay(t *testing.T) {
 	t.Parallel()
 
-	budget := replayBudget{MaxBytes: 8192, MaxMessageBytes: 4096, KeepRecent: deriveProtectedTail}
+	budget := replayBudget{MaxBytes: 8192, MaxMessageBytes: 4096}
 
 	t.Run("Should keep everything and report no truncation within budget", func(t *testing.T) {
 		t.Parallel()
@@ -71,6 +71,64 @@ func TestBoundReplay(t *testing.T) {
 			t.Fatalf("last kept message = %s, want the newest m039", bounded[len(bounded)-1].ID)
 		}
 	})
+
+	for _, pin := range []bool{false, true} {
+		for _, below := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf(
+					"Should retain the newest fitting suffix with first-user pin %t and below-eight budget %t",
+					pin,
+					below,
+				),
+				func(t *testing.T) {
+					t.Parallel()
+					messages := deriveTestMessages(12, 100)
+					for index := range 4 {
+						messages[index].Content = strings.Repeat("older", 400)
+					}
+					omitted := 4
+					candidate := []transcript.Message{}
+					if pin {
+						candidate = append(candidate, messages[0])
+						omitted--
+					}
+					candidate = append(candidate, omittedReplayNote(omitted, messages[3].Timestamp))
+					candidate = append(candidate, messages[4:]...)
+					budget := replayBudget{
+						MaxBytes:        replayArrayBytes(candidate),
+						MaxMessageBytes: 4096,
+						PinFirstUser:    pin,
+					}
+					wantStart := 4
+					if below {
+						budget.MaxBytes--
+						wantStart++
+						omitted++
+					}
+					bounded, stats := boundReplay(messages, budget)
+					if stats.OmittedCount != omitted || stats.Bytes > budget.MaxBytes || stats.FirstUserPinned != pin {
+						t.Fatalf(
+							"suffix bound stats = %+v, want %d omissions, pin=%t and bytes <= %d",
+							stats,
+							omitted,
+							pin,
+							budget.MaxBytes,
+						)
+					}
+					if pin && bounded[0].ID != messages[0].ID {
+						t.Fatalf("pinned first user = %q, want %q", bounded[0].ID, messages[0].ID)
+					}
+					retained := bounded[len(bounded)-(len(messages)-wantStart):]
+					if !slices.EqualFunc(retained, messages[wantStart:], func(got, want transcript.Message) bool {
+						return got.ID == want.ID && got.Role == want.Role && got.Content == want.Content &&
+							got.Timestamp.Equal(want.Timestamp)
+					}) {
+						t.Fatalf("retained suffix = %+v, want unchanged messages from %d onward", retained, wantStart)
+					}
+				},
+			)
+		}
+	}
 
 	t.Run("Should drop protected messages down to one when the tail exceeds the budget", func(t *testing.T) {
 		t.Parallel()
@@ -110,7 +168,7 @@ func TestBoundReplay(t *testing.T) {
 				messages[0].Content = strings.Repeat("request", firstBytes/7)
 				messages[298] = transcript.Message{ID: "recorded-tool", Role: transcript.RoleToolCall,
 					ToolName: "compozy__task_read", ToolInput: json.RawMessage(`{"query":"original"}`)}
-				pinnedBudget := replayBudget{MaxBytes: 32768, MaxMessageBytes: 16384, KeepRecent: 8, PinFirstUser: true}
+				pinnedBudget := replayBudget{MaxBytes: 32768, MaxMessageBytes: 16384, PinFirstUser: true}
 				bounded, stats := boundReplay(messages, pinnedBudget)
 				if !stats.FirstUserPinned || bounded[0].ID != messages[0].ID ||
 					bounded[1].Content != fmt.Sprintf(deriveOmittedFmt, stats.OmittedCount) {
@@ -144,7 +202,7 @@ func TestBoundReplay(t *testing.T) {
 		messages[1].Role = transcript.RoleUser
 		bounded, stats := boundReplay(
 			messages,
-			replayBudget{MaxBytes: 1024, MaxMessageBytes: 8192, KeepRecent: 8, PinFirstUser: true},
+			replayBudget{MaxBytes: 1024, MaxMessageBytes: 8192, PinFirstUser: true},
 		)
 		if len(bounded) != 3 || bounded[0].ID != messages[1].ID || bounded[1].ID != deriveOmittedMessageID ||
 			bounded[2].ID != messages[2].ID ||
@@ -503,7 +561,7 @@ func TestReplayBudgetWorkspaceOverlay(t *testing.T) {
 		}
 		for _, ws := range []*workspacepkg.ResolvedWorkspace{&workspace, &resolved} {
 			budget := h.manager.deriveBudget(ws)
-			if budget.MaxBytes != 8192 || budget.MaxMessageBytes != 4096 || budget.KeepRecent != 8 ||
+			if budget.MaxBytes != 8192 || budget.MaxMessageBytes != 4096 ||
 				!budget.PinFirstUser {
 				t.Fatalf("replay budget = %+v, want workspace limits with pin", budget)
 			}

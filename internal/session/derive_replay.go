@@ -27,7 +27,6 @@ const (
 
 	deriveOmittedMessageID = "sys_omitted"
 	deriveAbortedMessageID = "sys_turn_aborted"
-	deriveProtectedTail    = 8
 	// deriveMessageCapPasses bounds the field-trimming loop of one message.
 	deriveMessageCapPasses = 64
 )
@@ -38,8 +37,6 @@ type replayBudget struct {
 	MaxBytes int
 	// MaxMessageBytes caps each serialized message.
 	MaxMessageBytes int
-	// KeepRecent is the protected tail, kept while it fits.
-	KeepRecent int
 	// PinFirstUser preserves the original user request before the omission note.
 	PinFirstUser bool
 }
@@ -53,13 +50,8 @@ type replayStats struct {
 	FirstUserPinned bool
 }
 
-// boundReplay caps every message to MaxMessageBytes, drops non-protected messages
-// oldest-first, then protected messages oldest-first down to one, until the serialized
-// array (including the omission note) fits MaxBytes. It never fails for size.
+// boundReplay preserves the newest fitting suffix, including the omission note and first-user pin.
 func boundReplay(messages []transcript.Message, budget replayBudget) ([]transcript.Message, replayStats) {
-	if budget.KeepRecent <= 0 {
-		budget.KeepRecent = deriveProtectedTail
-	}
 	capped := make([]transcript.Message, len(messages))
 	sizes := make([]int, len(messages))
 	truncated := false

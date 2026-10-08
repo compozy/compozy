@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"syscall"
@@ -2028,6 +2029,63 @@ func TestBootArchivesRetiredMemorySettingsIntegration(t *testing.T) {
 		}
 		if got := strings.Count(logs.String(), "config.retired_keys_archived"); got != 1 {
 			t.Fatalf("archive log entries = %d, want 1; logs: %s", got, logs.String())
+		}
+	})
+	t.Run("Should boot with inactive retired settings when the archive directory is read-only", func(t *testing.T) {
+		if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+			t.Skip("requires enforced Unix directory write permissions")
+		}
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		directory := t.TempDir()
+		homePaths.ConfigFile = filepath.Join(directory, compozyconfig.ConfigName)
+		original := fmt.Sprintf(
+			"[http]\nhost = %q\nport = %d\n[daemon]\nsocket = %q\n[automation]\nenabled = false\n[memory]\nenabled = true\n",
+			cfg.HTTP.Host,
+			cfg.HTTP.Port,
+			cfg.Daemon.Socket,
+		)
+		writeDaemonFile(t, homePaths.ConfigFile, original)
+		if err := os.Chmod(directory, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(directory, 0o700); err != nil {
+				t.Errorf("restore config directory: %v", err)
+			}
+		})
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		previousLogger := slog.Default()
+		slog.SetDefault(logger)
+		t.Cleanup(func() { slog.SetDefault(previousLogger) })
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithLogger(logger),
+			WithConfigLoader(func() (compozyconfig.Config, error) {
+				return compozyconfig.LoadForHome(homePaths)
+			}),
+		)
+		if err != nil {
+			t.Fatalf("New() = %v", err)
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) { return &fakeSessionManager{}, nil }
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "http"}, nil }
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatalf("boot() = %v", err)
+		}
+		if err := d.Shutdown(t.Context()); err != nil {
+			t.Fatalf("Shutdown() = %v", err)
+		}
+		unchanged, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil || string(unchanged) != original {
+			t.Fatalf("config after boot = %q, error %v", unchanged, err)
+		}
+		if strings.Count(logs.String(), "config.retired_keys_archive_failed") == 0 ||
+			!strings.Contains(logs.String(), homePaths.ConfigFile) || !strings.Contains(logs.String(), "reason=") {
+			t.Fatalf("archive failure warning = %s", logs.String())
 		}
 	})
 }

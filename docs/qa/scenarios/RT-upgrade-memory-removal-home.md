@@ -30,10 +30,12 @@ archived, or ignored without blocking daemon start.
   history);
 - `config.toml` carrying `[memory]` (plus `[memory.workspace]`, `[memory.session]`), `[roles.dream]`,
   `[session.compaction]`, and a hook matcher using `compaction_reason`; the same retired tables in one profile
-  and one workspace `config.toml`;
+  and one workspace `config.toml`; include a retired trigger whose descendant filter table appears after
+  an unrelated role table, both with and without a preceding retained trigger;
 - an agent whose `AGENT.md` lists `toolsets: [compozy__memory]` and a tool policy naming a `compozy__memory_*`
   tool, and an extension manifest declaring `provides = ["memory.backend"]`, `requires = ["memory/recall"]`, and
-  `memory:read` consent;
+  `memory:read` consent; include an extension automation resource with retired `memory.consolidated`
+  and supported `session.stopped` triggers plus a supported job;
 - a SOUL.md with `memory_policy` frontmatter, and a `<workspace>/knowledge/` directory;
 - a saved desktop layout with a Knowledge window next to a session window and a Settings window on
   `/settings/memory`;
@@ -49,15 +51,21 @@ bytes; stop the daemon cleanly; back up the home.
 2. Each retired table found in the global, profile, and workspace `config.toml` is removed and appended,
    commented, under `# Archived retired memory and compaction settings; these values are inactive.` with its old
    values intact; `config.retired_keys_archived` is logged once; the second start leaves the file byte-identical.
+   If a concurrent edit or read-only directory refuses archive publication, startup succeeds using the
+   in-memory overlay with retired settings inactive, logs a warning with path/reason, preserves the
+   unpublished file bytes, and retries on the next load.
    The hook declaration that used `compaction_reason` loses that key (archived) and keeps running, observing every
    agent compaction; the same keys in an extension manifest are ignored with a warning. `compozy config set
    memory.enabled true` is still refused (`cli: config path "memory.enabled" is not supported by config set`).
 3. The agent with memory toolsets starts its session; `tools.retired_ids_ignored` is logged and the rest of its
-   policy applies. The extension loads with the memory entries dropped and one `extension.retired_entries_ignored`
-   warning; a Host API call to `memory/recall` returns JSON-RPC `-32601`.
+   policy applies. The extension loads with the memory entries dropped and `extension.retired_entries_ignored`
+   warnings; AGENT.md and SKILL.md hook declarations ignore retired compaction matcher keys with one
+   warning per owner while retaining supported matchers and leaving authored files unchanged. A Host API
+   call to `memory/recall` returns JSON-RPC `-32601`.
 4. No memory tables remain and `status` carries no `memory` object (`compozy status -o json | jq 'has("memory")'`
    → `false`, `schema_version` `2026-10-07`, one global entry in `daemon.schema_streams`). The `memory.consolidated`
-   trigger is gone while its run history stays; the `dream` and `memory-extractor` sessions are gone. Their
+   trigger is gone while its run history stays; `dream`, `memory-extractor`, and `checkpoint-summary`
+   sessions are gone. Their
    retained session directories, metadata, and databases keep identical hashes after boot and repeated
    reconciliation, and no catalog row reappears. Each unsupported session emits one WARN
    `observe.session_recovery_skipped` per observer lifetime with `session_id`, `session_type`, `spawn_role`,
@@ -69,7 +77,9 @@ bytes; stop the daemon cleanly; back up the home.
 6. The Web desktop opens the saved layout without the Knowledge window, the session window renders with no
    console error, the Settings window lands on `/settings`, and a reload keeps the layout stable.
 7. The previously compacted session shows its full history again (`compozy session history`, no archived span);
-   its old `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
+   transcript pages, search, outline, and fork/rewind anchors resolve restored entries with their original
+   identities and tool routes. Rewind-excluded messages remain excluded; reopening does not advance the
+   projection generation again. Its old `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
    produce no usage marker.
 8. `compozy agent soul validate` reports the SOUL valid with no diagnostic for `memory_policy`, the file is not
    rewritten, and the persona applies in a new session.
@@ -92,3 +102,15 @@ Recovery boundary follow-up: `internal/observe/reconcile_test.go` owns real-data
 file-preservation and normal-orphan recovery coverage; `internal/daemon/daemon_integration_test.go` owns the
 same retained-directory invariant through an actual daemon boot. This automated slice does not replace the
 complete previous-release upgrade lab walk above.
+
+Review round 1 automated coverage: the owning session upgrade suite now seeds real previous-version
+projected events and uses the actual archive cut before reopening; persistence tests cover noncontiguous
+trigger filters and retained-trigger isolation; extension materialization covers mixed retired/supported
+resources; the durable layout suite verifies profile/drop/route audit fields after one persistence.
+These checks pass individually; the complete previous-release upgrade lab walk remains untested.
+
+Review round 1 addendum automated coverage: config persistence exercises concurrent edit and read-only
+publication failures plus retry; daemon boot exercises a real read-only config directory. Agent/skill
+loaders retain supported hook matchers while ignoring retired keys; migration coverage includes historical
+`checkpoint-summary` rows; replay coverage exercises the exact fitting eight-message tail boundary.
+The complete previous-release lab walk is still untested.

@@ -418,6 +418,10 @@ func decodeAgentFrontmatter(data []byte, parsed *parsedAgentDef) error {
 	if hasEmbeddedTabFrontmatterKey(data) {
 		return ErrInvalidAgentFrontmatterKey
 	}
+	data, err := ignoreRetiredAgentHookMatchers(data)
+	if err != nil {
+		return err
+	}
 
 	yamlErr := yaml.UnmarshalWithOptions(data, parsed, yaml.Strict())
 	if yamlErr == nil {

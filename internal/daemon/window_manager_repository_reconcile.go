@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
@@ -45,7 +46,54 @@ func (r *windowManagerRepository) reconcileLoadedSnapshot(
 	if err != nil {
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("persist reconciled snapshot", err)
 	}
+	droppedApps, rewrittenRoutes := windowManagerReconciliationAudit(snapshot)
 	r.logger.Info("windowmanager.snapshot_reconciled", "workspace_id", workspaceID,
+		"profile_id", r.profileID, "dropped_apps", droppedApps, "rewritten_routes", rewrittenRoutes,
 		"revision", reconciled.Revision)
 	return reconciled, nil
+}
+
+func windowManagerReconciliationAudit(snapshot windowmanager.Snapshot) ([]string, int) {
+	dropped := make(map[string]bool)
+	rewritten := 0
+	inspect := func(window windowmanager.Window) {
+		if !corecmds.RegisteredApp(window.App) {
+			dropped[window.App] = true
+			return
+		}
+		if window.App != "settings" {
+			return
+		}
+		if window.Route.Pathname == "/settings/memory" {
+			rewritten++
+		}
+		for _, route := range window.NavStack {
+			if route.Pathname == "/settings/memory" {
+				rewritten++
+			}
+		}
+	}
+	for _, window := range snapshot.Windows {
+		inspect(window)
+	}
+	for _, entries := range [][]windowmanager.HistoryEntry{snapshot.History.Undo, snapshot.History.Redo} {
+		for _, entry := range entries {
+			for _, state := range []windowmanager.State{entry.Before, entry.After} {
+				for _, window := range state.Windows {
+					inspect(window)
+				}
+			}
+		}
+	}
+	for _, entry := range snapshot.ClosedEntries {
+		for _, window := range entry.Windows {
+			inspect(window)
+		}
+	}
+	apps := make([]string, 0, len(dropped))
+	for app := range dropped {
+		apps = append(apps, app)
+	}
+	slices.Sort(apps)
+	return apps, rewritten
 }
