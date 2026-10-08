@@ -6,7 +6,7 @@ import { captureRouteState } from "../browser-artifact-session";
 
 describe("captureRouteState", () => {
   it("captures automation detail route context, topbar title, and session-link state", async () => {
-    window.history.replaceState({}, "", "/jobs/job_daily_review");
+    window.history.replaceState({}, "", "/automations/jobs/job_daily_review");
     document.title = "CompozyOS";
     document.body.innerHTML = `
       <header><h1 data-testid="topbar-title-text">deploy-review</h1></header>
@@ -33,7 +33,7 @@ describe("captureRouteState", () => {
     });
 
     expect(routeState).toMatchObject({
-      pathname: "/jobs/job_daily_review",
+      pathname: "/automations/jobs/job_daily_review",
       title: "CompozyOS",
       automation_view_visible: true,
       automation_active_tab: "jobs",
@@ -50,6 +50,34 @@ describe("captureRouteState", () => {
       automation_session_link_count: 1,
       automation_trigger_visible: true,
     });
+  });
+
+  it("captures the merged automations listing without a detail tab", async () => {
+    window.history.replaceState({}, "", "/automations?start=schedule&scope=global");
+    document.title = "CompozyOS";
+    document.body.innerHTML = `
+      <main data-testid="automations-shell">
+        <div data-testid="automations-list-rows">
+          <div data-testid="automation-row-job-job_daily_review">
+            <p data-testid="automation-sentence-job_daily_review"></p>
+          </div>
+          <div data-testid="automation-row-trigger-trg_deploy"></div>
+        </div>
+      </main>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/automations",
+      automation_item_count: 2,
+      automation_scope_filter: "global",
+      automation_view_visible: true,
+    });
+    expect(routeState.automation_active_tab).toBeUndefined();
+    expect(routeState.automation_selected_item).toBeUndefined();
   });
 
   it("captures task route context, selected run, and graph/review counts", async () => {

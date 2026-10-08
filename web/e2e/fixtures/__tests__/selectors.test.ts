@@ -58,7 +58,7 @@ describe("session window selectors", () => {
 });
 
 describe("automation operator selectors", () => {
-  it("maps the jobs/triggers navigation, editor, detail, and run-history surfaces to stable test IDs", () => {
+  it("maps the automations navigation, editor, detail, and run-history surfaces to stable test IDs", () => {
     const getByLabel = vi.fn((label: string) => `label:${label}` as unknown as Locator);
     const getByRole = vi.fn(
       (role: string, options?: { name?: string | RegExp }) =>
@@ -88,20 +88,23 @@ describe("automation operator selectors", () => {
       { getByTestId: portalGetByTestId }
     );
 
-    expect(selectors.jobsShell).toBe(`locator:${automationOperatorTestIds.jobsShell}`);
+    expect(selectors.automationsShell).toBe(
+      `locator:${automationOperatorTestIds.automationsShell}`
+    );
     expect(selectors.automationSuggestionsCard).toBe(
       `locator:${automationOperatorTestIds.automationSuggestionsCard}`
     );
-    expect(selectors.triggersShell).toBe(`locator:${automationOperatorTestIds.triggersShell}`);
-    expect(selectors.jobsListRows).toBe(`locator:${automationOperatorTestIds.jobsListRows}`);
-    expect(selectors.triggersListRows).toBe(
-      `locator:${automationOperatorTestIds.triggersListRows}`
+    expect(selectors.automationsListRows).toBe(
+      `locator:${automationOperatorTestIds.automationsListRows}`
     );
-    expect(selectors.createJobButton).toBe(`locator:${automationOperatorTestIds.createJobButton}`);
+    expect(selectors.automationsCreate).toBe(
+      `locator:${automationOperatorTestIds.automationsCreate}`
+    );
+    expect(selectors.automationStartView("event")).toBe("locator:automation-start-event");
+    expect(selectors.automationSwitch("morning-digest")).toBe(
+      "locator:automation-switch-morning-digest"
+    );
     expect(selectors.suggestion("suggestion-1")).toBe("locator:automation-suggestion-suggestion-1");
-    expect(selectors.createTriggerButton).toBe(
-      `locator:${automationOperatorTestIds.createTriggerButton}`
-    );
     expect(selectors.automationDeleteDialog).toBe(
       `locator:${automationOperatorTestIds.automationDeleteDialog}`
     );
@@ -139,7 +142,9 @@ describe("automation operator selectors", () => {
     expect(selectors.triggerFilterAdd).toBe("role:button:Add condition");
     expect(selectors.triggerFilterKey(0)).toBe("locator:trigger-filter-key-0");
     expect(selectors.triggerFilterValue(0)).toBe("locator:trigger-filter-value-0");
-    expect(selectors.item("job_daily_review")).toBe("locator:automation-item-job_daily_review");
+    expect(selectors.item("job_daily_review")).toBe(
+      "locator:/^automation-row-(job|trigger)-job_daily_review$/"
+    );
     expect(selectors.run("run_001")).toBe("locator:automation-run-run_001");
     expect(selectors.runSessionLink("run_001")).toBe("locator:automation-run-run_001");
   });
