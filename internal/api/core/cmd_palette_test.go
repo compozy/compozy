@@ -23,6 +23,8 @@ import (
 )
 
 func TestBaseHandlersCmdPalette(t *testing.T) {
+	t.Parallel()
+
 	// Invariant: retired palette inputs resolve to one canonical command with one warning; shared HTTP/UDS handler suite owns decoding.
 	t.Run("Should alias retired palette invoke pin and view IDs [IT-013]", func(t *testing.T) {
 		t.Parallel()
@@ -83,7 +85,6 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 			t.Fatalf("view = %d %s, id %q", response.Code, response.Body.String(), registry.viewID)
 		}
 	})
-	t.Parallel()
 
 	t.Run("Should preserve the reserved Global desktop partition without resolving a project", func(t *testing.T) {
 		t.Parallel()

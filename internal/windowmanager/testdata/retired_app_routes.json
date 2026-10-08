@@ -181,5 +181,54 @@
                 "q": "nightly"
             }
         }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers",
+            "search": {
+                "q": "deploy",
+                "event": "session.stopped"
+            }
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "q": "deploy",
+                "start": "event"
+            }
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs/",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "start": "schedule"
+            }
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs/x/runs",
+            "search": {}
+        },
+        "expected": null
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs/x/",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations/jobs/x",
+            "search": {}
+        }
     }
 ]

@@ -35,6 +35,10 @@ migration block. QA: `TA-web-automations-listing`, `TA-web-automations-first-run
 `TA-automation-crud-loop-target`, `TA-scheduled-session-restart-recovery`, `ET-palette-domain-views`,
 and `ET-web-ui-resilience` were flagged.
 
+Fix round 1: native list descriptions preserve the canonical job/trigger nouns and UI mapping.
+Shared retired-route vectors preserve explicit queries and leave nested detail paths unchanged.
+No wire, config, hook, workspace isolation, or official skill contract changes.
+
 ## Modern Go adoption across module boundaries (#482) — 2026-10-06
 
 Owner: this refactor PR (branch `modern-go-482`; issue #482). Behavior-preserving migration of

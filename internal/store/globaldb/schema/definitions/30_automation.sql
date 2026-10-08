@@ -1,5 +1,4 @@
 CREATE TABLE automation_job_catalog_entries (
-			target                   TEXT NOT NULL DEFAULT '',
 			job_id                   TEXT PRIMARY KEY REFERENCES automation_jobs(id) ON DELETE CASCADE,
 			scope                    TEXT NOT NULL,
 			workspace_id             TEXT NOT NULL DEFAULT '',
@@ -8,6 +7,7 @@ CREATE TABLE automation_job_catalog_entries (
 			name                     TEXT NOT NULL,
 			loop_name                TEXT NOT NULL DEFAULT '',
 			enabled                  BOOLEAN NOT NULL,
+			target                   TEXT NOT NULL DEFAULT '',
 			search_name              TEXT NOT NULL,
 			search_agent_name        TEXT NOT NULL,
 			search_prompt            TEXT NOT NULL,
@@ -105,7 +105,6 @@ CREATE TABLE "automation_scheduler_state" (
 		);
 
 CREATE TABLE automation_trigger_catalog_entries (
-			target                   TEXT NOT NULL DEFAULT '',
 			trigger_id           TEXT PRIMARY KEY REFERENCES automation_triggers(id) ON DELETE CASCADE,
 			scope                TEXT NOT NULL,
 			workspace_id         TEXT NOT NULL DEFAULT '',
@@ -115,6 +114,7 @@ CREATE TABLE automation_trigger_catalog_entries (
 			name                 TEXT NOT NULL,
 			loop_name            TEXT NOT NULL DEFAULT '',
 			enabled              BOOLEAN NOT NULL,
+			target               TEXT NOT NULL DEFAULT '',
 			search_name          TEXT NOT NULL,
 			search_agent_name    TEXT NOT NULL,
 			search_prompt        TEXT NOT NULL,

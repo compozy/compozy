@@ -242,9 +242,9 @@ func TestMigrateSnapshotV4(t *testing.T) {
 			t.Fatal(err)
 		}
 		var vectors []struct {
-			App      string      `json:"app"`
-			Input    RouteIntent `json:"input"`
-			Expected RouteIntent `json:"expected"`
+			App      string       `json:"app"`
+			Input    RouteIntent  `json:"input"`
+			Expected *RouteIntent `json:"expected"`
 		}
 		if err := json.Unmarshal(raw, &vectors); err != nil {
 			t.Fatal(err)
@@ -255,7 +255,11 @@ func TestMigrateSnapshotV4(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := RewriteRetiredAppRoute(vector.App, vector.Input)
-			if !reflect.DeepEqual(got, vector.Expected) {
+			expected := vector.Input
+			if vector.Expected != nil {
+				expected = *vector.Expected
+			}
+			if !reflect.DeepEqual(got, expected) {
 				t.Fatalf("%s %+v = %+v, want %+v", vector.App, vector.Input, got, vector.Expected)
 			}
 			after, err := json.Marshal(vector.Input)

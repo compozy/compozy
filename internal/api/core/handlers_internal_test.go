@@ -96,7 +96,7 @@ func TestPaletteDeprecationWarnings(t *testing.T) {
 		var seen sync.Map
 		logger := slog.New(slog.NewJSONHandler(&logs, nil))
 		for range 2 {
-			resolvePaletteCommandID(logger, &seen, "app.open.jobs")
+			resolvePaletteCommandID(t.Context(), logger, &seen, "app.open.jobs")
 		}
 		if strings.Count(logs.String(), `"id":"app.open.jobs"`) != 1 ||
 			!strings.Contains(logs.String(), `"event":"cmdpalette.command_id_deprecated"`) ||

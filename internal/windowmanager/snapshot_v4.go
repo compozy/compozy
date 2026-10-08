@@ -25,7 +25,7 @@ func RewriteRetiredAppRoute(app string, route RouteIntent) RouteIntent {
 		return route
 	}
 	prefix := "/" + app
-	if route.Pathname == prefix {
+	if route.Pathname == prefix || route.Pathname == prefix+"/" {
 		route.Pathname = "/automations"
 		route.Search = maps.Clone(route.Search)
 		if route.Search == nil {
@@ -35,13 +35,18 @@ func RewriteRetiredAppRoute(app string, route RouteIntent) RouteIntent {
 		if app == "triggers" {
 			start = `"event"`
 			if event, exists := route.Search["event"]; exists {
-				route.Search["q"] = event
+				if _, hasQuery := route.Search["q"]; !hasQuery {
+					route.Search["q"] = event
+				}
 				delete(route.Search, "event")
 			}
 		}
 		route.Search["start"] = json.RawMessage(start)
-	} else if strings.HasPrefix(route.Pathname, prefix+"/") {
-		route.Pathname = "/automations" + route.Pathname
+	} else if id, ok := strings.CutPrefix(route.Pathname, prefix+"/"); ok {
+		id = strings.TrimSuffix(id, "/")
+		if id != "" && !strings.Contains(id, "/") {
+			route.Pathname = "/automations" + prefix + "/" + id
+		}
 	}
 	return route
 }

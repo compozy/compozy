@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 	"sync"
@@ -12,11 +13,16 @@ import (
 var deprecatedPaletteIDs sync.Map
 
 // Public aliases are removed in v0.5.0.
-func (h *BaseHandlers) canonicalPaletteCommandID(raw string) cmdpalette.CommandID {
-	return resolvePaletteCommandID(h.Logger, &deprecatedPaletteIDs, raw)
+func (h *BaseHandlers) canonicalPaletteCommandID(ctx context.Context, raw string) cmdpalette.CommandID {
+	return resolvePaletteCommandID(ctx, h.Logger, &deprecatedPaletteIDs, raw)
 }
 
-func resolvePaletteCommandID(logger *slog.Logger, warnedIDs *sync.Map, raw string) cmdpalette.CommandID {
+func resolvePaletteCommandID(
+	ctx context.Context,
+	logger *slog.Logger,
+	warnedIDs *sync.Map,
+	raw string,
+) cmdpalette.CommandID {
 	id := cmdpalette.CommandID(strings.TrimSpace(raw))
 	replacement, retired := corecmds.RetiredCommandID(id)
 	if retired {
@@ -24,14 +30,14 @@ func resolvePaletteCommandID(logger *slog.Logger, warnedIDs *sync.Map, raw strin
 			if logger == nil {
 				logger = slog.Default()
 			}
-			logger.Warn("deprecated command id", "event", "cmdpalette.command_id_deprecated",
+			logger.WarnContext(ctx, "deprecated command id", "event", "cmdpalette.command_id_deprecated",
 				"id", id, "replacement", replacement, "removal", "v0.5.0")
 		}
 	}
 	return replacement
 }
 
-func (h *BaseHandlers) canonicalPaletteViewID(raw string) string {
+func (h *BaseHandlers) canonicalPaletteViewID(ctx context.Context, raw string) string {
 	id := strings.TrimSpace(raw)
-	return strings.TrimPrefix(string(h.canonicalPaletteCommandID("palette.view."+id)), "palette.view.")
+	return strings.TrimPrefix(string(h.canonicalPaletteCommandID(ctx, "palette.view."+id)), "palette.view.")
 }

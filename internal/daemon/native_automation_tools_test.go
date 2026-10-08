@@ -271,6 +271,27 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(automation_jobs_list) error = %v", err)
 		}
+		views, err := registry.List(t.Context(), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for id, description := range map[toolspkg.ToolID]string{
+			toolspkg.ToolIDAutomationJobsList:     "List automation jobs (the Web UI shows them as scheduled automations)",
+			toolspkg.ToolIDAutomationTriggersList: "List automation triggers (the Web UI shows them as automations on events)",
+		} {
+			found := false
+			for _, view := range views {
+				if view.Descriptor.ID == id {
+					found = true
+					if !strings.Contains(view.Descriptor.Description, description) {
+						t.Fatalf("%s description = %q, want %q", id, view.Descriptor.Description, description)
+					}
+				}
+			}
+			if !found {
+				t.Fatalf("missing native tool %s", id)
+			}
+		}
 		requireNativeAutomationLastRun(t, jobListResult, "jobs", "run-1")
 		requireNativeStructuredContains(t, jobListResult, []byte(`"job-1"`))
 		requireNativeStructuredContains(t, jobListResult, []byte(`"page"`))

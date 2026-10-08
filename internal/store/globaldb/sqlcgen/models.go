@@ -148,7 +148,6 @@ type AutomationJob struct {
 }
 
 type AutomationJobCatalogEntry struct {
-	Target                 string `json:"target"`
 	JobID                  string `json:"job_id"`
 	Scope                  string `json:"scope"`
 	WorkspaceID            string `json:"workspace_id"`
@@ -157,6 +156,7 @@ type AutomationJobCatalogEntry struct {
 	Name                   string `json:"name"`
 	LoopName               string `json:"loop_name"`
 	Enabled                bool   `json:"enabled"`
+	Target                 string `json:"target"`
 	SearchName             string `json:"search_name"`
 	SearchAgentName        string `json:"search_agent_name"`
 	SearchPrompt           string `json:"search_prompt"`
@@ -250,7 +250,6 @@ type AutomationTrigger struct {
 }
 
 type AutomationTriggerCatalogEntry struct {
-	Target             string `json:"target"`
 	TriggerID          string `json:"trigger_id"`
 	Scope              string `json:"scope"`
 	WorkspaceID        string `json:"workspace_id"`
@@ -260,6 +259,7 @@ type AutomationTriggerCatalogEntry struct {
 	Name               string `json:"name"`
 	LoopName           string `json:"loop_name"`
 	Enabled            bool   `json:"enabled"`
+	Target             string `json:"target"`
 	SearchName         string `json:"search_name"`
 	SearchAgentName    string `json:"search_agent_name"`
 	SearchPrompt       string `json:"search_prompt"`

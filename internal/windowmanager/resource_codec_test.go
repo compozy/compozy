@@ -15,6 +15,8 @@ import (
 )
 
 func TestLayoutResourceCodec(t *testing.T) {
+	t.Parallel()
+
 	// Invariant: a previous-version public layout preserves all windows while aliasing retired apps; codec suite owns resource admission.
 	t.Run("Should rewrite retired resource apps and navigation [IT-014]", func(t *testing.T) {
 		t.Parallel()
@@ -59,7 +61,6 @@ func TestLayoutResourceCodec(t *testing.T) {
 			}
 		}
 	})
-	t.Parallel()
 	codec, err := NewLayoutResourceCodec()
 	if err != nil {
 		t.Fatalf("NewLayoutResourceCodec() error = %v", err)

@@ -20,7 +20,8 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDAutomationJobsList,
 		"automation_jobs_list",
 		"Automation Jobs List",
-		"List scheduled automations through the live automation manager, including last_run.",
+		"List automation jobs (the Web UI shows them as scheduled automations) "+
+			"through the live automation manager, including last_run.",
 		automationJobsListInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -128,7 +129,8 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDAutomationTriggersList,
 		"automation_triggers_list",
 		"Automation Triggers List",
-		"List automations on events through the live automation manager, including last_run.",
+		"List automation triggers (the Web UI shows them as automations on events) "+
+			"through the live automation manager, including last_run.",
 		automationTriggersListInputSchema,
 		toolspkg.RiskRead,
 		true,

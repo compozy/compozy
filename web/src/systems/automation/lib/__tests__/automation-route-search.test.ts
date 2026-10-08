@@ -61,7 +61,7 @@ describe("validateAutomationsSearch", () => {
 interface RetiredAppRouteVector {
   app: "jobs" | "triggers";
   input: { pathname: string; search: Record<string, unknown> };
-  expected: { pathname: string; search: Record<string, unknown> };
+  expected: { pathname: string; search: Record<string, unknown> } | null;
 }
 
 /** The daemon's `RewriteRetiredAppRoute` vectors (UT-126); both sides must agree on each. */

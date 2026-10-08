@@ -19,3 +19,15 @@ func automationTargetFilterValues() []string {
 		"task",
 	}
 }
+
+func automationJobTargetParam() ParameterSpec {
+	return enumQueryParam(
+		"target",
+		"Filter by target kind; task matches jobs with a task target",
+		automationTargetFilterValues(),
+	)
+}
+
+func automationTriggerTargetParam() ParameterSpec {
+	return enumQueryParam("target", "Filter by target kind; task matches no trigger", automationTargetFilterValues())
+}

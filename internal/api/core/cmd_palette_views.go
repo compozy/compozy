@@ -43,7 +43,7 @@ func (h *BaseHandlers) GetCmdPaletteView(c *gin.Context) {
 		return
 	}
 	snapshot, err := service.OpenSource(
-		c.Request.Context(), profileLens, workspaceID, h.canonicalPaletteViewID(c.Param("id")),
+		c.Request.Context(), profileLens, workspaceID, h.canonicalPaletteViewID(c.Request.Context(), c.Param("id")),
 	)
 	if err != nil {
 		h.respondCmdPaletteViewError(c, workspaceID, err)
@@ -71,7 +71,7 @@ func (h *BaseHandlers) StreamCmdPaletteView(c *gin.Context) {
 		return
 	}
 	requestedEpoch := strings.TrimSpace(c.Query("stream_epoch"))
-	viewID := h.canonicalPaletteViewID(c.Param("id"))
+	viewID := h.canonicalPaletteViewID(c.Request.Context(), c.Param("id"))
 	snapshot, events, cancel, err := service.SubscribeViewPatches(
 		c.Request.Context(),
 		cmdpalette.ViewPatchSubscribeRequest{
