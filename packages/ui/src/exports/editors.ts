@@ -52,10 +52,5 @@ export { FormSection, type FormSectionProps } from "../components/custom/form-se
 export { HelpTip, type HelpTipProps } from "../components/custom/help-tip";
 export { EditorFooter, type EditorFooterProps } from "../components/custom/editor-footer";
 export { Panel, type PanelProps } from "../components/custom/panel";
-export {
-  ContextBox,
-  type ContextBoxEntry,
-  type ContextBoxProps,
-} from "../components/custom/context-box";
 export { JsonViewer, type JsonViewerProps } from "../components/custom/json-viewer";
 export { MetadataTile, type MetadataTileProps } from "../components/custom/metadata-tile";
