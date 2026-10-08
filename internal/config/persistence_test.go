@@ -1820,6 +1820,63 @@ func canonicalMemoryArchiveValues(t *testing.T, values any) map[string]any {
 // and applies the retained role and replay configuration. Owner: config persistence (UT-004/UT-007).
 func TestLoadPersistedConfigArchivesRetiredMemory(t *testing.T) {
 	t.Parallel()
+	for _, retained := range []bool{false, true} {
+		name := "Should archive separated retired trigger descendants without blocking load"
+		if retained {
+			name = "Should archive separated retired trigger descendants without contaminating a retained trigger"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), ConfigName)
+			content := ""
+			if retained {
+				content = "[[automation.triggers]]\nname = 'kept'\nevent = 'session.stopped'\n[automation.triggers.filter]\nsource = 'kept-source'\n"
+			}
+			content += "[[automation.triggers]]\nname = 'old'\nevent = 'memory.consolidated'\n[roles.auto_title]\nmodel = 'title-model'\n[automation.triggers.filter]\nsource = 'audit'\n"
+			writeFile(t, path, content)
+			overlay, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if retained {
+				if len(overlay.Automation.Triggers) != 1 || overlay.Automation.Triggers[0].Name != "kept" ||
+					!reflect.DeepEqual(
+						overlay.Automation.Triggers[0].Filter,
+						map[string]string{"source": "kept-source"},
+					) {
+					t.Fatalf("retained trigger changed: %#v", overlay.Automation.Triggers)
+				}
+			} else if len(overlay.Automation.Triggers) != 0 {
+				t.Fatalf("retired trigger survived: %#v", overlay.Automation.Triggers)
+			}
+			first, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			active, archive, found := strings.Cut(string(first), retiredMemoryArchiveHeader)
+			if !found || !strings.Contains(active, "[roles.auto_title]\nmodel = 'title-model'\n") {
+				t.Fatalf("retained role or archive missing: %s", first)
+			}
+			var original, removed map[string]any
+			if _, err := burnttoml.Decode(content, &original); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := burnttoml.Decode(uncommentMemoryArchive(t, archive), &removed); err != nil {
+				t.Fatal(err)
+			}
+			_, expected, _ := splitRetiredMemoryValues(original, nil)
+			if !reflect.DeepEqual(canonicalMemoryArchiveValues(t, expected), removed) {
+				t.Fatalf("retired descendant lost from archive: %#v", removed)
+			}
+			if _, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes); err != nil {
+				t.Fatal(err)
+			}
+			second, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(first, second) {
+				t.Fatalf("reload changed archived config: %v", err)
+			}
+		})
+	}
 	for _, layer := range []string{"global", "profile", "workspace"} {
 		t.Run("Should archive and reload the "+layer+" overlay", func(t *testing.T) {
 			t.Parallel()
@@ -1866,25 +1923,78 @@ func TestLoadPersistedConfigArchivesRetiredMemory(t *testing.T) {
 		t.Run("Should preserve a concurrent edit to the "+layer+" overlay", func(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(t.TempDir(), layer, ConfigName)
-			writeFile(t, path, "[memory]\nenabled = true\n")
-			const edited = "[roles.auto_title]\nmodel = 'edited-model'\n"
-			_, err := loadPersistedConfigOverlay(path, func(content []byte, source string) (configOverlay, error) {
-				overlay, err := loadConfigOverlayBytes(content, source)
-				if err != nil {
-					return overlay, err
-				}
-				writeFile(t, path, edited)
-				return overlay, nil
-			})
-			if err == nil || !strings.Contains(err.Error(), "config changed during retirement migration") {
-				t.Fatalf("race error = %v", err)
+			writeFile(t, path, "[memory]\nenabled = true\n[roles.auto_title]\nmodel = 'original-model'\n")
+			const edited = "[memory]\nenabled = false\n[roles.auto_title]\nmodel = 'edited-model'\n"
+			overlay, err := loadPersistedConfigOverlay(
+				path,
+				func(content []byte, source string) (configOverlay, error) {
+					overlay, err := loadConfigOverlayBytes(content, source)
+					if err != nil {
+						return overlay, err
+					}
+					writeFile(t, path, edited)
+					return overlay, nil
+				},
+			)
+			if err != nil {
+				t.Fatalf("retirement publication blocked loading: %v", err)
+			}
+			if overlay.Roles.AutoTitle.Model == nil || *overlay.Roles.AutoTitle.Model != "original-model" {
+				t.Fatalf("in-memory retained config changed: %#v", overlay.Roles.AutoTitle)
 			}
 			got, err := os.ReadFile(path)
 			if err != nil || string(got) != edited {
 				t.Fatalf("concurrent edit overwritten: %q, %v", got, err)
 			}
+			overlay, err = loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+			if err != nil || overlay.Roles.AutoTitle.Model == nil || *overlay.Roles.AutoTitle.Model != "edited-model" {
+				t.Fatalf("retry did not load concurrent config: %#v, %v", overlay.Roles.AutoTitle, err)
+			}
+			got, err = os.ReadFile(path)
+			if err != nil || !bytes.Contains(got, []byte(retiredMemoryArchiveHeader)) {
+				t.Fatalf("retry did not publish retirement archive: %q, %v", got, err)
+			}
 		})
 	}
+	t.Run("Should load inactive retired settings from a read-only directory and retry publication", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+			t.Skip("requires Unix directory write permissions enforced for the current user")
+		}
+		root := t.TempDir()
+		path := filepath.Join(root, ConfigName)
+		const content = "[memory]\nenabled = true\n[roles.auto_title]\nmodel = 'retained-model'\n"
+		writeFile(t, path, content)
+		if err := os.Chmod(root, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(root, 0o700); err != nil {
+				t.Errorf("restore config directory permissions: %v", err)
+			}
+		})
+		for range 2 {
+			overlay, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+			if err != nil || overlay.Roles.AutoTitle.Model == nil ||
+				*overlay.Roles.AutoTitle.Model != "retained-model" {
+				t.Fatalf("read-only archive blocked retained config: %#v, %v", overlay.Roles.AutoTitle, err)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || string(got) != content {
+				t.Fatalf("read-only config changed: %q, %v", got, err)
+			}
+		}
+		if err := os.Chmod(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil || !bytes.Contains(got, []byte(retiredMemoryArchiveHeader)) {
+			t.Fatalf("writable retry did not publish archive: %q, %v", got, err)
+		}
+	})
 	t.Run("Should load retained role and replay settings", func(t *testing.T) {
 		t.Parallel()
 		homePaths, err := ResolveHomePathsFrom(t.TempDir())

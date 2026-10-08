@@ -119,6 +119,9 @@ func initializeSessionSQLite(
 	if err := initializeTranscriptProjectionState(ctx, db); err != nil {
 		return err
 	}
+	if err := restoreCompactionTranscriptProjection(ctx, db, sessionID); err != nil {
+		return err
+	}
 	if err := upgradeTranscriptWhitespaceProjection(ctx, db, sessionID); err != nil {
 		return err
 	}

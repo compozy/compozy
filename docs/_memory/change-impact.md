@@ -26,7 +26,10 @@ leftovers in user-owned files are retired without blocking the user.
   the `archiveRetiredMemorySettings` config archive (global, profile, workspace overlays), the SOUL
   `memory_policy` ignore rule, the retired tool-ID filter (`RetiredMemoryToolIDs`,
   `RetiredMemoryToolsetIDs`, `DropRetiredToolReferences`), and the extension manifest retired-entry
-  filter (`dropRetiredMemoryManifestEntries`). Session migration `00009` and global migration
+  filter (`dropRetiredMemoryManifestEntries`), plus AGENT.md and SKILL.md retired hook-matcher
+  filters (`ignoreRetiredAgentHookMatchers`, `ignoreRetiredSkillHookMatchers`) for
+  `compaction_reason` / `compaction_strategy`, warning once per owner. All of those boundary
+  filters expire in v0.6.0. Session migration `00009` and global migration
   `00128` stay as migrations. Alongside the retired-ID tombstones, `RetiredInternalSpawnRoles` records exactly
   `memory-extractor` and `checkpoint-summary`. Its recovery boundary is permanent and does not expire in
   v0.6.0 because retained session directories are never deleted.
@@ -40,6 +43,22 @@ leftovers in user-owned files are retired without blocking the user.
   `observe.session_recovery_skipped` once per session per observer lifetime, and leaves those session directories unchanged. This is a permanent
   recovery boundary; ordinary user sessions and custom advisory roles such as `reviewer` remain recoverable
   without catalog rows.
+- **Review round 1 boundary repairs:** session upgrade restores physically archived transcript entries
+  and tool routes using persisted identities, preserves rewind exclusions and live projection state,
+  and advances the projection generation once. Config retirement follows trigger array-element
+  ownership across noncontiguous descendant tables, preserving retained filters. Installed extension
+  automation resources ignore `memory.consolidated` before validation with
+  `extension.retired_entries_ignored`; explicit API/CLI trigger creation remains rejected. Nested
+  derive carries inherited omission evidence so the available history tool points to the immediate
+  source session. Archive publication guards and permission failures warn with path/reason and leave
+  retired settings inactive in the validated in-memory overlay; the next load retries publication.
+  Existing explicit retired-key config writes remain refused. Migration `00128` also removes persisted
+  `checkpoint-summary` roles while preserving advisory roles. The oldest-first suffix policy protects
+  the last eight replay messages while framing and the first-user pin fit; its unused `KeepRecent` field
+  is removed without changing the drop order. Layout reconciliation logs the profile, dropped app IDs and rewritten route count
+  after persistence. These repairs add no native tools, hooks, config keys, or workspace/profile
+  boundary changes; Web transcript reads/search/anchors retain restored history through the existing
+  contracts, and the migration guide's full-history promise remains unchanged.
 - **Official skill / Web / docs:** `skills/compozy/references/memory.md` is deleted and every memory
   or CompozyOS-compaction mention is removed; `compozy__session_compact` and Compact now are
   documented. Web drops the Knowledge app, Settings → Memory, the Home Memory tile, memory role

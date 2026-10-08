@@ -50,29 +50,42 @@ func loadPersistedConfigOverlay(
 		return overlay, err
 	}
 	if !bytes.Equal(rendered, contents) {
-		writable, openErr := directory.ReopenForMutation(filepath.Dir(path))
-		if openErr != nil {
-			return configOverlay{}, FileError{Op: configMigrationOperation, Path: path, Err: openErr}
-		}
-		defer func() { err = errors.Join(err, writable.Close()) }()
-		current, info, readErr := writable.ReadRegularFile(name)
-		if readErr != nil {
-			return configOverlay{}, FileError{Op: configMigrationOperation, Path: path, Err: readErr}
-		}
-		if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
-			return configOverlay{}, FileError{
-				Op: configMigrationOperation, Path: path, Err: errors.New("config changed during retirement migration"),
+		if publishErr := publishRetiredConfigArchive(directory, path, original, contents, rendered); publishErr != nil {
+			if len(archived) == 0 {
+				return configOverlay{}, publishErr
 			}
-		}
-		// Revalidate the held file before publishing the archive through the same parent.
-		if err := writePersistedFileInDirectory(writable, name, path, rendered, true); err != nil {
-			return configOverlay{}, err
+			slog.Warn("config.retired_keys_archive_failed", "path", path, "reason", publishErr.Error())
+			return overlay, nil
 		}
 		if len(archived) > 0 {
 			slog.Warn("config.retired_keys_archived", "path", path, "keys", strings.Join(archived, ","))
 		}
 	}
 	return overlay, nil
+}
+
+func publishRetiredConfigArchive(
+	directory *fileutil.Directory,
+	path string,
+	original os.FileInfo,
+	contents, rendered []byte,
+) (err error) {
+	writable, err := directory.ReopenForMutation(filepath.Dir(path))
+	if err != nil {
+		return FileError{Op: configMigrationOperation, Path: path, Err: err}
+	}
+	defer func() { err = errors.Join(err, writable.Close()) }()
+	name := filepath.Base(path)
+	current, info, err := writable.ReadRegularFile(name)
+	if err != nil {
+		return FileError{Op: configMigrationOperation, Path: path, Err: err}
+	}
+	if !os.SameFile(original, info) || !bytes.Equal(contents, current) {
+		return FileError{
+			Op: configMigrationOperation, Path: path, Err: errors.New("config changed during retirement migration"),
+		}
+	}
+	return writePersistedFileInDirectory(writable, name, path, rendered, true)
 }
 
 func archiveRetiredSkillMarketplace(contents []byte, source string) ([]byte, error) {

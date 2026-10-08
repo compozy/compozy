@@ -150,10 +150,15 @@ func OpenSessionDBReadOnlyWithProjectionUpgrade(
 		return nil, closeReadOnlySessionDBAfterOpenError(reader.db,
 			fmt.Errorf("store: inspect read-only transcript projection version: %w", err))
 	}
-	if row.ProjectionVersion == transcript.ProjectionVersion {
+	missing, err := sqlcgen.New(reader.db).ListMissingUnarchivedCompactionEntries(ctx)
+	if err != nil {
+		return nil, closeReadOnlySessionDBAfterOpenError(reader.db,
+			fmt.Errorf("store: inspect restored compaction entries: %w", err))
+	}
+	if row.ProjectionVersion == transcript.ProjectionVersion && len(missing) == 0 {
 		return reader, nil
 	}
-	if row.ProjectionVersion != whitespaceProjectionVersion {
+	if row.ProjectionVersion != whitespaceProjectionVersion && row.ProjectionVersion != transcript.ProjectionVersion {
 		return nil, closeReadOnlySessionDBAfterOpenError(reader.db,
 			fmt.Errorf("%w: stored version %d, supported version %d",
 				transcript.ErrProjectionIncompatible, row.ProjectionVersion, transcript.ProjectionVersion))

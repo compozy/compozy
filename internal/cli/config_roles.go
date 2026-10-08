@@ -1,19 +1,10 @@
 package cli
 
-import (
-	"strings"
-
-	compozyconfig "github.com/compozy/compozy/internal/config"
-)
+import compozyconfig "github.com/compozy/compozy/internal/config"
 
 func roleConfigSetPathKinds() map[string]configSetValueKind {
 	result := make(map[string]configSetValueKind)
 	for path, kind := range compozyconfig.RoleMutableConfigKinds() {
-		if strings.HasPrefix(path, "roles.dream.") || strings.HasPrefix(path, "roles.checkpoint_summary.") ||
-			strings.HasPrefix(path, "roles.memory_extractor.") ||
-			strings.HasPrefix(path, "roles.memory_controller.") {
-			continue
-		}
 		result[path] = configSetKindFromToolKind(kind)
 	}
 	return result

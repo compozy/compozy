@@ -16,6 +16,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
@@ -2675,6 +2676,176 @@ func (r *readOnlyPoolTestReader) Close(ctx context.Context) error {
 // Owner: session SQLite migrations; canonical suite: session_db_integration_test.go.
 func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 	t.Parallel()
+	// Invariant: previously projected and physically cut entries regain navigation and routes without changing live identities.
+	t.Run("Should restore real archived projections and tool routes with stable rewind exclusions", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		prefix, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registerTestSQLDBCleanup(t, "projected compaction prefix", prefix)
+		if err := store.Apply(
+			ctx,
+			prefix,
+			sessionMigrationPrefixBefore(t, "00009_unarchive_compaction_spans.sql"),
+		); err != nil {
+			t.Fatal(err)
+		}
+		owner := testSessionDBOwner("sess-projected-compaction-upgrade")
+		if _, err := prefix.ExecContext(
+			ctx,
+			`INSERT INTO session_db_owner (singleton,session_id,workspace_id) VALUES (1,?,?)`,
+			owner.SessionID,
+			owner.WorkspaceID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := initializeTranscriptProjectionState(ctx, prefix); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+		previous := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+		var input []SessionEvent
+		for _, event := range []acp.AgentEvent{
+			{Type: acp.EventTypeUserMessage, TurnID: "old", Text: "Recover the historic guide"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "old", Text: "Historic answer"},
+			{Type: acp.EventTypeToolCall, TurnID: "old", ToolCallID: "historic-tool", Title: "Read"},
+			{Type: acp.EventTypeToolResult, TurnID: "old", ToolCallID: "historic-tool", Text: "Historic tool output"},
+			{Type: acp.EventTypeDone, TurnID: "old"},
+			{Type: acp.EventTypeUserMessage, TurnID: "middle", Text: "Retain middle question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "middle", Text: "Middle answer"},
+			{Type: acp.EventTypeToolCall, TurnID: "middle", ToolCallID: "historic-tool", Title: "Read again"},
+			{Type: acp.EventTypeUserMessage, TurnID: "rewound", Text: "Excluded rewind question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "rewound", Text: "Excluded rewind answer"},
+			{Type: acp.EventTypeDone, TurnID: "rewound"},
+			{Type: acp.EventTypeUserMessage, TurnID: "live", Text: "Current question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "live", Text: "Current live answer"},
+		} {
+			input = append(input, canonicalStoreEvent(t, event, "coder"))
+		}
+		if _, err := previous.writeEventBatch(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+		before, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+		if err != nil || len(before.Entries) != 8 {
+			t.Fatalf("previous page=%#v/%v", before, err)
+		}
+		oldIdentity, found, err := (projectionSQLResolver{db: prefix}).ToolEntryIdentity(ctx, "historic-tool")
+		if err != nil || !found {
+			t.Fatalf("previous route=%#v/%v/%v", oldIdentity, found, err)
+		}
+		// This is the actual previous compactor's archive path, including entry/route deletion and generation advancement.
+		for _, cut := range []store.EventArchiveRequest{{FromSequence: 1, ToSequence: 8}, {FromSequence: 9, ToSequence: 11}} {
+			if _, err := previous.writeArchiveEvents(ctx, cut); err != nil {
+				t.Fatal(err)
+			}
+		}
+		cut, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+		if err != nil || len(cut.Entries) != 2 || cut.Generation != 2 {
+			t.Fatalf("actual archive page=%#v/%v", cut, err)
+		}
+		if _, found, err := (projectionSQLResolver{db: prefix}).ToolEntryIdentity(
+			ctx,
+			"historic-tool",
+		); err != nil ||
+			found {
+			t.Fatalf("archived route found=%v/%v", found, err)
+		}
+		if _, err := prefix.ExecContext(
+			ctx,
+			`INSERT INTO events (sequence,id,turn_id,type,agent_name,content,timestamp) VALUES (14,'legacy-fired','old','session.compaction_fired','coder',?,?)`,
+			`{"raw":{"from_sequence":1,"to_sequence":11}}`,
+			store.FormatTimestamp(at),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := prefix.ExecContext(
+			ctx,
+			`INSERT INTO conversation_rewind_receipts (idempotency_key,request_hash,target_message_id,archived_from_sequence,archived_to_sequence,archived_event_count,generation,max_sequence,transcript_epoch,draft_text,created_at) VALUES ('rewind','hash',?,9,11,3,2,13,1,'draft',?)`,
+			before.Entries[4].Message.ID,
+			store.FormatTimestamp(at),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := prefix.Close(); err != nil {
+			t.Fatal(err)
+		}
+		// Apply SQL first as a migration-only owner would; the reader upgrade must repair the still-missing projection too.
+		fixture, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Apply(ctx, fixture, MigrationStream()); err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for attempt := range 2 {
+			reopened, err := OpenSessionDBReadOnlyWithProjectionUpgrade(ctx, owner, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := reopened.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+			if err != nil || len(page.Entries) != 6 || page.Generation != 3 {
+				t.Fatalf("open %d restored page=%#v/%v", attempt, page, err)
+			}
+			for i, original := range []int{0, 1, 2, 3, 6, 7} {
+				if page.Entries[i].Message.ID != before.Entries[original].Message.ID ||
+					page.Entries[i].StartSequence != before.Entries[original].StartSequence ||
+					page.Entries[i].Sequence != before.Entries[original].Sequence {
+					t.Fatalf(
+						"changed identity open %d entry=%#v original=%#v",
+						attempt,
+						page.Entries[i],
+						before.Entries[original],
+					)
+				}
+			}
+			matches, err := reopened.TranscriptSearch(ctx, transcript.SearchQuery{Query: "Historic answer"})
+			if err != nil || len(matches.Matches) != 1 || matches.Matches[0].Sequence != 2 {
+				t.Fatalf("restored search=%#v/%v", matches, err)
+			}
+			outline, err := reopened.TranscriptOutline(ctx)
+			if err != nil || len(outline.Entries) != 3 {
+				t.Fatalf("restored outline=%#v/%v", outline, err)
+			}
+			anchor, err := reopened.TranscriptUserAnchor(ctx, before.Entries[0].Message.ID)
+			if err != nil || anchor.StartSequence != 1 || anchor.TurnID != "old" {
+				t.Fatalf("restored anchor=%#v/%v", anchor, err)
+			}
+			if _, err := reopened.TranscriptUserAnchor(
+				ctx,
+				before.Entries[4].Message.ID,
+			); !errors.Is(
+				err,
+				store.ErrTranscriptAnchorNotFound,
+			) {
+				t.Fatalf("rewind anchor error=%v", err)
+			}
+			if matches, err := reopened.TranscriptSearch(
+				ctx,
+				transcript.SearchQuery{Query: "Excluded rewind"},
+			); err != nil ||
+				len(matches.Matches) != 0 {
+				t.Fatalf("rewind search=%#v/%v", matches, err)
+			}
+			identity, found, err := (projectionSQLResolver{db: reopened.db}).ToolEntryIdentity(ctx, "historic-tool")
+			if err != nil || !found || identity != oldIdentity {
+				t.Fatalf("restored route=%#v/%v/%v want=%#v", identity, found, err, oldIdentity)
+			}
+			state, err := loadProjectionState(ctx, reopened.db)
+			if err != nil || state.ActiveEntryKey != "g0:s13" {
+				t.Fatalf("active state=%#v/%v", state, err)
+			}
+			if err := reopened.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name       string
 		fired      bool

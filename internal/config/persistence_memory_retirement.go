@@ -166,18 +166,18 @@ func removeRetiredMemorySettings(editor *OverlayEditor) error {
 	if err != nil {
 		return err
 	}
-	retiredExpressions := make(map[int]bool)
-	for _, block := range document.arrayTableBlocks([]string{retiredMemoryAutomationKey, retiredMemoryTriggersKey}) {
+	triggerPath := []string{retiredMemoryAutomationKey, retiredMemoryTriggersKey}
+	retiredTriggerHeaders := make(map[int]bool)
+	for _, block := range document.arrayTableBlocks(triggerPath) {
 		if event, ok := document.blockStringField(block, "event"); ok && event == retiredMemoryConsolidatedEvent {
-			for i := block.startIdx; i <= block.endIdx; i++ {
-				retiredExpressions[i] = true
-			}
+			retiredTriggerHeaders[block.startIdx] = true
 		}
 	}
 	var edits []retiredMemoryEdit
 	parser := tomlast.Parser{KeepComments: true}
 	parser.Reset(editor.content)
 	currentTable := []string{}
+	retiredTrigger := false
 	index := 0
 	for parser.NextExpression() {
 		node := parser.Expression()
@@ -187,7 +187,11 @@ func removeRetiredMemorySettings(editor *OverlayEditor) error {
 			continue
 		}
 		expr := document.expressions[index]
-		retired := retiredExpressions[index]
+		if node.Kind == tomlast.ArrayTable && pathsEqual(expr.path, triggerPath) {
+			retiredTrigger = retiredTriggerHeaders[index]
+		}
+		// Unrelated tables do not change which array element owns later descendants.
+		retired := retiredTrigger && pathHasPrefix(expr.path, triggerPath)
 		index++
 		if node.Kind == tomlast.Table || node.Kind == tomlast.ArrayTable {
 			currentTable = expr.path

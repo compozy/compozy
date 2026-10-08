@@ -790,6 +790,44 @@ func TestParseSkillFileRejectsLegacyHookEventsWithReplacement(t *testing.T) {
 	}
 }
 
+func TestSkillHookRetiredMatcherCompatibility(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name, matcher string
+		wantError     bool
+	}{
+		{name: "Should retain multiple hooks while ignoring retired matcher keys", matcher: "workspace_id: ws-1"},
+		{name: "Should reject unknown matcher keys alongside retired keys", matcher: "unknown_matcher: value", wantError: true},
+		{name: "Should reject malformed retained matcher values", matcher: "workspace_id: [invalid]", wantError: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			body := "---\nname: retired-matcher\ndescription: Kept declaration\nmetadata:\n  compozy:\n    hooks:\n      - event: session.post_stop\n        command: /bin/echo\n        matcher:\n          compaction_reason: old\n          compaction_strategy: [old]\n          " + testCase.matcher + "\n      - event: session.post_create\n        command: /bin/echo\n        matcher:\n          compaction_reason: old\n          agent_name: reviewer\n---\nKeep this body.\n"
+			file := writeSkillFile(t, t.TempDir(), filepath.Join("retired-matcher", skillFileName), body)
+			skill, err := ParseSkillFile(file)
+			if testCase.wantError {
+				if err == nil {
+					t.Fatal("ParseSkillFile() error = nil, want strict matcher error")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("ParseSkillFile() error = %v", err)
+				}
+				if len(skill.Hooks) != 2 || skill.Hooks[0].Event != hookspkg.HookSessionPostStop ||
+					skill.Hooks[0].Matcher.WorkspaceID != "ws-1" ||
+					skill.Hooks[1].Event != hookspkg.HookSessionPostCreate ||
+					skill.Hooks[1].Matcher.AgentName != "reviewer" {
+					t.Fatalf("skill = %#v, want retained hook declarations and body", skill)
+				}
+			}
+			persisted, err := os.ReadFile(file)
+			if err != nil || string(persisted) != body {
+				t.Fatalf("source changed: error=%v contents=%q", err, persisted)
+			}
+		})
+	}
+}
+
 func TestParseSkillFileParsesHookOptionalFields(t *testing.T) {
 	t.Parallel()
 

@@ -133,7 +133,7 @@ DROP TABLE retired_memory_trigger_resources;
 -- preserve heartbeat audit events with the same SET NULL semantics as their FK.
 CREATE TEMP TABLE retired_memory_sessions (id TEXT PRIMARY KEY) WITHOUT ROWID;
 INSERT INTO retired_memory_sessions
-SELECT id FROM sessions WHERE session_type = 'dream' OR spawn_role = 'memory-extractor';
+SELECT id FROM sessions WHERE session_type = 'dream' OR spawn_role IN ('memory-extractor', 'checkpoint-summary');
 DELETE FROM session_input_clear_traces WHERE session_id IN (SELECT id FROM retired_memory_sessions);
 DELETE FROM session_input_queue WHERE session_id IN (SELECT id FROM retired_memory_sessions);
 DELETE FROM session_prompt_admissions WHERE session_id IN (SELECT id FROM retired_memory_sessions);
