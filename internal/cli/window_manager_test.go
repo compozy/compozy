@@ -395,6 +395,42 @@ func TestUnixSocketClientWindowManagerRoutes(t *testing.T) {
 }
 
 func TestWindowManagerMutationCommands(t *testing.T) {
+	// Invariant: deprecated --app values remain accepted with an actionable stderr warning; CLI suite owns flag behavior.
+	t.Run("Should warn when opening a retired app [IT-014]", func(t *testing.T) {
+		t.Parallel()
+		client := newWindowManagerCommandStub()
+		client.executeFn = func(_ context.Context, _ string, request contract.WindowManagerCommandRequest) (contract.WindowManagerResult, error) {
+			if request.Actor.Kind != "cli" || !strings.Contains(string(request.Payload), `"app":"jobs"`) {
+				t.Fatalf("request=%+v", request)
+			}
+			return windowManagerTestResult(), nil
+		}
+		stdout, stderr, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"window",
+			"open",
+			"--workspace",
+			"w1",
+			"--revision",
+			"7",
+			"--app",
+			"jobs",
+			"--pathname",
+			"/jobs",
+			"--search-json",
+			"{}",
+			"-o",
+			"json",
+		)
+		if err != nil || stdout == "" ||
+			!strings.Contains(
+				stderr,
+				`warning: app "jobs" is deprecated and will be removed in v0.5.0; use "automations"`,
+			) {
+			t.Fatalf("stdout=%s stderr=%s err=%v", stdout, stderr, err)
+		}
+	})
 	t.Parallel()
 
 	tests := []struct {

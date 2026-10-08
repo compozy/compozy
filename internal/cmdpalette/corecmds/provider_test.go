@@ -190,8 +190,8 @@ func TestProviderAbsorption(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
 		want := []string{
-			"agents", "extensions", "jobs", "knowledge", "loops", "marketplace",
-			"profiles", "sessions", "tasks", "triggers", "vault", "worktrees",
+			"agents", "automations", "extensions", "knowledge", "loops", "marketplace",
+			"profiles", "sessions", "tasks", "vault", "worktrees",
 		}
 		actual := make([]string, 0, len(want))
 		seen := make(map[string]int, len(want))
@@ -294,4 +294,33 @@ func mustCommands(t *testing.T) []cmdpalette.Descriptor {
 		t.Fatalf("ProvideCommands() error = %v", err)
 	}
 	return commands
+}
+
+// Invariant: the built-in registry hard-cuts retired app commands; provider suite owns registry identity.
+func TestAutomationsCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("Should register one automations app and view with searchable legacy words [IT-020]", func(t *testing.T) {
+		t.Parallel()
+		count := 0
+		for _, command := range mustCommands(t) {
+			if _, retired := RetiredCommandID(command.ID); retired {
+				t.Fatalf("retired command registered: %s", command.ID)
+			}
+			if command.ID != "app.open.automations" && command.ID != "palette.view.automations" {
+				continue
+			}
+			count++
+			if command.Action.App != "automations" && command.Action.View != "automations" {
+				t.Fatalf("action = %+v", command.Action)
+			}
+			for _, keyword := range []string{"jobs", "triggers", "schedule", "webhook", "event"} {
+				if !slices.Contains(command.Keywords, keyword) {
+					t.Errorf("%s missing %s", command.ID, keyword)
+				}
+			}
+		}
+		if count != 2 {
+			t.Fatalf("automations commands = %d", count)
+		}
+	})
 }

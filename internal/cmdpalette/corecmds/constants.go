@@ -3,12 +3,11 @@ package corecmds
 const (
 	coreAppAgents         = "agents"
 	coreAppExtensions     = "extensions"
-	coreAppJobs           = "jobs"
+	coreAppAutomations    = "automations"
 	coreAppKnowledge      = "knowledge"
 	coreAppLoops          = "loops"
 	coreAppMarketplace    = "marketplace"
 	coreAppTasks          = "tasks"
-	coreAppTriggers       = "triggers"
 	coreAppVault          = "vault"
 	coreSettingsKey       = "settings"
 	coreIconGlobe         = "globe"

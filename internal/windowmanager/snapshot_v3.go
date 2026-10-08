@@ -39,8 +39,8 @@ type legacySnapshotV3 struct {
 	UpdatedAt     time.Time           `json:"updated_at"`
 }
 
-// MigrateLegacySnapshotV3 converts a stored version 3 aggregate to the current
-// shape. A focus desktop becomes a regular desktop whose owner is zoomed on it
+// MigrateLegacySnapshotV3 chains v3 through the v4 geometry and v5 app identities.
+// A focus desktop becomes a regular desktop whose owner is zoomed on it
 // with its return anchor intact, exactly like a unit that zoom lifted there;
 // layout history does not survive because its entries carry the old shape.
 // The result carries the next revision: its content differs from what any
@@ -96,6 +96,7 @@ func MigrateLegacySnapshotV3(encoded []byte) (Snapshot, error) {
 		}
 	}
 	setDesktopOrders(&snapshot)
+	rewriteSnapshotRetiredApps(&snapshot)
 	snapshot = NormalizeSnapshot(snapshot)
 	if err := ValidateSnapshot(snapshot); err != nil {
 		return Snapshot{}, fmt.Errorf("migrated window-manager snapshot: %w", err)

@@ -16,10 +16,12 @@ func viewCommands() []cmdpalette.Descriptor {
 	definitions = append(definitions, sharedAppViewDomains...)
 	commands := make([]cmdpalette.Descriptor, 0, len(definitions))
 	for _, view := range definitions {
-		commands = append(commands, coreDescriptor(
+		command := coreDescriptor(
 			cmdpalette.CommandID("palette.view."+view.id), view.title, coreSectionViews, view.icon,
 			cmdpalette.Action{Kind: cmdpalette.ActionKindView, View: view.id},
-		))
+		)
+		command.Keywords = append([]string(nil), view.keywords...)
+		commands = append(commands, command)
 	}
 	return commands
 }

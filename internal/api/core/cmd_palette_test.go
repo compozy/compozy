@@ -23,6 +23,66 @@ import (
 )
 
 func TestBaseHandlersCmdPalette(t *testing.T) {
+	// Invariant: retired palette inputs resolve to one canonical command with one warning; shared HTTP/UDS handler suite owns decoding.
+	t.Run("Should alias retired palette invoke pin and view IDs [IT-013]", func(t *testing.T) {
+		t.Parallel()
+		registry := &cmdPaletteRegistryStub{
+			invokeResult: cmdpalette.InvokeResult{Status: cmdpalette.InvokeStatusOK},
+			viewSnapshot: cmdpalette.ViewSnapshot{Descriptor: cmdpalette.ViewDescriptor{ID: "automations"}},
+		}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.POST("/api/cmd-palette/commands/:id/invoke", handlers.InvokeCmdPaletteCommand)
+		engine.PUT("/api/cmd-palette/pins/:id", handlers.PinCmdPaletteCommand)
+		engine.DELETE("/api/cmd-palette/pins/:id", handlers.UnpinCmdPaletteCommand)
+		engine.GET("/api/cmd-palette/views/:id", handlers.GetCmdPaletteView)
+		for range 2 {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					"/api/cmd-palette/commands/app.open.jobs/invoke",
+					strings.NewReader(`{"workspace":"alpha"}`),
+				),
+			)
+			if response.Code != http.StatusOK || registry.invokeRequest.CommandID != "app.open.automations" ||
+				!strings.Contains(response.Body.String(), `"status":"ok"`) {
+				t.Fatalf("invoke = %d %s, request %+v", response.Code, response.Body.String(), registry.invokeRequest)
+			}
+		}
+		for _, method := range []string{http.MethodPut, http.MethodDelete} {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					method,
+					"/api/cmd-palette/pins/palette.view.triggers?workspace=alpha",
+					http.NoBody,
+				),
+			)
+			if response.Code != http.StatusOK || registry.pinCommand != "palette.view.automations" ||
+				registry.pinned != (method == http.MethodPut) ||
+				!strings.Contains(response.Body.String(), `"pinned":`) {
+				t.Fatalf("pin = %d %s", response.Code, response.Body.String())
+			}
+		}
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/api/cmd-palette/views/jobs?workspace=alpha",
+				http.NoBody,
+			),
+		)
+		if response.Code != http.StatusOK || registry.viewID != "automations" || response.Body.Len() == 0 {
+			t.Fatalf("view = %d %s, id %q", response.Code, response.Body.String(), registry.viewID)
+		}
+	})
 	t.Parallel()
 
 	t.Run("Should preserve the reserved Global desktop partition without resolving a project", func(t *testing.T) {

@@ -1,4 +1,4 @@
-h1:kzZFPqsEvC+3ofyLkZxQqwt9zxHcwMrGkUuUVjh4/Fs=
+h1:vCj0FtUXW38FRWOmKAjAs/fYBhCzAD4H3hrLIZtoaNA=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -126,3 +126,4 @@ h1:kzZFPqsEvC+3ofyLkZxQqwt9zxHcwMrGkUuUVjh4/Fs=
 00125_schema.sql h1:ac6qFQw6K0RjR/R0Zlxivk8M2v7pGu5mx/YYz7VyHVA=
 00126_schema.sql h1:soMbSgrzRo6+LEPLOjpRotdTE5zeQzLWFffezNKLzqY=
 00127_schema.sql h1:U+qwnqsZx60tGAZUI9m3ZIepzVtwj/yjTZrVE0x4QYs=
+00130_automations_palette.sql h1:vFrTaetLEL8HQyjRRTihcOsV8lLhKuTBdWESjAEsNA4=
