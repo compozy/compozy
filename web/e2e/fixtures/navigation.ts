@@ -16,7 +16,11 @@ export async function reloadDaemonServedPage(
 
   const currentPageIsReady = async (): Promise<boolean> => {
     try {
-      if (new URL(page.url()).pathname !== pathname) return false;
+      const current = new URL(page.url());
+      // A refused connection lands on `chrome-error://chromewebdata/`, whose pathname is
+      // "/" too; only a page the daemon actually served counts as ready.
+      if (current.origin !== new URL(targetURL).origin) return false;
+      if (current.pathname !== pathname) return false;
       if (options.readyTestId) {
         await page.getByTestId(options.readyTestId).waitFor({
           state: "visible",
