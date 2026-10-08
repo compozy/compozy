@@ -15,7 +15,7 @@ flowchart TD
     I --> C[Compare exact unread/archive/lane totals with loaded groups]
     C --> T[Read/archive/dismiss one item]
     T --> R[Reload and confirm triage state]
-    R --> A[Open Jobs and Triggers]
+    R --> A[Open Automations]
     A --> AF[Filter by q/source/enabled/event/loop/scope]
     AF --> AP[Walk independent cursor pages]
     AP --> D[Open one automation detail]
@@ -40,7 +40,7 @@ journey:
   entry_points:
     - url: "web /tasks"
       origin: in-app-nav
-    - url: "web /jobs or /triggers"
+    - url: "web /automations"
       origin: in-app-nav
   actions:
     - step: 1

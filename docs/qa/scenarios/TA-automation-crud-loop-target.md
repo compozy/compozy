@@ -5,7 +5,7 @@ title: Create update disable and delete Loop-target automations
 persona: Bruno
 journey: J-24
 expected: Job and trigger modals create valid Loop-target definitions, updates survive refresh, write-only webhook secrets are redacted from the request preview, disabled definitions do not fire, re-enabled definitions fire one real Loop run, and deletion removes only the chosen dynamic definition.
-entry_points: web /jobs; web /triggers; web Loop Start bindings
+entry_points: web /automations (New automation editor); web Loop Automate ▾ menu
 qa_status: blocked-verify
 bug_ids: BUG-20260713-loop-automation-shown-as-agent;BUG-20260713-loop-automation-start-mismatch-late;BUG-20260713-automation-delete-no-confirmation;BUG-20260713-workspace-trigger-loop-submit-inert;BUG-20260713-loop-watch-poll-error-stuck
 fix_status: fixed
@@ -53,3 +53,5 @@ must wait with capped exponential backoff; they must not advance the durable fir
 the log. After releasing the writer, exactly one run must retain the original scheduled fire ID.
 The existing real-store scheduler integration owns this backend scenario; see the
 [contention verification report](../reports/2026-10-03-issue-689-sqlite-contention.md).
+
+QA impact 2026-10-08 (Automations spec task 07): the Jobs and Triggers web apps merged into one Automations window. Web entry points moved to `/automations` (old `/jobs*` and `/triggers*` links redirect until v0.5.0); walk through the new route. Daemon, CLI and API behavior in this scenario is unchanged.

@@ -5,7 +5,7 @@ title: Preserve truthful and accessible async UI across Web systems
 persona: Bruno
 journey: J-operate-desktop-shell
 expected: Known-geometry first loads render stable Skeleton geometry for the selected rows or cards view; action-pending feedback remains local while conflicting mutations are serialized; controls backed by unavailable data stay disabled; custom filter menus expose each supported comparison exactly once; schedule previews refresh on their second or minute boundary, including after invalid input becomes valid; focus remains visible on revealed actions and disclosures; operational errors do not invalidate unrelated form fields; errors are announced; and motion is interruptible, composited, and reduced-motion safe.
-entry_points: Web Agents, Jobs, Triggers, Loops, Marketplace, Notifications, Onboarding, Scheduler, Settings, Tasks, Vault, and Session surfaces; shared Filters and Stepper; Web and UI Storybook
+entry_points: Web Agents, Automations, Loops, Marketplace, Notifications, Onboarding, Scheduler, Settings, Tasks, Vault, and Session surfaces; shared Filters and Stepper; Web and UI Storybook
 qa_status: skipped
 bug_ids:
 fix_status:
@@ -30,3 +30,5 @@ entire resilience scenario).
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-08 (Automations spec task 07): the Jobs and Triggers web apps merged into one Automations window. Web entry points moved to `/automations` (old `/jobs*` and `/triggers*` links redirect until v0.5.0); walk through the new route. Daemon, CLI and API behavior in this scenario is unchanged.

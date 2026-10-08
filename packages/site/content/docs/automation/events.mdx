@@ -1,7 +1,12 @@
 ---
-title: Triggers
-description: Configure CompozyOS automation triggers that react to runtime events, filters, and prompt templates.
+title: Automations on events (triggers)
+description: Configure CompozyOS automations that start on runtime events — triggers — with conditions, message templates, Loop input mapping, and last-run results.
 ---
+
+An automation on an event is what the Web UI shows as **Starts → When something happens** (and, for
+webhooks, **When another app calls a link**). Its canonical name in the CLI, the API, the native
+tools, and `config.toml` is a **trigger**, and this page uses that name. To create your first one
+step by step, follow [React when a session fails](/docs/automation/react-when-a-session-fails).
 
 Triggers start an Agent or Loop in response to events. They are useful when the next run should
 depend on something that happened inside CompozyOS, such as a session stopping, a memory consolidation
@@ -25,13 +30,19 @@ management through the CLI, native tools, HTTP, and UDS.
 
 `compozy automation triggers -o json` returns one counted catalog page. The daemon applies `scope`,
 `workspace`, definition `source` (`config`, `package`, or `dynamic`), enabled state, activation
-event, Loop target, and text query filters before it cuts the page. The response keeps the rows
-under `triggers` and reports the exact `total`, applied `limit`, `has_more`, and `next_cursor` values
-under `page`.
+event, Loop target, target kind, and text query filters before it cuts the page. The response keeps
+the rows under `triggers` and reports the exact `total`, applied `limit`, `has_more`, and
+`next_cursor` values under `page`.
+
+`--target agent|loop` filters by what the trigger does. `--target task` is accepted for parity with
+jobs and matches no trigger, because only scheduled automations create tasks.
 
 Use `--limit` to bound each read and pass `--cursor` to continue. A cursor is tied to the filter set
 that created it; restart from the first page when any filter changes. See the generated
 [`compozy automation triggers`](/docs/cli/automation/triggers) reference for every flag.
+
+Every trigger carries its most recent run as `last_run`, in the same shape as jobs, and omits it when
+it has never run. The human table shows it as the **Last run** column.
 
 ## Trigger fields
 
@@ -271,24 +282,25 @@ curl -sS "http://localhost:2123/api/automation/triggers/<trigger-id>/runs?limit=
 ```
 
 Run statuses are the same statuses documented for jobs: `scheduled`, `running`, `delegated`,
-`completed`, `failed`, and `canceled`.
+`completed`, `failed`, and `canceled`. The newest run is also on the trigger itself as `last_run`.
+Triggers have no Run now: an automation on an event runs only when a matching event arrives.
 
 ## Related pages
 
 <RouteList>
   <RouteRow
-    href="/docs/automation/jobs"
-    label="Automation"
-    title="Jobs and Scheduling"
-    description="Run agents on cron, interval, or one-time schedules."
-    meta="Scheduled"
+    href="/docs/automation/schedules"
+    label="Automations"
+    title="Scheduled automations (jobs)"
+    description="Run agents, Loops, or tasks on cron, interval, or one-time schedules."
+    meta="On a schedule"
   />
   <RouteRow
     href="/docs/automation/webhooks"
-    label="Automation"
-    title="Webhooks"
-    description="Expose signed HTTP endpoints for external automation."
-    meta="Ingress"
+    label="Automations"
+    title="Link automations (webhooks)"
+    description="Expose signed HTTP endpoints for other apps."
+    meta="When another app calls a link"
   />
   <RouteRow
     href="/docs/cli/automation/triggers/create"

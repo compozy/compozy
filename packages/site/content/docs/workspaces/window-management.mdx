@@ -49,6 +49,12 @@ compozy window move --workspace <workspace-id> --revision <revision> --id <windo
   --desktop <desktop-id> --group
 ```
 
+The app ids `jobs` and `triggers` are deprecated: one `automations` app replaced them in v0.4.0
+(`--app automations --pathname /automations/jobs/<job-id>`). Until v0.5.0, `--app jobs|triggers`,
+window commands, and `window_layout` resources that name them open Automations on the matching path
+and warn; v0.5.0 rejects them like any unknown app id. Saved layouts that named them migrate
+permanently. See [Upgrading from v0.3](/docs/automation#upgrading-from-v03).
+
 On `window_manager_revision_conflict`, read the topology again and recompute the semantic action.
 Do not replay stale geometry blindly.
 

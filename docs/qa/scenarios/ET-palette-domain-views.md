@@ -5,7 +5,7 @@ title: Browse any list-bearing domain inside the palette
 persona: Sol
 journey: J-command-os-from-palette
 expected: Every list-bearing domain opens as a palette view with domain-appropriate chips carrying truthful counts, single-select semantics, and one-keystroke clear on zero matches; state badges come from the shared status-tone dictionary and are never color-only. A selected row's detail pane previews metadata and sanitized text without stealing list focus and clears when the row disappears. Form views traverse typed fields in declared order, block invalid submits on the first failing field, and discard values on pop. Grid views navigate in two dimensions with placeholder tiles on failed media. Overflowing lists either scroll everything or state the exact "showing N of M"; a cold-cache open shows loading, never a false empty; vault rows render names and metadata only.
-entry_points: Command-K Views group; command palette domain commands (Sessions, Tasks, Loops, Jobs, Agents, Extensions, Marketplace, Vault and peers); marketplace Grid view; vault view
+entry_points: Command-K Views group; command palette domain commands (Sessions, Tasks, Loops, Automations, Agents, Extensions, Marketplace, Vault and peers); marketplace Grid view; vault view
 qa_status: skipped
 bug_ids:
 fix_status:
@@ -72,3 +72,5 @@ in a live runtime; confirm the framed table scrolls inside the detail pane rathe
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-08 (Automations spec task 07): the Jobs and Triggers web apps merged into one Automations window. Web entry points moved to `/automations` (old `/jobs*` and `/triggers*` links redirect until v0.5.0); walk through the new route. Daemon, CLI and API behavior in this scenario is unchanged.
