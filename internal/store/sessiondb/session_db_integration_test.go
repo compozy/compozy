@@ -5,6 +5,7 @@ package sessiondb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -2685,7 +2686,21 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 		originalUpdated     int64
 		continuationKey     string
 		continuationUpdated int64
+		firedBeforeArchive  bool
 	}{
+		{
+			name:    "Should ignore a failed fired attempt before a late routed result and successful archive",
+			entries: 4, originalUpdated: 6, firedBeforeArchive: true,
+			events: []acp.AgentEvent{
+				{Type: acp.EventTypeUserMessage, TurnID: "original", Text: "Original question"},
+				{Type: acp.EventTypeAgentMessage, TurnID: "original", Text: "Original answer"},
+				{Type: acp.EventTypeToolCall, TurnID: "original", ToolCallID: "late-tool", Title: "Read"},
+				{Type: acp.EventTypeDone, TurnID: "original"},
+				{Type: "session.compaction_fired", TurnID: "failed", Raw: json.RawMessage(`{"from_sequence":1,"to_sequence":4}`)},
+				{Type: acp.EventTypeToolResult, TurnID: "original", ToolCallID: "late-tool", Text: "Late output"},
+				{Type: acp.EventTypeDone, TurnID: "failed"},
+			},
+		},
 		{
 			name:    "Should restore completed text across a late tool result after an intervening system boundary",
 			entries: 4, originalUpdated: 6, continuationKey: "g0:s5", continuationUpdated: 7,
@@ -2770,6 +2785,16 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			if err != nil || len(persisted) != len(tc.events) {
 				t.Fatalf("previous ledger=%#v/%v", persisted, err)
 			}
+			if tc.firedBeforeArchive {
+				fired := canonicalStoreEvent(t, acp.AgentEvent{
+					Type: "session.compaction_fired", TurnID: "successful",
+					Raw: json.RawMessage(`{"from_sequence":1,"to_sequence":7}`),
+				}, "coder")
+				persisted, err := previous.writeEventBatch(ctx, []SessionEvent{fired})
+				if err != nil || len(persisted) != 1 || persisted[0].Sequence != 8 {
+					t.Fatalf("successful fired ledger=%#v/%v", persisted, err)
+				}
+			}
 			before, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
 			if err != nil || len(before.Entries) != tc.entries {
 				t.Fatalf("previous page=%#v/%v", before, err)
@@ -2778,7 +2803,8 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			for _, entry := range before.Entries {
 				key := fmt.Sprintf("g0:s%d", entry.StartSequence)
 				identity, found, err := (projectionSQLResolver{db: prefix}).EntryIdentity(ctx, key)
-				if err != nil || !found || !identity.Complete {
+				if err != nil || !found ||
+					(!identity.Complete && !(tc.firedBeforeArchive && entry.StartSequence == 8)) {
 					t.Fatalf("previous identity=%#v/%v/%v", identity, found, err)
 				}
 				identities[key] = identity
@@ -2787,7 +2813,8 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			if err != nil || !found || original.Key != "g0:s2" || original.UpdatedSequence != tc.originalUpdated {
 				t.Fatalf("original identity=%#v/%v/%v", original, found, err)
 			}
-			if identity := identities[tc.continuationKey]; identity.UpdatedSequence != tc.continuationUpdated {
+			if identity := identities[tc.continuationKey]; tc.continuationKey != "" &&
+				identity.UpdatedSequence != tc.continuationUpdated {
 				t.Fatalf("continuation identity=%#v", identity)
 			}
 			if _, err := previous.writeArchiveEvents(
@@ -2797,18 +2824,24 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 				t.Fatal(err)
 			}
 			archived, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
-			if err != nil || len(archived.Entries) != 0 || archived.Generation != 1 {
+			remaining := 0
+			if tc.firedBeforeArchive {
+				remaining = 1
+			}
+			if err != nil || len(archived.Entries) != remaining || archived.Generation != 1 {
 				t.Fatalf("actual archive page=%#v/%v", archived, err)
 			}
-			fired := fmt.Sprintf(`{"raw":{"from_sequence":1,"to_sequence":%d}}`, len(tc.events))
-			if _, err := prefix.ExecContext(
-				ctx,
-				`INSERT INTO events (sequence,id,turn_id,type,agent_name,content,timestamp) VALUES (?,'legacy-fired','original','session.compaction_fired','coder',?,?)`,
-				len(tc.events)+1,
-				fired,
-				store.FormatTimestamp(at),
-			); err != nil {
-				t.Fatal(err)
+			if !tc.firedBeforeArchive {
+				fired := fmt.Sprintf(`{"raw":{"from_sequence":1,"to_sequence":%d}}`, len(tc.events))
+				if _, err := prefix.ExecContext(
+					ctx,
+					`INSERT INTO events (sequence,id,turn_id,type,agent_name,content,timestamp) VALUES (?,'legacy-fired','original','session.compaction_fired','coder',?,?)`,
+					len(tc.events)+1,
+					fired,
+					store.FormatTimestamp(at),
+				); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if err := prefix.Close(); err != nil {
 				t.Fatal(err)

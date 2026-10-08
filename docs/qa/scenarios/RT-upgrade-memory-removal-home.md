@@ -93,7 +93,9 @@ bytes; stop the daemon cleanly; back up the home.
    when its tool result arrived after that boundary; its final updated sequence stays unchanged across
    repeated opens. Interleaved turns retain their identities and completed text even when a late tool
    result belongs to an entry created before the other turn, or foreign events precede its completing
-   boundary. Its old `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
+   boundary. A failed compaction attempt followed by a late tool result and a successful retry also
+   preserves the original identity and public transcript sequence across repeated opens. Its old
+   `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
    produce no usage marker.
 8. `compozy agent soul validate` reports the SOUL valid with no diagnostic for `memory_policy`, the file is not
    rewritten, and the persona applies in a new session.
@@ -139,3 +141,9 @@ nine-event interleaving (including the ordinary second-turn chunk and both termi
 ordering where foreign assistant events precede the completing user boundary. Real previous-version
 projection and archival are compared with two reopened projections for every identity field, text/state,
 route, and generation. The complete previous-release home/Web lab remains untested.
+
+Review round 4 automated coverage: the same real upgrade suite adds the exact eight-event failed-attempt,
+late-result, successful-retry ordering. Both fired events are projected before the successful archival;
+every original identity and public sequence is compared after two opens, including the surviving trigger
+entry. Earlier interleaving, delayed-completion, rewind and reused-route cases remain in the suite.
+The complete previous-release home/Web lab remains untested.

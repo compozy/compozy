@@ -14,13 +14,19 @@ ORDER BY MIN(e.sequence);
 -- name: ListTranscriptEntryContextForUpgrade :many
 SELECT e.id, e.sequence, e.turn_id, e.type, e.agent_name, e.content, e.archived, e.timestamp, e.transcript_entry_key
 FROM events AS e
-WHERE e.sequence < (
-    SELECT MIN(f.sequence) FROM events AS f
+-- A fired event precedes archival and can represent a failed attempt. The last
+-- attempt covering every assigned event identifies the successful cut: subsequent
+-- compaction spans only inspect unarchived events and cannot cover this entry.
+WHERE e.sequence <= (
+    SELECT MAX(MAX(f.sequence - 1,
+                   json_extract(f.content, '$.raw.to_sequence'),
+                   bounds.last_sequence))
+    FROM events AS f
+    CROSS JOIN (
+      SELECT MIN(assigned.sequence) AS first_sequence, MAX(assigned.sequence) AS last_sequence
+      FROM events AS assigned WHERE assigned.transcript_entry_key = sqlc.arg(entry_key)) AS bounds
     WHERE f.type = 'session.compaction_fired'
-      AND EXISTS (
-        SELECT 1 FROM events AS assigned
-        WHERE assigned.transcript_entry_key = sqlc.arg(entry_key)
-          AND assigned.sequence BETWEEN json_extract(f.content, '$.raw.from_sequence')
-                                    AND json_extract(f.content, '$.raw.to_sequence')))
+      AND bounds.first_sequence >= json_extract(f.content, '$.raw.from_sequence')
+      AND bounds.last_sequence <= json_extract(f.content, '$.raw.to_sequence'))
   AND e.transcript_entry_key <> ''
 ORDER BY e.sequence ASC;
