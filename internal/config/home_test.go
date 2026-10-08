@@ -233,7 +233,6 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		paths.LoopsDir,
 		paths.ProfilesDir,
 		paths.DefaultProfileDir,
-		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.ToolArtifactsDir,
 		paths.SessionAttachmentsDir,
@@ -270,15 +269,6 @@ func TestResolveHomePathsFromExpandsTildePaths(t *testing.T) {
 			paths.HomeDir,
 			filepath.Join(userHome, "compozy-test-home"),
 		)
-	}
-	if got, want := paths.MemoryDir, filepath.Join(
-		userHome,
-		"compozy-test-home",
-		ProfilesDirName,
-		DefaultProfileDirName,
-		MemoryDirName,
-	); got != want {
-		t.Fatalf("ResolveHomePathsFrom() MemoryDir = %q, want %q", got, want)
 	}
 	if got, want := paths.SkillsDir, filepath.Join(userHome, "compozy-test-home", SkillsDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() SkillsDir = %q, want %q", got, want)

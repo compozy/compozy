@@ -47,12 +47,9 @@ func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
 			name RoleName
 			role RoleConfig
 		}{
-			{name: RoleDream, role: got.Dream},
-			{name: RoleCheckpointSummary, role: got.CheckpointSummary},
-			{name: RoleMemoryExtractor, role: got.MemoryExtractor},
 			{name: RoleAutoTitle, role: got.AutoTitle},
 		} {
-			if want := item.name != RoleDream; item.role.Enabled != want {
+			if want := true; item.role.Enabled != want {
 				t.Errorf("DefaultRolesConfig().%s.Enabled = %t, want %t", item.name, item.role.Enabled, want)
 			}
 			if item.role.Agent != "" {
@@ -61,71 +58,47 @@ func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve memory controller defaults", func(t *testing.T) {
-		t.Parallel()
-
-		got := DefaultRolesConfig().MemoryController
-		if !got.Enabled {
-			t.Fatal("DefaultRolesConfig().MemoryController.Enabled = false, want true")
-		}
-		if got.Provider != "pi" {
-			t.Fatalf("DefaultRolesConfig().MemoryController.Provider = %q, want pi", got.Provider)
-		}
-		if got.Model != "anthropic/claude-haiku-4" {
-			t.Fatalf("DefaultRolesConfig().MemoryController.Model = %q, want anthropic/claude-haiku-4", got.Model)
-		}
-		if got.Timeout != 250*time.Millisecond {
-			t.Fatalf("DefaultRolesConfig().MemoryController.Timeout = %s, want 250ms", got.Timeout)
-		}
-		if got.TopK != 5 || got.PromptVersion != "v1" || got.MaxTokensOut != 256 {
-			t.Fatalf(
-				"DefaultRolesConfig().MemoryController = %#v, want top_k=5 prompt_version=v1 max_tokens_out=256",
-				got,
-			)
-		}
-	})
-
 	t.Run("Should clone every fallback chain without shared ownership", func(t *testing.T) {
 		t.Parallel()
 
 		source := DefaultRolesConfig()
-		source.Dream.FallbackChain = []RoleFallback{{Provider: "primary", Model: "dream-model"}}
-		source.MemoryController.FallbackChain = []RoleFallback{{Provider: "backup", Model: "controller-model"}}
-		source.Dream.Speed = speedpkg.SpeedFast
-		source.Dream.ACPOptions = []ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
-		source.Dream.FallbackChain[0].ACPOptions = []ACPOptionSelection{{ID: "context", ValueID: "1m"}}
+		source.AutoTitle.FallbackChain = []RoleFallback{{Provider: "primary", Model: "title-model"}}
+		source.Coordinator.FallbackChain = []RoleFallback{{Provider: "backup", Model: "coordinator-model"}}
+		source.AutoTitle.Speed = speedpkg.SpeedFast
+		source.AutoTitle.ACPOptions = []ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		source.AutoTitle.FallbackChain[0].ACPOptions = []ACPOptionSelection{{ID: "context", ValueID: "1m"}}
 		cloned := CloneRolesConfig(&source)
-		cloned.Dream.FallbackChain[0].Model = "changed-dream"
-		cloned.MemoryController.FallbackChain[0].Model = "changed-controller"
-		cloned.Dream.Speed = speedpkg.SpeedNormal
-		*cloned.Dream.ACPOptions[0].BoolValue = false
-		cloned.Dream.FallbackChain[0].ACPOptions[0].ValueID = "128k"
-		if source.Dream.FallbackChain[0].Model != "dream-model" ||
-			source.MemoryController.FallbackChain[0].Model != "controller-model" ||
-			source.Dream.Speed != speedpkg.SpeedFast ||
-			source.Dream.ACPOptions[0].BoolValue == nil || !*source.Dream.ACPOptions[0].BoolValue ||
-			source.Dream.FallbackChain[0].ACPOptions[0].ValueID != "1m" {
+		cloned.AutoTitle.FallbackChain[0].Model = "changed-title"
+		cloned.Coordinator.FallbackChain[0].Model = "changed-coordinator"
+		cloned.AutoTitle.Speed = speedpkg.SpeedNormal
+		*cloned.AutoTitle.ACPOptions[0].BoolValue = false
+		cloned.AutoTitle.FallbackChain[0].ACPOptions[0].ValueID = "128k"
+		if source.AutoTitle.FallbackChain[0].Model != "title-model" ||
+			source.Coordinator.FallbackChain[0].Model != "coordinator-model" ||
+			source.AutoTitle.Speed != speedpkg.SpeedFast ||
+			source.AutoTitle.ACPOptions[0].BoolValue == nil || !*source.AutoTitle.ACPOptions[0].BoolValue ||
+			source.AutoTitle.FallbackChain[0].ACPOptions[0].ValueID != "1m" {
 			t.Fatalf("CloneRolesConfig() mutated source fallbacks: %#v", source)
 		}
 	})
 
-	t.Run("Should clone and validate a memory-controller route command", func(t *testing.T) { // UT-002
+	t.Run("Should clone and validate a coordinator route command", func(t *testing.T) { // UT-002
 		t.Parallel()
 
 		const command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
 		source := DefaultRolesConfig()
-		source.MemoryController.FallbackChain = []RoleFallback{{
+		source.Coordinator.FallbackChain = []RoleFallback{{
 			Provider: "claude", Model: "haiku-4-5", Command: command,
 		}}
 		if err := source.Validate("roles", &Config{}); err != nil {
-			t.Fatalf("Validate(memory controller route command) error = %v", err)
+			t.Fatalf("Validate(coordinator route command) error = %v", err)
 		}
 		cloned := CloneRolesConfig(&source)
-		if got := cloned.MemoryController.FallbackChain[0].Command; got != command {
+		if got := cloned.Coordinator.FallbackChain[0].Command; got != command {
 			t.Fatalf("cloned route command = %q, want %q", got, command)
 		}
-		cloned.MemoryController.FallbackChain[0].Command = "changed"
-		if got := source.MemoryController.FallbackChain[0].Command; got != command {
+		cloned.Coordinator.FallbackChain[0].Command = "changed"
+		if got := source.Coordinator.FallbackChain[0].Command; got != command {
 			t.Fatalf("source route command = %q after clone mutation, want %q", got, command)
 		}
 	})
@@ -207,9 +180,9 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultRolesConfig()
-		cfg.Dream.FallbackChain = []RoleFallback{{Model: "model-a"}}
+		cfg.AutoTitle.FallbackChain = []RoleFallback{{Model: "model-a"}}
 		err := cfg.Validate("roles", &Config{})
-		if err == nil || !strings.Contains(err.Error(), "roles.dream.fallback_chain[0].provider is required") {
+		if err == nil || !strings.Contains(err.Error(), "roles.auto_title.fallback_chain[0].provider is required") {
 			t.Fatalf("Validate() error = %v, want fallback provider path", err)
 		}
 	})
@@ -218,9 +191,9 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultRolesConfig()
-		cfg.Dream.FallbackChain = []RoleFallback{{Provider: "missing", Model: "model-a"}}
+		cfg.AutoTitle.FallbackChain = []RoleFallback{{Provider: "missing", Model: "model-a"}}
 		err := cfg.Validate("roles", &Config{})
-		assertErrorContains(t, err, "roles.dream.fallback_chain[0].provider")
+		assertErrorContains(t, err, "roles.auto_title.fallback_chain[0].provider")
 		assertErrorContains(t, err, "missing")
 	})
 
@@ -304,9 +277,9 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultRolesConfig()
-		cfg.MemoryExtractor.ReasoningEffort = "invalid effort"
+		cfg.AutoTitle.ReasoningEffort = "invalid effort"
 		err := cfg.Validate("roles", &Config{})
-		assertErrorContains(t, err, "roles.memory_extractor.reasoning_effort")
+		assertErrorContains(t, err, "roles.auto_title.reasoning_effort")
 		assertErrorContains(t, err, "invalid effort")
 	})
 
@@ -314,17 +287,17 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultRolesConfig()
-		cfg.Dream.Speed = "burst"
+		cfg.AutoTitle.Speed = "burst"
 		err := cfg.Validate("roles", &Config{})
-		assertErrorContains(t, err, "roles.dream.speed")
+		assertErrorContains(t, err, "roles.auto_title.speed")
 	})
 
 	t.Run("Should reject role speed duplicated by its ACP option", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultRolesConfig()
-		cfg.Dream.Speed = speedpkg.SpeedFast
-		cfg.Dream.ACPOptions = []ACPOptionSelection{{ID: "speed", ValueID: "fast"}}
+		cfg.AutoTitle.Speed = speedpkg.SpeedFast
+		cfg.AutoTitle.ACPOptions = []ACPOptionSelection{{ID: "speed", ValueID: "fast"}}
 		err := cfg.Validate("roles", &Config{})
 		assertErrorContains(t, err, "duplicates speed")
 	})
@@ -333,13 +306,13 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultRolesConfig()
-		cfg.Dream.Agent = "audio designer"
+		cfg.AutoTitle.Agent = "audio designer"
 		err := cfg.Validate("roles", &Config{})
 		validationErr, validationErrOK := errors.AsType[ValidationError](err)
 		if !validationErrOK {
 			t.Fatalf("RolesConfig.Validate() error = %T, want ValidationError", err)
 		}
-		if got, want := validationErr.Path, "roles.dream.agent"; got != want {
+		if got, want := validationErr.Path, "roles.auto_title.agent"; got != want {
 			t.Fatalf("RolesConfig.Validate() path = %q, want %q", got, want)
 		}
 		const wantMessage = `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
@@ -352,9 +325,9 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultRolesConfig()
-		cfg.Dream.Agent = "curator"
-		cfg.Dream.Provider = "bare-pi"
-		cfg.Dream.Model = ""
+		cfg.AutoTitle.Agent = "curator"
+		cfg.AutoTitle.Provider = "bare-pi"
+		cfg.AutoTitle.Model = ""
 		providers := &Config{Providers: map[string]ProviderConfig{
 			"bare-pi": {
 				Command:         "pi-acp",
@@ -364,17 +337,6 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		}}
 		if err := cfg.Validate("roles", providers); err != nil {
 			t.Fatalf("Validate(catalog agent supplies model) error = %v", err)
-		}
-	})
-
-	t.Run("Should require a positive enabled controller timeout", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := DefaultRolesConfig()
-		cfg.MemoryController.Timeout = 0
-		err := cfg.Validate("roles", &Config{})
-		if err == nil || !strings.Contains(err.Error(), "roles.memory_controller.timeout must be positive") {
-			t.Fatalf("Validate() error = %v, want controller timeout error", err)
 		}
 	})
 }

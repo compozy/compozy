@@ -20,7 +20,6 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -53,7 +52,7 @@ func runtimeMigrationExpectations(
 		}
 	}()
 
-	streams := []store.MigrationStream{globaldb.MigrationStream(), memory.MigrationStream()}
+	streams := []store.MigrationStream{globaldb.MigrationStream()}
 	expectations := make([]runtimeMigrationExpectation, 0, len(streams))
 	for _, stream := range streams {
 		status, err := store.Status(ctx, db, stream)
@@ -251,7 +250,10 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 			t.Fatalf("manifest.Transport.SocketPath = %q, want %q", got, want)
 		}
 		if !runtimeManifestHasArtifact(manifest.CapturedArtifacts, ArtifactKindTransportOutputs, "transport_outputs") {
-			t.Fatalf("manifest.CapturedArtifacts = %#v, want transport_outputs entry", manifest.CapturedArtifacts.Artifacts)
+			t.Fatalf(
+				"manifest.CapturedArtifacts = %#v, want transport_outputs entry",
+				manifest.CapturedArtifacts.Artifacts,
+			)
 		}
 	})
 
@@ -278,7 +280,7 @@ func assertSchemaStreamStatuses(
 ) {
 	t.Helper()
 	if len(statuses) != len(expectations) {
-		t.Fatalf("schema streams = %#v, want global and memory", statuses)
+		t.Fatalf("schema streams = %#v, want global", statuses)
 	}
 	for index, expectation := range expectations {
 		status := statuses[index]

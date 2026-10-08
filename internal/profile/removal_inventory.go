@@ -27,10 +27,6 @@ func profileFileRemovalSummary(profileDir string) (RemovalSummary, error) {
 	if err != nil {
 		return RemovalSummary{}, err
 	}
-	summary.MemoryEntries, err = countFiles(filepath.Join(profileDir, compozyconfig.MemoryDirName))
-	if err != nil {
-		return RemovalSummary{}, err
-	}
 	servers, err := compozyconfig.LoadMCPServersJSONFile(filepath.Join(profileDir, compozyconfig.MCPJSONName))
 	if err != nil {
 		return RemovalSummary{}, fmt.Errorf("profile: inventory MCP sidecar: %w", err)

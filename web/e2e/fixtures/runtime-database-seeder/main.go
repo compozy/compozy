@@ -26,7 +26,7 @@ func run(ctx context.Context, args []string) (err error) {
 	if *output == "" {
 		return errors.New("runtime database seeder requires --output")
 	}
-	seed, err := storeseed.NewCombined(ctx)
+	seed, err := storeseed.NewGlobal(ctx)
 	if err != nil {
 		return err
 	}

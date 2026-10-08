@@ -28,7 +28,6 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		ProfileResolver:         state.profiles,
 		AttentionWorkspaceMutes: state.registry,
 		GeneralRuntime:          surface,
-		MemoryRuntime:           surface,
 		SkillsRuntime:           state.skillsRegistry,
 		AutomationRuntime:       surface,
 		ObservabilityRuntime:    surface,
@@ -45,12 +44,11 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 			daemon: d,
 			state:  state,
 		},
-		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
-		EventSummaries:             state.registry,
-		ApplyRecords:               applyRecords,
-		RestartActionAvailable:     true,
-		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
-		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",
+		ProviderSecrets:        settingsProviderVaultDependency(state.providerVault),
+		EventSummaries:         state.registry,
+		ApplyRecords:           applyRecords,
+		RestartActionAvailable: true,
+		LogTailAvailable:       strings.TrimSpace(d.homePaths.LogFile) != "",
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create settings service: %w", err)

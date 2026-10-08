@@ -170,27 +170,26 @@ func sessionCatalogPageQuery(
 	activeIDs []string,
 ) store.SessionCatalogPageQuery {
 	return store.SessionCatalogPageQuery{
-		SkipTotal:           normalized.SkipTotal,
-		ReadScope:           normalized.ReadScope,
-		WorkspaceID:         normalized.WorkspaceID,
-		WorktreeID:          normalized.WorktreeID,
-		State:               normalized.State,
-		SessionType:         string(normalized.SessionType),
-		AgentName:           normalized.AgentName,
-		ParentSessionID:     normalized.ParentSessionID,
-		RootSessionID:       normalized.RootSessionID,
-		SearchFields:        normalized.SearchFields,
-		Search:              normalized.Search,
-		AttentionOnly:       normalized.AttentionOnly,
-		Badges:              badgeStrings(normalized.Badges),
-		Resumable:           normalized.Resumable,
-		Archive:             normalized.Archive,
-		Sort:                normalized.Sort,
-		Limit:               normalized.Limit + 1,
-		After:               after,
-		ExcludeIDs:          activeIDs,
-		ExcludeSessionTypes: []string{string(SessionTypeDream)},
-		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle},
+		SkipTotal:         normalized.SkipTotal,
+		ReadScope:         normalized.ReadScope,
+		WorkspaceID:       normalized.WorkspaceID,
+		WorktreeID:        normalized.WorktreeID,
+		State:             normalized.State,
+		SessionType:       string(normalized.SessionType),
+		AgentName:         normalized.AgentName,
+		ParentSessionID:   normalized.ParentSessionID,
+		RootSessionID:     normalized.RootSessionID,
+		SearchFields:      normalized.SearchFields,
+		Search:            normalized.Search,
+		AttentionOnly:     normalized.AttentionOnly,
+		Badges:            badgeStrings(normalized.Badges),
+		Resumable:         normalized.Resumable,
+		Archive:           normalized.Archive,
+		Sort:              normalized.Sort,
+		Limit:             normalized.Limit + 1,
+		After:             after,
+		ExcludeIDs:        activeIDs,
+		ExcludeSpawnRoles: []string{SpawnRoleAutoTitle},
 	}
 }
 
@@ -335,7 +334,7 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 }
 
 func isPublicSessionCatalogInfo(info *Info) bool {
-	if info == nil || info.Type == SessionTypeDream {
+	if info == nil {
 		return false
 	}
 	lineage := info.Lineage

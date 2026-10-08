@@ -112,18 +112,6 @@ type taskRunStory struct {
 	Error      string
 }
 
-type memoryStory struct {
-	Name         string
-	Scope        string
-	WorkspaceKey string
-	AgentName    string
-	Type         string
-	Description  string
-	Body         string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-}
-
 type eventSummaryStory struct {
 	ID           string
 	WorkspaceKey string

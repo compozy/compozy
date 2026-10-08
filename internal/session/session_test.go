@@ -485,19 +485,21 @@ func TestBeginPromptSetupRejectsReservedConversationRewind(t *testing.T) {
 func TestNormalizeSessionTypeDefaultsToUser(t *testing.T) {
 	t.Parallel()
 
-	if got := normalizeSessionType(""); got != SessionTypeUser {
-		t.Fatalf("normalizeSessionType(\"\") = %q, want %q", got, SessionTypeUser)
-	}
-	if got := normalizeSessionType(" dream "); got != SessionTypeDream {
-		t.Fatalf("normalizeSessionType(\" dream \") = %q, want %q", got, SessionTypeDream)
-	}
-	if got := normalizeSessionType(" coordinator "); got != SessionTypeCoordinator {
-		t.Fatalf("normalizeSessionType(\" coordinator \") = %q, want %q", got, SessionTypeCoordinator)
-	}
-	if got := normalizeSessionType(" spawned "); got != SessionTypeSpawned {
-		t.Fatalf("normalizeSessionType(\" spawned \") = %q, want %q", got, SessionTypeSpawned)
-	}
-	if got := normalizeSessionType("unknown"); got != SessionTypeUser {
-		t.Fatalf("normalizeSessionType(\"unknown\") = %q, want %q", got, SessionTypeUser)
-	}
+	t.Run("Should normalize supported types and default unknown types to user", func(t *testing.T) {
+		t.Parallel()
+
+		if got := normalizeSessionType(""); got != SessionTypeUser {
+			t.Fatalf("normalizeSessionType(\"\") = %q, want %q", got, SessionTypeUser)
+		}
+
+		if got := normalizeSessionType(" coordinator "); got != SessionTypeCoordinator {
+			t.Fatalf("normalizeSessionType(\" coordinator \") = %q, want %q", got, SessionTypeCoordinator)
+		}
+		if got := normalizeSessionType(" spawned "); got != SessionTypeSpawned {
+			t.Fatalf("normalizeSessionType(\" spawned \") = %q, want %q", got, SessionTypeSpawned)
+		}
+		if got := normalizeSessionType("unknown"); got != SessionTypeUser {
+			t.Fatalf("normalizeSessionType(\"unknown\") = %q, want %q", got, SessionTypeUser)
+		}
+	})
 }

@@ -14,29 +14,6 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func (s *service) buildMemorySection(ctx context.Context, cfg *compozyconfig.Config) (MemorySection, error) {
-	health := MemoryHealthStatus{}
-	if s.memoryRuntime != nil {
-		status, err := s.memoryRuntime.MemoryHealthStatus(ctx)
-		if err != nil {
-			return MemorySection{}, fmt.Errorf("settings: memory health: %w", err)
-		}
-		health = status
-	}
-
-	return MemorySection{
-		Config: cfg.Memory,
-		Health: health,
-		Actions: MemoryActions{
-			Consolidate: ActionMetadata{
-				Name:      sectionsConsolidateKey,
-				Available: s.consolidateActionAvailable,
-				Behavior:  MutationBehaviorActionTrigger,
-			},
-		},
-	}, nil
-}
-
 func (s *service) buildSkillsSection(
 	ctx context.Context,
 	cfg *compozyconfig.Config,

@@ -135,3 +135,10 @@ type ObservabilityConfig struct {
 	AgentProbeTimeout time.Duration                 `toml:"agent_probe_timeout"`
 	Transcripts       ObservabilityTranscriptConfig `toml:"transcripts"`
 }
+
+// ObservabilityTranscriptConfig configures transcript capture and retention.
+type ObservabilityTranscriptConfig struct {
+	Enabled            bool  `toml:"enabled"`
+	SegmentBytes       int   `toml:"segment_bytes"`
+	MaxBytesPerSession int64 `toml:"max_bytes_per_session"`
+}

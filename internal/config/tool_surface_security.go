@@ -92,8 +92,6 @@ func configPathIsTrustRoot(path []string) bool {
 		return true
 	case providersConfigKey:
 		return providerConfigPathIsTrustRoot(path)
-	case MemoryDirName:
-		return memoryConfigPathIsTrustRoot(path)
 	case "tools":
 		return toolsConfigPathIsTrustRoot(path)
 	case SkillsDirName:
@@ -111,26 +109,6 @@ func providerConfigPathIsTrustRoot(path []string) bool {
 		return false
 	}
 	return path[2] == toolSurfaceCommandKey || path[2] == toolSurfaceMCPServersKey
-}
-
-func memoryConfigPathIsTrustRoot(path []string) bool {
-	if len(path) < 2 {
-		return false
-	}
-	switch path[1] {
-	case "global_dir":
-		return true
-	case toolSurfaceExtractorKey:
-		return len(path) >= 3 && (path[2] == "inbox_path" || path[2] == "dlq_path")
-	case "session":
-		return len(path) >= 3 && path[2] == "ledger_root"
-	case "daily":
-		return len(path) >= 3 && path[2] == "archive_path"
-	case string(WriteScopeWorkspace):
-		return len(path) >= 3 && path[2] == "toml_path"
-	default:
-		return false
-	}
 }
 
 func toolsConfigPathIsTrustRoot(path []string) bool {

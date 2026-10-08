@@ -67,8 +67,6 @@ func stripKnownPromptAugmentation(prompt string) string {
 	next = stripLeadingSkillsCatalogBlock(next, availableSkillsOpen, availableSkillsClose)
 	next = stripLeadingSelfClosingPromptBlock(next, currentAvailableSkillsSelfClosing)
 	next = stripLeadingSelfClosingPromptBlock(next, availableSkillsSelfClosing)
-	next = stripLeadingDurableMemoryBlock(next)
-	next = stripLeadingPromptBlock(next, workspaceKnowledgeOpen, workspaceKnowledgeClose)
 	next = stripLeadingUserMessageBlock(next)
 
 	next = stripTrailingLoopOutputContract(next)
@@ -152,18 +150,6 @@ func stripLeadingSelfClosingPromptBlock(prompt string, block string) string {
 		return trimmed
 	}
 	return strings.TrimSpace(strings.TrimPrefix(trimmed, block))
-}
-
-func stripLeadingDurableMemoryBlock(prompt string) string {
-	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, durableMemoryOpen) {
-		return trimmed
-	}
-	_, after, ok := strings.Cut(trimmed, durableMemoryClose)
-	if !ok {
-		return trimmed
-	}
-	return stripLeadingUserMessageBlock(after)
 }
 
 func stripLeadingUserMessageBlock(prompt string) string {

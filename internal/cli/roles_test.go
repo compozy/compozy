@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -167,7 +168,7 @@ func TestRolesCommands(t *testing.T) {
 			deps,
 			"roles", "show", "dream", "-o", "json",
 		)
-		if exitCode != 1 || stdout != "" {
+		if exitCode != agentidentity.ExitUnavailable || stdout != "" {
 			t.Fatalf("roles show unknown exit/stdout = %d/%q, want nonzero/empty", exitCode, stdout)
 		}
 		var payload contract.ErrorPayload

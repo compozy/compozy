@@ -19,11 +19,8 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/memory"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/situation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -46,11 +43,8 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = true
 	workspaceRoot := homePaths.HomeDir + "/workspace"
 	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
-	writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
-	writeHarnessCheckpointSummary(t, workspaceRoot, "The prior session selected cobalt.")
 	const gatedSkillName = "integration-platform-gated"
 	writeDaemonFile(
 		t,
@@ -95,8 +89,6 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		daemonInstance.harnessResolver,
 		nil,
 		defaultPromptInputAugmenterDescriptors(
-			situation.WorkspaceKnowledgeAugmenter,
-			memory.NewRecallAugmenter(daemonInstance.memoryStore),
 			newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, nil, func() promptSkillsWorkspaceResolver {
 				return workspaceResolver
 			}, nil),
@@ -185,10 +177,6 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		!strings.Contains(got, "- workspace_id: ws-harness") {
 		t.Fatalf("start system prompt = %q, want Compozy runtime envelope with workspace facts", got)
 	}
-	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "<compozy_checkpoint_summary>") ||
-		!strings.Contains(got, "The prior session selected cobalt.") {
-		t.Fatalf("start system prompt = %q, want prior-session checkpoint summary", got)
-	}
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
@@ -196,9 +184,6 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		"# Compozy Runtime",
 		"canonical registry IDs",
 		"<compozy-situation-context>",
-		"# Persistent Memory",
-		"<compozy_checkpoint_summary>",
-		"The prior session selected cobalt.",
 		"You are a coding assistant.",
 		"<available-skills>",
 		toolRouter,
@@ -215,14 +200,12 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if !slices.Equal(
 		userResolved.Policy.EnableAugmenters,
 		[]HarnessAugmenter{
-			HarnessAugmenterWorkspaceKnowledge,
 			HarnessAugmenterSkills,
 			HarnessAugmenterSituation,
-			HarnessAugmenterDurableMemory,
 		},
 	) {
 		t.Fatalf(
-			"user EnableAugmenters = %#v, want workspace knowledge, skills, situation, and durable memory",
+			"user EnableAugmenters = %#v, want skills and situation",
 			userResolved.Policy.EnableAugmenters,
 		)
 	}
@@ -237,9 +220,6 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("PromptWithOpts(user) error = %v", err)
 	}
 	drainHarnessIntegrationEvents(userEvents)
-	if got := driver.promptCalls[0].Message; !strings.Contains(got, "Relevant durable memory for this turn:") {
-		t.Fatalf("user prompt message = %q, want durable memory augmentation", got)
-	}
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<current-available-skills>") {
 		t.Fatalf("user prompt message = %q, want current skills augmentation", got)
 	}
@@ -255,36 +235,6 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 
 }
 
-func writeHarnessCheckpointSummary(t *testing.T, workspaceRoot string, fact string) {
-	t.Helper()
-
-	body := strings.Join([]string{
-		"## Historical Task Snapshot", "None.",
-		"## Goal", fact,
-		"## Constraints & Preferences", "None.",
-		"## Completed Actions", "1. Preserved the prior-session fact.",
-		"## Active State", "Idle.",
-		"## Historical In-Progress State", "None.",
-		"## Blocked", "None.",
-		"## Key Decisions", fact,
-		"## Resolved Questions", "None.",
-		"## Historical Pending User Asks", "None.",
-		"## Relevant Files", "None.",
-		"## Historical Remaining Work", "None.",
-		"## Critical Context", fact,
-	}, "\n\n")
-	writeDaemonFile(
-		t,
-		filepath.Join(workspaceRoot, compozyconfig.DirName, "memory", memory.CheckpointSummaryFilename),
-		memoryDocument(
-			"Workspace Checkpoint Summary",
-			"Continuity checkpoint updated from completed workspace sessions.",
-			memcontract.TypeProject,
-			body,
-		),
-	)
-}
-
 func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	t.Run(
 		"Should preserve resolver policy across session resume",
@@ -295,7 +245,6 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = true
 	workspaceRoot := homePaths.HomeDir + "/workspace"
 	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
 
@@ -392,7 +341,6 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 			func(t *testing.T) {
 				homePaths := integrationHomePaths(t)
 				cfg := testConfig(t, homePaths)
-				cfg.Memory.Enabled = true
 				cfg.Skills.Enabled = skillsEnabled
 				workspace := newHarnessIntegrationWorkspace(
 					t,
@@ -455,7 +403,7 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				}
 				stop(parent)
 				assertLatestPrompt("interactive", true)
-				for _, sessionType := range []session.Type{session.SessionTypeSystem, session.SessionTypeDream} {
+				for _, sessionType := range []session.Type{session.SessionTypeSystem} {
 					created, createErr := manager.Create(
 						t.Context(),
 						session.CreateOpts{AgentName: agentName, Workspace: workspace.ID, Type: sessionType},
@@ -475,20 +423,19 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				}
 				stop(worker)
 				assertLatestPrompt("spawned worker", true)
-				extractor := &forkedMemoryExtractor{sessions: manager, deadline: time.Minute}
-				child, err := extractor.spawnExtractorSession(
-					t.Context(),
-					&ResolvedRole{Enabled: true, AgentName: agentName},
-					roleInvocationCorrelation{},
-					memcontract.TurnRecord{SessionID: parent.ID},
-				)
+				child, err := manager.Spawn(t.Context(), session.SpawnOpts{
+					ParentSessionID: parent.ID,
+					AgentName:       agentName,
+					SpawnRole:       session.SpawnRoleAutoTitle,
+					TTL:             time.Minute,
+				})
 				if err != nil {
 					t.Fatal(err)
 				}
 				if child.Info().Type != session.SessionTypeSpawned {
-					t.Fatal("extractor must exercise Spawn")
+					t.Fatal("auto-title must exercise Spawn")
 				}
-				assertLatestPrompt("spawned extractor", false)
+				assertLatestPrompt("spawned auto-title", false)
 				if err := manager.Stop(t.Context(), child.ID); err != nil {
 					t.Fatal(err)
 				}
@@ -497,7 +444,7 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 					t.Fatal(err)
 				}
 				stop(resumed)
-				assertLatestPrompt("resumed extractor", false)
+				assertLatestPrompt("resumed auto-title", false)
 				resolved, err := daemonInstance.harnessResolver.ResolvePrompt(
 					resumed.Info(),
 					session.TurnSourceUser,
@@ -507,7 +454,7 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 					t.Fatal(err)
 				}
 				if containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionTools) {
-					t.Fatal("resume lost extractor role")
+					t.Fatal("resume lost auto-title role")
 				}
 
 			},
@@ -635,7 +582,6 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 		driverPath := acpmock.RequireDriver(t)
 		homePaths := integrationHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Memory.Enabled = false
 		workspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, filepath.Join(homePaths.HomeDir, "workspace"))
 		workspace.Agents[0].Model = "" // The receipt fixture advertises no selectable model.
 		expectedSkills := []string{"compozy"}
@@ -666,8 +612,6 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			daemonInstance.harnessResolver,
 			nil,
 			defaultPromptInputAugmenterDescriptors(
-				situation.WorkspaceKnowledgeAugmenter,
-				nil,
 				skillsAugmenter,
 				daemonInstance.situationContext.Augment,
 			)...)
@@ -797,7 +741,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			t.Helper()
 			var created *session.Session
 			var err error
-			if role == session.SpawnRoleMemoryExtractor || role == session.SpawnRoleAutoTitle {
+			if role == session.SpawnRoleAutoTitle {
 				created, err = manager.Spawn(t.Context(), session.SpawnOpts{
 					ParentSessionID: parent.ID, AgentName: workspace.Agents[0].Name, SpawnRole: role, TTL: time.Minute,
 				})
@@ -853,7 +797,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 		if strings.Contains(changed, `<catalog-state unchanged="true">`) {
 			t.Errorf("changed payload must contain the new full catalog")
 		}
-		for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle} {
+		for _, role := range []string{session.SpawnRoleAutoTitle} {
 			prompt := send(create(role), role)
 			for _, section := range []string{"<available-skills>", "<current-available-skills>", "<compozy-situation-context>"} {
 				if strings.Contains(prompt, section) {

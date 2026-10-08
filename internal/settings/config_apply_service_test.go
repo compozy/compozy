@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,7 +12,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
 	"time"
+
+	"github.com/pelletier/go-toml/v2"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -385,7 +389,7 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 	t.Run("Should persist role routing as a live apply with history", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
@@ -393,8 +397,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := db.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
+			if err := db.Close(context.Background()); err != nil {
+				t.Errorf("Close() error = %v", err)
 			}
 		})
 
@@ -406,9 +410,9 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		roles := cfg.Roles
-		roles.MemoryExtractor.Model = "anthropic/claude-sonnet-4"
-		roles.MemoryExtractor.Speed = "fast"
-		roles.MemoryExtractor.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		roles.AutoTitle.Model = "anthropic/claude-sonnet-4"
+		roles.AutoTitle.Speed = "fast"
+		roles.AutoTitle.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
 			Section: SectionRoles,
@@ -422,46 +426,66 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 			t.Fatalf("ApplySection(roles) = %#v, want applied live record", result)
 		}
 
+		var persistedTables map[string]any
+		if err := toml.Unmarshal([]byte(readFile(t, homePaths.ConfigFile)), &persistedTables); err != nil {
+			t.Fatalf("decode persisted config tables: %v", err)
+		}
+		roleTables, ok := persistedTables["roles"].(map[string]any)
+		if !ok {
+			t.Fatalf("persisted roles = %#v, want role tables", persistedTables["roles"])
+		}
+		if got, want := slices.Sorted(
+			maps.Keys(roleTables),
+		), []string{
+			"auto_title",
+			"coordinator",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("persisted role roster = %q, want %q", got, want)
+		}
+
 		persisted, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(persisted) error = %v", err)
 		}
-		if got, want := persisted.Roles.MemoryExtractor.Model, "anthropic/claude-sonnet-4"; got != want {
-			t.Fatalf("persisted roles.memory_extractor.model = %q, want %q", got, want)
+		if got, want := persisted.Roles.AutoTitle.Model, "anthropic/claude-sonnet-4"; got != want {
+			t.Fatalf("persisted roles.auto_title.model = %q, want %q", got, want)
 		}
-		if got, want := persisted.Roles.MemoryExtractor.Speed, speedpkg.SpeedFast; got != want {
-			t.Fatalf("persisted roles.memory_extractor.speed = %q, want %q", got, want)
+		if got, want := persisted.Roles.AutoTitle.Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("persisted roles.auto_title.speed = %q, want %q", got, want)
 		}
-		persistedOption := persisted.Roles.MemoryExtractor.ACPOptions
+		persistedOption := persisted.Roles.AutoTitle.ACPOptions
 		if len(persistedOption) != 1 || persistedOption[0].ID != "thinking" ||
 			persistedOption[0].BoolValue == nil || !*persistedOption[0].BoolValue {
-			t.Fatalf("persisted roles.memory_extractor.acp_options = %#v, want thinking=true", persistedOption)
+			t.Fatalf("persisted roles.auto_title.acp_options = %#v, want thinking=true", persistedOption)
 		}
 		active, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig() error = %v", err)
 		}
-		if active.Roles.MemoryExtractor.Model != persisted.Roles.MemoryExtractor.Model {
+		if active.Roles.AutoTitle.Model != persisted.Roles.AutoTitle.Model {
 			t.Fatalf(
-				"active roles.memory_extractor.model = %q, want persisted %q",
-				active.Roles.MemoryExtractor.Model,
-				persisted.Roles.MemoryExtractor.Model,
+				"active roles.auto_title.model = %q, want persisted %q",
+				active.Roles.AutoTitle.Model,
+				persisted.Roles.AutoTitle.Model,
 			)
 		}
-		active.Roles.MemoryExtractor.FallbackChain = append(
-			active.Roles.MemoryExtractor.FallbackChain,
+		active.Roles.AutoTitle.FallbackChain = append(
+			active.Roles.AutoTitle.FallbackChain,
 			compozyconfig.RoleFallback{Provider: "mutated", Model: "mutated"},
 		)
-		active.RoleSources[compozyconfig.RoleMemoryExtractor]["model"] = "mutated"
+		active.RoleSources[compozyconfig.RoleAutoTitle]["model"] = "mutated"
 		isolated, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(after caller mutation) error = %v", err)
 		}
-		if slices.ContainsFunc(isolated.Roles.MemoryExtractor.FallbackChain, func(
+		if slices.ContainsFunc(isolated.Roles.AutoTitle.FallbackChain, func(
 			fallback compozyconfig.RoleFallback,
 		) bool {
 			return fallback.Provider == "mutated"
-		}) || isolated.RoleSources[compozyconfig.RoleMemoryExtractor]["model"] == "mutated" {
+		}) || isolated.RoleSources[compozyconfig.RoleAutoTitle]["model"] == "mutated" {
 			t.Fatalf("ActiveConfig() retained caller-owned role state: %#v", isolated)
 		}
 		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{})
@@ -573,8 +597,8 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 
 		current := compozyconfig.DefaultRolesConfig()
 		desired := compozyconfig.CloneRolesConfig(&current)
-		desired.Dream.FallbackChain = make([]compozyconfig.RoleFallback, 0)
-		desired.MemoryController.FallbackChain = make([]compozyconfig.RoleFallback, 0)
+		desired.Coordinator.FallbackChain = make([]compozyconfig.RoleFallback, 0)
+		desired.AutoTitle.FallbackChain = make([]compozyconfig.RoleFallback, 0)
 		if changed := diffRolesSettings(&current, &desired); len(changed) != 0 {
 			t.Fatalf("diffRolesSettings() = %#v, want no changes", changed)
 		}

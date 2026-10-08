@@ -26,11 +26,6 @@ func (e *TriggerEngine) HookTelemetrySink() hookspkg.TelemetrySink {
 	return &triggerHookTelemetrySink{engine: e}
 }
 
-// MemoryObserver exposes the observer-facing dream-consolidation completion adapter.
-func (e *TriggerEngine) MemoryObserver() MemoryConsolidationObserver {
-	return &triggerMemoryObserver{engine: e}
-}
-
 // ParseWebhookEndpoint resolves the human slug and stable webhook id from an endpoint path segment.
 func ParseWebhookEndpoint(endpoint string) (ParsedWebhookEndpoint, error) {
 	trimmed := strings.TrimSpace(endpoint)

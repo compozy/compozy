@@ -167,24 +167,6 @@ func observeSessionStopExecutor(observer sessionLifecycleObserver) hookspkg.Exec
 	)
 }
 
-func dreamSessionStopExecutor(dreamRuntime dreamCheckEnqueuer) hookspkg.Executor {
-	return hookspkg.NewTypedNativeExecutor(
-		func(
-			_ context.Context,
-			_ hookspkg.RegisteredHook,
-			payload hookspkg.SessionLifecyclePayload,
-		) (hookspkg.SessionPostStopPatch, error) {
-			if strings.TrimSpace(payload.WorkspaceID) == "" ||
-				session.Type(strings.TrimSpace(payload.SessionType)) == session.SessionTypeDream {
-				return hookspkg.SessionPostStopPatch{}, nil
-			}
-
-			dreamRuntime.EnqueueCheck("session_stop", strings.TrimSpace(payload.WorkspaceID))
-			return hookspkg.SessionPostStopPatch{}, nil
-		},
-	)
-}
-
 func sessionMessagePersistedExecutor(
 	observer sessionMessagePersistedObserver,
 ) hookspkg.Executor {

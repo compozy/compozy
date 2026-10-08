@@ -24,8 +24,6 @@ func (d *Daemon) initializeHookObservers(
 	}
 	return daemonNativeHooks(
 		state.lifecycleObservers,
-		state.dreamRuntime,
-		state.memoryExtractor,
 		state.runtimeWorkers.autoTitle,
 	)
 }

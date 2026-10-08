@@ -27,15 +27,6 @@ func TestBuiltinAgentDefReturnsRuntimeOwnedIdentities(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return the dreaming curator identity", func(t *testing.T) {
-		t.Parallel()
-
-		got, ok := BuiltinAgentDef("dreaming-curator")
-		if !ok || got.Name != "dreaming-curator" || strings.TrimSpace(got.Prompt) == "" {
-			t.Fatalf("BuiltinAgentDef(dreaming-curator) = (%#v, %t), want named non-empty identity", got, ok)
-		}
-	})
-
 	t.Run("Should reject catalog and unknown names", func(t *testing.T) {
 		t.Parallel()
 
@@ -53,7 +44,7 @@ func TestBuiltinAgentNamesOwnExactReservations(t *testing.T) {
 	t.Run("Should return the closed builtin roster", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := BuiltinAgentNames(), []string{"coordinator", "dreaming-curator"}; !slices.Equal(got, want) {
+		if got, want := BuiltinAgentNames(), []string{"coordinator"}; !slices.Equal(got, want) {
 			t.Fatalf("BuiltinAgentNames() = %#v, want %#v", got, want)
 		}
 	})

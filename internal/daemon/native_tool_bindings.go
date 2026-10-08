@@ -51,13 +51,6 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 		n.providerModelReadAvailability(),
 		n.providerModelMutationAvailability(),
 	))
-	addNativeToolBindings(bindings, n.memoryToolBindings(availability.memory))
-	addNativeToolBindings(bindings, n.memoryAdminToolBindings(memoryAdminAvailabilitySet{
-		store:         availability.memoryAdminStore,
-		extractor:     availability.memoryExtractor,
-		providers:     availability.memoryProviders,
-		sessionLedger: availability.memorySessionLedger,
-	}))
 	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
 	addNativeToolBindings(bindings, n.gatewayToolBindings(availability.gateway))
 	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))

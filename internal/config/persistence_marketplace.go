@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,6 +41,10 @@ func loadPersistedConfigOverlay(
 	if err != nil {
 		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
 	}
+	rendered, archived, err := archiveRetiredMemorySettings(rendered, path)
+	if err != nil {
+		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
+	}
 	overlay, err = decode(rendered, path)
 	if err != nil {
 		return overlay, err
@@ -62,6 +67,9 @@ func loadPersistedConfigOverlay(
 		// Revalidate the held file before publishing the archive through the same parent.
 		if err := writePersistedFileInDirectory(writable, name, path, rendered, true); err != nil {
 			return configOverlay{}, err
+		}
+		if len(archived) > 0 {
+			slog.Warn("config.retired_keys_archived", "path", path, "keys", strings.Join(archived, ","))
 		}
 	}
 	return overlay, nil

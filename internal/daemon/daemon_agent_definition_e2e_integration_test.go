@@ -322,7 +322,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		compozycontract.CreateAgentRequest{
 			Scope: compozycontract.AgentCreateScopeGlobal,
 			Agent: compozycontract.CreateAgentPayload{
-				Name: "dreaming-curator", Provider: acpmock.ProviderName, Prompt: "Reserved HTTP create.",
+				Name: "coordinator", Provider: acpmock.ProviderName, Prompt: "Reserved HTTP create.",
 			},
 		},
 	)
@@ -892,7 +892,6 @@ func runDaemonE2EAgentFallbackLedgerOrder(t *testing.T) {
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Roles.AutoTitle.Enabled = false
-			cfg.Roles.MemoryExtractor.Enabled = false
 			cfg.Providers[seatProvider] = acpmock.ProviderConfig(seatPath(0))
 		}},
 		MockAgents: []e2etest.MockAgentSpec{{
@@ -1005,7 +1004,6 @@ func runDaemonE2EAgentFallbackChain(t *testing.T) {
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Roles.AutoTitle.Enabled = false
-			cfg.Roles.MemoryExtractor.Enabled = false
 			cfg.Providers[seatProvider] = acpmock.ProviderConfig("/missing/compozy-seat-one")
 		}},
 		MockAgents: []e2etest.MockAgentSpec{{

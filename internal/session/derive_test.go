@@ -109,7 +109,7 @@ func TestBoundReplay(t *testing.T) {
 				messages := deriveTestMessages(300, 1024)
 				messages[0].Content = strings.Repeat("request", firstBytes/7)
 				messages[298] = transcript.Message{ID: "recorded-tool", Role: transcript.RoleToolCall,
-					ToolName: "compozy__memory_search", ToolInput: json.RawMessage(`{"query":"original"}`)}
+					ToolName: "compozy__task_read", ToolInput: json.RawMessage(`{"query":"original"}`)}
 				pinnedBudget := replayBudget{MaxBytes: 32768, MaxMessageBytes: 16384, KeepRecent: 8, PinFirstUser: true}
 				bounded, stats := boundReplay(messages, pinnedBudget)
 				if !stats.FirstUserPinned || bounded[0].ID != messages[0].ID ||

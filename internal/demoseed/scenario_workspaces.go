@@ -59,7 +59,7 @@ func launchAgents() []agentStory {
 		{
 			Name: agentFraudAnalyst, WorkspaceKey: workspaceKeyLaunch,
 			Provider: providerClaude, Model: modelClaude, Permissions: approveReads,
-			Tools:        []string{toolTaskRead, toolMemoryStore},
+			Tools:        []string{toolTaskRead},
 			CategoryPath: []string{categoryRisk, "Fraud"},
 			Prompt: "Score chargeback and dispute signals for the checkout rollout. Separate confirmed fraud from " +
 				"authorization noise, and never raise a market risk level without naming the evidence window.",
@@ -96,7 +96,7 @@ func platformAgents() []agentStory {
 		{
 			Name: agentDocsSteward, WorkspaceKey: workspaceKeyPlatform,
 			Provider: providerClaude, Model: modelClaude, Permissions: approveReads,
-			Tools:        []string{toolTaskRead, toolMemoryStore},
+			Tools:        []string{toolTaskRead},
 			CategoryPath: []string{categoryOperations, "Documentation"},
 			Prompt: "Keep the payments runbooks true to the shipped system. Flag any page whose steps no longer " +
 				"match the current rollout controls instead of rewriting it silently.",

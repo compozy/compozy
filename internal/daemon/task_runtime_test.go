@@ -2554,7 +2554,6 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 			registry: db,
 			sessions: &fakeSessionManager{},
 			harnessResolver: NewHarnessContextResolver(HarnessRuntimeSignals{
-				MemoryPromptSectionEnabled: true,
 				SkillsPromptSectionEnabled: true,
 				SyntheticTurnsEnabled:      true,
 				DetachedTaskRuntimeEnabled: true,
@@ -2796,7 +2795,6 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		registry: db,
 		sessions: sessions,
 		harnessResolver: NewHarnessContextResolver(HarnessRuntimeSignals{
-			MemoryPromptSectionEnabled: true,
 			SkillsPromptSectionEnabled: true,
 			SyntheticTurnsEnabled:      true,
 			DetachedTaskRuntimeEnabled: true,
@@ -4114,7 +4112,6 @@ func testHarnessReentryBridgePreservesSyntheticWakeFIFO(t *testing.T) {
 
 func testHarnessReentryBridgeHelperCoverage(t *testing.T) {
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
@@ -4814,7 +4811,6 @@ func newDetachedHarnessTaskRuntimeForTest(
 		t.Fatalf("newTaskSessionBridge() error = %v", err)
 	}
 	harnessResolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,

@@ -41,7 +41,6 @@ type Type string
 
 const (
 	SessionTypeUser        Type = "user"
-	SessionTypeDream       Type = "dream"
 	SessionTypeSystem      Type = "system"
 	SessionTypeCoordinator Type = "coordinator"
 	SessionTypeSpawned     Type = "spawned"

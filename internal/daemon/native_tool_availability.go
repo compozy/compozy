@@ -36,11 +36,6 @@ type nativeToolAvailabilitySet struct {
 	agentCatalog         toolspkg.NativeAvailabilityFunc
 	vault                toolspkg.NativeAvailabilityFunc
 	tasks                toolspkg.NativeAvailabilityFunc
-	memory               toolspkg.NativeAvailabilityFunc
-	memoryAdminStore     toolspkg.NativeAvailabilityFunc
-	memoryExtractor      toolspkg.NativeAvailabilityFunc
-	memoryProviders      toolspkg.NativeAvailabilityFunc
-	memorySessionLedger  toolspkg.NativeAvailabilityFunc
 	observe              toolspkg.NativeAvailabilityFunc
 	gateway              toolspkg.NativeAvailabilityFunc
 	config               toolspkg.NativeAvailabilityFunc
@@ -69,7 +64,6 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilitySet {
 	availability := n.coreNativeToolAvailability()
 	n.applySessionNativeToolAvailability(&availability)
-	n.applyMemoryNativeToolAvailability(&availability)
 	n.applyServiceNativeToolAvailability(&availability)
 	return availability
 }
@@ -170,16 +164,6 @@ func (n *daemonNativeTools) worktreeAvailability() toolspkg.NativeAvailabilityFu
 
 func (n *daemonNativeTools) applyTaskNativeToolAvailability(availability *nativeToolAvailabilitySet) {
 	availability.tasks = n.dependencyAvailability(func() bool { return n.deps.Tasks != nil })
-}
-
-func (n *daemonNativeTools) applyMemoryNativeToolAvailability(availability *nativeToolAvailabilitySet) {
-	availability.memory = n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil })
-	availability.memoryAdminStore = n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil })
-	availability.memoryExtractor = n.dependencyAvailability(func() bool { return n.deps.MemoryExtractor != nil })
-	availability.memoryProviders = n.dependencyAvailability(func() bool { return n.deps.MemoryProviders != nil })
-	availability.memorySessionLedger = n.dependencyAvailability(func() bool {
-		return n.deps.MemorySessionLedger != nil
-	})
 }
 
 func (n *daemonNativeTools) applyServiceNativeToolAvailability(availability *nativeToolAvailabilitySet) {

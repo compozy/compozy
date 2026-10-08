@@ -612,8 +612,6 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 		}
 		if catalog.lastAgentMetricsQuery.WorkspaceID != h.workspaceID ||
 			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeIDs, active.ID) ||
-			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSessionTypes, string(SessionTypeDream)) ||
-			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSpawnRoles, SpawnRoleMemoryExtractor) ||
 			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSpawnRoles, SpawnRoleAutoTitle) {
 			t.Fatalf(
 				"AggregateSessionsByAgent() query = %#v, want workspace and live/internal exclusions",
@@ -701,12 +699,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 	t.Run("Should hide daemon-owned internal sessions before the page cut", func(t *testing.T) {
 		t.Parallel()
 
-		dream := *base
-		dream.Type = SessionTypeDream
-		if sessionMatchesListQuery(&dream, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}}, now) {
-			t.Fatal("sessionMatchesListQuery(dream) = true, want false")
-		}
-		for _, role := range []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle} {
+		for _, role := range []string{SpawnRoleAutoTitle} {
 			internal := *base
 			internal.Lineage = &store.SessionLineage{SpawnRole: role}
 			if sessionMatchesListQuery(&internal, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}}, now) {
@@ -810,7 +803,6 @@ func TestNormalizeListQuery(t *testing.T) {
 	}{
 		{name: "state", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, State: "unknown"}, want: "unsupported state"},
 		{name: "type", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, SessionType: "unknown"}, want: "unsupported type"},
-		{name: "dream type", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, SessionType: SessionTypeDream}, want: "unsupported type"},
 		{name: "sort", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Sort: "oldest"}, want: "unsupported sort"},
 		{name: "negative limit", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Limit: -1}, want: "limit must be between"},
 		{name: "oversized limit", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Limit: MaxListLimit + 1}, want: "limit must be between"},

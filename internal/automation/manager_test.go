@@ -486,20 +486,19 @@ func TestManagerStatusReportsCountsAndNextFire(t *testing.T) {
 func TestManagerObserversHandleNilManagerAndAgentEvents(t *testing.T) {
 	t.Parallel()
 
-	var sessionObserver managerSessionObserver
-	sessionObserver.OnSessionCreated(testutil.Context(t), nil)
-	sessionObserver.OnSessionStopped(testutil.Context(t), nil)
-	sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
+	t.Run("Should tolerate nil session and hook managers", func(t *testing.T) {
+		t.Parallel()
 
-	var hookSink managerHookTelemetrySink
-	if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
-		t.Fatalf("WriteHookRecord(nil manager) error = %v", err)
-	}
+		var sessionObserver managerSessionObserver
+		sessionObserver.OnSessionCreated(testutil.Context(t), nil)
+		sessionObserver.OnSessionStopped(testutil.Context(t), nil)
+		sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
 
-	var memoryObserver managerMemoryObserver
-	if err := memoryObserver.OnMemoryConsolidated(testutil.Context(t), MemoryConsolidatedEvent{}); err != nil {
-		t.Fatalf("OnMemoryConsolidated(nil manager) error = %v", err)
-	}
+		var hookSink managerHookTelemetrySink
+		if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
+			t.Fatalf("WriteHookRecord(nil manager) error = %v", err)
+		}
+	})
 }
 
 func TestManagerSetEnabledForConfigBackedDefinitionsUsesOverlaysOnly(t *testing.T) {
@@ -698,7 +697,11 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 		t.Fatalf("WriteHookRecord() error = %v", err)
 	}
 	if _, err := manager.triggerEngineSnapshot().Fire(h.ctx, ActivationEnvelope{
-		Kind: "ext.test.completed", Scope: AutomationScopeWorkspace, WorkspaceID: h.workspace.ID, Source: ActivationSourceObserver, Data: map[string]any{},
+		Kind:        "ext.test.completed",
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+		Source:      ActivationSourceObserver,
+		Data:        map[string]any{},
 	}); err != nil {
 		t.Fatalf("Fire() error = %v", err)
 	}

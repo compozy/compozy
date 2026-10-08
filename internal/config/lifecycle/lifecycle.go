@@ -112,7 +112,6 @@ var Matrix = []Rule{
 		DiffClass: DiffClassRestartRequired,
 	},
 	{Pattern: "daemon.socket", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: "memory.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "automation.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "loops.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "goals.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

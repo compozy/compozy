@@ -18,8 +18,6 @@ import (
 	atlasmigrate "ariga.io/atlas/sql/migrate"
 	atlasschema "ariga.io/atlas/sql/schema"
 	atlassqlite "ariga.io/atlas/sql/sqlite"
-	"github.com/compozy/compozy/internal/memory"
-	memoryschema "github.com/compozy/compozy/internal/memory/schema"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
@@ -56,16 +54,15 @@ func productionMigrationStreams() []productionMigrationStream {
 			schemaFS:          globalschema.Files,
 			declarativeSource: "definitions",
 		},
+	}
+}
+
+func migrationStreamsUnderTest() []productionMigrationStream {
+	return append(productionMigrationStreams(), []productionMigrationStream{
 		{
 			name:              "session",
 			stream:            sessiondb.MigrationStream(),
 			schemaFS:          sessionschema.Files,
-			declarativeSource: "schema.sql",
-		},
-		{
-			name:              "memory",
-			stream:            memory.MigrationStream(),
-			schemaFS:          memoryschema.Files,
 			declarativeSource: "schema.sql",
 		},
 		{
@@ -74,15 +71,20 @@ func productionMigrationStreams() []productionMigrationStream {
 			schemaFS:          workspaceschema.Files,
 			declarativeSource: "definitions",
 		},
-	}
+	}...)
 }
 
 func TestProductionMigrationStreams(t *testing.T) {
-	t.Run("Should embed four distinct sequential baseline streams", func(t *testing.T) {
+	t.Run("Should embed maintained sequential baseline streams [IT-029]", func(t *testing.T) {
 		t.Parallel()
 
+		production := productionMigrationStreams()
+		if len(production) != 1 || production[0].name != "global" {
+			t.Fatalf("production migration streams = %+v, want global", production)
+		}
+		streams := migrationStreamsUnderTest()
 		seenTables := make(map[string]string)
-		for _, item := range productionMigrationStreams() {
+		for _, item := range streams {
 			if item.stream.Name != item.name {
 				t.Fatalf("stream name = %q, want %q", item.stream.Name, item.name)
 			}
@@ -206,63 +208,10 @@ func TestProductionMigrationStreams(t *testing.T) {
 			t.Fatalf("durable output tail column count = %d, want 0", durableOutputTail)
 		}
 	})
-
-	t.Run("Should keep global and memory domain table ownership disjoint", func(t *testing.T) {
-		t.Parallel()
-
-		globalTables := schemaOwnedTables(t, globalschema.Files, "definitions")
-		memoryTables := schemaOwnedTables(t, memoryschema.Files, "schema.sql")
-		for table := range globalTables {
-			if memoryTables[table] {
-				t.Fatalf("table %q is owned by both global and memory baselines", table)
-			}
-		}
-		if globalTables["memory_events"] {
-			t.Fatal("global baseline owns memory_events, want memory stream ownership")
-		}
-		if !memoryTables["memory_events"] {
-			t.Fatal("memory baseline does not own memory_events")
-		}
-	})
-
-	t.Run("Should apply global and memory baselines to one physical database", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		db := openStreamTestDB(t, "shared-compozy.db")
-		globalStream := globaldb.MigrationStream()
-		memoryStream := memory.MigrationStream()
-		if err := store.Apply(ctx, db, globalStream); err != nil {
-			t.Fatalf("Apply(global) error = %v", err)
-		}
-		if err := store.Apply(ctx, db, memoryStream); err != nil {
-			t.Fatalf("Apply(memory) error = %v", err)
-		}
-		for _, stream := range []store.MigrationStream{globalStream, memoryStream} {
-			status, err := store.Status(ctx, db, stream)
-			if err != nil {
-				t.Fatalf("Status(%s) error = %v", stream.Name, err)
-			}
-			versions := embeddedMigrationVersions(t, stream)
-			wantVersion := int64(versions[len(versions)-1])
-			if status.Version != wantVersion || status.AppliedCount != len(versions) {
-				t.Fatalf(
-					"Status(%s) = %#v, want version %d with %d applied migrations",
-					stream.Name,
-					status,
-					wantVersion,
-					len(versions),
-				)
-			}
-		}
-		if !sqliteTableExists(t, db, "memory_events") {
-			t.Fatal("memory_events missing after shared-file baseline application")
-		}
-	})
 }
 
 func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
-	for _, item := range productionMigrationStreams() {
+	for _, item := range migrationStreamsUnderTest() {
 		name := "Should fresh-apply, reopen, and reject an ahead " + item.name + " stream"
 		if item.name == "global" {
 			name += " [UT-160]"
@@ -1046,38 +995,6 @@ func sqliteIndexOrigin(index *atlasschema.Index) string {
 		}
 	}
 	return ""
-}
-
-func schemaOwnedTables(t *testing.T, schemaFS fs.FS, source string) map[string]bool {
-	t.Helper()
-	db := openStreamTestDB(t, "owned-tables.db")
-	executeDeclarativeSchema(t, db, schemaFS, source)
-	rows, err := db.QueryContext(
-		testutil.Context(t),
-		`SELECT name FROM pragma_table_list WHERE schema = 'main' AND type IN ('table', 'virtual')`,
-	)
-	if err != nil {
-		t.Fatalf("query owned tables: %v", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			t.Errorf("close owned table rows: %v", err)
-		}
-	}()
-	tables := make(map[string]bool)
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			t.Fatalf("scan owned table: %v", err)
-		}
-		if !strings.HasPrefix(name, "sqlite_") {
-			tables[name] = true
-		}
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate owned tables: %v", err)
-	}
-	return tables
 }
 
 func executeDeclarativeSchema(t *testing.T, db *sql.DB, schemaFS fs.FS, source string) {

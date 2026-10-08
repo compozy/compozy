@@ -29,7 +29,6 @@ import (
 
 	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -48,8 +47,6 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/memory/consolidation"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/procutil"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -2046,8 +2043,6 @@ func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	memStore := memory.NewStore(t.TempDir())
-	memProviders := extensionpkg.NewMemoryProviderRegistry()
 	skillsRegistry := skills.NewRegistry(skills.RegistryConfig{})
 	sessions := &fakeSessionManager{}
 	observer := &fakeObserver{}
@@ -2063,13 +2058,11 @@ func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 
 	rebuilds := 0
 	state := &bootState{
-		logger:                 logger,
-		registry:               db,
-		memoryStore:            memStore,
-		memoryProviderRegistry: memProviders,
-		skillsRegistry:         skillsRegistry,
-		sessions:               sessions,
-		observer:               observer,
+		logger:         logger,
+		registry:       db,
+		skillsRegistry: skillsRegistry,
+		sessions:       sessions,
+		observer:       observer,
 		hooks: &fakeHookRuntime{
 			onRebuild: func(context.Context) error {
 				rebuilds++
@@ -2094,12 +2087,6 @@ func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 	}
 	if captured.Sessions != sessions {
 		t.Fatal("captured sessions dependency mismatch")
-	}
-	if captured.MemoryStore != memStore {
-		t.Fatal("captured memory store dependency mismatch")
-	}
-	if captured.MemoryProviderRegistry != memProviders {
-		t.Fatal("captured memory provider registry dependency mismatch")
 	}
 	if captured.Observer != observer {
 		t.Fatal("captured observer dependency mismatch")
@@ -2129,8 +2116,6 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	logger := discardLogger()
-	memStore := memory.NewStore(t.TempDir())
-	memProviders := extensionpkg.NewMemoryProviderRegistry()
 	skillsRegistry := skills.NewRegistry(skills.RegistryConfig{})
 	sessions := &fakeSessionManager{}
 	observer := &fakeObserver{}
@@ -2141,18 +2126,16 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 
 	d := newTestDaemon(t, homePaths, &cfg)
 	deps := d.extensionManagerDeps(&bootState{
-		cfg:                    cfg,
-		logger:                 logger,
-		sessions:               sessions,
-		deps:                   RuntimeDeps{},
-		memoryStore:            memStore,
-		memoryProviderRegistry: memProviders,
-		observer:               observer,
-		skillsRegistry:         skillsRegistry,
-		resourceKernel:         kernel,
-		resourceCodecs:         codecs,
-		resourceReconcile:      reconcile,
-		automation:             automation,
+		cfg:               cfg,
+		logger:            logger,
+		sessions:          sessions,
+		deps:              RuntimeDeps{},
+		observer:          observer,
+		skillsRegistry:    skillsRegistry,
+		resourceKernel:    kernel,
+		resourceCodecs:    codecs,
+		resourceReconcile: reconcile,
+		automation:        automation,
 	}, extRegistry)
 
 	if deps.Registry != extRegistry {
@@ -2160,12 +2143,6 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 	}
 	if deps.Sessions != sessions {
 		t.Fatal("deps.Sessions mismatch")
-	}
-	if deps.MemoryStore != memStore {
-		t.Fatal("deps.MemoryStore mismatch")
-	}
-	if deps.MemoryProviderRegistry != memProviders {
-		t.Fatal("deps.MemoryProviderRegistry mismatch")
 	}
 	if deps.Observer != observer {
 		t.Fatal("deps.Observer mismatch")
@@ -2884,26 +2861,11 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 	managerLifecycle := &recordingNotifier{}
 	baseTelemetry := &recordingHookTelemetrySink{}
 	managerTelemetry := &recordingHookTelemetrySink{}
-	memoryObserver := &recordingMemoryObserver{}
 	manager := &fakeAutomationManager{
 		sessionObserver:   managerLifecycle,
 		hookTelemetrySink: managerTelemetry,
-		memoryObserver:    memoryObserver,
 		status:            automationpkg.ManagerStatus{Running: true, SchedulerRunning: true},
 	}
-	completedAt := time.Date(2026, 8, 12, 13, 0, 0, 0, time.UTC)
-	dreamRuntime := consolidation.NewRuntime(
-		func() bool { return true },
-		&fakeDreamService{
-			shouldRun: true,
-			runResult: memory.ConsolidationResult{WorkspaceID: "ws-memory", CompletedAt: completedAt},
-		},
-		func(context.Context, string, string, string, time.Time) error { return nil },
-		time.Hour,
-		discardLogger(),
-		nil,
-	)
-
 	var captured automationManagerDeps
 	d := newTestDaemon(t, homePaths, &cfg)
 	d.newAutomationManager = func(deps automationManagerDeps) (automationRuntime, error) {
@@ -2917,7 +2879,6 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 		registry:           db,
 		sessions:           &fakeSessionManager{},
 		workspaceResolver:  resolver,
-		dreamRuntime:       dreamRuntime,
 		lifecycleObservers: newSessionLifecycleFanout(baseLifecycle),
 		hookTelemetrySinks: newHookTelemetryFanout(baseTelemetry),
 	}
@@ -2984,20 +2945,6 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 	}
 	if got, want := managerTelemetry.count(), 1; got != want {
 		t.Fatalf("manager telemetry count = %d, want %d", got, want)
-	}
-
-	triggered, reason, err := dreamRuntime.Trigger(testutil.Context(t), "ws-memory")
-	if err != nil {
-		t.Fatalf("dreamRuntime.Trigger() error = %v", err)
-	}
-	if !triggered || reason != "" {
-		t.Fatalf("dreamRuntime.Trigger() = (%t, %q), want (true, empty)", triggered, reason)
-	}
-	if got, want := memoryObserver.events, []automationpkg.MemoryConsolidatedEvent{{
-		WorkspaceID: "ws-memory",
-		Timestamp:   completedAt,
-	}}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("memory consolidation events = %#v, want %#v", got, want)
 	}
 }
 
@@ -4357,10 +4304,10 @@ func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
 	}
 }
 
-func TestShutdownRuntimeWorkersDrainsProvidersBeforeSessionManager(t *testing.T) {
+func TestShutdownRuntimeWorkersDrainsFinalizationsBeforeSessionManager(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep session queries open until memory provider work drains", func(t *testing.T) {
+	t.Run("Should drain session finalizations before session manager shutdown", func(t *testing.T) {
 		t.Parallel()
 
 		order := make([]string, 0, 3)
@@ -4368,22 +4315,17 @@ func TestShutdownRuntimeWorkersDrainsProvidersBeforeSessionManager(t *testing.T)
 			waitFinalizationsHook: func() { order = append(order, "session-finalizations") },
 			shutdownHook:          func() { order = append(order, "session-manager") },
 		}
-		provider := memoryProviderShutdownerFunc(func(context.Context) error {
-			order = append(order, "memory-provider")
-			return nil
-		})
 		d := &Daemon{}
 		var shutdownErrs []error
 
 		d.shutdownRuntimeWorkers(testutil.Context(t), &shutdownTargets{
-			sessions:            manager,
-			localMemoryProvider: provider,
+			sessions: manager,
 		}, &shutdownErrs)
 
 		if err := errors.Join(shutdownErrs...); err != nil {
 			t.Fatalf("shutdownRuntimeWorkers() error = %v", err)
 		}
-		want := []string{"session-finalizations", "memory-provider", "session-manager"}
+		want := []string{"session-finalizations", "session-manager"}
 		if !slices.Equal(order, want) {
 			t.Fatalf("shutdown order = %v, want %v", order, want)
 		}
@@ -5028,39 +4970,11 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		memoryEnabled bool
 		skillsEnabled bool
-		wantMemory    bool
 		wantSkills    bool
 	}{
-		{
-			name:          "Should compose startup with memory on and skills on",
-			memoryEnabled: true,
-			skillsEnabled: true,
-			wantMemory:    true,
-			wantSkills:    true,
-		},
-		{
-			name:          "Should compose startup with memory on and skills off",
-			memoryEnabled: true,
-			skillsEnabled: false,
-			wantMemory:    true,
-			wantSkills:    false,
-		},
-		{
-			name:          "Should compose startup with memory off and skills on",
-			memoryEnabled: false,
-			skillsEnabled: true,
-			wantMemory:    false,
-			wantSkills:    true,
-		},
-		{
-			name:          "Should compose startup with memory off and skills off",
-			memoryEnabled: false,
-			skillsEnabled: false,
-			wantMemory:    false,
-			wantSkills:    false,
-		},
+		{name: "Should compose startup with skills on", skillsEnabled: true, wantSkills: true},
+		{name: "Should compose startup with skills off", skillsEnabled: false, wantSkills: false},
 	}
 
 	for _, tc := range testCases {
@@ -5070,14 +4984,11 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			homePaths := testHomePaths(t)
 			cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
 			cfg := testConfig(t, homePaths)
-			cfg.Memory.Enabled = tc.memoryEnabled
 			cfg.Skills.Enabled = tc.skillsEnabled
-			cfg.Memory.GlobalDir = filepath.Join(homePaths.HomeDir, "custom-memory")
 
 			d := newTestDaemon(t, homePaths, &cfg)
 
 			var capturedDeps SessionManagerDeps
-			var publicDeps RuntimeDeps
 			d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
 				capturedDeps = deps
 				return &fakeSessionManager{}, nil
@@ -5085,8 +4996,7 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 				return &fakeObserver{}, nil
 			}
-			d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-				publicDeps = deps
+			d.httpFactory = func(_ context.Context, _ RuntimeDeps) (Server, error) {
 				return &fakeServer{name: "http"}, nil
 			}
 			d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
@@ -5120,27 +5030,11 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			if d.workspaceResolver == nil {
 				t.Fatal("boot() did not retain the workspace resolver")
 			}
-			if got := d.memoryStore != nil; got != tc.wantMemory {
-				t.Fatalf("memory store initialized = %t, want %t", got, tc.wantMemory)
-			}
 			if got := d.skillsRegistry != nil; got != tc.wantSkills {
 				t.Fatalf("skills registry initialized = %t, want %t", got, tc.wantSkills)
 			}
 
 			workspace := filepath.Join(t.TempDir(), "workspace")
-			writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspace)
-			if publicDeps.MemoryStore == nil {
-				t.Fatal("public memory store is unavailable with memory automation disabled")
-			}
-			headers, err := publicDeps.MemoryStore.ForWorkspace(workspace).
-				CatalogHeaders(t.Context(), memcontract.ScopeWorkspace)
-			if err != nil {
-				t.Fatalf("public workspace memory catalog: %v", err)
-			}
-			if len(headers) == 0 {
-				t.Fatal("public workspace memory catalog lost existing memories")
-			}
-
 			workspaceRef := workspacepkg.ResolvedWorkspace{
 				RootDir: workspace,
 				Agents:  []compozyconfig.AgentDef{testPromptAgent("Base prompt.")},
@@ -5154,16 +5048,9 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 				t.Fatalf("PromptAssembler.Assemble() error = %v", err)
 			}
 
-			assertPromptContainsInOrder(t, prompt, orderedFragments(tc.wantMemory, tc.wantSkills)...)
-			assertPromptExcludes(t, prompt, excludedFragments(tc.wantMemory, tc.wantSkills)...)
+			assertPromptContainsInOrder(t, prompt, orderedFragments(tc.wantSkills)...)
+			assertPromptExcludes(t, prompt, excludedFragments(tc.wantSkills)...)
 
-			if tc.wantMemory {
-				if info, err := os.Stat(cfg.Memory.GlobalDir); err != nil {
-					t.Fatalf("stat memory.global_dir error = %v", err)
-				} else if !info.IsDir() {
-					t.Fatalf("memory.global_dir mode = %v, want directory", info.Mode())
-				}
-			}
 			if tc.wantSkills {
 				if skills := d.skillsRegistry.List(); len(skills) == 0 {
 					t.Fatal("skills registry list = empty, want bundled skills")
@@ -5262,7 +5149,6 @@ func TestWorkspaceRegistrationRefreshesHookBindings(t *testing.T) {
 		homePaths := testHomePaths(t)
 		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
 		cfg := testConfig(t, homePaths)
-		cfg.Memory.Enabled = false
 		cfg.Skills.Enabled = false
 		cfg.Automation.Enabled = false
 
@@ -5335,7 +5221,6 @@ func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Memory.Enabled = false
 		cfg.Skills.Enabled = true
 		cfg.Skills.PollInterval = 10 * time.Millisecond
 
@@ -5443,230 +5328,6 @@ func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
 	}
 	if got := registryCfg.DisabledSkills; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
 		t.Fatalf("skillsRegistryConfig() DisabledSkills = %#v, want [alpha beta]", got)
-	}
-}
-
-func TestRunConfiguresDreamRuntimeForLiveRoleLifecycle(t *testing.T) {
-	t.Parallel()
-	runDreamRuntimeLifecycleCases(t)
-}
-
-func runDreamRuntimeLifecycleCases(t *testing.T) {
-	t.Helper()
-
-	testCases := []struct {
-		name        string
-		patch       func(*compozyconfig.Config)
-		wantRuntime bool
-	}{
-		{
-			name: "Should keep memory and dream runtimes absent under factory defaults",
-			patch: func(cfg *compozyconfig.Config) {
-				cfg.Memory.Enabled = compozyconfig.DefaultMemoryConfig(compozyconfig.HomePaths{}).Enabled
-				cfg.Roles = compozyconfig.DefaultRolesConfig()
-			},
-		},
-		{
-			name: "Should keep the dream runtime absent when memory is disabled",
-			patch: func(cfg *compozyconfig.Config) {
-				cfg.Memory.Enabled = false
-			},
-		},
-		{
-			name: "Should retain the dream runtime for live role enablement",
-			patch: func(cfg *compozyconfig.Config) {
-				cfg.Roles.Dream.Enabled = false
-			},
-			wantRuntime: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			homePaths := testHomePaths(t)
-			cfg := testConfig(t, homePaths)
-			tc.patch(&cfg)
-
-			d := newTestDaemon(t, homePaths, &cfg)
-			d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-				return &fakeSessionManager{}, nil
-			}
-			d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-				return &fakeObserver{}, nil
-			}
-			d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-				return &fakeServer{name: "http"}, nil
-			}
-			d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-				return &fakeServer{name: "uds"}, nil
-			}
-
-			runCtx, cancel := context.WithCancel(t.Context())
-			errCh := make(chan error, 1)
-			go func() {
-				errCh <- d.Run(runCtx)
-			}()
-
-			<-d.readyCh
-			waitForCondition(t, "dream runtime lifecycle applied", func() bool {
-				d.mu.Lock()
-				defer d.mu.Unlock()
-				return (d.dreamRuntime != nil) == tc.wantRuntime
-			})
-			d.mu.Lock()
-			dreamRuntime := d.dreamRuntime
-			memoryExtractor := d.memoryExtractor
-			d.mu.Unlock()
-			if !cfg.Memory.Enabled && memoryExtractor != nil {
-				t.Fatal("disabled memory registered an extractor")
-			}
-			if tc.wantRuntime && !dreamRuntime.Enabled() {
-				t.Fatal("dream runtime Enabled() = false, want memory-backed scheduling for workspace role resolution")
-			}
-
-			cancel()
-			if err := <-errCh; err != nil {
-				t.Fatalf("Run() error = %v", err)
-			}
-		})
-	}
-}
-
-func TestDreamTickerRunsAndStopsOnCancellation(t *testing.T) {
-	t.Parallel()
-
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Memory.Dream.CheckInterval = 10 * time.Millisecond
-
-	dream := &fakeDreamService{shouldRun: true}
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.newDreamService = func(_ ...memory.Option) consolidation.Service {
-		return dream
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-
-	runCtx, cancel := context.WithCancel(t.Context())
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- d.Run(runCtx)
-	}()
-
-	<-d.readyCh
-	waitForCondition(t, "dream loop started", func() bool {
-		d.mu.Lock()
-		defer d.mu.Unlock()
-		return d.dreamRuntime != nil
-	})
-	waitForCondition(t, "dream ticker run", func() bool {
-		return dream.runCount() > 0
-	})
-
-	cancel()
-	if err := <-errCh; err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-
-	d.mu.Lock()
-	dreamRuntime := d.dreamRuntime
-	d.mu.Unlock()
-	if dreamRuntime != nil {
-		t.Fatal("dream runtime still attached after daemon shutdown")
-	}
-}
-
-func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
-	t.Parallel()
-
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	writeDaemonFile(t, homePaths.ConfigFile, "[memory]\nenabled = true\n[roles.dream]\nenabled = true\n")
-	cfg.Memory.Dream.CheckInterval = time.Hour
-
-	workspace := filepath.Join(t.TempDir(), "workspace")
-	sessions := &fakeSessionManager{}
-	dream := &fakeDreamService{
-		shouldRun: true,
-		runHook: func(ctx context.Context, spawn memory.SessionSpawner, workspace string) error {
-			return spawn(ctx, "memory-consolidation", "session-stop prompt", workspace, time.Time{})
-		},
-	}
-	var dispatcher session.HookSet
-
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		dispatcher = deps.Hooks
-		return sessions, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.newDreamService = func(_ ...memory.Option) consolidation.Service {
-		return dream
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-
-	runCtx, cancel := context.WithCancel(t.Context())
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- d.Run(runCtx)
-	}()
-
-	<-d.readyCh
-	waitForCondition(t, "dream loop started", func() bool {
-		d.mu.Lock()
-		defer d.mu.Unlock()
-		return d.dreamRuntime != nil
-	})
-	if dispatcher.Session == nil {
-		t.Fatal("session manager hook set = nil")
-	}
-
-	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspace)
-	if _, err := dispatcher.Session.DispatchSessionPostStop(t.Context(), hookspkg.SessionPostStopPayload{
-		Event:       hookspkg.HookSessionPostStop,
-		Timestamp:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
-		SessionID:   "sess-user",
-		WorkspaceID: resolved.ID,
-		SessionType: string(session.SessionTypeUser),
-		State:       string(session.StateStopped),
-	}); err != nil {
-		t.Fatalf("DispatchSessionPostStop() error = %v", err)
-	}
-	waitForCondition(t, "dream run from session stop", func() bool {
-		return dream.runCount() == 1
-	})
-	waitForCondition(t, "dream session workspace propagated", func() bool {
-		return sessions.createCount() == 1
-	})
-	if got := sessions.createCall(0).Workspace; got != resolved.ID {
-		t.Fatalf("Create() workspace = %q, want %q", got, resolved.ID)
-	}
-	if got := sessions.createCall(0).WorkspacePath; got != "" {
-		t.Fatalf("Create() workspace_path = %q, want empty", got)
-	}
-
-	cancel()
-	if err := <-errCh; err != nil {
-		t.Fatalf("Run() error = %v", err)
 	}
 }
 
@@ -5858,9 +5519,6 @@ func testConfig(t *testing.T, homePaths compozyconfig.HomePaths) compozyconfig.C
 	t.Helper()
 
 	cfg := compozyconfig.DefaultWithHome(homePaths)
-	// Runtime fixtures explicitly opt in; default boot coverage uses factory values.
-	cfg.Memory.Enabled = true
-	cfg.Roles.Dream.Enabled = true
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	cfg.Daemon.Socket = homePaths.DaemonSocket
@@ -5873,39 +5531,6 @@ func testConfigPtr(t *testing.T, homePaths compozyconfig.HomePaths) *compozyconf
 
 	cfg := testConfig(t, homePaths)
 	return &cfg
-}
-
-func writeDaemonMemoryIndex(t *testing.T, globalDir string, workspace string) {
-	t.Helper()
-
-	writeDaemonFile(
-		t,
-		filepath.Join(globalDir, "global.md"),
-		memoryDocument("Global", "global note", memcontract.TypeUser, "global note"),
-	)
-	writeDaemonFile(t, filepath.Join(globalDir, "MEMORY.md"), "- [Global](global.md) - global note")
-	writeDaemonFile(
-		t,
-		filepath.Join(workspace, compozyconfig.DirName, "memory", "workspace.md"),
-		memoryDocument("Workspace", "workspace note", memcontract.TypeProject, "workspace note"),
-	)
-	writeDaemonFile(
-		t,
-		filepath.Join(workspace, compozyconfig.DirName, "memory", "MEMORY.md"),
-		"- [Workspace](workspace.md) - workspace note",
-	)
-}
-
-func memoryDocument(name string, description string, memoryType memcontract.Type, body string) string {
-	return strings.TrimSpace(strings.Join([]string{
-		"---",
-		"name: " + name,
-		"description: " + description,
-		"type: " + string(memoryType),
-		"---",
-		"",
-		body,
-	}, "\n")) + "\n"
 }
 
 func writeDaemonSkill(t *testing.T, root string, name string, description string) {
@@ -5967,13 +5592,9 @@ func canonicalDaemonRoot(t *testing.T, root string) string {
 	return canonical
 }
 
-func orderedFragments(wantMemory bool, wantSkills bool) []string {
+func orderedFragments(wantSkills bool) []string {
 	fragments := make([]string, 0, 6)
-	fragments = append(fragments, compozyRuntimeEnvelopeStart, "# Compozy Runtime")
-	if wantMemory {
-		fragments = append(fragments, "# Persistent Memory")
-	}
-	fragments = append(fragments, "Base prompt.")
+	fragments = append(fragments, compozyRuntimeEnvelopeStart, "# Compozy Runtime", "Base prompt.")
 	if wantSkills {
 		fragments = append(fragments, "<available-skills>", "compozy")
 	}
@@ -5985,13 +5606,10 @@ func orderedFragments(wantMemory bool, wantSkills bool) []string {
 	return fragments
 }
 
-func excludedFragments(wantMemory bool, wantSkills bool) []string {
+func excludedFragments(wantSkills bool) []string {
 	fragments := []string{"# CompozyOS"}
 	if wantSkills {
 		fragments = []string{"# Tools And Skills", "# Native Tools"}
-	}
-	if !wantMemory {
-		fragments = append(fragments, "# Persistent Memory")
 	}
 	if !wantSkills {
 		fragments = append(fragments, "<available-skills>")
@@ -6433,16 +6051,16 @@ func testSectionSelectorFallbackStillFiltersProvidersAndDuplicates(t *testing.T)
 		session.StartupPromptContext{SessionType: session.SessionTypeUser},
 		[]PromptSectionDescriptor{
 			{
-				Name:     string(HarnessPromptSectionMemory),
+				Name:     string(HarnessPromptSectionRuntimeIdentity),
 				Position: PromptSectionPositionPrepend,
 				Order:    10,
 				Provider: nil,
 			},
 			{
-				Name:     string(HarnessPromptSectionMemory),
+				Name:     string(HarnessPromptSectionRuntimeIdentity),
 				Position: PromptSectionPositionPrepend,
 				Order:    20,
-				Provider: staticPromptProvider("memory block"),
+				Provider: staticPromptProvider("runtime block"),
 			},
 			{
 				Name:     string(HarnessPromptSectionTools),
@@ -6470,7 +6088,7 @@ func testSectionSelectorFallbackStillFiltersProvidersAndDuplicates(t *testing.T)
 		gotNames = append(gotNames, descriptor.Name)
 	}
 	if got, want := gotNames, []string{
-		string(HarnessPromptSectionMemory),
+		string(HarnessPromptSectionRuntimeIdentity),
 		string(HarnessPromptSectionTools),
 	}; !slices.Equal(
 		got,
@@ -6689,12 +6307,6 @@ func seedDetachedHarnessRecoveryRunForTest(
 	}
 }
 
-type memoryProviderShutdownerFunc func(context.Context) error
-
-func (f memoryProviderShutdownerFunc) Shutdown(ctx context.Context) error {
-	return f(ctx)
-}
-
 type workspaceUnregisterFinalizerFunc func(context.Context) error
 
 func (f workspaceUnregisterFinalizerFunc) DrainUnregisters(ctx context.Context) error {
@@ -6749,7 +6361,6 @@ type fakeSessionManager struct {
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
-var _ memoryExtractorSessionManager = (*fakeSessionManager)(nil)
 var _ autoTitleSessionManager = (*fakeSessionManager)(nil)
 var _ clarifyEventPublisher = (*fakeSessionManager)(nil)
 var _ workspaceAccessPolicyBinder = (*fakeSessionManager)(nil)
@@ -6841,7 +6452,7 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.createCalls = append(f.createCalls, opts)
-	sessionID := fmt.Sprintf("dream-%d", len(f.createCalls))
+	sessionID := fmt.Sprintf("child-%d", len(f.createCalls))
 	workspaceID := strings.TrimSpace(opts.Workspace)
 	workspace := strings.TrimSpace(opts.WorkspacePath)
 	if workspace == "" {
@@ -9544,24 +9155,6 @@ func (s *recordingHookTelemetrySink) count() int {
 	return len(s.calls)
 }
 
-type noopMemoryObserver struct{}
-
-func (noopMemoryObserver) OnMemoryConsolidated(context.Context, automationpkg.MemoryConsolidatedEvent) error {
-	return nil
-}
-
-type recordingMemoryObserver struct {
-	events []automationpkg.MemoryConsolidatedEvent
-}
-
-func (o *recordingMemoryObserver) OnMemoryConsolidated(
-	_ context.Context,
-	event automationpkg.MemoryConsolidatedEvent,
-) error {
-	o.events = append(o.events, event)
-	return nil
-}
-
 type fakeAutomationManager struct {
 	jobs              []automationpkg.Job
 	triggers          []automationpkg.Trigger
@@ -9575,7 +9168,6 @@ type fakeAutomationManager struct {
 	onShutdown        func()
 	sessionObserver   session.Notifier
 	hookTelemetrySink hookspkg.TelemetrySink
-	memoryObserver    automationpkg.MemoryConsolidationObserver
 }
 
 func (f *fakeAutomationManager) Start(context.Context) error {
@@ -9846,13 +9438,6 @@ func (f *fakeAutomationManager) HookTelemetrySink() hookspkg.TelemetrySink {
 		return f.hookTelemetrySink
 	}
 	return &recordingHookTelemetrySink{}
-}
-
-func (f *fakeAutomationManager) MemoryObserver() automationpkg.MemoryConsolidationObserver {
-	if f.memoryObserver != nil {
-		return f.memoryObserver
-	}
-	return noopMemoryObserver{}
 }
 
 type fakeHookRuntime struct {
@@ -10508,17 +10093,6 @@ func testHookExecutorResolver(native map[string]hookspkg.Executor) hookspkg.Exec
 	}
 }
 
-type fakeDreamService struct {
-	mu             sync.Mutex
-	shouldRun      bool
-	shouldRunErr   error
-	runErr         error
-	runResult      memory.ConsolidationResult
-	shouldRunCalls int
-	runCalls       int
-	runHook        func(context.Context, memory.SessionSpawner, string) error
-}
-
 type fakeHookBindingPublisher func(context.Context) error
 
 func (f fakeHookBindingPublisher) Sync(ctx context.Context) error {
@@ -10526,39 +10100,6 @@ func (f fakeHookBindingPublisher) Sync(ctx context.Context) error {
 		return nil
 	}
 	return f(ctx)
-}
-
-func (f *fakeDreamService) ShouldRun() (bool, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.shouldRunCalls++
-	return f.shouldRun, f.shouldRunErr
-}
-
-func (f *fakeDreamService) Run(
-	ctx context.Context,
-	spawn memory.SessionSpawner,
-	workspace string,
-) (memory.ConsolidationResult, error) {
-	f.mu.Lock()
-	f.runCalls++
-	runHook := f.runHook
-	runErr := f.runErr
-	runResult := f.runResult
-	f.mu.Unlock()
-
-	if runHook != nil {
-		if err := runHook(ctx, spawn, workspace); err != nil {
-			return memory.ConsolidationResult{}, err
-		}
-	}
-	return runResult, runErr
-}
-
-func (f *fakeDreamService) runCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.runCalls
 }
 
 type portReportingServer struct {
@@ -10818,7 +10359,7 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 	}
 	capabilities := append([]string(nil), opts.capabilities...)
 	if opts.capabilities == nil {
-		capabilities = []string{"memory.backend"}
+		capabilities = []string{"tool.provider"}
 	}
 	permissions := append([]string(nil), opts.permissions...)
 	if opts.permissions == nil {

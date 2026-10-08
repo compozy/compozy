@@ -7,8 +7,6 @@ import (
 
 	"strings"
 
-	"github.com/compozy/compozy/internal/memory/consolidation"
-
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/skills"
@@ -369,11 +367,4 @@ func mcpResolverDependency(resolver *skills.MCPResolver) session.MCPResolver {
 		return nil
 	}
 	return resolver
-}
-
-func dreamTriggerFromRuntime(runtime *consolidation.Runtime) DreamTrigger {
-	if runtime == nil {
-		return nil
-	}
-	return runtime
 }

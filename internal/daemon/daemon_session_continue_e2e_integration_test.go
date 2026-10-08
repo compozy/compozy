@@ -43,7 +43,6 @@ func runDaemonE2ESessionContinueStaleSourceCLI(t *testing.T) {
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Roles.AutoTitle.Enabled = false
-			cfg.Roles.MemoryExtractor.Enabled = false
 		}},
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
@@ -97,7 +96,6 @@ func runDaemonE2ESessionContinueCLI(t *testing.T) {
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Roles.AutoTitle.Enabled = false
-			cfg.Roles.MemoryExtractor.Enabled = false
 		}},
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
@@ -182,7 +180,6 @@ func runDaemonE2ESessionForkCLI(t *testing.T) {
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Roles.AutoTitle.Enabled = false
-			cfg.Roles.MemoryExtractor.Enabled = false
 		}},
 		MockAgents: specs,
 	})

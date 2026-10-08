@@ -10,7 +10,6 @@ const (
 	ComponentHook         = "hook"
 	ComponentMarketplace  = "marketplace"
 	ComponentMCP          = "mcp"
-	ComponentMemory       = "memory"
 	ComponentNotification = "notification"
 	ComponentProvider     = "provider"
 	ComponentProfile      = "profile"

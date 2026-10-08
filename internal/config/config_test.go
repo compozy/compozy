@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -148,16 +147,7 @@ enabled = false
 [extensions.dev]
 watch_interval = "3s"
 
-[memory]
-enabled = true
-global_dir = "~/compozy-memory-test"
-
-[memory.dream]
-min_hours = 48
-min_sessions = 5
-check_interval = "45m"
-
-[roles.dream]
+[roles.auto_title]
 agent = "claude"
 
 `)
@@ -308,27 +298,9 @@ agent = "claude"
 	if got, want := cfg.Extensions.Dev.WatchInterval, 3*time.Second; got != want {
 		t.Fatalf("Load() Extensions.Dev.WatchInterval = %s, want %s", got, want)
 	}
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatalf("UserHomeDir() error = %v", err)
-	}
-	if !cfg.Memory.Enabled {
-		t.Fatal("Load() Memory.Enabled = false, want true")
-	}
-	if got, want := cfg.Memory.GlobalDir, filepath.Join(userHome, "compozy-memory-test"); got != want {
-		t.Fatalf("Load() Memory.GlobalDir = %q, want %q", got, want)
-	}
-	if got, want := cfg.Roles.Dream.Agent, "claude"; got != want {
-		t.Fatalf("Load() Roles.Dream.Agent = %q, want %q", got, want)
-	}
-	if got, want := cfg.Memory.Dream.MinHours, 48.0; got != want {
-		t.Fatalf("Load() Memory.Dream.MinHours = %v, want %v", got, want)
-	}
-	if got, want := cfg.Memory.Dream.MinSessions, 5; got != want {
-		t.Fatalf("Load() Memory.Dream.MinSessions = %d, want %d", got, want)
-	}
-	if got, want := cfg.Memory.Dream.CheckInterval, 45*time.Minute; got != want {
-		t.Fatalf("Load() Memory.Dream.CheckInterval = %s, want %s", got, want)
+
+	if got := cfg.Roles.AutoTitle.Agent; got != "claude" {
+		t.Fatalf("Load() Roles.AutoTitle.Agent = %q, want claude", got)
 	}
 
 	claude, err := cfg.ResolveProvider("claude")
@@ -1634,9 +1606,6 @@ func TestLoadRejectsTimeoutOnSessionBackedRoles(t *testing.T) {
 
 	for _, role := range []RoleName{
 		RoleCoordinator,
-		RoleDream,
-		RoleCheckpointSummary,
-		RoleMemoryExtractor,
 		RoleAutoTitle,
 	} {
 		t.Run("Should reject timeout on "+string(role), func(t *testing.T) {
@@ -1668,36 +1637,7 @@ func TestLoadRejectsRemovedConfigKeys(t *testing.T) {
 			config:  "[autonomy.coordinator]\nenabled = true\n",
 			wantKey: "autonomy.coordinator",
 		},
-		{
-			name:    "Should reject the memory dream agent",
-			config:  "[memory.dream]\nagent = \"curator\"\n",
-			wantKey: "memory.dream.agent",
-		},
-		{
-			name:    "Should reject the memory dream enabled flag",
-			config:  "[memory.dream]\nenabled = false\n",
-			wantKey: "memory.dream.enabled",
-		},
-		{
-			name:    "Should reject the memory extractor model",
-			config:  "[memory.extractor]\nmodel = \"model-a\"\n",
-			wantKey: "memory.extractor.model",
-		},
-		{
-			name:    "Should reject the memory extractor enabled flag",
-			config:  "[memory.extractor]\nenabled = false\n",
-			wantKey: "memory.extractor.enabled",
-		},
-		{
-			name:    "Should reject the memory controller LLM table",
-			config:  "[memory.controller.llm]\nenabled = true\n",
-			wantKey: "memory.controller.llm",
-		},
-		{
-			name:    "Should reject the recall signal metrics flag",
-			config:  "[memory.recall.signals]\nmetrics_enabled = true\n",
-			wantKey: "memory.recall.signals.metrics_enabled",
-		},
+
 		{
 			name:    "Should reject the session auto title flag",
 			config:  "[session]\nauto_title_enabled = false\n",
@@ -2077,45 +2017,6 @@ func TestValidateWrapsHooksConfigErrors(t *testing.T) {
 	}
 }
 
-func TestDreamConfigValidateRejectsNonPositiveThresholds(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name  string
-		patch func(*DreamConfig)
-	}{
-		{
-			name: "min hours",
-			patch: func(cfg *DreamConfig) {
-				cfg.MinHours = 0
-			},
-		},
-		{
-			name: "min sessions",
-			patch: func(cfg *DreamConfig) {
-				cfg.MinSessions = 0
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := DreamConfig{
-				MinHours:      24,
-				MinSessions:   3,
-				CheckInterval: 30 * time.Minute,
-			}
-			tc.patch(&cfg)
-
-			if err := cfg.Validate(); err == nil {
-				t.Fatalf("Validate() error = nil for %s", tc.name)
-			}
-		})
-	}
-}
-
 func TestLoadRejectsNonPositiveSkillsPollInterval(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")
@@ -2360,9 +2261,6 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	if cfg.Daemon.Socket != want.Daemon.Socket {
 		t.Fatalf("Load() Daemon.Socket = %q, want %q", cfg.Daemon.Socket, want.Daemon.Socket)
 	}
-	if !reflect.DeepEqual(cfg.Memory, want.Memory) {
-		t.Fatalf("Load() Memory = %#v, want %#v", cfg.Memory, want.Memory)
-	}
 	if cfg.Skills.Enabled != want.Skills.Enabled || cfg.Skills.PollInterval != want.Skills.PollInterval ||
 		!slices.Equal(cfg.Skills.DisabledSkills, want.Skills.DisabledSkills) {
 		t.Fatalf("Load() Skills = %#v, want %#v", cfg.Skills, want.Skills)
@@ -2385,9 +2283,6 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 		}
 		if cfg.Permissions.Mode != PermissionModeApproveAll {
 			t.Fatalf("defaultConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
-		}
-		if cfg.Roles.Dream.Enabled || cfg.Roles.Dream.Agent != "" {
-			t.Fatalf("defaultConfig() Roles.Dream = %#v, want disabled builtin routing", cfg.Roles.Dream)
 		}
 		if !cfg.Skills.Enabled {
 			t.Fatal("defaultConfig() Skills.Enabled = false, want true")
@@ -2735,4 +2630,32 @@ func TestSessionBusyInputConfigDefaultsAndValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a fresh home creates only retained runtime directories. Owner: config home layout (UT-001).
+func TestEnsureHomeLayoutCreatesRetainedDirectories(t *testing.T) {
+	t.Parallel()
+	t.Run("Should create the retained home layout", func(t *testing.T) {
+		t.Parallel()
+		paths, err := ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(paths); err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range []string{paths.AgentsDir, paths.SkillsDir, paths.ExtensionDataRoot} {
+			if info, err := os.Stat(path); err != nil || !info.IsDir() {
+				t.Fatalf("retained directory %q: %v", path, err)
+			}
+		}
+		if _, err := os.Stat(
+			filepath.Join(paths.HomeDir, ProfilesDirName, DefaultProfileDirName, "memory"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("fresh memory directory: %v", err)
+		}
+	})
 }
