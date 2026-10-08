@@ -180,7 +180,8 @@ instructions. The tool returns the receipt only and never waits. A running turn 
 is always mid-turn) or another in-flight request fails with the structural tool error code `session_busy`,
 and an agent advertising neither command fails with `compaction_unsupported`; each error carries that
 `code`, the tool ID, and the daemon message, the same codes the CLI, HTTP, and UDS error payloads use, and
-neither is the generic `tool_conflict`. A session that is not active fails as invalid input. Its
+neither is the generic `tool_conflict`; over `POST /api/tools/{id}/invoke` both are `409` responses carrying
+those codes. A session that is not active fails as invalid input. Its
 `session.compaction.requested` event records `requested_by: "tool"`. Observe the outcome through the
 session's transcript Compaction item and `compactions[]` usage markers (`compozy session history` returns
 the raw ledger rows instead); the CLI form, `compozy session compact <session-id>`, waits and prints the

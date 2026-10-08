@@ -283,6 +283,12 @@ post. Both use one payload type and are observation-only: a hook cannot veto or 
 the only patch field is `labels`, and a hook that fails is logged as a warning without affecting the
 recording.
 
+Two things are fixed by the **first** terminal status of an id: when `context.post_compact` fires (with
+that snapshot's `status`, `summary`, and `error`) and the usage boundary before which context readings
+no longer count. A later correction updates the Compaction item and, for `compozy session compact` and
+Goals, the **latest** status they report as the outcome, but it fires no hook again, keeps `ended_at`,
+and does not move the boundary.
+
 ```json
 {"event":"context.pre_compact","session_id":"…","turn_id":"…","compaction_id":"c1f0b8f4-…","trigger":"agent"}
 {"event":"context.post_compact","session_id":"…","turn_id":"…","compaction_id":"c1f0b8f4-…","trigger":"agent","status":"completed","summary":"…"}
@@ -420,8 +426,9 @@ message text as the HTTP and CLI refusals, in the usual tool error envelope:
 
 `code` is `session_busy` while a turn runs or another compact request is in flight, and
 `compaction_unsupported` when the agent advertises neither command. Branch on `code`; the generic
-`tool_conflict` code is not used for either refusal. Other failures keep the standard tool error
-codes.
+`tool_conflict` code is not used for either refusal. Over `POST /api/tools/{id}/invoke` the same two
+refusals are `409` responses that carry these codes, like the dedicated compact operation. Other
+failures keep the standard tool error codes (a session that is not active is invalid input).
 
 ### Web
 

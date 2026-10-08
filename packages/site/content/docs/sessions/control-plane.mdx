@@ -122,7 +122,8 @@ HTTP and UDS expose `POST /api/workspaces/{workspace_id}/sessions/{session_id}/c
 `409 session_busy`, and an agent that advertises neither command returns
 `409 compaction_unsupported`. A stopped session returns `400 session_not_promptable`. The native tool
 returns the same two refusals as structural tool-error codes, `session_busy` and
-`compaction_unsupported`, not as the generic `tool_conflict`. CompozyOS records who asked as
+`compaction_unsupported`, not as the generic `tool_conflict`; over `POST /api/tools/{id}/invoke` they
+arrive as `409` responses carrying those codes. CompozyOS records who asked as
 `requested_by` (`cli`, `web`, `http`, `tool`, or `goal`) on the `session.compaction.requested` event.
 The request, its responses, and what it leaves in the transcript are in
 [Context compaction](/docs/sessions/compaction#compact-now-experimental).
