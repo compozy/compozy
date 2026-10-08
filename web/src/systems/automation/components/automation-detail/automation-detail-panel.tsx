@@ -66,7 +66,9 @@ export interface AutomationDetailPanelProps {
  * starts on a schedule, on an event or from a link.
  */
 export function AutomationDetailPanel(props: AutomationDetailPanelProps) {
-  const { status, statusMessage, entity, view, onBack } = props;
+  // `status`/`statusMessage` belong to the unavailable states; the loaded page spreads the rest.
+  const { status, statusMessage, ...loaded } = props;
+  const { entity, view, onBack } = loaded;
   // Transient overlays live above the branch that unmounts: a refetch that
   // briefly empties the record must not slam a sheet shut mid-read.
   const [deleteOverlay, setDeleteOverlay] = useState({ open: false, id: "" });
@@ -86,7 +88,7 @@ export function AutomationDetailPanel(props: AutomationDetailPanelProps) {
 
   return (
     <AutomationDetailLoaded
-      {...props}
+      {...loaded}
       deleteOpen={deleteOverlay.open && deleteOverlay.id === id}
       entity={entity}
       inspectOpen={inspectOverlay.open && inspectOverlay.id === id}
