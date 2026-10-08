@@ -4,7 +4,7 @@ area: RT
 title: Upgrade a memory-enabled home without a manual step
 persona: Dora
 journey: J-validate-compozy-hard-cut
-expected: A COMPOZY_HOME written by the previous release with memory populated, a Dream run, a `memory.consolidated` trigger, `[memory]` and `[roles.dream]` in config.toml, a SOUL with `memory_policy`, a saved layout with a Knowledge window, and a session compacted by the old pressure compaction starts on the new build with no manual step: retired config tables are archived once into a commented block, an agent with memory toolsets starts its session, no memory tables remain, the Markdown memory files are intact, the layout opens without Knowledge, the compacted session shows its full history, and SOUL validate reports the SOUL valid.
+expected: A COMPOZY_HOME written by the previous release with memory populated, a Dream run, a `memory.consolidated` trigger, `[memory]` and `[roles.dream]` in config.toml, a SOUL with `memory_policy`, a saved layout with a Knowledge window, and a session compacted by the old pressure compaction starts on the new build with no manual step: retired config tables are archived once into a commented block (a concurrent edit or read-only config only logs a warning and retries on the next load), an agent with memory toolsets starts its session, no memory tables remain, the Markdown memory files are intact, the layout opens without Knowledge, the compacted session shows its full history in history, transcript, search, and anchors, and SOUL validate reports the SOUL valid.
 entry_points: previous-release compozy binary on a lab COMPOZY_HOME, then the new build on the same home; compozy daemon start; config.toml; compozy status -o json; compozy automation triggers -o json; compozy session list|history; compozy agent soul validate; compozy extension list -o json; Web desktop root with the saved layout
 qa_status: untested
 bug_ids:
@@ -25,7 +25,8 @@ archived, or ignored without blocking daemon start.
 - memory enabled and populated: Markdown memory files at profile, workspace, and agent scope, plus `_inbox/`
   candidates, with their SHA-256 recorded;
 - one Dream run (`compozy memory dream trigger`) and one extractor run, so Dream history and a `dream` and a
-  `memory-extractor` session exist;
+  `memory-extractor` session exist, plus the `checkpoint-summary` spawn-role session the old pressure compaction
+  created (give one of them a session type other than `dream`, because the migration matches the spawn role);
 - an `[[automation.triggers]]` entry and a stored trigger with `event = "memory.consolidated"` (with a run in its
   history);
 - `config.toml` carrying `[memory]` (plus `[memory.workspace]`, `[memory.session]`), `[roles.dream]`,
@@ -51,21 +52,29 @@ bytes; stop the daemon cleanly; back up the home.
 2. Each retired table found in the global, profile, and workspace `config.toml` is removed and appended,
    commented, under `# Archived retired memory and compaction settings; these values are inactive.` with its old
    values intact; `config.retired_keys_archived` is logged once; the second start leaves the file byte-identical.
-   If a concurrent edit or read-only directory refuses archive publication, startup succeeds using the
-   in-memory overlay with retired settings inactive, logs a warning with path/reason, preserves the
-   unpublished file bytes, and retries on the next load.
+   Archiving never blocks startup. If a concurrent edit refuses publication, or the file or its directory is
+   read-only, startup succeeds using the in-memory overlay with the retired settings inactive, logs the warning
+   `config.retired_keys_archive_failed` with `path` and `reason` (a boot loads the config more than once, so
+   expect the warning on each refused load, not exactly once), leaves the file bytes untouched, and retries on the
+   next load: make the directory writable (or finish the edit), restart, and the archive block then appears with
+   `config.retired_keys_archived`.
    The hook declaration that used `compaction_reason` loses that key (archived) and keeps running, observing every
    agent compaction; the same keys in an extension manifest are ignored with a warning. `compozy config set
    memory.enabled true` is still refused (`cli: config path "memory.enabled" is not supported by config set`).
 3. The agent with memory toolsets starts its session; `tools.retired_ids_ignored` is logged and the rest of its
    policy applies. The extension loads with the memory entries dropped and `extension.retired_entries_ignored`
-   warnings; AGENT.md and SKILL.md hook declarations ignore retired compaction matcher keys with one
-   warning per owner while retaining supported matchers and leaving authored files unchanged. A Host API
+   warnings; its automation resource skips the `memory.consolidated` trigger with the same warning (entry
+   `memory.consolidated`, the resource file named) while the `session.stopped` trigger and the supported job
+   materialize and the extension's other resources load. `AGENT.md` and `SKILL.md` hook declarations ignore the
+   retired `compaction_reason` / `compaction_strategy` matcher keys with one `agent.retired_entries_ignored`
+   (`agent`, `entries`) or `skills.retired_entries_ignored` warning per owner while retaining supported matchers
+   and other declarations, leaving authored files byte-identical (another invalid field in the same matcher is
+   still rejected). A Host API
    call to `memory/recall` returns JSON-RPC `-32601`.
 4. No memory tables remain and `status` carries no `memory` object (`compozy status -o json | jq 'has("memory")'`
    → `false`, `schema_version` `2026-10-07`, one global entry in `daemon.schema_streams`). The `memory.consolidated`
-   trigger is gone while its run history stays; `dream`, `memory-extractor`, and `checkpoint-summary`
-   sessions are gone. Their
+   trigger is gone while its run history stays; `dream` sessions and the `memory-extractor` and
+   `checkpoint-summary` spawn-role sessions are gone, whatever their session type. Their
    retained session directories, metadata, and databases keep identical hashes after boot and repeated
    reconciliation, and no catalog row reappears. Each unsupported session emits one WARN
    `observe.session_recovery_skipped` per observer lifetime with `session_id`, `session_type`, `spawn_role`,
@@ -77,8 +86,9 @@ bytes; stop the daemon cleanly; back up the home.
 6. The Web desktop opens the saved layout without the Knowledge window, the session window renders with no
    console error, the Settings window lands on `/settings`, and a reload keeps the layout stable.
 7. The previously compacted session shows its full history again (`compozy session history`, no archived span);
-   transcript pages, search, outline, and fork/rewind anchors resolve restored entries with their original
-   identities and tool routes. Rewind-excluded messages remain excluded; reopening does not advance the
+   transcript pages (`GET …/transcript`), search, outline, and fork/rewind anchors resolve the restored entries
+   with their original identities and tool routes, not only `history` and `events` (session migration `00009`
+   restores the transcript projection with the events). Rewind-excluded messages remain excluded; reopening does not advance the
    projection generation again. Its old `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
    produce no usage marker.
 8. `compozy agent soul validate` reports the SOUL valid with no diagnostic for `memory_policy`, the file is not

@@ -25,14 +25,18 @@ adapters are launched at their latest versions, so record the versions used.
    run `compozy session compact <id> -o json`. Expect `outcome: completed`, one folded Compaction item with a
    summary in the transcript (`GET …/transcript`), the raw `compaction` snapshot rows plus one
    `session.compaction_fired` row with `trigger: "requested"` in `compozy session history -o json` (history does not
-   fold), and context `state: unknown` (`used` absent) until the next usage report.
+   fold), a `session.compaction.requested` event with `requested_by: "cli"`, and context `state: unknown` (`used`
+   absent) until the next usage report; the prompt-response token totals that end the compaction turn do not bring
+   the reading back.
 2. **Codex.** Repeat on a `codex` session. Expect `outcome: completed` and one folded Compaction item with no summary.
 3. **Goal.** Run a Goal on a real adapter with `[goals] context_nudge_ratio` low enough to trip after a few turns.
    Expect exactly one compaction turn sent as `/compact` (or `/compress` where that is what the agent advertises),
    no reseed, work continuing afterwards, and the next usage report below the pre-compaction baseline. Record
    whether that report carries `size`: the Goal context reads `unknown` after the terminal compaction and stays
    unknown on a used-only or counter-only update, becoming known only once an update carries both `used` and a
-   positive `size`. A Goal on an agent advertising neither command goes to the existing reseed path instead.
+   positive `size`. The compaction turn's event records `requested_by: "goal"`, and the Goal treats the
+   compaction's latest observed terminal status as its outcome (`completed` succeeds, `failed` or `cancelled`
+   fails). A Goal on an agent advertising neither command goes to the existing reseed path instead.
 4. **Negative control.** An adapter or version that does not honor the compaction capability yields no Compaction
    item, snapshot row, event, marker, or hook call; its own "Compact conversation" tool row stays an ordinary tool row.
 

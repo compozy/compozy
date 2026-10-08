@@ -4,7 +4,7 @@ area: MS
 title: Rebuild a replaced session from one bounded replay
 persona: Théo
 journey: J-11
-expected: When a session moves to a new agent process through account fallback or runtime or model replacement, its first prompt carries one replay bounded by `[session.derive] max_replay_bytes`: the header says the workspace files and git state are authoritative, the earliest user message is pinned ahead of the `[N earlier messages omitted to fit the context budget]` note, the last 8 messages that fit are protected, and the `compozy__session_history` pointer line appears only when messages were omitted and the session can call that tool. No checkpoint file is written or injected, and another workspace never contributes a fact.
+expected: When a session moves to a new agent process through account fallback or runtime or model replacement, its first prompt carries one replay bounded by `[session.derive] max_replay_bytes`: the header says the workspace files and git state are authoritative, the earliest user message is pinned ahead of the `[N earlier messages omitted to fit the context budget]` note, the last 8 messages that fit are protected, and the `compozy__session_history` pointer line appears only when messages were omitted and the session can call that tool. A replay deferred because the first accepted turn was a maintenance turn (Compact now) is a durable obligation: it survives that turn, a stop and daemon restart, and a native resume, reaches the agent exactly once with the next ordinary prompt, and is discarded by clear or rewind. No checkpoint file is written or injected, and another workspace never contributes a fact.
 entry_points: daemon session reactivation through account fallback or runtime or model replacement; compozy session history; compozy session events; compozy logs (session.replay.bounded); acpmock prompt capture
 qa_status: untested
 bug_ids:
@@ -37,8 +37,18 @@ the new agent process received and confirm:
 - no `project_checkpoint_summary.md` appears in either workspace and no checkpoint block reaches the
   agent; nothing from the second workspace appears in the first workspace's replay.
 
+Deferred replay (durable `pending_resume_replay` obligation). Replace the runtime of a session whose
+transcript needs replay, then BEFORE any ordinary prompt run `compozy session compact <id>` (or Compact now in
+the Web). Confirm the compact turn carries only `/compact` (no replay, no startup instructions), then repeat the
+variants: (a) send an ordinary prompt directly after the compact turn; (b) stop the session and restart the
+daemon, with an agent that supports `session/load`, and send an ordinary prompt (exactly one native load, no
+rebuild from maintenance rows); (c) run `session clear` or a rewind while the replay is still pending and send an
+ordinary prompt. In (a) and (b) the first ordinary prompt carries the bounded replay and startup instructions
+exactly once and the next ordinary prompt carries neither; in (c) the discarded replay never reappears.
+
 Account fallback and runtime replacement keep their existing lifecycle events and `Context rebuilt from
-log.` marker. Continue and fork use the same bounded replay and have their own scenarios.
+log.` marker. Continue and fork use the same bounded replay and have their own scenarios; a nested continue or fork keeps the
+omission count and truncation evidence it inherited in the carried-context metadata and receipt.
 
 QA impact 2026-10-07 (memory removal): this scenario previously covered the workspace checkpoint summary written
 through the memory provider and decision WAL. That feature was removed with memory and compaction; the

@@ -20,7 +20,9 @@ Use two workspaces with deliberately similar transcript content. Stop and reacti
 through a provider fixture that advertises no `session/load` support, then send a prompt that depends
 on a unique fact from its earlier transcript. Confirm the provider receives one bounded local replay (header with the workspace-authority line; first user message pinned and an omission note when the transcript exceeds the budget) exactly once, the visible authored prompt remains unchanged, and the
 transcript contains one typed recovery marker. Repeat with a valid provider session load and confirm
-that no replay or marker is added.
+that no replay or marker is added. If the first accepted turn after a rebuild is a maintenance turn (Compact now),
+the replay stays pending as a durable obligation and is delivered once with the next ordinary prompt, including
+after a stop and daemon restart or a native resume (walked in MS-workspace-checkpoint-continuity).
 
 QA impact 2026-07-15: new runtime recovery behavior. Planning flag only; no QA replay ran in this
 implementation slice.
