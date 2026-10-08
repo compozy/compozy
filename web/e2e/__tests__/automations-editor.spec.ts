@@ -257,3 +257,30 @@ test("E2E-005 operator automates a Loop from its page and finds it through the S
     appPage.getByTestId(`automation-row-trigger-${trigger?.id ?? "missing"}`)
   ).toBeVisible();
 });
+
+// F1 (QA walk): a full page load of a create link opens the editor, keeps `create=1`
+// unquoted, and the params leave the URL only when the dialog closes.
+test("a cold-loaded create link opens the editor and clears on close", async ({
+  appPage,
+  runtime,
+}) => {
+  test.setTimeout(120_000);
+  await ensureProjectWorkspace(appPage, runtime);
+  await completeOnboardingIfPrompted(automationOperatorSelectors(appPage));
+
+  await appPage.goto(runtime.url("/automations?create=1&start=event"), {
+    waitUntil: "domcontentloaded",
+  });
+
+  const dialog = editor(appPage);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("automation-start-event")).toHaveAttribute(
+    "aria-checked",
+    "true"
+  );
+  expect(new URL(appPage.url()).search).not.toContain("%22");
+
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(appPage).toHaveURL(/\/automations(?:\?(?!.*create=).*)?$/);
+});

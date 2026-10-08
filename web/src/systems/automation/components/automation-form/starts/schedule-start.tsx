@@ -105,7 +105,10 @@ export function ScheduleStart({ draft, form }: ScheduleStartProps) {
           </span>
         </div>
       ) : null}
-      {form.readout ? <ScheduleReadout id={READOUT_ID} readout={form.readout} /> : null}
+      {/* Repeats places its readout above "Edit expression" (board VC-01). */}
+      {form.readout && schedule.mode !== "cron" ? (
+        <ScheduleReadout id={READOUT_ID} readout={form.readout} />
+      ) : null}
     </div>
   );
 }
@@ -166,6 +169,7 @@ function RepeatsBuilder({ expr, form }: { expr: string; form: AutomationFormMode
           value={scheduleClock(expr)}
         />
       </div>
+      {form.readout ? <ScheduleReadout id={READOUT_ID} readout={form.readout} /> : null}
       <Collapsible onOpenChange={setExpressionOpen} open={expressionOpen}>
         <CollapsibleTrigger
           render={

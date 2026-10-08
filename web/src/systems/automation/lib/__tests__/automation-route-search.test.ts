@@ -4,11 +4,13 @@
 // Boundary OUT: router navigation (route stubs own the replace).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
 import { redirectLegacyAutomationURL } from "../automation-redirects";
 import {
   automationRouteHasActiveFilters,
+  validateAutomationDetailSearch,
   validateAutomationsSearch,
 } from "../automation-route-search";
 
@@ -44,9 +46,21 @@ describe("validateAutomationsSearch", () => {
   it("Should accept a webhook start only as an editor preselection", () => {
     expect(validateAutomationsSearch({ start: "webhook" })).toEqual({});
     expect(validateAutomationsSearch({ create: "1", start: "webhook" })).toEqual({
-      create: "1",
+      create: 1,
       start: "webhook",
     });
+  });
+
+  it("F1 keeps `create=1` unquoted through the router's search serialization", () => {
+    // The router parses `?create=1` as the number 1; a string "1" would be written back as `"1"`.
+    const parsed = validateAutomationsSearch(defaultParseSearch("?create=1&start=event"));
+    expect(parsed).toEqual({ create: 1, start: "event" });
+    const written = new URLSearchParams(defaultStringifySearch(parsed));
+    expect(written.get("create")).toBe("1");
+    expect(written.get("start")).toBe("event");
+    expect(
+      defaultStringifySearch(validateAutomationDetailSearch(defaultParseSearch("?edit=1")))
+    ).toBe("?edit=1");
   });
 
   it("Should treat a Start view as an active filter but not a Loop create seed", () => {

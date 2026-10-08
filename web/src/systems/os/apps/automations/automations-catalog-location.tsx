@@ -139,7 +139,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
               <Link
                 className={buttonVariants({ size: "sm", variant: "neutral" })}
                 data-testid="automations-empty-start-schedule"
-                search={{ create: "1", start: "schedule" }}
+                search={{ create: 1, start: "schedule" }}
                 to="/automations"
               >
                 On a schedule
@@ -147,7 +147,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
               <Link
                 className={buttonVariants({ size: "sm", variant: "neutral" })}
                 data-testid="automations-empty-start-event"
-                search={{ create: "1", start: "event" }}
+                search={{ create: 1, start: "event" }}
                 to="/automations"
               >
                 When something happens

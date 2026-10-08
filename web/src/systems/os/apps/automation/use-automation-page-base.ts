@@ -40,29 +40,38 @@ export function automationUnavailableMessage(
   return null;
 }
 
+/** Page-scoped seed state; created before the editor so a save can settle it. */
+export function useAutomationCreateSeedStore() {
+  return useStore(automationCreateSeedLogic);
+}
+
 /**
- * Consumes the one-shot `?create=1|loop` deep link. Waits until the project or
- * Global lens is resolved (the draft binds its location). A Loop seed needs a
- * project, since the Loop lives in one: in Global it says so instead of
- * opening. Either way it strips the consumed params
- * so a cancel or reload does not re-open the dialog and the list is not
- * silently filtered by `loop` or `start`.
+ * Opens the editor for a `?create=1|loop` deep link once the project or Global
+ * lens is resolved (the draft binds its location). The params stay while the
+ * editor is open — a late or repeated mount opens it again — and leave the
+ * URL when the operator closes it. A Loop seed needs a project, since the
+ * Loop lives in one: in Global it says so and strips the params.
  */
 export function useAutomationCreateSeed(
+  store: ReturnType<typeof useAutomationCreateSeedStore>,
   seed: AutomationEditorSeed | null,
-  workspace: { activeWorkspaceId: string | null | undefined; resolved: boolean },
+  context: {
+    activeWorkspaceId: string | null | undefined;
+    editorOpen: boolean;
+    resolved: boolean;
+  },
   openCreate: (seed: AutomationEditorSeed) => void
 ): void {
   const navigate = useNavigate();
-  const store = useStore(automationCreateSeedLogic);
   useEffect(() => {
     store.trigger.seedObserved({
-      activeWorkspaceId: workspace.activeWorkspaceId,
+      activeWorkspaceId: context.activeWorkspaceId,
+      editorOpen: context.editorOpen,
       seed,
-      workspaceResolved: workspace.resolved,
-      consume: (consumed, outcome) => {
-        if (outcome === "open") openCreate(consumed);
-        else notifyUser({ message: "Pick a project to automate a Loop.", tone: "info" });
+      workspaceResolved: context.resolved,
+      open: openCreate,
+      refuse: () => notifyUser({ message: "Pick a project to automate a Loop.", tone: "info" }),
+      strip: () =>
         void navigate({
           replace: true,
           search: current => ({
@@ -72,10 +81,17 @@ export function useAutomationCreateSeed(
             start: undefined,
           }),
           to: "/automations",
-        });
-      },
+        }),
     });
-  }, [navigate, openCreate, seed, store, workspace.activeWorkspaceId, workspace.resolved]);
+  }, [
+    context.activeWorkspaceId,
+    context.editorOpen,
+    context.resolved,
+    navigate,
+    openCreate,
+    seed,
+    store,
+  ]);
 }
 
 /**

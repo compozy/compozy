@@ -2,38 +2,69 @@ import { createStoreLogic } from "@xstate/store";
 
 import type { AutomationEditorSeed } from "@/systems/automation";
 
+/** The deep link this page instance acted on, and the lens it opened the editor under. */
+interface HandledSeed {
+  key: string;
+  workspaceId: string | null | undefined;
+  /** The URL no longer needs cleaning: it was stripped, or a save navigated away. */
+  settled: boolean;
+}
+
 interface AutomationCreateSeedState {
-  consumedKey: string | null;
+  handled: HandledSeed | null;
 }
 
 type AutomationCreateSeedEvents = {
   seedObserved: {
     activeWorkspaceId: string | null | undefined;
-    /** `needs-project`: a Loop seed in Global — the Loop lives in a project. */
-    consume: (seed: AutomationEditorSeed, outcome: "open" | "needs-project") => void;
+    editorOpen: boolean;
     seed: AutomationEditorSeed | null;
     workspaceResolved: boolean;
+    open: (seed: AutomationEditorSeed) => void;
+    /** A Loop seed in Global: the Loop lives in a project. */
+    refuse: () => void;
+    strip: () => void;
   };
+  /** The editor saved: its navigation to the detail page replaces the URL. */
+  saved: {};
 };
 
-/** One-shot route intent consumption; URL callbacks enter through events. */
+/**
+ * The `?create=` deep link stays in the URL while the editor it opened is
+ * open, so a page that mounts late or remounts (cold load, window hydration)
+ * opens it again. Only a close the operator made — the editor closed under the
+ * same lens it was opened in — strips the params. A lens change resets the
+ * editor without the operator, so it reopens.
+ */
 export const automationCreateSeedLogic = createStoreLogic<
   AutomationCreateSeedState,
   AutomationCreateSeedEvents
 >({
-  context: { consumedKey: null },
+  context: { handled: null },
   on: {
+    saved: context =>
+      context.handled ? { handled: { ...context.handled, settled: true } } : undefined,
     seedObserved: (context, event, enqueue) => {
-      const seed = event.seed;
-      if (seed === null) {
-        return context.consumedKey === null ? undefined : { consumedKey: null };
+      const { seed, editorOpen, activeWorkspaceId } = event;
+      if (seed === null) return context.handled === null ? undefined : { handled: null };
+      if (!event.workspaceResolved || editorOpen) return;
+      const handled = context.handled;
+      const sameSeed = handled?.key === seed.key;
+      if (seed.loop !== undefined && !activeWorkspaceId) {
+        if (sameSeed) return;
+        enqueue.effect(() => {
+          event.refuse();
+          event.strip();
+        });
+        return { handled: { key: seed.key, workspaceId: activeWorkspaceId, settled: true } };
       }
-      if (!event.workspaceResolved || context.consumedKey === seed.key) return;
-      // Global (no project) is a resolved lens for a plain create; a Loop seed needs its project.
-      const outcome =
-        seed.loop !== undefined && !event.activeWorkspaceId ? "needs-project" : "open";
-      enqueue.effect(() => event.consume(seed, outcome));
-      return { consumedKey: seed.key };
+      if (sameSeed && handled.workspaceId === activeWorkspaceId) {
+        if (handled.settled) return;
+        enqueue.effect(event.strip);
+        return { handled: { ...handled, settled: true } };
+      }
+      enqueue.effect(() => event.open(seed));
+      return { handled: { key: seed.key, workspaceId: activeWorkspaceId, settled: false } };
     },
   },
 });

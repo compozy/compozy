@@ -26,6 +26,7 @@ import { automationPendingLogic } from "./automation-pending-store";
 import {
   automationUnavailableMessage,
   useAutomationCreateSeed,
+  useAutomationCreateSeedStore,
   useAutomationPageBase,
 } from "./use-automation-page-base";
 
@@ -168,20 +169,28 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
       ? jobs.find(job => job.id === view.id)
       : triggers.find(trigger => trigger.id === view.id);
 
+  const seedStore = useAutomationCreateSeedStore();
   const editor = useAutomationEditor({
     activeWorkspaceId: page.activeWorkspaceId,
     workspaces: page.workspaces,
-    onSaved: saved =>
+    onSaved: saved => {
+      seedStore.trigger.saved();
       void (saved.entity === "job"
         ? navigate({ to: "/automations/jobs/$jobId", params: { jobId: saved.automation.id } })
         : navigate({
             to: "/automations/triggers/$triggerId",
             params: { triggerId: saved.automation.id },
-          })),
+          }));
+    },
   });
   useAutomationCreateSeed(
+    seedStore,
     automationEditorSeed(search),
-    { activeWorkspaceId: page.activeWorkspaceId, resolved: page.workspaceResolved },
+    {
+      activeWorkspaceId: page.activeWorkspaceId,
+      editorOpen: editor.editor !== null,
+      resolved: page.workspaceResolved,
+    },
     seed => editor.openCreate({ loop: seed.loop, start: seed.start })
   );
 
