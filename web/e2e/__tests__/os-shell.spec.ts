@@ -3121,8 +3121,8 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
     );
     perfWindowIDs.set(app, id);
   }
-  // Jobs and Triggers merged into one Automations app; a second Tasks window keeps
-  // the envelope at 12 windows.
+  // Jobs and Triggers merged into one Automations app and Knowledge was removed; a
+  // second Tasks window keeps the envelope at 11 windows.
   const [extraTasksID] = await openDeckFixtureWindows(runtime, workspace.id, ["tasks"]);
   if (!extraTasksID) throw new Error("performance fixture must open the second tasks window");
   perfWindowIDs.set("tasks#2", extraTasksID);
@@ -3152,7 +3152,7 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
     document.addEventListener("DOMContentLoaded", placed, { once: true });
   });
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  expect(perfWindowIDs.size).toBe(12);
+  expect(perfWindowIDs.size).toBe(11);
   for (const id of perfWindowIDs.values()) {
     await expect(osShellSelectors(appPage).window(id)).toBeAttached();
   }
