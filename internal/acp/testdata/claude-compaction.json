@@ -1,0 +1,35 @@
+[
+    {
+        "sessionId": "sess-direct",
+        "update": {
+            "sessionUpdate": "compaction_update",
+            "compactionId": "claude-1",
+            "status": "in_progress"
+        }
+    },
+    {
+        "sessionId": "sess-direct",
+        "update": {
+            "sessionUpdate": "compaction_summary_chunk",
+            "compactionId": "claude-1",
+            "content": { "type": "text", "text": "<analysis>private framing</analysis>" }
+        }
+    },
+    {
+        "sessionId": "sess-direct",
+        "update": {
+            "sessionUpdate": "compaction_summary_chunk",
+            "compactionId": "claude-1",
+            "content": { "type": "text", "text": "Clean user-visible summary" }
+        }
+    },
+    {
+        "sessionId": "sess-direct",
+        "update": {
+            "sessionUpdate": "compaction_update",
+            "compactionId": "claude-1",
+            "status": "completed",
+            "summary": [{ "type": "text", "text": "Clean user-visible summary" }]
+        }
+    }
+]

@@ -51,6 +51,7 @@ type AgentEvent struct {
 	Synthetic        *PromptSyntheticMeta
 	Goal             *GoalPromptMeta
 	Usage            *TokenUsage
+	Compaction       *CompactionObservation
 	Runtime          *RuntimeActivity
 	Raw              json.RawMessage
 }

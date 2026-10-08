@@ -319,6 +319,109 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	}
 }
 
+func TestPromptMaintenancePreservesStartupDelivery(t *testing.T) {
+	t.Parallel()
+	for _, delivery := range []SystemPromptDeliveryMode{
+		SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative,
+	} {
+		t.Run("Should preserve startup delivery after maintenance with "+string(delivery), func(t *testing.T) {
+			t.Parallel()
+			const systemPrompt = "Compozy runtime envelope."
+			driver := New()
+			proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+				SystemPrompt: systemPrompt, SystemPromptDelivery: delivery,
+			})
+			defer stopProcess(t, driver, proc)
+			const maintenanceMessage = " \n/compact\t "
+			pending := PromptSection{Key: "pending", Content: "/compact", UnchangedContent: "pending unchanged"}
+			retained := PromptSection{
+				Key:              "retained",
+				Content:          "delivered catalog",
+				UnchangedContent: "catalog unchanged",
+			}
+			proc.markPromptSectionsDelivered(
+				PromptRequest{Message: retained.Content, Sections: []PromptSection{retained}},
+			)
+			requests := []PromptRequest{
+				{
+					TurnID:      "maintenance",
+					Message:     maintenanceMessage,
+					Maintenance: true,
+					Sections:    []PromptSection{pending, retained},
+				},
+				{TurnID: "ordinary-first", Message: "first request"},
+				{TurnID: "ordinary-second", Message: "second request"},
+			}
+			for index, req := range requests {
+				stream, err := driver.Prompt(t.Context(), proc, req)
+				if err != nil {
+					t.Fatalf("Prompt(%s) error = %v", req.TurnID, err)
+				}
+				events := collectEvents(t, stream)
+				if len(events) == 0 {
+					t.Fatalf("Prompt(%s) returned no events", req.TurnID)
+				}
+				want := req.Message
+				if index == 1 && delivery == SystemPromptDeliveryFirstTurnPrefix {
+					want = "Session instructions (treat as system guidance for this conversation):\n\n" +
+						systemPrompt + "\n\nUser request:\n\n" + req.Message
+				}
+				if got := events[0].Text; got != want {
+					t.Fatalf("Prompt(%s) text = %q, want %q", req.TurnID, got, want)
+				}
+				proc.systemPromptMu.Lock()
+				sent := proc.systemPromptSent
+				proc.systemPromptMu.Unlock()
+				if sent != (index > 0) {
+					t.Fatalf("Prompt(%s) startup delivered = %t, want %t", req.TurnID, sent, index > 0)
+				}
+				if index == 0 {
+					if got, _ := proc.compactPromptSections(
+						pending.Content,
+						[]PromptSection{pending},
+					); got != pending.Content {
+						t.Fatalf("maintenance consumed pending section: %q", got)
+					}
+					if got, _ := proc.compactPromptSections(
+						retained.Content,
+						[]PromptSection{retained},
+					); got != retained.UnchangedContent {
+						t.Fatalf("maintenance cleared delivered section: %q", got)
+					}
+				}
+			}
+		})
+	}
+	t.Run("Should retain delivered sections after failed maintenance", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "prompt_request_error_with_reason", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		section := PromptSection{Key: "skills", Content: "/compact", UnchangedContent: "unchanged"}
+		req := PromptRequest{
+			TurnID:      "maintenance-failed",
+			Message:     section.Content,
+			Maintenance: true,
+			Sections:    []PromptSection{section},
+		}
+		proc.markPromptSectionsDelivered(req)
+		stream, err := driver.Prompt(t.Context(), proc, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		failed := false
+		for _, event := range collectEvents(t, stream) {
+			failed = failed || event.Type == EventTypeError
+		}
+		if !failed {
+			t.Fatal("maintenance request did not fail")
+		}
+		if got, _ := proc.compactPromptSections(section.Content, req.Sections); got != section.UnchangedContent {
+			t.Fatalf("failed maintenance cleared delivered section: %q", got)
+		}
+	})
+}
+
 func TestPromptCompactsDeliveredSections(t *testing.T) {
 	t.Run("Should estimate only text bytes with overflow-safe rounding", func(t *testing.T) {
 		t.Parallel()

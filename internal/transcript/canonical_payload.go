@@ -17,6 +17,9 @@ type canonicalEventPayload struct {
 	MessageID string `json:"message_id,omitempty"`
 	RequestID string `json:"request_id,omitempty"`
 	store.EventCorrelation
+	CompactionID      string                           `json:"compaction_id,omitempty"`
+	Status            string                           `json:"status,omitempty"`
+	Summary           string                           `json:"summary,omitempty"`
 	Timestamp         time.Time                        `json:"timestamp"`
 	Text              string                           `json:"text,omitempty"`
 	AuthoredText      string                           `json:"authored_text,omitempty"`

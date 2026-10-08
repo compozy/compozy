@@ -1,0 +1,10 @@
+{
+    "sessionId": "sess-direct",
+    "update": {
+        "sessionUpdate": "tool_call",
+        "toolCallId": "legacy-compact",
+        "title": "Compact conversation",
+        "kind": "think",
+        "status": "in_progress"
+    }
+}

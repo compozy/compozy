@@ -210,6 +210,9 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 				WriteTextFile: true,
 			},
 			Terminal: true,
+			Session: &acpsdk.ClientSessionCapabilities{
+				Compaction: &acpsdk.CompactionCapabilities{},
+			},
 		},
 		ClientInfo: &acpsdk.Implementation{
 			Name:    defaultClientName,
