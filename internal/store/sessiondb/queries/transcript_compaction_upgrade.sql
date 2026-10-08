@@ -11,18 +11,16 @@ WHERE e.archived = 0 AND e.transcript_entry_key <> ''
 GROUP BY e.transcript_entry_key
 ORDER BY MIN(e.sequence);
 
--- name: GetNextTranscriptBoundaryEventForUpgrade :one
-SELECT e.id, e.sequence, e.turn_id, e.type, e.agent_name, e.content, e.archived, e.timestamp, e.transcript_entry_key
-FROM events AS e
-WHERE e.sequence > (SELECT MAX(a.sequence) FROM events AS a WHERE a.transcript_entry_key = sqlc.arg(entry_key))
-  AND e.transcript_entry_key <> ''
-ORDER BY e.sequence ASC
-LIMIT 1;
-
 -- name: ListTranscriptEntryContextForUpgrade :many
 SELECT e.id, e.sequence, e.turn_id, e.type, e.agent_name, e.content, e.archived, e.timestamp, e.transcript_entry_key
 FROM events AS e
-WHERE e.sequence BETWEEN (SELECT MIN(a.sequence) FROM events AS a WHERE a.transcript_entry_key = sqlc.arg(entry_key))
-                     AND (SELECT MAX(a.sequence) FROM events AS a WHERE a.transcript_entry_key = sqlc.arg(entry_key))
+WHERE e.sequence < (
+    SELECT MIN(f.sequence) FROM events AS f
+    WHERE f.type = 'session.compaction_fired'
+      AND EXISTS (
+        SELECT 1 FROM events AS assigned
+        WHERE assigned.transcript_entry_key = sqlc.arg(entry_key)
+          AND assigned.sequence BETWEEN json_extract(f.content, '$.raw.from_sequence')
+                                    AND json_extract(f.content, '$.raw.to_sequence')))
   AND e.transcript_entry_key <> ''
 ORDER BY e.sequence ASC;

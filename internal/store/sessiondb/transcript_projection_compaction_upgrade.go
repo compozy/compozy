@@ -110,45 +110,34 @@ func rebuildCompactionEntryIdentity(
 	tx *sql.Tx,
 	sessionID, key string,
 ) (transcript.EntryIdentity, map[string]string, error) {
-	prefix, _, ok := strings.Cut(key, ":s")
-	generation, err := strconv.ParseInt(strings.TrimPrefix(prefix, "g"), 10, 64)
-	if !ok || err != nil || generation < 0 {
-		return transcript.EntryIdentity{}, nil, fmt.Errorf(
-			"%w: invalid restored entry key %q",
-			transcript.ErrProjectionCorrupt,
-			key,
-		)
-	}
-	projector, err := transcript.NewProjector(transcript.ProjectionState{
-		Version: transcript.ProjectionVersion, Generation: generation,
-	}, nil)
-	if err != nil {
-		return transcript.EntryIdentity{}, nil, err
-	}
-	// Assigned events may return after a different entry already completed their original assistant.
 	contextEvents, err := sqlcgen.New(tx).ListTranscriptEntryContextForUpgrade(ctx, key)
 	if err != nil {
 		return transcript.EntryIdentity{}, nil, fmt.Errorf("store: load restored entry context: %w", err)
 	}
+	replay := compactionProjectionReplay{
+		identities: make(map[string]transcript.EntryIdentity),
+		routes:     make(map[string]string),
+	}
 	for _, row := range contextEvents {
-		event, err := sessionEventFromSQLC(row.ID, row.Sequence, row.TurnID,
-			row.Type, row.AgentName, row.Content, row.Archived, row.Timestamp, sessionID)
+		event, err := sessionEventFromSQLC(
+			row.ID,
+			row.Sequence,
+			row.TurnID,
+			row.Type,
+			row.AgentName,
+			row.Content,
+			row.Archived,
+			row.Timestamp,
+			sessionID,
+		)
 		if err != nil {
 			return transcript.EntryIdentity{}, nil, err
 		}
-		assignment, err := projector.Assign(ctx, event)
-		if err != nil {
+		if err := replay.assign(ctx, event, row.TranscriptEntryKey); err != nil {
 			return transcript.EntryIdentity{}, nil, err
-		}
-		if row.TranscriptEntryKey == key && assignment.Entry.Key != key {
-			return transcript.EntryIdentity{}, nil, fmt.Errorf(
-				"%w: inconsistent restored entry %q",
-				transcript.ErrProjectionCorrupt,
-				key,
-			)
 		}
 	}
-	identity, found := projector.Identity(key)
+	identity, found := replay.identities[key]
 	if !found {
 		return transcript.EntryIdentity{}, nil, fmt.Errorf(
 			"%w: missing restored identity %q",
@@ -156,33 +145,98 @@ func rebuildCompactionEntryIdentity(
 			key,
 		)
 	}
-	toolRoutes := projector.ToolRoutes()
-	maps.DeleteFunc(toolRoutes, func(_ string, entryKey string) bool { return entryKey != key })
-	// A later boundary can complete the entry even when rewind now excludes that boundary from history.
-	boundary, err := sqlcgen.New(tx).GetNextTranscriptBoundaryEventForUpgrade(ctx, key)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return transcript.EntryIdentity{}, nil, fmt.Errorf("store: load restored entry boundary: %w", err)
+	maps.DeleteFunc(replay.routes, func(_ string, entryKey string) bool { return entryKey != key })
+	return identity, replay.routes, nil
+}
+
+type compactionProjectionReplay struct {
+	identities map[string]transcript.EntryIdentity
+	routes     map[string]string
+	activeKey  string
+}
+
+func (r *compactionProjectionReplay) assign(ctx context.Context, event store.SessionEvent, key string) error {
+	prefix, _, ok := strings.Cut(key, ":")
+	generation, err := strconv.ParseInt(strings.TrimPrefix(prefix, "g"), 10, 64)
+	if !ok || err != nil || generation < 0 {
+		return fmt.Errorf("%w: invalid restored entry key %q", transcript.ErrProjectionCorrupt, key)
 	}
-	if err == nil && strings.HasPrefix(boundary.TranscriptEntryKey, prefix+":") {
-		event, err := sessionEventFromSQLC(boundary.ID, boundary.Sequence, boundary.TurnID,
-			boundary.Type, boundary.AgentName, boundary.Content, boundary.Archived, boundary.Timestamp, sessionID)
-		if err != nil {
-			return transcript.EntryIdentity{}, nil, err
-		}
-		assignment, err := projector.Assign(ctx, event)
-		if err != nil {
-			return transcript.EntryIdentity{}, nil, err
-		}
-		if slices.Contains(assignment.CompletedKeys, key) {
-			identity, found = projector.Identity(key)
-		}
+	state := transcript.ProjectionState{Version: transcript.ProjectionVersion, Generation: generation}
+	classifier, err := transcript.NewProjector(state, nil)
+	if err != nil {
+		return err
+	}
+	classification, err := classifier.Assign(ctx, event)
+	if err != nil {
+		return err
+	}
+	state.ActiveEntryKey = r.activeKey
+	resolver := assignedProjectionResolver{
+		identities:  r.identities,
+		assignedKey: key,
+		boundary:    classification.Entry.Kind != transcript.EntryKindAssistant,
+	}
+	projector, err := transcript.NewProjector(state, resolver)
+	if err != nil {
+		return err
+	}
+	assignment, err := projector.Assign(ctx, event)
+	if err != nil {
+		return err
+	}
+	if assignment.Entry.Key != key {
+		return fmt.Errorf(
+			"%w: inconsistent historical assignment %q at sequence %d",
+			transcript.ErrProjectionCorrupt,
+			key,
+			event.Sequence,
+		)
+	}
+	r.identities[key] = assignment.Entry
+	for _, completedKey := range assignment.CompletedKeys {
+		identity, found := projector.Identity(completedKey)
 		if !found {
-			return transcript.EntryIdentity{}, nil, fmt.Errorf(
-				"%w: missing completed identity %q",
-				transcript.ErrProjectionCorrupt,
-				key,
-			)
+			return fmt.Errorf("%w: missing completed identity %q", transcript.ErrProjectionCorrupt, completedKey)
 		}
+		r.identities[completedKey] = identity
 	}
-	return identity, toolRoutes, nil
+	maps.Copy(r.routes, projector.ToolRoutes())
+	r.activeKey = projector.State().ActiveEntryKey
+	return nil
+}
+
+// Persisted ownership fences stale active entries and reused tool IDs without changing canonical completion rules.
+var _ transcript.ProjectionResolver = assignedProjectionResolver{}
+
+type assignedProjectionResolver struct {
+	identities  map[string]transcript.EntryIdentity
+	assignedKey string
+	boundary    bool
+}
+
+func (r assignedProjectionResolver) EntryIdentity(
+	_ context.Context,
+	key string,
+) (transcript.EntryIdentity, bool, error) {
+	if !r.boundary && key != r.assignedKey {
+		return transcript.EntryIdentity{}, false, nil
+	}
+	identity, found := r.identities[key]
+	return identity, found, nil
+}
+
+func (r assignedProjectionResolver) ToolEntryIdentity(
+	_ context.Context,
+	_ string,
+) (transcript.EntryIdentity, bool, error) {
+	identity, found := r.identities[r.assignedKey]
+	return identity, found && identity.Kind == transcript.EntryKindAssistant, nil
+}
+
+func (r assignedProjectionResolver) LatestAssistantIdentity(
+	_ context.Context,
+	turnID string,
+) (transcript.EntryIdentity, bool, error) {
+	identity, found := r.identities[r.assignedKey]
+	return identity, found && identity.Kind == transcript.EntryKindAssistant && identity.TurnID == turnID, nil
 }

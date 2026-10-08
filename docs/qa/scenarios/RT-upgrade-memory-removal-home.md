@@ -91,7 +91,9 @@ bytes; stop the daemon cleanly; back up the home.
    restores the transcript projection with the events). Rewind-excluded messages remain excluded; reopening does not advance the
    projection generation again. An assistant completed by a system continuation remains completed even
    when its tool result arrived after that boundary; its final updated sequence stays unchanged across
-   repeated opens. Its old `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
+   repeated opens. Interleaved turns retain their identities and completed text even when a late tool
+   result belongs to an entry created before the other turn, or foreign events precede its completing
+   boundary. Its old `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
    produce no usage marker.
 8. `compozy agent soul validate` reports the SOUL valid with no diagnostic for `memory_policy`, the file is not
    rewritten, and the persona applies in a new session.
@@ -131,3 +133,9 @@ Review round 2 automated coverage: `TestSessionDBUnarchiveCompactionSpans` proje
 late-tool ordering on schema 8, uses the actual archive path, and checks completed text, original identities,
 tool routing, final sequence, and one-time generation advancement after two opens. This check does not
 replace the complete previous-release upgrade lab walk.
+
+Review round 3 automated coverage: the same upgrade suite retains the seven-event case and adds the exact
+nine-event interleaving (including the ordinary second-turn chunk and both terminals), plus an eleven-event
+ordering where foreign assistant events precede the completing user boundary. Real previous-version
+projection and archival are compared with two reopened projections for every identity field, text/state,
+route, and generation. The complete previous-release home/Web lab remains untested.

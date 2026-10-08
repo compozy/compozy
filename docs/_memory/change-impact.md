@@ -62,7 +62,10 @@ leftovers in user-owned files are retired without blocking the user.
   and tool routes using persisted identities, preserves rewind exclusions and live projection state,
   and advances the projection generation once. Review round 2 restores completion from the original
   ordered event context, including boundaries before late routed tool results, while preserving the
-  final updated sequence and completed text across repeated opens. Config retirement follows trigger array-element
+  final updated sequence and completed text across repeated opens. Review round 3 preserves routing
+  context predating interleaved entries and completion boundaries after intervening foreign events;
+  restored entries retain their original identities without disturbing surviving or reused-tool routes.
+  Config retirement follows trigger array-element
   ownership across noncontiguous descendant tables, preserving retained filters. Installed extension
   automation resources ignore `memory.consolidated` before validation with
   `extension.retired_entries_ignored`; explicit API/CLI trigger creation remains rejected. Nested
