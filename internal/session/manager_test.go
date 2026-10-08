@@ -1046,16 +1046,18 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve the session with the explicit model override", func(t *testing.T) {
+	t.Run("Should resolve and persist explicit model reasoning and speed overrides", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Provider:  "codex",
-			Model:     "task-profile-model",
-			Name:      "profiled-worker",
-			Workspace: h.workspaceID,
+			AgentName:       "coder",
+			Provider:        "codex",
+			Model:           "task-profile-model",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+			Name:            "profiled-worker",
+			Workspace:       h.workspaceID,
 		})
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
@@ -1072,6 +1074,19 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		if meta := readMeta(t, session.MetaPath()); meta.Model != "task-profile-model" {
 			t.Fatalf("meta.Model = %q, want task-profile-model", meta.Model)
 		}
+		if got := session.Info().ReasoningEffort; got != "high" {
+			t.Fatalf("session.Info().ReasoningEffort = %q, want high", got)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.ReasoningEffort != "high" {
+			t.Fatalf("meta.ReasoningEffort = %q, want high", meta.ReasoningEffort)
+		}
+		if got, want := h.driver.startCalls[0].Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("StartOpts.Speed = %q, want %q", got, want)
+		}
+		if got, want := meta.Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("meta.Speed = %q, want %q", got, want)
+		}
 	})
 
 	t.Run("Should reject model override without provider override", func(t *testing.T) {
@@ -1085,34 +1100,6 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		})
 		if !errors.Is(err, ErrInvalidRuntimeOverride) {
 			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
-		}
-	})
-
-	t.Run("Should persist supported reasoning effort override", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName:       "coder",
-			Provider:        "codex",
-			ReasoningEffort: "high",
-			Name:            "reasoned-worker",
-			Workspace:       h.workspaceID,
-		})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-				t.Fatalf("Stop() error = %v", err)
-			}
-		})
-
-		if got := session.Info().ReasoningEffort; got != "high" {
-			t.Fatalf("session.Info().ReasoningEffort = %q, want high", got)
-		}
-		if meta := readMeta(t, session.MetaPath()); meta.ReasoningEffort != "high" {
-			t.Fatalf("meta.ReasoningEffort = %q, want high", meta.ReasoningEffort)
 		}
 	})
 
@@ -1251,36 +1238,6 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			hydrated.SpeedResolution == nil ||
 			hydrated.SpeedResolution.Status != speedpkg.ResolutionApplied {
 			t.Fatalf("Status(stopped) speed fields = %q, %#v", hydrated.Speed, hydrated.SpeedResolution)
-		}
-	})
-
-	t.Run("Should pass an explicit fast speed to the driver", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
-			if got, want := opts.Speed, speedpkg.SpeedFast; got != want {
-				t.Fatalf("StartOpts.Speed = %q, want %q", got, want)
-			}
-			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-speed-fast"), nil
-		}
-
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Speed:     speedpkg.SpeedFast,
-			Workspace: h.workspaceID,
-		})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-				t.Errorf("Stop() error = %v", err)
-			}
-		})
-
-		if got, want := readMeta(t, session.MetaPath()).Speed, speedpkg.SpeedFast; got != want {
-			t.Fatalf("meta.Speed = %q, want %q", got, want)
 		}
 	})
 

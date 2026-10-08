@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import {
   deleteExposeLink,
@@ -91,83 +91,82 @@ async function openSkillsSettings(
 }
 
 test.describe("skill sources", () => {
-  test("E2E-007: toggling a source applies live, counts follow, and the picker follows", async ({
+  test("E2E-007 / E2E-008: source toggles and custom folders apply live and update the picker", async ({
     appPage,
     browserArtifacts,
     runtime,
   }) => {
-    const paths = requirePaths(runtime);
-    await seedProviderSkill(paths.operatorHomeDir, "claude", CLAUDE_SKILL);
-    await ensureProjectWorkspace(appPage, runtime);
+    await test.step("E2E-007: toggling a source applies live, counts follow, and the picker follows", async () => {
+      const paths = requirePaths(runtime);
+      await seedProviderSkill(paths.operatorHomeDir, "claude", CLAUDE_SKILL);
+      await ensureProjectWorkspace(appPage, runtime);
 
-    const sources = await openSkillsSettings(appPage, runtime);
-    // Claude ships off, so its skills are absent before the toggle.
-    await expect(sources.row("claude")).toBeVisible();
-    await expect(sources.count("claude")).toHaveCount(0);
+      const sources = await openSkillsSettings(appPage, runtime);
+      // Claude ships off, so its skills are absent before the toggle.
+      await expect(sources.row("claude")).toBeVisible();
+      await expect(sources.count("claude")).toHaveCount(0);
 
-    await sources.toggle("claude").click();
-    await expect(sources.save).toBeEnabled();
-    await sources.save.click();
-    await expect(sources.message).toContainText("applied immediately");
+      await sources.toggle("claude").click();
+      await expect(sources.save).toBeEnabled();
+      await sources.save.click();
+      await expect(sources.message).toContainText("applied immediately");
 
-    // The count is the scanner's, so it only appears once a real pass measured it.
-    await expect(sources.count("claude")).toContainText("1 skill", {
-      timeout: 20_000,
-    });
-    await browserArtifacts.captureScreenshot("e2e-007-claude-source-enabled", appPage);
+      // The count is the scanner's, so it only appears once a real pass measured it.
+      await expect(sources.count("claude")).toContainText("1 skill", {
+        timeout: 20_000,
+      });
+      await browserArtifacts.captureScreenshot("e2e-007-claude-source-enabled", appPage);
 
-    const enabled = await runtime.requestJSON<SettingsSkillsEnvelope>(settingsPath());
-    expect(enabled.config.sources).toContain("claude");
+      const enabled = await runtime.requestJSON<SettingsSkillsEnvelope>(settingsPath());
+      expect(enabled.config.sources).toContain("claude");
 
-    await sources.toggle("claude").click();
-    await sources.save.click();
-    await expect(sources.message).toContainText("applied immediately");
-    await expect
-      .poll(
-        async () =>
-          (await runtime.requestJSON<SettingsSkillsEnvelope>(settingsPath())).config.sources,
-        { timeout: 20_000 }
-      )
-      .not.toContain("claude");
-    await expectSkillAbsentFromPicker(appPage, CLAUDE_SKILL);
-  });
-
-  test("E2E-008: a custom folder is added, refuses a duplicate, and can be removed", async ({
-    appPage,
-    browserArtifacts,
-    runtime,
-  }) => {
-    const paths = requirePaths(runtime);
-    const customRoot = path.join(paths.operatorHomeDir, "team-skills");
-    await seedCustomSkillRoot(customRoot, [CUSTOM_SKILL]);
-    await ensureProjectWorkspace(appPage, runtime);
-
-    const sources = await openSkillsSettings(appPage, runtime);
-    await sources.customInput.fill(customRoot);
-    await sources.customAdd.click();
-    await sources.save.click();
-    await expect(sources.message).toContainText("applied immediately");
-    await expect(sources.count("team-skills")).toContainText("1 skill", {
-      timeout: 20_000,
+      await sources.toggle("claude").click();
+      await sources.save.click();
+      await expect(sources.message).toContainText("applied immediately");
+      await expect
+        .poll(
+          async () =>
+            (await runtime.requestJSON<SettingsSkillsEnvelope>(settingsPath())).config.sources,
+          { timeout: 20_000 }
+        )
+        .not.toContain("claude");
+      await expectSkillAbsentFromPicker(appPage, CLAUDE_SKILL);
     });
 
-    // The same folder twice is refused next to the input, before any request.
-    await sources.customInput.fill(customRoot);
-    await sources.customAdd.click();
-    await expect(sources.customError).toContainText("already on the list");
-    await expect(sources.customError).toContainText("duplicate_skill_source");
-    await browserArtifacts.captureScreenshot("e2e-008-duplicate-source-refused", appPage);
+    await test.step("E2E-008: a custom folder is added, refuses a duplicate, and can be removed", async () => {
+      const paths = requirePaths(runtime);
+      const customRoot = path.join(paths.operatorHomeDir, "team-skills");
+      await seedCustomSkillRoot(customRoot, [CUSTOM_SKILL]);
+      await ensureProjectWorkspace(appPage, runtime);
 
-    await sources.remove("team-skills").click();
-    await sources.save.click();
-    await expect
-      .poll(
-        async () =>
-          (await runtime.requestJSON<SettingsSkillsEnvelope>(settingsPath())).config.custom_sources,
-        { timeout: 20_000 }
-      )
-      .toEqual([]);
-    await expectSkillAbsentFromPicker(appPage, CUSTOM_SKILL);
+      const sources = await openSkillsSettings(appPage, runtime);
+      await sources.customInput.fill(customRoot);
+      await sources.customAdd.click();
+      await sources.save.click();
+      await expect(sources.message).toContainText("applied immediately");
+      await expect(sources.count("team-skills")).toContainText("1 skill", {
+        timeout: 20_000,
+      });
+
+      // The same folder twice is refused next to the input, before any request.
+      await sources.customInput.fill(customRoot);
+      await sources.customAdd.click();
+      await expect(sources.customError).toContainText("already on the list");
+      await expect(sources.customError).toContainText("duplicate_skill_source");
+      await browserArtifacts.captureScreenshot("e2e-008-duplicate-source-refused", appPage);
+
+      await sources.remove("team-skills").click();
+      await sources.save.click();
+      await expect
+        .poll(
+          async () =>
+            (await runtime.requestJSON<SettingsSkillsEnvelope>(settingsPath())).config
+              .custom_sources,
+          { timeout: 20_000 }
+        )
+        .toEqual([]);
+      await expectSkillAbsentFromPicker(appPage, CUSTOM_SKILL);
+    });
   });
 
   test("E2E-009: a workspace overrides one key and returns it to inheritance", async ({
@@ -313,7 +312,13 @@ test.describe("skill sources", () => {
 async function createMockSession(appPage: import("@playwright/test").Page): Promise<string> {
   const ui = sessionLifecycleSelectors(appPage);
   await completeOnboardingIfPrompted(ui);
-  const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+  // The Dock restores the previous agent detail after the first picker check.
+  // Enter the fleet route explicitly before selecting an agent for a new session.
+  await appPage.goto(new URL("/agents", appPage.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  const agentsWin = appWindow(appPage, "agents");
+  await expect(agentsWin).toBeVisible();
   const fleet = sessionLifecycleSelectors(agentsWin);
   await fleet.agentRow(MOCK_AGENT).click();
   await expect(fleet.agentPageNewSession).toBeVisible();

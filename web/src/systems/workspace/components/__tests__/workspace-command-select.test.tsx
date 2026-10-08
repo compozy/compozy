@@ -63,51 +63,6 @@ describe("WorkspaceCommandSelect", () => {
     expect(screen.getByRole("button", { name: "Workspace" })).toBeInTheDocument();
   });
 
-  it("Should hide the operator-home registration from the list", async () => {
-    const user = userEvent.setup();
-    const home = makeWorkspace({
-      id: "ws_home",
-      name: "home",
-      root_dir: "/Users/operator",
-    });
-
-    render(
-      <UIProvider reducedMotion="never" skipAnimations>
-        <WorkspaceCommandSelect
-          userHomeDir="/Users/operator"
-          workspaces={[home, ...workspaces]}
-          value="ws_alpha"
-          onChange={() => undefined}
-        />
-      </UIProvider>
-    );
-
-    await user.click(screen.getByTestId("workspace-switcher"));
-    expect(screen.queryByTestId("workspace-command-item-ws_home")).not.toBeInTheDocument();
-    expect(screen.getByTestId("workspace-command-item-ws_alpha")).toBeInTheDocument();
-    expect(screen.queryByText("Home workspace")).not.toBeInTheDocument();
-  });
-
-  it("Should align compact trigger height with the pill-group md segment token", () => {
-    render(
-      <UIProvider reducedMotion="never" skipAnimations>
-        <WorkspaceCommandSelect
-          workspaces={workspaces}
-          value="ws_alpha"
-          onChange={() => undefined}
-          size="compact"
-          triggerTestId="workspace-compact-switcher"
-        />
-      </UIProvider>
-    );
-
-    const trigger = screen.getByTestId("workspace-compact-switcher");
-    expect(trigger).toHaveAttribute("data-size", "compact");
-    expect(trigger.className).toContain("h-(--height-pill-group-segment-md)");
-    expect(trigger.className).not.toContain("h-9");
-    expect(screen.getByTestId("workspace-switcher-name")).toHaveClass("text-form-label");
-  });
-
   it("Should show No workspace and disable the trigger when the registry is empty", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>

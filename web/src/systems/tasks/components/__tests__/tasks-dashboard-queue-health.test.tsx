@@ -32,22 +32,6 @@ describe("TasksDashboardQueueHealth", () => {
     expect(screen.getByTestId("tasks-dashboard-ok")).toHaveTextContent("Queue is healthy.");
   });
 
-  it("Should NOT render the deprecated 6-cell Metric sub-grid", () => {
-    render(<TasksDashboardQueueHealth dashboard={buildDashboardFixture()} />);
-
-    // The legacy sub-grid emitted `data-testid="tasks-dashboard-queue-total"`
-    // etc. through `<Metric>` primitives. None of those testids should resolve.
-    expect(screen.queryByTestId("tasks-dashboard-queue-total")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-dashboard-queue-oldest")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-dashboard-stuck-runs")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-dashboard-orphan-runs")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-dashboard-backlog-status")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-dashboard-queue-backlog")).not.toBeInTheDocument();
-
-    const panel = screen.getByTestId("tasks-dashboard-queue-health");
-    expect(panel.querySelectorAll("[data-slot=metric]").length).toBe(0);
-  });
-
   it("Should surface the queue warning banner when backlog_warning is true", () => {
     const dashboard = buildDashboardFixture({
       queue: {

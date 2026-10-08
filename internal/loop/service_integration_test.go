@@ -62,6 +62,37 @@ func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *te
 		if preview.EffectiveConfig.FanOutWidth != 9 {
 			t.Fatalf("DryRun EffectiveConfig.FanOutWidth = %d, want 9", preview.EffectiveConfig.FanOutWidth)
 		}
+
+		err = svc.Configure(ctx, "ws-1", store.DefaultProfileID, "valid-loop", loop.LoopConfig{
+			FanOutWidth:      new(500),
+			NoProgressWindow: new(loop.LoopMaxNoProgressWindow + 100),
+			GateMaxRevisions: new(loop.LoopMaxGateRevisions + 100),
+		})
+		if err != nil {
+			t.Fatalf("Configure() error = %v", err)
+		}
+
+		cfg, err := globalDB.GetLoopConfig(ctx, "ws-1", "valid-loop")
+		if err != nil {
+			t.Fatalf("GetLoopConfig() error = %v", err)
+		}
+		if cfg.FanOutWidth == nil || *cfg.FanOutWidth != 500 {
+			t.Fatalf("stored FanOutWidth = %#v, want 500", cfg.FanOutWidth)
+		}
+		if cfg.NoProgressWindow == nil || *cfg.NoProgressWindow != loop.LoopMaxNoProgressWindow {
+			t.Fatalf(
+				"stored NoProgressWindow = %#v, want %d",
+				cfg.NoProgressWindow,
+				loop.LoopMaxNoProgressWindow,
+			)
+		}
+		if cfg.GateMaxRevisions == nil || *cfg.GateMaxRevisions != loop.LoopMaxGateRevisions {
+			t.Fatalf(
+				"stored GateMaxRevisions = %#v, want %d",
+				cfg.GateMaxRevisions,
+				loop.LoopMaxGateRevisions,
+			)
+		}
 	})
 }
 
@@ -176,49 +207,6 @@ func TestServiceIntegrationExecutedDefinitionSnapshot(t *testing.T) {
 			if hydrated.Templates[key] == nil {
 				t.Fatalf("hydrated template %q is nil", key)
 			}
-		}
-	})
-}
-
-func TestServiceIntegrationConfigureShouldPreserveUnboundedFanOutWidth(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should clamp loop config overrides before persisting", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openLoopServiceGlobalDB(t)
-		svc := newIntegrationService(t, globalDB, validDefinition())
-		ctx := testutil.Context(t)
-
-		err := svc.Configure(ctx, "ws-1", store.DefaultProfileID, "valid-loop", loop.LoopConfig{
-			FanOutWidth:      new(500),
-			NoProgressWindow: new(loop.LoopMaxNoProgressWindow + 100),
-			GateMaxRevisions: new(loop.LoopMaxGateRevisions + 100),
-		})
-		if err != nil {
-			t.Fatalf("Configure() error = %v", err)
-		}
-
-		cfg, err := globalDB.GetLoopConfig(ctx, "ws-1", "valid-loop")
-		if err != nil {
-			t.Fatalf("GetLoopConfig() error = %v", err)
-		}
-		if cfg.FanOutWidth == nil || *cfg.FanOutWidth != 500 {
-			t.Fatalf("stored FanOutWidth = %#v, want 500", cfg.FanOutWidth)
-		}
-		if cfg.NoProgressWindow == nil || *cfg.NoProgressWindow != loop.LoopMaxNoProgressWindow {
-			t.Fatalf(
-				"stored NoProgressWindow = %#v, want %d",
-				cfg.NoProgressWindow,
-				loop.LoopMaxNoProgressWindow,
-			)
-		}
-		if cfg.GateMaxRevisions == nil || *cfg.GateMaxRevisions != loop.LoopMaxGateRevisions {
-			t.Fatalf(
-				"stored GateMaxRevisions = %#v, want %d",
-				cfg.GateMaxRevisions,
-				loop.LoopMaxGateRevisions,
-			)
 		}
 	})
 }

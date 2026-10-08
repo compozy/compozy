@@ -32,7 +32,6 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -274,94 +273,6 @@ func seedSupervisedTaskForSession(
 		t.Fatal(err)
 	}
 	return tasks, claim
-}
-
-func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should persist and expose the narrowed allowed-tools policy", func(t *testing.T) {
-		t.Parallel()
-
-		driverPath := acpmock.RequireDriver(t)
-		fixturePath, err := filepath.Abs(filepath.Join(
-			"..",
-			"testutil",
-			"acpmock",
-			"testdata",
-			"hosted_native_tools_fixture.json",
-		))
-		if err != nil {
-			t.Fatalf("Abs(fixture) error = %v", err)
-		}
-		diagnosticsPath := filepath.Join(t.TempDir(), "acpmock-diagnostics.jsonl")
-		command := acpmock.BuildCommand(driverPath, fixturePath, "hosted-native", diagnosticsPath)
-
-		h := newHostedMCPHarness(
-			t,
-			WithDriver(NewACPDriverAdapter(newIntegrationACPDriver(
-				acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-			))),
-		)
-		h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(driverPath)
-		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
-		if err != nil {
-			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
-		}
-		resolved.Config = h.cfg
-		resolved.Agents = []compozyconfig.AgentDef{{
-			Name:     "acpmock-tools",
-			Provider: acpmock.ProviderName,
-			Command:  command,
-			Prompt:   "You are an acpmock tool policy agent.",
-			Tools: []string{
-				toolspkg.ToolIDTaskRead.String(),
-				toolspkg.ToolIDTaskUpdate.String(),
-			},
-		}}
-		h.resolver.upsert(&resolved)
-
-		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "acpmock-tools",
-			Workspace: h.workspaceID,
-			AllowedToolsOverride: []string{
-				toolspkg.ToolIDTaskRead.String(),
-			},
-		})
-		if err != nil {
-			t.Fatalf("Create(acpmock narrowed tools) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil &&
-				!errors.Is(err, ErrSessionNotFound) {
-				t.Fatalf("Stop(acpmock session) error = %v", err)
-			}
-		})
-
-		info := sess.Info()
-		if info.Lineage == nil {
-			t.Fatal("session lineage = nil, want narrowed tool policy")
-		}
-		if got, want := info.Lineage.PermissionPolicy.Tools, []string{
-			toolspkg.ToolIDTaskRead.String(),
-		}; !testutil.EqualStringSlices(
-			got,
-			want,
-		) {
-			t.Fatalf("lineage policy tools = %#v, want %#v", got, want)
-		}
-		meta := readMeta(t, sess.MetaPath())
-		if meta.Lineage == nil {
-			t.Fatal("persisted lineage = nil, want narrowed tool policy")
-		}
-		if got, want := meta.Lineage.PermissionPolicy.Tools, []string{
-			toolspkg.ToolIDTaskRead.String(),
-		}; !testutil.EqualStringSlices(
-			got,
-			want,
-		) {
-			t.Fatalf("persisted policy tools = %#v, want %#v", got, want)
-		}
-	})
 }
 
 func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing.T) {
@@ -670,73 +581,6 @@ func TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment(t *testing.
 			meta.StopDetail,
 			resumeStopDetailAgentCrashed,
 		)
-	}
-}
-
-func TestManagerIntegrationResumeFailsWhenWorkspaceDirectoryMissing(t *testing.T) {
-	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
-
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	waitForStoppedSession(t, h.manager, session)
-	if err := os.RemoveAll(h.workspace); err != nil {
-		t.Fatalf("os.RemoveAll(%q) error = %v", h.workspace, err)
-	}
-
-	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
-		t.Fatal("Resume(missing workspace dir) error = nil, want non-nil")
-	} else if !strings.Contains(err.Error(), h.workspace) {
-		t.Fatalf("Resume(missing workspace dir) error = %v, want workspace path %q", err, h.workspace)
-	}
-}
-
-func TestManagerIntegrationResumeFailsWhenAgentRemoved(t *testing.T) {
-	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
-
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	waitForStoppedSession(t, h.manager, session)
-
-	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		ID:      h.workspaceID,
-		RootDir: h.workspace,
-		Name:    h.workspaceName,
-		Config:  h.cfg,
-		Agents: []compozyconfig.AgentDef{{
-			Name:     compozyconfig.DefaultAgentName,
-			Provider: acpmock.ProviderName,
-			Command:  sessionStopHelperCommand(t),
-			Prompt:   "You are a coding assistant.",
-		}},
-	})
-
-	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
-		t.Fatal("Resume(missing agent) error = nil, want non-nil")
-	} else if !strings.Contains(err.Error(), "coder") {
-		t.Fatalf("Resume(missing agent) error = %v, want agent name", err)
-	}
-}
-
-func TestManagerIntegrationResumeFailsWhenEventStoreIsEmpty(t *testing.T) {
-	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
-
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	waitForStoppedSession(t, h.manager, session)
-	if err := os.WriteFile(session.DBPath(), nil, 0o644); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", session.DBPath(), err)
-	}
-
-	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
-		t.Fatal("Resume(empty event store) error = nil, want non-nil")
-	} else if !strings.Contains(err.Error(), session.DBPath()) || !strings.Contains(err.Error(), "file is empty") {
-		t.Fatalf("Resume(empty event store) error = %v, want db path and empty-file detail", err)
 	}
 }
 

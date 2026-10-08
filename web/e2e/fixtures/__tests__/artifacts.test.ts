@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import {
   ArtifactCollector,
   type BrowserRouteState,
-  isLikelyViteDevHTML,
   mirrorBrowserScreenshotForQA,
   persistBrowserArtifacts,
   resolveBrowserArtifactPath,
@@ -102,20 +101,6 @@ describe("artifact collector", () => {
     await mkdir(rootDir, { recursive: true });
 
     expect(() => resolveBrowserArtifactPath(rootDir, "../escape.json")).toThrow();
-  });
-
-  it("identifies vite development HTML markers", () => {
-    expect(
-      isLikelyViteDevHTML(
-        '<!doctype html><html><head><script type="module" src="/@vite/client"></script></head></html>'
-      )
-    ).toBe(true);
-
-    expect(
-      isLikelyViteDevHTML(
-        '<!doctype html><html><head><script type="module" src="/assets/index-abc123.js"></script></head></html>'
-      )
-    ).toBe(false);
   });
 
   it("mirrors named screenshots into the task QA artifact root", async () => {

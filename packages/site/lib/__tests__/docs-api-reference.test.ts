@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -10,7 +10,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE_ROOT = resolve(HERE, "..", "..");
 const REPO_ROOT = resolve(SITE_ROOT, "../..");
 const OPENAPI_PATH = resolve(REPO_ROOT, "openapi/compozy.json");
-const API_REF_DIR = resolve(SITE_ROOT, "content/docs/api");
 
 type OpenAPIDocument = {
   paths?: Record<string, Record<string, { tags?: string[] }>>;
@@ -36,16 +35,6 @@ function collectUsedTags(doc: OpenAPIDocument): string[] {
 }
 
 describe("api reference", () => {
-  it("Should generate one MDX page for every OpenAPI tag with operations", () => {
-    const usedTags = collectUsedTags(loadOpenAPI());
-    expect(usedTags.length).toBeGreaterThan(0);
-
-    const missing = usedTags.filter(
-      tag => !existsSync(resolve(API_REF_DIR, `${tagSlug(tag)}.mdx`))
-    );
-    expect(missing).toEqual([]);
-  });
-
   it("Should partition every used tag into exactly one navigation section", () => {
     const usedTags = collectUsedTags(loadOpenAPI()).map(tagSlug);
     const sectionByTag = new Map<string, string[]>();

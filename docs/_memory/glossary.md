@@ -392,6 +392,7 @@ Regenerate / verify drift on `openapi/compozy.json`, `web/src/generated/compozy-
 - **Integration** (`make test-integration`) — `+integration` build tag, co-located.
 - **E2E Runtime** (`make test-e2e-runtime`) — daemon-side Go harness against `acpmock`.
 - **E2E Web** (`make test-e2e-web`) — Playwright against the daemon-served SPA.
+- **E2E Desktop Nightly** (`make test-e2e-desktop-nightly`) — real-time desktop soaks, run by the release-PR `e2e-desktop-nightly` job; excluded from the per-PR desktop lane.
 - **E2E Nightly** (`make test-e2e-nightly`) — heavy E2E, runs in release-PR `dry-run` job only.
 
 ### Real-Scenario QA

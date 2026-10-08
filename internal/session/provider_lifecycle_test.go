@@ -49,6 +49,48 @@ func TestCreateWithProviderOverridePropagatesToSessionRuntime(t *testing.T) {
 	if got := h.driver.startCalls[0].Command; got != codexProvider.Command {
 		t.Fatalf("start command = %q, want %q", got, codexProvider.Command)
 	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	status, err := h.manager.Status(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if got := status.Provider; got != "codex" {
+		t.Fatalf("Status().Provider = %q, want %q", got, "codex")
+	}
+
+	infos, err := h.manager.ListAll(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ListAll() error = %v", err)
+	}
+	if len(infos) != 1 || infos[0].ID != session.ID {
+		t.Fatalf("ListAll() = %#v, want the created session", infos)
+	}
+	info := infos[0]
+	if got := info.Provider; got != "codex" {
+		t.Fatalf("ListAll().Provider = %q, want %q", got, "codex")
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+
+	if got := resumed.Info().Provider; got != "codex" {
+		t.Fatalf("Resume().Provider = %q, want %q", got, "codex")
+	}
+	if got, want := len(h.driver.startCalls), 2; got != want {
+		t.Fatalf("len(startCalls) = %d, want %d", got, want)
+	}
+	if got := h.driver.startCalls[1].Command; got != h.driver.startCalls[0].Command {
+		t.Fatalf("resume start command = %q, want %q", got, h.driver.startCalls[0].Command)
+	}
+	if meta := readMeta(t, resumed.MetaPath()); meta.Provider != "codex" {
+		t.Fatalf("resume meta.Provider = %q, want %q", meta.Provider, "codex")
+	}
 }
 
 func TestPromptRuntimeReplacementLifecycle(t *testing.T) {

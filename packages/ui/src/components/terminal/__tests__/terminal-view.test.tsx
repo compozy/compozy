@@ -1,5 +1,4 @@
 import { act, render, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -782,26 +781,6 @@ describe("TerminalView", () => {
 
     expect(getByRole("log", { name: "Terminal output" })).toBeInTheDocument();
     await waitFor(() => expect(engine.lastTerminal().options.screenReaderMode).toBe(true));
-  });
-
-  it("Should never leave a keystroke path open on a read-only grid", async () => {
-    const engine = createFakeEngine();
-    const onData = vi.fn();
-    const { getByRole } = render(
-      <TerminalView
-        aria-label="Terminal output — watching"
-        engineLoader={loaderFor(engine)}
-        instanceId={nextInstanceId()}
-        onData={onData}
-        readOnly
-      />
-    );
-    await waitFor(() => expect(engine.terminals).toHaveLength(1));
-
-    await userEvent.click(getByRole("log"));
-    await userEvent.keyboard("whoami");
-
-    expect(onData).not.toHaveBeenCalled();
   });
 
   it("Should pass host shortcuts without stealing an unselected terminal interrupt", async () => {

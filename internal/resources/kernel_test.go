@@ -97,6 +97,8 @@ func TestKernelPutRawUpdateDeleteAndNotFound(t *testing.T) {
 }
 
 func TestKernelWriteTransactionsRetryBusyLocks(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should retry PutRaw until the competing write lock is released", func(t *testing.T) {
 		t.Parallel()
 

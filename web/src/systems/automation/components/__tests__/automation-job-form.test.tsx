@@ -122,17 +122,6 @@ function selectLoop(name: string) {
 }
 
 describe("AutomationJobForm", () => {
-  it("Should update the job name through onChange", () => {
-    const { onChange } = renderJobForm();
-
-    fireEvent.change(screen.getByTestId("job-name-input"), {
-      target: { value: "nightly-docs" },
-    });
-
-    expect(screen.getByTestId("job-name-input")).toHaveValue("nightly-docs");
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ name: "nightly-docs" }));
-  });
-
   it("Should show a Global destination statement for a global draft", () => {
     renderJobForm({ activeWorkspaceId: null, draft: createAutomationJobDraft(null) });
 
@@ -607,6 +596,8 @@ describe("AutomationJobForm", () => {
     fireEvent.change(screen.getByTestId("job-name-input"), {
       target: { value: "daily-review" },
     });
+    expect(screen.getByTestId("job-name-input")).toHaveValue("daily-review");
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ name: "daily-review" }));
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
 
     // The agent target is a searchable catalog selector, not a text input.

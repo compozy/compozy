@@ -11,7 +11,6 @@ import {
 } from "../fixtures/selectors";
 import {
   appWindow,
-  ensureAppWindow,
   openAppWindow,
   setGlobalScope,
   sessionWindow,
@@ -45,9 +44,6 @@ const browserLifecycleFixture = path.resolve(
 );
 
 const handoffAgentName = "browser-lifecycle-agent";
-const draftTitle = "Draft handoff smoke task";
-const draftDescription =
-  "Saved intent for bookend coverage. No run should be queued until publish.";
 
 function handoffAgentSessionPath(sessionId: string): string {
   return `/agents/${handoffAgentName}/sessions/${sessionId}`;
@@ -75,188 +71,148 @@ test.use({
   },
 });
 
-test("creating a task is saved intent, no run is enqueued and labels never imply autonomy", async ({
-  appPage,
-  runtime,
-}) => {
-  await ensureProjectWorkspace(appPage, runtime);
-  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(appPage);
-
-  const tasksWin = appWindow(appPage, "tasks");
-  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
-  await expect(tasksWin).toBeVisible();
-  await expect(appPage).toHaveURL(/\/tasks$/);
-
-  await tasksUI.openCreate.click();
-  await expect(appPage).toHaveURL(/\/tasks\/new$/);
-  await selectRecurringTaskTemplate(tasksUI);
-  await expect(tasksUI.createSaveDraft).toContainText("Save draft");
-  await tasksUI.createPriority("medium").click();
-  await tasksUI.createTitle.fill(draftTitle);
-  await tasksUI.createDescription.fill(draftDescription);
-  await tasksUI.createSaveDraft.click();
-  await expect(tasksUI.createEditorSurface).toBeHidden();
-
-  let draftId = "";
-  await expect
-    .poll(async () => {
-      const payload = await runtime.requestJSON<{
-        tasks: Array<{ id: string; status: string; title: string }>;
-      }>(`/api/tasks?include_drafts=true&query=${encodeURIComponent(draftTitle)}&limit=10`);
-      const created = payload.tasks.find(task => task.title === draftTitle);
-      draftId = created?.id ?? "";
-      return created?.status ?? "";
-    })
-    .toBe("draft");
-
-  if (draftId === "") {
-    throw new Error(`Expected a created draft task for "${draftTitle}".`);
-  }
-
-  await expect(tasksUI.detailTitle).toHaveText(draftTitle);
-  await expect(tasksUI.detailStatus).toHaveText(/draft/i);
-
-  const publishButton = tasksUI.detailPublish;
-  await expect(publishButton).toBeVisible();
-  await expect(publishButton).toHaveAttribute("title", /coordinator handoff/i);
-  await expect(tasksUI.detailEnqueue).toBeHidden();
-  await expect(tasksUI.detailCoordination).toBeHidden();
-
-  await tasksUI.detailTab("runs").click();
-  await expect(tasksUI.detailRunsEmpty).toContainText(/saved intent only/i);
-  await expect(tasksUI.detailRunsEmpty).toContainText(/publish, start, or approve/i);
-
-  const runsPayload = await runtime.requestJSON<{
-    runs: Array<{ id: string; status: string }>;
-  }>(`/api/tasks/${encodeURIComponent(draftId)}/runs?limit=10`);
-  expect(runsPayload.runs).toHaveLength(0);
-});
-
-test("publishing a draft hands off to the coordinator without retired coordination channels", async ({
-  appPage,
-  runtime,
-}) => {
-  const tasksWin = appWindow(appPage, "tasks");
-  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-tasks-handoff-workspace-"));
-  const workspace = await runtime.resolveWorkspace(workspaceRoot);
-
-  await ensureProjectWorkspace(appPage, runtime);
-  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(appPage);
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
-  await switchWorkspace(appPage, workspace.id, workspace.name);
-  await ensureAppWindow(appPage, "Tasks", "tasks");
-
-  await tasksUI.openCreate.click();
-  await selectRecurringTaskTemplate(tasksUI);
-  await expect(tasksWin.getByTestId("workspace-scope-statement")).toContainText(
-    `Creates in ${workspace.name}`
-  );
-  await expect(tasksUI.createSaveDraft).toContainText("Save draft");
-  await tasksUI.createPriority("high").click();
-  const publishedTitle = `Coordinator handoff publish ${Date.now()}`;
-  await tasksUI.createTitle.fill(publishedTitle);
-  await tasksUI.createDescription.fill("Coordinator handoff without a channel.");
-  await tasksUI.createSaveDraft.click();
-  await expect(tasksUI.createEditorSurface).toBeHidden();
-
-  let draftId = "";
-  await expect
-    .poll(async () => {
-      const payload = await runtime.requestJSON<{
-        tasks: Array<{
-          id: string;
-          scope?: string;
-          status: string;
-          title: string;
-          workspace_id?: string | null;
-        }>;
-      }>(`/api/tasks?include_drafts=true&query=${encodeURIComponent(publishedTitle)}&limit=10`);
-      const created = payload.tasks.find(
-        task => task.title === publishedTitle && task.workspace_id === workspace.id
-      );
-      draftId = created?.id ?? "";
-      return created?.status ?? "";
-    })
-    .toBe("draft");
-
-  const publishResponsePromise = appPage.waitForResponse(response => {
-    return (
-      response.request().method() === "POST" &&
-      response.url().endsWith(`/api/tasks/${encodeURIComponent(draftId)}/publish`)
-    );
-  });
-  await tasksUI.detailPublish.click();
-  const publishResponse = await publishResponsePromise;
-  expect(publishResponse.ok()).toBeTruthy();
-
-  await expect(tasksUI.detailPublish).toBeHidden();
-
-  await expect(tasksUI.detailNowRun).toBeVisible();
-  await expect(tasksUI.detailCoordination).toHaveCount(0);
-
-  await tasksUI.detailTab("runs").click();
-  await expect(tasksUI.detailRunsEmpty).toBeHidden();
-});
-
-test("approving an agent-created approval task is the coordinator-handoff boundary, not creation", async ({
+test("draft publishing and agent approval preserve coordinator-handoff boundaries", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  const seeded = await seedBrowserTasksOperatorFlow(runtime, {
-    sessionAgentName: handoffAgentName,
-  });
+  // Preserve the combined budget of the two original journeys.
+  test.setTimeout(180_000);
+  await test.step("publishing a draft hands off to the coordinator without retired coordination channels", async () => {
+    const tasksWin = appWindow(appPage, "tasks");
+    const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-tasks-handoff-workspace-"));
+    const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
-  await completeOnboardingIfPrompted(appPage);
-  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
-  await setGlobalScope(appPage, true);
+    await ensureProjectWorkspace(appPage, runtime);
+    await switchWorkspace(appPage, workspace.id, workspace.name);
+    await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
+    await completeOnboardingIfPrompted(appPage);
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
+    await expect(tasksWin).toBeVisible();
 
-  const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
-  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
-  await expect(appPage).toHaveURL(/\/tasks$/);
-  await tasksUI.modeList.click();
-  await expect(tasksUI.modeList).toHaveAttribute("aria-current", "page");
-
-  const approvalTaskRunsBefore = await runtime.requestJSON<{
-    runs: Array<{ id: string }>;
-  }>(`/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}/runs?limit=10`);
-  expect(approvalTaskRunsBefore.runs).toHaveLength(0);
-
-  await tasksUI.taskCard(seeded.approvalTask.id).click();
-  await expect(tasksUI.detailApprovalPill).toContainText(/approval pending/i);
-  await expect(tasksUI.detailNowApproval).toContainText(/waiting for your approval/i);
-  await expect(tasksUI.detailNowApproval).toContainText(/won't start until someone approves it/i);
-  await tasksUI.detailTabRuns.click();
-  await expect(tasksUI.detailRunsEmpty).toBeVisible();
-
-  await tasksUI.detailBreadcrumbTasks.click();
-  await tasksUI.modeInbox.click();
-  await expect(tasksUI.inboxView).toBeVisible();
-  await expect(tasksUI.inboxLane("approvals")).toBeVisible();
-
-  const approveResponsePromise = appPage.waitForResponse(response => {
-    return (
-      response.request().method() === "POST" &&
-      response.url().endsWith(`/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}/approve`)
+    await tasksUI.openCreate.click();
+    await selectRecurringTaskTemplate(tasksUI);
+    await expect(tasksWin.getByTestId("workspace-scope-statement")).toContainText(
+      `Creates in ${workspace.name}`
     );
+    await expect(tasksUI.createSaveDraft).toContainText("Save draft");
+    await tasksUI.createPriority("high").click();
+    const publishedTitle = `Coordinator handoff publish ${Date.now()}`;
+    await tasksUI.createTitle.fill(publishedTitle);
+    await tasksUI.createDescription.fill("Coordinator handoff without a channel.");
+    await tasksUI.createSaveDraft.click();
+    await expect(tasksUI.createEditorSurface).toBeHidden();
+
+    let draftId = "";
+    await expect
+      .poll(async () => {
+        const payload = await runtime.requestJSON<{
+          tasks: Array<{
+            id: string;
+            scope?: string;
+            status: string;
+            title: string;
+            workspace_id?: string | null;
+          }>;
+        }>(`/api/tasks?include_drafts=true&query=${encodeURIComponent(publishedTitle)}&limit=10`);
+        const created = payload.tasks.find(
+          task => task.title === publishedTitle && task.workspace_id === workspace.id
+        );
+        draftId = created?.id ?? "";
+        return created?.status ?? "";
+      })
+      .toBe("draft");
+
+    await expect(tasksUI.detailTitle).toHaveText(publishedTitle);
+    await expect(tasksUI.detailStatus).toHaveText(/draft/i);
+    await expect(tasksUI.detailPublish).toBeVisible();
+    await expect(tasksUI.detailPublish).toHaveAttribute("title", /coordinator handoff/i);
+    await expect(tasksUI.detailEnqueue).toBeHidden();
+    await expect(tasksUI.detailCoordination).toBeHidden();
+    await tasksUI.detailTab("runs").click();
+    await expect(tasksUI.detailRunsEmpty).toContainText(/saved intent only/i);
+    await expect(tasksUI.detailRunsEmpty).toContainText(/publish, start, or approve/i);
+    const runsPayload = await runtime.requestJSON<{
+      runs: Array<{ id: string; status: string }>;
+    }>(`/api/tasks/${encodeURIComponent(draftId)}/runs?limit=10`);
+    expect(runsPayload.runs).toHaveLength(0);
+    await tasksUI.detailTab("overview").click();
+
+    const publishResponsePromise = appPage.waitForResponse(response => {
+      return (
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/tasks/${encodeURIComponent(draftId)}/publish`)
+      );
+    });
+    await tasksUI.detailPublish.click();
+    const publishResponse = await publishResponsePromise;
+    expect(publishResponse.ok()).toBeTruthy();
+
+    await expect(tasksUI.detailPublish).toBeHidden();
+
+    await expect(tasksUI.detailNowRun).toBeVisible();
+    await expect(tasksUI.detailCoordination).toHaveCount(0);
+
+    await tasksUI.detailTab("runs").click();
+    await expect(tasksUI.detailRunsEmpty).toBeHidden();
   });
-  await tasksUI.inboxApprove(seeded.approvalTask.id).click();
-  const approveResponse = await approveResponsePromise;
-  expect(approveResponse.ok()).toBeTruthy();
+  await test.step("approving an agent-created approval task is the coordinator-handoff boundary, not creation", async () => {
+    const seeded = await seedBrowserTasksOperatorFlow(runtime, {
+      sessionAgentName: handoffAgentName,
+    });
 
-  await expect
-    .poll(async () => {
-      const payload = await runtime.requestJSON<{
-        runs: Array<{ id: string; status: string }>;
-      }>(`/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}/runs?limit=10`);
-      return payload.runs.length;
-    })
-    .toBeGreaterThan(0);
+    await completeOnboardingIfPrompted(appPage);
+    await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+    await setGlobalScope(appPage, true);
 
-  await browserArtifacts.captureScreenshot("tasks-approval-handoff-enqueued", appPage);
+    await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
+    // Wait for route hydration instead of toggling its already-focused Dock entry.
+    const tasksWin = appWindow(appPage, "tasks");
+    await expect(tasksWin).toBeVisible();
+    const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
+    await expect(appPage).toHaveURL(/\/tasks$/);
+    await tasksUI.modeList.click();
+    await expect(tasksUI.modeList).toHaveAttribute("aria-current", "page");
+
+    const approvalTaskRunsBefore = await runtime.requestJSON<{
+      runs: Array<{ id: string }>;
+    }>(`/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}/runs?limit=10`);
+    expect(approvalTaskRunsBefore.runs).toHaveLength(0);
+
+    await tasksUI.taskCard(seeded.approvalTask.id).click();
+    await expect(tasksUI.detailApprovalPill).toContainText(/approval pending/i);
+    await expect(tasksUI.detailNowApproval).toContainText(/waiting for your approval/i);
+    await expect(tasksUI.detailNowApproval).toContainText(/won't start until someone approves it/i);
+    await tasksUI.detailTabRuns.click();
+    await expect(tasksUI.detailRunsEmpty).toBeVisible();
+
+    await tasksUI.detailBreadcrumbTasks.click();
+    await tasksUI.modeInbox.click();
+    await expect(tasksUI.inboxView).toBeVisible();
+    await expect(tasksUI.inboxLane("approvals")).toBeVisible();
+
+    const approveResponsePromise = appPage.waitForResponse(response => {
+      return (
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}/approve`)
+      );
+    });
+    await tasksUI.inboxApprove(seeded.approvalTask.id).click();
+    const approveResponse = await approveResponsePromise;
+    expect(approveResponse.ok()).toBeTruthy();
+
+    await expect
+      .poll(async () => {
+        const payload = await runtime.requestJSON<{
+          runs: Array<{ id: string; status: string }>;
+        }>(`/api/tasks/${encodeURIComponent(seeded.approvalTask.id)}/runs?limit=10`);
+        return payload.runs.length;
+      })
+      .toBeGreaterThan(0);
+
+    await browserArtifacts.captureScreenshot("tasks-approval-handoff-enqueued", appPage);
+  });
 });
 
 test("starting a manual session is unaffected by task autonomy labels", async ({

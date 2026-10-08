@@ -1053,6 +1053,9 @@ func TestInstallLocalManagedRejectsExistingOrFailedInstall(t *testing.T) {
 	if !errors.Is(err, installErr) {
 		t.Fatalf("InstallLocalManaged(failing) error = %v, want %v", err, installErr)
 	}
+	if !strings.Contains(err.Error(), `extension: persist managed extension "failing-ext"`) {
+		t.Fatalf("InstallLocalManaged(failing) error = %v, want wrapped registry install failure", err)
+	}
 	if _, statErr := os.Stat(ManagedInstallPath(homePaths, "failing-ext")); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("failed install path stat error = %v, want not exists", statErr)
 	}
@@ -1153,37 +1156,6 @@ func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "extension: compute source checksum") {
 			t.Fatalf("InstallLocalManaged() error = %v, want wrapped source checksum failure", err)
-		}
-	})
-
-	t.Run("ShouldWrapRegistryInstallFailures", func(t *testing.T) {
-		t.Parallel()
-
-		sourceDir := filepath.Join(t.TempDir(), "source")
-		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(source) error = %v", err)
-		}
-		if err := os.WriteFile(
-			filepath.Join(sourceDir, "extension.toml"),
-			[]byte("name = \"wrapped-ext\"\nversion = \"1.0.0\"\nmin_compozy_version = \"0.1.0\"\n"),
-			0o644,
-		); err != nil {
-			t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
-		}
-
-		sourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
-		if err != nil {
-			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
-		}
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		registry := &recordingManagedInstallRegistry{installErr: errors.New("registry boom")}
-		err = InstallLocalManaged(homePaths, registry, &Manifest{Name: "wrapped-ext"}, sourceDir, sourceChecksum)
-		if err == nil || !strings.Contains(err.Error(), `extension: persist managed extension "wrapped-ext"`) {
-			t.Fatalf("InstallLocalManaged() error = %v, want wrapped registry install failure", err)
 		}
 	})
 }

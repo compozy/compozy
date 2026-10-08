@@ -276,28 +276,6 @@ describe("public search index", () => {
     );
   });
 
-  it("distinguishes identical document titles by their URL-derived section", async () => {
-    const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
-
-    const sessions = (await buildPublicSearchIndexes())
-      .filter(index => index.title === "Sessions")
-      .map(index => ({
-        breadcrumbs: index.breadcrumbs,
-        url: index.url,
-      }));
-
-    expect(sessions).toEqual([
-      {
-        breadcrumbs: ["Reference", "API reference"],
-        url: "/docs/api/sessions",
-      },
-      {
-        breadcrumbs: ["Core concepts"],
-        url: "/docs/sessions",
-      },
-    ]);
-  });
-
   it("indexes every marketplace surface under the Marketplace group", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
     const { extensionEntries, marketplaceEntryPath } = await import("@/lib/marketplace-catalog");

@@ -46,47 +46,6 @@ func TestParseSinceFlagRelativeDuration(t *testing.T) {
 	}
 }
 
-func TestSessionNewUsesConfigDefaultWhenAgentFlagIsOmitted(t *testing.T) {
-	t.Parallel()
-
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-			if request.AgentName != "" {
-				t.Fatalf("CreateSession() AgentName = %q, want empty", request.AgentName)
-			}
-			if request.Workspace != "/workspace/project" || request.WorkspacePath != "" {
-				t.Fatalf("CreateSession() request = %#v, want canonical workspace", request)
-			}
-			return SessionRecord{
-				ID:            "sess-1",
-				AgentName:     "general",
-				WorkspaceID:   "ws-1",
-				WorkspacePath: request.WorkspacePath,
-				State:         session.StateActive,
-				CreatedAt:     fixedTestNow,
-				UpdatedAt:     fixedTestNow,
-			}, nil
-		},
-		getSessionFn: func(context.Context, string) (SessionRecord, error) {
-			t.Fatal("GetSession() called after logical session acceptance")
-			return SessionRecord{}, nil
-		},
-	})
-
-	stdout, _, err := executeRootCommand(t, deps, "session", "new", "-o", "json")
-	if err != nil {
-		t.Fatalf("executeRootCommand(session new) error = %v", err)
-	}
-
-	var decoded SessionRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(session new) error = %v", err)
-	}
-	if decoded.AgentName != "general" {
-		t.Fatalf("decoded.AgentName = %q, want %q", decoded.AgentName, "general")
-	}
-}
-
 func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 	t.Parallel()
 
@@ -608,7 +567,7 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			},
 		},
 		{
-			name: "Should infer a registered cwd",
+			name: "Should infer a registered cwd and leave agent defaulting to the daemon",
 			args: []string{"session", "new", "-o", "json"},
 			request: CreateSessionRequest{
 				Workspace: "/workspace/project",
@@ -645,8 +604,13 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			t.Parallel()
 
 			client := &stubClient{
+				getSessionFn: func(context.Context, string) (SessionRecord, error) {
+					t.Fatal("GetSession() called after logical session acceptance")
+					return SessionRecord{}, nil
+				},
 				createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-					if request.Workspace != tt.request.Workspace ||
+					if request.AgentName != tt.request.AgentName ||
+						request.Workspace != tt.request.Workspace ||
 						request.WorkspacePath != tt.request.WorkspacePath ||
 						request.Worktree != tt.request.Worktree ||
 						!reflect.DeepEqual(request.NewWorktree, tt.request.NewWorktree) {
@@ -679,8 +643,8 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 				t.Fatalf("json.Unmarshal(session new) error = %v", err)
 			}
-			if decoded.ID != "sess-1" {
-				t.Fatalf("decoded.ID = %q, want %q", decoded.ID, "sess-1")
+			if decoded.ID != "sess-1" || decoded.AgentName != "general" {
+				t.Fatalf("decoded = %#v, want sess-1 with the daemon-selected general agent", decoded)
 			}
 			if tt.name == "Should use an explicit cwd" &&
 				!strings.Contains(stdout, `"resolution_source": "cwd"`) {

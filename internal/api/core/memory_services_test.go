@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -274,6 +275,8 @@ func TestMemorySessionLedgerHandlersRejectForeignWorkspaceSession(t *testing.T) 
 	t.Parallel()
 
 	t.Run("Should reject foreign workspace before ledger service access", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []struct {
 			name   string
 			method string
@@ -323,7 +326,11 @@ func TestMemorySessionLedgerHandlersRejectForeignWorkspaceSession(t *testing.T) 
 func newMemoryServiceRouter(t *testing.T, cfg *core.BaseHandlerConfig) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	homePaths := testutil.NewTestHomePaths(t)
+	// These injected service routes need isolated paths, not a populated daemon home.
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
 	runtimeConfig := testConfigForTest(homePaths)
 	cfg.HomePaths = homePaths
 	cfg.Config = runtimeConfig

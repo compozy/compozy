@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"os/exec"
 	"slices"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
-	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestProviderAuthStatusCommand(t *testing.T) {
@@ -531,54 +529,6 @@ func TestProviderDaemonCommands(t *testing.T) {
 	})
 }
 
-// This test mutates process environment and must stay outside the parallel
-// provider auth status suite.
-func TestProviderAuthStatusCommandHermeticEnv(t *testing.T) {
-	t.Run("Should hide operator credentials from provider auth checks", func(t *testing.T) {
-		setProviderTestEnv(t, "CUSTOM_API_KEY", "sk-operator")
-		hermetic := testutil.ApplyHermeticEnv(t)
-
-		deps := newTestDeps(t, nil)
-		deps.getenv = os.Getenv
-		deps.loadConfig = func() (compozyconfig.Config, error) {
-			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["custom"] = compozyconfig.ProviderConfig{
-				Command:  "custom-agent --acp",
-				AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
-				CredentialSlots: []compozyconfig.ProviderCredentialSlot{
-					{
-						Name:      "api_key",
-						TargetEnv: "CUSTOM_API_KEY",
-						SecretRef: "env:CUSTOM_API_KEY",
-						Kind:      "api_key",
-						Required:  true,
-					},
-				},
-			}
-			return cfg, nil
-		}
-
-		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "custom", "-o", "json")
-		if err != nil {
-			t.Fatalf("provider auth status error = %v", err)
-		}
-
-		var record providerAuthStatusRecord
-		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
-			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
-		}
-		if got, want := record.State, "missing_credential"; got != want {
-			t.Fatalf("State = %q, want %q", got, want)
-		}
-		if len(record.Credentials) != 1 || record.Credentials[0].Present {
-			t.Fatalf("Credentials = %#v, want hermetic env to hide operator credential", record.Credentials)
-		}
-		if got, want := os.Getenv("COMPOZY_HOME"), hermetic.HomeDir; got != want {
-			t.Fatalf("COMPOZY_HOME = %q, want %q", got, want)
-		}
-	})
-}
-
 func TestProviderAuthLoginCommand(t *testing.T) {
 	t.Parallel()
 
@@ -837,26 +787,6 @@ func mustTestHomePaths(t *testing.T) compozyconfig.HomePaths {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	return homePaths
-}
-
-func setProviderTestEnv(t *testing.T, key string, value string) {
-	t.Helper()
-
-	original, hadOriginal := os.LookupEnv(key)
-	if err := os.Setenv(key, value); err != nil {
-		t.Fatalf("Setenv(%q) error = %v", key, err)
-	}
-	t.Cleanup(func() {
-		var err error
-		if hadOriginal {
-			err = os.Setenv(key, original)
-		} else {
-			err = os.Unsetenv(key)
-		}
-		if err != nil {
-			t.Fatalf("restore env %q error = %v", key, err)
-		}
-	})
 }
 
 func providerTestEnvValue(env []string, key string) string {

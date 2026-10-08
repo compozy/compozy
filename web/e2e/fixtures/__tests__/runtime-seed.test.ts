@@ -1,7 +1,9 @@
 // @vitest-environment node
 
-import { lstat, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, stat, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
+import { DatabaseSync } from "node:sqlite";
+import { seedRuntimeDatabase } from "../runtime-database";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -1123,4 +1125,44 @@ describe("browser runtime seed helpers", () => {
     ]);
     await expect(readFile(markerPath, "utf8")).rejects.toThrow();
   });
+});
+
+describe("runtime database seed", () => {
+  // Invariant: each runtime owns a writable database; neither sibling copies nor
+  // later copies inherit writes. Owner: real SQLite, canonical runtime seed suite.
+  // This real Go/SQLite boundary test compiles storeseed and globaldb on cold
+  // CI runners; allow three minutes for that build without raising other budgets.
+  it("keeps concurrent and later database copies independent", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-database-test-"));
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+    const homes = ["first", "second", "later"].map(name => path.join(root, name));
+    const databases: DatabaseSync[] = [];
+    try {
+      await Promise.all(homes.map(home => mkdir(home)));
+      await Promise.all(homes.slice(0, 2).map(home => seedRuntimeDatabase(repoRoot, home)));
+      const first = new DatabaseSync(path.join(homes[0]!, "compozy.db"));
+      databases.push(first);
+      first.exec("UPDATE scheduler_pause SET paused = 1 WHERE id = 1");
+      expect(first.prepare("SELECT paused FROM scheduler_pause WHERE id = 1").get()).toEqual({
+        paused: 1,
+      });
+      await seedRuntimeDatabase(repoRoot, homes[2]!);
+      for (const home of homes.slice(1)) {
+        const db = new DatabaseSync(path.join(home, "compozy.db"));
+        databases.push(db);
+        expect(db.prepare("SELECT paused FROM scheduler_pause WHERE id = 1").get()).toEqual({
+          paused: 0,
+        });
+      }
+      await expect(seedRuntimeDatabase(repoRoot, homes[0]!)).rejects.toMatchObject({
+        code: "EEXIST",
+      });
+      expect(first.prepare("SELECT paused FROM scheduler_pause WHERE id = 1").get()).toEqual({
+        paused: 1,
+      });
+    } finally {
+      for (const db of databases) db.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 180_000);
 });

@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: web/e2e/__tests__/jobs-hardening.spec.ts; internal/store/globaldb/global_db_goal_binding_integration_test.go; .tmp/playwright/test-results/__tests__-jobs-hardening-s-cf26d-does-not-duplicate-fire-ids/compozy-artifacts/manifest.json
+evidence: web/e2e/__tests__/jobs-hardening.spec.ts; internal/store/globaldb/global_db_goal_binding_integration_test.go; .tmp/playwright/test-results/*jobs-hardening*/compozy-artifacts/manifest.json (operator manages a dynamic job and verifies scheduled execution across daemon restart)
 last_report: docs/qa/reports/2026-08-12-post-merge-regression.md
 overlaps: TA-schedule-catchup-overlap
 ---

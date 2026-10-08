@@ -97,7 +97,9 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByRole("button", { name }));
   }
 
-  it("Should auto-generate a typed field per declared input with a plain label", () => {
+  // Invariant: the initial scoped form offers typed inputs without unsupported controls.
+  // Owner: LoopRunForm; canonical suite: this file.
+  it("Should render typed inputs without stop, cost-cap, or aggregate-only controls", () => {
     renderForm();
     const slug = screen.getByTestId("loop-run-field-slug");
     expect(slug).toHaveAttribute("data-input-type", "string");
@@ -127,6 +129,12 @@ describe("LoopRunForm", () => {
         "runtime"
       );
     }
+    expect(screen.queryByRole("button", { name: /^stop/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/\bstop\b/i);
+    expect(screen.queryByTestId("loop-run-override-cost")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/cost cap/i);
+    // A scoped view already answers "where does this land" on screen.
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
   });
 
   it("Should keep Start run disabled until the required input is filled", () => {
@@ -176,18 +184,6 @@ describe("LoopRunForm", () => {
     expect(runCalls).toHaveLength(0);
   });
 
-  it("Should render NO stop control anywhere in the form", () => {
-    renderForm();
-    expect(screen.queryByRole("button", { name: /^stop/i })).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/\bstop\b/i);
-  });
-
-  it("Should render NO cost-cap input anywhere in the form", () => {
-    renderForm();
-    expect(screen.queryByTestId("loop-run-override-cost")).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-form")).not.toHaveTextContent(/cost cap/i);
-  });
-
   it("Should render the gen-1 plan on Dry run without navigating", async () => {
     profileScope.aggregate = true;
     profileScope.destination = "default";
@@ -233,12 +229,6 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalled());
     expect(new URL(runRequestUrl()).searchParams.get("profile")).toBe("default");
-  });
-
-  it("Should stay chip-free under a scoped view", () => {
-    renderForm();
-    // A scoped view already answers "where does this land" on screen.
-    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
   });
 
   it("Should start a run for the selected Loop, not the fixture default", async () => {

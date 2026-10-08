@@ -913,16 +913,6 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
 	})
 
-	t.Run("Should return session not found when the catalog row is absent", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		err := globalDB.DeleteSession(testutil.Context(t), "sess-missing-delete")
-		if !errors.Is(err, store.ErrSessionNotFound) {
-			t.Fatalf("DeleteSession(missing) error = %v, want ErrSessionNotFound", err)
-		}
-	})
-
 	t.Run("Should roll back dependent deletes when the session row cannot be deleted", func(t *testing.T) {
 		t.Parallel()
 

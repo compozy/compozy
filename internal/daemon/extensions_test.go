@@ -707,6 +707,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 	})
 
 	t.Run("Should serialize enable update and disable as whole service operations", func(t *testing.T) {
+		t.Parallel()
+
 		// This assertion intentionally owns one mutable extension lifecycle.
 		deps, registry, source, _ := newNativeExtensionToolDeps(t)
 		runtime := newLifecycleStateRuntime(registry)
@@ -851,6 +853,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 	})
 
 	t.Run("Should restore files version confirmation and runtime after a confirmed update fails", func(t *testing.T) {
+		t.Parallel()
+
 		// This assertion intentionally owns one mutable marketplace extension lifecycle.
 		deps, registry, source, _ := newNativeExtensionToolDeps(t)
 		runtime := newLifecycleStateRuntime(registry)
@@ -968,6 +972,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 	})
 
 	t.Run("Should restore persisted and running state after every enable stage failure", func(t *testing.T) {
+		t.Parallel()
+
 		for _, testCase := range []struct {
 			name      string
 			configure func(*testing.T, *lifecycleFailureHarness)
@@ -1003,6 +1009,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			},
 		} {
 			t.Run("Should roll back after "+testCase.name+" fails", func(t *testing.T) {
+				t.Parallel()
+
 				harness := newLifecycleFailureHarness(t, "gateway-failure-"+lifecycleTestSlug(testCase.name))
 				testCase.configure(t, harness)
 				_, err := harness.service.Enable(
@@ -1020,6 +1028,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 	})
 
 	t.Run("Should reload restored runtime even when confirmation restoration fails", func(t *testing.T) {
+		t.Parallel()
+
 		harness := newLifecycleFailureHarness(t, "gateway-failure-rollback-confirmation")
 		harness.publisher.failNextSyncs(1)
 		harness.installFailureTrigger(
@@ -1046,6 +1056,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 	})
 
 	t.Run("Should continue development rollback after intermediate compensation failures", func(t *testing.T) {
+		t.Parallel()
+
 		db := openDaemonTestGlobalDB(t)
 		registry := extensionpkg.NewRegistry(db.DB())
 		key := extensionpkg.InstanceKey{Name: "dev-rollback", WorkspaceID: "workspace-1"}
@@ -1168,6 +1180,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 	})
 
 	t.Run("Should roll back an install when its completion event cannot be recorded", func(t *testing.T) {
+		t.Parallel()
+
 		deps, registry, source, _ := newNativeExtensionToolDeps(t)
 		source.latestVersion = "1.0.0"
 		writeErr := errors.New("injected install completion event failure")

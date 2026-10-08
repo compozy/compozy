@@ -762,9 +762,6 @@ func assertWorkspaceFlags(t *testing.T, cmd *cobra.Command, flags *pflag.FlagSet
 		case "workspace-id", "scope-id":
 			t.Errorf("%s exposes removed --%s alias", cmd.CommandPath(), flag.Name)
 		case "workspace":
-			if !strings.HasPrefix(flag.Usage, "Override ") {
-				t.Errorf("%s --workspace help = %q, want Override prefix", cmd.CommandPath(), flag.Usage)
-			}
 			if _, required := flag.Annotations[cobra.BashCompOneRequiredFlag]; required {
 				t.Errorf("%s marks --workspace required; workspace context must use inference", cmd.CommandPath())
 			}

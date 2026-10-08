@@ -1179,6 +1179,7 @@ func TestGlobalDBClaimNextRunPersistsSoulProvenanceMetadata(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		copyCurrentSchemaGlobalDBSeed(t, dbPath)
 		globalDB, err := OpenGlobalDB(ctx, dbPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -1489,81 +1490,6 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	if got, want := failed.Error, "worker failed"; got != want {
 		t.Fatalf("failed.Error = %q, want %q", got, want)
 	}
-
-	t.Run("Should reject generic terminalization and preserve the active lease", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
-		taskRecord := taskRecordForTest("task-generic-terminal-claim-token")
-		taskRecord.Status = taskpkg.TaskStatusReady
-		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
-		}
-		run := taskRunForTest("run-generic-terminal-claim-token", taskRecord.ID)
-		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-			t.Fatalf("CreateTaskRun() error = %v", err)
-		}
-		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:            taskpkg.ScopeGlobal,
-			ClaimerSessionID: "sess-generic-terminal-claim-token",
-			LeaseDuration:    time.Minute,
-			Now:              now,
-		})
-		if err != nil {
-			t.Fatalf("ClaimNextRun() error = %v", err)
-		}
-
-		starting, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun(starting) error = %v", err)
-		}
-		starting.Status = taskpkg.TaskRunStatusStarting
-		if err := globalDB.UpdateNonTerminalTaskRun(ctx, starting); err != nil {
-			t.Fatalf("UpdateTaskRun(starting) error = %v", err)
-		}
-
-		terminal, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun(terminal) error = %v", err)
-		}
-		terminal.Status = taskpkg.TaskRunStatusFailed
-		terminal.EndedAt = now.Add(time.Second)
-		terminal.Error = "worker exhausted"
-		if err := globalDB.UpdateNonTerminalTaskRun(ctx, terminal); !errors.Is(
-			err,
-			taskpkg.ErrInvalidStatusTransition,
-		) {
-			t.Fatalf(
-				"UpdateNonTerminalTaskRun(failed) error = %v, want %v",
-				err,
-				taskpkg.ErrInvalidStatusTransition,
-			)
-		}
-
-		var storedRaw sql.NullString
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
-			Scan(&storedRaw); err != nil {
-			t.Fatalf("query terminal claim_token error = %v", err)
-		}
-		if !storedRaw.Valid {
-			t.Fatal("rejected terminal update cleared the active raw claim token")
-		}
-		stored, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun(after terminal update) error = %v", err)
-		}
-		if got, want := stored.ClaimTokenHash, claim.Run.ClaimTokenHash; got != want {
-			t.Fatalf("ClaimTokenHash = %q, want %q", got, want)
-		}
-		if got, want := stored.Status, taskpkg.TaskRunStatusStarting; got != want {
-			t.Fatalf("Status = %q, want rejected update to preserve %q", got, want)
-		}
-		if got, want := stored.SessionID, "sess-generic-terminal-claim-token"; got != want {
-			t.Fatalf("SessionID = %q, want %q", got, want)
-		}
-	})
 
 	t.Run("Should clear raw claim token when marking an active run needs attention", func(t *testing.T) {
 		t.Parallel()

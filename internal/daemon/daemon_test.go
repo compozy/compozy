@@ -382,63 +382,6 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 	})
 }
 
-func TestBootWiresSessionDependencies(t *testing.T) {
-	t.Run("Should wire attachments and turn completion before serving sessions", func(t *testing.T) {
-		homePaths := testHomePaths(t)
-		cfg := testConfig(t, homePaths)
-		registry := &recordingRegistry{path: homePaths.DatabaseFile}
-		ownerSawSessionAttachments := false
-		httpSawSessionAttachments := false
-		udsSawSessionAttachments := false
-
-		sessions := &fakeSessionManager{}
-		d := newTestDaemon(t, homePaths, &cfg)
-		d.openRegistry = func(context.Context, string) (Registry, error) {
-			return registry, nil
-		}
-		d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-			ownerSawSessionAttachments = deps.SessionAttachments != nil
-			return sessions, nil
-		}
-		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-			return &fakeObserver{}, nil
-		}
-		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-			httpSawSessionAttachments = deps.SessionAttachments != nil
-			return &fakeServer{name: "http"}, nil
-		}
-		d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-			udsSawSessionAttachments = deps.SessionAttachments != nil
-			return &fakeServer{name: "uds"}, nil
-		}
-
-		if err := d.boot(testutil.Context(t)); err != nil {
-			t.Fatalf("boot() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := d.Shutdown(testutil.Context(t)); err != nil {
-				t.Fatalf("Shutdown() error = %v", err)
-			}
-		})
-
-		if !ownerSawSessionAttachments {
-			t.Fatal("session owner constructed before session attachment storage")
-		}
-		if !httpSawSessionAttachments {
-			t.Fatal("http server constructed without session attachment storage")
-		}
-		if !udsSawSessionAttachments {
-			t.Fatal("uds server constructed without session attachment storage")
-		}
-		sessions.mu.Lock()
-		notifier := sessions.turnEndNotifier
-		sessions.mu.Unlock()
-		if notifier == nil {
-			t.Fatal("boot() did not bind the session turn-end notifier")
-		}
-	})
-}
-
 // Invariant: the terminal-Loop neutralization barrier finishes before task recovery and readiness;
 // a barrier error fails boot closed. The canonical daemon boot suite owns startup ordering.
 func TestBootLoopReconciliationBarrier(t *testing.T) {
@@ -4381,38 +4324,6 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	}
 }
 
-func TestFakeSessionManagerDeleteTracksDeleteIndependently(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ShouldTrackDeleteIndependentlyFromStop", func(t *testing.T) {
-		t.Parallel()
-
-		manager := &fakeSessionManager{
-			infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
-		}
-
-		if err := manager.Delete(testutil.Context(t), "sess-a"); err != nil {
-			t.Fatalf("Delete() error = %v", err)
-		}
-
-		if got, want := len(manager.deleteCalls), 1; got != want {
-			t.Fatalf("len(deleteCalls) = %d, want %d", got, want)
-		}
-		if got, want := manager.deleteCalls[0], "sess-a"; got != want {
-			t.Fatalf("deleteCalls[0] = %q, want %q", got, want)
-		}
-		if got := len(manager.stopCalls); got != 0 {
-			t.Fatalf("len(stopCalls) = %d, want 0", got)
-		}
-		if got, want := len(manager.infos), 1; got != want {
-			t.Fatalf("len(infos) = %d, want %d", got, want)
-		}
-		if got, want := manager.infos[0].ID, "sess-b"; got != want {
-			t.Fatalf("infos[0].ID = %q, want %q", got, want)
-		}
-	})
-}
-
 func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
@@ -5287,68 +5198,90 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
+	t.Run("Should wire session dependencies and both transport services before serving", func(t *testing.T) {
+		t.Parallel()
 
-	var capturedDeps SessionManagerDeps
-	var capturedUDSDeps RuntimeDeps
-	sessions := &fakeSessionManager{}
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		capturedDeps = deps
-		return sessions, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-		capturedUDSDeps = deps
-		return &fakeServer{name: "uds"}, nil
-	}
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
 
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+		var capturedDeps SessionManagerDeps
+		var capturedHTTPDeps RuntimeDeps
+		var capturedUDSDeps RuntimeDeps
+		sessions := &fakeSessionManager{}
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+			capturedDeps = deps
+			return sessions, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			capturedHTTPDeps = deps
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			capturedUDSDeps = deps
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		if capturedDeps.SessionAttachments == nil {
+			t.Fatal("session owner constructed before session attachment storage")
+		}
+		if capturedHTTPDeps.SessionAttachments == nil {
+			t.Fatal("http server constructed without session attachment storage")
+		}
+		if capturedUDSDeps.SessionAttachments == nil {
+			t.Fatal("uds server constructed without session attachment storage")
+		}
+		sessions.mu.Lock()
+		notifier := sessions.turnEndNotifier
+		sessions.mu.Unlock()
+		if notifier == nil {
+			t.Fatal("boot() did not bind the session turn-end notifier")
+		}
+
+		if d.workspaceResolver == nil {
+			t.Fatal("boot() did not create the daemon workspace resolver")
+		}
+		if capturedDeps.WorkspaceResolver == nil {
+			t.Fatal("boot() did not inject the session manager workspace resolver")
+		}
+		if capturedDeps.SpawnWakeNotifier == nil || capturedDeps.SpawnWakeNotifier != d.sessionWakeBridge {
+			t.Fatal("boot() did not inject the daemon-owned session wake bridge")
+		}
+		if capturedDeps.SessionCompaction != cfg.Session.Compaction {
+			t.Fatalf(
+				"session compaction config = %#v, want %#v",
+				capturedDeps.SessionCompaction,
+				cfg.Session.Compaction,
+			)
+		}
+		if sessions.compactionHandler == nil {
+			t.Fatal("boot() did not bind the checkpoint compaction runtime")
+		}
+		if capturedUDSDeps.WorkspaceService == nil {
+			t.Fatal("boot() did not inject the uds workspace service")
+		}
+		if capturedUDSDeps.WorkspaceService != d.workspaceResolver {
+			t.Fatal("boot() injected a different workspace service into uds")
+		}
+
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		resolved := resolveDaemonWorkspace(t, capturedDeps.WorkspaceResolver, workspaceRoot)
+		if got, want := resolved.RootDir, canonicalDaemonRoot(t, workspaceRoot); got != want {
+			t.Fatalf("resolved workspace root = %q, want %q", got, want)
 		}
 	})
-
-	if d.workspaceResolver == nil {
-		t.Fatal("boot() did not create the daemon workspace resolver")
-	}
-	if capturedDeps.WorkspaceResolver == nil {
-		t.Fatal("boot() did not inject the session manager workspace resolver")
-	}
-	if capturedDeps.SpawnWakeNotifier == nil || capturedDeps.SpawnWakeNotifier != d.sessionWakeBridge {
-		t.Fatal("boot() did not inject the daemon-owned session wake bridge")
-	}
-	if capturedDeps.SessionCompaction != cfg.Session.Compaction {
-		t.Fatalf(
-			"session compaction config = %#v, want %#v",
-			capturedDeps.SessionCompaction,
-			cfg.Session.Compaction,
-		)
-	}
-	if sessions.compactionHandler == nil {
-		t.Fatal("boot() did not bind the checkpoint compaction runtime")
-	}
-	if capturedUDSDeps.WorkspaceService == nil {
-		t.Fatal("boot() did not inject the uds workspace service")
-	}
-	if capturedUDSDeps.WorkspaceService != d.workspaceResolver {
-		t.Fatal("boot() injected a different workspace service into uds")
-	}
-
-	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-	resolved := resolveDaemonWorkspace(t, capturedDeps.WorkspaceResolver, workspaceRoot)
-	if got, want := resolved.RootDir, canonicalDaemonRoot(t, workspaceRoot); got != want {
-		t.Fatalf("resolved workspace root = %q, want %q", got, want)
-	}
 }
 
 // TestWorkspaceRegistrationRefreshesHookBindings verifies workspace registration refreshes the hook bindings used by later events.
@@ -5429,125 +5362,92 @@ args = ["-c", "printf '{}'"]
 func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = false
-	cfg.Skills.Enabled = true
-	cfg.Skills.PollInterval = 10 * time.Millisecond
+	t.Run("Should refresh skills and stop resource watchers before sessions", func(t *testing.T) {
+		t.Parallel()
 
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Memory.Enabled = false
+		cfg.Skills.Enabled = true
+		cfg.Skills.PollInterval = 10 * time.Millisecond
 
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
+		var skillsDone <-chan struct{}
+		sessions := &fakeSessionManager{
+			infos: []*session.Info{{ID: "sess-a"}},
+			onStop: func(string) {
+				select {
+				case <-skillsDone:
+				default:
+					t.Error("skills watcher was still running when session shutdown started")
+				}
+			},
+		}
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return sessions, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
 
-	registry := d.skillsRegistry
-	if registry == nil {
-		t.Fatal("boot() did not initialize the skills registry")
-	}
-	skillsDone := d.skillsDone
-	if skillsDone == nil {
-		t.Fatal("boot() did not start the skills watcher")
-	}
-	loopsDone := d.loopsDone
-	if loopsDone == nil {
-		t.Fatal("boot() did not start the loops watcher after configuring extension publishers")
-	}
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
 
-	writeDaemonSkill(t, homePaths.SkillsDir, "watched-skill", "Global watched skill")
-	waitForCondition(t, "watcher refresh after boot", func() bool {
-		_, ok := registry.Get("watched-skill")
-		return ok
+		registry := d.skillsRegistry
+		if registry == nil {
+			t.Fatal("boot() did not initialize the skills registry")
+		}
+		skillsDone = d.skillsDone
+		if skillsDone == nil {
+			t.Fatal("boot() did not start the skills watcher")
+		}
+		loopsDone := d.loopsDone
+		if loopsDone == nil {
+			t.Fatal("boot() did not start the loops watcher after configuring extension publishers")
+		}
+
+		writeDaemonSkill(t, homePaths.SkillsDir, "watched-skill", "Global watched skill")
+		waitForCondition(t, "watcher refresh after boot", func() bool {
+			_, ok := registry.Get("watched-skill")
+			return ok
+		})
+
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		select {
+		case <-skillsDone:
+		default:
+			t.Fatal("skills watcher was still running after shutdown")
+		}
+		select {
+		case <-loopsDone:
+		default:
+			t.Fatal("loops watcher was still running after shutdown")
+		}
+		versionAfterShutdown := registry.GlobalVersion()
+
+		writeDaemonSkill(
+			t,
+			homePaths.SkillsDir,
+			"after-shutdown",
+			"Should not be observed",
+		)
+
+		if got := registry.GlobalVersion(); got != versionAfterShutdown {
+			t.Fatalf("registry version after shutdown file write = %d, want %d", got, versionAfterShutdown)
+		}
+		if _, ok := registry.Get("after-shutdown"); ok {
+			t.Fatal("skills watcher continued refreshing after shutdown")
+		}
 	})
-
-	if err := d.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
-	select {
-	case <-skillsDone:
-	default:
-		t.Fatal("skills watcher was still running after shutdown")
-	}
-	select {
-	case <-loopsDone:
-	default:
-		t.Fatal("loops watcher was still running after shutdown")
-	}
-	versionAfterShutdown := registry.GlobalVersion()
-
-	writeDaemonSkill(
-		t,
-		homePaths.SkillsDir,
-		"after-shutdown",
-		"Should not be observed",
-	)
-
-	if got := registry.GlobalVersion(); got != versionAfterShutdown {
-		t.Fatalf("registry version after shutdown file write = %d, want %d", got, versionAfterShutdown)
-	}
-	if _, ok := registry.Get("after-shutdown"); ok {
-		t.Fatal("skills watcher continued refreshing after shutdown")
-	}
-}
-
-func TestShutdownStopsSkillsWatcherBeforeSessions(t *testing.T) {
-	t.Parallel()
-
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = false
-	cfg.Skills.Enabled = true
-	cfg.Skills.PollInterval = 10 * time.Millisecond
-
-	var skillsDone <-chan struct{}
-	sessions := &fakeSessionManager{
-		infos: []*session.Info{{ID: "sess-a"}},
-		onStop: func(string) {
-			select {
-			case <-skillsDone:
-			default:
-				t.Error("skills watcher was still running when session shutdown started")
-			}
-		},
-	}
-
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return sessions, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	skillsDone = d.skillsDone
-	if skillsDone == nil {
-		t.Fatal("boot() did not start the skills watcher")
-	}
-
-	if err := d.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
 }
 
 func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
@@ -6506,6 +6406,7 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 	)
 
 	statusStarted := make(chan struct{})
+	statusCanceled := make(chan struct{})
 	sessions := &blockingStatusSessionManager{
 		fakeSessionManager: &fakeSessionManager{
 			infos: []*session.Info{
@@ -6515,6 +6416,7 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 		},
 		blockSessionID: "sess-wake",
 		statusStarted:  statusStarted,
+		statusCanceled: statusCanceled,
 	}
 
 	bridge, err := newHarnessReentryBridge(t.Context(), resolver, nil, db, sessions, discardLogger())
@@ -6549,6 +6451,11 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 	case <-shutdownDone:
 	case <-time.After(2 * time.Second):
 		t.Fatal("shutdown() blocked while a session status lookup ignored cancellation")
+	}
+	select {
+	case <-statusCanceled:
+	default:
+		t.Fatal("shutdown() did not cancel the active session status lookup")
 	}
 }
 
@@ -6686,36 +6593,6 @@ func TestHarnessContextResolverDetachedRunModeRequiresDetachedMetadata(t *testin
 			}
 		})
 	}
-}
-
-func TestFakeSessionManagerEventsReturnAscendingSequenceOrder(t *testing.T) {
-	t.Run("ShouldSortBySequenceBeforeApplyingLimit", func(t *testing.T) {
-		t.Parallel()
-
-		sessions := &fakeSessionManager{
-			sessionEvents: map[string][]store.SessionEvent{
-				"sess-wake": {
-					{ID: "evt-3", SessionID: "sess-wake", Sequence: 3, Type: acp.EventTypeSyntheticReentry},
-					{ID: "evt-1", SessionID: "sess-wake", Sequence: 1, Type: acp.EventTypeSyntheticReentry},
-					{ID: "evt-2", SessionID: "sess-wake", Sequence: 2, Type: acp.EventTypeSyntheticReentry},
-				},
-			},
-		}
-
-		events, err := sessions.Events(testutil.Context(t), "sess-wake", store.EventQuery{Limit: 2})
-		if err != nil {
-			t.Fatalf("Events() error = %v", err)
-		}
-		if got, want := len(events), 2; got != want {
-			t.Fatalf("len(events) = %d, want %d", got, want)
-		}
-		if got, want := events[0].Sequence, int64(2); got != want {
-			t.Fatalf("events[0].Sequence = %d, want %d", got, want)
-		}
-		if got, want := events[1].Sequence, int64(3); got != want {
-			t.Fatalf("events[1].Sequence = %d, want %d", got, want)
-		}
-	})
 }
 
 func TestPromptInputCompositeEnforcesPerDescriptorBudgets(t *testing.T) {
@@ -6941,6 +6818,7 @@ type blockingStatusSessionManager struct {
 	*fakeSessionManager
 	blockSessionID string
 	statusStarted  chan struct{}
+	statusCanceled chan struct{}
 	statusOnce     sync.Once
 }
 
@@ -7112,14 +6990,16 @@ func (f *fakeSessionManager) ActivePromptRun(
 
 func (f *blockingStatusSessionManager) Status(ctx context.Context, id string) (*session.Info, error) {
 	if strings.TrimSpace(id) == strings.TrimSpace(f.blockSessionID) {
-		if f.statusStarted != nil {
-			f.statusOnce.Do(func() {
-				close(f.statusStarted)
-			})
+		block := false
+		f.statusOnce.Do(func() { block = true })
+		if block {
+			close(f.statusStarted)
+			<-ctx.Done()
+			close(f.statusCanceled)
+			return nil, ctx.Err()
 		}
-		<-ctx.Done()
-		return nil, ctx.Err()
 	}
+	// Only the active routing lookup blocks; shutdown's summary lookup can finish.
 	return f.fakeSessionManager.Status(ctx, id)
 }
 
@@ -7434,27 +7314,6 @@ func (f *fakeSessionManager) RewindConversation(
 	session.ConversationRewindOptions,
 ) (session.ConversationRewindResult, error) {
 	return session.ConversationRewindResult{}, nil
-}
-
-func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversation(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ShouldTreatAMissingSessionAsAFreshConversation", func(t *testing.T) {
-		manager := &fakeSessionManager{}
-		cleared, err := manager.ClearConversation(t.Context(), "sess-missing")
-		if err != nil {
-			t.Fatalf("ClearConversation(missing) error = %v", err)
-		}
-		if cleared == nil {
-			t.Fatal("ClearConversation(missing) = nil, want session")
-		}
-		if got, want := cleared.ID, "sess-missing"; got != want {
-			t.Fatalf("cleared.ID = %q, want %q", got, want)
-		}
-		if got, want := cleared.State, session.StateActive; got != want {
-			t.Fatalf("cleared.State = %q, want %q", got, want)
-		}
-	})
 }
 
 type databaseUpgradeManager struct {
@@ -11172,90 +11031,6 @@ func daemonTOMLStringArray(values []string) string {
 	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
-func TestDaemonTestExtensionManifest(t *testing.T) {
-	t.Run("ShouldApplyDefaultListsWhenOptionsAreNil", func(t *testing.T) {
-		t.Parallel()
-
-		manifest := daemonTestExtensionManifest("service-ext", daemonTestExtensionOptions{})
-		for _, expected := range []string{
-			`provides = ["memory.backend"]`,
-			`requires = ["sessions/list"]`,
-		} {
-			if !strings.Contains(manifest, expected) {
-				t.Fatalf("daemonTestExtensionManifest() missing default %q in manifest %q", expected, manifest)
-			}
-		}
-	})
-
-	t.Run("ShouldPreserveExplicitEmptyLists", func(t *testing.T) {
-		t.Parallel()
-
-		manifest := daemonTestExtensionManifest("service-ext", daemonTestExtensionOptions{
-			capabilities: []string{},
-			permissions:  []string{},
-		})
-
-		for _, expected := range []string{
-			"provides = []",
-			"requires = []",
-		} {
-			if !strings.Contains(manifest, expected) {
-				t.Fatalf(
-					"daemonTestExtensionManifest() missing explicit empty list %q in manifest %q",
-					expected,
-					manifest,
-				)
-			}
-		}
-		for _, unexpected := range []string{"memory.backend", "sessions/list"} {
-			if strings.Contains(manifest, unexpected) {
-				t.Fatalf(
-					"daemonTestExtensionManifest() unexpectedly injected %q into manifest %q",
-					unexpected,
-					manifest,
-				)
-			}
-		}
-	})
-}
-
-func TestDaemonExtensionHelperHarness(t *testing.T) {
-	t.Parallel()
-
-	command := daemonExtensionHelperCommand(t)
-	if strings.TrimSpace(command) == "" {
-		t.Fatal("daemonExtensionHelperCommand() returned an empty path")
-	}
-
-	if got := daemonExtensionHelperArgs(); !testutil.EqualStringSlices(
-		got,
-		[]string{"-test.run=TestDaemonExtensionHelperProcess"},
-	) {
-		t.Fatalf("daemonExtensionHelperArgs() = %#v, want helper test selector", got)
-	}
-
-	env := daemonExtensionHelperEnv("/tmp/daemon-helper-marker")
-	if env[daemonExtensionHelperEnvKey] != "1" {
-		t.Fatalf("daemonExtensionHelperEnv() helper flag = %q, want 1", env[daemonExtensionHelperEnvKey])
-	}
-	if env[daemonExtensionHelperMarkerKey] != "/tmp/daemon-helper-marker" {
-		t.Fatalf(
-			"daemonExtensionHelperEnv() marker = %q, want /tmp/daemon-helper-marker",
-			env[daemonExtensionHelperMarkerKey],
-		)
-	}
-
-	withoutMarker := daemonExtensionHelperEnv("")
-	if _, ok := withoutMarker[daemonExtensionHelperMarkerKey]; ok {
-		t.Fatalf("daemonExtensionHelperEnv(\"\") unexpectedly set %q", daemonExtensionHelperMarkerKey)
-	}
-
-	withScenario := daemonExtensionHelperScenarioEnv("record_initialize", "/tmp/daemon-helper-scenario")
-	if got := withScenario[daemonExtensionHelperScenarioKey]; got != "record_initialize" {
-		t.Fatalf("daemonExtensionHelperScenarioEnv() scenario = %q, want record_initialize", got)
-	}
-}
-
 func daemonExtensionHelperCommand(t *testing.T) string {
 	t.Helper()
 
@@ -11278,72 +11053,6 @@ func daemonExtensionHelperEnv(markerPath string) map[string]string {
 		env[daemonExtensionHelperMarkerKey] = markerPath
 	}
 	return env
-}
-
-func daemonExtensionHelperScenarioEnv(scenario string, markerPath string) map[string]string {
-	env := daemonExtensionHelperEnv(markerPath)
-	if strings.TrimSpace(scenario) != "" {
-		env[daemonExtensionHelperScenarioKey] = scenario
-	}
-	return env
-}
-
-func TestDaemonExtensionHelperShutdownAppendsMarkerLine(t *testing.T) {
-	t.Parallel()
-
-	marker := filepath.Join(t.TempDir(), "helper-marker.jsonl")
-	if err := appendMarkerLine(marker, `{"event":"initialize"}`); err != nil {
-		t.Fatalf("appendMarkerLine(initialize) error = %v", err)
-	}
-	if err := appendMarkerLine(marker, `{"event":"delivery"}`); err != nil {
-		t.Fatalf("appendMarkerLine(delivery) error = %v", err)
-	}
-
-	server := newDaemonExtensionHelperServer("", marker)
-	server.encoder = json.NewEncoder(io.Discard)
-
-	exit, err := server.handleRequest(daemonExtensionHelperRequest{ID: "1", Method: "shutdown"})
-	if err != nil {
-		t.Fatalf("handleRequest(shutdown) error = %v", err)
-	}
-	if exit {
-		t.Fatal("handleRequest(shutdown) exit = true, want false")
-	}
-
-	payload, readErr := os.ReadFile(marker)
-	if readErr != nil {
-		t.Fatalf("os.ReadFile(marker) error = %v", readErr)
-	}
-	lines := strings.Split(strings.TrimSpace(string(payload)), "\n")
-	if got, want := len(lines), 3; got != want {
-		t.Fatalf("marker line count = %d, want %d; payload=%q", got, want, string(payload))
-	}
-	if got, want := lines[2], "shutdown"; got != want {
-		t.Fatalf("marker final line = %q, want %q", got, want)
-	}
-}
-
-func TestDaemonExtensionHelperMarkerRecording(t *testing.T) {
-	t.Run("ShouldWrapInitializeMarkerFailuresWithOperationContext", func(t *testing.T) {
-		t.Parallel()
-
-		marker := filepath.Join(t.TempDir(), "marker-dir")
-		if err := os.Mkdir(marker, 0o755); err != nil {
-			t.Fatalf("os.Mkdir(marker) error = %v", err)
-		}
-
-		server := newDaemonExtensionHelperServer("", marker)
-		err := server.recordInitialize(subprocess.InitializeRequest{}, subprocess.InitializeResponse{})
-		if err == nil {
-			t.Fatal("recordInitialize() error = nil, want marker append failure")
-		}
-		if !strings.Contains(err.Error(), "record initialize marker") {
-			t.Fatalf("recordInitialize() error = %q, want initialize context", err)
-		}
-		if !strings.Contains(err.Error(), "append marker line") {
-			t.Fatalf("recordInitialize() error = %q, want append context", err)
-		}
-	})
 }
 
 type daemonExtensionHelperServer struct {

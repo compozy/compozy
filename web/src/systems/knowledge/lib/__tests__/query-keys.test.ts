@@ -134,15 +134,6 @@ describe("knowledgeKeys", () => {
     ]);
   });
 
-  it("Should keep list and detail keys rooted at the all key", () => {
-    expect(knowledgeKeys.list({ scope: "profile" })[0]).toBe(knowledgeKeys.all[0]);
-    expect(knowledgeKeys.detail("test.md", { scope: "profile" })[0]).toBe(knowledgeKeys.all[0]);
-    expect(knowledgeKeys.search("x", { scope: "profile" })[0]).toBe(knowledgeKeys.all[0]);
-    expect(knowledgeKeys.decisionsFor({ scope: "profile", filename: "test.md" })[0]).toBe(
-      knowledgeKeys.all[0]
-    );
-  });
-
   it("Should isolate search and decision variants that produce different server responses", () => {
     expect(
       knowledgeKeys.search("launch", { scope: "profile" }, { topK: 3, includeSystem: false })

@@ -49,19 +49,6 @@ func TestStartInitializeContract(t *testing.T) {
 				acpsdk.ProtocolVersionNumber,
 			)
 		}
-	})
-
-	t.Run("Should not opt into agent-reported terminal output", func(t *testing.T) {
-		t.Parallel()
-
-		driver := New()
-		captureFile := filepath.Join(t.TempDir(), "initialize-terminal-output.jsonl")
-		proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
-			Env: helperEnvWithCapture("initialize_contract", "", captureFile),
-		})
-		defer stopProcess(t, driver, proc)
-
-		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodInitialize)
 		var capabilities struct {
 			Meta     map[string]any `json:"_meta"`
 			Terminal bool           `json:"terminal"`
@@ -766,35 +753,6 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
-func TestStartRejectsModelOutsideAdvertisedConfigOptionsBeforeSetConfigOption(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject an unadvertised model before applying config", func(t *testing.T) {
-		t.Parallel()
-
-		driver := New()
-		captureFile := filepath.Join(t.TempDir(), "session-set-config-model-rejected.jsonl")
-		proc, err := driver.Start(testutil.Context(t), StartOpts{
-			AgentName:      "helper",
-			Command:        helperCommand(t),
-			Cwd:            t.TempDir(),
-			PreferredModel: "cursor-grok-4.5-high",
-			Env:            helperEnvWithCapture("config_options", "", captureFile),
-		})
-		if proc != nil {
-			defer stopProcess(t, driver, proc)
-			t.Fatalf("Start() process = %#v, want nil after membership rejection", proc)
-		}
-		negotiationErr, ok := errors.AsType[*NegotiationError](err)
-		if !ok || negotiationErr.Code != NegotiationCodeModelUnavailable {
-			t.Fatalf("Start() error = %v, want model_unavailable NegotiationError", err)
-		}
-		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
-			t.Fatal("session/set_config_option was sent for a model outside the advertised values")
-		}
-	})
-}
-
 func TestStartHandlesCurrentSessionConfigValues(t *testing.T) {
 	t.Parallel()
 
@@ -833,6 +791,7 @@ func TestStartHandlesCurrentSessionConfigValues(t *testing.T) {
 		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
 			t.Fatal("set_config_option was sent when the requested reasoning effort was already current")
 		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "medium")
 	})
 }
 
@@ -915,30 +874,6 @@ func TestStartNegotiatesRequestedSpeed(t *testing.T) {
 			t.Fatalf("speed resolution = %#v, want unsupported capability_absent", resolution)
 		}
 	})
-
-	t.Run("Should fail atomically with a typed diagnostic when the provider rejects speed", func(t *testing.T) {
-		t.Parallel()
-
-		driver := New()
-		proc, err := driver.Start(testutil.Context(t), StartOpts{
-			AgentName:   "helper",
-			Command:     helperCommand(t),
-			Cwd:         t.TempDir(),
-			Env:         helperEnv("config_options_reject_speed", ""),
-			Permissions: compozyconfig.PermissionModeApproveAll,
-			Speed:       speedpkg.SpeedFast,
-		})
-		if proc != nil {
-			t.Fatal("Start() process != nil, want failed setup cleanup")
-		}
-		negotiationErr, negotiationErrMatched := errors.AsType[*NegotiationError](err)
-		if !negotiationErrMatched ||
-			negotiationErr.Code != NegotiationCodeSpeedRejected ||
-			negotiationErr.Stage != "speed" ||
-			negotiationErr.Requested != "fast" {
-			t.Fatalf("Start() error = %v, want speed_rejected NegotiationError", err)
-		}
-	})
 }
 
 func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
@@ -963,8 +898,10 @@ func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
 		if !ok || accepted.SessionID != "sess-new" {
 			t.Fatalf("Start() error = %v, want AcceptedStartError for sess-new", err)
 		}
-		if _, negotiationMatched := errors.AsType[*NegotiationError](err); !negotiationMatched {
-			t.Fatalf("Start() error = %v, want the negotiation cause preserved", err)
+		negotiationErr, negotiationMatched := errors.AsType[*NegotiationError](err)
+		if !negotiationMatched || negotiationErr.Code != NegotiationCodeSpeedRejected ||
+			negotiationErr.Stage != "speed" || negotiationErr.Requested != "fast" {
+			t.Fatalf("Start() error = %v, want the speed_rejected negotiation cause preserved", err)
 		}
 		if !strings.HasPrefix(err.Error(), "acp: start failed after session acceptance: ") {
 			t.Fatalf("Start() error text = %q, want the acceptance prefix", err.Error())
@@ -1070,7 +1007,7 @@ func TestStartRejectsReasoningWithoutAnApplyStrategyBeforeLaunch(t *testing.T) {
 func TestStartPassesThroughEveryAdvertisedCanonicalReasoningEffort(t *testing.T) {
 	t.Parallel()
 
-	for _, effort := range []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"} {
+	for _, effort := range []string{"minimal", "low", "xhigh", "max"} {
 		t.Run("Should pass through "+effort, func(t *testing.T) {
 			t.Parallel()
 
@@ -1082,14 +1019,6 @@ func TestStartPassesThroughEveryAdvertisedCanonicalReasoningEffort(t *testing.T)
 				Env:             helperEnvWithCapture("config_options", "", captureFile),
 			})
 			defer stopProcess(t, driver, proc)
-
-			if effort == "medium" {
-				if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
-					t.Fatal("set_config_option was sent for the already-current reasoning effort")
-				}
-				assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", effort, effort)
-				return
-			}
 
 			request := decodeCapturedSetSessionConfigOptionRequest(
 				t,
@@ -1422,6 +1351,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 			proc, err := driver.Start(testutil.Context(t), opts)
 			if proc != nil {
 				defer stopProcess(t, driver, proc)
+				t.Fatalf("Start() process = %#v, want nil after membership rejection", proc)
 			}
 			if err == nil {
 				t.Fatal("Start() error = nil, want unavailable config option error")

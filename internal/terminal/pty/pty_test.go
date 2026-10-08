@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/x/xpty"
 	"golang.org/x/sys/unix"
 )
 
@@ -155,40 +154,6 @@ func TestUnixPTYHardening(t *testing.T) {
 		}
 		if err := reader.SetReadDeadline(time.Time{}); err != nil {
 			t.Fatalf("clear read deadline error = %v", err)
-		}
-	})
-
-	t.Run("Should demonstrate why a no-child close probe is insufficient [UT-002]", func(t *testing.T) {
-		device, err := xpty.NewUnixPty(80, 24)
-		if err != nil {
-			t.Fatalf("xpty.NewUnixPty() error = %v", err)
-		}
-		readDone := make(chan error, 1)
-		go func() {
-			buffer := make([]byte, 1)
-			_, readErr := device.Master().Read(buffer)
-			readDone <- readErr
-		}()
-		select {
-		case err := <-readDone:
-			t.Fatalf("no-child read returned before close: %v", err)
-		case <-time.After(30 * time.Millisecond):
-		}
-		if err := device.Master().Close(); err != nil {
-			t.Fatalf("master.Close() error = %v", err)
-		}
-		select {
-		case err := <-readDone:
-			t.Fatalf("master-only close unexpectedly completed the no-child probe: %v", err)
-		case <-time.After(30 * time.Millisecond):
-		}
-		if err := device.Slave().Close(); err != nil {
-			t.Fatalf("slave.Close() error = %v", err)
-		}
-		select {
-		case <-readDone:
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("closing both no-child PTY handles did not unblock the naive probe")
 		}
 	})
 

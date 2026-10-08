@@ -200,26 +200,6 @@ func TestWatcherDetectChangesDeletedSkill(t *testing.T) {
 	}
 }
 
-func TestWatcherDetectChangesNoFalsePositiveWhenUnchanged(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeSkillFile(t, root, filepath.Join("stable", skillFileName), skillWithDescription("stable", "Stable skill"))
-	watcher := newTestWatcher(nil, time.Millisecond, root)
-
-	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
-		t.Fatalf("detectChanges() initial error = %v", err)
-	} else if changed {
-		t.Fatal("detectChanges() initial changed = true, want false")
-	}
-
-	if changed, _, _, err := watcher.detectChanges(t.Context()); err != nil {
-		t.Fatalf("detectChanges() second error = %v", err)
-	} else if changed {
-		t.Fatal("detectChanges() second changed = true, want false")
-	}
-}
-
 func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
 	t.Parallel()
 

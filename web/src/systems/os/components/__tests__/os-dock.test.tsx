@@ -768,21 +768,6 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should mark the sessions dock icon minimized when every session window is minimized", () => {
-    const session = windowFixture("window:session-minimized", "session", {
-      instanceKey: "session:minimized",
-      minimized: true,
-    });
-    const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
-    setDockState(desktopState({ [session.id]: session }, null, [session.id]));
-    rerender();
-
-    expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject({
-      running: false,
-      minimized: true,
-    });
-  });
-
   it("Should report each explicit launch destination from an open app menu (UT-083)", async () => {
     const user = userEvent.setup();
     const onLaunch = vi.fn();

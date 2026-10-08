@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 describe("useSettingsAutomationPage", () => {
-  it("loads the envelope and seeds the draft", async () => {
+  it("marks the page dirty when the draft diverges and resets on discard", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsAutomationPage(), { wrapper });
 
@@ -87,13 +87,6 @@ describe("useSettingsAutomationPage", () => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(automationEnvelope.config);
     });
-  });
-
-  it("marks the page dirty when the draft diverges and resets on discard", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsAutomationPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.setDraft({ ...automationEnvelope.config, max_concurrent_jobs: 16 });

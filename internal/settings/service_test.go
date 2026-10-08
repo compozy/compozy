@@ -1506,6 +1506,8 @@ func TestUpdateSectionShell(t *testing.T) {
 }
 
 func TestUpdateSectionGeneralMemoryReportIntervalRequiresRestart(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should require a restart when disabling memory reports", func(t *testing.T) {
 		t.Parallel()
 
@@ -2843,6 +2845,8 @@ func TestProviderSecretMutationRejectsCrossProviderRefs(t *testing.T) {
 }
 
 func TestProviderSecretMutationRejectsInvalidProviderConfigWithoutStoringSecrets(t *testing.T) {
+	t.Parallel()
+
 	t.Run(
 		"Should leave the secret store untouched when provider validation fails after ref checks",
 		func(t *testing.T) {
@@ -2892,6 +2896,8 @@ func TestProviderSecretMutationRejectsInvalidProviderConfigWithoutStoringSecrets
 }
 
 func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should store stdio secret env values without writing plaintext config", func(t *testing.T) {
 		t.Parallel()
 

@@ -5,13 +5,12 @@
 // Boundary IN: the switcher composition and its menu.
 // Boundary OUT: selection persistence (hook suites) and row projection (profile-rows suite).
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
-import { PROFILE_BOUNDARY_ANSWER } from "../../lib/profile-copy";
 import { toProfileRows } from "../../lib/profile-rows";
 import {
   defaultProfileFixture,
@@ -67,6 +66,11 @@ function renderSwitcher({
   );
 }
 
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
 describe("ProfileSwitcher", () => {
   it("Should render a neutral icon button without a redundant aggregate while only default exists", async () => {
     const user = userEvent.setup();
@@ -80,26 +84,28 @@ describe("ProfileSwitcher", () => {
   });
 
   it("Should become an identity element once a second profile exists", async () => {
-    const user = userEvent.setup();
-    renderSwitcher();
-    const trigger = screen.getByTestId("os-menubar-profile");
-    expect(trigger).toHaveAccessibleName("Profile: marketing");
-    expect(trigger.querySelector('[data-slot="profile-glyph"]')).toBeInTheDocument();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    try {
+      renderSwitcher();
+      const trigger = screen.getByTestId("os-menubar-profile");
+      expect(trigger).toHaveAccessibleName("Profile: marketing");
+      expect(trigger.querySelector('[data-slot="profile-glyph"]')).toBeInTheDocument();
 
-    await user.hover(trigger);
-    expect(await screen.findByText("marketing")).toBeInTheDocument();
+      await user.hover(trigger);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(screen.getByText("marketing")).toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
   });
 
   it("Should name the aggregate rather than a profile when it is on", () => {
     renderSwitcher({ aggregate: true });
     expect(screen.getByTestId("os-menubar-profile")).toHaveAccessibleName("Profile: All profiles");
-  });
-
-  it("Should answer the boundary question in one sentence", async () => {
-    const user = userEvent.setup();
-    renderSwitcher();
-    await user.click(screen.getByTestId("os-menubar-profile"));
-    expect(await screen.findByText(PROFILE_BOUNDARY_ANSWER)).toBeInTheDocument();
   });
 
   it("Should switch to the chosen profile", async () => {

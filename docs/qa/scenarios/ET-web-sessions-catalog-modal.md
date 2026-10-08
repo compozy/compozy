@@ -70,7 +70,7 @@ request-rate regression with at least 600 publicly created/stopped sessions, an 
 and continuous public lifecycle activity. It records actual renderer client IDs and checks every
 rolling sixty-second window against the existing fixed budgets: 26 lists, 13 facets, 13 attention
 summaries and 52 combined. Native visibility/focus, monotonic duration, current head and runtime
-digest are retained in the CI artifact. The existing desktop CI lane owns execution; its pending
+digest are retained in the CI artifact. The release desktop nightly lane (`make test-e2e-desktop-nightly`) owns execution; its pending
 result cannot be replaced by the historical soak.
 
 When the catalog stream is live, terminal badge facets follow the shared stream reconciliation

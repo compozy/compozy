@@ -71,33 +71,38 @@ func TestMaterializer(t *testing.T) {
 		if len(events) != 2 {
 			t.Fatalf("live event rows after materialization = %d, want 2", len(events))
 		}
-	})
 
-	t.Run("Should skip idempotent rematerialization", func(t *testing.T) {
-		t.Parallel()
+		t.Run("Should skip idempotent rematerialization", func(t *testing.T) {
+			t.Parallel()
 
-		ctx := testutil.Context(t)
-		root := t.TempDir()
-		record := createLedgerRecord(ctx, t, "sess-idempotent", "ws-primary")
-		materializer := newTestMaterializer(t, root)
+			second, err := materializer.Materialize(ctx, record)
+			if err != nil {
+				t.Fatalf("second Materialize() error = %v", err)
+			}
+			if second.Written {
+				t.Fatal("second Materialize().Written = true, want false")
+			}
+			if second.Checksum != result.Checksum {
+				t.Fatalf("second checksum = %q, want %q", second.Checksum, result.Checksum)
+			}
+		})
 
-		first, err := materializer.Materialize(ctx, record)
-		if err != nil {
-			t.Fatalf("first Materialize() error = %v", err)
-		}
-		second, err := materializer.Materialize(ctx, record)
-		if err != nil {
-			t.Fatalf("second Materialize() error = %v", err)
-		}
-		if !first.Written {
-			t.Fatal("first Materialize().Written = false, want true")
-		}
-		if second.Written {
-			t.Fatal("second Materialize().Written = true, want false")
-		}
-		if second.Checksum != first.Checksum {
-			t.Fatalf("second checksum = %q, want %q", second.Checksum, first.Checksum)
-		}
+		t.Run("Should implement session lifecycle materializer seam", func(t *testing.T) {
+			t.Parallel()
+
+			materializer := newTestMaterializer(t, t.TempDir())
+
+			if err := materializer.MaterializeSessionLedger(ctx, record); err != nil {
+				t.Fatalf("MaterializeSessionLedger() error = %v", err)
+			}
+			path, err := materializer.Path(record)
+			if err != nil {
+				t.Fatalf("Path() error = %v", err)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("Stat(%q) error = %v", path, err)
+			}
+		})
 	})
 
 	t.Run("Should protect existing ledger with different checksum", func(t *testing.T) {
@@ -149,26 +154,6 @@ func TestMaterializer(t *testing.T) {
 		meta := decodeLedgerLine(t, readLedgerLines(t, result.Path)[0])
 		if got := meta["workspace_id"]; got != DefaultUnboundPartition {
 			t.Fatalf("meta workspace_id = %v, want %s", got, DefaultUnboundPartition)
-		}
-	})
-
-	t.Run("Should implement session lifecycle materializer seam", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		root := t.TempDir()
-		record := createLedgerRecord(ctx, t, "sess-seam", "ws-primary")
-		materializer := newTestMaterializer(t, root)
-
-		if err := materializer.MaterializeSessionLedger(ctx, record); err != nil {
-			t.Fatalf("MaterializeSessionLedger() error = %v", err)
-		}
-		path, err := materializer.Path(record)
-		if err != nil {
-			t.Fatalf("Path() error = %v", err)
-		}
-		if _, err := os.Stat(path); err != nil {
-			t.Fatalf("Stat(%q) error = %v", path, err)
 		}
 	})
 

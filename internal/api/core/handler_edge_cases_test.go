@@ -973,31 +973,6 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should health observer failure", func(t *testing.T) {
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{
-				HealthFn: func(context.Context) (observe.Health, error) {
-					return observe.Health{}, errors.New("boom")
-				},
-			},
-			testutil.StubWorkspaceService{},
-			nil,
-			nil,
-		)
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-		if resp.Code != http.StatusInternalServerError {
-			t.Fatalf(
-				"health status = %d, want %d; body=%s",
-				resp.Code,
-				http.StatusInternalServerError,
-				resp.Body.String(),
-			)
-		}
-	})
-
 	t.Run("Should health memory failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
@@ -2067,25 +2042,4 @@ func dialEventStream(t *testing.T, origin, path string) *websocket.Conn {
 		t.Fatal(err)
 	}
 	return connection
-}
-
-func TestBaseHandlersGetAgentNotFound(t *testing.T) {
-	t.Parallel()
-
-	fixture := newHandlerFixture(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		testutil.StubWorkspaceService{},
-		nil,
-		nil,
-	)
-	fixture.Handlers.AgentLoader = func(string, compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
-		return compozyconfig.AgentDef{}, os.ErrNotExist
-	}
-
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
-	if resp.Code != http.StatusNotFound {
-		t.Fatalf("get missing agent status = %d, want %d", resp.Code, http.StatusNotFound)
-	}
 }

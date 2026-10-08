@@ -324,43 +324,6 @@ func TestModelSourceListModelsShouldRejectInvalidRuntimeState(t *testing.T) {
 	}
 }
 
-func TestModelSourceShouldRejectMalformedRowsAndRecordSourceStatus(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject malformed rows and record source status", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 5, 7, 10, 30, 0, 0, time.UTC)
-		store := openModelSourceTestStore(t)
-		runtime := &fakeModelSourceRuntime{}
-		source := newTestModelSource(t, "ext-malformed", runtime)
-		runtime.rows = []extensioncontract.ModelSourceRow{
-			{
-				SourceID:   source.ID(),
-				ProviderID: "codex",
-			},
-		}
-		service := newTestModelCatalogService(t, store, []modelcatalog.Source{source})
-
-		statuses, err := service.Refresh(ctx, modelcatalog.RefreshOptions{
-			ProviderID: "codex",
-			SourceID:   source.ID(),
-			Force:      true,
-			Now:        now,
-		})
-		if err == nil {
-			t.Fatal("Refresh() error = nil, want malformed row failure")
-		}
-		if len(statuses) != 1 || statuses[0].RefreshState != modelcatalog.RefreshStateFailed {
-			t.Fatalf("Refresh() statuses = %#v, want failed status", statuses)
-		}
-		if statuses[0].LastError == "" {
-			t.Fatalf("Refresh() status LastError = empty, want malformed row error")
-		}
-	})
-}
-
 func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -627,6 +590,9 @@ func TestModelSourceShouldRecordMalformedSubprocessRows(t *testing.T) {
 		if len(statuses) != 1 || statuses[0].RefreshState != modelcatalog.RefreshStateFailed {
 			t.Fatalf("Refresh() statuses = %#v, want failed subprocess source status", statuses)
 		}
+		if statuses[0].LastError == "" {
+			t.Fatal("Refresh() status LastError = empty, want malformed row error")
+		}
 	})
 }
 
@@ -822,7 +788,11 @@ func mustTestModelSource(
 func openModelSourceTestStore(t *testing.T) *globaldb.GlobalDB {
 	t.Helper()
 
-	store, err := globaldb.OpenGlobalDB(testutil.Context(t), filepath.Join(t.TempDir(), "compozy.db"))
+	path := filepath.Join(t.TempDir(), "compozy.db")
+	if err := extensionTestGlobalSeed.Clone(path); err != nil {
+		t.Fatalf("global store seed Clone() error = %v", err)
+	}
+	store, err := globaldb.OpenGlobalDB(testutil.Context(t), path)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

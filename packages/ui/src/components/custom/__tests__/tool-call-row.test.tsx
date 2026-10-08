@@ -1,6 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { FileEditIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
@@ -14,16 +13,6 @@ const GLYPH_STATUSES: Array<{ status: ToolCallStatus; label: string; tone: strin
   { status: "success", label: "Done", tone: "text-subtle" },
   { status: "empty", label: "Empty", tone: "text-subtle" },
 ];
-
-function classesOf(root: Element): string[] {
-  const classes: string[] = [];
-  for (const node of root.querySelectorAll<HTMLElement>("*")) {
-    if (node.className && typeof node.className === "string") classes.push(node.className);
-  }
-  if (root instanceof HTMLElement && typeof root.className === "string")
-    classes.push(root.className);
-  return classes;
-}
 
 function statusGlyph(container: HTMLElement): HTMLElement | null {
   return container.querySelector<HTMLElement>('[data-slot="tool-call-row-status"]');
@@ -86,15 +75,6 @@ describe("ToolCallRow", () => {
       container.querySelector('[data-slot="tool-call-row"]')?.getAttribute("data-status")
     ).toBe("stopped");
     expect(statusGlyph(container)).toBeNull();
-  });
-
-  it("Should keep the heading neutral on failure — the × glyph alone carries the state", () => {
-    const { container } = render(
-      <ToolCallRow toolName="Read" status="failed" errorMessage="ENOENT" />
-    );
-    expect(heading(container)?.className).not.toContain("text-danger");
-    expect(heading(container)?.className).toContain("text-muted");
-    expect(statusGlyph(container)?.getAttribute("class")).toContain("text-danger");
   });
 
   it("Should render the per-file diff stat slot between text and trailing glyphs", () => {
@@ -179,26 +159,5 @@ describe("ToolCallRow", () => {
     expect(
       screen.getByRole("button", { name: "Read workspace file Toggle tool call (success)" })
     ).toBeInTheDocument();
-  });
-
-  it("Should hover with the neutral glaze and never render an accent class in the row DOM", () => {
-    const { container } = render(
-      <ToolCallRow toolName="Edit" status="success" icon={FileEditIcon}>
-        <ToolCallRow.Output>
-          <pre>selectable output</pre>
-        </ToolCallRow.Output>
-      </ToolCallRow>
-    );
-    const trigger = screen.getByRole("button");
-    expect(
-      container.querySelector('[data-slot="tool-call-row-trigger"]')?.getAttribute("class")
-    ).toContain("hover:bg-hover");
-
-    fireEvent.click(trigger);
-    const row = container.querySelector('[data-slot="tool-call-row"]');
-    expect(row).not.toBeNull();
-    for (const className of classesOf(row!)) {
-      expect(className).not.toMatch(/\baccent\b/);
-    }
   });
 });

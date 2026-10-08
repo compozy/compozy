@@ -30,6 +30,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	acpmock.RequireDriver(t)
 
 	t.Run("Should expose and clear a clarification through catalog, status, and CLI", func(t *testing.T) {
+		t.Parallel()
+
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -91,6 +93,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	})
 
 	t.Run("Should expire a pre-restart permission and reject a late answer", func(t *testing.T) {
+		t.Parallel()
+
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
@@ -150,6 +154,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	})
 
 	t.Run("Should keep done across status reads until presence marks the session seen", func(t *testing.T) {
+		t.Parallel()
+
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -171,6 +177,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	})
 
 	t.Run("Should expose every bounded wait CLI outcome [E2E-004]", func(t *testing.T) {
+		t.Parallel()
+
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
@@ -226,7 +234,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		stdout, stderr, err = harness.CLI.RunInDir(
 			ctx,
 			harness.WorkspaceRoot,
-			"session", "wait", target.ID, "--until", "idle", "--timeout", "5s", "-o", "json",
+			"session", "wait", target.ID, "--until", "idle", "--timeout", "250ms", "-o", "json",
 		)
 		assertAttentionCLIExitCode(t, err, 75, stderr+"; stdout="+stdout)
 		var timeoutOutcome compozycontract.SessionWaitResponse
@@ -261,6 +269,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	})
 
 	t.Run("Should cancel one prompt and report nothing in flight on replay [E2E-005]", func(t *testing.T) {
+		t.Parallel()
+
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -304,6 +314,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	})
 
 	t.Run("Should complete the zero-polling spawn wake journey [E2E-006]", func(t *testing.T) {
+		t.Parallel()
+
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
@@ -424,6 +436,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	})
 
 	t.Run("Should keep a native-waiting agent supervision-green [E2E-008]", func(t *testing.T) {
+		t.Parallel()
+
 		options := attentionOrchestrationRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
@@ -483,6 +497,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	})
 
 	t.Run("Should report truthful notify CLI outcomes and rate-limit a burst", func(t *testing.T) {
+		t.Parallel()
+
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)

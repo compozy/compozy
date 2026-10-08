@@ -18,6 +18,16 @@ func TestWriteTarDirectory(t *testing.T) {
 		t.Parallel()
 		root := writeTarGzipFixture(t)
 		compressed, compressedStats := writeTarGzipFixtureArchive(t, root, TarGzipLimits{})
+		second, secondStats := writeTarGzipFixtureArchive(t, root, TarGzipLimits{})
+		if !bytes.Equal(compressed, second) {
+			t.Fatal("WriteTarGzipDirectory() output is not deterministic")
+		}
+		if compressedStats != secondStats || compressedStats.FileCount != 3 {
+			t.Fatalf("WriteTarGzipDirectory() stats = %#v and %#v, want 3 entries", compressedStats, secondStats)
+		}
+		if compressedStats.CompressedSize != int64(len(compressed)) || compressedStats.UncompressedSize <= 0 {
+			t.Fatalf("WriteTarGzipDirectory() stats = %#v, archive bytes = %d", compressedStats, len(compressed))
+		}
 		reader, err := gzip.NewReader(bytes.NewReader(compressed))
 		if err != nil {
 			t.Fatal(err)
@@ -84,23 +94,6 @@ func (f archiveWriteFunc) Write(raw []byte) (int, error) { return f(raw) }
 
 func TestWriteTarGzipDirectory(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should produce deterministic output and report accepted resources", func(t *testing.T) {
-		t.Parallel()
-
-		root := writeTarGzipFixture(t)
-		first, firstStats := writeTarGzipFixtureArchive(t, root, TarGzipLimits{})
-		second, secondStats := writeTarGzipFixtureArchive(t, root, TarGzipLimits{})
-		if !bytes.Equal(first, second) {
-			t.Fatal("WriteTarGzipDirectory() output is not deterministic")
-		}
-		if firstStats != secondStats || firstStats.FileCount != 3 {
-			t.Fatalf("WriteTarGzipDirectory() stats = %#v and %#v, want 3 entries", firstStats, secondStats)
-		}
-		if firstStats.CompressedSize != int64(len(first)) || firstStats.UncompressedSize <= 0 {
-			t.Fatalf("WriteTarGzipDirectory() stats = %#v, archive bytes = %d", firstStats, len(first))
-		}
-	})
 
 	t.Run("Should stop when the file count budget is exhausted", func(t *testing.T) {
 		t.Parallel()

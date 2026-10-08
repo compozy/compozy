@@ -85,7 +85,9 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 	}
 }
 
-func TestDriverSupportsUserCommandExpectations(t *testing.T) {
+func testDriverSupportsUserCommandExpectations(t *testing.T, driverPath string) {
+	t.Helper()
+	// The calling test and subtest stay serial because this fixture owns PATH.
 	root := t.TempDir()
 	fakeCompozy := filepath.Join(root, "compozy")
 	if err := os.WriteFile(fakeCompozy, []byte("#!/bin/sh\nprintf command-ok\n"), 0o755); err != nil {
@@ -93,10 +95,6 @@ func TestDriverSupportsUserCommandExpectations(t *testing.T) {
 	}
 	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	driverPath, err := DefaultDriverPath()
-	if err != nil {
-		t.Fatalf("DefaultDriverPath() error = %v", err)
-	}
 	fixturePath, err := filepath.Abs(filepath.Join("testdata", "permission_env_fixture.json"))
 	if err != nil {
 		t.Fatalf("filepath.Abs(fixture) error = %v", err)

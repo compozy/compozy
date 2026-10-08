@@ -14,8 +14,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/outboundpolicy"
+	"github.com/compozy/compozy/internal/registry/github"
 )
 
 func TestFetchGitHubMarketplace(t *testing.T) {
@@ -108,13 +110,19 @@ func TestFetchGitHubMarketplace(t *testing.T) {
 			calls++
 			return marketplaceHTTPResponse(t, request, http.StatusServiceUnavailable, "unavailable"), nil
 		})
-		if _, err := source.Fetch(t.Context()); !errors.Is(err, ErrSourceUnreachable) || calls != 4 {
-			t.Fatalf("retries = %v, requests %d", err, calls)
+		// Retry count and cancellation belong to acquisition; elapsed backoff is not this invariant.
+		waits := 0
+		github.WithSleep(func(ctx context.Context, _ time.Duration) error {
+			waits++
+			return ctx.Err()
+		})(source.client)
+		if _, err := source.Fetch(t.Context()); !errors.Is(err, ErrSourceUnreachable) || calls != 4 || waits != 3 {
+			t.Fatalf("retries = %v, requests %d, waits %d", err, calls, waits)
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		if _, err := source.Fetch(ctx); !errors.Is(err, context.Canceled) || calls != 4 {
-			t.Fatalf("canceled request = %v, requests %d", err, calls)
+		if _, err := source.Fetch(ctx); !errors.Is(err, context.Canceled) || calls != 4 || waits != 3 {
+			t.Fatalf("canceled request = %v, requests %d, waits %d", err, calls, waits)
 		}
 	})
 	// Invariant: source diagnostics expose status without forwarding upstream text or credentials.

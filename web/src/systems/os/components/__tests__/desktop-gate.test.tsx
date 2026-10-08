@@ -63,21 +63,14 @@ describe("DesktopGate", () => {
     mocks.status.refetch = vi.fn();
   });
 
-  it("Should render the shell behind the setup panel while setup is incomplete", () => {
-    mocks.status.data = { completed: false };
-
-    renderGate();
-
-    expect(screen.getByTestId("os-desktop")).toBeInTheDocument();
-    expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
-    expect(screen.queryByTestId("onboarding-gate-loading")).toBeNull();
-  });
-
   it("Should reveal the desktop on completion without remounting it", async () => {
     const user = userEvent.setup();
     mocks.status.data = { completed: false };
     const { rerender } = renderGate();
     expect(chromeMounts).toBe(1);
+    expect(screen.getByTestId("os-desktop")).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-setup-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-gate-loading")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Finish setup" }));
     expect(mocks.status.refetch).toHaveBeenCalledOnce();

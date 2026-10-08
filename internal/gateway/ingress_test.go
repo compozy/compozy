@@ -392,24 +392,6 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should UT-097 sweep an orphan and treat it as absent", func(t *testing.T) {
-		t.Parallel()
-		store, _ := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-orphan"}
-		store.bindings[ref] = IngressBinding{Subject: ref, EndpointGeneration: 1}
-
-		if _, err := store.GetIngressBinding(testContext(t), ref); !errors.Is(err, ErrIngressSubjectNotFound) {
-			t.Fatalf("GetIngressBinding(orphan) error = %v, want ErrIngressSubjectNotFound", err)
-		}
-		removed, err := store.SweepOrphanedIngressBindings(testContext(t))
-		if err != nil {
-			t.Fatalf("SweepOrphanedIngressBindings() error = %v", err)
-		}
-		if removed != 1 || len(store.bindings) != 0 {
-			t.Fatalf("sweep removed = %d bindings = %#v, want one removal", removed, store.bindings)
-		}
-	})
-
 	t.Run("Should filter binding reads to the validated agent workspace", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)

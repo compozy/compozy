@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -224,20 +225,24 @@ func TestProcessShutdownCancellationContract(t *testing.T) {
 	t.Run("Should start a fresh attempt after a failed shutdown", func(t *testing.T) {
 		t.Parallel()
 
-		var frames bytes.Buffer
-		process := newStalledShutdownProcess(t, &frames)
+		// This fixture has no OS process; preserve the full shutdown deadlines
+		// while advancing them in virtual time.
+		synctest.Test(t, func(t *testing.T) {
+			var frames bytes.Buffer
+			process := newStalledShutdownProcess(t, &frames)
 
-		firstErr := process.Shutdown(t.Context())
-		if !errors.Is(firstErr, context.DeadlineExceeded) {
-			t.Fatalf("Shutdown(stalled process) error = %v, want context.DeadlineExceeded", firstErr)
-		}
-		secondErr := process.Shutdown(t.Context())
-		if !errors.Is(secondErr, context.DeadlineExceeded) {
-			t.Fatalf("Shutdown(retry after failure) error = %v, want context.DeadlineExceeded", secondErr)
-		}
-		if got, want := strings.Count(frames.String(), `"method":"shutdown"`), 2; got != want {
-			t.Fatalf("cooperative shutdown request count = %d, want %d; frames=%q", got, want, frames.String())
-		}
+			firstErr := process.Shutdown(t.Context())
+			if !errors.Is(firstErr, context.DeadlineExceeded) {
+				t.Fatalf("Shutdown(stalled process) error = %v, want context.DeadlineExceeded", firstErr)
+			}
+			secondErr := process.Shutdown(t.Context())
+			if !errors.Is(secondErr, context.DeadlineExceeded) {
+				t.Fatalf("Shutdown(retry after failure) error = %v, want context.DeadlineExceeded", secondErr)
+			}
+			if got, want := strings.Count(frames.String(), `"method":"shutdown"`), 2; got != want {
+				t.Fatalf("cooperative shutdown request count = %d, want %d; frames=%q", got, want, frames.String())
+			}
+		})
 	})
 
 	t.Run("Should bound process record completion before publishing Done", func(t *testing.T) {

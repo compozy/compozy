@@ -73,6 +73,7 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		assertUniqueIndex(t, sessionDB.db, "events", "idx_events_sequence")
 		assertJournalModeWAL(t, sessionDB.db)
 		assertSynchronousNormal(t, sessionDB.db)
+		assertWALAutoCheckpoint(t, sessionDB.db, 0)
 		if got, err := currentMaxSequence(testutil.Context(t), sessionDB.db); err != nil || got != 0 {
 			t.Fatalf("currentMaxSequence() = (%d, %v), want (0, nil)", got, err)
 		}
@@ -194,18 +195,6 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 			t.Fatalf("AcquireFamilyLease(after publication) error = %v", err)
 		}
 		lease.Release()
-	})
-}
-
-func TestOpenSessionDBDisablesAutomaticWALCheckpoints(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should disable sqlite autocheckpoint for writer-owned WAL policy", func(t *testing.T) {
-		t.Parallel()
-
-		sessionDB := openTestSessionDB(t, "sess-wal-checkpoint")
-
-		assertWALAutoCheckpoint(t, sessionDB.db, 0)
 	})
 }
 

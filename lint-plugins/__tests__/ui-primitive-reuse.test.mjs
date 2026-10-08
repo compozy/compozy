@@ -243,27 +243,5 @@ describe("compozy-ui-reuse lint plugin", () => {
       expect(result.exitCode).not.toBe(0);
       expect(result.messages.join("\n")).toContain('"Pill" is an @compozy/ui primitive');
     });
-
-    it("Should allow stories, domain-prefixed names, and non-consumer paths", async () => {
-      const allowed = [
-        {
-          filename: "web/src/systems/settings/routes/general.stories.tsx",
-          source: "export const Empty = () => null;\n",
-        },
-        {
-          filename: "web/src/systems/session/components/session-tool-call-row.tsx",
-          source: "export function SessionToolCallRow() {\n  return null;\n}\n",
-        },
-        {
-          filename: "sdk/typescript/src/section.tsx",
-          source: "export function Section() {\n  return null;\n}\n",
-        },
-      ];
-      for (const input of allowed) {
-        const result = await runOxlint(input);
-        expect(result.exitCode, input.filename).toBe(0);
-        expect(result.messages, input.filename).toEqual([]);
-      }
-    });
   });
 });

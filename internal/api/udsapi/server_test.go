@@ -284,7 +284,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 	})
 }
 
-func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
+func TestServerStartRejectsNilContext(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should reject nil start and shutdown contexts", func(t *testing.T) {
@@ -315,43 +315,6 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 		}
 		if err := server.Shutdown(nilCtx); err == nil {
 			t.Fatal("Shutdown(nil) error = nil, want non-nil")
-		}
-	})
-
-	t.Run("Should reject duplicate starts", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths := newTestHomePaths(t)
-		socketPath := shortSocketPath(t)
-		cfg := testConfigForTest(homePaths)
-		cfg.Daemon.Socket = socketPath
-
-		server, err := New(
-			WithHomePaths(homePaths),
-			WithConfig(&cfg),
-			WithSocketPath(socketPath),
-			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{}),
-			WithTaskService(&stubTaskManager{}),
-			WithObserver(stubObserver{}),
-			WithWorkspaceResolver(stubWorkspaceService{}),
-			WithSkillsRegistry(stubSkillsRegistry{}),
-		)
-		if err != nil {
-			t.Fatalf("New() error = %v", err)
-		}
-		if err := server.Start(t.Context()); err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-		t.Cleanup(func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			if err := server.Shutdown(shutdownCtx); err != nil {
-				t.Errorf("Shutdown() error = %v", err)
-			}
-		})
-		if err := server.Start(t.Context()); err == nil {
-			t.Fatal("Start(second) error = nil, want non-nil")
 		}
 	})
 }

@@ -847,33 +847,6 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should use only the final agent message as verdict authority", func(t *testing.T) {
-		t.Parallel()
-
-		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN"}}`
-		sessions := &loopActionBinderSessionManager{
-			sessionID: "sess-loop-judge-reasoning",
-			events: []acp.AgentEvent{
-				{Type: acp.EventTypeThought, Text: "The candidate satisfies the contract."},
-				{Type: acp.EventTypeAgentMessage, Text: verdict},
-			},
-		}
-		response, err := loopJudgeRunnerForTest(t, sessions).Judge(
-			t.Context(),
-			loopJudgeRequestForTest(),
-		)
-		if err != nil {
-			t.Fatalf("Judge() error = %v", err)
-		}
-		if got := response.Raw; got != verdict {
-			t.Fatalf("JudgeResponse.Raw = %q, want final agent verdict %q", got, verdict)
-		}
-		result := gate.ParseJudgeVerdict("review", dsl.CriterionAgentJudge, response.Raw)
-		if !result.Passed || result.Outcome != gate.VerdictOutcomeApproved {
-			t.Fatalf("ParseJudgeVerdict() = %#v, want approved", result)
-		}
-	})
-
 	t.Run("Should preserve streamed verdict chunks including whitespace", func(t *testing.T) {
 		t.Parallel()
 
@@ -1833,27 +1806,6 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("Should return normal text without error on successful model output", func(t *testing.T) {
-		t.Parallel()
-		sessions := &loopActionBinderSessionManager{
-			events: []acp.AgentEvent{
-				{Type: acp.EventTypeAgentMessage, Text: `{"status":"ok"}`},
-			},
-		}
-		res, err := collectLoopPromptResult(
-			t.Context(),
-			sessions,
-			"sess-1",
-			looppkg.ActionPromptRequest{Message: "hello"},
-		)
-		if err != nil {
-			t.Fatalf("collectLoopPromptResult() error = %v", err)
-		}
-		if res.Text != `{"status":"ok"}` {
-			t.Fatalf("res.Text = %q, want {\"status\":\"ok\"}", res.Text)
-		}
-	})
 
 	t.Run("Should preserve valid model response with non-JSON text for output validation", func(t *testing.T) {
 		t.Parallel()

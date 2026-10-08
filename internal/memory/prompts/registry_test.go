@@ -230,28 +230,6 @@ func TestRegistry(t *testing.T) {
 		}
 	})
 
-	t.Run("Should load latest for each declared prompt from the manifest", func(t *testing.T) {
-		t.Parallel()
-
-		registry := DefaultRegistry()
-		for _, name := range allAssetNames() {
-			t.Run(fmt.Sprintf("Should load latest %s from manifest", name), func(t *testing.T) {
-				t.Parallel()
-
-				latest, err := registry.LoadLatest(name)
-				if err != nil {
-					t.Fatalf("load latest %s: %v", name, err)
-				}
-				if latest.Version != registry.latest[name] {
-					t.Fatalf("latest version = %q, want %q", latest.Version, registry.latest[name])
-				}
-				if _, ok := registry.assets[name][latest.Version]; !ok {
-					t.Fatalf("latest version %s for %s is not declared", latest.Version, name)
-				}
-			})
-		}
-	})
-
 	t.Run("Should fail clearly for unknown asset names and versions", func(t *testing.T) {
 		t.Parallel()
 

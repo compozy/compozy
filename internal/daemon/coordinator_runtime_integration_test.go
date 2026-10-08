@@ -17,7 +17,7 @@ import (
 )
 
 func TestCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
-	t.Run("Should start one builtin coordinator with configured limits", func(t *testing.T) {
+	t.Run("Should reuse one configured coordinator and recover it after stopping", func(t *testing.T) {
 		runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t)
 	})
 }
@@ -80,28 +80,6 @@ func runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
 	}
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count after second start = %d, want singleton reuse", got)
-	}
-}
-
-func TestCoordinatorRecoveryRestartsAfterStoppedCoordinatorIntegration(t *testing.T) {
-	ctx := testutil.Context(t)
-	manager, sessions := newCoordinatorTaskManagerIntegration(t, ctx)
-	actor := coordinatorTaskActor()
-
-	created, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		ProfileID:   storepkg.DefaultProfileID,
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: "ws-int",
-		Title:       "Recoverable task",
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	if _, err := manager.StartTask(ctx, created.ID, taskpkg.ExecutionRequest{}, actor); err != nil {
-		t.Fatalf("StartTask() error = %v", err)
-	}
-	if got := sessions.createCount(); got != 1 {
-		t.Fatalf("Create count after start = %d, want 1", got)
 	}
 
 	stopped := sessions.stopCoordinatorForTest(t, "coord-1")

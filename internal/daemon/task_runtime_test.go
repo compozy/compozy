@@ -2423,76 +2423,6 @@ func TestBootTasksSkipsMissingPrerequisites(t *testing.T) {
 	}
 }
 
-func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
-	t.Parallel()
-
-	db := openDaemonTestGlobalDB(t)
-	homePaths := testHomePaths(t)
-	resolver, err := workspacepkg.NewResolver(
-		db,
-		workspacepkg.WithHomePaths(homePaths),
-		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
-			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
-		}),
-	)
-	if err != nil {
-		t.Fatalf("workspace.NewResolver() error = %v", err)
-	}
-
-	daemon := &Daemon{
-		homePaths: homePaths,
-		readyCh:   make(chan struct{}),
-	}
-	state := &bootState{
-		cfg: compozyconfig.Config{
-
-			Task:  compozyconfig.DefaultTaskConfig(),
-			Loops: compozyconfig.DefaultLoopsConfig(),
-		},
-		logger:   discardLogger(),
-		registry: db,
-		sessions: &fakeSessionManager{},
-		harnessResolver: NewHarnessContextResolver(HarnessRuntimeSignals{
-			MemoryPromptSectionEnabled: true,
-			SkillsPromptSectionEnabled: true,
-			SyntheticTurnsEnabled:      true,
-			DetachedTaskRuntimeEnabled: true,
-		}),
-		workspaceResolver: resolver,
-	}
-
-	if err := daemon.bootTasks(testutil.Context(t), state, &bootCleanup{}); err != nil {
-		t.Fatalf("bootTasks() error = %v", err)
-	}
-	if state.tasks == nil {
-		t.Fatal("bootTasks() did not install a task runtime")
-	}
-	t.Cleanup(func() {
-		if err := state.runtimeWorkers.loopReconciler.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Loop reconciler shutdown error = %v", err)
-		}
-		if err := state.tasks.shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("task runtime shutdown error = %v", err)
-		}
-	})
-	if state.tasks.manager == nil {
-		t.Fatal("bootTasks() task manager = nil, want initialized manager")
-	}
-	if state.tasks.store == nil {
-		t.Fatal("bootTasks() task store = nil, want initialized store")
-	}
-	if state.tasks.detached == nil {
-		t.Fatal("bootTasks() detached harness bridge = nil, want initialized bridge")
-	}
-	if state.tasks.reentry == nil {
-		t.Fatal("bootTasks() harness reentry bridge = nil, want initialized bridge")
-	}
-	if state.deps.Tasks == nil {
-		t.Fatal("bootTasks() runtime deps tasks = nil, want published manager")
-	}
-}
-
 func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -2646,6 +2576,19 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 				t.Fatalf("task runtime shutdown error = %v", err)
 			}
 		})
+
+		if state.tasks.store == nil {
+			t.Fatal("bootTasks() task store = nil, want initialized store")
+		}
+		if state.tasks.detached == nil {
+			t.Fatal("bootTasks() detached harness bridge = nil, want initialized bridge")
+		}
+		if state.tasks.reentry == nil {
+			t.Fatal("bootTasks() harness reentry bridge = nil, want initialized bridge")
+		}
+		if state.deps.Tasks == nil {
+			t.Fatal("bootTasks() runtime deps tasks = nil, want published manager")
+		}
 
 		actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 			"scheduler-status-test",
@@ -3352,238 +3295,159 @@ func TestTerminalRunRecoveryDispositionRequiresConclusiveSessionEvidence(t *test
 	}
 }
 
-func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
+func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	t.Parallel()
 
-	sessions := &fakeSessionManager{}
-	runtime, resolver, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
-	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
-	sessions.infos = []*session.Info{
-		{
+	t.Run("Should recover every outcome and preserve detached metadata", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		runtime, resolver, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+		workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
+
+		ownerInfo := &session.Info{
 			ID:          "sess-owner",
 			ProfileID:   store.DefaultProfileID,
 			Type:        session.SessionTypeSystem,
 			State:       session.StateActive,
 			WorkspaceID: workspace.ID,
 			Workspace:   workspace.RootDir,
-		},
-		{
+		}
+		wakeInfo := &session.Info{
 			ID:          "sess-wake",
 			ProfileID:   store.DefaultProfileID,
 			Type:        session.SessionTypeSystem,
 			State:       session.StateActive,
 			WorkspaceID: workspace.ID,
 			Workspace:   workspace.RootDir,
-		},
-		{
-			ID:          "sess-runtime",
+		}
+		liveInfo := &session.Info{
+			ID:          "sess-live",
 			ProfileID:   store.DefaultProfileID,
 			Type:        session.SessionTypeSystem,
 			State:       session.StateActive,
 			WorkspaceID: workspace.ID,
 			Workspace:   workspace.RootDir,
-		},
-	}
+		}
+		failedInfo := &session.Info{
+			ID:          "sess-fail",
+			ProfileID:   store.DefaultProfileID,
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+		}
+		sessions.infos = []*session.Info{ownerInfo, wakeInfo, liveInfo, failedInfo}
 
-	submission, err := runtime.submitDetachedHarnessWork(t.Context(), detachedHarnessSubmitRequest{
-		SubmissionKey:  "detached-recovery-1",
-		OwnerSessionID: "sess-owner",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    workspace.ID,
-		Summary:        "Recover detached harness run",
-		TurnSource:     session.TurnSourceSynthetic,
-		WakeTarget: detachedHarnessWakeTargetInput{
-			SessionID: "sess-wake",
-		},
+		makeSubmission := func(key string) *detachedHarnessSubmission {
+			t.Helper()
+			return submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+				SubmissionKey:  key,
+				OwnerSessionID: "sess-owner",
+				Scope:          taskpkg.ScopeWorkspace,
+				WorkspaceID:    workspace.ID,
+				Summary:        "Recover " + key,
+				TurnSource:     session.TurnSourceSynthetic,
+				WakeTarget: detachedHarnessWakeTargetInput{
+					SessionID: "sess-wake",
+				},
+			})
+		}
+
+		requeueSubmission := makeSubmission("detached-requeue")
+		markSubmission := makeSubmission("detached-mark")
+		failSubmission := makeSubmission("detached-fail")
+
+		actor, err := detachedHarnessActorContext("sess-owner")
+		if err != nil {
+			t.Fatalf("detachedHarnessActorContext() error = %v", err)
+		}
+
+		claimRunForDaemonTest(t, runtime.manager, runtime.store, requeueSubmission.Run.ID, actor)
+		starting, err := runtime.manager.AttachRunSession(
+			t.Context(), markSubmission.Run.ID, "sess-live", actor,
+		)
+		if err != nil {
+			t.Fatalf("AttachRunSession(mark) error = %v", err)
+		}
+		if starting.Status != taskpkg.TaskRunStatusStarting {
+			t.Fatalf("starting.Status = %q, want %q", starting.Status, taskpkg.TaskRunStatusStarting)
+		}
+		if _, err := runtime.manager.AttachRunSession(
+			t.Context(),
+			failSubmission.Run.ID,
+			"sess-fail",
+			actor,
+		); err != nil {
+			t.Fatalf("AttachRunSession(fail) error = %v", err)
+		}
+		failedInfo.State = session.StateStopped
+		failedInfo.StopDetail = "daemon lost the task session"
+
+		bootActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		stats, err := recoverTaskRunsOnBoot(t.Context(), runtime.manager, runtime.store, sessions, bootActor)
+		if err != nil {
+			t.Fatalf("recoverTaskRunsOnBoot() error = %v", err)
+		}
+		if got, want := stats.requeued, 1; got != want {
+			t.Fatalf("stats.requeued = %d, want %d", got, want)
+		}
+		if got, want := stats.markedRunning, 1; got != want {
+			t.Fatalf("stats.markedRunning = %d, want %d", got, want)
+		}
+		if got, want := stats.failed, 1; got != want {
+			t.Fatalf("stats.failed = %d, want %d", got, want)
+		}
+
+		requeuedRun, err := runtime.store.GetTaskRun(t.Context(), requeueSubmission.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(requeue) error = %v", err)
+		}
+		if got, want := requeuedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("requeued run status = %q, want %q", got, want)
+		}
+
+		markedRun, err := runtime.store.GetTaskRun(t.Context(), markSubmission.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(mark) error = %v", err)
+		}
+		if got, want := markedRun.Status, taskpkg.TaskRunStatusRunning; got != want {
+			t.Fatalf("marked run status = %q, want %q", got, want)
+		}
+
+		metadata, err := decodeDetachedHarnessRunMetadata(markedRun.Metadata)
+		if err != nil {
+			t.Fatalf("decodeDetachedHarnessRunMetadata(recovered) error = %v", err)
+		}
+		if metadata.SubmissionKey != "detached-mark" || metadata.OwnerSessionID != "sess-owner" ||
+			metadata.WakeTarget.SessionID != "sess-wake" {
+			t.Fatalf("recovered metadata = %#v, want original submission, owner, and wake target", metadata)
+		}
+
+		failedRun, err := runtime.store.GetTaskRun(t.Context(), failSubmission.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(fail) error = %v", err)
+		}
+		if got, want := failedRun.Status, taskpkg.TaskRunStatusFailed; got != want {
+			t.Fatalf("failed run status = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("submitDetachedHarnessWork() error = %v", err)
-	}
-
-	actor, err := detachedHarnessActorContext("sess-owner")
-	if err != nil {
-		t.Fatalf("detachedHarnessActorContext() error = %v", err)
-	}
-	starting, err := runtime.manager.AttachRunSession(t.Context(), submission.Run.ID, "sess-runtime", actor)
-	if err != nil {
-		t.Fatalf("AttachRunSession() error = %v", err)
-	}
-	if got, want := starting.Status, taskpkg.TaskRunStatusStarting; got != want {
-		t.Fatalf("starting.Status = %q, want %q", got, want)
-	}
-
-	bootActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
-	if err != nil {
-		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
-	}
-	stats, err := recoverTaskRunsOnBoot(t.Context(), runtime.manager, runtime.store, sessions, bootActor)
-	if err != nil {
-		t.Fatalf("recoverTaskRunsOnBoot() error = %v", err)
-	}
-	if got, want := stats.markedRunning, 1; got != want {
-		t.Fatalf("stats.markedRunning = %d, want %d", got, want)
-	}
-
-	recovered, err := runtime.store.GetTaskRun(t.Context(), submission.Run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(recovered) error = %v", err)
-	}
-	if got, want := recovered.Status, taskpkg.TaskRunStatusRunning; got != want {
-		t.Fatalf("recovered.Status = %q, want %q", got, want)
-	}
-	metadata, err := decodeDetachedHarnessRunMetadata(recovered.Metadata)
-	if err != nil {
-		t.Fatalf("decodeDetachedHarnessRunMetadata(recovered) error = %v", err)
-	}
-	if got, want := metadata.SubmissionKey, "detached-recovery-1"; got != want {
-		t.Fatalf("recovered metadata submission key = %q, want %q", got, want)
-	}
-	if got, want := metadata.OwnerSessionID, "sess-owner"; got != want {
-		t.Fatalf("recovered metadata owner session id = %q, want %q", got, want)
-	}
-	if got, want := metadata.WakeTarget.SessionID, "sess-wake"; got != want {
-		t.Fatalf("recovered metadata wake target session id = %q, want %q", got, want)
-	}
-}
-
-func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
-	t.Parallel()
-
-	sessions := &fakeSessionManager{}
-	runtime, resolver, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
-	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
-
-	ownerInfo := &session.Info{
-		ID:          "sess-owner",
-		ProfileID:   store.DefaultProfileID,
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-	}
-	wakeInfo := &session.Info{
-		ID:          "sess-wake",
-		ProfileID:   store.DefaultProfileID,
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-	}
-	liveInfo := &session.Info{
-		ID:          "sess-live",
-		ProfileID:   store.DefaultProfileID,
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-	}
-	failedInfo := &session.Info{
-		ID:          "sess-fail",
-		ProfileID:   store.DefaultProfileID,
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-	}
-	sessions.infos = []*session.Info{ownerInfo, wakeInfo, liveInfo, failedInfo}
-
-	makeSubmission := func(key string) *detachedHarnessSubmission {
-		t.Helper()
-		return submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
-			SubmissionKey:  key,
-			OwnerSessionID: "sess-owner",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    workspace.ID,
-			Summary:        "Recover " + key,
-			TurnSource:     session.TurnSourceSynthetic,
-			WakeTarget: detachedHarnessWakeTargetInput{
-				SessionID: "sess-wake",
-			},
-		})
-	}
-
-	requeueSubmission := makeSubmission("detached-requeue")
-	markSubmission := makeSubmission("detached-mark")
-	failSubmission := makeSubmission("detached-fail")
-
-	actor, err := detachedHarnessActorContext("sess-owner")
-	if err != nil {
-		t.Fatalf("detachedHarnessActorContext() error = %v", err)
-	}
-
-	claimRunForDaemonTest(t, runtime.manager, runtime.store, requeueSubmission.Run.ID, actor)
-	if _, err := runtime.manager.AttachRunSession(
-		t.Context(),
-		markSubmission.Run.ID,
-		"sess-live",
-		actor,
-	); err != nil {
-		t.Fatalf("AttachRunSession(mark) error = %v", err)
-	}
-	if _, err := runtime.manager.AttachRunSession(
-		t.Context(),
-		failSubmission.Run.ID,
-		"sess-fail",
-		actor,
-	); err != nil {
-		t.Fatalf("AttachRunSession(fail) error = %v", err)
-	}
-	failedInfo.State = session.StateStopped
-	failedInfo.StopDetail = "daemon lost the task session"
-
-	bootActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
-	if err != nil {
-		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
-	}
-	stats, err := recoverTaskRunsOnBoot(t.Context(), runtime.manager, runtime.store, sessions, bootActor)
-	if err != nil {
-		t.Fatalf("recoverTaskRunsOnBoot() error = %v", err)
-	}
-	if got, want := stats.requeued, 1; got != want {
-		t.Fatalf("stats.requeued = %d, want %d", got, want)
-	}
-	if got, want := stats.markedRunning, 1; got != want {
-		t.Fatalf("stats.markedRunning = %d, want %d", got, want)
-	}
-	if got, want := stats.failed, 1; got != want {
-		t.Fatalf("stats.failed = %d, want %d", got, want)
-	}
-
-	requeuedRun, err := runtime.store.GetTaskRun(t.Context(), requeueSubmission.Run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(requeue) error = %v", err)
-	}
-	if got, want := requeuedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
-		t.Fatalf("requeued run status = %q, want %q", got, want)
-	}
-
-	markedRun, err := runtime.store.GetTaskRun(t.Context(), markSubmission.Run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(mark) error = %v", err)
-	}
-	if got, want := markedRun.Status, taskpkg.TaskRunStatusRunning; got != want {
-		t.Fatalf("marked run status = %q, want %q", got, want)
-	}
-
-	failedRun, err := runtime.store.GetTaskRun(t.Context(), failSubmission.Run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(fail) error = %v", err)
-	}
-	if got, want := failedRun.Status, taskpkg.TaskRunStatusFailed; got != want {
-		t.Fatalf("failed run status = %q, want %q", got, want)
-	}
 }
 
 func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
 	t.Parallel()
+	db := openDaemonTestGlobalDB(t)
 
-	if _, err := newHarnessDetachedWorkBridge(nil, openDaemonTestGlobalDB(t), &fakeSessionManager{}); err == nil {
+	if _, err := newHarnessDetachedWorkBridge(nil, db, &fakeSessionManager{}); err == nil {
 		t.Fatal("newHarnessDetachedWorkBridge(nil tasks) error = nil, want validation error")
 	}
 	if _, err := newHarnessDetachedWorkBridge(&taskpkg.Service{}, nil, &fakeSessionManager{}); err == nil {
 		t.Fatal("newHarnessDetachedWorkBridge(nil store) error = nil, want validation error")
 	}
-	if _, err := newHarnessDetachedWorkBridge(&taskpkg.Service{}, openDaemonTestGlobalDB(t), nil); err == nil {
+	if _, err := newHarnessDetachedWorkBridge(&taskpkg.Service{}, db, nil); err == nil {
 		t.Fatal("newHarnessDetachedWorkBridge(nil sessions) error = nil, want validation error")
 	}
 
@@ -4971,7 +4835,8 @@ func newDetachedHarnessTaskRuntimeForTest(
 		taskpkg.WithStore(db),
 		taskpkg.WithSessionExecutor(sessionBridge),
 		taskpkg.WithEventObserver(reentry),
-		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
+		// These scenarios exercise detached work and reentry, not cooperative-stop timing.
+		taskpkg.WithCancelGracePeriod(0),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)

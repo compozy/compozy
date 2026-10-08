@@ -464,19 +464,6 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "token usage valid",
-			validate: func() error {
-				return (TokenUsage{TurnID: "turn-1"}).Validate()
-			},
-		},
-		{
-			name: "token usage invalid",
-			validate: func() error {
-				return (TokenUsage{}).Validate()
-			},
-			wantError: true,
-		},
-		{
 			name: "session meta valid",
 			validate: func() error {
 				return (&SessionMeta{

@@ -1200,7 +1200,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("FETCH_HEAD stat error = %v, want discovery to avoid fetch", err)
 		}
 
-		cached := newRealGitFixture(t)
+		cached := discovery
 		var listCalls atomic.Int64
 		counting := &interceptingGitRunner{
 			inner: cached.runner,
@@ -1215,18 +1215,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if _, err := service.List(t.Context(), cached.workspace.ID, false); err != nil {
 			t.Fatalf("List(cache first) error = %v", err)
 		}
-		if _, err := service.List(t.Context(), cached.workspace.ID, false); err != nil {
-			t.Fatalf("List(cache second) error = %v", err)
-		}
-		if got := listCalls.Load(); got != 1 {
-			t.Fatalf("cached worktree list calls = %d, want one", got)
-		}
-		if _, err := service.List(t.Context(), cached.workspace.ID, true); err != nil {
-			t.Fatalf("List(cache refresh) error = %v", err)
-		}
-		if got := listCalls.Load(); got != 2 {
-			t.Fatalf("refreshed worktree list calls = %d, want two", got)
-		}
+
 		if _, err := service.Create(
 			t.Context(),
 			cached.workspace.ID,

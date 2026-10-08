@@ -554,32 +554,6 @@ test("E2E-003: runtime below the minimum stays on version-skew guidance", async 
   await expect(desktop.boot.getByRole("button", { name: "Retry operation" })).toHaveCount(0);
 });
 
-test("E2E-004: launch bursts reuse one window and deliver the last deep link", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
-  await Promise.all([
-    desktop.spawnSecondary([]),
-    desktop.spawnSecondary(["compozyos://open/tasks"]),
-  ]);
-  await desktop.spawnSecondary(["compozyos://open/settings/general"]);
-  await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
-  const windows = await desktop.app.evaluate(
-    ({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().filter(window => {
-        const url = window.webContents.getURL();
-        return url.startsWith("http://") || url.startsWith("https://");
-      }).length
-  );
-  expect(windows).toBe(1);
-  expect(
-    await desktop.app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().some(window => window.isVisible())
-    )
-  ).toBe(true);
-});
-
 test("E2E-007: quitting during bootstrap completes cleanup and preserves the daemon", async ({
   launchDesktop,
 }) => {
@@ -604,32 +578,70 @@ test("E2E-007: quitting during bootstrap completes cleanup and preserves the dae
   expect(record.state).not.toBe("product");
 });
 
-test("E2E-005 E2E-007: relaunch attaches, stopped runtime starts once, and shell quit leaves it alive", async ({
+test("E2E-005 E2E-007 E2E-024: healthy diagnostics and shell relaunch preserve daemon ownership", async ({
   launchDesktop,
 }) => {
   const first = await launchDesktop();
   await first.product();
-  const initial = await jsonCommand(first, ["status", "-o", "json"]);
-  await first.closeShell();
-  const alive = await jsonCommand(first, ["status", "-o", "json"]);
-  const initialDaemon = initial.daemon as Record<string, unknown>;
-  expect(alive).toMatchObject({
-    daemon: { status: "running", pid: initialDaemon.pid },
+  await test.step("E2E-024: healthy retry and diagnostic export", async () => {
+    const recordPath = join(first.home, "app.json");
+    await expect
+      .poll(async () => Reflect.get(JSON.parse(await readFile(recordPath, "utf8")), "state"))
+      .toBe("product");
+    const before = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
+    expect(await jsonCommand(first, ["app", "retry", "-o", "json"])).toMatchObject({
+      action: "retry",
+      result: { ok: true },
+    });
+    const after = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
+    expect(after).toMatchObject({ pid: before.pid, state: "product" });
+    const report = await jsonCommand(first, ["app", "diagnose", "-o", "json"]);
+    expect(report).toMatchObject({ schema_version: 1, boot_phase: "product" });
+    const bundle = await jsonCommand(first, ["app", "diagnose", "--bundle", "--yes", "-o", "json"]);
+    const bundlePath = Reflect.get(bundle.bundle as Record<string, unknown>, "path");
+    expect(typeof bundlePath).toBe("string");
+    expect((await stat(String(bundlePath))).isFile()).toBe(true);
+    const extracted = await mkdtemp(join(tmpdir(), "compozy-diagnostic-bundle-"));
+    try {
+      await extract({ cwd: extracted, file: String(bundlePath) });
+      const manifest = JSON.parse(await readFile(join(extracted, "manifest.json"), "utf8")) as {
+        kind?: unknown;
+        report?: { boot_id?: unknown };
+        schema_version?: unknown;
+      };
+      expect(manifest).toMatchObject({
+        schema_version: 1,
+        kind: "compozyos_desktop_diagnostics",
+        report: { boot_id: report.boot_id },
+      });
+    } finally {
+      await rm(extracted, { recursive: true, force: true });
+    }
   });
 
-  const attached = await launchDesktop({ home: first.home });
-  await attached.product();
-  const attachEvents = await bootstrapEvents(first.home);
-  expect(attachEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "attach" });
-  await attached.closeShell();
-  await attached.cli(["daemon", "stop"]);
+  await test.step("E2E-005 E2E-007: attach, restart, and preserve daemon ownership", async () => {
+    const initial = await jsonCommand(first, ["status", "-o", "json"]);
+    await first.closeShell();
+    const alive = await jsonCommand(first, ["status", "-o", "json"]);
+    const initialDaemon = initial.daemon as Record<string, unknown>;
+    expect(alive).toMatchObject({
+      daemon: { status: "running", pid: initialDaemon.pid },
+    });
 
-  const started = await launchDesktop({ home: first.home });
-  await started.product();
-  const startEvents = await bootstrapEvents(first.home);
-  expect(startEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "start" });
-  const restarted = await jsonCommand(started, ["status", "-o", "json"]);
-  expect((restarted.daemon as Record<string, unknown>).pid).not.toBe(initialDaemon.pid);
+    const attached = await launchDesktop({ home: first.home });
+    await attached.product();
+    const attachEvents = await bootstrapEvents(first.home);
+    expect(attachEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "attach" });
+    await attached.closeShell();
+    await attached.cli(["daemon", "stop"]);
+
+    const started = await launchDesktop({ home: first.home });
+    await started.product();
+    const startEvents = await bootstrapEvents(first.home);
+    expect(startEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "start" });
+    const restarted = await jsonCommand(started, ["status", "-o", "json"]);
+    expect((restarted.daemon as Record<string, unknown>).pid).not.toBe(initialDaemon.pid);
+  });
 });
 
 test("an updated app replaces its stale app-owned runtime without deleting home state", async ({
@@ -708,7 +720,7 @@ test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers a
   await expect(await desktop.product()).toHaveTitle(/CompozyOS/u);
 });
 
-test("E2E-008: native product chrome and window geometry survive relaunch", async ({
+test("E2E-008 E2E-009: native chrome, geometry, and menu and shortcut zoom survive relaunch", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
@@ -735,55 +747,7 @@ test("E2E-008: native product chrome and window geometry survive relaunch", asyn
       visible: true,
     });
   }
-  await desktop.app.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getAllWindows().find(candidate => {
-      const url = candidate.webContents.getURL();
-      return url.startsWith("http://") || url.startsWith("https://");
-    });
-    if (!window) throw new Error("Product window missing.");
-    window.setBounds({ x: 80, y: 70, width: 960, height: 720 });
-    window.maximize();
-  });
-  await desktop.closeShell();
-  const maximized = await launchDesktop({ home: desktop.home });
-  await maximized.product();
-  expect(
-    await maximized.app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().some(window => window.isMaximized())
-    )
-  ).toBe(true);
-  await maximized.closeShell();
-  await writeFile(
-    join(desktop.home, "desktop-window.json"),
-    `${JSON.stringify({ x: 999999, y: 999999, width: 960, height: 720, maximized: false, zoom_level: 0 })}\n`,
-    { mode: 0o600 }
-  );
-  const clamped = await launchDesktop({ home: desktop.home });
-  await clamped.product();
-  expect(
-    await clamped.app.evaluate(({ BrowserWindow, screen }) => {
-      const window = BrowserWindow.getAllWindows().find(candidate => {
-        const url = candidate.webContents.getURL();
-        return url.startsWith("http://") || url.startsWith("https://");
-      });
-      if (!window) return false;
-      const bounds = window.getBounds();
-      const area = screen.getDisplayMatching(bounds).workArea;
-      return (
-        bounds.x >= area.x &&
-        bounds.y >= area.y &&
-        bounds.x + bounds.width <= area.x + area.width &&
-        bounds.y + bounds.height <= area.y + area.height
-      );
-    })
-  ).toBe(true);
-});
-
-test("E2E-009: menu and shortcut zoom share one persisted bounded value", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
+  // Zoom and geometry share the same native window persistence and relaunch.
   await desktop.app.evaluate(({ Menu }) => {
     const view = Menu.getApplicationMenu()?.items.find(item => item.label === "View");
     if (!view?.submenu) throw new Error("The View menu is missing.");
@@ -816,11 +780,26 @@ test("E2E-009: menu and shortcut zoom share one persisted bounded value", async 
         )
     )
     .toBe(1);
+
+  await desktop.app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find(candidate => {
+      const url = candidate.webContents.getURL();
+      return url.startsWith("http://") || url.startsWith("https://");
+    });
+    if (!window) throw new Error("Product window missing.");
+    window.setBounds({ x: 80, y: 70, width: 960, height: 720 });
+    window.maximize();
+  });
   await desktop.closeShell();
-  const relaunched = await launchDesktop({ home: desktop.home });
-  await relaunched.product();
+  const maximized = await launchDesktop({ home: desktop.home });
+  await maximized.product();
   expect(
-    await relaunched.app.evaluate(({ BrowserWindow }) =>
+    await maximized.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().some(window => window.isMaximized())
+    )
+  ).toBe(true);
+  expect(
+    await maximized.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
         .find(window => {
           const url = window.webContents.getURL();
@@ -829,39 +808,31 @@ test("E2E-009: menu and shortcut zoom share one persisted bounded value", async 
         ?.webContents.getZoomLevel()
     )
   ).toBe(1);
-});
-
-test("native Edit shortcuts copy and paste editable renderer content", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
-  await completeOnboarding(product);
-  expect(
-    await desktop.app.evaluate(({ Menu }) => {
-      const edit = Menu.getApplicationMenu()?.items.find(item => item.label === "Edit");
-      return edit?.submenu?.items.map(item => item.role) ?? [];
-    })
-  ).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
-  await product.evaluate(() => {
-    const source = document.createElement("input");
-    source.setAttribute("aria-label", "Copy source");
-    source.value = "Copied through the Electron Edit menu";
-    const target = document.createElement("input");
-    target.setAttribute("aria-label", "Paste target");
-    document.body.append(source, target);
-    source.focus();
-    source.select();
-  });
-
-  const modifier = process.platform === "darwin" ? "Meta" : "Control";
-  await product.keyboard.press(`${modifier}+C`);
-  await product.getByRole("textbox", { name: "Paste target" }).focus();
-  await product.keyboard.press(`${modifier}+V`);
-
-  await expect(product.getByRole("textbox", { name: "Paste target" })).toHaveValue(
-    "Copied through the Electron Edit menu"
+  await maximized.closeShell();
+  await writeFile(
+    join(desktop.home, "desktop-window.json"),
+    `${JSON.stringify({ x: 999999, y: 999999, width: 960, height: 720, maximized: false, zoom_level: 0 })}\n`,
+    { mode: 0o600 }
   );
+  const clamped = await launchDesktop({ home: desktop.home });
+  await clamped.product();
+  expect(
+    await clamped.app.evaluate(({ BrowserWindow, screen }) => {
+      const window = BrowserWindow.getAllWindows().find(candidate => {
+        const url = candidate.webContents.getURL();
+        return url.startsWith("http://") || url.startsWith("https://");
+      });
+      if (!window) return false;
+      const bounds = window.getBounds();
+      const area = screen.getDisplayMatching(bounds).workArea;
+      return (
+        bounds.x >= area.x &&
+        bounds.y >= area.y &&
+        bounds.x + bounds.width <= area.x + area.width &&
+        bounds.y + bounds.height <= area.y + area.height
+      );
+    })
+  ).toBe(true);
 });
 
 test("desktop-owned runtime resolves a provider available only on the login PATH", async ({
@@ -929,51 +900,81 @@ test("E2E-010: external navigation opens only safe web URLs and never leaves the
     .toEqual(["https://example.com/safe", "https://example.com/top-level"]);
 });
 
-test("E2E-011: the daemon-served shell preserves the browser Settings journey and Chromium effects", async ({
+test("E2E-011: the daemon-served shell preserves Settings, Chromium effects, and native Edit shortcuts", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
   const product = await desktop.product();
   await completeOnboarding(product);
-  await desktop.cli(["app", "open", "/settings/general"]);
-  await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
-  await expect(product.getByTestId("settings-shell")).toBeVisible();
-  await expect(product.getByTestId("settings-section-nav")).toBeVisible();
-  await expect(
-    product.locator('[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]')
-  ).toHaveText([
-    "General",
-    "Terminal",
-    "Defaults",
-    "Appearance",
-    "Layouts",
-    "Profiles",
-    "Providers",
-    "Palette",
-    "Notifications",
-    "Diagnostics",
-    "Memory",
-    "Roles",
-    "Skills",
-    "MCP servers",
-    "Automation",
-    "Remote access",
-    "Hooks",
-    "Extensions",
-    "Marketplace",
-  ]);
-  await expect(product.getByText("Updates", { exact: true })).toBeVisible();
-  for (const section of ["hooks", "extensions", "mcp", "marketplace", "general"] as const) {
-    await product.getByTestId(`settings-section-${section}`).click();
-    await expect(product).toHaveURL(new RegExp(`/settings/${section}(?:\\?|$)`, "u"));
-    await expect(product.getByTestId(`settings-page-${section}`)).toBeVisible();
-  }
-  expect(
-    await product.evaluate(() => ({
-      backdropFilter: CSS.supports("backdrop-filter", "blur(1px)"),
-      chromium: navigator.userAgent.includes("Chrome/"),
-    }))
-  ).toEqual({ backdropFilter: true, chromium: true });
+  await test.step("Settings navigation and Chromium effects", async () => {
+    await desktop.cli(["app", "open", "/settings/general"]);
+    await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
+    await expect(product.getByTestId("settings-shell")).toBeVisible();
+    await expect(product.getByTestId("settings-section-nav")).toBeVisible();
+    await expect(
+      product.locator('[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]')
+    ).toHaveText([
+      "General",
+      "Terminal",
+      "Defaults",
+      "Appearance",
+      "Layouts",
+      "Profiles",
+      "Providers",
+      "Palette",
+      "Notifications",
+      "Diagnostics",
+      "Memory",
+      "Roles",
+      "Skills",
+      "MCP servers",
+      "Automation",
+      "Remote access",
+      "Hooks",
+      "Extensions",
+      "Marketplace",
+    ]);
+    await expect(product.getByText("Updates", { exact: true })).toBeVisible();
+    for (const section of ["hooks", "extensions", "mcp", "marketplace", "general"] as const) {
+      await product.getByTestId(`settings-section-${section}`).click();
+      await expect(product).toHaveURL(new RegExp(`/settings/${section}(?:\\?|$)`, "u"));
+      await expect(product.getByTestId(`settings-page-${section}`)).toBeVisible();
+    }
+    expect(
+      await product.evaluate(() => ({
+        backdropFilter: CSS.supports("backdrop-filter", "blur(1px)"),
+        chromium: navigator.userAgent.includes("Chrome/"),
+      }))
+    ).toEqual({ backdropFilter: true, chromium: true });
+  });
+
+  await test.step("Native Edit shortcuts copy and paste editable content", async () => {
+    expect(
+      await desktop.app.evaluate(({ Menu }) => {
+        const edit = Menu.getApplicationMenu()?.items.find(item => item.label === "Edit");
+        return edit?.submenu?.items.map(item => item.role) ?? [];
+      })
+    ).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
+    await product.evaluate(() => {
+      const source = document.createElement("input");
+      source.setAttribute("aria-label", "Copy source");
+      source.value = "Copied through the Electron Edit menu";
+      const target = document.createElement("input");
+      target.setAttribute("aria-label", "Paste target");
+      document.body.append(source, target);
+      source.focus();
+      source.select();
+    });
+
+    const modifier = process.platform === "darwin" ? "Meta" : "Control";
+    await product.keyboard.press(`${modifier}+C`);
+    await product.getByRole("textbox", { name: "Paste target" }).focus();
+    await product.keyboard.press(`${modifier}+V`);
+
+    await expect(product.getByRole("textbox", { name: "Paste target" })).toHaveValue(
+      "Copied through the Electron Edit menu"
+    );
+  });
 });
 
 test("E2E-018: the real Settings API projects a journaled runtime swap through restart", async ({
@@ -1116,23 +1117,47 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
   ).toBe("running");
 });
 
-test("E2E-013 E2E-014: running deep links navigate valid paths and collapse hostile payloads to home", async ({
+test("E2E-004 E2E-013 E2E-014: running deep links reject hostile paths and launch bursts reuse one window", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
   const product = await desktop.product();
-  await desktop.spawnSecondary(["compozyos://open/agents"]);
-  await expect(product).toHaveURL(/\/agents(?:\?|$)/u);
-  await desktop.spawnSecondary(["compozyos://open/route-that-does-not-exist"]);
-  await expect(product.getByRole("heading", { name: "Page not found" })).toBeVisible();
-  for (const hostile of [
-    "compozyos://open/http://evil.com",
-    "compozyos://open/../../etc",
-    "compozyos://open//host",
-  ]) {
-    await desktop.spawnSecondary([hostile]);
-    await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
-  }
+  await test.step("E2E-013 E2E-014: running deep links preserve the validation boundary", async () => {
+    await desktop.spawnSecondary(["compozyos://open/agents"]);
+    await expect(product).toHaveURL(/\/agents(?:\?|$)/u);
+    await desktop.spawnSecondary(["compozyos://open/route-that-does-not-exist"]);
+    await expect(product.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    for (const hostile of [
+      "compozyos://open/http://evil.com",
+      "compozyos://open/../../etc",
+      "compozyos://open//host",
+    ]) {
+      await desktop.spawnSecondary([hostile]);
+      await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
+    }
+  });
+
+  await test.step("E2E-004: launch bursts reuse one window and deliver the last deep link", async () => {
+    await Promise.all([
+      desktop.spawnSecondary([]),
+      desktop.spawnSecondary(["compozyos://open/tasks"]),
+    ]);
+    await desktop.spawnSecondary(["compozyos://open/settings/general"]);
+    await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
+    const windows = await desktop.app.evaluate(
+      ({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().filter(window => {
+          const url = window.webContents.getURL();
+          return url.startsWith("http://") || url.startsWith("https://");
+        }).length
+    );
+    expect(windows).toBe(1);
+    expect(
+      await desktop.app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some(window => window.isVisible())
+      )
+    ).toBe(true);
+  });
 });
 
 test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validation boundary", async ({
@@ -1150,46 +1175,6 @@ test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validati
   await expect(product).toHaveURL(/\/tasks(?:\?|$)/u);
   for (const invalid of ["../etc", "/../etc", "//host", "/http://evil.com", "/bad\\path"]) {
     expect(await invalidAppOpenCode(hostile, invalid)).toBe("invalid_target_path");
-  }
-});
-
-test("E2E-024: status, healthy retry, diagnose, and diagnostic bundle remain agent-manageable", async ({
-  launchDesktop,
-}) => {
-  const desktop = await launchDesktop();
-  await desktop.product();
-  const recordPath = join(desktop.home, "app.json");
-  await expect
-    .poll(async () => Reflect.get(JSON.parse(await readFile(recordPath, "utf8")), "state"))
-    .toBe("product");
-  const before = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
-  expect(await jsonCommand(desktop, ["app", "retry", "-o", "json"])).toMatchObject({
-    action: "retry",
-    result: { ok: true },
-  });
-  const after = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
-  expect(after).toMatchObject({ pid: before.pid, state: "product" });
-  const report = await jsonCommand(desktop, ["app", "diagnose", "-o", "json"]);
-  expect(report).toMatchObject({ schema_version: 1, boot_phase: "product" });
-  const bundle = await jsonCommand(desktop, ["app", "diagnose", "--bundle", "--yes", "-o", "json"]);
-  const bundlePath = Reflect.get(bundle.bundle as Record<string, unknown>, "path");
-  expect(typeof bundlePath).toBe("string");
-  expect((await stat(String(bundlePath))).isFile()).toBe(true);
-  const extracted = await mkdtemp(join(tmpdir(), "compozy-diagnostic-bundle-"));
-  try {
-    await extract({ cwd: extracted, file: String(bundlePath) });
-    const manifest = JSON.parse(await readFile(join(extracted, "manifest.json"), "utf8")) as {
-      kind?: unknown;
-      report?: { boot_id?: unknown };
-      schema_version?: unknown;
-    };
-    expect(manifest).toMatchObject({
-      schema_version: 1,
-      kind: "compozyos_desktop_diagnostics",
-      report: { boot_id: report.boot_id },
-    });
-  } finally {
-    await rm(extracted, { recursive: true, force: true });
   }
 });
 
@@ -1867,7 +1852,7 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
 
 // Invariant: real desktop uptime and catalog activity keep per-client requests within a fixed budget.
 // Owner: packaged renderer and real daemon; canonical Electron shell E2E suite.
-test("Should bound catalog requests during sixty minutes of native desktop uptime", async ({
+test("@nightly Should bound catalog requests during sixty minutes of native desktop uptime", async ({
   launchDesktop,
 }, testInfo) => {
   test.setTimeout(90 * 60_000);

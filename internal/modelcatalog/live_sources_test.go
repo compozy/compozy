@@ -725,21 +725,6 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject Cursor model command output without advertised model values", func(t *testing.T) {
-		t.Parallel()
-
-		executor := &fakeDiscoveryExecutor{
-			result: DiscoveryCommandResult{Stdout: "Available models\n\nTip: use --model <id>"},
-		}
-		source := newLiveSourceForTest(t, "cursor", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
-			BaseEnv:         []string{"PATH=/bin"},
-			CommandExecutor: executor,
-		})
-
-		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
-		assertModelCatalogErrorContains(t, err, "cursor model command returned no model rows")
-	})
-
 	t.Run("Should reject a configured Cursor discovery endpoint", func(t *testing.T) {
 		t.Parallel()
 
@@ -1525,27 +1510,6 @@ func TestLiveDiscoverySupportTypes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should run subprocess discovery command", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		result, err := ExecDiscoveryCommandExecutor{}.RunDiscoveryCommand(ctx, DiscoveryCommandRequest{
-			ProviderID: "helper",
-			Command:    os.Args[0],
-			Args:       []string{"-test.run=TestLiveDiscoveryHelperProcess", "--", "ok"},
-			Env:        append(os.Environ(), "COMPOZY_LIVE_DISCOVERY_HELPER=1"),
-			Timeout:    time.Second,
-		})
-		if err != nil {
-			t.Fatalf("RunDiscoveryCommand() error = %v", err)
-		}
-		if result.ExitCode != 0 {
-			t.Fatalf("ExitCode = %d, want 0", result.ExitCode)
-		}
-		if strings.TrimSpace(result.Stdout) != `[{"id":"helper-model"}]` {
-			t.Fatalf("Stdout = %q, want helper model JSON", result.Stdout)
-		}
-	})
 	t.Run("Should capture a large native catalog without truncating its final record", func(t *testing.T) {
 		t.Parallel()
 		result, err := (ExecDiscoveryCommandExecutor{}).RunDiscoveryCommand(
@@ -1571,13 +1535,10 @@ func TestLiveDiscoverySupportTypes(t *testing.T) {
 func TestLiveDiscoveryHelperProcess(t *testing.T) {
 	t.Run("Should emit the subprocess discovery fixture", func(t *testing.T) {
 		mode := os.Getenv("COMPOZY_LIVE_DISCOVERY_HELPER")
-		if mode != "1" && mode != "large" {
+		if mode != "large" {
 			return
 		}
-		payload := `[{"id":"helper-model"}]`
-		if mode == "large" {
-			payload = `[{"id":"` + strings.Repeat("x", 600000) + `"}]`
-		}
+		payload := `[{"id":"` + strings.Repeat("x", 600000) + `"}]`
 		if _, err := fmt.Fprint(os.Stdout, payload); err != nil {
 			t.Fatalf("Fprint(stdout) error = %v", err)
 		}

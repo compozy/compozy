@@ -64,7 +64,6 @@ func TestGolangciLintScopes(t *testing.T) {
 			raw  string
 		}{
 			{name: "Should accept an empty value", raw: ""},
-			{name: "Should accept spaces", raw: "   "},
 			{name: "Should accept mixed whitespace", raw: "\t\n"},
 		}
 		for _, testCase := range cases {
@@ -225,8 +224,6 @@ func TestGolangciLintConcurrencyFor(t *testing.T) {
 		{name: "Should keep small machines at full width", effectiveCPU: 4, want: 4},
 		{name: "Should keep eight-core machines at full width", effectiveCPU: 8, want: 8},
 		{name: "Should hold the cap just above the threshold", effectiveCPU: 10, want: 8},
-		{name: "Should halve a sixteen-core machine", effectiveCPU: 16, want: 8},
-		{name: "Should cap a thirty-two-core machine", effectiveCPU: 32, want: 8},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

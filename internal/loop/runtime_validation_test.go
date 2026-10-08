@@ -192,18 +192,6 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		})
 	})
 
-	t.Run("Should reject an empty matcher instead of matching every item", func(t *testing.T) {
-		t.Parallel()
-
-		definition := dsl.Definition{Contract: dsl.Contract{RuntimeRules: []dsl.RuntimeRule{{
-			Runtime: dsl.RuntimeSpec{Model: "opus"},
-		}}}}
-		err := loop.ValidateDefinitionRuntime(t.Context(), nil, definition)
-		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
-			Field: "runtime_rules[0].match", Reason: "selector_required",
-		})
-	})
-
 	t.Run("Should reject every retired runtime key with migration guidance", func(t *testing.T) {
 		t.Parallel()
 

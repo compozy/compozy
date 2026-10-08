@@ -19,8 +19,40 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
+
+var heartbeatTestStoreSeed *globalseed.Seed
+
+func TestMain(m *testing.M) {
+	os.Exit(runHeartbeatTests(m))
+}
+
+func runHeartbeatTests(m *testing.M) (code int) {
+	seed, err := globalseed.New(context.Background())
+	if err != nil {
+		reportHeartbeatTestMainError("create store seed: %v", err)
+		return 1
+	}
+	defer func() {
+		if err := seed.Close(); err != nil {
+			reportHeartbeatTestMainError("close store seed: %v", err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
+
+	heartbeatTestStoreSeed = seed
+	return m.Run()
+}
+
+func reportHeartbeatTestMainError(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, "heartbeat tests: "+format+"\n", args...); err != nil {
+		panic(err)
+	}
+}
 
 func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 	t.Parallel()
@@ -1540,6 +1572,9 @@ func newHeartbeatFixtureWithDBPath(
 	ctx := testutil.Context(t)
 	root := t.TempDir()
 	agentPath := writeHeartbeatAgentDefinition(t, root, "coder")
+	if err := heartbeatTestStoreSeed.Clone(dbPath); err != nil {
+		t.Fatalf("Clone(store seed) error = %v", err)
+	}
 	globalDB, err := globaldb.OpenGlobalDB(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)

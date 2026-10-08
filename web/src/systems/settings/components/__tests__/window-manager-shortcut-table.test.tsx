@@ -173,7 +173,9 @@ describe("WindowManagerShortcutTable", () => {
     renderTable();
 
     await user.click(
-      screen.getByRole("button", { name: /Record global hotkey for palette\.summon\.global/ })
+      within(screen.getByTestId("window-manager-global-hotkeys")).getByRole("button", {
+        name: /Record global hotkey for palette\.summon\.global/,
+      })
     );
     await user.keyboard("{Meta>}{Shift>}k{/Shift}{/Meta}");
 
@@ -374,7 +376,9 @@ describe("WindowManagerShortcutTable", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: "Add an alternate shortcut for Close window" })
+      within(screen.getByTestId("window-manager-shortcut-window.close")).getByRole("button", {
+        name: "Add an alternate shortcut for Close window",
+      })
     );
     await user.keyboard("{Meta>}{Shift>}w{/Shift}{/Meta}");
 

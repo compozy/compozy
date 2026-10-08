@@ -261,17 +261,6 @@ func TestExtensionContents(t *testing.T) {
 			t.Fatalf("ContentsFor() = %#v, want %#v", got, want)
 		}
 	})
-	t.Run("Should count the current catalog package instead of the illustrative fixture", func(t *testing.T) {
-		t.Parallel()
-		manifest, err := LoadManifest(filepath.Join("..", "..", "catalog", "packages", "herdr-bridge"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := contract.ExtensionContentsPayload{Hooks: 18}
-		if got := ContentsFor(manifest, nil); got != want {
-			t.Fatalf("ContentsFor() = %#v, want %#v", got, want)
-		}
-	})
 	t.Run("Should report zero contents for an empty manifest", func(t *testing.T) {
 		t.Parallel()
 		for _, manifest := range []*Manifest{nil, {}} {

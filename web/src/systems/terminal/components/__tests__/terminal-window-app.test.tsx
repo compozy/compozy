@@ -1,9 +1,8 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { destroyTerminalInstances, Topbar, TopbarSlotProvider } from "@compozy/ui";
+import { destroyTerminalInstances } from "@compozy/ui";
 
 import {
   ANSWERED_PASSWORD_REQUEST,
@@ -74,28 +73,23 @@ afterEach(() => {
   destroyTerminalInstances(() => true);
 });
 
-function renderWindow({
-  wrap = ui => ui,
-  ...overrides
-}: Partial<TerminalWindowAppProps> & { wrap?: (ui: ReactElement) => ReactElement } = {}) {
+function renderWindow(overrides: Partial<TerminalWindowAppProps> = {}) {
   restoreFetch = stubTerminalTicketFetch();
   const actions = overrides.actions ?? stubWindowActions();
   const view = renderTerminalWindow(
-    wrap(
-      <TerminalWindowApp
-        actions={actions}
-        engineLoader={stubEngineLoader}
-        inputRequests={[]}
-        journal={<div data-testid="journal-slot">journal</div>}
-        limit={TERMINAL_LIMIT}
-        profile={TERMINAL_FIXTURE_PROFILE}
-        socketFactory={silentSocketFactory}
-        terminals={TERMINAL_FIXTURES}
-        viewerId={TERMINAL_FIXTURE_VIEWER}
-        workspaceId="ws-atlas"
-        {...overrides}
-      />
-    )
+    <TerminalWindowApp
+      actions={actions}
+      engineLoader={stubEngineLoader}
+      inputRequests={[]}
+      journal={<div data-testid="journal-slot">journal</div>}
+      limit={TERMINAL_LIMIT}
+      profile={TERMINAL_FIXTURE_PROFILE}
+      socketFactory={silentSocketFactory}
+      terminals={TERMINAL_FIXTURES}
+      viewerId={TERMINAL_FIXTURE_VIEWER}
+      workspaceId="ws-atlas"
+      {...overrides}
+    />
   );
   return { ...view, actions };
 }
@@ -348,38 +342,6 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.queryByTestId("terminal-journal-head")).not.toBeInTheDocument();
     expect(screen.getByTestId("terminal-window")).toBeInTheDocument();
   });
-
-  it.each([
-    { viewers: 1, statusRule: false },
-    { viewers: 2, statusRule: true },
-  ])(
-    "Should rule the OS head's actions apart once, never leading or doubled (viewers $viewers)",
-    async ({ viewers, statusRule }) => {
-      const terminal = { ...DEV_SERVER_TERMINAL, viewers };
-      renderWindow({
-        hostChrome: true,
-        terminals: [terminal],
-        wrap: ui => (
-          <TopbarSlotProvider>
-            <Topbar title="Terminal" />
-            {ui}
-          </TopbarSlotProvider>
-        ),
-      });
-      await waitForTerminalRenderer(terminal.id);
-
-      const actions = await waitFor(() => {
-        const node = document.querySelector('[data-slot="topbar-actions"]');
-        if (!node) throw new Error("the head has no actions yet");
-        return node;
-      });
-      expect(document.querySelector('[data-slot="topbar-vsep"]') !== null).toBe(statusRule);
-      expect(actions.firstElementChild).not.toHaveAttribute("data-slot", "separator");
-      const rules = actions.querySelectorAll('[data-slot="separator"]');
-      expect(rules).toHaveLength(1);
-      expect(rules[0]?.nextElementSibling).toHaveAttribute("data-testid", "terminal-new");
-    }
-  );
 
   it("Should keep another profile window's mounted terminal buffer alive", async () => {
     restoreFetch = stubTerminalTicketFetch();

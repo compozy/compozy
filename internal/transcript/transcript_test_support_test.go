@@ -129,68 +129,6 @@ func testAssembleReadsCanonicalEnvelopeAndStableOrdering(t *testing.T) {
 	}
 }
 
-func testAssembleRendersSyntheticReentryAsSystemMessage(t *testing.T) {
-	t.Parallel()
-
-	events := []store.SessionEvent{
-		{
-			ID:       "user-1",
-			Sequence: 1,
-			TurnID:   "turn-user",
-			Type:     acp.EventTypeUserMessage,
-			Content: mustMarshalRuntimeEvent(
-				t,
-				acp.EventTypeUserMessage,
-				"turn-user",
-				time.Date(2026, 4, 18, 11, 0, 0, 0, time.UTC),
-				"human prompt",
-				"",
-				"",
-				nil,
-				nil,
-				false,
-			),
-			Timestamp: time.Date(2026, 4, 18, 11, 0, 0, 0, time.UTC),
-		},
-		{
-			ID:       "synth-1",
-			Sequence: 2,
-			TurnID:   "turn-synth",
-			Type:     acp.EventTypeSyntheticReentry,
-			Content: mustMarshalRuntimeEvent(
-				t,
-				acp.EventTypeSyntheticReentry,
-				"turn-synth",
-				time.Date(2026, 4, 18, 11, 0, 1, 0, time.UTC),
-				"daemon wake-up",
-				"",
-				"",
-				nil,
-				nil,
-				false,
-			),
-			Timestamp: time.Date(2026, 4, 18, 11, 0, 1, 0, time.UTC),
-		},
-	}
-
-	messages, err := Assemble(events)
-	if err != nil {
-		t.Fatalf("Assemble() error = %v", err)
-	}
-	if len(messages) != 2 {
-		t.Fatalf("Assemble() len = %d, want 2", len(messages))
-	}
-	if got := messages[0].Role; got != RoleUser {
-		t.Fatalf("messages[0].Role = %q, want %q", got, RoleUser)
-	}
-	if got := messages[1].Role; got != RoleSystem {
-		t.Fatalf("messages[1].Role = %q, want %q", got, RoleSystem)
-	}
-	if got := messages[1].Content; got != "daemon wake-up" {
-		t.Fatalf("messages[1].Content = %q, want %q", got, "daemon wake-up")
-	}
-}
-
 func testAssemblePreservesMixedTurnOrderingAndToolPairingAcrossTurns(t *testing.T) {
 	t.Parallel()
 

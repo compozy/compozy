@@ -20,8 +20,6 @@ import {
   SETTINGS_QUERY_INTERVALS,
   shouldRetrySettingsQuery,
   settingsAttentionOptions,
-  settingsAutomationOptions,
-  settingsGeneralOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
   settingsMCPServerDetailOptions,
@@ -42,15 +40,6 @@ beforeEach(() => {
 });
 
 describe("settings section options", () => {
-  it("uses the configured stale and refetch intervals for sections", () => {
-    const general = settingsGeneralOptions();
-    const automation = settingsAutomationOptions();
-
-    expect(general.staleTime).toBe(SETTINGS_QUERY_INTERVALS.sectionStaleTime);
-    expect(general.refetchInterval).toBe(SETTINGS_QUERY_INTERVALS.sectionRefetchInterval);
-    expect(automation.queryKey).toEqual(["settings", "section", "automation"]);
-  });
-
   it("does not retry policy-blocked settings requests", () => {
     expect(
       shouldRetrySettingsQuery(

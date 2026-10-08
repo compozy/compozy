@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
+import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { appWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
@@ -155,269 +156,370 @@ test.use({
   },
 });
 
-test("operator creates updates fires disables re-enables and deletes a webhook trigger with parity evidence", async ({
+test("operator manages a webhook trigger and verifies authentication replay and fire-limit rejection", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  const triggersWin = appWindow(appPage, "triggers");
-  const ui = automationOperatorSelectors(triggersWin, appPage);
-  const shellUI = automationOperatorSelectors(appPage);
-  await ensureProjectWorkspace(appPage, runtime);
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(shellUI);
+  // Authentication negatives run first; fire limits use a fresh trigger after cleanup.
+  test.setTimeout(180_000);
+  const parityEvidence: Record<string, unknown> = {};
 
-  await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-  await expect(ui.triggersShell).toBeVisible();
+  await test.step("operator creates updates fires disables re-enables and deletes a webhook trigger with parity evidence", async () => {
+    const triggersWin = appWindow(appPage, "triggers");
+    const ui = automationOperatorSelectors(triggersWin, appPage);
+    const shellUI = automationOperatorSelectors(appPage);
+    await ensureProjectWorkspace(appPage, runtime);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await completeOnboardingIfPrompted(shellUI);
 
-  const initialName = uniqueName("triggers-lifecycle");
-  const editedName = `${initialName}-edited`;
-  const webhookID = `wbh_${randomUUID().replaceAll("-", "_").slice(0, 18)}`;
-  const initialEndpointSlug = uniqueName("browser-trigger");
-  const editedEndpointSlug = `${initialEndpointSlug}-v2`;
-  const prompt = browserAutomationOperatorFlowScenario.trigger.prompt;
-  const editedPrompt = `{{ printf "Review payload %s for %s" (index .Data "payload") (index .Data "branch") }}`;
+    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
+    await expect(ui.triggersShell).toBeVisible();
 
-  await ui.createTriggerButton.click();
-  await expect(ui.editorDialog).toBeVisible();
-  await expect(ui.submitTriggerForm).toBeDisabled();
-  await ui.triggerNameInput.fill(initialName);
-  await ui.triggerAgentInput.click();
-  await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
-  await ui.triggerEventOption("webhook").click();
-  await expect(ui.triggerEndpointSlugInput).toBeVisible();
-  await ui.triggerPromptInput.fill(prompt);
-  await addWebhookBranchFilter(ui);
-  await ui.triggerEndpointSlugInput.fill(initialEndpointSlug);
-  await ui.triggerWebhookIDInput.fill(webhookID);
-  await ui.triggerWebhookSecretValueInput.fill(webhookSecret);
-  await expect(ui.submitTriggerForm).toBeEnabled();
+    const initialName = uniqueName("triggers-lifecycle");
+    const editedName = `${initialName}-edited`;
+    const webhookID = `wbh_${randomUUID().replaceAll("-", "_").slice(0, 18)}`;
+    const initialEndpointSlug = uniqueName("browser-trigger");
+    const editedEndpointSlug = `${initialEndpointSlug}-v2`;
+    const prompt = browserAutomationOperatorFlowScenario.trigger.prompt;
+    const editedPrompt = `{{ printf "Review payload %s for %s" (index .Data "payload") (index .Data "branch") }}`;
 
-  const createResponse = appPage.waitForResponse(
-    response =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname === "/api/automation/triggers"
-  );
-  await ui.submitTriggerForm.click();
-  const createBody = await (await createResponse).text();
-  expect(createBody).not.toMatch(sensitivePattern);
-  await expect(ui.editorDialog).toBeHidden();
+    await ui.createTriggerButton.click();
+    await expect(ui.editorDialog).toBeVisible();
+    await expect(ui.submitTriggerForm).toBeDisabled();
+    await ui.triggerNameInput.fill(initialName);
+    await ui.triggerAgentInput.click();
+    await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
+    await ui.triggerEventOption("webhook").click();
+    await expect(ui.triggerEndpointSlugInput).toBeVisible();
+    await ui.triggerPromptInput.fill(prompt);
+    await addWebhookBranchFilter(ui);
+    await ui.triggerEndpointSlugInput.fill(initialEndpointSlug);
+    await ui.triggerWebhookIDInput.fill(webhookID);
+    await ui.triggerWebhookSecretValueInput.fill(webhookSecret);
+    await expect(ui.submitTriggerForm).toBeEnabled();
 
-  const created = await waitForTriggerByName(runtime, initialName);
-  expect(created.webhook_secret_present).toBe(true);
-  // Saving from the editor navigates straight to the new trigger's detail route.
-  await expect(appPage).toHaveURL(new RegExp(`/triggers/${created.id}$`), { timeout: 20_000 });
-  await expect(windowTitle(triggersWin)).toContainText(initialName);
-  await expect(ui.detailPanel).toContainText(webhookID);
-  await expect(ui.detailPanel).not.toContainText(webhookSecret);
+    const createResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/automation/triggers"
+    );
+    await ui.submitTriggerForm.click();
+    const createBody = await (await createResponse).text();
+    expect(createBody).not.toMatch(sensitivePattern);
+    await expect(ui.editorDialog).toBeHidden();
 
-  await ui.editTriggerButton.click();
-  await expect(ui.editorDialog).toBeVisible();
-  await ui.triggerNameInput.fill(editedName);
-  await ui.triggerPromptInput.fill(editedPrompt);
-  await ui.triggerEndpointSlugInput.fill(editedEndpointSlug);
-  const updateResponse = appPage.waitForResponse(
-    response =>
-      response.request().method() === "PATCH" &&
-      new URL(response.url()).pathname ===
-        `/api/automation/triggers/${encodeURIComponent(created.id)}`
-  );
-  await ui.submitTriggerForm.click();
-  const updateBody = await (await updateResponse).text();
-  expect(updateBody).not.toMatch(sensitivePattern);
-  await expect(ui.editorDialog).toBeHidden();
+    const created = await waitForTriggerByName(runtime, initialName);
+    expect(created.webhook_secret_present).toBe(true);
+    // Saving from the editor navigates straight to the new trigger's detail route.
+    await expect(appPage).toHaveURL(new RegExp(`/triggers/${created.id}$`), { timeout: 20_000 });
+    await expect(windowTitle(triggersWin)).toContainText(initialName);
+    await expect(ui.detailPanel).toContainText(webhookID);
+    await expect(ui.detailPanel).not.toContainText(webhookSecret);
 
-  const updated = await waitForTriggerByName(runtime, editedName);
-  expect(updated.endpoint_slug).toBe(editedEndpointSlug);
-  expect(updated.prompt).toBe(editedPrompt);
-  await expect(windowTitle(triggersWin)).toContainText(editedName);
-  await expect(ui.detailPanel).toContainText(editedPrompt);
+    await ui.editTriggerButton.click();
+    await expect(ui.editorDialog).toBeVisible();
+    await ui.triggerNameInput.fill(editedName);
+    await ui.triggerPromptInput.fill(editedPrompt);
+    await ui.triggerEndpointSlugInput.fill(editedEndpointSlug);
+    const updateResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname ===
+          `/api/automation/triggers/${encodeURIComponent(created.id)}`
+    );
+    await ui.submitTriggerForm.click();
+    const updateBody = await (await updateResponse).text();
+    expect(updateBody).not.toMatch(sensitivePattern);
+    await expect(ui.editorDialog).toBeHidden();
 
-  const endpoint = endpointFor(updated);
-  const invalidSignature = await deliverWebhook(runtime, {
-    deliveryID: uniqueName("delivery-invalid"),
-    endpoint,
-    payload: triggerPayload("deploy", "main"),
-    secret: "wrong-secret",
-    wantStatus: 401,
+    const updated = await waitForTriggerByName(runtime, editedName);
+    expect(updated.endpoint_slug).toBe(editedEndpointSlug);
+    expect(updated.prompt).toBe(editedPrompt);
+    await expect(windowTitle(triggersWin)).toContainText(editedName);
+    await expect(ui.detailPanel).toContainText(editedPrompt);
+
+    const endpoint = endpointFor(updated);
+    const invalidSignature = await deliverWebhook(runtime, {
+      deliveryID: uniqueName("delivery-invalid"),
+      endpoint,
+      payload: triggerPayload("deploy", "main"),
+      secret: "wrong-secret",
+      wantStatus: 401,
+    });
+    expect(invalidSignature.body).toMatch(/signature/i);
+    expect(invalidSignature.body).not.toMatch(sensitivePattern);
+
+    const stale = await deliverWebhook(runtime, {
+      deliveryID: uniqueName("delivery-stale"),
+      endpoint,
+      payload: triggerPayload("deploy", "main"),
+      secret: webhookSecret,
+      timestamp: new Date(Date.now() - 10 * 60 * 1000),
+      wantStatus: 401,
+    });
+    expect(stale.body).toMatch(/timestamp|freshness|signature/i);
+    expect(stale.body).not.toMatch(sensitivePattern);
+
+    const validPayload = triggerPayload("deploy", "main");
+    const validDeliveryID = uniqueName("delivery-valid");
+    const validDelivery = await deliverWebhook(runtime, {
+      deliveryID: validDeliveryID,
+      endpoint,
+      payload: validPayload,
+      secret: webhookSecret,
+      wantStatus: 200,
+    });
+    expect(validDelivery.json?.result.matched).toBe(1);
+    const firstRunID = validDelivery.json?.result.runs?.[0]?.id;
+    expect(firstRunID).toBeTruthy();
+    const firstRun = await waitForTriggerRun(runtime, updated.id, firstRunID ?? "", "completed");
+    expect(firstRun.session_id).toBeTruthy();
+
+    const replay = await deliverWebhook(runtime, {
+      deliveryID: validDeliveryID,
+      endpoint,
+      payload: validPayload,
+      secret: webhookSecret,
+      wantStatus: 409,
+    });
+    expect(replay.body).toMatch(/processed|replay|delivery/i);
+    expect(await triggerRunCount(runtime, updated.id)).toBe(1);
+
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(windowTitle(triggersWin)).toContainText(editedName, { timeout: 20_000 });
+    await expect(ui.run(firstRun.id)).toBeVisible();
+    await ui.run(firstRun.id).click();
+    await expect(ui.runOpenLink(firstRun.id)).toBeVisible();
+
+    await ui.triggerEnableSwitch.click();
+    await expect
+      .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
+      .toBe(false);
+    await expect(ui.triggerEnableLabel).toContainText("Disabled");
+    const disabledDelivery = await deliverWebhook(runtime, {
+      deliveryID: uniqueName("delivery-disabled"),
+      endpoint,
+      payload: triggerPayload("deploy", "main"),
+      secret: webhookSecret,
+      wantStatus: 409,
+    });
+    expect(disabledDelivery.body).toMatch(/disabled/i);
+    expect(await triggerRunCount(runtime, updated.id)).toBe(1);
+
+    await ui.triggerEnableSwitch.click();
+    await expect
+      .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
+      .toBe(true);
+    await expect(ui.triggerEnableLabel).toContainText("Enabled");
+    const reenabledDelivery = await deliverWebhook(runtime, {
+      deliveryID: uniqueName("delivery-reenabled"),
+      endpoint,
+      payload: triggerPayload("deploy", "main"),
+      secret: webhookSecret,
+      wantStatus: 200,
+    });
+    const reenabledRunID = reenabledDelivery.json?.result.runs?.[0]?.id;
+    expect(reenabledRunID).toBeTruthy();
+    const reenabledRun = await waitForTriggerRun(
+      runtime,
+      updated.id,
+      reenabledRunID ?? "",
+      "completed"
+    );
+    expect(await triggerRunCount(runtime, updated.id)).toBe(2);
+
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(windowTitle(triggersWin)).toContainText(editedName, { timeout: 20_000 });
+    await expect(ui.run(reenabledRun.id)).toBeVisible();
+    await ui.run(reenabledRun.id).click();
+    await expect(ui.runOpenLink(reenabledRun.id)).toBeVisible();
+
+    const reenabledWorkspaceID = await resolveAutomationWorkspaceID(
+      runtime,
+      reenabledRun.workspace_id
+    );
+    const parity = await captureTriggerParity(runtime, updated.id, reenabledRun.id);
+    expect(parity.http.trigger.name).toBe(editedName);
+    expect(parity.uds.trigger.webhook_id).toBe(webhookID);
+    expect(parity.cliGet.id).toBe(updated.id);
+    expect(parity.cliHistory.runs.some(run => run.id === reenabledRun.id)).toBe(true);
+    expect(parity.httpRun.run.session_id).toBe(reenabledRun.session_id);
+    expect(parity.observe.events.length).toBeGreaterThan(0);
+
+    await assertTriggersViewportMatrix(appPage, browserArtifacts, runtime, updated.id);
+    await expect(ui.run(reenabledRun.id)).toBeVisible();
+    await ui.run(reenabledRun.id).click();
+    await expect(ui.runOpenLink(reenabledRun.id)).toBeVisible();
+    parityEvidence.lifecycle = {
+      invalidSignature: { status: invalidSignature.status },
+      parity,
+      replay: { status: replay.status },
+      stale: { status: stale.status },
+      trigger_id: updated.id,
+      webhook_endpoint: endpoint,
+    };
+    await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
+    await browserArtifacts.captureScreenshot("triggers-lifecycle-history", appPage);
+    await runtime.artifactCollector.captureJSON(
+      "browser_route_state",
+      await captureRouteState(appPage)
+    );
+    const routeState = await readRouteState(runtime);
+    expect(routeState).toMatchObject({
+      automation_active_tab: "triggers",
+      automation_detail_overflow_visible: true,
+      automation_run_count: expect.any(Number),
+      automation_run_history_visible: true,
+      automation_selected_item: editedName,
+      // One open drawer at a time: the accordion never shows two session links at once.
+      automation_session_link_count: 1,
+      automation_view_visible: true,
+    });
+    expect(Number(routeState.automation_run_count)).toBeGreaterThanOrEqual(2);
+
+    await ui.runOpenLink(reenabledRun.id).click();
+    const reenabledSessionId = reenabledRun.session_id;
+    if (!reenabledSessionId) {
+      throw new Error("Expected the re-enabled trigger run to expose a linked session.");
+    }
+    const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch project?" });
+    await expect(workspaceSwitchDialog).toBeVisible();
+    await workspaceSwitchDialog.getByRole("button", { name: "Switch project" }).click();
+    const sessionUI = sessionWindowSelectors(sessionWindow(appPage, reenabledSessionId));
+    await expect(sessionUI.chatView).toBeVisible();
+    await expect(sessionUI.chatView).toContainText("Review payload deploy for main");
+    await expect(sessionUI.chatView).toContainText(
+      browserAutomationOperatorFlowScenario.transcript.assistant
+    );
+
+    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
+    await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
+    await ui.itemLink(updated.id).click();
+    await ui.detailOverflow.click();
+    await ui.deleteAutomationButton.click();
+    await expect(ui.automationDeleteDialog).toBeVisible();
+    await ui.automationDeleteConfirmTyping.fill(editedName);
+    const deleteResponsePromise = appPage.waitForResponse(
+      response =>
+        response.request().method() === "DELETE" &&
+        new URL(response.url()).pathname === `/api/automation/triggers/${updated.id}`
+    );
+    await ui.confirmDeleteAutomationButton.click();
+    const deleteResponse = await deleteResponsePromise;
+    expect(deleteResponse.ok()).toBe(true);
+    await expect(ui.automationDeleteDialog).toBeHidden();
+    await expect.poll(async () => await getTriggerStatus(runtime, updated.id)).toBe(404);
+    const afterDelete = await deliverWebhook(runtime, {
+      deliveryID: uniqueName("delivery-deleted"),
+      endpoint,
+      payload: triggerPayload("deploy", "main"),
+      secret: webhookSecret,
+      wantStatus: 404,
+    });
+    expect(afterDelete.body).not.toMatch(sensitivePattern);
+
+    parityEvidence.lifecycleDiagnostics = {
+      afterDelete: { status: afterDelete.status },
+      parity,
+      routeState,
+    };
+    expect(JSON.stringify(parityEvidence.lifecycleDiagnostics)).not.toMatch(sensitivePattern);
+    expect((await appPage.textContent("body")) ?? "").not.toMatch(sensitivePattern);
+    await deleteSessionIfExists(
+      runtime,
+      await resolveAutomationWorkspaceID(runtime, firstRun.workspace_id),
+      firstRun.session_id
+    );
+    await deleteSessionIfExists(runtime, reenabledWorkspaceID, reenabledRun.session_id);
   });
-  expect(invalidSignature.body).toMatch(/signature/i);
-  expect(invalidSignature.body).not.toMatch(sensitivePattern);
 
-  const stale = await deliverWebhook(runtime, {
-    deliveryID: uniqueName("delivery-stale"),
-    endpoint,
-    payload: triggerPayload("deploy", "main"),
-    secret: webhookSecret,
-    timestamp: new Date(Date.now() - 10 * 60 * 1000),
-    wantStatus: 401,
+  await test.step("operator sees fire-limit rejection across browser and runtime surfaces", async () => {
+    const triggersWin = appWindow(appPage, "triggers");
+    const ui = automationOperatorSelectors(triggersWin, appPage);
+    const shellUI = automationOperatorSelectors(appPage);
+    const trigger = await createTrigger(
+      runtime,
+      triggerRequest({
+        fireLimit: { max: 1, window: "1h" },
+        name: uniqueName("triggers-fire-limit"),
+        prompt: browserAutomationOperatorFlowScenario.trigger.prompt,
+      })
+    );
+    const endpoint = endpointFor(trigger);
+
+    await ensureProjectWorkspace(appPage, runtime);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await completeOnboardingIfPrompted(shellUI);
+    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
+    await expect(ui.triggersShell).toBeVisible();
+    await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
+    await ui.itemLink(trigger.id).click();
+    await expect(ui.detailPanel).toContainText("No retry · 1 / hour");
+
+    const accepted = await deliverWebhook(runtime, {
+      deliveryID: uniqueName("delivery-fire-limit-first"),
+      endpoint,
+      payload: triggerPayload("deploy", "main"),
+      secret: webhookSecret,
+      wantStatus: 200,
+    });
+    const acceptedRunID = accepted.json?.result.runs?.[0]?.id;
+    expect(acceptedRunID).toBeTruthy();
+    const acceptedRun = await waitForTriggerRun(
+      runtime,
+      trigger.id,
+      acceptedRunID ?? "",
+      "completed"
+    );
+
+    const limited = await deliverWebhook(runtime, {
+      deliveryID: uniqueName("delivery-fire-limit-second"),
+      endpoint,
+      payload: triggerPayload("deploy", "main"),
+      secret: webhookSecret,
+      wantStatus: 409,
+    });
+    expect(limited.body).toMatch(/fire limit|limit/i);
+    expect(await triggerRunCount(runtime, trigger.id)).toBe(2);
+
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(windowTitle(triggersWin)).toContainText(trigger.name, { timeout: 20_000 });
+    await expect(ui.run(acceptedRun.id)).toBeVisible();
+    const limitedRun = (await listTriggerRuns(runtime, trigger.id)).find(
+      run => run.id !== acceptedRun.id
+    );
+    expect(limitedRun?.status).toBe("failed");
+    expect([limitedRun?.error ?? "", limitedRun?.delivery_error ?? ""].join(" ")).toMatch(
+      /fire limit/i
+    );
+    await expect(ui.run(limitedRun?.id ?? "")).toBeVisible();
+    await expect(ui.run(limitedRun?.id ?? "")).toContainText("Failed");
+    await expect(ui.runHistory).toContainText("Completed");
+    const acceptedWorkspaceID = await resolveAutomationWorkspaceID(
+      runtime,
+      acceptedRun.workspace_id
+    );
+    const parity = await captureTriggerParity(runtime, trigger.id, acceptedRun.id);
+    expect(parity.httpRuns.runs).toHaveLength(2);
+    expect(parity.cliHistory.runs).toHaveLength(2);
+    parityEvidence.fireLimit = { response: { status: limited.status }, parity };
+    await runtime.artifactCollector.captureJSON("browser_api_snapshots", parityEvidence);
+    await browserArtifacts.captureScreenshot("triggers-fire-limit-rejection", appPage);
+    await assertTriggerRunViewportMatrix(
+      appPage,
+      browserArtifacts,
+      runtime,
+      trigger.id,
+      acceptedRun.id,
+      "triggers-fire-limit-rejection"
+    );
+    // Finalize once while the last journey state is still visible, before cleanup.
+    await browserArtifacts.persist(appPage);
+    await assertNoTriggerSensitiveLeak(appPage, runtime, { ...parityEvidence, limited });
+    await deleteSessionIfExists(runtime, acceptedWorkspaceID, acceptedRun.session_id);
+    await deleteTriggerIfExists(runtime, trigger.id);
   });
-  expect(stale.body).toMatch(/timestamp|freshness|signature/i);
-  expect(stale.body).not.toMatch(sensitivePattern);
-
-  const validPayload = triggerPayload("deploy", "main");
-  const validDeliveryID = uniqueName("delivery-valid");
-  const validDelivery = await deliverWebhook(runtime, {
-    deliveryID: validDeliveryID,
-    endpoint,
-    payload: validPayload,
-    secret: webhookSecret,
-    wantStatus: 200,
-  });
-  expect(validDelivery.json?.result.matched).toBe(1);
-  const firstRunID = validDelivery.json?.result.runs?.[0]?.id;
-  expect(firstRunID).toBeTruthy();
-  const firstRun = await waitForTriggerRun(runtime, updated.id, firstRunID ?? "", "completed");
-  expect(firstRun.session_id).toBeTruthy();
-
-  const replay = await deliverWebhook(runtime, {
-    deliveryID: validDeliveryID,
-    endpoint,
-    payload: validPayload,
-    secret: webhookSecret,
-    wantStatus: 409,
-  });
-  expect(replay.body).toMatch(/processed|replay|delivery/i);
-  expect(await triggerRunCount(runtime, updated.id)).toBe(1);
-
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(windowTitle(triggersWin)).toContainText(editedName, { timeout: 20_000 });
-  await expect(ui.run(firstRun.id)).toBeVisible();
-  await ui.run(firstRun.id).click();
-  await expect(ui.runOpenLink(firstRun.id)).toBeVisible();
-
-  await ui.triggerEnableSwitch.click();
-  await expect
-    .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
-    .toBe(false);
-  await expect(ui.triggerEnableLabel).toContainText("Disabled");
-  const disabledDelivery = await deliverWebhook(runtime, {
-    deliveryID: uniqueName("delivery-disabled"),
-    endpoint,
-    payload: triggerPayload("deploy", "main"),
-    secret: webhookSecret,
-    wantStatus: 409,
-  });
-  expect(disabledDelivery.body).toMatch(/disabled/i);
-  expect(await triggerRunCount(runtime, updated.id)).toBe(1);
-
-  await ui.triggerEnableSwitch.click();
-  await expect.poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled).toBe(true);
-  await expect(ui.triggerEnableLabel).toContainText("Enabled");
-  const reenabledDelivery = await deliverWebhook(runtime, {
-    deliveryID: uniqueName("delivery-reenabled"),
-    endpoint,
-    payload: triggerPayload("deploy", "main"),
-    secret: webhookSecret,
-    wantStatus: 200,
-  });
-  const reenabledRunID = reenabledDelivery.json?.result.runs?.[0]?.id;
-  expect(reenabledRunID).toBeTruthy();
-  const reenabledRun = await waitForTriggerRun(
-    runtime,
-    updated.id,
-    reenabledRunID ?? "",
-    "completed"
-  );
-  expect(await triggerRunCount(runtime, updated.id)).toBe(2);
-
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(windowTitle(triggersWin)).toContainText(editedName, { timeout: 20_000 });
-  await expect(ui.run(reenabledRun.id)).toBeVisible();
-  await ui.run(reenabledRun.id).click();
-  await expect(ui.runOpenLink(reenabledRun.id)).toBeVisible();
-
-  const reenabledWorkspaceID = await resolveAutomationWorkspaceID(
-    runtime,
-    reenabledRun.workspace_id
-  );
-  const parity = await captureTriggerParity(runtime, updated.id, reenabledRun.id);
-  expect(parity.http.trigger.name).toBe(editedName);
-  expect(parity.uds.trigger.webhook_id).toBe(webhookID);
-  expect(parity.cliGet.id).toBe(updated.id);
-  expect(parity.cliHistory.runs.some(run => run.id === reenabledRun.id)).toBe(true);
-  expect(parity.httpRun.run.session_id).toBe(reenabledRun.session_id);
-  expect(parity.observe.events.length).toBeGreaterThan(0);
-
-  await assertTriggersViewportMatrix(appPage, browserArtifacts, runtime, updated.id);
-  await expect(ui.run(reenabledRun.id)).toBeVisible();
-  await ui.run(reenabledRun.id).click();
-  await expect(ui.runOpenLink(reenabledRun.id)).toBeVisible();
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
-    invalidSignature: { status: invalidSignature.status },
-    parity,
-    replay: { status: replay.status },
-    stale: { status: stale.status },
-    trigger_id: updated.id,
-    webhook_endpoint: endpoint,
-  });
-  await browserArtifacts.captureScreenshot("triggers-lifecycle-history", appPage);
-  await browserArtifacts.persist(appPage);
-  const routeState = await readRouteState(runtime);
-  expect(routeState).toMatchObject({
-    automation_active_tab: "triggers",
-    automation_detail_overflow_visible: true,
-    automation_run_count: expect.any(Number),
-    automation_run_history_visible: true,
-    automation_selected_item: editedName,
-    // One open drawer at a time: the accordion never shows two session links at once.
-    automation_session_link_count: 1,
-    automation_view_visible: true,
-  });
-  expect(Number(routeState.automation_run_count)).toBeGreaterThanOrEqual(2);
-
-  await ui.runOpenLink(reenabledRun.id).click();
-  const reenabledSessionId = reenabledRun.session_id;
-  if (!reenabledSessionId) {
-    throw new Error("Expected the re-enabled trigger run to expose a linked session.");
-  }
-  const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch project?" });
-  await expect(workspaceSwitchDialog).toBeVisible();
-  await workspaceSwitchDialog.getByRole("button", { name: "Switch project" }).click();
-  const sessionUI = sessionWindowSelectors(sessionWindow(appPage, reenabledSessionId));
-  await expect(sessionUI.chatView).toBeVisible();
-  await expect(sessionUI.chatView).toContainText("Review payload deploy for main");
-  await expect(sessionUI.chatView).toContainText(
-    browserAutomationOperatorFlowScenario.transcript.assistant
-  );
-
-  await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-  await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(updated.id).click();
-  await ui.detailOverflow.click();
-  await ui.deleteAutomationButton.click();
-  await expect(ui.automationDeleteDialog).toBeVisible();
-  await ui.automationDeleteConfirmTyping.fill(editedName);
-  const deleteResponsePromise = appPage.waitForResponse(
-    response =>
-      response.request().method() === "DELETE" &&
-      new URL(response.url()).pathname === `/api/automation/triggers/${updated.id}`
-  );
-  await ui.confirmDeleteAutomationButton.click();
-  const deleteResponse = await deleteResponsePromise;
-  expect(deleteResponse.ok()).toBe(true);
-  await expect(ui.automationDeleteDialog).toBeHidden();
-  await expect.poll(async () => await getTriggerStatus(runtime, updated.id)).toBe(404);
-  const afterDelete = await deliverWebhook(runtime, {
-    deliveryID: uniqueName("delivery-deleted"),
-    endpoint,
-    payload: triggerPayload("deploy", "main"),
-    secret: webhookSecret,
-    wantStatus: 404,
-  });
-  expect(afterDelete.body).not.toMatch(sensitivePattern);
-
-  await assertNoTriggerSensitiveLeak(appPage, runtime, {
-    afterDelete: { status: afterDelete.status },
-    parity,
-    routeState,
-  });
-  await deleteSessionIfExists(
-    runtime,
-    await resolveAutomationWorkspaceID(runtime, firstRun.workspace_id),
-    firstRun.session_id
-  );
-  await deleteSessionIfExists(runtime, reenabledWorkspaceID, reenabledRun.session_id);
 });
 
 test("failed webhook trigger run is diagnosable with retry evidence and no secret leakage", async ({
@@ -507,94 +609,6 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   });
   await assertNoTriggerSensitiveLeak(appPage, runtime, { parity, routeState });
   await deleteSessionIfExists(runtime, failedWorkspaceID, failedRun.session_id);
-  await deleteTriggerIfExists(runtime, trigger.id);
-});
-
-test("operator sees fire-limit rejection across browser and runtime surfaces", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  const triggersWin = appWindow(appPage, "triggers");
-  const ui = automationOperatorSelectors(triggersWin, appPage);
-  const shellUI = automationOperatorSelectors(appPage);
-  const trigger = await createTrigger(
-    runtime,
-    triggerRequest({
-      fireLimit: { max: 1, window: "1h" },
-      name: uniqueName("triggers-fire-limit"),
-      prompt: browserAutomationOperatorFlowScenario.trigger.prompt,
-    })
-  );
-  const endpoint = endpointFor(trigger);
-
-  await ensureProjectWorkspace(appPage, runtime);
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await completeOnboardingIfPrompted(shellUI);
-  await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-  await expect(ui.triggersShell).toBeVisible();
-  await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(trigger.id).click();
-  await expect(ui.detailPanel).toContainText("No retry · 1 / hour");
-
-  const accepted = await deliverWebhook(runtime, {
-    deliveryID: uniqueName("delivery-fire-limit-first"),
-    endpoint,
-    payload: triggerPayload("deploy", "main"),
-    secret: webhookSecret,
-    wantStatus: 200,
-  });
-  const acceptedRunID = accepted.json?.result.runs?.[0]?.id;
-  expect(acceptedRunID).toBeTruthy();
-  const acceptedRun = await waitForTriggerRun(
-    runtime,
-    trigger.id,
-    acceptedRunID ?? "",
-    "completed"
-  );
-
-  const limited = await deliverWebhook(runtime, {
-    deliveryID: uniqueName("delivery-fire-limit-second"),
-    endpoint,
-    payload: triggerPayload("deploy", "main"),
-    secret: webhookSecret,
-    wantStatus: 409,
-  });
-  expect(limited.body).toMatch(/fire limit|limit/i);
-  expect(await triggerRunCount(runtime, trigger.id)).toBe(2);
-
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(windowTitle(triggersWin)).toContainText(trigger.name, { timeout: 20_000 });
-  await expect(ui.run(acceptedRun.id)).toBeVisible();
-  const limitedRun = (await listTriggerRuns(runtime, trigger.id)).find(
-    run => run.id !== acceptedRun.id
-  );
-  expect(limitedRun?.status).toBe("failed");
-  expect([limitedRun?.error ?? "", limitedRun?.delivery_error ?? ""].join(" ")).toMatch(
-    /fire limit/i
-  );
-  await expect(ui.run(limitedRun?.id ?? "")).toBeVisible();
-  await expect(ui.run(limitedRun?.id ?? "")).toContainText("Failed");
-  await expect(ui.runHistory).toContainText("Completed");
-  const acceptedWorkspaceID = await resolveAutomationWorkspaceID(runtime, acceptedRun.workspace_id);
-  const parity = await captureTriggerParity(runtime, trigger.id, acceptedRun.id);
-  expect(parity.httpRuns.runs).toHaveLength(2);
-  expect(parity.cliHistory.runs).toHaveLength(2);
-  await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
-    fireLimit: { response: { status: limited.status }, parity },
-  });
-  await browserArtifacts.captureScreenshot("triggers-fire-limit-rejection", appPage);
-  await assertTriggerRunViewportMatrix(
-    appPage,
-    browserArtifacts,
-    runtime,
-    trigger.id,
-    acceptedRun.id,
-    "triggers-fire-limit-rejection"
-  );
-  await browserArtifacts.persist(appPage);
-  await assertNoTriggerSensitiveLeak(appPage, runtime, { limited, parity });
-  await deleteSessionIfExists(runtime, acceptedWorkspaceID, acceptedRun.session_id);
   await deleteTriggerIfExists(runtime, trigger.id);
 });
 

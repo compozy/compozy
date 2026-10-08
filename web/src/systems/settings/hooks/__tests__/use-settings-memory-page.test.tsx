@@ -84,7 +84,7 @@ afterEach(() => {
 });
 
 describe("useSettingsMemoryPage", () => {
-  it("loads the envelope and seeds the draft with the current config", async () => {
+  it("marks the page dirty when draft diverges from the envelope and resets on discard", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsMemoryPage(), { wrapper });
 
@@ -92,13 +92,6 @@ describe("useSettingsMemoryPage", () => {
       expect(result.current.envelope).toBeTruthy();
       expect(result.current.draft).toEqual(memoryEnvelope.config);
     });
-  });
-
-  it("marks the page dirty when draft diverges from the envelope and resets on discard", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMemoryPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
       result.current.setDraft({

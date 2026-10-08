@@ -176,6 +176,9 @@ describe("AutomationDetailPanel", () => {
     expect(onTriggerNow).toHaveBeenCalledOnce();
     expect(onBack).toHaveBeenCalledOnce();
     expect(onDelete).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("automation-detail-header").querySelector("[data-slot='page-head']")
+    ).toBeNull();
   });
 
   it("Should disable Run now when the automation runtime is unavailable", () => {
@@ -225,11 +228,13 @@ describe("AutomationDetailPanel", () => {
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("delete-automation-btn"));
     const confirmButton = screen.getByTestId("confirm-delete-automation-btn");
-    await user.type(screen.getByLabelText("Type to confirm"), `${jobFixture.name}-wrong`);
+    await user.click(screen.getByLabelText("Type to confirm"));
+    await user.paste(`${jobFixture.name}-wrong`);
     expect(confirmButton).toBeDisabled();
 
     await user.clear(screen.getByLabelText("Type to confirm"));
-    await user.type(screen.getByLabelText("Type to confirm"), jobFixture.name);
+    await user.click(screen.getByLabelText("Type to confirm"));
+    await user.paste(jobFixture.name);
     expect(confirmButton).toBeEnabled();
     await user.click(confirmButton);
 
@@ -246,7 +251,8 @@ describe("AutomationDetailPanel", () => {
 
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("delete-automation-btn"));
-    await user.type(screen.getByLabelText("Type to confirm"), jobFixture.name);
+    await user.click(screen.getByLabelText("Type to confirm"));
+    await user.paste(jobFixture.name);
     await user.click(screen.getByTestId("confirm-delete-automation-btn"));
 
     await waitFor(() =>
@@ -338,15 +344,6 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByTestId("job-enable-label")).toHaveTextContent("Disabled");
     fireEvent.click(screen.getByTestId("toggle-automation-btn"));
     expect(onToggleEnabled).toHaveBeenCalledWith(true);
-  });
-
-  it("Should render the detail header with the job name in the window-head slot", () => {
-    renderPanel();
-
-    const header = screen.getByTestId("automation-detail-header");
-    expect(header).toBeInTheDocument();
-    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("daily-review");
-    expect(header.querySelector("[data-slot='page-head']")).toBeNull();
   });
 
   it("renders manual jobs without implying a cron schedule", () => {

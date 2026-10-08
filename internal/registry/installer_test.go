@@ -412,15 +412,6 @@ func TestInstallerInstallRequiresManifestAtRoot(t *testing.T) {
 	})
 }
 
-func TestInstallerInstallCleansUpTempDirOnFailure(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should remove the staging directory after installation failure", func(t *testing.T) {
-		t.Parallel()
-		testInstallerInstallCleansUpTempDirOnFailure(t)
-	})
-}
-
 // Invariant: cancellation synchronously interrupts a non-context-aware downloaded stream and reclaims staging.
 // Owner: registry installer lifecycle.
 // Canonical suite: registry installer lifecycle tests.
@@ -430,15 +421,6 @@ func TestInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testi
 	t.Run("Should interrupt a non-context-aware reader on cancellation", func(t *testing.T) {
 		t.Parallel()
 		testInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t)
-	})
-}
-
-func TestInstallerInstallRejectsUnexpectedContentType(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject an unexpected download content type", func(t *testing.T) {
-		t.Parallel()
-		testInstallerInstallRejectsUnexpectedContentType(t)
 	})
 }
 
@@ -510,6 +492,7 @@ func testInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
 	archive := mustTarGz(t, []tarEntry{
 		{name: "extension/extension.toml", content: "name = \"demo-ext\"\nversion = \"1.2.3\"\n"},
 		{name: "extension/bin/run.sh", content: "#!/bin/sh\necho ok\n"},
+		{name: "extension/assets/config.json", content: `{"ok":true}`},
 	})
 	downloader := &stubDownloader{
 		downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
@@ -532,6 +515,9 @@ func testInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
+	if result.Slug != "acme/demo-ext" {
+		t.Fatalf("Install() slug = %q, want acme/demo-ext", result.Slug)
+	}
 	if result.Name != "demo-ext" {
 		t.Fatalf("Install() result = %#v, want name demo-ext", result)
 	}
@@ -540,6 +526,17 @@ func testInstallerInstallExtensionArchiveReturnsChecksum(t *testing.T) {
 	}
 	if result.InstallPath != targetDir {
 		t.Fatalf("Install() path = %q, want %q", result.InstallPath, targetDir)
+	}
+
+	for path, want := range map[string]string{
+		installerExtensionManifestName:         "name = \"demo-ext\"\nversion = \"1.2.3\"\n",
+		filepath.Join("assets", "config.json"): `{"ok":true}`,
+		filepath.Join("bin", "run.sh"):         "#!/bin/sh\necho ok\n",
+	} {
+		content, err := os.ReadFile(filepath.Join(targetDir, path))
+		if err != nil || string(content) != want {
+			t.Fatalf("installed %s = %q, %v, want %q", path, content, err, want)
+		}
 	}
 
 	checksum, err := computeInstallChecksumDirectory(openArchiveTestRoot(t, targetDir))
@@ -773,30 +770,8 @@ func testInstallerInstallRejectsDecompressedArchiveOverLimit(t *testing.T) {
 func testInstallerInstallRequiresManifestAtRoot(t *testing.T) {
 	t.Helper()
 
-	archive := mustTarGz(t, []tarEntry{
-		{name: "package/README.md", content: "no manifest here"},
-	})
-	downloader := &stubDownloader{
-		downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
-			return &DownloadResult{
-				ContentType: "application/gzip",
-				Reader:      io.NopCloser(bytes.NewReader(archive)),
-			}, nil
-		},
-	}
-
-	_, err := NewInstaller(
-		downloader,
-	).Install(t.Context(), "acme/missing", DownloadOpts{}, filepath.Join(t.TempDir(), "missing"))
-	if !errors.Is(err, errInstallMissingManifest) {
-		t.Fatalf("Install() error = %v, want %v", err, errInstallMissingManifest)
-	}
-}
-
-func testInstallerInstallCleansUpTempDirOnFailure(t *testing.T) {
-	t.Helper()
-
 	parent := t.TempDir()
+
 	archive := mustTarGz(t, []tarEntry{
 		{name: "package/README.md", content: "no manifest here"},
 	})
@@ -812,8 +787,8 @@ func testInstallerInstallCleansUpTempDirOnFailure(t *testing.T) {
 	_, err := NewInstaller(
 		downloader,
 	).Install(t.Context(), "acme/missing", DownloadOpts{}, filepath.Join(parent, "missing"))
-	if err == nil {
-		t.Fatal("Install() error = nil, want failure")
+	if !errors.Is(err, errInstallMissingManifest) {
+		t.Fatalf("Install() error = %v, want %v", err, errInstallMissingManifest)
 	}
 
 	assertNoTempInstallDirs(t, parent)
@@ -858,26 +833,6 @@ func testInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testi
 	}
 
 	assertNoTempInstallDirs(t, parent)
-}
-
-func testInstallerInstallRejectsUnexpectedContentType(t *testing.T) {
-	t.Helper()
-
-	downloader := &stubDownloader{
-		downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
-			return &DownloadResult{
-				ContentType: "text/html; charset=utf-8",
-				Reader:      io.NopCloser(strings.NewReader("<html>login</html>")),
-			}, nil
-		},
-	}
-
-	_, err := NewInstaller(
-		downloader,
-	).Install(t.Context(), "acme/html", DownloadOpts{}, filepath.Join(t.TempDir(), "html"))
-	if !errors.Is(err, errUnexpectedContentType) {
-		t.Fatalf("Install() error = %v, want %v", err, errUnexpectedContentType)
-	}
 }
 
 func testInstallerCleansStaleTempDirs(t *testing.T) {

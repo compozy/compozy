@@ -191,13 +191,15 @@ describe("Settings window search shortcut", () => {
     }
   });
 
-  it.each(["metaKey", "ctrlKey", "altKey"])("Should preserve a %s chord", async modifier => {
+  it("Should preserve modifier chords", async () => {
     await renderSettingsWindow();
     const control = screen.getByRole("radio", { name: "Flat" });
     control.focus();
 
-    expect(fireEvent.keyDown(control, { key: "/", [modifier]: true })).toBe(true);
-    expect(control).toHaveFocus();
+    for (const modifier of ["metaKey", "ctrlKey", "altKey"]) {
+      expect(fireEvent.keyDown(control, { key: "/", [modifier]: true })).toBe(true);
+      expect(control).toHaveFocus();
+    }
   });
 
   it("Should enable the shortcut only while its window is active", async () => {

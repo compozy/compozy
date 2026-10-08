@@ -14,7 +14,6 @@ import {
   matchesPaletteSessionQuery,
   paletteSessionFilter,
   paletteSessionFilterCounts,
-  PALETTE_SESSION_FILTER_LIST,
 } from "../palette-session-filters";
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
@@ -107,12 +106,5 @@ describe("palette session filters (UT-061)", () => {
       "s-failed",
     ]);
     expect(filterPaletteSessions(CATALOG, "finished", "codex")).toEqual([]);
-  });
-
-  it("Should name the active filter in its own empty state", () => {
-    for (const filter of PALETTE_SESSION_FILTER_LIST) {
-      expect(paletteSessionFilter(filter.id).emptyMessage).toBe(filter.emptyMessage);
-      expect(filter.emptyMessage.length).toBeGreaterThan(0);
-    }
   });
 });

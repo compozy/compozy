@@ -222,6 +222,7 @@ describe("RuntimeSelector single-button trigger", () => {
     await user.click(trigger);
     expect(await screen.findByTestId("runtime-selector-popup")).toBeInTheDocument();
     expect(trigger).toHaveAttribute("data-open", "true");
+    expect(row("gpt-a").querySelector("[data-selected-check]")).not.toBeNull();
 
     await user.click(trigger);
     await waitFor(() =>
@@ -500,43 +501,6 @@ describe("RuntimeSelector reasoning trigger + footer", () => {
     expect(trigger.querySelector('[data-slot="intensity-meter"]')).toBeNull();
   });
 
-  it("Should fill the trigger meter with the model default while reasoning is unset", () => {
-    renderSelector({
-      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
-      models: [
-        model("leveled", {
-          name: "Leveled",
-          efforts: ["low", "medium", "high"],
-          default_effort: "medium",
-        }),
-      ],
-    });
-
-    const trigger = screen.getByTestId("rt-trigger");
-    const meter = trigger.querySelector('[data-slot="intensity-meter"]');
-    expect(meter).not.toBeNull();
-    // The meter mirrors the slider: the model default (medium → canonical
-    // position 4) fills the bars while the wire value stays "". No effort
-    // label text renders on the trigger.
-    expect(meter).toHaveAttribute("data-hollow", "false");
-    expect(meter).toHaveAttribute("data-position", "4");
-    // No effort label text renders on the trigger — the meter is the only cue.
-    expect(within(trigger).queryByText("Medium")).toBeNull();
-  });
-
-  it("Should render a hollow trigger meter when reasoning is unset and the model has no default", () => {
-    renderSelector({
-      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
-      models: [model("leveled", { name: "Leveled", efforts: ["low", "medium", "high"] })],
-    });
-
-    const meter = screen.getByTestId("rt-trigger").querySelector('[data-slot="intensity-meter"]');
-    expect(meter).not.toBeNull();
-    // Semantic state (hollow, zero bars filled), not the visual class.
-    expect(meter).toHaveAttribute("data-hollow", "true");
-    expect(meter).toHaveAttribute("data-position", "0");
-  });
-
   it("Should expose only the model's efforts as slider stops in canonical order — no None, no Default", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
@@ -616,6 +580,13 @@ describe("RuntimeSelector reasoning slider", () => {
         }),
       ],
     });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    const meter = trigger.querySelector('[data-slot="intensity-meter"]');
+    expect(meter).not.toBeNull();
+    expect(meter).toHaveAttribute("data-hollow", "false");
+    expect(meter).toHaveAttribute("data-position", "4");
+    expect(within(trigger).queryByText("Medium")).toBeNull();
 
     await openSelector(user);
 
@@ -727,6 +698,11 @@ describe("RuntimeSelector reasoning slider", () => {
       models: [model("leveled", { name: "Leveled", efforts: ["low", "medium", "high"] })],
     });
 
+    const meter = screen.getByTestId("rt-trigger").querySelector('[data-slot="intensity-meter"]');
+    expect(meter).not.toBeNull();
+    expect(meter).toHaveAttribute("data-hollow", "true");
+    expect(meter).toHaveAttribute("data-position", "0");
+
     await openSelector(user);
 
     expect(screen.getByTestId("runtime-selector-reasoning-slider")).toHaveAttribute(
@@ -770,16 +746,6 @@ describe("RuntimeSelector needs-auth provider", () => {
     }),
   ];
 
-  it("Should surface the sign-in warning on the trigger for a needs-auth provider", () => {
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      providers: [authProvider],
-      models: authModels,
-    });
-
-    expect(screen.getByRole("img", { name: "Provider needs sign in" })).toBeInTheDocument();
-  });
-
   it("Should expose a model-unavailable warning to assistive tech on the trigger", () => {
     renderSelector({
       value: { provider: "codex", model: "gone", reasoning_effort: "" },
@@ -796,21 +762,6 @@ describe("RuntimeSelector needs-auth provider", () => {
     expect(screen.getByRole("img", { name: "Model unavailable" })).toBeInTheDocument();
   });
 
-  it("Should dim the rail item and disable every row with a reason for a needs-auth provider", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      providers: [authProvider],
-      models: authModels,
-    });
-
-    await openSelector(user);
-
-    expect(document.querySelector('[data-rail="codex"]')).toHaveAttribute("data-dim", "true");
-    expect(row("gpt-a")).toHaveAttribute("data-disabled", "true");
-    expect(row("gpt-a")).toHaveTextContent("Sign in");
-  });
-
   it("Should not emit onChange when a disabled row is clicked", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
@@ -819,7 +770,11 @@ describe("RuntimeSelector needs-auth provider", () => {
       models: authModels,
     });
 
+    expect(screen.getByRole("img", { name: "Provider needs sign in" })).toBeInTheDocument();
     await openSelector(user);
+    expect(document.querySelector('[data-rail="codex"]')).toHaveAttribute("data-dim", "true");
+    expect(row("gpt-a")).toHaveAttribute("data-disabled", "true");
+    expect(row("gpt-a")).toHaveTextContent("Sign in");
     await user.click(row("gpt-a"));
 
     expect(onChange).not.toHaveBeenCalled();
@@ -1289,6 +1244,11 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     });
 
     await openSelector(user);
+    const option = row("gpt-a");
+    expect(option.querySelector("button, [role='button'], [tabindex='0']")).toBeNull();
+    const star = option.querySelector<HTMLElement>("[data-favorite-indicator]");
+    expect(star).not.toBeNull();
+    expect(star).toHaveAttribute("aria-hidden", "true");
     // The star is a pointer-only affordance inside the option; clicking it
     // toggles the favorite and must NOT commit the row as a selection.
     await user.click(row("gpt-a").querySelector<HTMLElement>("[data-favorite-indicator]")!);
@@ -1296,23 +1256,6 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     expect(readList(FAVORITES_STORAGE_KEY)).toContain(runtimeModelKey("codex", "gpt-a"));
     expect(row("gpt-a")).toHaveAttribute("data-favorite", "true");
     expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("Should keep options pure — no focusable control nests inside, and the star stays out of the a11y tree", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      models: [model("gpt-a", { name: "GPT A" })],
-    });
-
-    await openSelector(user);
-    // ARIA-valid list: a listbox option wraps no button / role=button / tabbable
-    // descendant; the star affordance is aria-hidden (keyboard/AT path = Alt+F).
-    const option = row("gpt-a");
-    expect(option.querySelector("button, [role='button'], [tabindex='0']")).toBeNull();
-    const star = option.querySelector<HTMLElement>("[data-favorite-indicator]");
-    expect(star).not.toBeNull();
-    expect(star).toHaveAttribute("aria-hidden", "true");
   });
 
   it("Should ignore star clicks on a disabled row and Alt+F with no highlight", async () => {
@@ -1351,27 +1294,12 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     const search = screen.getByTestId("runtime-selector-search");
     fireEvent.keyDown(search, { key: "ArrowDown" });
     await waitFor(() => expect(row("gpt-a")).toHaveAttribute("data-highlighted", "true"));
+    expect(row("gpt-a")).not.toHaveAttribute("aria-keyshortcuts");
+    expect(search).toHaveAttribute("aria-keyshortcuts", "Alt+F");
     // Alt+F (layout-independent code) — NOT Cmd/Ctrl-D (browser bookmark conflict).
     fireEvent.keyDown(search, { code: "KeyF", altKey: true });
 
     expect(readList(FAVORITES_STORAGE_KEY)).toContain(runtimeModelKey("codex", "gpt-a"));
-  });
-
-  it("Should carry the Alt+F shortcut on the search combobox, never on listbox options", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      models: [model("gpt-a", { name: "GPT A" })],
-    });
-
-    await openSelector(user);
-    // Options stay pure — no aria-keyshortcuts. The search input (where focus
-    // lives during list navigation) is the accelerator's carrier.
-    expect(row("gpt-a")).not.toHaveAttribute("aria-keyshortcuts");
-    expect(screen.getByTestId("runtime-selector-search")).toHaveAttribute(
-      "aria-keyshortcuts",
-      "Alt+F"
-    );
   });
 
   it("Should keep the active (provider,model) target and live aria-activedescendant across favorite reorder", async () => {
@@ -1785,20 +1713,6 @@ describe("RuntimeSelector compound provider·model identity", () => {
     }),
   ];
 
-  it("Should render both providers' rows when a model id is shared across providers", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      providers: twoProviders,
-      models: sharedModels,
-    });
-
-    await openSelector(user);
-    expect(rowFor("codex", "shared-model")).toBeInTheDocument();
-    expect(rowFor("claude", "shared-model")).toBeInTheDocument();
-    expect(document.querySelectorAll('[data-model="shared-model"]')).toHaveLength(2);
-  });
-
   it("Should emit the exact provider of the clicked row for a shared model id", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
@@ -1810,6 +1724,10 @@ describe("RuntimeSelector compound provider·model identity", () => {
     // Selection keeps the popup open (pick model, then tune reasoning), so both
     // provider rows are clickable within one open session.
     await openSelector(user);
+
+    expect(rowFor("codex", "shared-model")).toBeInTheDocument();
+    expect(rowFor("claude", "shared-model")).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-model="shared-model"]')).toHaveLength(2);
     await user.click(rowFor("claude", "shared-model"));
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "claude",
@@ -1905,12 +1823,17 @@ describe("RuntimeSelector provider rail filtering", () => {
       value: { provider: "codex", model: "", reasoning_effort: "" },
       providers: twoProviders,
       models: railModels,
+      props: { onOpenProviderSettings: vi.fn() },
     });
 
     await openSelector(user);
     // Truthful semantics: a local mutually-exclusive filter is a radiogroup, never
     // a tablist (the rail does not swap a tabpanel — it filters the list in place).
     const radiogroup = document.querySelector<HTMLElement>('[role="radiogroup"]')!;
+
+    const settings = screen.getByTestId("runtime-selector-settings");
+    expect(radiogroup.contains(settings)).toBe(false);
+    expect(settings).not.toHaveAttribute("role", "radio");
     expect(radiogroup).toBeInTheDocument();
     expect(document.querySelector('[role="tablist"]')).toBeNull();
     expect(document.querySelector('[data-rail="all"]')).toHaveAttribute("role", "radio");
@@ -1923,23 +1846,6 @@ describe("RuntimeSelector provider rail filtering", () => {
     await waitFor(() =>
       expect(document.querySelector('[data-rail="fav"]')).toHaveAttribute("data-active", "true")
     );
-  });
-
-  it("Should keep Provider Settings structurally outside the filter radiogroup", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      providers: twoProviders,
-      models: railModels,
-      props: { onOpenProviderSettings: vi.fn() },
-    });
-
-    await openSelector(user);
-    const settings = screen.getByTestId("runtime-selector-settings");
-    const radiogroup = document.querySelector('[role="radiogroup"]')!;
-    // Settings is an escape hatch, not a fourth filter — it must not live in the group.
-    expect(radiogroup.contains(settings)).toBe(false);
-    expect(settings).not.toHaveAttribute("role", "radio");
   });
 
   it("Should jump the rail filter to the last provider on End and back to All on Home", async () => {
@@ -2034,24 +1940,6 @@ describe("RuntimeSelector single-line row", () => {
     expect(row("supp").querySelector("[data-reasoning-indicator]")).not.toBeNull();
     expect(row("plain").querySelector("[data-reasoning-indicator]")).toBeNull();
   });
-
-  it("Should mark the selected row with the selection fill and a structural check", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "picked", reasoning_effort: "" },
-      models: [model("picked", { name: "Picked" }), model("other", { name: "Other" })],
-    });
-
-    await openSelector(user);
-    const selected = document.querySelector<HTMLElement>(
-      '[data-model="picked"][data-selected="true"]'
-    );
-    expect(selected).not.toBeNull();
-    // The selected row carries the neutral selection fill (orange is reserved for
-    // needs-you), plus the non-color check.
-    expect(selected?.className).toContain("bg-selected");
-    expect(selected?.querySelector("[data-selected-check]")).not.toBeNull();
-  });
 });
 
 describe("RuntimeSelector reasoning footer modes", () => {
@@ -2145,6 +2033,10 @@ describe("RuntimeSelector speed request", () => {
       props: { speed: "normal", onSpeedChange },
     });
 
+    expect(
+      screen.getByTestId("rt-trigger").querySelector('[data-slot="runtime-selector-fast"]')
+    ).toBeNull();
+
     await openSelector(user);
     const speedSwitch = screen.getByTestId("runtime-selector-speed");
     expect(speedSwitch).toHaveRole("switch");
@@ -2163,6 +2055,12 @@ describe("RuntimeSelector speed request", () => {
       models: leveledModels,
       props: { speed: "fast", onSpeedChange },
     });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    expect(trigger.querySelector('[data-slot="runtime-selector-fast"]')).not.toBeNull();
+    expect(trigger).toHaveAccessibleName(
+      "Runtime: Codex / Leveled, reasoning provider default, fast speed requested"
+    );
 
     await openSelector(user);
     const speedSwitch = screen.getByTestId("runtime-selector-speed");
@@ -2204,31 +2102,7 @@ describe("RuntimeSelector speed request", () => {
     withSwitch.unmount();
   });
 
-  it("Should mark the trigger with the fast bolt and speak the request in the accessible summary", () => {
-    renderSelector({
-      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
-      models: leveledModels,
-      props: { speed: "fast", onSpeedChange: vi.fn() },
-    });
-
-    const trigger = screen.getByTestId("rt-trigger");
-    expect(trigger.querySelector('[data-slot="runtime-selector-fast"]')).not.toBeNull();
-    expect(trigger).toHaveAccessibleName(
-      "Runtime: Codex / Leveled, reasoning provider default, fast speed requested"
-    );
-  });
-
-  it("Should keep the trigger bolt off while the request is normal or the surface is unwired", () => {
-    const normalWired = renderSelector({
-      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
-      models: leveledModels,
-      props: { speed: "normal", onSpeedChange: vi.fn() },
-    });
-    expect(
-      screen.getByTestId("rt-trigger").querySelector('[data-slot="runtime-selector-fast"]')
-    ).toBeNull();
-    normalWired.unmount();
-
+  it("Should keep the trigger bolt off when the surface is unwired", () => {
     // An unwired surface must never show speed state, even if a stale `speed`
     // prop leaks in without its handler.
     renderSelector({
@@ -2396,18 +2270,6 @@ describe("RuntimeSelector composer variant", () => {
   };
   const composerModels = [model("gpt-a", { efforts: ["low", "medium", "high"] })];
 
-  it("Should keep the full runtime identity in the composer", () => {
-    renderSelector({
-      value: composerValue,
-      models: composerModels,
-      props: { variant: "composer" },
-    });
-
-    const trigger = screen.getByTestId("rt-trigger");
-    expect(trigger).toHaveTextContent("gpt-a");
-    expect(trigger).toHaveAccessibleName(/Codex \/ gpt-a, reasoning High/);
-  });
-
   it("Should open and close the popup exactly like the default variant", async () => {
     const user = userEvent.setup();
     renderSelector({
@@ -2417,6 +2279,9 @@ describe("RuntimeSelector composer variant", () => {
     });
 
     const trigger = screen.getByTestId("rt-trigger");
+
+    expect(trigger).toHaveTextContent("gpt-a");
+    expect(trigger).toHaveAccessibleName(/Codex \/ gpt-a, reasoning High/);
     expect(trigger).toHaveAttribute("aria-expanded", "false");
 
     await openSelector(user);

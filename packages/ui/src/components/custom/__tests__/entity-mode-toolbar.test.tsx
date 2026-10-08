@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { DIALOG_TOUCH_TARGET_SEGMENTS_CLASS } from "../../../lib/dialog-shell";
 import { EntityModeToolbar } from "../entity-mode-toolbar";
 
 function renderToolbar(props: Partial<React.ComponentProps<typeof EntityModeToolbar>> = {}) {
@@ -45,24 +44,6 @@ describe("EntityModeToolbar", () => {
       "simple"
     );
     expect(screen.queryByText("Creates in")).not.toBeInTheDocument();
-  });
-
-  it("Should paint a recessed chrome strip distinct from the dialog body", () => {
-    const { container } = renderToolbar();
-
-    expect(container.querySelector('[data-slot="entity-mode-toolbar"]')).toHaveClass(
-      "bg-sunken",
-      "border-b",
-      "border-line-soft"
-    );
-  });
-
-  it("Should raise the mode segments to the touch target below 760px", () => {
-    renderToolbar();
-
-    expect(screen.getByRole("group", { name: "Editor mode" })).toHaveClass(
-      DIALOG_TOUCH_TARGET_SEGMENTS_CLASS
-    );
   });
 
   it("Should keep both mode segments reachable by keyboard", async () => {

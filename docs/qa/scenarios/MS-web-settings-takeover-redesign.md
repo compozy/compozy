@@ -107,7 +107,11 @@ linked defects are verified. The separate Notifications delivery charter retains
 
 CI follow-up 2026-10-05: The focused real-daemon browser recovery scenario creates
 two live sessions before injecting restart failure and confirms the warning,
-failure reason, and retry control. The non-loopback transport scenario verifies
+failure reason, and retry control. That simulated restart projection is now owned by
+`web/src/systems/settings/components/__tests__/settings-restart-notice.test.tsx` (failure, warning,
+and retry) and `web/src/systems/settings/hooks/__tests__/use-settings-restart.test.tsx`
+(polling and failure propagation); `settings.spec.ts` retains the real-daemon restart journey.
+The non-loopback transport scenario verifies
 the fixed safe refusal remains visible through the root error boundary while
 HTTP is denied and UDS/CLI config access still works. Both re-walks passed. See
 [PR 691 CI remediation](../reports/2026-10-05-pr-691-ci.md).

@@ -774,6 +774,8 @@ func testMarketplaceInstallationScope(t *testing.T, scope InstallationScope) {
 }
 
 func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testing.T) {
+	t.Parallel()
+
 	// Invariant: package acquisition persists exactly its requested attachment and cleans failed scope writes.
 	// Owner: managed install lifecycle. Canonical suite: marketplace_lifecycle_test.go.
 	for _, scope := range []InstallationScope{
@@ -1196,6 +1198,8 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 }
 
 func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should roll back failed update reloads", func(t *testing.T) {
 		t.Parallel()
 
@@ -1465,6 +1469,8 @@ func assertMarketplacePostCommitCleanupFailure(
 }
 
 func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should validate marketplace sources and lifecycle inputs", func(t *testing.T) {
 		t.Parallel()
 

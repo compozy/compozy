@@ -426,6 +426,9 @@ func TestRequestRestartWritesOperationBeforeShutdownSignal(t *testing.T) {
 		if got, want := persisted.Status, RestartStatusStopping; got != want {
 			t.Fatalf("persisted.Status = %q, want %q before shutdown signal", got, want)
 		}
+		if got, want := persisted.OldPID, 4242; got != want {
+			t.Fatalf("persisted.OldPID = %d, want %d before shutdown signal", got, want)
+		}
 		if got, want := persisted.ActiveSessionCount, 3; got != want {
 			t.Fatalf("persisted.ActiveSessionCount = %d, want %d", got, want)
 		}

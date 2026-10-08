@@ -1083,6 +1083,10 @@ func TestPromptStreamsSessionUpdates(t *testing.T) {
 			t.Fatal("Prompt() returned no events")
 		}
 
+		if events[len(events)-1].Type != EventTypeDone {
+			t.Fatalf("Prompt() last event = %#v, want done", events[len(events)-1])
+		}
+
 		var eventTypes []string
 		for _, event := range events {
 			eventTypes = append(eventTypes, event.Type)

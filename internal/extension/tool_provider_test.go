@@ -25,6 +25,8 @@ import (
 func TestExtensionToolProviderAvailability(t *testing.T) {
 	t.Parallel()
 
+	env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-tool", true)
+
 	testCases := []struct {
 		name   string
 		mutate func(*toolspkg.ExtensionToolRuntimeDescriptor)
@@ -65,7 +67,6 @@ func TestExtensionToolProviderAvailability(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-tool", true)
 			runtimeDescriptor := descriptor.RuntimeDescriptor
 			tc.mutate(&runtimeDescriptor)
 			runtime := newFakeExtensionToolRuntime(
@@ -1299,23 +1300,6 @@ func TestExtensionToolProviderSubprocessIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should mark a mutating subprocess tool as requiring approval", func(t *testing.T) {
-		env, _, descriptor, manager := startExtensionToolSubprocess(t, "ext-mutating", "tool_provider", false)
-		registry := newExtensionToolRegistry(t, env.registry, manager, toolspkg.PolicyInputs{
-			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
-			ExternalDefault:      toolspkg.ExternalDefaultEnabled,
-			ApprovalAvailable:    true,
-		})
-
-		view, err := registry.Get(testutil.Context(t), toolspkg.Scope{Operator: true}, descriptor.Tool.ID)
-		if err != nil {
-			t.Fatalf("Registry.Get() error = %v", err)
-		}
-		if !view.Decision.ApprovalRequired {
-			t.Fatalf("Decision.ApprovalRequired = false, want true")
-		}
-	})
-
 	testCases := []struct {
 		name     string
 		scenario string
@@ -1377,8 +1361,9 @@ func TestExtensionToolProviderSubprocessIntegration(t *testing.T) {
 }
 
 func TestExtensionToolProviderGoSDKSubprocessIntegration(t *testing.T) {
+	binary := buildGoSDKToolProviderBinary(t)
+
 	t.Run("Should dispatch a read-only Go SDK tool through Registry.Call", func(t *testing.T) {
-		binary := buildGoSDKToolProviderBinary(t, "go-sdk-tool", true)
 		env, fixture, descriptor, manager := startCompiledGoSDKToolSubprocess(t, "go-sdk-tool", binary, true)
 		registry := newExtensionToolRegistry(t, env.registry, manager, extensionToolPolicyAllowAll())
 
@@ -1398,7 +1383,6 @@ func TestExtensionToolProviderGoSDKSubprocessIntegration(t *testing.T) {
 	})
 
 	t.Run("Should gate a mutating Go SDK tool on approval policy", func(t *testing.T) {
-		binary := buildGoSDKToolProviderBinary(t, "go-sdk-mutating", false)
 		env, _, descriptor, manager := startCompiledGoSDKToolSubprocess(t, "go-sdk-mutating", binary, false)
 		registry := newExtensionToolRegistry(t, env.registry, manager, toolspkg.PolicyInputs{
 			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
@@ -1711,7 +1695,7 @@ func startCompiledGoSDKToolSubprocess(
 	t.Helper()
 
 	env := newRegistryTestEnv(t)
-	fixture := createExtensionToolTestExtension(t, name, command, nil, nil, readOnly)
+	fixture := createExtensionToolTestExtension(t, name, command, []string{name, fmt.Sprint(readOnly)}, nil, readOnly)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 	manager := NewManager(
 		env.registry,
@@ -1741,7 +1725,7 @@ func startCompiledGoSDKToolSubprocess(
 	return env, fixture, descriptors[0], manager
 }
 
-func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) string {
+func buildGoSDKToolProviderBinary(t *testing.T) string {
 	t.Helper()
 
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
@@ -1752,9 +1736,9 @@ func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) stri
 	writeFile(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/"+name+"\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v0.0.0\n",
+		"module example.com/go-sdk-tool-fixture\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v0.0.0\n",
 	)
-	writeFile(t, filepath.Join(dir, "main.go"), goSDKToolProviderSource(name, readOnly))
+	writeFile(t, filepath.Join(dir, "main.go"), goSDKToolProviderSource())
 
 	edit := exec.CommandContext(
 		testutil.Context(t),
@@ -1779,7 +1763,7 @@ func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) stri
 	return binary
 }
 
-func goSDKToolProviderSource(name string, readOnly bool) string {
+func goSDKToolProviderSource() string {
 	return fmt.Sprintf(`package main
 
 import (
@@ -1796,7 +1780,7 @@ type searchInput struct {
 
 func main() {
 	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
-		Name:    %[2]q,
+		Name:    os.Args[1],
 		Version: "0.1.0",
 		Capabilities: compozysdk.CapabilitiesConfig{
 			Provides: []string{"tool.provider"},
@@ -1806,7 +1790,7 @@ func main() {
 		extension,
 		"search",
 		compozysdk.ToolOptions{
-			ReadOnly:    %[3]t,
+			ReadOnly:    os.Args[2] == "true",
 			InputSchema: map[string]any{
 				"type": "object",
 				"required": []string{"query"},
@@ -1827,7 +1811,7 @@ func main() {
 		os.Exit(1)
 	}
 }
-`, `json:"query"`, name, readOnly)
+`, `json:"query"`)
 }
 
 func createExtensionToolTestExtension(

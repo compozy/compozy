@@ -187,16 +187,6 @@ func TestHookRunsHandlerReturnsExecutionHistoryWithPatchDiffs(t *testing.T) {
 	}
 }
 
-func TestHookRunsHandlerRejectsMissingSession(t *testing.T) {
-	t.Parallel()
-
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/hooks/runs", nil)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
-	}
-}
-
 func TestHookRunsHandlerRejectsForeignWorkspaceSession(t *testing.T) {
 	t.Parallel()
 
@@ -227,118 +217,6 @@ func TestHookRunsHandlerRejectsForeignWorkspaceSession(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), "sess-hook") {
 		t.Fatalf("body = %s, want no foreign session id disclosure", recorder.Body.String())
-	}
-}
-
-func TestHookRunsHandlerRejectsInvalidEvent(t *testing.T) {
-	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return newSessionInfo(id), nil
-		},
-	}
-
-	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&event=not-a-hook",
-		nil,
-	)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
-	}
-}
-
-func TestHookCatalogHandlerRejectsInvalidSource(t *testing.T) {
-	t.Parallel()
-
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/catalog?source=wrong", nil)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
-	}
-}
-
-func TestHookCatalogHandlerRejectsInvalidMode(t *testing.T) {
-	t.Parallel()
-
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/catalog?mode=wrong", nil)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
-	}
-}
-
-func TestHookRunsHandlerRejectsInvalidOutcome(t *testing.T) {
-	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return newSessionInfo(id), nil
-		},
-	}
-
-	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&outcome=nope",
-		nil,
-	)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
-	}
-}
-
-func TestHookRunsHandlerRejectsInvalidSince(t *testing.T) {
-	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return newSessionInfo(id), nil
-		},
-	}
-
-	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&since=not-a-time",
-		nil,
-	)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
-	}
-}
-
-func TestHookRunsHandlerRejectsInvalidLast(t *testing.T) {
-	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return newSessionInfo(id), nil
-		},
-	}
-
-	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&last=-1",
-		nil,
-	)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
 	}
 }
 
@@ -384,22 +262,35 @@ func TestHookEventsHandlerReturnsPayloads(t *testing.T) {
 	}
 }
 
-func TestHookEventsHandlerRejectsInvalidFamily(t *testing.T) {
+func TestHookHandlersRejectInvalidQueries(t *testing.T) {
 	t.Parallel()
 
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/events?family=nope", nil)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	// These read-only validation cases share the HTTP boundary and do not mutate state.
+	manager := stubSessionManager{
+		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return newSessionInfo(id), nil
+		},
 	}
-}
-
-func TestHookEventsHandlerRejectsInvalidSyncOnly(t *testing.T) {
-	t.Parallel()
-
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/events?sync_only=maybe", nil)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{"Should reject missing session", "/api/workspaces/ws-workspace/hooks/runs"},
+		{"Should reject invalid event", "/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&event=not-a-hook"},
+		{"Should reject invalid source", "/api/hooks/catalog?source=wrong"},
+		{"Should reject invalid mode", "/api/hooks/catalog?mode=wrong"},
+		{"Should reject invalid outcome", "/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&outcome=nope"},
+		{"Should reject invalid since", "/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&since=not-a-time"},
+		{"Should reject invalid last", "/api/workspaces/ws-workspace/hooks/runs?session=sess-hook&last=-1"},
+		{"Should reject invalid family", "/api/hooks/events?family=nope"},
+		{"Should reject invalid sync only", "/api/hooks/events?sync_only=maybe"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := performRequest(t, engine, http.MethodGet, tc.path, nil)
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+			}
+		})
 	}
 }

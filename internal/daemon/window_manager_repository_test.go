@@ -19,8 +19,8 @@ func TestWindowManagerRepository(t *testing.T) {
 
 	t.Run("Should reject a nil commit as invalid topology", func(t *testing.T) {
 		t.Parallel()
-		fixture := newDaemonWindowManagerFixture(t)
-		err := fixture.repository.Commit(testutil.Context(t), nil)
+		repository := &windowManagerRepository{}
+		err := repository.Commit(testutil.Context(t), nil)
 		if !errors.Is(err, windowmanager.ErrInvalidTopology) {
 			t.Fatalf("Commit(nil) error = %v, want ErrInvalidTopology", err)
 		}

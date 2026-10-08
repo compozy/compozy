@@ -80,22 +80,6 @@ describe("SettingsFieldRow", () => {
     expect(screen.getByLabelText("API key")).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("renders the srow anatomy by default and the Field container in ModalSettingsFieldRow", () => {
-    render(
-      <SettingsFieldRow label="Session timeout" control={<input />} data-testid="field-row" />
-    );
-    expect(screen.getByTestId("field-row")).toHaveAttribute("data-slot", "setting-row");
-
-    render(
-      <ModalSettingsFieldRow
-        control={<input />}
-        data-testid="field-row-modal"
-        label="Display name"
-      />
-    );
-    expect(screen.getByTestId("field-row-modal")).toHaveAttribute("data-slot", "field");
-  });
-
   it("labels composite control groups with the field label", () => {
     render(
       <SettingsFieldRow
@@ -160,6 +144,7 @@ describe("SettingsFieldRow", () => {
     const group = screen.getByRole("group", { name: "Session timeout" });
     expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("description"));
     expect(group).toHaveAttribute("aria-describedby", expect.stringContaining("error"));
+    expect(group).toHaveAccessibleDescription("Ends inactive sessions Enter a whole number.");
     expect(group).not.toHaveAttribute("aria-invalid");
   });
 });

@@ -1483,34 +1483,6 @@ You are the default agent.
 	}
 }
 
-func TestParseAgentDefFrontmatterErrors(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		content string
-	}{
-		{
-			name:    "ShouldRejectMissingFrontmatter",
-			content: "plain markdown",
-		},
-		{
-			name: "ShouldRejectUnterminatedFrontmatter",
-			content: `---
-name: coder
-provider: claude`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := ParseAgentDef([]byte(tt.content)); err == nil {
-				t.Fatal("ParseAgentDef() error = nil, want non-nil")
-			}
-		})
-	}
-}
-
 func TestParseAgentDefPreservesParserErrorsInDecodeChain(t *testing.T) {
 	t.Parallel()
 

@@ -2013,27 +2013,6 @@ func assertCoordinatorPlanContainsTaskForControlTest(
 	t.Fatalf("NodeTasks = %#v, want task %q", plan.NodeTasks, taskID)
 }
 
-func TestCoordinatorControlHelpersShouldFormatMultiDigitIndexes(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should format generation and item indexes as decimal strings", func(t *testing.T) {
-		t.Parallel()
-
-		run := controlCoordinatorRun(controlLoopRun("looprun-format", nil), 10)
-		if got, want := string(run.Metadata), `{"generation":10}`; got != want {
-			t.Fatalf("coordinator metadata = %s, want %s", got, want)
-		}
-		outputs := outputsByNodeAndItemForTest([]GenerationOutput{{
-			NodeID:    "worker",
-			ItemIndex: 10,
-			Status:    generationOutputSucceeded,
-		}})
-		if _, ok := outputs["worker/10"]; !ok {
-			t.Fatalf("outputs keys = %#v, want worker/10", outputs)
-		}
-	})
-}
-
 func postReserveOutputsForTest(outputs map[string]GenerationOutput, workZeroRunID string) []GenerationOutput {
 	next := make([]GenerationOutput, 0, len(outputs))
 	for _, output := range outputs {

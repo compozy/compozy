@@ -1146,11 +1146,16 @@ func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {
 			},
 		},
 	}
+	fixtureRepo, _ := newReleasePreflightFixture(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			repo, pathDir := newReleasePreflightFixture(t)
+			repo := t.TempDir()
+			if err := os.CopyFS(repo, os.DirFS(fixtureRepo)); err != nil {
+				t.Fatalf("copy release preflight fixture: %v", err)
+			}
+			pathDir := filepath.Join(repo, "test-bin")
 			switch tt.contamination {
 			case "untracked":
 				contamination := filepath.Join(repo, "release-workflow-tools", "tool.sh")
@@ -1346,8 +1351,8 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 	t.Run("Should run the same preflight before dry-run and tag publication", func(t *testing.T) {
 		t.Parallel()
 		releasePRTrigger := "startsWith(github.event.pull_request.title, 'build: release ')"
-		if got := strings.Count(workflow, releasePRTrigger); got != 5 {
-			t.Fatalf("semantic release PR trigger count = %d, want 5", got)
+		if got := strings.Count(workflow, releasePRTrigger); got != 6 {
+			t.Fatalf("semantic release PR trigger count = %d, want 6", got)
 		}
 		assertContainsText(
 			t,

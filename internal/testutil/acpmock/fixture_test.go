@@ -245,45 +245,6 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 			t.Fatalf("recovered turn name = %q, want %q", got, want)
 		}
 	})
-
-	t.Run("Should expose a deterministic terminal generation bump fixture [IT-010]", func(t *testing.T) {
-		t.Parallel()
-
-		fixture, err := LoadFixture(filepath.Join("testdata", "terminal_generation_bump_fixture.json"))
-		if err != nil {
-			t.Fatalf("LoadFixture() error = %v", err)
-		}
-		agent, err := fixture.Agent("terminal-generation-bump")
-		if err != nil {
-			t.Fatalf("fixture.Agent() error = %v", err)
-		}
-		if agent.SupportsLoadSession() {
-			t.Fatal("generation-bump fixture advertises load_session; recovery would not replace the runtime")
-		}
-		initial, err := agent.SelectTurn(
-			"recover the terminal generation",
-			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
-		)
-		if err != nil {
-			t.Fatalf("agent.SelectTurn(initial) error = %v", err)
-		}
-		last := initial.Steps[len(initial.Steps)-1]
-		if last.Kind != StepKindDriverControl || last.DriverControl == nil ||
-			last.DriverControl.Action != DriverControlDisconnect {
-			t.Fatalf("initial terminal generation step = %#v, want disconnect", last)
-		}
-		replayPrompt := strings.Join([]string{
-			"<compozy_context_replay>", "[]", "</compozy_context_replay>", "",
-			userRequestPromptMarker, "", "recover the terminal generation",
-		}, "\n")
-		recovered, err := agent.SelectTurn(replayPrompt, acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
-		if err != nil {
-			t.Fatalf("agent.SelectTurn(recovered) error = %v", err)
-		}
-		if got, want := recovered.Name, "recover-terminal-turn"; got != want {
-			t.Fatalf("recovered turn name = %q, want %q", got, want)
-		}
-	})
 }
 
 func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
@@ -1183,6 +1144,12 @@ func TestDefaultDriverPathSharesConcurrentBuildResult(t *testing.T) {
 	if _, err := os.Stat(builtPath); err != nil {
 		t.Fatalf("os.Stat(%q) error = %v", builtPath, err)
 	}
+
+	// Reuse the cold-build result for the real command contract; the serial
+	// parent keeps its PATH override isolated from the parallel driver tests.
+	t.Run("Should support user command expectations with the shared driver", func(t *testing.T) {
+		testDriverSupportsUserCommandExpectations(t, builtPath)
+	})
 }
 
 func TestValidationAndDriverHelpers(t *testing.T) {

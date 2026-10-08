@@ -118,6 +118,9 @@ describe("Combobox", () => {
     await waitFor(() => expect(within(document.body).getByText("Albuquerque")).toBeInTheDocument());
     await user.click(within(document.body).getByText("Albuquerque"));
     await waitFor(() => expect(changes.at(-1)?.map(c => c.value)).toEqual(["albuquerque"]));
+    await waitFor(() => {
+      expect(document.querySelectorAll("[data-slot=combobox-chip]")).toHaveLength(1);
+    });
     await user.click(input);
     await user.click(within(document.body).getByText("Berlin"));
     await waitFor(() =>
@@ -128,39 +131,7 @@ describe("Combobox", () => {
           .sort()
       ).toEqual(["albuquerque", "berlin"])
     );
-  });
-
-  it("Should render a chip per selected item in multi-select mode", async () => {
-    const user = userEvent.setup();
-    render(<MultiExample />);
-    const input = screen.getByLabelText("Tags");
-    await user.click(input);
-    await user.click(within(document.body).getByText("Berlin"));
-    await waitFor(() => {
-      const chip = document.querySelector("[data-slot=combobox-chip]");
-      expect(chip).not.toBeNull();
-    });
-  });
-
-  it("Should mount the input group and open the bordered popup in single-select mode", async () => {
-    const user = userEvent.setup();
-    render(<SingleExample />);
-
-    const inputGroup = document.querySelector(
-      "[data-slot='combobox-input-group']"
-    ) as HTMLElement | null;
-    const input = screen.getByLabelText("city");
-
-    expect(inputGroup).not.toBeNull();
-
-    await user.click(input);
-    await waitFor(() => expect(screen.getByText("Berlin")).toBeInTheDocument());
-
-    const content = document.body.querySelector(
-      "[data-slot='combobox-content']"
-    ) as HTMLElement | null;
-
-    expect(content).not.toBeNull();
+    expect(document.querySelectorAll("[data-slot=combobox-chip]")).toHaveLength(2);
   });
 
   it("Should render the input trigger button through the combobox trigger primitive", async () => {

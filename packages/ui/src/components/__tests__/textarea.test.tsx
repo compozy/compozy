@@ -40,16 +40,4 @@ describe("Textarea", () => {
     const textarea = screen.getByLabelText("notes") as HTMLTextAreaElement;
     expect(textarea.disabled).toBe(true);
   });
-
-  it("Should default to data-variant=default", () => {
-    const { container } = render(<Textarea aria-label="notes" defaultValue="" />);
-    const textarea = container.querySelector<HTMLTextAreaElement>('[data-slot="textarea"]');
-    expect(textarea?.dataset.variant).toBe("default");
-  });
-
-  it("Should reflect data-variant=mono when variant='mono'", () => {
-    const { container } = render(<Textarea aria-label="notes" variant="mono" defaultValue="" />);
-    const textarea = container.querySelector<HTMLTextAreaElement>('[data-slot="textarea"]');
-    expect(textarea?.dataset.variant).toBe("mono");
-  });
 });

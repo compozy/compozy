@@ -102,6 +102,8 @@ describe("AttentionBell sections", () => {
 
     expect(screen.getByTestId("os-bell-needs-you")).toBeInTheDocument();
     expect(screen.queryByTestId("os-bell-finished")).not.toBeInTheDocument();
+    expect(screen.getByText("compozy")).toBeInTheDocument();
+    expect(screen.getByText("claude — Should I drop the legacy column?")).toBeInTheDocument();
   });
 
   it("Should keep finished-unseen work in its own section", () => {
@@ -167,13 +169,6 @@ describe("AttentionBell sections", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Could not clear notifications");
     expect(screen.getByText(row.title)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear all" })).toBeEnabled();
-  });
-
-  it("Should name the workspace and the reason on a row", () => {
-    renderBell({ needsYou: [sessionRow()] });
-
-    expect(screen.getByText("compozy")).toBeInTheDocument();
-    expect(screen.getByText("claude — Should I drop the legacy column?")).toBeInTheDocument();
   });
 
   it("Should keep a muted workspace's row listed and mark the silence (US-015.AC-1)", () => {

@@ -210,7 +210,7 @@ func findMDX(t *testing.T, outputDir string) map[string]bool {
 func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	t.Parallel()
 
-	outputDir := filepath.Join(t.TempDir(), "cli-docs")
+	outputDir := filepath.Join(t.TempDir(), "nested", "deep", "output")
 
 	root := newRootCommand(commandDeps{})
 	root.SetArgs([]string{"doc", "--output-dir", outputDir})
@@ -223,6 +223,28 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	mdxFiles := findMDX(t, outputDir)
 	if len(mdxFiles) == 0 {
 		t.Fatal("doc command should generate .mdx files")
+	}
+
+	// Expected files in the nested layout: parents with children render as
+	// <segment>/index.mdx; leaves render as <segment>.mdx.
+	expected := []string{
+		"compozy.mdx",        // from compozy
+		"session/index.mdx",  // parent with children
+		"daemon/index.mdx",   // parent with children
+		"tool/index.mdx",     // parent with children
+		"tool/list.mdx",      // tool registry operator command
+		"tool/search.mdx",    // tool registry operator command
+		"tool/info.mdx",      // tool registry operator command
+		"tool/invoke.mdx",    // tool registry operator command
+		"toolsets/index.mdx", // parent with children
+		"toolsets/list.mdx",  // toolset operator command
+		"toolsets/info.mdx",  // toolset operator command
+		"version.mdx",        // leaf without children
+	}
+	for _, want := range expected {
+		if !mdxFiles[want] {
+			t.Errorf("expected file %q to exist, got files: %v", want, sortedKeys(mdxFiles))
+		}
 	}
 
 	// Verify compozy.mdx exists at the root (from compozy.md). Root index.mdx is
@@ -319,12 +341,11 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 		}
 	}
 
-	generated := findMDX(t, outputDir)
 	for _, expected := range []string{
 		"mcp/auth/login.mdx",
 		"memory/extractor/list-failures.mdx",
 	} {
-		if !generated[expected] {
+		if !mdxFiles[expected] {
 			t.Errorf("expected generated CLI doc %q", expected)
 		}
 	}
@@ -332,7 +353,7 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 		"mcp/authorize.mdx",
 		"memory/extractor/list-pending.mdx",
 	} {
-		if generated[removed] {
+		if mdxFiles[removed] {
 			t.Errorf("removed CLI command doc %q must not be generated", removed)
 		}
 	}
@@ -392,60 +413,6 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("walk: %v", err)
-	}
-}
-
-func TestNewDocCommand_CreatesOutputDir(t *testing.T) {
-	t.Parallel()
-
-	outputDir := filepath.Join(t.TempDir(), "nested", "deep", "output")
-
-	root := newRootCommand(commandDeps{})
-	root.SetArgs([]string{"doc", "--output-dir", outputDir})
-
-	if err := root.Execute(); err != nil {
-		t.Fatalf("doc command should create output dir: %v", err)
-	}
-
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-		t.Error("output directory should have been created")
-	}
-}
-
-func TestNewDocCommand_GeneratesAllCommands(t *testing.T) {
-	t.Parallel()
-
-	outputDir := filepath.Join(t.TempDir(), "cli-docs")
-
-	root := newRootCommand(commandDeps{})
-	root.SetArgs([]string{"doc", "--output-dir", outputDir})
-
-	if err := root.Execute(); err != nil {
-		t.Fatalf("doc command failed: %v", err)
-	}
-
-	mdxFiles := findMDX(t, outputDir)
-
-	// Expected files in the nested layout: parents with children render as
-	// <segment>/index.mdx; leaves render as <segment>.mdx.
-	expected := []string{
-		"compozy.mdx",        // from compozy
-		"session/index.mdx",  // parent with children
-		"daemon/index.mdx",   // parent with children
-		"tool/index.mdx",     // parent with children
-		"tool/list.mdx",      // tool registry operator command
-		"tool/search.mdx",    // tool registry operator command
-		"tool/info.mdx",      // tool registry operator command
-		"tool/invoke.mdx",    // tool registry operator command
-		"toolsets/index.mdx", // parent with children
-		"toolsets/list.mdx",  // toolset operator command
-		"toolsets/info.mdx",  // toolset operator command
-		"version.mdx",        // leaf without children
-	}
-	for _, want := range expected {
-		if !mdxFiles[want] {
-			t.Errorf("expected file %q to exist, got files: %v", want, sortedKeys(mdxFiles))
-		}
 	}
 }
 

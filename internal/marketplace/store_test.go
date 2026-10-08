@@ -440,6 +440,7 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 			t.Fatalf("NewSQLiteStore(nil) error = %v, want database validation", err)
 		}
 	})
+	// Validation rejects every case before mutation, so the source fixture is immutable.
 	store := openMarketplaceTestStore(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
@@ -511,7 +512,6 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 	t.Run("Should reject a blank entry id", func(t *testing.T) {
 		t.Parallel()
 
-		store := openMarketplaceTestStore(t)
 		_, err := store.GetEntry(testutil.Context(t), CompozyCatalogSource, "   ")
 		if err == nil || !strings.Contains(err.Error(), "entry id is required") {
 			t.Fatalf("GetEntry(blank) error = %v, want entry-id validation", err)
@@ -521,7 +521,6 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 	t.Run("Should reject a nil list context", func(t *testing.T) {
 		t.Parallel()
 
-		store := openMarketplaceTestStore(t)
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
 		_, err := store.BrowseSource(nil, CompozyCatalogSource, "", 0, 10)
 		if err == nil || !strings.Contains(err.Error(), "store context is required") {

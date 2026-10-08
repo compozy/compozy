@@ -204,3 +204,11 @@ func setExtensionKitE2ESecret(
 		t.Fatalf("extension secrets set leaked the secret; stdout=%s stderr=%s", stdout, stderr)
 	}
 }
+
+func daemonExtensionHelperScenarioEnv(scenario string, markerPath string) map[string]string {
+	env := daemonExtensionHelperEnv(markerPath)
+	if strings.TrimSpace(scenario) != "" {
+		env[daemonExtensionHelperScenarioKey] = scenario
+	}
+	return env
+}

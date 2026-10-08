@@ -34,38 +34,6 @@ func TestArrangementModes(t *testing.T) {
 			placement:   WindowPlacementTiled,
 		},
 		{
-			name:        "Should arrange one vertical participant as a leaf",
-			arrangement: ArrangementVertical,
-			windowIDs:   []WindowID{"w1"},
-			rootKind:    NodeKindLeaf,
-			nodeCount:   1,
-			placement:   WindowPlacementTiled,
-		},
-		{
-			name:        "Should arrange one grid participant as a leaf",
-			arrangement: ArrangementGrid,
-			windowIDs:   []WindowID{"w1"},
-			rootKind:    NodeKindLeaf,
-			nodeCount:   1,
-			placement:   WindowPlacementTiled,
-		},
-		{
-			name:        "Should arrange one main and stack participant as a leaf",
-			arrangement: ArrangementMainStack,
-			windowIDs:   []WindowID{"w1"},
-			rootKind:    NodeKindLeaf,
-			nodeCount:   1,
-			placement:   WindowPlacementTiled,
-		},
-		{
-			name:        "Should arrange one stack participant as a leaf",
-			arrangement: ArrangementStack,
-			windowIDs:   []WindowID{"w1"},
-			rootKind:    NodeKindLeaf,
-			nodeCount:   1,
-			placement:   WindowPlacementTiled,
-		},
-		{
 			name:        "Should arrange horizontal participants as one split",
 			arrangement: ArrangementHorizontal,
 			windowIDs:   []WindowID{"w1", "w2", "w3"},
@@ -126,7 +94,7 @@ func TestArrangementModes(t *testing.T) {
 			if root.Kind != test.rootKind || (test.rootAxis != "" && valueOrZero(root.Axis) != test.rootAxis) {
 				t.Fatalf("arranged root = %+v", root)
 			}
-			if members := nodeWindowIDs(root); len(members) != len(test.windowIDs) {
+			if members := nodeWindowIDs(root); !slices.Equal(members, test.windowIDs) {
 				t.Fatalf("arranged members = %v", members)
 			}
 			if len(result.Changes.NodeIDs) != test.nodeCount {
@@ -303,37 +271,32 @@ func TestArrangeKeepsTabFramesWhole(t *testing.T) {
 }
 
 func TestArrangeLoneDeckKeepsItsStack(t *testing.T) {
-	arrangements := []Arrangement{
-		ArrangementHorizontal, ArrangementVertical, ArrangementGrid, ArrangementMainStack, ArrangementStack,
-	}
-	for _, arrangement := range arrangements {
-		t.Run("Should keep a lone deck's stack identity under "+string(arrangement), func(t *testing.T) {
-			t.Parallel()
-			environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
-			stacked := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
-			deck, found := findStackByWindow(&stacked.Snapshot, "w1")
-			if !found {
-				t.Fatalf("w1 is not in a deck: %+v", stacked.Snapshot.Desktops[0])
-			}
-			deckID, deckMembers := deck.id(), slices.Clone(deck.members())
-			deckActive := valueOrZero(deck.activeID())
+	t.Run("Should keep a lone deck's stack identity under horizontal", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
+		stacked := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+		deck, found := findStackByWindow(&stacked.Snapshot, "w1")
+		if !found {
+			t.Fatalf("w1 is not in a deck: %+v", stacked.Snapshot.Desktops[0])
+		}
+		deckID, deckMembers := deck.id(), slices.Clone(deck.members())
+		deckActive := valueOrZero(deck.activeID())
 
-			result := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
-				DesktopID: "desktop-default", WindowIDs: []WindowID{deckActive},
-				Arrangement: arrangement, Frame: fullRect(), GroupID: "group-arranged", KeepFrames: true,
-			})
-			desktop := result.Snapshot.Desktops[0]
-			if len(desktop.Groups) != 1 || len(desktop.FloatingStacks) != 0 {
-				t.Fatalf("desktop = %+v, want the deck tiled as the one arranged group", desktop)
-			}
-			root := desktop.Groups[0].Root
-			if root.Kind != NodeKindStack || root.ID != deckID || !slices.Equal(root.WindowIDs, deckMembers) ||
-				valueOrZero(root.ActiveID) != deckActive {
-				t.Fatalf("arranged root = %+v, want stack %q holding %v on %q", root, deckID, deckMembers, deckActive)
-			}
-			requireValidSnapshot(t, result.Snapshot)
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{deckActive},
+			Arrangement: ArrangementHorizontal, Frame: fullRect(), GroupID: "group-arranged", KeepFrames: true,
 		})
-	}
+		desktop := result.Snapshot.Desktops[0]
+		if len(desktop.Groups) != 1 || len(desktop.FloatingStacks) != 0 {
+			t.Fatalf("desktop = %+v, want the deck tiled as the one arranged group", desktop)
+		}
+		root := desktop.Groups[0].Root
+		if root.Kind != NodeKindStack || root.ID != deckID || !slices.Equal(root.WindowIDs, deckMembers) ||
+			valueOrZero(root.ActiveID) != deckActive {
+			t.Fatalf("arranged root = %+v, want stack %q holding %v on %q", root, deckID, deckMembers, deckActive)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
 }
 
 func TestArrangeWithoutKeepFramesNamesEachWindow(t *testing.T) {

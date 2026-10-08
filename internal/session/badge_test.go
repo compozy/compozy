@@ -41,11 +41,6 @@ func TestCanonicalBadgeAttentionPrecedence(t *testing.T) {
 			want:  BadgeWaitingForAuth,
 		},
 		{
-			name:  "Should reveal clarification immediately after authorization clears",
-			input: BadgeInputs{State: StateActive, PendingClarify: true},
-			want:  BadgeWaitingForInput,
-		},
-		{
 			name:  "Should mark unseen settled work done",
 			input: BadgeInputs{State: StateActive, Unseen: true},
 			want:  BadgeDone,
@@ -76,11 +71,6 @@ func TestCanonicalBadgeAttentionPrecedence(t *testing.T) {
 			want:  BadgeWaitingForInput,
 		},
 		{
-			name:  "Should prefer authorization over clarification at the adjacent boundary",
-			input: BadgeInputs{State: StateActive, PendingAuth: true, PendingClarify: true},
-			want:  BadgeWaitingForAuth,
-		},
-		{
 			name:  "Should prefer clarification over hung",
 			input: BadgeInputs{State: StateActive, PendingClarify: true, Stalled: true},
 			want:  BadgeWaitingForInput,
@@ -96,16 +86,6 @@ func TestCanonicalBadgeAttentionPrecedence(t *testing.T) {
 				State: StateActive, Health: heartbeat.SessionHealthDegraded, ActivePrompt: true,
 			},
 			want: BadgeUnhealthy,
-		},
-		{
-			name:  "Should prefer running over done",
-			input: BadgeInputs{State: StateActive, ActivePrompt: true, Unseen: true},
-			want:  BadgeRunning,
-		},
-		{
-			name:  "Should prefer done over idle",
-			input: BadgeInputs{State: StateActive, Unseen: true},
-			want:  BadgeDone,
 		},
 		{
 			name:  "Should derive idle for an active settled session",

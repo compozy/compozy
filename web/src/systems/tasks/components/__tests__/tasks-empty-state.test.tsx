@@ -17,11 +17,8 @@ describe("TasksEmptyState", () => {
     expect(screen.getByTestId("tasks-empty-templates")).toBeInTheDocument();
     expect(screen.getByRole("list")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-  });
-
-  it("Should keep template rows neutral so no benign template reads as a warning", () => {
-    render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
-
+    expect(screen.getByRole("heading", { name: /Start from a template/i })).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
     const expected: Record<string, string> = {
       one_shot: "neutral",
       recurring: "neutral",
@@ -34,13 +31,6 @@ describe("TasksEmptyState", () => {
         tone
       );
     }
-  });
-
-  it("Should label the templates panel with a live count", () => {
-    render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
-
-    expect(screen.getByRole("heading", { name: /Start from a template/i })).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
   it("Should fall back to a generic headline when no workspace is provided", () => {
@@ -128,12 +118,5 @@ describe("TasksEmptyState", () => {
 
     await user.click(screen.getByRole("button", { name: /Recurring via automation/ }));
     expect(screen.getByText(/schedule attached in Automation/)).toBeVisible();
-  });
-
-  it("Should explain tasks in plain language without CLI commands", () => {
-    render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
-    expect(screen.getByText(/A task is a piece of work you hand to an agent/)).toBeInTheDocument();
-    expect(screen.queryByText(/compozy task create/)).not.toBeInTheDocument();
-    expect(screen.getByTestId("tasks-empty-cta-new")).toHaveTextContent("Start from scratch");
   });
 });

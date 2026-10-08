@@ -153,16 +153,12 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("Should compare encoded tool and MCP resources", func(t *testing.T) {
+	t.Run("Should compare encoded resources and their attribution", func(t *testing.T) {
 		t.Parallel()
 
 		toolCodec, err := toolspkg.NewResourceCodec()
 		if err != nil {
 			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
-		}
-		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
-		if err != nil {
-			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 
 		userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
@@ -185,29 +181,6 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		}
 		if sameManagedRawRecord(toolRecord, userScope, []byte(`{"bad":true}`)) {
 			t.Fatal("sameManagedRawRecord(tool) = true, want false for mismatched encoding")
-		}
-
-		mcpSpec := compozyconfig.MCPServer{
-			Name:    "git",
-			Command: "npx",
-			Args:    []string{"@modelcontextprotocol/server-git"},
-		}
-		mcpEncoded, err := mcpCodec.Encode(mcpSpec)
-		if err != nil {
-			t.Fatalf("mcpCodec.Encode() error = %v", err)
-		}
-		mcpRecord := resources.RawRecord{
-			Scope:    userScope,
-			SpecJSON: mcpEncoded,
-		}
-		if !sameManagedRawRecord(mcpRecord, userScope, mcpEncoded) {
-			t.Fatal("sameManagedRawRecord(mcp) = false, want true for matching scope and spec")
-		}
-		if sameManagedRawRecord(mcpRecord, workspaceScope, mcpEncoded) {
-			t.Fatal("sameManagedRawRecord(mcp) = true, want false for mismatched scope")
-		}
-		if sameManagedRawRecord(mcpRecord, userScope, []byte(`{"bad":true}`)) {
-			t.Fatal("sameManagedRawRecord(mcp) = true, want false for mismatched encoding")
 		}
 
 		owner := extensionOwner(" kit ").Normalize()

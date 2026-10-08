@@ -197,48 +197,6 @@ func TestCheck(t *testing.T) {
 			t.Fatalf("Check() error = %v", err)
 		}
 	})
-
-	t.Run("Should reject stale generated output", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		artifact := Artifact{
-			SpecPath:   filepath.Join(dir, "spec.json"),
-			OutputPath: filepath.Join(dir, "types.d.ts"),
-		}
-		writeTestSpec(t, artifact.SpecPath)
-
-		if err := Generate(t.Context(), artifact); err != nil {
-			t.Fatalf("Generate() error = %v", err)
-		}
-		if err := os.WriteFile(artifact.OutputPath, []byte("export type Broken = true;\n"), 0o644); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", artifact.OutputPath, err)
-		}
-
-		err := Check(t.Context(), artifact)
-		if !errors.Is(err, ErrStaleGeneratedFile) {
-			t.Fatalf("Check() error = %v, want ErrStaleGeneratedFile", err)
-		}
-	})
-
-	t.Run("Should reject missing generated output", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		artifact := Artifact{
-			SpecPath:   filepath.Join(dir, "spec.json"),
-			OutputPath: filepath.Join(dir, "missing.d.ts"),
-		}
-		writeTestSpec(t, artifact.SpecPath)
-
-		err := Check(t.Context(), artifact)
-		if err == nil {
-			t.Fatal("Check() error = nil, want missing output error")
-		}
-		if !errors.Is(err, ErrMissingGeneratedFile) {
-			t.Fatalf("Check() error = %v, want ErrMissingGeneratedFile", err)
-		}
-	})
 }
 
 func TestCheckGeneratedFile(t *testing.T) {

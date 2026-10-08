@@ -1627,31 +1627,6 @@ func TestWindowTabNavigationV3(t *testing.T) {
 			t.Fatalf("drag-out result = %+v", result.Snapshot)
 		}
 	})
-
-	t.Run("Should keep arrange stack producing one three-member node stack [UT-035]", func(t *testing.T) {
-		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
-		for _, windowID := range []WindowID{"w1", "w2", "w3"} {
-			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
-		}
-		result := executeTestCommand(
-			t,
-			environment.manager,
-			"workspace-a",
-			nil,
-			ArrangeLayoutCommand{
-				DesktopID:   "desktop-default",
-				WindowIDs:   []WindowID{"w1", "w2", "w3"},
-				Arrangement: ArrangementStack,
-				Frame:       fullRect(),
-				GroupID:     "group",
-			},
-		)
-		root := result.Snapshot.Desktops[0].Groups[0].Root
-		if root.Kind != NodeKindStack || !slices.Equal(root.WindowIDs, []WindowID{"w1", "w2", "w3"}) {
-			t.Fatalf("arranged stack = %+v", root)
-		}
-	})
 }
 
 func mustSnapshot(t *testing.T, manager *Manager, workspaceID WorkspaceID) Snapshot {

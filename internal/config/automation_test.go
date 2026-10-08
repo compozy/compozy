@@ -130,9 +130,9 @@ prompt = "Summarize {{ .Kind }}"
 		},
 	}
 
+	workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 			writeFile(t, homePaths.ConfigFile, tc.contents)
 
 			_, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -222,9 +222,9 @@ event = "webhook"
 		},
 	}
 
+	workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 			writeFile(t, homePaths.ConfigFile, tc.contents)
 
 			_, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -304,9 +304,9 @@ prompt = "Review {{ .Kind }}"
 		},
 	}
 
+	workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
 			writeFile(t, homePaths.ConfigFile, tc.contents)
 
 			_, err := Load(WithWorkspaceRoot(workspaceRoot))

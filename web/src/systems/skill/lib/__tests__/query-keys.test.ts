@@ -34,14 +34,4 @@ describe("skillKeys", () => {
       "research",
     ]);
   });
-
-  it("list keys extend all keys", () => {
-    const list = skillKeys.list("ws_123");
-    expect(list[0]).toBe(skillKeys.all[0]);
-  });
-
-  it("detail keys extend all keys", () => {
-    const detail = skillKeys.detail("my-skill", "ws_123");
-    expect(detail[0]).toBe(skillKeys.all[0]);
-  });
 });

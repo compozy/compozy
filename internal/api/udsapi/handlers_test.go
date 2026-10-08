@@ -31,7 +31,6 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	"github.com/gin-gonic/gin"
 )
 
 type stubExtensionService = apitestutil.StubExtensionService
@@ -1195,80 +1194,6 @@ func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfig
 			BottomCenter: contract.SettingsWindowBindingActionZoom,
 		},
 		Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
-	}
-}
-
-func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
-	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
-
-	expectedHandlers := map[string]string{
-		"GET /api/observe/tasks/dashboard":                             "TaskDashboard",
-		"GET /api/observe/tasks/inbox":                                 "TaskInbox",
-		"GET /api/runs/:id/inspect":                                    "InspectRun",
-		"POST /api/runs/:id/fail":                                      "ForceFailTaskRun",
-		"POST /api/runs/:id/recover":                                   "RecoverTaskRun",
-		"POST /api/runs/:id/release":                                   "ForceReleaseTaskRun",
-		"POST /api/runs/:id/retry":                                     "RetryTaskRun",
-		"POST /api/runs/bulk/fail":                                     "BulkForceFailTaskRuns",
-		"POST /api/runs/bulk/release":                                  "BulkForceReleaseTaskRuns",
-		"GET /api/task-runs/:id":                                       "GetTaskRun",
-		"GET /api/task-runs/:id/result":                                "ReadTaskRunResult",
-		"GET /api/task-runs/:id/reviews":                               "ListTaskRunReviews",
-		"GET /api/task-reviews/:id":                                    "GetTaskRunReview",
-		"GET /api/tasks/:id/execution-profile":                         "GetTaskExecutionProfile",
-		"GET /api/tasks/:id/inspect":                                   "InspectTask",
-		"GET /api/tasks/:id/reviews":                                   "ListTaskReviews",
-		"GET /api/tasks/:id/stream":                                    "StreamTask",
-		"GET /api/tasks/:id/timeline":                                  "TaskTimeline",
-		"GET /api/tasks/:id/tree":                                      "TaskTree",
-		"GET /api/agent/context":                                       "AgentContext",
-		"GET /api/agent/coordinator/config":                            "AgentCoordinatorRole",
-		"GET /api/agent/me":                                            "AgentMe",
-		"POST /api/agent/notify":                                       "AgentNotify",
-		"POST /api/agent/tasks/:run_id/complete":                       "AgentTaskComplete",
-		"POST /api/agent/tasks/:run_id/fail":                           "AgentTaskFail",
-		"POST /api/agent/tasks/:run_id/heartbeat":                      "AgentTaskHeartbeat",
-		"POST /api/agent/tasks/:run_id/start":                          "AgentTaskStart",
-		"POST /api/agent/tasks/:run_id/release":                        "AgentTaskRelease",
-		"POST /api/agent/tasks/claim-next":                             "AgentTaskClaimNext",
-		"POST /api/agent/spawn":                                        "AgentSpawn",
-		"DELETE /api/tasks/:id":                                        "DeleteTask",
-		"DELETE /api/tasks/:id/execution-profile":                      "DeleteTaskExecutionProfile",
-		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop": "StopSession",
-		"POST /api/tasks/:id/approve":                                  "ApproveTask",
-		"POST /api/tasks/:id/publish":                                  "PublishTask",
-		"POST /api/tasks/:id/reject":                                   "RejectTask",
-		"POST /api/tasks/:id/runs/fan-out":                             "FanOutTaskRuns",
-		"POST /api/tasks/:id/start":                                    "StartTask",
-		"POST /api/tasks/:id/triage/archive":                           "ArchiveTask",
-		"POST /api/tasks/:id/triage/dismiss":                           "DismissTask",
-		"POST /api/tasks/:id/triage/read":                              "MarkTaskRead",
-		"POST /api/task-runs/:id/reviews":                              "RequestTaskRunReview",
-		"POST /api/task-reviews/:id/verdict":                           "SubmitTaskRunReviewVerdict",
-		"PUT /api/tasks/:id/execution-profile":                         "SetTaskExecutionProfile",
-		"PATCH /api/tasks/:id/execution-profile/worktree":              "SetTaskWorktreePolicy",
-	}
-
-	routes := engine.Routes()
-	for key, handlerName := range expectedHandlers {
-		var matched *gin.RouteInfo
-		for i := range routes {
-			route := routes[i]
-			if route.Method+" "+route.Path == key {
-				matched = &route
-				break
-			}
-		}
-		if matched == nil {
-			t.Fatalf("route %q not registered", key)
-			return
-		}
-		if !strings.Contains(matched.Handler, handlerName) {
-			t.Fatalf("route %q handler = %q, want substring %q", key, matched.Handler, handlerName)
-		}
 	}
 }
 

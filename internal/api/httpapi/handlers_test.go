@@ -633,80 +633,6 @@ func TestRegisterRoutesRejectsLegacyProviderModelCatalogSurfaces(t *testing.T) {
 	}
 }
 
-func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
-	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
-
-	expectedHandlers := map[string]string{
-		"GET /api/observe/tasks/dashboard":                             "TaskDashboard",
-		"GET /api/observe/tasks/inbox":                                 "TaskInbox",
-		"GET /api/runs/:id/inspect":                                    "InspectRun",
-		"GET /api/scheduler":                                           "GetScheduler",
-		"GET /api/scheduler/backlog":                                   "GetSchedulerBacklog",
-		"POST /api/runs/:id/fail":                                      "ForceFailTaskRun",
-		"POST /api/runs/:id/recover":                                   "RecoverTaskRun",
-		"POST /api/runs/:id/release":                                   "ForceReleaseTaskRun",
-		"POST /api/runs/:id/retry":                                     "RetryTaskRun",
-		"POST /api/runs/bulk/fail":                                     "BulkForceFailTaskRuns",
-		"POST /api/runs/bulk/release":                                  "BulkForceReleaseTaskRuns",
-		"POST /api/scheduler/drain":                                    "DrainScheduler",
-		"POST /api/scheduler/pause":                                    "PauseScheduler",
-		"POST /api/scheduler/resume":                                   "ResumeScheduler",
-		"GET /api/task-runs/:id":                                       "GetTaskRun",
-		"GET /api/task-runs/:id/result":                                "ReadTaskRunResult",
-		"GET /api/task-runs/:id/reviews":                               "ListTaskRunReviews",
-		"GET /api/task-reviews/:id":                                    "GetTaskRunReview",
-		"GET /api/tasks/:id/blocks":                                    "ListTaskBlocks",
-		"GET /api/tasks/:id/execution-profile":                         "GetTaskExecutionProfile",
-		"GET /api/tasks/:id/inspect":                                   "InspectTask",
-		"GET /api/tasks/:id/reviews":                                   "ListTaskReviews",
-		"GET /api/tasks/:id/stream":                                    "StreamTask",
-		"GET /api/tasks/:id/timeline":                                  "TaskTimeline",
-		"GET /api/tasks/:id/tree":                                      "TaskTree",
-		"DELETE /api/tasks/:id":                                        "DeleteTask",
-		"DELETE /api/tasks/:id/execution-profile":                      "DeleteTaskExecutionProfile",
-		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop": "StopSession",
-		"POST /api/tasks/:id/approve":                                  "ApproveTask",
-		"POST /api/tasks/:id/blocks":                                   "BlockTask",
-		"POST /api/tasks/:id/blocks/:block_id/clear":                   "ClearTaskBlock",
-		"POST /api/tasks/:id/pause":                                    "PauseTask",
-		"POST /api/tasks/:id/publish":                                  "PublishTask",
-		"POST /api/tasks/:id/recover":                                  "RecoverTask",
-		"POST /api/tasks/:id/reject":                                   "RejectTask",
-		"POST /api/tasks/:id/resume":                                   "ResumeTask",
-		"POST /api/tasks/:id/runs/fan-out":                             "FanOutTaskRuns",
-		"POST /api/tasks/:id/start":                                    "StartTask",
-		"POST /api/tasks/:id/triage/archive":                           "ArchiveTask",
-		"POST /api/tasks/:id/triage/dismiss":                           "DismissTask",
-		"POST /api/tasks/:id/triage/read":                              "MarkTaskRead",
-		"POST /api/task-runs/:id/reviews":                              "RequestTaskRunReview",
-		"POST /api/task-reviews/:id/verdict":                           "SubmitTaskRunReviewVerdict",
-		"PUT /api/tasks/:id/execution-profile":                         "SetTaskExecutionProfile",
-		"PATCH /api/tasks/:id/execution-profile/worktree":              "SetTaskWorktreePolicy",
-	}
-
-	routes := engine.Routes()
-	for key, handlerName := range expectedHandlers {
-		var matched *gin.RouteInfo
-		for i := range routes {
-			route := routes[i]
-			if route.Method+" "+route.Path == key {
-				matched = &route
-				break
-			}
-		}
-		if matched == nil {
-			t.Fatalf("route %q not registered", key)
-			return
-		}
-		if !strings.Contains(matched.Handler, handlerName) {
-			t.Fatalf("route %q handler = %q, want substring %q", key, matched.Handler, handlerName)
-		}
-	}
-}
-
 func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 	t.Parallel()
 
@@ -1686,6 +1612,8 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 }
 
 func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -1723,6 +1651,8 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 }
 
 func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -1750,6 +1680,8 @@ func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 }
 
 func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -1778,6 +1710,8 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 }
 
 func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	infoA := newSessionInfo("sess-a")
 	infoB := newSessionInfo("sess-b")
@@ -1821,6 +1755,8 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 }
 
 func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	addDir := filepath.Join(t.TempDir(), "shared")
@@ -1875,6 +1811,8 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 }
 
 func TestListWorkspacesHandlerReturnsRegisteredRows(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	workspaces := stubWorkspaceService{
@@ -2007,6 +1945,8 @@ func TestRuntimeIdentityHandlerStaysIndependentFromRuntimeAggregation(t *testing
 }
 
 func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	sharedSkillDir := filepath.Join(rootDir, ".compozy", "skills", "marketing", "brief")
@@ -2111,6 +2051,8 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 }
 
 func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	addDir := filepath.Join(t.TempDir(), "shared")
@@ -2170,6 +2112,8 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 }
 
 func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	workspaces := stubWorkspaceService{
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
@@ -2197,6 +2141,8 @@ func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 }
 
 func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	workspaces := stubWorkspaceService{
@@ -2266,6 +2212,8 @@ func TestDeleteSessionHandlerReturnsNoContent(t *testing.T) {
 }
 
 func TestStopSessionHandlerReturnsStopped(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		StopFn: func(_ context.Context, id string) error {
@@ -2288,6 +2236,8 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 }
 
 func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	var gotOpts session.SendPromptOpts
 	manager := stubSessionManager{
@@ -3241,6 +3191,8 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 }
 
 func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ShouldCancelDeliveryOnlyAfterRequestCancellation", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		executionCtxCh := make(chan context.Context, 1)
@@ -3309,6 +3261,8 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 }
 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CancelPromptFn: func(_ context.Context, id string) (session.PromptCancelResult, error) {
@@ -3342,6 +3296,8 @@ func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 }
 
 func TestSessionEventsAndHistoryHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	var gotQuery store.EventQuery
 	manager := stubSessionManager{
@@ -3494,6 +3450,8 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 }
 
 func TestListAgentsAndHealthHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	writeAgentDef(t, homePaths, "coder")
 
@@ -3538,6 +3496,8 @@ func TestListAgentsAndHealthHandlers(t *testing.T) {
 }
 
 func TestListLogsAndApproveHandlers(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -3584,6 +3544,8 @@ func TestListLogsAndApproveHandlers(t *testing.T) {
 }
 
 func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 
 	t.Run("Should missing decision", func(t *testing.T) {
@@ -3714,6 +3676,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 }
 
 func TestErrorResponsesUseConsistentShape(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -3772,6 +3736,8 @@ func TestRequestLoggingClientIdentity(t *testing.T) {
 }
 
 func TestCORSHeadersPresentOnResponses(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {

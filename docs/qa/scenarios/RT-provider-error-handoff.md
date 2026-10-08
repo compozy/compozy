@@ -42,8 +42,8 @@ Automated evidence 2026-09-28 (session-continue-fork task_08, part A; not a walk
 gained the `fail_prompt` driver_control action (`error_message`, optional `error_code`, default
 -32603). `internal/testutil/acpmock/testdata/provider_error_fixture.json` agent `handoff-agent` answers
 `rate limit this turn` with "429 rate limit exceeded" and `auth lapse this turn` with "401
-unauthorized: authentication required". `TestDriverFailPromptClassifiesProviderError` proves the two
-turns classify as `provider_rate_limited` and `provider_auth_required` through the real ACP driver, and
+unauthorized: authentication required". `internal/acp/client_prompt_contract_test.go::TestPromptErrorPreservesRequestErrorData` now owns
+the authentication/rate-limit classification and same-process recovery checks through the real ACP driver, and
 web E2E-004 proves the user-session marker carries `data-provider-next-action="handoff"`. Use this
 agent for steps 1–5 of the walk.
 

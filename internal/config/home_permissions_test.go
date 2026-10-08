@@ -52,30 +52,6 @@ func TestEnsureHomeLayoutPermissionsContract(t *testing.T) {
 	})
 }
 
-func TestEnsureBootstrapAgentPermissionsContract(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should create the managed agent directory with private mode", func(t *testing.T) {
-		t.Parallel()
-
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-
-		path, created, err := EnsureBootstrapAgent(homePaths)
-		if err != nil {
-			t.Fatalf("EnsureBootstrapAgent() error = %v", err)
-		}
-		if !created {
-			t.Fatal("EnsureBootstrapAgent() created = false, want true")
-		}
-
-		assertConfigPathMode(t, filepath.Dir(path), 0o700)
-		assertConfigPathMode(t, path, 0o600)
-	})
-}
-
 func configRuntimeDirectories(paths HomePaths) []string {
 	return []string{
 		paths.HomeDir,

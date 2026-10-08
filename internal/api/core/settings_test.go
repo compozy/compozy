@@ -1013,92 +1013,6 @@ func TestSettingsMCPAuthHandlersRejectInvalidTargetsAndBodies(t *testing.T) {
 	}
 }
 
-func TestSettingsMCPAuthHandlersMatchAcrossHTTPAndUDSTransportShims(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should match MCP auth responses across HTTP and UDS shims", func(t *testing.T) {
-		t.Parallel()
-
-		expiresAt := time.Date(2026, 7, 13, 16, 5, 0, 0, time.UTC)
-		serviceFactory := func() *stubSettingsService {
-			return &stubSettingsService{
-				GetMCPAuthStatusFn: func(
-					context.Context,
-					settingspkg.MCPAuthTargetRequest,
-				) (mcpauth.Status, error) {
-					return confirmedWorkspaceMCPAuthStatus(expiresAt), nil
-				},
-				BeginMCPAuthFn: func(
-					_ context.Context,
-					req settingspkg.MCPAuthBeginRequest,
-				) (mcpauth.BeginResult, error) {
-					return mcpauth.BeginResult{
-						AuthorizationURL: "https://auth.example/authorize?state=public",
-						State:            "public",
-						ExpiresAt:        expiresAt,
-						CallbackURL:      req.CallbackURL,
-						ManualSupported:  true,
-					}, nil
-				},
-				ExchangeMCPAuthFn: func(
-					context.Context,
-					settingspkg.MCPAuthExchangeRequest,
-				) (mcpauth.Status, error) {
-					return confirmedWorkspaceMCPAuthStatus(expiresAt), nil
-				},
-				LogoutMCPAuthFn: func(
-					context.Context,
-					settingspkg.MCPAuthTargetRequest,
-				) (mcpauth.Status, error) {
-					status := confirmedWorkspaceMCPAuthStatus(expiresAt)
-					status.Status = mcpauth.StatusNeedsLogin
-					status.TokenPresent = false
-					return status, nil
-				},
-			}
-		}
-		httpFixture := newSettingsHandlerFixture(t, "httpapi", serviceFactory(), nil)
-		udsFixture := newSettingsHandlerFixture(t, "udsapi", serviceFactory(), nil)
-		for _, request := range []struct {
-			method string
-			path   string
-			body   []byte
-		}{
-			{
-				method: http.MethodGet,
-				path:   "/api/settings/mcp-servers/linear/auth/status?scope=workspace&workspace_id=workspace-a",
-			},
-			{
-				method: http.MethodPost,
-				path:   "/api/settings/mcp-servers/linear/auth/begin?scope=workspace&workspace_id=workspace-a",
-				body:   []byte(`{"mode":"automatic"}`),
-			},
-			{
-				method: http.MethodPost,
-				path:   "/api/settings/mcp-servers/linear/auth/exchange?scope=workspace&workspace_id=workspace-a",
-				body:   []byte(`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=opaque-code&state=public"}`),
-			},
-			{
-				method: http.MethodPost,
-				path:   "/api/settings/mcp-servers/linear/auth/logout?scope=workspace&workspace_id=workspace-a",
-			},
-		} {
-			httpResponse := performRequest(t, httpFixture.Engine, request.method, request.path, request.body)
-			udsResponse := performRequest(t, udsFixture.Engine, request.method, request.path, request.body)
-			if httpResponse.Code != udsResponse.Code || httpResponse.Body.String() != udsResponse.Body.String() {
-				t.Fatalf(
-					"transport mismatch for %s: http=%d %s uds=%d %s",
-					request.path,
-					httpResponse.Code,
-					httpResponse.Body.String(),
-					udsResponse.Code,
-					udsResponse.Body.String(),
-				)
-			}
-		}
-	})
-}
-
 func confirmedWorkspaceMCPAuthStatus(expiresAt time.Time) mcpauth.Status {
 	return mcpauth.Status{
 		ServerName:   "linear",
@@ -2536,25 +2450,18 @@ func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject a non-list override identically over HTTP and UDS", func(t *testing.T) {
+	t.Run("Should reject a non-list override", func(t *testing.T) {
 		t.Parallel()
 
-		var bodies []string
-		for _, transport := range []string{"api-core-http", "api-core-uds"} {
-			service := &stubSettingsService{}
-			fixture := newSettingsHandlerFixture(t, transport, service, nil)
-			response := performRequest(
-				t, fixture.Engine, http.MethodPatch,
-				"/api/settings/skills?scope=workspace&workspace_id=ws-alpha",
-				[]byte(`{"override":{"sources":"agents"}}`),
-			)
-			if response.Code != http.StatusBadRequest {
-				t.Fatalf("%s status = %d, want 400; body=%s", transport, response.Code, response.Body.String())
-			}
-			bodies = append(bodies, response.Body.String())
-		}
-		if bodies[0] != bodies[1] {
-			t.Fatalf("HTTP/UDS bodies differ: %q != %q", bodies[0], bodies[1])
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
+		response := performRequest(
+			t, fixture.Engine, http.MethodPatch,
+			"/api/settings/skills?scope=workspace&workspace_id=ws-alpha",
+			[]byte(`{"override":{"sources":"agents"}}`),
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
 		}
 	})
 }
@@ -2672,25 +2579,23 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 				}, nil
 			},
 		}
-		for _, transport := range []string{"api-core-http", "api-core-uds"} {
-			fixture := newSettingsHandlerFixture(t, transport, service, nil)
-			config := validSettingsWindowManagerConfigPayload()
-			config.Gaps.Inner = 0
-			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/window-manager",
-				mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config, PreserveShortcuts: true}))
-			if response.Code != http.StatusOK {
-				t.Fatalf("status = %d: %s", response.Code, response.Body.String())
-			}
-			var result contract.SettingsWindowManagerMutationResponse
-			decodeJSON(t, response.Body.Bytes(), &result)
-			if result.Section != contract.SettingsSectionName(settingspkg.SectionWindowManager) ||
-				result.Config.HistoryLimit == 0 ||
-				result.Apply.Applied ||
-				result.Apply.ApplyRecordID != "apply-layout" ||
-				result.Apply.NextAction != contract.SettingsApplyNextActionRetry ||
-				len(result.Apply.Warnings) != 1 {
-				t.Fatalf("mutation response lost section or receipt: %#v", result)
-			}
+		fixture := newSettingsHandlerFixture(t, "api-core", service, nil)
+		config := validSettingsWindowManagerConfigPayload()
+		config.Gaps.Inner = 0
+		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/window-manager",
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config, PreserveShortcuts: true}))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+		}
+		var result contract.SettingsWindowManagerMutationResponse
+		decodeJSON(t, response.Body.Bytes(), &result)
+		if result.Section != contract.SettingsSectionName(settingspkg.SectionWindowManager) ||
+			result.Config.HistoryLimit == 0 ||
+			result.Apply.Applied ||
+			result.Apply.ApplyRecordID != "apply-layout" ||
+			result.Apply.NextAction != contract.SettingsApplyNextActionRetry ||
+			len(result.Apply.Warnings) != 1 {
+			t.Fatalf("mutation response lost section or receipt: %#v", result)
 		}
 	})
 
@@ -4475,7 +4380,7 @@ func TestListSettingsApplyRecordsReturnsBlockedDiagnostics(t *testing.T) {
 	})
 }
 
-func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
+func TestSettingsObservabilityAdvertisesLogTail(t *testing.T) {
 	t.Parallel()
 
 	observabilityEnvelope := settingspkg.SectionEnvelope{
@@ -4515,88 +4420,12 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 			},
 		}
 	}
-	restartFactory := func() *stubSettingsRestartController {
-		return &stubSettingsRestartController{
-			RequestFn: func(context.Context) (core.SettingsRestartOperation, error) {
-				return core.SettingsRestartOperation{
-					OperationID:        "op-shared",
-					Status:             "stopping",
-					ActiveSessionCount: 2,
-				}, nil
-			},
-			StatusFn: func(_ context.Context, operationID string) (core.SettingsRestartOperation, error) {
-				return core.SettingsRestartOperation{
-					OperationID:        operationID,
-					Status:             "starting",
-					OldPID:             100,
-					OldStartedAt:       time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC),
-					OldSocketPath:      "/tmp/compozy.sock",
-					ActiveSessionCount: 2,
-					StartedAt:          time.Date(2026, 4, 17, 18, 44, 0, 0, time.UTC),
-					UpdatedAt:          time.Date(2026, 4, 17, 18, 44, 30, 0, time.UTC),
-				}, nil
-			},
-		}
-	}
-
-	httpFixture := newSettingsHandlerFixture(t, "httpapi", serviceFactory(), restartFactory())
-	udsFixture := newSettingsHandlerFixture(t, "udsapi", serviceFactory(), restartFactory())
-	for _, fixture := range []*settingsHandlerFixture{&httpFixture, &udsFixture} {
-		fixture.Update.GetFn = func(context.Context) (compozyupdate.MultiState, error) {
-			return compozyupdate.MultiState{
-				Aggregate: compozyupdate.StatusAvailable,
-				Runtime: compozyupdate.RuntimeTrackState{
-					Status: compozyupdate.StatusAvailable, CurrentVersion: "v1.0.0", LatestVersion: "v1.1.0",
-				},
-			}, nil
-		}
-		fixture.Update.ApplyFn = func(
-			_ context.Context,
-			targets []compozyupdate.Target,
-		) (core.SettingsUpdateApply, error) {
-			return core.SettingsUpdateApply{
-				Targets: targets, Status: compozyupdate.ApplyStatusAccepted,
-				OperationID: "update-op", Message: "Update accepted.",
-			}, nil
-		}
-		fixture.Update.CancelFn = func(context.Context) (core.SettingsUpdateCancel, error) {
-			return core.SettingsUpdateCancel{
-				Status: compozyupdate.StatusCanceled, OperationID: "update-op", Message: "Canceled.",
-			}, nil
-		}
-	}
-
-	for _, request := range []struct {
-		method string
-		path   string
-		body   []byte
-	}{
-		{method: http.MethodGet, path: "/api/settings/observability"},
-		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
-		{method: http.MethodGet, path: "/api/settings/actions/restart/op-shared"},
-		{method: http.MethodGet, path: "/api/settings/update"},
-		{method: http.MethodPost, path: "/api/settings/update/apply", body: []byte(`{"targets":["runtime"]}`)},
-		{method: http.MethodPost, path: "/api/settings/update/cancel", body: []byte(`{}`)},
-	} {
-		httpResp := performRequest(t, httpFixture.Engine, request.method, request.path, request.body)
-		udsResp := performRequest(t, udsFixture.Engine, request.method, request.path, request.body)
-		if httpResp.Code != udsResp.Code {
-			t.Fatalf("%s status mismatch: http=%d uds=%d", request.path, httpResp.Code, udsResp.Code)
-		}
-		if httpResp.Body.String() != udsResp.Body.String() {
-			t.Fatalf(
-				"%s body mismatch:\nhttp=%s\nuds=%s",
-				request.path,
-				httpResp.Body.String(),
-				udsResp.Body.String(),
-			)
-		}
-	}
+	fixture := newSettingsHandlerFixture(t, "api-core", serviceFactory(), nil)
 
 	var observability contract.SettingsObservabilityResponse
 	decodeJSON(
 		t,
-		performRequest(t, httpFixture.Engine, http.MethodGet, "/api/settings/observability", nil).Body.Bytes(),
+		performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/observability", nil).Body.Bytes(),
 		&observability,
 	)
 	if !observability.LogTail.Available || observability.LogTail.StreamURL != "/api/settings/observability/log-tail" {

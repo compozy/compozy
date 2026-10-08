@@ -103,6 +103,8 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 // Owner: extension registry persistence.
 // Canonical suite: extension registry tests.
 func TestRegistryInstallRetriesBusyPersistence(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should persist after a competing writer releases the database", func(t *testing.T) {
 		t.Parallel()
 
@@ -710,6 +712,8 @@ func TestRegistryEnableAndDisable(t *testing.T) {
 // Owner: extension registry enablement persistence.
 // Canonical suite: extension registry tests.
 func TestRegistrySetEnabledForProfileRetriesBusyPersistence(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should disable after a competing writer releases the database", func(t *testing.T) {
 		t.Parallel()
 
@@ -998,32 +1002,6 @@ func TestRegistryUninstallMissingReturnsNotFound(t *testing.T) {
 	}
 	if !errors.Is(err, ErrExtensionNotFound) {
 		t.Fatalf("Uninstall(missing) error = %v, want ErrExtensionNotFound", err)
-	}
-}
-
-func TestRegistryProvidesAndPermissionsJSONRoundTrip(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	env := newRegistryTestEnv(t)
-	dir, manifest, checksum := createRegistryTestExtension(t, "round-trip-registry", registryManifestOptions{
-		capabilities: []string{"loop.watch_source", "memory.backend", "tool.provider"},
-		permissions:  []string{"memory/recall", "observe/health", "sessions/list"},
-	})
-
-	if err := env.registry.Install(manifest, dir, checksum); err != nil {
-		t.Fatalf("Install() error = %v", err)
-	}
-
-	got, err := env.registry.Get(manifest.Name)
-	if err != nil {
-		t.Fatalf("Get() error = %v", err)
-	}
-
-	if !reflect.DeepEqual(got.Capabilities, normalizeCapabilitiesConfig(manifest.Capabilities)) {
-		t.Fatalf("Capabilities = %#v, want %#v", got.Capabilities, normalizeCapabilitiesConfig(manifest.Capabilities))
-	}
-	if !reflect.DeepEqual(got.Permissions, normalizePermissionsConfig(manifest.Permissions)) {
-		t.Fatalf("Permissions = %#v, want %#v", got.Permissions, normalizePermissionsConfig(manifest.Permissions))
 	}
 }
 
@@ -1844,6 +1822,8 @@ func TestRegistryDBReturnsBackingHandleAndNilSafe(t *testing.T) {
 }
 
 func TestRegistryGatewayConfirmationTracksCurrentArtifactDigest(t *testing.T) {
+	t.Parallel()
+
 	withDaemonVersion(t, "0.6.0")
 
 	t.Run("Should persist actor attribution only for the exact current digest", func(t *testing.T) {

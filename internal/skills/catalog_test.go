@@ -166,36 +166,6 @@ func TestBuildCatalogWithinBudgetPreservesEverySkillIdentityAndStructure(t *test
 	}
 }
 
-func TestBuildCatalogTruncatesDescriptionsAtTwoHundredCharactersWithEllipsis(t *testing.T) {
-	t.Parallel()
-
-	description := strings.Repeat("a", catalogDescriptionLimit+5)
-	got := BuildCatalog([]*Skill{
-		{
-			Meta: SkillMeta{
-				Name:        "long",
-				Description: description,
-			},
-			Enabled: true,
-		},
-	})
-
-	wantDescription := strings.Repeat("a", catalogDescriptionLimit-len(catalogEllipsis)) + catalogEllipsis
-	wantLine := `  <skill name="long">` + wantDescription + `</skill>`
-
-	if !strings.Contains(got, wantLine) {
-		t.Fatalf("BuildCatalog() missing truncated line %q in %q", wantLine, got)
-	}
-
-	if utf8.RuneCountInString(wantDescription) != catalogDescriptionLimit {
-		t.Fatalf(
-			"truncated description rune count = %d, want %d",
-			utf8.RuneCountInString(wantDescription),
-			catalogDescriptionLimit,
-		)
-	}
-}
-
 func TestBuildCatalogTruncatesUnicodeDescriptionsAtRuneBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -502,39 +472,4 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 	if strings.Contains(got, "beta") {
 		t.Fatalf("PromptSection() leaked workspace-two skill into workspace-one catalog: %q", got)
 	}
-}
-
-func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should not tell managed sessions to execute the operator skill view command", func(t *testing.T) {
-		t.Parallel()
-
-		got := BuildCatalog([]*Skill{
-			{
-				Meta: SkillMeta{
-					Name:        "compozy",
-					Description: "Compozy guidance",
-				},
-				Enabled: true,
-			},
-		})
-
-		guidance := strings.ToLower(got)
-		guidance = strings.ReplaceAll(
-			guidance,
-			"do not invoke `compozy skill view`",
-			"do not use the operator cli",
-		)
-		for _, forbidden := range []string{
-			"use `compozy skill view <name>` as an operator fallback",
-			"invoke `compozy skill view",
-			"run `compozy skill view",
-			"execute `compozy skill view",
-		} {
-			if strings.Contains(guidance, forbidden) {
-				t.Fatalf("BuildCatalog() = %q, want no managed CLI execution guidance", got)
-			}
-		}
-	})
 }

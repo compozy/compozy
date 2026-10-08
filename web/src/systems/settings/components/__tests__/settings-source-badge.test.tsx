@@ -11,6 +11,7 @@ describe("SettingsSourceBadge", () => {
     const effective = screen.getByTestId("badge-effective");
     expect(effective).toHaveTextContent("From settings");
     expect(effective).toHaveAttribute("title", "config.toml");
+    expect(screen.queryByTestId("badge-shadowed")).not.toBeInTheDocument();
   });
 
   it("annotates workspace sources with their workspace id", () => {
@@ -120,12 +121,5 @@ describe("SettingsSourceBadge", () => {
     expect(screen.getByTestId("badge-effective")).toHaveTextContent(
       "From project agent file · reviewer · ws_alpha"
     );
-  });
-
-  it("omits the shadow group when no lower precedence sources are present", () => {
-    render(
-      <SettingsSourceBadge data-testid="badge" source={{ kind: "global-config", scope: "user" }} />
-    );
-    expect(screen.queryByTestId("badge-shadowed")).not.toBeInTheDocument();
   });
 });

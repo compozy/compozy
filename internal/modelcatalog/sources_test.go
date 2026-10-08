@@ -61,31 +61,6 @@ func TestProviderConfigSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve explicit curated ids before applying aliases", func(t *testing.T) {
-		t.Parallel()
-
-		source := NewConfigSource(map[string]compozyconfig.ProviderConfig{
-			"codex": {
-				Models: compozyconfig.ProviderModelsConfig{
-					Default: "gpt-5",
-					Curated: []compozyconfig.ProviderModelConfig{
-						{ID: "gpt-5", DisplayName: "GPT-5"},
-					},
-				},
-			},
-		})
-		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "codex", Now: testTime(0)})
-		if err != nil {
-			t.Fatalf("ListModels() error = %v", err)
-		}
-		if got, want := rowModelIDs(rows), []string{"gpt-5"}; !slices.Equal(got, want) {
-			t.Fatalf("row ids = %#v, want %#v", got, want)
-		}
-		if !rows[0].ExplicitlyCurated {
-			t.Fatal("default + curated row ExplicitlyCurated = false, want true")
-		}
-	})
-
 	t.Run("Should convert curated config metadata into rows", func(t *testing.T) {
 		t.Parallel()
 
@@ -117,6 +92,9 @@ func TestProviderConfigSources(t *testing.T) {
 			t.Fatalf("len(rows) = %d, want 1: %#v", len(rows), rows)
 		}
 		row := rows[0]
+		if row.ModelID != "gpt-5.4" || !row.ExplicitlyCurated {
+			t.Fatalf("default + curated row = %#v, want exact configured ID and explicit curation", row)
+		}
 		if row.DisplayName != "GPT-5.4" {
 			t.Fatalf("DisplayName = %q, want GPT-5.4", row.DisplayName)
 		}

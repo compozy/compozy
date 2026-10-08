@@ -2307,8 +2307,9 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	})
 
 	t.Run("Should expose explicitly bound secret env to stdio MCP processes", func(t *testing.T) {
+		t.Parallel()
+
 		const secret = "q7Z"
-		setMCPTestEnv(t, stdioExplicitSecretSource, secret)
 		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
 			t.Fatalf("diagnostic baseline = %q, want unregistered stdio secret", got)
 		}
@@ -2327,7 +2328,12 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 					stdioExplicitSecretEnv: "env:" + stdioExplicitSecretSource,
 				},
 			},
-			WithSecretLookup(os.Getenv),
+			WithSecretLookup(func(key string) string {
+				if key == stdioExplicitSecretSource {
+					return secret
+				}
+				return ""
+			}),
 		)
 
 		descriptor := requireMCPDescriptor(t, executor, "Local", "mcp__local__echo")
@@ -2381,8 +2387,9 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	})
 
 	t.Run("Should redact secret env values through client close and cleanup failures", func(t *testing.T) {
+		t.Parallel()
+
 		const secret = "m8#"
-		setMCPTestEnv(t, stdioExplicitSecretSource, secret)
 		encodedSecret := base64.StdEncoding.EncodeToString([]byte(secret))
 		hexSecret := hex.EncodeToString([]byte(secret))
 		dataURISecret := "data:application/octet-stream;base64," + encodedSecret
@@ -2401,7 +2408,12 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 				stdioExplicitSecretEnv: "env:" + stdioExplicitSecretSource,
 			},
 		}
-		executor := newTestMCPExecutor(t, server, WithSecretLookup(os.Getenv))
+		executor := newTestMCPExecutor(t, server, WithSecretLookup(func(key string) string {
+			if key == stdioExplicitSecretSource {
+				return secret
+			}
+			return ""
+		}))
 		resolved := ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
 		client, err := executor.openClient(ctx, resolved, "")
 		if err != nil {

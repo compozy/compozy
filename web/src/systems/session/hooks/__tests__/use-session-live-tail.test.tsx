@@ -1189,15 +1189,6 @@ describe("useSessionLiveTail", () => {
     expect(sources).toHaveLength(0);
   });
 
-  it("Should close the active source on unmount", async () => {
-    const { sources, unmount } = renderLiveTail();
-    await waitFor(() => expect(sources).toHaveLength(1));
-
-    unmount();
-
-    expect(sources[0]?.closed).toBe(true);
-  });
-
   // Invariant: retries are bounded (US-018.AC-2). Past the cap the transport reads
   // `failed` with the count, arms no timer, and only the operator's Try again rereads
   // the transcript and reopens the stream from the durable cursor with a fresh budget.

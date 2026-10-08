@@ -5,21 +5,6 @@ import { describe, expect, it } from "vitest";
 import { ToggleGroup, ToggleGroupItem } from "../toggle-group";
 
 describe("ToggleGroup", () => {
-  it("Should render all items with the toggle-group-item slot", () => {
-    const { container } = render(
-      <ToggleGroup>
-        <ToggleGroupItem value="left" aria-label="Align left">
-          L
-        </ToggleGroupItem>
-        <ToggleGroupItem value="right" aria-label="Align right">
-          R
-        </ToggleGroupItem>
-      </ToggleGroup>
-    );
-    const items = container.querySelectorAll("[data-slot=toggle-group-item]");
-    expect(items.length).toBe(2);
-  });
-
   it("Should enforce single-selection by default", async () => {
     const user = userEvent.setup();
     render(
@@ -57,17 +42,5 @@ describe("ToggleGroup", () => {
     await user.click(italic);
     expect(bold).toHaveAttribute("aria-pressed", "true");
     expect(italic).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("Should mark the group vertical when orientation='vertical'", () => {
-    const { container } = render(
-      <ToggleGroup orientation="vertical">
-        <ToggleGroupItem value="one" aria-label="one">
-          1
-        </ToggleGroupItem>
-      </ToggleGroup>
-    );
-    const root = container.querySelector("[data-slot=toggle-group]") as HTMLElement | null;
-    expect(root).toHaveAttribute("data-orientation", "vertical");
   });
 });

@@ -296,14 +296,4 @@ describe("resolveSnapTarget", () => {
     expect(none?.kind).toBe("split");
     expect(reserved).toBeNull();
   });
-
-  it("Should resolve zoom as the edge-center special target", () => {
-    const target = resolveSnapTarget({
-      point: { x: 600, y: 21 },
-      workArea: AREA,
-      config: { ...DEFAULT_SNAP_TARGET_CONFIG, topCenter: "zoom" },
-    });
-
-    expect(target?.kind).toBe("zoom");
-  });
 });

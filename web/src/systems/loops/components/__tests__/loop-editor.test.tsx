@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse, type HttpHandler } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -122,6 +122,25 @@ function renderEditor(
   return { onPublished };
 }
 
+// Invariant: automatic validation preserves daemon diagnostics and publish gating.
+// Owner: the editor component integration; canonical suite: this file.
+async function editWithValidationClock(edit: () => void) {
+  // The edit replaces the initial mount debounce, which may still use a native timer.
+  vi.useFakeTimers({ shouldClearNativeTimers: true });
+  try {
+    edit();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+  } finally {
+    // RTL's async queries drain a timer after settling, so keep those on real time.
+    vi.useRealTimers();
+  }
+}
+
 function nodeCard(id: string): HTMLElement {
   const cards = screen.getAllByTestId("loop-editor-node");
   const card = cards.find(el => el.getAttribute("data-node-id") === id);
@@ -159,7 +178,11 @@ describe("LoopEditor", () => {
       dockCollapsed: true,
     });
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   // Regression: a suspended window disables the Loop read; with no data yet the
   // editor used to fall through to "Loop <name> not found" for a Loop that exists.
@@ -290,7 +313,9 @@ describe("LoopEditor", () => {
     await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
     fireEvent.click(nodeCard("implement"));
     const fanOut = await screen.findByTestId("loop-field-max_fan_out");
-    fireEvent.change(fanOut, { target: { value: "0" } });
+    await editWithValidationClock(() => {
+      fireEvent.change(fanOut, { target: { value: "0" } });
+    });
     // The daemon linter (mock) returns fan_out_unbounded → issue + node badge + gate.
     await waitFor(() =>
       expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error")
@@ -301,7 +326,9 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
     // Restoring a positive author bound clears the issue and re-enables Publish. A clean
     // verdict renders NO counter at all (US-028 AC-4) — not "0 issues".
-    fireEvent.change(fanOut, { target: { value: "32" } });
+    await editWithValidationClock(() => {
+      fireEvent.change(fanOut, { target: { value: "32" } });
+    });
     await waitFor(() =>
       expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument()
     );
@@ -657,8 +684,9 @@ describe("LoopEditor", () => {
 
     // Declaring a route ALONGSIDE the already-authored allow_fail is the EC-1 contradiction.
     fireEvent.click(nodeCard("execute_task"));
-    fireEvent.change(await screen.findByTestId("loop-field-on_error_route"), {
-      target: { value: "collect" },
+    const route = await screen.findByTestId("loop-field-on_error_route");
+    await editWithValidationClock(() => {
+      fireEvent.change(route, { target: { value: "collect" } });
     });
 
     // The gate is the daemon's verdict, surfaced by its own code — not a client-side rule.
@@ -671,7 +699,9 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
 
     // Resolving it to a single absorption mode clears the gate.
-    fireEvent.click(screen.getByTestId("loop-field-on_error_allow_fail"));
+    await editWithValidationClock(() => {
+      fireEvent.click(screen.getByTestId("loop-field-on_error_allow_fail"));
+    });
     await waitFor(() =>
       expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument()
     );
@@ -987,5 +1017,131 @@ describe("LoopEditor", () => {
     expect(field).toHaveAttribute("data-invalid", "");
     expect(field).not.toHaveAttribute("data-mode");
     expect(field).toHaveTextContent("params.cwd is retired; use params.environment.directory");
+  });
+});
+
+// Invariant: route/ask/strategy edits survive the Graph/DSL round-trip, and clearing
+// the route default reports the owning linter error. Component owner: LoopEditor.
+describe("LoopEditor graph grammar", () => {
+  beforeEach(() => {
+    // jsdom supplies no layout and the global ResizeObserver is inert. React Flow
+    // intentionally hides nodes until measurement; provide only that browser I/O.
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(190);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
+    vi.stubGlobal(
+      "DOMMatrixReadOnly",
+      class {
+        m22 = 1;
+      }
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class implements ResizeObserver {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe(target: Element) {
+          queueMicrotask(() =>
+            this.callback(
+              [
+                {
+                  target,
+                  contentRect: new DOMRectReadOnly(0, 0, 190, 100),
+                  borderBoxSize: [],
+                  contentBoxSize: [],
+                  devicePixelContentBoxSize: [],
+                },
+              ],
+              this
+            )
+          );
+        }
+        unobserve() {}
+        disconnect() {}
+      }
+    );
+    window.localStorage.removeItem(LOOP_EDITOR_CHROME_STORAGE_KEY);
+    loopEditorChromeStore.trigger.chromeVisibilityChanged({
+      palette: false,
+      inspector: false,
+      dockCollapsed: true,
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("E2E-029: editor grammar round-trips and reports a missing route default", async () => {
+    // ChromeCalmDefault uses these exact args and detail/loop handlers.
+    const { RELEASE_TRAIN_LOOP_NAME, releaseTrainDetail } = await import("../../mocks");
+    renderEditor(RELEASE_TRAIN_LOOP_NAME, [detailHandler(releaseTrainDetail)]);
+    expect(await screen.findByTestId("loop-editor")).toBeVisible();
+    openPaletteRail();
+
+    fireEvent.click(screen.getByTestId("loop-palette-item-route"));
+    fireEvent.change(screen.getByTestId("loop-field-id"), { target: { value: "decision_route" } });
+    fireEvent.click(screen.getByTestId("loop-palette-item-ask"));
+    fireEvent.change(screen.getByTestId("loop-field-id"), {
+      target: { value: "release_approval" },
+    });
+    fireEvent.change(screen.getByTestId("loop-field-ask_prompt"), {
+      target: { value: "Approve the release regions?" },
+    });
+    fireEvent.change(screen.getByTestId("loop-field-ask_expect"), {
+      target: {
+        value:
+          '{"type":"object","required":["approved"],"properties":{"approved":{"type":"boolean"}}}',
+      },
+    });
+
+    fireEvent.click(nodeCard("decision_route"));
+    fireEvent.change(await screen.findByTestId("loop-route-default"), {
+      target: { value: "release_approval" },
+    });
+    fireEvent.click(nodeCard("rollout"));
+    fireEvent.change(await screen.findByTestId("loop-field-bind_as"), {
+      target: { value: "artifact" },
+    });
+    fireEvent.click(screen.getByTestId("loop-strategy-kind-race"));
+    fireEvent.click(screen.getByTestId("loop-strategy-kind-best_effort"));
+    fireEvent.change(screen.getByTestId("loop-strategy-threshold"), { target: { value: "75%" } });
+
+    fireEvent.click(screen.getByTestId("loop-editor-view-dsl"));
+    const dsl = await screen.findByTestId("loop-editor-dsl");
+    expect(dsl).toBeVisible();
+    for (const fragment of [
+      "decision_route",
+      "release_approval",
+      "Approve the release regions?",
+      "best_effort",
+      "75%",
+      "bind_as: artifact",
+    ]) {
+      expect(dsl).toHaveTextContent(fragment);
+    }
+
+    fireEvent.click(screen.getByTestId("loop-editor-view-graph"));
+    const graph = await screen.findByTestId("loop-editor-canvas");
+    expect(graph).toBeVisible();
+    const route = nodeCard("decision_route");
+    expect(graph).toContainElement(route);
+    await waitFor(() => expect(route).toBeVisible());
+    fireEvent.click(route);
+    expect(route).toHaveAttribute("data-node-selected", "true");
+    expect(screen.getByTestId("loop-inspector-name")).toHaveTextContent("decision_route");
+    const routeDefault = await screen.findByTestId("loop-route-default");
+    expect(routeDefault).toBeVisible();
+    expect(routeDefault).toHaveValue("release_approval");
+    await waitFor(() =>
+      expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument()
+    );
+    fireEvent.change(routeDefault, { target: { value: "" } });
+    expect(await screen.findByTestId("loop-linter-error-count")).toBeVisible();
+    expandLinterDock();
+    expect(screen.getByTitle("route_default_missing")).toBeVisible();
+    expect(
+      screen
+        .getAllByTestId("loop-linter-issue")
+        .some(issue => issue.contains(screen.getByTitle("route_default_missing")))
+    ).toBe(true);
   });
 });

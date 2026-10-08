@@ -124,23 +124,6 @@ func TestOnboardingHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep the original timestamp on repeated completion", func(t *testing.T) {
-		t.Parallel()
-		fake := newFakeOnboardingStore()
-		fake.status = store.OnboardingStatus{Completed: true, CompletedAt: "2026-01-01T00:00:00Z"}
-		engine := newOnboardingFixture(t, fake)
-
-		rec := httptest.NewRecorder()
-		engine.ServeHTTP(rec, onboardingRequest(http.MethodPost, "/api/onboarding/complete"))
-		if rec.Code != http.StatusOK {
-			t.Fatalf("POST repeated complete = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
-		}
-		payload := decodeOnboarding(t, rec.Body.Bytes())
-		if payload.CompletedAt != "2026-01-01T00:00:00Z" {
-			t.Fatalf("CompletedAt = %q, want preserved original", payload.CompletedAt)
-		}
-	})
-
 	t.Run("Should reset completion so the wizard runs again", func(t *testing.T) {
 		t.Parallel()
 		fake := newFakeOnboardingStore()

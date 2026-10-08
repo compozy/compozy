@@ -128,6 +128,7 @@ describe("session create workspace binding", () => {
       draft: { agentName: "operator", workspaceId: "ws_home" },
       pendingPrompt: "Investigate the failure",
     });
+    expect(store.getSnapshot().context.draft).not.toHaveProperty("firstMessage");
   });
 
   it("Should preselect the workspace default from a generic New session action", () => {
@@ -476,19 +477,6 @@ describe("session create workspace binding", () => {
       open: true,
       pendingPrompt: null,
     });
-    expect(store.getSnapshot().context.draft).not.toHaveProperty("firstMessage");
-  });
-
-  it("Should stage a plain prompt outside the launch draft", () => {
-    const store = createSessionCreateStore();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
-    );
-    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
-
-    act(() => actions.result.current.openWithPrompt("Plan the release"));
-
-    expect(store.getSnapshot().context.pendingPrompt).toBe("Plan the release");
     expect(store.getSnapshot().context.draft).not.toHaveProperty("firstMessage");
   });
 

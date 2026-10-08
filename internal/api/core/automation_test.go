@@ -1103,6 +1103,13 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 			t.Fatalf("job get status = %d, want %d; body=%s", jobGet.Code, http.StatusOK, jobGet.Body.String())
 		}
 
+		var jobGetResponse contract.JobResponse
+		decodeAutomationCoreJSON(t, jobGet, &jobGetResponse)
+		if jobGetResponse.Job.ID != job.ID || jobGetResponse.Job.Name != job.Name ||
+			jobGetResponse.Job.ProfileID != store.DefaultProfileID || jobGetResponse.Job.ProfileName != "default" {
+			t.Fatalf("job detail = %#v, want requested job with default profile", jobGetResponse.Job)
+		}
+
 		jobTrigger := performAutomationCoreRequest(
 			t,
 			router,
@@ -1187,6 +1194,12 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 			t.Fatalf("ListTriggers() query = %#v", listTriggersQuery)
 		}
 
+		if triggersResponse.Triggers[0].ID != trigger.ID ||
+			triggersResponse.Triggers[0].ProfileID != store.DefaultProfileID ||
+			triggersResponse.Triggers[0].ProfileName != "default" {
+			t.Fatalf("trigger list = %#v, want requested trigger with default profile", triggersResponse.Triggers)
+		}
+
 		invalidEnabled := performAutomationCoreRequest(
 			t,
 			router,
@@ -1246,6 +1259,13 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 			)
 		}
 
+		var triggerGetResponse contract.TriggerResponse
+		decodeAutomationCoreJSON(t, triggerGet, &triggerGetResponse)
+		if triggerGetResponse.Trigger.ID != trigger.ID || triggerGetResponse.Trigger.Event != trigger.Event ||
+			triggerGetResponse.Trigger.ProfileID != store.DefaultProfileID || triggerGetResponse.Trigger.ProfileName != "default" {
+			t.Fatalf("trigger detail = %#v, want requested trigger with default profile", triggerGetResponse.Trigger)
+		}
+
 		triggerRuns := performAutomationCoreRequest(
 			t,
 			router,
@@ -1287,6 +1307,33 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		runGet := performAutomationCoreRequest(t, router, http.MethodGet, "/automation/runs/"+triggerRun.ID, nil, nil)
 		if runGet.Code != http.StatusOK {
 			t.Fatalf("run get status = %d, want %d; body=%s", runGet.Code, http.StatusOK, runGet.Body.String())
+		}
+
+		var runGetResponse contract.RunResponse
+		decodeAutomationCoreJSON(t, runGet, &runGetResponse)
+		if runGetResponse.Run.ID != triggerRun.ID || runGetResponse.Run.Status != triggerRun.Status ||
+			runGetResponse.Run.ProfileID != store.DefaultProfileID || runGetResponse.Run.ProfileName != "default" {
+			t.Fatalf("run detail = %#v, want requested run with default profile", runGetResponse.Run)
+		}
+		for _, listing := range []struct {
+			response *httptest.ResponseRecorder
+			ids      []string
+		}{
+			{jobRuns, []string{jobRun.ID}},
+			{triggerRuns, []string{triggerRun.ID}},
+			{allRuns, []string{jobRun.ID}},
+		} {
+			var response contract.RunsResponse
+			decodeAutomationCoreJSON(t, listing.response, &response)
+			if len(response.Runs) != len(listing.ids) {
+				t.Fatalf("run list = %#v, want IDs %v", response.Runs, listing.ids)
+			}
+			for index, run := range response.Runs {
+				if run.ID != listing.ids[index] || run.ProfileID != store.DefaultProfileID ||
+					run.ProfileName != "default" {
+					t.Fatalf("run list item = %#v, want %q with default profile", run, listing.ids[index])
+				}
+			}
 		}
 
 		triggerDelete := performAutomationCoreRequest(

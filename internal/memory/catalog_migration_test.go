@@ -18,6 +18,8 @@ import (
 )
 
 func TestCatalogMigrationStreams(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should coexist with global migrations in one database with disjoint ownership", func(t *testing.T) {
 		t.Parallel()
 

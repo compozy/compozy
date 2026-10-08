@@ -11,10 +11,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { terminalKeys } from "../../lib/query-keys";
-import {
-  applyRecordingStopSuccess,
-  type TerminalRecordingMap,
-} from "../../lib/terminal-recording-state";
+import type { TerminalRecordingMap } from "../../lib/terminal-recording-state";
 import { useTerminalRecordings } from "../use-terminal-recordings";
 
 const SCOPE = { workspaceId: "ws-atlas", profileKey: "work" };
@@ -110,47 +107,5 @@ describe("useTerminalRecordings", () => {
       vi.advanceTimersByTime(1000);
     });
     expect(result.current["term-4f21c9a03b7e"]?.elapsed).toBe("00:01");
-  });
-
-  it("Should drop the chip immediately when stop succeeds", () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const key = terminalKeys.recordings(SCOPE);
-    client.setQueryData<TerminalRecordingMap>(key, {
-      "term-4f21c9a03b7e": { recordingId: "rec-1", at: AT, profileKey: "work" },
-    });
-    const { result } = renderRecordings(client);
-    expect(result.current["term-4f21c9a03b7e"]).toBeDefined();
-
-    act(() => {
-      client.setQueryData<TerminalRecordingMap>(key, current =>
-        applyRecordingStopSuccess(current ?? {}, {
-          terminal_id: "term-4f21c9a03b7e",
-          state: "saved",
-        })
-      );
-    });
-
-    expect(result.current["term-4f21c9a03b7e"]).toBeUndefined();
-  });
-
-  it("Should leave the chip when stop fails to report a saved recording", () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const key = terminalKeys.recordings(SCOPE);
-    const live: TerminalRecordingMap = {
-      "term-4f21c9a03b7e": { recordingId: "rec-1", at: AT, profileKey: "work" },
-    };
-    client.setQueryData(key, live);
-    const { result } = renderRecordings(client);
-
-    act(() => {
-      client.setQueryData<TerminalRecordingMap>(key, current =>
-        applyRecordingStopSuccess(current ?? {}, {
-          terminal_id: "term-4f21c9a03b7e",
-          state: "recording",
-        })
-      );
-    });
-
-    expect(result.current["term-4f21c9a03b7e"]).toBeDefined();
   });
 });

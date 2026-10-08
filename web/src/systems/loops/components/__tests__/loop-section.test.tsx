@@ -6,15 +6,6 @@ import { describe, expect, it } from "vitest";
 import { LoopSection } from "../loop-section";
 
 describe("LoopSection", () => {
-  it("Should render the title in the header", () => {
-    render(
-      <LoopSection gist="3 events" icon={<History aria-hidden="true" />} title="History">
-        <p>Section body</p>
-      </LoopSection>
-    );
-    expect(screen.getByRole("button", { name: /History/ })).toBeInTheDocument();
-  });
-
   it("Should keep the gist visible while the section is collapsed", () => {
     render(
       <LoopSection

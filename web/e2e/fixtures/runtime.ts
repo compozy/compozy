@@ -8,6 +8,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { ArtifactCollector } from "./artifacts";
+import { seedRuntimeDatabase } from "./runtime-database";
 import {
   closeExtensionRegistryServer,
   startExtensionRegistryServer,
@@ -177,6 +178,7 @@ async function createBrowserRuntimeAttempt(
   let runtime: RuntimeLaunchState | undefined;
 
   try {
+    await seedRuntimeDatabase(repoRoot, paths.homeDir);
     extensionRegistry = await startExtensionRegistryServer(options.seed?.extensionRegistry);
     marketplaceCatalog = await startMarketplaceCatalogServer(
       options.seed?.marketplaceCatalog === undefined

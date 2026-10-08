@@ -50,19 +50,6 @@ func (s workspaceResolveServiceStub) ResolveOrRegister(
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
-func TestWorkspaceResolveServiceStub(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return workspace not found when resolve callback is unset", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := workspaceResolveServiceStub{}.Resolve(t.Context(), "alpha")
-		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
-			t.Fatalf("Resolve() error = %v, want ErrWorkspaceNotFound", err)
-		}
-	})
-}
-
 func TestCreateAgentDefinitionPath(t *testing.T) {
 	t.Parallel()
 

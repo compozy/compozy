@@ -303,29 +303,6 @@ func (s *settingsIntegrationVaultStore) DeleteVaultSecret(_ context.Context, ref
 	return nil
 }
 
-func TestMutationResultExposesSemanticWriteTarget(t *testing.T) {
-	ctx := t.Context()
-	homePaths := testHomePaths(t)
-	service := testService(t, homePaths, Dependencies{})
-
-	result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		Collection: CollectionProviders,
-		Name:       "custom",
-		Provider: &ProviderSettings{
-			Command: "custom-provider",
-		},
-	})
-	if err != nil {
-		t.Fatalf("PutCollectionItem(provider) error = %v", err)
-	}
-	if got, want := result.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("provider write target = %q, want %q", got, want)
-	}
-	if strings.Contains(string(result.WriteTarget), "/") {
-		t.Fatalf("provider write target = %q, want semantic identifier not path", result.WriteTarget)
-	}
-}
-
 func TestProfilePaletteSettingsPreserveMachineShortcutIdentityIT092(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve profile palette identity while rejecting empty alias updates", func(t *testing.T) {

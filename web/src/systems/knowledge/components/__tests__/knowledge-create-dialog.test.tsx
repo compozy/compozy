@@ -24,17 +24,6 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeCreate
 }
 
 describe("KnowledgeCreateDialog", () => {
-  it("Should present the knowledge form and its type choices", () => {
-    renderDialog();
-    expect(screen.getByRole("heading", { name: "Create knowledge entry" })).toBeInTheDocument();
-    expect(screen.getByRole("radiogroup", { name: "Knowledge type" })).toBeInTheDocument();
-  });
-
-  it("Should expose a close action", () => {
-    renderDialog();
-    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
-  });
-
   it("Should render the available type choices for the Type picker", () => {
     renderDialog();
     const grid = screen.getByTestId("knowledge-create-type-grid");
@@ -62,9 +51,11 @@ describe("KnowledgeCreateDialog", () => {
     renderDialog();
 
     expect(screen.getByTestId("confirm-create-memory-btn")).toBeDisabled();
-    await user.type(screen.getByTestId("knowledge-create-name"), "Launch Memory");
+    await user.click(screen.getByTestId("knowledge-create-name"));
+    await user.paste("Launch Memory");
     expect(screen.getByTestId("confirm-create-memory-btn")).toBeDisabled();
-    await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
+    await user.click(screen.getByTestId("knowledge-create-content"));
+    await user.paste("Use the launch playbook.");
     expect(screen.getByTestId("confirm-create-memory-btn")).toBeEnabled();
   });
 
@@ -78,9 +69,12 @@ describe("KnowledgeCreateDialog", () => {
       "aria-checked",
       "true"
     );
-    await user.type(screen.getByTestId("knowledge-create-name"), "  Launch Memory  ");
-    await user.type(screen.getByTestId("knowledge-create-description"), "  contract  ");
-    await user.type(screen.getByTestId("knowledge-create-content"), "Use the launch playbook.");
+    await user.click(screen.getByTestId("knowledge-create-name"));
+    await user.paste("  Launch Memory  ");
+    await user.click(screen.getByTestId("knowledge-create-description"));
+    await user.paste("  contract  ");
+    await user.click(screen.getByTestId("knowledge-create-content"));
+    await user.paste("Use the launch playbook.");
     await user.click(screen.getByTestId("confirm-create-memory-btn"));
 
     expect(onConfirm).toHaveBeenCalledWith({

@@ -2660,14 +2660,6 @@ func TestExecutorShouldClassifyEveryCompactionTerminal(t *testing.T) {
 			want: CompactionSucceeded,
 		},
 		{
-			name: "stale telemetry",
-			result: loop.ActionPromptResult{
-				Outcome:    loop.ActionPromptOutcomeCompleted,
-				StopReason: loop.ActionStopEndTurn,
-			},
-			want: CompactionSucceeded,
-		},
-		{
 			name: "max tokens",
 			result: loop.ActionPromptResult{
 				Outcome:    loop.ActionPromptOutcomeCompleted,

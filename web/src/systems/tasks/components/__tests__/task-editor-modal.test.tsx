@@ -101,8 +101,9 @@ function renderModal({
 }
 
 describe("TaskEditorModal", () => {
-  it("Should render the create header and Simple template grid by default", () => {
-    renderModal();
+  it("Should render the default create state and dismiss through its only close control", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderModal();
 
     const modal = screen.getByTestId("task-editor-modal");
     expect(modal).toBeInTheDocument();
@@ -126,6 +127,19 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-template-epic")).toBeInTheDocument();
     // Advanced-only sections stay hidden in Simple mode.
     expect(screen.queryByTestId("task-parent-input")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
+      "Creates in launch-hq"
+    );
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
+    expect(screen.queryByTestId("task-workspace-select")).toBeNull();
+    const closes = screen.getAllByRole("button", { name: /close/i });
+    expect(closes).toHaveLength(1);
+    await user.click(closes[0]!);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("Should open an advanced-only template in Advanced mode", () => {
@@ -136,32 +150,10 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-parent-input")).toBeInTheDocument();
   });
 
-  it("Should expose exactly one close route", () => {
-    renderModal();
-
-    // The header owns dismissal; DialogContent's stock close stays disabled so
-    // the two never render together.
-    const closes = screen.getAllByRole("button", { name: /close/i });
-    expect(closes).toHaveLength(1);
-    expect(closes[0]).toHaveAttribute("data-slot", "entity-dialog-header-close");
-    expect(
-      screen.getByTestId("task-editor-modal").querySelector('[data-slot="dialog-close"]')
-    ).toBeNull();
-  });
-
-  it("Should dismiss through the header close control", async () => {
-    const user = userEvent.setup();
-    const { onOpenChange } = renderModal();
-
-    await user.click(screen.getByRole("button", { name: /close/i }));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("Should switch to Advanced and reveal the advanced numbered sections", () => {
+  it("Should reveal Advanced sections with field tips and visible approval consequences", () => {
     renderModal();
 
     fireEvent.click(screen.getByTestId("task-mode-advanced"));
-
     expect(screen.getByTestId("task-mode-advanced")).toHaveAttribute("aria-pressed", "true");
     // Placement
     expect(screen.getByTestId("task-parent-input")).toBeInTheDocument();
@@ -174,12 +166,6 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-execution-toggle")).toBeInTheDocument();
     // Advanced is a disclosure tier, not a replacement: required fields stay put.
     expect(screen.getByTestId("task-title-input")).toBeInTheDocument();
-  });
-
-  it("Should keep field help behind tips and leave approval consequences visible", () => {
-    renderModal();
-
-    fireEvent.click(screen.getByTestId("task-mode-advanced"));
 
     expect(
       screen.queryByText("Describe the expected outcome, constraints, and completion criteria.")
@@ -245,20 +231,6 @@ describe("TaskEditorModal", () => {
 
     expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ priority: "high" }));
     expect(screen.getByTestId("task-priority-high")).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("Should show a read-only destination statement for the workspace draft", () => {
-    renderModal();
-
-    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
-      "Creates in launch-hq"
-    );
-    expect(
-      screen
-        .getByTestId("workspace-scope-statement")
-        .closest('[data-slot="entity-dialog-footer-hint"]')
-    ).not.toBeNull();
-    expect(screen.queryByTestId("task-workspace-select")).toBeNull();
   });
 
   it("Should select a template card and emit onTemplateChange", () => {

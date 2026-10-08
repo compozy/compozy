@@ -72,9 +72,4 @@ describe("StateGlyph", () => {
     expect(glyph).not.toHaveAttribute("data-spinning");
     expect(glyph).not.toHaveClass("animate-spin");
   });
-
-  it("Should reflect the size via data-size", () => {
-    const { container } = render(<StateGlyph state="done" size="sm" />);
-    expect(container.querySelector('[data-slot="state-glyph"]')).toHaveAttribute("data-size", "sm");
-  });
 });

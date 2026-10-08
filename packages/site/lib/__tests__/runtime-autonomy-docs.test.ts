@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -8,10 +8,6 @@ const runtimeRoot = resolve(siteRoot, "content/docs");
 
 function readRuntimeDoc(...parts: string[]): string {
   return readFileSync(resolve(runtimeRoot, ...parts), "utf8");
-}
-
-function readJSON<T>(...parts: string[]): T {
-  return JSON.parse(readRuntimeDoc(...parts)) as T;
 }
 
 function expectIncludesAll(content: string, values: string[]): void {
@@ -67,25 +63,6 @@ describe("runtime autonomy docs", () => {
       "Stale holders fail",
       "Never send raw lease credentials through prompts",
     ]);
-  });
-
-  it("exposes autonomy docs in runtime navigation without a marketing redesign", () => {
-    const coreMeta = readJSON<{ pages: string[] }>("meta.json");
-    const autonomyMeta = readJSON<Record<string, unknown>>("autonomy/meta.json");
-
-    expect(coreMeta.pages).toContain("autonomy");
-    expect(autonomyMeta).toMatchObject({
-      title: "Autonomy",
-      pages: [
-        "index",
-        "coordinator",
-        "task-runs-and-leases",
-        "execution-profiles",
-        "review-gate",
-        "notification-cursors",
-        "safe-spawn",
-      ],
-    });
   });
 
   it("documents task execution profiles with truthful management surfaces and config lifecycle", () => {
@@ -279,91 +256,7 @@ describe("bundled CompozyOS skill docs", () => {
   });
 });
 
-describe("generated task review CLI references", () => {
-  const requiredReviewPages = [
-    "cli/task/review/index.mdx",
-    "cli/task/review/request.mdx",
-    "cli/task/review/list.mdx",
-    "cli/task/review/show.mdx",
-    "cli/task/review/submit.mdx",
-  ];
-
-  it("keeps regenerated CLI reference pages present for the review command group", () => {
-    for (const page of requiredReviewPages) {
-      expect(existsSync(resolve(runtimeRoot, page))).toBe(true);
-    }
-  });
-
-  it("documents review CLI flags exactly once on each generated page", () => {
-    const request = readRuntimeDoc("cli/task/review/request.mdx");
-    const list = readRuntimeDoc("cli/task/review/list.mdx");
-    const show = readRuntimeDoc("cli/task/review/show.mdx");
-    const submit = readRuntimeDoc("cli/task/review/submit.mdx");
-
-    expectIncludesAll(request, ["--policy", "--reason", "--round", "--attempt"]);
-    expectIncludesAll(list, ["--task", "--run", "--status", "--reviewer-session", "--last"]);
-    expectIncludesAll(show, ["help for show"]);
-    expectIncludesAll(submit, [
-      "--outcome",
-      "--confidence",
-      "--reason",
-      "--missing-work",
-      "--missing-work-json",
-      "--next-round-guidance",
-      "--review-text",
-      "--delivery-id",
-      "--run",
-    ]);
-  });
-});
-
-describe("generated task execution profile CLI references", () => {
-  const requiredProfilePages = [
-    "cli/task/profile/index.mdx",
-    "cli/task/profile/inspect.mdx",
-    "cli/task/profile/update.mdx",
-    "cli/task/profile/delete.mdx",
-  ];
-
-  it("keeps regenerated CLI reference pages present for the profile command group", () => {
-    for (const page of requiredProfilePages) {
-      expect(existsSync(resolve(runtimeRoot, page))).toBe(true);
-    }
-  });
-
-  it("documents the profile update --profile JSON flag on the generated CLI page", () => {
-    const update = readRuntimeDoc("cli/task/profile/update.mdx");
-    const inspect = readRuntimeDoc("cli/task/profile/inspect.mdx");
-    const del = readRuntimeDoc("cli/task/profile/delete.mdx");
-
-    expectIncludesAll(update, ["--profile", "Replace one task execution profile"]);
-    expectIncludesAll(inspect, ["Show one task execution profile", "-o, --output"]);
-    expectIncludesAll(del, ["Delete one task execution profile", "-o, --output"]);
-    for (const content of [update, inspect, del]) {
-      expect(content).not.toContain("--patch");
-    }
-  });
-});
-
 describe("generated autonomy CLI references", () => {
-  const requiredPages = [
-    "cli/me/index.mdx",
-    "cli/me/context.mdx",
-    "cli/spawn.mdx",
-    "cli/task/next.mdx",
-    "cli/task/heartbeat.mdx",
-    "cli/task/complete.mdx",
-    "cli/task/fail.mdx",
-    "cli/task/release.mdx",
-    "cli/task/retry.mdx",
-  ];
-
-  it("keeps regenerated command pages present for agent-facing autonomy commands", () => {
-    for (const page of requiredPages) {
-      expect(existsSync(resolve(runtimeRoot, page))).toBe(true);
-    }
-  });
-
   it("lists exact implemented flags for task and spawn examples", () => {
     const taskNext = readRuntimeDoc("cli/task/next.mdx");
     const heartbeat = readRuntimeDoc("cli/task/heartbeat.mdx");

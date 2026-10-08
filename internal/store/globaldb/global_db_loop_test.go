@@ -5294,6 +5294,7 @@ func TestGlobalDBLoopRunShouldPreserveGoalPolicyAcrossReopen(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)
+		copyCurrentSchemaGlobalDBSeed(t, path)
 		globalDB, err := OpenGlobalDB(ctx, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -6166,6 +6167,7 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)
+		copyCurrentSchemaGlobalDBSeed(t, path)
 		globalDB, err := OpenGlobalDB(ctx, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)

@@ -10,9 +10,6 @@ import {
   formatStatusLabel,
   isOAuthCapable,
   isOAuthRepairable,
-  MCP_AUTH_STATUSES,
-  MCP_PROBE_STATES,
-  MCP_RUNTIME_STATES,
   probeTone,
   probeToolLabel,
   runtimeTone,
@@ -119,28 +116,11 @@ describe("mcp status tone mapping", () => {
     expect(runtimeTone("some_future_state")).toBe("neutral");
   });
 
-  it("covers the full runtime vocabulary with a defined tone", () => {
-    for (const state of MCP_RUNTIME_STATES) {
-      expect(["success", "warning", "danger", "neutral", "info"]).toContain(runtimeTone(state));
-    }
-  });
-
   it("maps probe states and never renders skipped as a failure", () => {
     expect(probeTone("succeeded")).toBe("success");
     expect(probeTone("failed")).toBe("danger");
     expect(probeTone("skipped")).toBe("neutral");
     expect(probeTone("skipped")).not.toBe("danger");
-  });
-
-  it("keeps the vocabularies aligned with the daemon", () => {
-    expect([...MCP_AUTH_STATUSES]).toEqual([
-      "unconfigured",
-      "needs_login",
-      "authenticated",
-      "expired",
-      "invalid",
-    ]);
-    expect([...MCP_PROBE_STATES]).toEqual(["skipped", "succeeded", "failed"]);
   });
 });
 

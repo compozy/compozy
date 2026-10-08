@@ -138,18 +138,6 @@ func TestMemoryProviderRegistry(t *testing.T) {
 	})
 }
 
-func TestHostAPIHandlerMemoryProviderRegistryOption(t *testing.T) {
-	t.Run("Should attach memory provider registry to Host API handler", func(t *testing.T) {
-		t.Parallel()
-
-		registry := NewMemoryProviderRegistry()
-		handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPIMemoryProviderRegistry(registry))
-		if handler.memoryProviders != registry {
-			t.Fatal("HostAPIHandler.memoryProviders mismatch")
-		}
-	})
-}
-
 func TestMemoryProviderCollisionEventSummaryValidation(t *testing.T) {
 	t.Run("Should allow provider collision as global observability", func(t *testing.T) {
 		t.Parallel()

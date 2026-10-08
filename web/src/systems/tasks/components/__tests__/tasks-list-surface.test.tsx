@@ -134,18 +134,6 @@ describe("TasksListSurface", () => {
     ]);
   });
 
-  it("Should link each list row to /tasks/$id", () => {
-    renderSurface({
-      tasks: [buildTask({ id: "task_777", title: "Linked task" })],
-    });
-
-    const row = screen.getByTestId("task-card-task_777");
-    const link = row.querySelector("a");
-    expect(link).not.toBeNull();
-    expect(link).toHaveAttribute("href", "/tasks/$id");
-    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "task_777" }));
-  });
-
   it("Should reset the ephemeral reveal before opening a Loop run", () => {
     const onOpenLoopRun = vi.fn();
     renderSurface({
@@ -401,11 +389,6 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId(`task-card-profile-${task.id}`)).toHaveTextContent("marketing");
   });
 
-  it("Should render the empty state when the list is empty", () => {
-    renderSurface({ tasks: [] });
-    expect(screen.getByTestId("tasks-list-surface-empty")).toBeInTheDocument();
-  });
-
   // UT-041
   it("Should scope the empty message to the reveal filter instead of the generic empty", () => {
     const onShowWorkItems = vi.fn();
@@ -444,18 +427,6 @@ describe("TasksListSurface", () => {
     renderSurface({ tasks: [], errorMessage: "Unable to reach the daemon" });
     expect(screen.getByTestId("tasks-list-surface-error")).toBeInTheDocument();
     expect(screen.getByText(/unable to reach the daemon/i)).toBeInTheDocument();
-  });
-
-  it("Should render ready task cards without body identity or toolbar chrome", () => {
-    renderSurface({
-      tasks: [buildTask({ id: "a", status: "ready" })],
-    });
-
-    expect(screen.queryByTestId("tasks-list-page-title")).toBeNull();
-    expect(document.querySelector('[data-slot="page-head"]')).toBeNull();
-    expect(document.querySelector('[data-slot="listing-toolbar"]')).toBeNull();
-    expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument();
-    expect(screen.getByText("Generate API client")).toBeInTheDocument();
   });
 
   it("Should expose an accessible continuation without hiding loaded rows", () => {

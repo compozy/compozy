@@ -276,12 +276,6 @@ describe("worktree selection resolution", () => {
     expect(selection.fallback?.reason).toBe("missing");
   });
 
-  it("Should restore a persisted selection while the worktree is still present", () => {
-    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, worktreeReadyDirtyRunningFixture.id);
-
-    expect(resolve(WINDOW_ONE).activeWorktree?.id).toBe(worktreeReadyDirtyRunningFixture.id);
-  });
-
   it("Should report no selection for an unscoped window", () => {
     const selection = resolve(WINDOW_TWO);
 

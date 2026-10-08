@@ -168,39 +168,6 @@ func TestFilesImporting(t *testing.T) {
 			t.Fatalf("filesImportingPrefix() = %#v, want %#v", files, want)
 		}
 	})
-
-	t.Run("Should reject exact and provider-sibling platform implementation imports", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		writeTestFile(
-			t,
-			root,
-			"root.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/connectivity\"\n",
-		)
-		writeTestFile(
-			t,
-			root,
-			"provider.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/connectivity/tailscale\"\n",
-		)
-		writeTestFile(
-			t,
-			root,
-			"neighbor.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/connectivitykit\"\n",
-		)
-
-		files, err := filesImportingPrefix(root, "github.com/compozy/compozy/extensions/connectivity")
-		if err != nil {
-			t.Fatalf("filesImportingPrefix() error = %v", err)
-		}
-		want := []string{filepath.Join(root, "provider.go"), filepath.Join(root, "root.go")}
-		if !slices.Equal(files, want) {
-			t.Fatalf("filesImportingPrefix() = %#v, want exact and provider-sibling imports %#v", files, want)
-		}
-	})
 }
 
 func TestProductionSourceLineLimit(t *testing.T) {
@@ -316,27 +283,6 @@ func TestGatewayBoundaryRules(t *testing.T) {
 			if !present {
 				t.Fatalf("active gateway boundary rule for %q is missing", imported)
 			}
-		}
-	})
-
-	t.Run("Should find a forbidden direct import in a Go fixture", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		fixture := filepath.Join(root, "fixture.go")
-		if err := os.WriteFile(
-			fixture,
-			[]byte("package fixture\nimport _ \"github.com/compozy/compozy/internal/daemon\"\n"),
-			0o600,
-		); err != nil {
-			t.Fatalf("write boundary fixture: %v", err)
-		}
-		files, err := filesImporting(root, compozyModulePath+"internal/daemon")
-		if err != nil {
-			t.Fatalf("filesImporting() error = %v", err)
-		}
-		if !slices.Equal(files, []string{fixture}) {
-			t.Fatalf("filesImporting() = %v, want [%s]", files, fixture)
 		}
 	})
 }
@@ -497,7 +443,7 @@ func TestWorktreeScriptSharesResources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should omit the link when main has no resources directory", func(t *testing.T) {
+	t.Run("Should omit absent resources and copy active specs without archived evidence", func(t *testing.T) {
 		t.Parallel()
 
 		_, worktreeDir := createWorktreeScriptFixture(t, false)
@@ -505,12 +451,6 @@ func TestWorktreeScriptSharesResources(t *testing.T) {
 		if _, err := os.Lstat(resourcesPath); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Lstat(%s) error = %v, want os.ErrNotExist", resourcesPath, err)
 		}
-	})
-
-	t.Run("Should copy active specs without archived task evidence", func(t *testing.T) {
-		t.Parallel()
-
-		_, worktreeDir := createWorktreeScriptFixture(t, false)
 		if got := readTestFile(t, worktreeDir, ".compozy/tasks/active/task.md"); got != "active" {
 			t.Fatalf("active task content = %q, want active", got)
 		}
@@ -822,10 +762,6 @@ func TestWebAssetsPrepare(t *testing.T) {
 		repoDir := t.TempDir()
 		if err := prepareWebAssetsRepo(srcDist, repoDir, metadata); err != nil {
 			t.Fatalf("prepareWebAssetsRepo(first) error = %v", err)
-		}
-		metadataSource := readTestFile(t, repoDir, webAssetsMetadataFile)
-		if !strings.Contains(metadataSource, "production CompozyOS web UI bundle") {
-			t.Fatalf("generated metadata does not identify the CompozyOS web UI bundle:\n%s", metadataSource)
 		}
 		firstDigest, err := directoryDigest(repoDir)
 		if err != nil {

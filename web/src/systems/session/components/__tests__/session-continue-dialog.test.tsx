@@ -108,6 +108,7 @@ describe("SessionContinueDialog", () => {
     );
     expect(screen.getByTestId("session-continue-agent-select")).toHaveTextContent("codex");
     expect(screen.getByTestId("session-continue-runtime-select")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-continue-route-select")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-continue-submit")).toBeEnabled();
     expect(screen.getByTestId("session-continue-source-note")).toHaveTextContent(
       "From Refactor flaky manager tests · claude"
@@ -137,13 +138,6 @@ describe("SessionContinueDialog", () => {
       "12 earlier messages omitted to fit the context budget."
     );
     expect(screen.getByTestId("session-continue-submit")).toBeEnabled();
-  });
-
-  it("Should offer no Route field when the agent declares no routes", async () => {
-    renderDialog();
-
-    await waitFor(() => expect(screen.getByTestId("session-continue-submit")).toBeEnabled());
-    expect(screen.queryByTestId("session-continue-route-select")).not.toBeInTheDocument();
   });
 
   it("Should label colliding routes by account and send the route without a runtime", async () => {

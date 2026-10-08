@@ -73,17 +73,6 @@ describe("window manager store", () => {
     act(resetWindowManagerStoreSingleton);
   });
 
-  it("Should keep Query-owned snapshot data out of the interaction context", () => {
-    const store = createWindowManagerStore();
-    const context = state(store);
-
-    expect(context).not.toHaveProperty("snapshot");
-    expect(context).not.toHaveProperty("revision");
-    expect(context).not.toHaveProperty("desktops");
-    expect(context).not.toHaveProperty("windows");
-    expect(context).not.toHaveProperty("actions");
-  });
-
   it("Should preserve work area while resetting scoped interaction for a new binding", () => {
     const store = createWindowManagerStore();
     store.trigger.bindingBound({

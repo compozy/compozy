@@ -248,59 +248,6 @@ args = ["-c", 'cat >/dev/null; printf "%%s\n" "$1" >> "$2"; printf "{}"', "hook"
 			dispatch(h.hooks, alpha.ID, "ws-hooks", "")
 		},
 	)
-	toolPayloads := make(chan hookspkg.ToolPreCallPayload, 1)
-	h := newHookBindingIntegrationHarness(t, map[string]hookspkg.Executor{
-		"tool-hook": hookspkg.NewTypedNativeExecutor(
-			func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
-				select {
-				case toolPayloads <- payload:
-				default:
-				}
-				return hookspkg.ToolCallPatch{}, nil
-			},
-		),
-	})
-
-	record := h.putBinding(t, "tool-hook", 0, resources.ResourceScope{
-		Kind: resources.ResourceScopeKindWorkspace,
-		ID:   "ws-1",
-	}, hookspkg.HookDecl{
-		Name:         "tool-hook",
-		Event:        hookspkg.HookToolPreCall,
-		Source:       hookspkg.HookSourceNative,
-		Mode:         hookspkg.HookModeSync,
-		ExecutorKind: hookspkg.HookExecutorNative,
-		Matcher: hookspkg.HookMatcher{
-			AgentName: "codex",
-			ToolID:    "Read",
-		},
-	})
-	if record.Version <= 0 {
-		t.Fatalf("record.Version = %d, want positive", record.Version)
-	}
-	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
-		t.Fatalf("driver.RunBoot() error = %v", err)
-	}
-
-	h.notifier.OnAgentEventForSession(testutil.Context(t), integrationSession(), acp.AgentEvent{
-		Type:       acp.EventTypeToolCall,
-		SessionID:  "acp-session-1",
-		TurnID:     "turn-1",
-		ToolCallID: "tool-1",
-		Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
-	})
-
-	select {
-	case payload := <-toolPayloads:
-		if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" {
-			t.Fatalf("payload.SessionContext = %#v, want session metadata", payload.SessionContext)
-		}
-		if payload.ToolID != "Read" {
-			t.Fatalf("payload.ToolID = %q, want %q", payload.ToolID, "Read")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for resource-backed tool.pre_call hook")
-	}
 }
 
 func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(t *testing.T) {
@@ -583,6 +530,9 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 			ToolID:    "Read",
 		},
 	})
+	if record.Version <= 0 {
+		t.Fatalf("record.Version = %d, want positive", record.Version)
+	}
 	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
 		t.Fatalf("initial driver.RunBoot() error = %v", err)
 	}
@@ -594,7 +544,10 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 		Raw:        mustMarshalJSON(t, toolEventRaw("tool_call", "", nil)),
 	})
 	select {
-	case <-toolPayloads:
+	case payload := <-toolPayloads:
+		if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" || payload.ToolID != "Read" {
+			t.Fatalf("initial payload = %#v, want session/workspace metadata and Read tool", payload)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for initial stable hook dispatch")
 	}

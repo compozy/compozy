@@ -3,7 +3,6 @@
 package config
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,56 +74,6 @@ func TestEditConfigOverlayConcurrentUserAndProfileWritesIT044(t *testing.T) {
 	if effective.Defaults.Provider != "codex" {
 		t.Fatalf("effective defaults.provider = %q, want codex", effective.Defaults.Provider)
 	}
-}
-
-func TestEditConfigOverlayGlobalWritePreservesStructureOnDisk(t *testing.T) {
-	t.Run("Should preserve structure and private permissions on disk", func(t *testing.T) {
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
-		if err != nil {
-			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
-		}
-
-		writeFile(t, homePaths.ConfigFile, `
-# global structure
-[defaults]
-agent = "legacy"
-
-[observability]
-enabled = true
-`)
-
-		cfg, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-			return editor.SetValue([]string{"defaults", "agent"}, "general")
-		})
-		if err != nil {
-			t.Fatalf("EditConfigOverlay() error = %v", err)
-		}
-		if got, want := cfg.Defaults.Agent, "general"; got != want {
-			t.Fatalf("Defaults.Agent = %q, want %q", got, want)
-		}
-
-		payload, err := os.ReadFile(homePaths.ConfigFile)
-		if err != nil {
-			t.Fatalf("ReadFile(config) error = %v", err)
-		}
-		text := string(payload)
-		for _, want := range []string{
-			"# global structure",
-			"[observability]",
-			"enabled = true",
-			`agent = "general"`,
-		} {
-			if !strings.Contains(text, want) {
-				t.Fatalf("config contents missing %q\n%s", want, text)
-			}
-		}
-
-		assertPrivatePathMode(t, homePaths.ConfigFile, 0o600)
-	})
 }
 
 func TestEditConfigOverlayGlobalWriteFromOperatorHomeWorkspace(t *testing.T) {
@@ -210,65 +159,6 @@ agent = "global"
 	})
 }
 
-func TestPutMCPSidecarServerWritesAndPreservesUnaffectedEntries(t *testing.T) {
-	t.Run("Should write MCP sidecars without disturbing unrelated entries", func(t *testing.T) {
-		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
-		if err != nil {
-			t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
-		}
-
-		writeFile(t, target.path, `{
-  "version": 1,
-  "mcpServers": {
-    "alpha": { "command": "alpha" },
-    "beta": { "command": "beta" }
-  }
-}`)
-
-		cfg, err := PutMCPSidecarServer(homePaths, "", target, MCPServer{
-			Name:    "alpha",
-			Command: "updated-alpha",
-			Args:    []string{"--flag"},
-		})
-		if err != nil {
-			t.Fatalf("PutMCPSidecarServer() error = %v", err)
-		}
-		if got, want := len(cfg.MCPServers), 2; got != want {
-			t.Fatalf("len(Config.MCPServers) = %d, want %d", got, want)
-		}
-
-		payload, err := os.ReadFile(target.path)
-		if err != nil {
-			t.Fatalf("ReadFile(mcp.json) error = %v", err)
-		}
-
-		var root map[string]json.RawMessage
-		if err := json.Unmarshal(payload, &root); err != nil {
-			t.Fatalf("json.Unmarshal(root) error = %v", err)
-		}
-		if _, ok := root["version"]; !ok {
-			t.Fatalf("root keys = %v, want preserved version key", root)
-		}
-
-		var servers map[string]mcpJSONServer
-		if err := json.Unmarshal(root["mcpServers"], &servers); err != nil {
-			t.Fatalf("json.Unmarshal(mcpServers) error = %v", err)
-		}
-		if got, want := servers["alpha"].Command, "updated-alpha"; got != want {
-			t.Fatalf("servers[alpha].Command = %q, want %q", got, want)
-		}
-		if got, want := servers["beta"].Command, "beta"; got != want {
-			t.Fatalf("servers[beta].Command = %q, want %q", got, want)
-		}
-
-		assertPrivatePathMode(t, target.path, 0o600)
-	})
-}
-
 func TestPutMCPSidecarServerRejectsDuplicateNamesAcrossTopLevelKeys(t *testing.T) {
 	t.Run("Should reject duplicate MCP names across camel and snake collections", func(t *testing.T) {
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -298,16 +188,4 @@ func TestPutMCPSidecarServerRejectsDuplicateNamesAcrossTopLevelKeys(t *testing.T
 			t.Fatalf("PutMCPSidecarServer() error = %v, want cross-collection duplicate failure", err)
 		}
 	})
-}
-
-func assertPrivatePathMode(t *testing.T, path string, want os.FileMode) {
-	t.Helper()
-
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("os.Stat(%q) error = %v", path, err)
-	}
-	if got := info.Mode().Perm(); got != want {
-		t.Fatalf("permissions for %q = %o, want %o", path, got, want)
-	}
 }

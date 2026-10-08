@@ -27,6 +27,9 @@ import (
 func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 	t.Parallel()
 
+	// Each case reads the same immutable registry and artifact fixtures.
+	httpEngine := newToolParityHTTPEngine(t)
+	udsEngine := newToolParityUDSEngine(t)
 	artifactID := fmt.Sprintf("art_%x", sha256.Sum256([]byte(toolParityArtifactContent)))
 	requests := []struct {
 		name   string
@@ -82,8 +85,6 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 		t.Run(request.name, func(t *testing.T) {
 			t.Parallel()
 
-			httpEngine := newToolParityHTTPEngine(t)
-			udsEngine := newToolParityUDSEngine(t)
 			httpResp := testutil.PerformRequest(t, httpEngine, request.method, request.path, request.body)
 			udsResp := testutil.PerformRequest(t, udsEngine, request.method, request.path, request.body)
 			if httpResp.Code != udsResp.Code {

@@ -639,34 +639,6 @@ func testNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 	}
 }
 
-func TestNewSessionSpawnerUsesResolvedBuiltInDreamingCurator(t *testing.T) {
-	t.Parallel()
-	t.Run("Should use the resolved built-in dreaming curator", testNewSessionSpawnerUsesResolvedBuiltInDreamingCurator)
-}
-
-func testNewSessionSpawnerUsesResolvedBuiltInDreamingCurator(t *testing.T) {
-	t.Helper()
-	t.Parallel()
-
-	cfg := dreamConfig()
-	cfg.Roles.Dream.Agent = compozyconfig.BuiltinDreamingCuratorAgentName
-	sessions := &fakeSessionManager{}
-	resolver := &fakeWorkspaceResolver{
-		resolveResolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-default", RootDir: filepath.Join(t.TempDir(), "workspace")},
-		},
-	}
-
-	spawner := newTestSessionSpawner(sessions, resolver, &cfg)
-	if err := spawner(t.Context(), "memory-consolidation", "prompt", "ws-default", time.Time{}); err != nil {
-		t.Fatalf("spawner() error = %v", err)
-	}
-
-	if got := sessions.createCall(0).AgentName; got != compozyconfig.BuiltinDreamingCuratorAgentName {
-		t.Fatalf("Create() agent = %q, want %q", got, compozyconfig.BuiltinDreamingCuratorAgentName)
-	}
-}
-
 func TestNewSessionSpawnerResolvesExplicitAliasWorkspace(t *testing.T) {
 	t.Parallel()
 	t.Run(

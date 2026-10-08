@@ -338,19 +338,6 @@ describe("AutomationEditorDialog", () => {
     expect(onCancel).not.toHaveBeenCalled();
   });
 
-  it("Should call onCancel when the dialog is dismissed", () => {
-    const onCancel = vi.fn();
-    const { rerender } = render(<JobEditorHarness onCancel={onCancel} onSubmit={vi.fn()} />);
-
-    fireEvent.keyDown(document.body, { key: "Escape" });
-    // Base UI Dialog closes on escape; even if the JSDOM path is brittle, we also
-    // cover the explicit close by unmounting via editor=null + remount, which is
-    // the real exit path in useAutomationPage.
-    rerender(<AutomationEditorDialog editor={null} />);
-
-    expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
-  });
-
   it("Should not render the dialog content when editor is null", () => {
     render(<AutomationEditorDialog editor={null} />);
 

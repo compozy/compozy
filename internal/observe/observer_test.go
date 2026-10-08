@@ -25,26 +25,9 @@ import (
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
-func TestOnSessionCreatedTracksSessionSnapshot(t *testing.T) {
-	t.Run("Should cache session snapshot on creation", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		sess := newSession("sess-created", session.StateActive, h.workspace, h.now)
-
-		h.observeSessionCreated(t, sess)
-
-		snapshot, ok := h.observer.sessionSnapshot(sess.ID)
-		if !ok {
-			t.Fatal("sessionSnapshot() cached = false, want true")
-		}
-		if snapshot.agentName != "coder" || snapshot.workspaceID != h.workspaceID {
-			t.Fatalf("sessionSnapshot() = %#v, want coder workspace snapshot", snapshot)
-		}
-	})
-}
-
 func TestAgentEventCachesResolvedAgentByRuntimeIdentity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should resolve auth once until the runtime selection changes", func(t *testing.T) {
 		t.Parallel()
 
@@ -158,6 +141,8 @@ func TestAgentEventCachesResolvedAgentByRuntimeIdentity(t *testing.T) {
 }
 
 func TestOnSessionStoppedClearsSessionSnapshot(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should clear session snapshot on stop", func(t *testing.T) {
 		t.Parallel()
 
@@ -165,6 +150,13 @@ func TestOnSessionStoppedClearsSessionSnapshot(t *testing.T) {
 		sess := newSession("sess-stopped", session.StateActive, h.workspace, h.now)
 
 		h.observeSessionCreated(t, sess)
+		snapshot, ok := h.observer.sessionSnapshot(sess.ID)
+		if !ok {
+			t.Fatal("sessionSnapshot() cached = false, want true")
+		}
+		if snapshot.agentName != "coder" || snapshot.workspaceID != h.workspaceID {
+			t.Fatalf("sessionSnapshot() = %#v, want coder workspace snapshot", snapshot)
+		}
 		sess.State = session.StateStopped
 		sess.UpdatedAt = h.now.Add(2 * time.Minute)
 		h.observer.OnSessionStopped(testutil.Context(t), sess)
@@ -221,6 +213,8 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 }
 
 func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should merge memory events after durable registry events", func(t *testing.T) {
 		t.Parallel()
 
@@ -270,6 +264,8 @@ func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
 }
 
 func TestObserverQueryEventsNormalizesMemoryWorkspaceFilter(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should translate public workspace id to memory workspace identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -315,6 +311,8 @@ func TestObserverQueryEventsNormalizesMemoryWorkspaceFilter(t *testing.T) {
 }
 
 func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should not fan memory source into session-scoped queries yet", func(t *testing.T) {
 		t.Parallel()
 
@@ -352,6 +350,8 @@ func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
 }
 
 func TestObserverQueryEventsKeepsWorktreeScopedEventsNarrow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should not merge unsequenced memory events into a worktree replay", func(t *testing.T) {
 		t.Parallel()
 
@@ -1112,34 +1112,6 @@ func TestOnAgentEventSkipsUnknownSession(t *testing.T) {
 	}
 	if len(events) != 0 {
 		t.Fatalf("len(events) = %d, want 0", len(events))
-	}
-}
-
-func TestNotifierLifecycleWritesThroughObserver(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	sess := newSession("sess-nil-ctx", session.StateActive, h.workspace, h.now)
-
-	h.observeSessionCreated(t, sess)
-	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
-		Type:      "tool_result",
-		TurnID:    "turn-nil-ctx",
-		Timestamp: h.now.Add(time.Minute),
-		Title:     "ls",
-	})
-	sess.State = session.StateStopped
-	h.observer.OnSessionStopped(testutil.Context(t), sess)
-
-	events, err := h.observer.QueryEvents(
-		testutil.Context(t),
-		store.EventSummaryQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, SessionID: sess.ID},
-	)
-	if err != nil {
-		t.Fatalf("QueryEvents() error = %v", err)
-	}
-	if got, want := len(events), 1; got != want {
-		t.Fatalf("len(events) = %d, want %d", got, want)
 	}
 }
 

@@ -20,7 +20,7 @@ Added 2026-08-16 for the Electron shell web update surface (ADR-006 S1). Task 07
 
 PRD stories: US-015, US-017, US-018, US-029 (AC-1 both tracks, AC-3 browser/app equivalence; EC-1
 managed install, EC-2 apply from browser, EC-3 no app installed, EC-5 post-update truth). Test ids:
-UT-040–UT-048, E2E-019, E2E-020.
+UT-040–UT-048 (including the former E2E-019 projection matrix), E2E-020.
 
 Branches to walk, each against real daemon truth rather than a stubbed payload:
 

@@ -1138,8 +1138,9 @@ func TestExtensionInputBinder(t *testing.T) {
 	// Owner: daemon input validation; canonical suite: TestExtensionInputBinder.
 	t.Run("Should enforce the exact string byte boundary [UT-005]", func(t *testing.T) {
 		t.Parallel()
+		// Prepare is mutation-free, so both byte boundaries use the same persistence fixture.
+		service, _ := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
 		for _, size := range []int{8192, 8193} {
-			service, _ := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
 			manifest := extensionInputBinderManifest()
 			manifest.Inputs[0].Type = "string"
 			value, err := json.Marshal(strings.Repeat("x", size))

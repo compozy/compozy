@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@compozy/ui";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 import { userEvent } from "@testing-library/user-event";
 import { SessionContextControl } from "../session-context-control";
@@ -70,6 +71,10 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
     expect(screen.getByTestId("session-inspector-usage-tokens-out")).toHaveTextContent("24,900");
     expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
     expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("$18.42");
+    expect(screen.getByTestId("session-inspector-usage-cost")).not.toHaveTextContent("≈");
+    expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent(
+      "Reported by agent"
+    );
     expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent(
       "across 12 turns"
     );
@@ -140,21 +145,6 @@ describe("SessionInspector — Usage tab cost provenance (W4)", () => {
   function renderUsage(usage: InspectorUsage) {
     render(<SessionInspector usage={usage} />);
   }
-
-  it("Should render actual cost as measured spend without an estimate glyph", () => {
-    renderUsage({
-      tokensIn: 1_000,
-      costUsd: 18.42,
-      costCurrency: "USD",
-      costStatus: "actual",
-      costSource: "agent_reported",
-      turnCount: 3,
-    });
-    const cell = screen.getByTestId("session-inspector-usage-cost");
-    expect(cell).toHaveTextContent("$18.42");
-    expect(cell).not.toHaveTextContent("≈");
-    expect(cell).toHaveTextContent("Reported by agent");
-  });
 
   it("Should mark estimated cost with the ≈ cue and source, never as measured spend", () => {
     renderUsage({
@@ -277,7 +267,12 @@ describe("Session context", () => {
     "Should render $label without inventing context or a compaction policy",
     async ({ context, label, copy }) => {
       const user = userEvent.setup();
-      render(<SessionContextControl context={deriveSessionContext(context)} onOpen={vi.fn()} />);
+      // This case owns tooltip content, not the primitive's hover delay.
+      render(
+        <TooltipProvider delay={0}>
+          <SessionContextControl context={deriveSessionContext(context)} onOpen={vi.fn()} />
+        </TooltipProvider>
+      );
       await user.hover(screen.getByRole("button", { name: label }));
       expect(await screen.findByRole("tooltip")).toHaveTextContent(copy);
       expect(screen.getByRole("tooltip")).not.toHaveTextContent("summarizes older messages");
@@ -293,7 +288,11 @@ describe("Session context", () => {
       ratio: 1.1,
       stale: true,
     });
-    render(<SessionContextControl context={context} onOpen={vi.fn()} />);
+    render(
+      <TooltipProvider delay={0}>
+        <SessionContextControl context={context} onOpen={vi.fn()} />
+      </TooltipProvider>
+    );
     await user.hover(screen.getByRole("button"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent("110% · 281.6K / 256K");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Updated a while ago");

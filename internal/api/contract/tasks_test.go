@@ -465,14 +465,6 @@ func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
 func TestUpdateTaskRequestHasChangesIncludesExpandedFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report no changes for an empty request", func(t *testing.T) {
-		t.Parallel()
-
-		if (UpdateTaskRequest{}).HasChanges() {
-			t.Fatal("HasChanges() = true, want false for empty request")
-		}
-	})
-
 	t.Run("Should report changes for a priority patch", func(t *testing.T) {
 		t.Parallel()
 

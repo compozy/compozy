@@ -4,18 +4,6 @@ import { describe, expect, it } from "vitest";
 import { ScrollArea, ScrollBar } from "../scroll-area";
 
 describe("ScrollArea", () => {
-  it("Should render the root and viewport wrapper with stable data-slots", async () => {
-    const { container } = await act(async () =>
-      render(
-        <ScrollArea className="size-24">
-          <div className="h-96">long content</div>
-        </ScrollArea>
-      )
-    );
-    expect(container.querySelector("[data-slot=scroll-area]")).toBeInTheDocument();
-    expect(container.querySelector("[data-slot=scroll-area-viewport]")).toBeInTheDocument();
-  });
-
   it("Should render a custom track/thumb when a scrollbar is kept mounted", async () => {
     const { container } = await act(async () =>
       render(

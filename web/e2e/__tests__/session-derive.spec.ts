@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sessionWindow, switchWorkspace, windowFrame } from "../fixtures/os-navigation";
+import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -113,71 +113,6 @@ async function createPromptedSource(
   return session;
 }
 
-test("E2E-001: operator continues a session with another agent in a new window", async ({
-  appPage,
-  browserArtifacts,
-  runtime,
-}) => {
-  const workspace = await prepareWorkspace(runtime, appPage);
-  const source = await createPromptedSource(runtime, workspace);
-  const before = await runtime.requestJSON<TranscriptPayload>(
-    sessionAPIPath(workspace.id, source.id, "/transcript")
-  );
-
-  await appPage.goto(runtime.url(`/agents/${sourceAgent}/sessions/${source.id}`), {
-    waitUntil: "domcontentloaded",
-  });
-  const sourceWin = sessionWindow(appPage, source.id);
-  await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
-
-  await windowFrame(sourceWin).getByTestId("session-topbar-overflow").click();
-  await appPage.getByTestId("continue-menu-item").click();
-  const dialog = appPage.getByTestId("session-continue-dialog");
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId("session-derive-preview")).toContainText("Carries over");
-  await expect(dialog.getByTestId("session-continue-agent-select")).toContainText(targetAgent);
-  await expect(dialog.getByTestId("session-derive-placement-new-window")).toBeChecked();
-  await browserArtifacts.captureScreenshot("continue-dialog", appPage);
-
-  await dialog.getByTestId("session-continue-submit").click();
-  await expect(dialog).toBeHidden();
-
-  let child: SessionPayload | undefined;
-  await expect
-    .poll(async () => {
-      const { sessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
-        `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
-      );
-      child = sessions.find(
-        candidate =>
-          candidate.lineage?.kind === "continue" &&
-          candidate.lineage.parent_session_id === source.id
-      );
-      return child?.agent_name ?? null;
-    })
-    .toBe(targetAgent);
-
-  const childWin = sessionWindow(appPage, child!.id);
-  await expect(childWin).toBeVisible();
-  await expect(windowFrame(childWin).getByTestId("session-origin-pill")).toHaveText(
-    `Continued from ${sourceAgent}`
-  );
-  await expect(childWin.getByTestId("session-origin-divider")).toContainText("Continued from");
-  await browserArtifacts.captureScreenshot("continue-child-window", appPage);
-
-  // The source window is still there, unchanged.
-  await expect(sourceWin).toBeVisible();
-  const after = await runtime.requestJSON<TranscriptPayload>(
-    sessionAPIPath(workspace.id, source.id, "/transcript")
-  );
-  expect(after.max_sequence).toBe(before.max_sequence);
-  for (const entry of before.entries) {
-    await expect(
-      sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
-    ).toHaveCount(1);
-  }
-});
-
 async function promptAndSettle(
   runtime: BrowserRuntime,
   workspace: WorkspacePayload,
@@ -196,127 +131,186 @@ async function promptAndSettle(
     .toBeGreaterThanOrEqual(entriesAfter);
 }
 
-test("E2E-002: operator forks a session from a message and the source keeps every turn", async ({
+// Invariant: fork/continue preserve source transcripts and provider failures offer the source.
+// Owner: this browser suite; fork runs first to preserve its cold half-width layout.
+test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rate-limited session", async ({
   appPage,
   browserArtifacts,
   runtime,
 }) => {
-  const workspace = await prepareWorkspace(runtime, appPage);
-  const { session: source } = await runtime.requestJSON<{ session: SessionPayload }>(
-    "/api/sessions",
-    { method: "POST", body: JSON.stringify({ agent_name: forkAgent, workspace: workspace.id }) }
-  );
-  await promptAndSettle(runtime, workspace, source.id, "First step", 2);
-  await promptAndSettle(runtime, workspace, source.id, "Second step", 4);
-  await promptAndSettle(runtime, workspace, source.id, "Third step", 6);
-  const before = await runtime.requestJSON<TranscriptPayload>(
-    sessionAPIPath(workspace.id, source.id, "/transcript")
-  );
-  const userMessages = before.entries.filter(entry => entry.message.role === "user");
-  expect(userMessages).toHaveLength(3);
-  const secondUser = userMessages[1]!.message.id;
+  await test.step("E2E-002: operator forks a session from a message and the source keeps every turn", async () => {
+    const workspace = await prepareWorkspace(runtime, appPage);
+    const { session: source } = await runtime.requestJSON<{ session: SessionPayload }>(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify({ agent_name: forkAgent, workspace: workspace.id }) }
+    );
+    await promptAndSettle(runtime, workspace, source.id, "First step", 2);
+    await promptAndSettle(runtime, workspace, source.id, "Second step", 4);
+    await promptAndSettle(runtime, workspace, source.id, "Third step", 6);
+    const before = await runtime.requestJSON<TranscriptPayload>(
+      sessionAPIPath(workspace.id, source.id, "/transcript")
+    );
+    const userMessages = before.entries.filter(entry => entry.message.role === "user");
+    expect(userMessages).toHaveLength(3);
+    const secondUser = userMessages[1]!.message.id;
 
-  await appPage.goto(runtime.url(`/agents/${forkAgent}/sessions/${source.id}`), {
-    waitUntil: "domcontentloaded",
+    await appPage.goto(runtime.url(`/agents/${forkAgent}/sessions/${source.id}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const sourceWin = sessionWindow(appPage, source.id);
+    await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
+
+    const row = sourceWin.locator(`${messageRow}[data-message-id="${secondUser}"]`);
+    await row.hover();
+    const forkFromHere = row.getByTestId("user-message-fork");
+    await expect(forkFromHere).toBeEnabled();
+    await expect(row.getByTestId("user-message-rewind")).toBeVisible();
+    await forkFromHere.click();
+
+    const dialog = appPage.getByTestId("session-fork-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("session-fork-agent")).toContainText(forkAgent);
+    await expect(dialog.getByTestId("session-fork-point")).toContainText("Through");
+    await expect(dialog.getByTestId("session-fork-point")).toContainText("Second step");
+    await expect(dialog.getByTestId("session-derive-preview")).toContainText("Carries over");
+    await expect(dialog.getByTestId("session-derive-placement-new-window")).toBeChecked();
+    await browserArtifacts.captureScreenshot("fork-dialog-from-message", appPage);
+
+    await dialog.getByTestId("session-fork-submit").click();
+    await expect(dialog).toBeHidden();
+
+    let child: (SessionPayload & { lineage?: { origin_message_id?: string } | null }) | undefined;
+    await expect
+      .poll(async () => {
+        const { sessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
+          `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
+        );
+        child = sessions.find(
+          candidate =>
+            candidate.lineage?.kind === "fork" && candidate.lineage.parent_session_id === source.id
+        );
+        return child?.agent_name ?? null;
+      })
+      .toBe(forkAgent);
+    expect(child!.lineage?.origin_message_id).toBe(secondUser);
+
+    const childWin = sessionWindow(appPage, child!.id);
+    await expect(childWin).toBeVisible();
+    await expect(childWin.getByTestId("session-origin-pill")).toContainText("Forked from");
+    // The child opens beside its source at half width: the head's meta (agent,
+    // origin pill, time) yields before the window title ever truncates.
+    const childTitle = childWin.locator('[data-slot="topbar-title"] button');
+    await expect(childTitle).toHaveText("New session");
+    await expect
+      .poll(() => childTitle.evaluate(element => element.scrollWidth <= element.clientWidth))
+      .toBe(true);
+    await browserArtifacts.captureScreenshot("fork-child-window", appPage);
+
+    // The source keeps all three turns and its fences.
+    await expect(sourceWin).toBeVisible();
+    const after = await runtime.requestJSON<TranscriptPayload>(
+      sessionAPIPath(workspace.id, source.id, "/transcript")
+    );
+    expect(after.max_sequence).toBe(before.max_sequence);
+    expect(after.entries.map(entry => entry.message.id)).toEqual(
+      before.entries.map(entry => entry.message.id)
+    );
+    for (const entry of before.entries) {
+      await expect(
+        sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
+      ).toHaveCount(1);
+    }
   });
-  const sourceWin = sessionWindow(appPage, source.id);
-  await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
 
-  const row = sourceWin.locator(`${messageRow}[data-message-id="${secondUser}"]`);
-  await row.hover();
-  const forkFromHere = row.getByTestId("user-message-fork");
-  await expect(forkFromHere).toBeEnabled();
-  await expect(row.getByTestId("user-message-rewind")).toBeVisible();
-  await forkFromHere.click();
+  await test.step("E2E-001: operator continues a session with another agent in a new window", async () => {
+    const workspace = await prepareWorkspace(runtime, appPage);
+    const source = await createPromptedSource(runtime, workspace);
+    const before = await runtime.requestJSON<TranscriptPayload>(
+      sessionAPIPath(workspace.id, source.id, "/transcript")
+    );
 
-  const dialog = appPage.getByTestId("session-fork-dialog");
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId("session-fork-agent")).toContainText(forkAgent);
-  await expect(dialog.getByTestId("session-fork-point")).toContainText("Through");
-  await expect(dialog.getByTestId("session-fork-point")).toContainText("Second step");
-  await expect(dialog.getByTestId("session-derive-preview")).toContainText("Carries over");
-  await expect(dialog.getByTestId("session-derive-placement-new-window")).toBeChecked();
-  await browserArtifacts.captureScreenshot("fork-dialog-from-message", appPage);
+    await appPage.goto(runtime.url(`/agents/${sourceAgent}/sessions/${source.id}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const sourceWin = sessionWindow(appPage, source.id);
+    await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
 
-  await dialog.getByTestId("session-fork-submit").click();
-  await expect(dialog).toBeHidden();
+    // A frame can retain sibling tabs from the fork step; the session surface owns its head.
+    await sessionWindowSelectors(sourceWin, appPage).topbarOverflow.click();
+    await appPage.getByTestId("continue-menu-item").click();
+    const dialog = appPage.getByTestId("session-continue-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("session-derive-preview")).toContainText("Carries over");
+    await expect(dialog.getByTestId("session-continue-agent-select")).toContainText(targetAgent);
+    await expect(dialog.getByTestId("session-derive-placement-new-window")).toBeChecked();
+    await browserArtifacts.captureScreenshot("continue-dialog", appPage);
 
-  let child: (SessionPayload & { lineage?: { origin_message_id?: string } | null }) | undefined;
-  await expect
-    .poll(async () => {
-      const { sessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
-        `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
-      );
-      child = sessions.find(
-        candidate =>
-          candidate.lineage?.kind === "fork" && candidate.lineage.parent_session_id === source.id
-      );
-      return child?.agent_name ?? null;
-    })
-    .toBe(forkAgent);
-  expect(child!.lineage?.origin_message_id).toBe(secondUser);
+    await dialog.getByTestId("session-continue-submit").click();
+    await expect(dialog).toBeHidden();
 
-  const childWin = sessionWindow(appPage, child!.id);
-  await expect(childWin).toBeVisible();
-  await expect(windowFrame(childWin).getByTestId("session-origin-pill")).toContainText(
-    "Forked from"
-  );
-  // The child opens beside its source at half width: the head's meta (agent,
-  // origin pill, time) yields before the window title ever truncates.
-  const childTitle = windowFrame(childWin).locator('[data-slot="topbar-title"] button');
-  await expect(childTitle).toHaveText("New session");
-  await expect
-    .poll(() => childTitle.evaluate(element => element.scrollWidth <= element.clientWidth))
-    .toBe(true);
-  await browserArtifacts.captureScreenshot("fork-child-window", appPage);
+    let child: SessionPayload | undefined;
+    await expect
+      .poll(async () => {
+        const { sessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
+          `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
+        );
+        child = sessions.find(
+          candidate =>
+            candidate.lineage?.kind === "continue" &&
+            candidate.lineage.parent_session_id === source.id
+        );
+        return child?.agent_name ?? null;
+      })
+      .toBe(targetAgent);
 
-  // The source keeps all three turns and its fences.
-  await expect(sourceWin).toBeVisible();
-  const after = await runtime.requestJSON<TranscriptPayload>(
-    sessionAPIPath(workspace.id, source.id, "/transcript")
-  );
-  expect(after.max_sequence).toBe(before.max_sequence);
-  expect(after.entries.map(entry => entry.message.id)).toEqual(
-    before.entries.map(entry => entry.message.id)
-  );
-  for (const entry of before.entries) {
-    await expect(
-      sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
-    ).toHaveCount(1);
-  }
-});
+    const childWin = sessionWindow(appPage, child!.id);
+    await expect(childWin).toBeVisible();
+    await expect(childWin.getByTestId("session-origin-pill")).toHaveText(
+      `Continued from ${sourceAgent}`
+    );
+    await expect(childWin.getByTestId("session-origin-divider")).toContainText("Continued from");
+    await browserArtifacts.captureScreenshot("continue-child-window", appPage);
 
-// E2E-004: `handoff-agent` (provider_error_fixture.json) answers its second prompt with a
-// `fail_prompt` driver_control error ("429 rate limit exceeded"), which the daemon classifies
-// as rate limited and decorates with `next_action: "handoff"` on a user session.
-test("E2E-004: a rate-limited turn offers Continue with this session as the source", async ({
-  appPage,
-  runtime,
-}) => {
-  const workspace = await prepareWorkspace(runtime, appPage);
-  const source = await createPromptedSource(runtime, workspace, handoffAgent, "hello handoff");
-  // Second prompt: scripted by the fixture to fail as a provider rate limit.
-  await promptSession(runtime, workspace.id, source.id, "rate limit this turn");
-
-  await appPage.goto(runtime.url(`/agents/${handoffAgent}/sessions/${source.id}`), {
-    waitUntil: "domcontentloaded",
+    // The source window is still there, unchanged.
+    await expect(sourceWin).toBeVisible();
+    const after = await runtime.requestJSON<TranscriptPayload>(
+      sessionAPIPath(workspace.id, source.id, "/transcript")
+    );
+    expect(after.max_sequence).toBe(before.max_sequence);
+    for (const entry of before.entries) {
+      await expect(
+        sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
+      ).toHaveCount(1);
+    }
   });
-  const sourceWin = sessionWindow(appPage, source.id);
-  const marker = sourceWin.getByTestId("session-error-notice");
-  await expect(marker).toHaveAttribute("data-provider-next-action", "handoff");
-  await expect(marker).toContainText("is rate limited");
 
-  const { sessions: beforeSessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
-    `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
-  );
-  await marker.getByTestId("provider-error-continue").click();
-  const dialog = appPage.getByTestId("session-continue-dialog");
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId("session-continue-source-note")).toContainText(handoffAgent);
+  // The handoff fixture fails its second prompt with a 429 rate limit error.
+  await test.step("E2E-004: a rate-limited turn offers Continue with this session as the source", async () => {
+    const workspace = await prepareWorkspace(runtime, appPage);
+    const source = await createPromptedSource(runtime, workspace, handoffAgent, "hello handoff");
+    // Second prompt: scripted by the fixture to fail as a provider rate limit.
+    await promptSession(runtime, workspace.id, source.id, "rate limit this turn");
 
-  // Nothing is created until Continue.
-  const { sessions: afterSessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
-    `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
-  );
-  expect(afterSessions).toHaveLength(beforeSessions.length);
+    await appPage.goto(runtime.url(`/agents/${handoffAgent}/sessions/${source.id}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const sourceWin = sessionWindow(appPage, source.id);
+    const marker = sourceWin.getByTestId("session-error-notice");
+    await expect(marker).toHaveAttribute("data-provider-next-action", "handoff");
+    await expect(marker).toContainText("is rate limited");
+
+    const { sessions: beforeSessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
+      `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
+    );
+    await marker.getByTestId("provider-error-continue").click();
+    const dialog = appPage.getByTestId("session-continue-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("session-continue-source-note")).toContainText(handoffAgent);
+
+    // Nothing is created until Continue.
+    const { sessions: afterSessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(
+      `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
+    );
+    expect(afterSessions).toHaveLength(beforeSessions.length);
+  });
 });

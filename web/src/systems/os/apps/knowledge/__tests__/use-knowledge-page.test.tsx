@@ -435,21 +435,6 @@ describe("useKnowledgePage", () => {
         scope: "profile",
       }),
     });
-  });
-
-  it("Should omit the immutable name and type from the edit request", async () => {
-    const { result } = renderHook(() => useKnowledgePage());
-
-    await waitFor(() => {
-      expect(result.current.selectedMemory).toBeTruthy();
-    });
-
-    const memory = result.current.selectedMemory;
-    if (!memory) throw new Error("expected a selected memory");
-    await act(async () => {
-      await result.current.handleEdit(memory, { content: "next body" });
-    });
-
     const [params] = editMutateAsync.mock.calls.at(-1) ?? [];
     expect(params?.body).not.toHaveProperty("name");
     expect(params?.body).not.toHaveProperty("type");
