@@ -163,3 +163,14 @@ export function automationDetailSearchFrom(
   const loopFilter = automationListLoopFilter({ ...search, loop });
   return loopFilter === undefined ? listing : { ...listing, loop: loopFilter };
 }
+
+/**
+ * The listing search a raw URL normalizes to, or null when the URL is already canonical.
+ * Unknown or malformed params (`?start=bogus&q=`) drop out, so the URL can be replaced.
+ */
+export function canonicalAutomationsSearch(
+  raw: Record<string, unknown>
+): AutomationsRouteSearch | null {
+  const validated = validateAutomationsSearch(raw);
+  return Object.keys(raw).every(key => key in validated) ? null : validated;
+}

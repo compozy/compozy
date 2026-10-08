@@ -16,7 +16,11 @@ import {
   type SentenceContext,
 } from "./automation-sentence";
 import { isAutomationTrigger, type AutomationEntity } from "./automation-entity";
-import { automationScopeLabel, formatRelativeTime } from "./automation-formatters";
+import {
+  automationLastRunAt,
+  automationScopeLabel,
+  formatRelativeTime,
+} from "./automation-formatters";
 import { triggerWebhookPath } from "./automation-rule";
 import type { AutomationJob, AutomationRunStatus, AutomationTrigger } from "../types";
 
@@ -147,16 +151,33 @@ export function compareAutomationViews(left: AutomationView, right: AutomationVi
   return left.kind === "job" ? -1 : 1;
 }
 
-/** `In 14h` / `next run` for schedules, `2h ago` / `last ran` for events; null value = faint `—`. */
-export function automationTimeStat(view: AutomationView): { value: string | null; label: string } {
+export interface AutomationTimeStat {
+  /** `In 14h` (schedules) or `2h ago` (events); null renders a faint `—`. */
+  value: string | null;
+  label: "next run" | "last ran";
+  /** Events: the last-run instant, the same one the last-run truth line is dated by. */
+  at?: string;
+}
+
+/** `In 14h` / `next run` for schedules, `2h ago` / `last ran` for events. */
+export function automationTimeStat(view: AutomationView): AutomationTimeStat {
   if (view.kind === "job") {
     return {
       value: view.enabled && view.nextRunAt ? formatRelativeTime(view.nextRunAt) : null,
       label: "next run",
     };
   }
-  const at = view.lastRun?.startedAt ?? view.lastRun?.endedAt;
-  return { value: at ? formatRelativeTime(at) : null, label: "last ran" };
+  const at = automationLastRunAt(view.lastRun);
+  return at
+    ? { value: formatRelativeTime(at), label: "last ran", at }
+    : { value: null, label: "last ran" };
+}
+
+/** Card foot: `Next run in 14h` / `Last ran` (the caller renders the instant) / `—`. */
+export function automationCardFootLead(stat: AutomationTimeStat): string | null {
+  if (stat.value === null) return null;
+  if (stat.label === "last ran") return "Last ran";
+  return `Next run ${stat.value.charAt(0).toLowerCase()}${stat.value.slice(1)}`;
 }
 
 /** Location label: `Project checkout-api` or `Global`. */
