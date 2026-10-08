@@ -20,7 +20,6 @@ const DOCK_DEFS = [
   { id: "jobs", name: "Jobs", icon: "jobs" },
   { id: "triggers", name: "Triggers", icon: "triggers" },
   { id: "marketplace", name: "Marketplace", icon: "marketplace" },
-  { id: "knowledge", name: "Knowledge", icon: "knowledge" },
   { id: "vault", name: "Vault", icon: "vault" },
 ] as const;
 

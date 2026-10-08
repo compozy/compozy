@@ -27,7 +27,6 @@ import {
   useLoopRuns,
   useLoops,
 } from "@/systems/loops";
-import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/systems/knowledge";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
 import {
@@ -53,7 +52,6 @@ import {
   useSettingsApplyRecords,
   useSettingsGeneral,
   useSettingsHooksExtensions,
-  useSettingsMemory,
   useSettingsObservability,
   useSettingsProviders,
   useSettingsSkills,
@@ -94,7 +92,6 @@ const adapterMocks = vi.hoisted(() => ({
   getTaskInbox: vi.fn(),
   getSettingsGeneral: vi.fn(),
   getSettingsHooksExtensions: vi.fn(),
-  getSettingsMemory: vi.fn(),
   getSettingsObservability: vi.fn(),
   getSettingsSkills: vi.fn(),
   getSettingsUpdate: vi.fn(),
@@ -108,7 +105,6 @@ const adapterMocks = vi.hoisted(() => ({
   listAutomationTriggers: vi.fn(),
   listLoopRuns: vi.fn(),
   listLoops: vi.fn(),
-  listMemories: vi.fn(),
   listTasks: vi.fn(),
   listSettingsApplyRecords: vi.fn(),
   listSettingsMCPServers: vi.fn(),
@@ -170,7 +166,6 @@ vi.mock("@/systems/settings/adapters/settings-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/settings/adapters/settings-api")>()),
   getSettingsGeneral: adapterMocks.getSettingsGeneral,
   getSettingsHooksExtensions: adapterMocks.getSettingsHooksExtensions,
-  getSettingsMemory: adapterMocks.getSettingsMemory,
   getSettingsObservability: adapterMocks.getSettingsObservability,
   getSettingsSkills: adapterMocks.getSettingsSkills,
   getSettingsUpdate: adapterMocks.getSettingsUpdate,
@@ -219,11 +214,6 @@ vi.mock("@/systems/loops/adapters/loops-api", async importOriginal => ({
   listLoops: adapterMocks.listLoops,
 }));
 
-vi.mock("@/systems/knowledge/adapters/knowledge-api", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/knowledge/adapters/knowledge-api")>()),
-  listMemories: adapterMocks.listMemories,
-}));
-
 import { Route as AppRoute } from "../../_app";
 import { Route as AgentDetailRoute } from "../agents.$name.index";
 import { Route as AgentSettingsRoute } from "../agents.$name.settings";
@@ -231,7 +221,6 @@ import { Route as AgentsRoute } from "../agents.index";
 import { Route as HomeRoute } from "../index";
 import { Route as JobDetailRoute } from "../jobs.$jobId";
 import { Route as JobsRoute } from "../jobs";
-import { Route as KnowledgeRoute } from "../knowledge";
 import { Route as LoopRunDetailRoute } from "../loop-runs.$runId";
 import { Route as LoopRunsRoute } from "../loop-runs";
 import { Route as LoopConfigureRoute } from "../loops.$name.configure";
@@ -248,7 +237,6 @@ import { Route as VaultRoute } from "../vault";
 import { Route as SettingsGeneralRoute } from "../settings/general";
 import { Route as SettingsExtensionsRoute } from "../settings/extensions";
 import { Route as SettingsHooksRoute } from "../settings/hooks";
-import { Route as SettingsMemoryRoute } from "../settings/memory";
 import { Route as SettingsObservabilityRoute } from "../settings/observability";
 import { Route as SettingsProvidersRoute } from "../settings/providers";
 import { Route as SettingsSkillsRoute } from "../settings/skills";
@@ -377,21 +365,6 @@ const cases: PreloadCase[] = [
       adapterMocks.fetchAgents,
       adapterMocks.fetchSessions,
     ],
-  },
-  {
-    name: "knowledge → exact default-global infinite catalog options",
-    load: queryClient => invokeLoader(KnowledgeRoute, context(queryClient)),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useMemories({
-          profile: "default",
-          scope: "profile",
-          includeSystem: false,
-          limit: DEFAULT_MEMORY_LIST_LIMIT,
-          sort: "recent",
-        });
-      }),
-    requests: [adapterMocks.listMemories],
   },
   {
     name: "tasks → exact route-filtered active-workspace catalog options",
@@ -730,15 +703,6 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "memory settings → settingsMemoryOptions",
-    load: queryClient => invokeLoader(SettingsMemoryRoute, context(queryClient)),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useSettingsMemory();
-      }),
-    requests: [adapterMocks.getSettingsMemory],
-  },
-  {
     name: "observability settings → settingsObservabilityOptions",
     load: queryClient => invokeLoader(SettingsObservabilityRoute, context(queryClient)),
     mountConsumer: queryClient =>
@@ -800,14 +764,13 @@ describe("route query preloading", () => {
     adapterMocks.listSettingsApplyRecords.mockResolvedValue({ records: [] });
     adapterMocks.listSettingsProviders.mockResolvedValue({ providers: [] });
     adapterMocks.getSettingsSkills.mockResolvedValue({ config: {}, scope: "user" });
-    adapterMocks.getSettingsMemory.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsObservability.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsHooksExtensions.mockResolvedValue({ config: {} });
     adapterMocks.listVaultSecrets.mockResolvedValue([]);
     adapterMocks.listSkills.mockResolvedValue([]);
-    adapterMocks.getSkill.mockResolvedValue({ name: "memory" });
+    adapterMocks.getSkill.mockResolvedValue({ name: "review" });
     adapterMocks.getSkillShadows.mockResolvedValue([]);
-    adapterMocks.getSkillContent.mockResolvedValue({ content: "# Memory" });
+    adapterMocks.getSkillContent.mockResolvedValue({ content: "# Review" });
     adapterMocks.listAutomationJobs.mockResolvedValue({
       jobs: [],
       page: { has_more: false, limit: 50, total: 0 },
@@ -831,10 +794,6 @@ describe("route query preloading", () => {
       facets: { categories: {}, kinds: {}, statuses: {} },
       loops: [],
       page: { has_more: false, limit: 50, total: 0 },
-    });
-    adapterMocks.listMemories.mockResolvedValue({
-      memories: [],
-      page: { has_more: false, limit: DEFAULT_MEMORY_LIST_LIMIT, total: 0 },
     });
     adapterMocks.listTasks.mockResolvedValue({
       facets: { owners: [], statuses: [] },
@@ -1073,21 +1032,16 @@ describe("route query preloading", () => {
       expect(state?.error).toEqual(new Error("vault unavailable"));
     });
 
-    adapterMocks.listMemories.mockRejectedValueOnce(new Error("knowledge unavailable"));
-    await expect(invokeLoader(KnowledgeRoute, context(queryClient))).resolves.toBeUndefined();
+    adapterMocks.getTaskDashboard.mockRejectedValueOnce(new Error("dashboard unavailable"));
+    await expect(invokeLoader(HomeRoute, context(queryClient))).resolves.toBeUndefined();
 
     await waitFor(() => {
-      const knowledgeState = queryClient.getQueryState(
-        memoriesListOptions({
-          profile: "default",
-          scope: "profile",
-          includeSystem: false,
-          limit: DEFAULT_MEMORY_LIST_LIMIT,
-          sort: "recent",
-        }).queryKey
+      const dashboardState = queryClient.getQueryState(
+        taskDashboardOptions({ scope: "workspace", workspace: workspace.id, profile: "default" })
+          .queryKey
       );
-      expect(knowledgeState?.status).toBe("error");
-      expect(knowledgeState?.error).toEqual(new Error("knowledge unavailable"));
+      expect(dashboardState?.status).toBe("error");
+      expect(dashboardState?.error).toEqual(new Error("dashboard unavailable"));
     });
     queryClient.clear();
   });

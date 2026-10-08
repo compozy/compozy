@@ -39,9 +39,6 @@ const AgentsWindow = lazy(() =>
 const VaultWindow = lazy(() =>
   import("../apps/vault/vault-window").then(m => ({ default: m.VaultWindow }))
 );
-const KnowledgeWindow = lazy(() =>
-  import("../apps/knowledge/knowledge-window").then(m => ({ default: m.KnowledgeWindow }))
-);
 const LoopsWindow = lazy(() =>
   import("../apps/loops/loops-window").then(m => ({ default: m.LoopsWindow }))
 );
@@ -80,11 +77,6 @@ async function preloadAgents(qc: QueryClient): Promise<void> {
 async function preloadVault(qc: QueryClient): Promise<void> {
   const { preloadVaultRoute } = await import("@/routes/_app/-vault-preload");
   await preloadVaultRoute(qc);
-}
-
-async function preloadKnowledge(qc: QueryClient): Promise<void> {
-  const { preloadKnowledgeRoute } = await import("@/routes/_app/-knowledge-preload");
-  await preloadKnowledgeRoute(qc);
 }
 
 async function preloadLoops(qc: QueryClient): Promise<void> {
@@ -148,11 +140,6 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   marketplace: {
     ...OS_APP_DESCRIPTORS.marketplace,
     Controller: MarketplaceWindow,
-  },
-  knowledge: {
-    ...OS_APP_DESCRIPTORS.knowledge,
-    preload: preloadKnowledge,
-    Controller: KnowledgeWindow,
   },
   vault: {
     ...OS_APP_DESCRIPTORS.vault,

@@ -32,7 +32,6 @@ export type OsAppId =
   | "jobs"
   | "triggers"
   | "marketplace"
-  | "knowledge"
   | "vault"
   | "settings";
 

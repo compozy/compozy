@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   Bot,
   Clock3,
   Home,
@@ -126,13 +125,6 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     paths: ["/marketplace"],
     dock: { group: 3 },
   },
-  knowledge: {
-    id: "knowledge",
-    title: "Knowledge",
-    icon: BookOpen,
-    paths: ["/knowledge"],
-    dock: { group: 3 },
-  },
   vault: {
     id: "vault",
     title: "Vault",
@@ -151,6 +143,11 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
 
 export function getOsAppDescriptor(id: OsAppId): OsAppDescriptor {
   return OS_APP_DESCRIPTORS[id];
+}
+
+/** Narrows a persisted app string to a registered app; null for apps this build does not know. */
+export function osAppId(value: string): OsAppId | null {
+  return Object.hasOwn(OS_APP_DESCRIPTORS, value) ? (value as OsAppId) : null;
 }
 
 export const OS_WINDOW_CONSERVATIVE_MINIMUM: PixelSize = {

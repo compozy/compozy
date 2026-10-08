@@ -86,13 +86,6 @@ export const appRouteStories = [
     storyName: "RunsList",
   },
   {
-    system: "knowledge",
-    routePath: "/knowledge",
-    storybookPath: "/knowledge",
-    title: "systems/knowledge/routes/Knowledge",
-    storyName: "Default",
-  },
-  {
     system: "automation",
     routePath: "/jobs",
     storybookPath: "/jobs",
