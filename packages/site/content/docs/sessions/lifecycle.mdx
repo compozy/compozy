@@ -493,6 +493,11 @@ reported as `truncated` and `omitted_count`. When messages were omitted and the 
 `compozy__session_history`, the header also points the agent at the **source** session
 (`session_id: <source id>`) so it can read the earlier messages on demand.
 
+Omissions accumulate along a chain of continues and forks. When the source itself carries a bounded
+context, the new session's `omitted_count` and `truncated` (in the derivation receipt, the preview,
+and the carried-context metadata) include what the earlier hop already dropped, on top of anything the
+new bound drops. A nested continue never reports a clean context that an ancestor cut.
+
 ### Retries
 
 One `(workspace, idempotency_key)` creates at most one session. Repeating the same request returns the
@@ -812,8 +817,12 @@ the directory, so you can copy what you want to keep and delete the rest yoursel
 already exists for a skipped directory is marked `orphaned`, like any directory reconciliation cannot
 recover. Sessions with any other spawn role, including custom advisory roles, recover normally.
 
+The upgrade itself deletes the catalog rows of the legacy `dream` sessions and of the
+`memory-extractor` and `checkpoint-summary` child sessions, whatever their session type. It leaves
+their directories on disk, and this boundary keeps the daemon from cataloging them again.
+
 This is permanent behavior, not a temporary compatibility shim. See
-[Memory removal](/docs/migration#memory-removal) for the sessions the upgrade deletes.
+[Memory removal](/docs/migration#memory-removal) for everything the upgrade deletes.
 
 ## Session types
 

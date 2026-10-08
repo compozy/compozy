@@ -71,8 +71,9 @@ granted through agent definitions or inspected through `compozy toolsets info`.
 Toolsets expose current canonical tool IDs only. `compozy__session_compact` (risk `mutating`, input
 `{session_id}`, **experimental**) asks the agent of an idle session in the caller's workspace to
 compact its own context through the command that agent advertises. It follows an unstable upstream
-agent contract. See
-[Session compaction](/docs/sessions/compaction).
+agent contract. When the session is busy or the agent advertises no compaction command, the tool
+fails with the structural error code `session_busy` or `compaction_unsupported`. See
+[Session compaction](/docs/sessions/compaction#native-tool).
 
 ## How toolsets help operators
 

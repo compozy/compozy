@@ -46,8 +46,10 @@ normalizes, and commits the complete topology atomically.
   `automations` windows on the matching route, and layout history resets.
 - On load the daemon also drops windows whose app is no longer registered, renormalizes the topology,
   rewrites a retired Settings sub-route to `/settings`, and persists the result once under the next
-  revision (it logs `windowmanager.snapshot_reconciled`). Persisted `window_layout` resources follow the
-  same registered-app rule.
+  revision. After a successful persist it logs `windowmanager.snapshot_reconciled` with `workspace_id`,
+  `profile_id`, the sorted dropped app IDs (`dropped_apps`), the rewritten-route count
+  (`rewritten_routes`), and the new `revision`, counting the current arrangement, its history, and its
+  closed windows. Persisted `window_layout` resources follow the same registered-app rule.
 
 Read the current revision before mutating:
 

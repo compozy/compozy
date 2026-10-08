@@ -191,9 +191,11 @@ during raw document round trips instead of constructing or editing this recovery
 A saved layout can name an app that CompozyOS no longer ships. When the daemon loads a workspace's
 saved window topology, it removes every window whose app is no longer registered, including the same
 windows inside undo and redo history and recently closed entries. It then renormalizes the affected
-desktops, rewrites a Settings window's saved `/settings/memory` route to `/settings`, persists the
-result once, and logs `windowmanager.snapshot_reconciled` with the `workspace_id` and the new
-`revision`. The next load changes nothing.
+desktops, rewrites a Settings window's saved `/settings/memory` route to `/settings`, and persists the
+result once. After the write succeeds it logs `windowmanager.snapshot_reconciled` with the
+`workspace_id`, the `profile_id`, the sorted `dropped_apps` (the IDs of the removed apps), the number
+of `rewritten_routes`, and the new `revision`. The app IDs and the route count cover the current
+windows, the undo and redo history, and the recently closed entries. The next load changes nothing.
 
 Declarative `window_layout` resources follow the same rule. The daemon rewrites stored ones once at
 boot, drops the removed windows from their participant slots, and logs

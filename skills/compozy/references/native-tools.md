@@ -177,12 +177,14 @@ agent's advertised native compaction on one idle session in the caller's workspa
 `command` is `compact` or `compress`, the command the agent advertises. The compaction turn is sent as
 `/<command>` in maintenance delivery mode, so it carries no skill expansion, augmenters, or startup
 instructions. The tool returns the receipt only and never waits. A running turn (the caller's own session
-is always mid-turn), another in-flight request, or an agent advertising neither command is a `409` that
-surfaces as a `tool_conflict` tool error carrying the underlying message; the stable `session_busy` and
-`compaction_unsupported` codes belong to the CLI, HTTP, and UDS error payloads. A session that is not
-active fails as invalid input. Observe the outcome through the session's transcript Compaction item and
-`compactions[]` usage markers (`compozy session history` returns the raw ledger rows instead); the CLI
-form, `compozy session compact <session-id>`, waits and prints the outcome.
+is always mid-turn) or another in-flight request fails with the structural tool error code `session_busy`,
+and an agent advertising neither command fails with `compaction_unsupported`; each error carries that
+`code`, the tool ID, and the daemon message, the same codes the CLI, HTTP, and UDS error payloads use, and
+neither is the generic `tool_conflict`. A session that is not active fails as invalid input. Its
+`session.compaction.requested` event records `requested_by: "tool"`. Observe the outcome through the
+session's transcript Compaction item and `compactions[]` usage markers (`compozy session history` returns
+the raw ledger rows instead); the CLI form, `compozy session compact <session-id>`, waits and prints the
+outcome.
 
 `compozy__session_runtime_set` persists complete next-prompt intent without starting or
 reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept optional

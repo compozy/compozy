@@ -123,7 +123,9 @@ The context gauge reports evidence from the active Goal checkpoint:
 CompozyOS asks the agent to compact its own context by sending the command the agent advertises,
 `/compact` or else `/compress`, as an operational prompt in maintenance mode on the managed Goal
 path. It is not a user-authored human message and not a Goal work turn. The compaction succeeds when
-CompozyOS observes a terminal `completed` update for it; a `failed` or `cancelled` update does not.
+the newest status CompozyOS observed for it is `completed`; `failed` or `cancelled` does not. The
+outcome follows the current status, so a correction before the turn ends (`completed` to `failed`, or
+`failed` to `completed`) changes it.
 After an observed `completed` update the gauge reads `unknown` until a later usage report carries both
 `used` and a positive window `size`; a used-only or counter-only report does not make it `known`. When
 the agent reports no compaction lifecycle at all, a normal turn end counts as success and the gauge is

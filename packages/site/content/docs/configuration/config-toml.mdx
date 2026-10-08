@@ -136,13 +136,16 @@ The archived values stay in the file as comments and no longer apply. The next l
 archive, leaves the file byte for byte unchanged, and logs nothing. The archive step is a
 compatibility shim that CompozyOS removes in v0.6.0.
 
-The rewrite is guarded against concurrent edits. Just before it writes, the loader re-reads the file
-and requires the same file with the same bytes. If an editor, another process, or another daemon
-changed or replaced the file in between, nothing is written, your edit is kept, and the load fails
-with `migrate config file "<path>": config changed during retirement migration`. Load again and the
-current content is archived. A file the loader cannot replace, for example one in a read-only
-directory, also fails the load with the write error, so make the directory writable before
-upgrading.
+Archiving these settings never stops the load. The rewrite is guarded against concurrent edits: just before it
+writes, the loader re-reads the file and requires the same file with the same bytes. If an editor,
+another process, or another daemon changed or replaced the file in between, or the loader cannot
+write the file or its directory (for example a read-only directory), nothing is written and your
+file stays exactly as it was. The loader logs a `config.retired_keys_archive_failed` warning with
+the `path` of the file and the `reason`, and loads the rest of the file with the retired settings
+inactive. They are only inactive, not removed: the file keeps them until an archive succeeds, so
+treat the warning as something to act on. Make the file or directory writable, or finish editing,
+and the next load archives the current content and logs `config.retired_keys_archived`. The daemon
+starts either way.
 
 Setting a retired key with `compozy config set` is still refused.
 

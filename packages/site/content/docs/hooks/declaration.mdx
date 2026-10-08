@@ -128,16 +128,21 @@ pattern, so a value other than `requested` or `agent` is accepted and never matc
 applies only to the two `context` events; on any other event the declaration fails validation.
 
 `compaction_trigger` replaces the earlier `compaction_reason` and `compaction_strategy` matchers.
-How a declaration that still carries them is handled depends on where it lives:
+No source rejects a declaration for carrying them. How each source handles them depends on where the
+declaration lives:
 
-| Source                                                          | Handling                                                                                                                                                                                |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config` (`[[hooks.declarations]]` in a `config.toml`)          | The two keys are removed from the matcher and archived at the end of the same file on load. See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings). |
-| `extension` (`[[resources.hooks]]` in `extension.toml`/`.json`) | The two keys are ignored and CompozyOS logs one `extension.retired_entries_ignored` warning per manifest load, listing entries such as `hooks[0].compaction_reason`.                    |
-| `agent_definition` and `skill`                                  | Not covered. The keys are unknown matcher fields, so the `AGENT.md` or `SKILL.md` fails to load until you delete them.                                                                  |
+| Source                                                          | Handling                                                                                                                                                                                                                           |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config` (`[[hooks.declarations]]` in a `config.toml`)          | The two keys are removed from the matcher and archived at the end of the same file on load. See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings).                                            |
+| `extension` (`[[resources.hooks]]` in `extension.toml`/`.json`) | The two keys are ignored and CompozyOS logs one `extension.retired_entries_ignored` warning per manifest load, listing entries such as `hooks[0].compaction_reason`.                                                               |
+| `agent_definition` (`hooks` in `AGENT.md`)                      | The two keys are ignored and CompozyOS logs one `agent.retired_entries_ignored` warning per load, with the `agent` name and the ignored `entries`, such as `hooks[0].matcher.compaction_reason`. `AGENT.md` is not rewritten.      |
+| `skill` (`metadata.compozy.hooks` in `SKILL.md`)                | The two keys are ignored and CompozyOS logs one `skills.retired_entries_ignored` warning per skill, with its `path`, `name`, and the ignored `entries`, such as `hooks[0].matcher.compaction_reason`. `SKILL.md` is not rewritten. |
 
-In the first two cases the declaration keeps running with no trigger filter, so it observes every
-compaction, whatever its `trigger`.
+In every case the declaration keeps running with no trigger filter, so it observes every compaction,
+whatever its `trigger`. The rest of the matcher is still validated: an unknown or malformed matcher
+field next to the retired keys is still rejected. The `AGENT.md` and `SKILL.md` handling is a
+compatibility shim that CompozyOS removes in v0.6.0, so replace the two keys with
+`compaction_trigger` before then.
 
 An `AGENT.md` hook cannot target the context events at all. CompozyOS adds the agent's `name` as
 `matcher.agent_name` on every agent-definition hook, and the `context` family does not accept

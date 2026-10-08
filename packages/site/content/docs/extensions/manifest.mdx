@@ -343,6 +343,13 @@ the extension name and the dropped entries, for example `permissions.requires=me
 `hooks[0].compaction_reason`. `compozy extension list` shows the extension as loaded. An unknown
 entry outside that retired family keeps failing validation.
 
+The same shim covers automation resources, which load from the TOML files that `resources.automation`
+points at. A `[[triggers]]` entry for the removed memory-consolidation event is skipped, and the
+skip happens before CompozyOS checks the trigger's name, agent, or prompt. Every job and every other
+trigger in the file, and every other resource of the extension, still loads. Each skipped trigger
+logs an `extension.retired_entries_ignored` warning with the `extension` name, the `resource` file,
+and the retired event name as the dropped entry.
+
 A running extension that calls `memory/recall`, `memory/store`, or `memory/forget` gets the
 JSON-RPC method-not-found error (`-32601`), the same response as any other unknown Host API method.
 The shim that drops the retired entries is removed in v0.6.0. See the

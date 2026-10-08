@@ -46,11 +46,13 @@ Nothing needs editing by hand. On the first start:
 - **Global database migration 00130.** `00130_retire_memory.sql` drops the memory tables, their
   full-text indexes, and `goose_db_version_memory`; deletes `memory.consolidated` automation triggers
   together with their overlays, catalog rows, gateway ingress bindings, and owned secret refs (run
-  history stays); and deletes legacy `dream` sessions and `memory-extractor` child sessions with their
-  dependent rows. Session directories on disk are not removed.
+  history stays); and deletes legacy `dream` sessions and the `memory-extractor` and
+  `checkpoint-summary` child sessions with their dependent rows. Session directories on disk are not
+  removed.
 - **Session database migration 00009.** `00009_unarchive_compaction_spans.sql` restores the events
-  that the removed CompozyOS compaction had archived, so old compacted sessions show their full
-  history again. Events archived by a conversation rewind stay archived.
+  that the removed CompozyOS compaction had archived, together with their transcript entries and tool
+  routes, so old compacted sessions show their full history again in the transcript, search, outline,
+  and fork and rewind anchors. Events archived by a conversation rewind stay archived.
 - **Config archive.** When the global, profile, or workspace `config.toml` contains `[memory]` (every
   sub-table), `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`,
   `[roles.memory_controller]`, `[session.compaction]`, an `[[automation.triggers]]` entry with
@@ -58,16 +60,21 @@ Nothing needs editing by hand. On the first start:
   the daemon removes them and appends them, commented, at the end of the same file under
   `# Archived retired memory and compaction settings; these values are inactive.`. The rewrite is
   atomic and lossless, logged once as `config.retired_keys_archived`, and a second start changes
-  nothing. If the file changes while it is being rewritten, or the daemon cannot write it (for
-  example a read-only directory), the load stops with an error that names the file; make it writable
-  and start again, and the next load archives the current content. Explicitly setting a retired key
-  (`compozy config set memory.enabled true`) is still refused.
+  nothing. The archive never blocks a start: if the file changes while it is being rewritten, or the
+  daemon cannot write it (for example a read-only directory), the daemon logs a
+  `config.retired_keys_archive_failed` warning with the path and the reason, loads with the retired
+  values inactive, leaves the file untouched, and tries again on the next load. Explicitly setting a
+  retired key (`compozy config set memory.enabled true`) is still refused.
 - **Ignored leftovers.** `memory_policy` in a `SOUL.md` is ignored: it is not rendered, never raises a
   diagnostic, and the file is not rewritten (the Web editor drops it on the next save). Retired
   `compozy__memory*` tool and toolset IDs in an agent, profile, or session tool policy are dropped
   with a `tools.retired_ids_ignored` warning. An extension manifest that declares `memory.backend`,
   `memory/recall|store|forget`, or the `memory.read|write` consent still loads with those entries
-  dropped and one `extension.retired_entries_ignored` warning.
+  dropped and one `extension.retired_entries_ignored` warning; an extension automation resource whose
+  trigger event is `memory.consolidated` is skipped with the same warning and the rest of the
+  extension loads. The hook-matcher keys `compaction_reason` and `compaction_strategy` in `AGENT.md`
+  and `SKILL.md` hook declarations are ignored with one `agent.retired_entries_ignored` or
+  `skills.retired_entries_ignored` warning per file, and the file is left untouched.
 - **Saved desktop layouts.** The Knowledge window is dropped from saved layouts, including persisted
   layout resources, a Settings window on `/settings/memory` moves to `/settings`, and the reconciled
   layout is saved once.
@@ -125,8 +132,8 @@ summarize, archive, or start a child session. The agent owns its context window.
   recorded before the upgrade stay in the ledger as opaque history and never produce a marker.
 - **Compact now (experimental).** `compozy session compact <session-id>`,
   `POST /api/workspaces/{workspace_id}/sessions/{session_id}/compact`, the native tool
-  `compozy__session_compact`, and the Web context meter ask the agent to compact through the command
-  it advertises (`/compact` or `/compress`). The Goal executor uses the same command. See
+  `compozy__session_compact`, and the Compact now button in the Web context rail ask the agent to
+  compact through the command it advertises (`/compact` or `/compress`). The Goal executor uses the same command. See
   [Context compaction](https://compozy.com/docs/sessions/compaction).
 - **Hooks.** `context.pre_compact` and `context.post_compact` are observation-only: only `labels`
   can be patched, and the `deny`, `summary`, and `context_blocks` patches are removed. The matcher
@@ -139,15 +146,16 @@ Stop calling the removed commands, routes, tools, and SDK members; there are no 
 tool entries from `AGENT.md` `toolsets`/`tools` and from profile and session tool policies when
 convenient, delete `memory_policy` from `SOUL.md`, remove `memory.backend` and `memory/*` entries from
 extension manifests, and replace `compaction_reason` / `compaction_strategy` hook matchers with
-`compaction_trigger`. Hook matchers in `AGENT.md` and `SKILL.md` files are neither archived nor
-ignored: remove those keys by hand or the agent or skill fails to load. Tool-policy wildcards such as
-`compozy__memory*` are not rewritten; they simply match nothing. The other leftovers are tolerated for
-now but not forever.
+`compaction_trigger`; `AGENT.md` and `SKILL.md` hook matchers are ignored with a warning for now, but
+an `AGENT.md` hook cannot target the context events at all, so declare those hooks in `config.toml`, an
+extension manifest, or a skill. Tool-policy wildcards such as `compozy__memory*` are not rewritten;
+they simply match nothing. The leftovers are tolerated for now but not forever.
 
 ### Temporary compatibility
 
-The config archive, the `memory_policy` ignore rule, the retired tool-ID filter, and the extension
-manifest filter are one shim generation. They are removed in v0.6.0. Run at least one release that
+The config archive, the `memory_policy` ignore rule, the retired tool-ID filter, the extension
+manifest and automation-resource filters, and the `AGENT.md` and `SKILL.md` hook-matcher filters are
+one shim generation. They are removed in v0.6.0. Run at least one release that
 contains them before upgrading to v0.6.0, and clean the leftovers listed above so nothing depends on
 them.
 

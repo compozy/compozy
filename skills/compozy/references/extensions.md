@@ -349,4 +349,13 @@ Hooks may deny, narrow, annotate, or observe. They must not bypass safety primit
 
 Skill-declared hooks are part of the skill contract. Keep hook declarations structured and validated, not buried in prose.
 
+The `context.pre_compact` and `context.post_compact` hooks are observation-only and match on
+`compaction_trigger` (`requested` or `agent`); see `references/runtime-operations.md`. An `AGENT.md` hook
+cannot target them, because the agent definition adds `matcher.agent_name` and the context family does
+not accept it; declare context hooks in `config.toml`, an extension manifest, or a skill. The retired
+matcher keys `compaction_reason` and `compaction_strategy` are ignored in `AGENT.md`, `SKILL.md`, and
+extension manifest hooks with one `agent.retired_entries_ignored`,
+`skills.retired_entries_ignored`, or `extension.retired_entries_ignored` warning per owner, and archived
+in a `config.toml` (see `references/configuration.md`).
+
 Manage hooks with `compozy__hooks_*` (list/info/events/runs/create/update/delete/enable/disable). Workspace-scoped declarations match the registered workspace ID shown by `compozy workspace info`, the same ID carried by their event payloads. Hook families are documented beside their domain: `loop.*` in `references/loops.md`, and `window_manager.*` in `references/window-management.md`.
