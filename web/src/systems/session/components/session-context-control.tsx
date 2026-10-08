@@ -1,5 +1,4 @@
 import { useId, useState, type ComponentProps } from "react";
-import { Minimize2 } from "lucide-react";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 import type { SessionContextRingState, SessionContextView } from "../lib/session-context";
 import {
@@ -13,16 +12,14 @@ const RING_RADIUS = 6.5;
 function SessionContextRing({
   state,
   fraction,
-  warning,
   className,
   ...props
 }: ComponentProps<"svg"> & {
   state: SessionContextRingState;
   fraction: number;
-  warning: boolean;
 }) {
   const maskId = `session-context-ring-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const ring = describeSessionContextRing(state, fraction, warning);
+  const ring = describeSessionContextRing(state, fraction);
   return (
     <svg
       aria-hidden="true"
@@ -86,14 +83,7 @@ function SessionContextTooltipLine({
         <p className={cn("flex items-baseline gap-1 text-fg tabular-nums", className)} {...props}>
           {row.percent ? (
             <>
-              <b
-                className={cn(
-                  "text-small-body font-semibold tracking-tight",
-                  row.warning && "text-warning"
-                )}
-              >
-                {row.percent}
-              </b>
+              <b className="text-small-body font-semibold tracking-tight">{row.percent}</b>
               <span aria-hidden="true" className="text-faint">
                 {" · "}
               </span>
@@ -112,13 +102,6 @@ function SessionContextTooltipLine({
       return (
         <p className={cn("flex items-center", className)} {...props}>
           <span className="text-micro text-subtle">Updated a while ago</span>
-        </p>
-      );
-    case "policy":
-      return (
-        <p className={cn("flex items-center gap-1.5 text-warning", className)} {...props}>
-          <Minimize2 aria-hidden="true" className="size-3 shrink-0" />
-          {row.text}
         </p>
       );
     default:
@@ -159,13 +142,12 @@ export function SessionContextControl({
             data-state={view.state}
             className={cn(
               "shrink-0 text-fg-2 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg",
-              view.state === "warning" && "text-warning hover:text-warning",
               open && "bg-surface-2 text-fg"
             )}
           />
         }
       >
-        <SessionContextRing state={view.state} fraction={view.fraction} warning={view.warning} />
+        <SessionContextRing state={view.state} fraction={view.fraction} />
       </TooltipTrigger>
       <TooltipContent
         role="tooltip"

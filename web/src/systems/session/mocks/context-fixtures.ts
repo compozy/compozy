@@ -10,7 +10,6 @@ export const sessionContextFixture: SessionContextPayload = {
   size: 256_000,
   ratio: 89_700 / 256_000,
   size_source: "agent",
-  pressure_threshold: 0.85,
   sequence: 412,
   reported_at: "2026-09-12T10:00:00Z",
   reported_turn_id: "turn-12",

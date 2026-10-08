@@ -1,7 +1,6 @@
 import type { SessionContextPayload, SessionUsagePayload } from "../types";
 
 export interface SessionContextView extends SessionContextPayload {
-  warning: boolean;
   loading: boolean;
   stopped: boolean;
   display?: { compozy: number; agent: number; free: number; total: number };
@@ -26,7 +25,6 @@ export function retainSessionUsage(
       context: {
         ...old,
         injected: next.injected,
-        pressure_threshold: next.pressure_threshold,
         // Freshness can change when a later turn settles without a new report.
         stale: next.sequence === old.sequence ? (next.stale ?? old.stale) : old.stale,
       },
@@ -48,11 +46,6 @@ export function deriveSessionContext(
   return {
     ...value,
     state: options.unavailable ? "unavailable" : value.state,
-    warning:
-      value.ratio != null &&
-      value.pressure_threshold != null &&
-      value.size_source === "agent" &&
-      value.ratio >= value.pressure_threshold,
     loading: options.loading ?? false,
     stopped: options.stopped ?? false,
     display:
@@ -68,17 +61,15 @@ export type SessionContextRingState =
   | "unknown"
   | "used-only"
   | "stale"
-  | "warning"
   | "estimated"
   | "reported";
 
-/** Shape carries freshness (dotted = stale, dashed = unknown); hue carries pressure only. */
+/** Shape carries freshness: dotted = stale, dashed = unknown. */
 export function sessionContextRingState(context: SessionContextView): SessionContextRingState {
   if (context.loading && context.used == null) return "loading";
   if (context.used == null) return "unknown";
   if (context.ratio == null) return "used-only";
   if (context.stale) return "stale";
-  if (context.warning) return "warning";
   if (context.size_source === "catalog") return "estimated";
   return "reported";
 }

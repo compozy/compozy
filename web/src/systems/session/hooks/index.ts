@@ -30,7 +30,6 @@ export { useSessionComposerDraft, useSessionGoalFeedback } from "./use-session-s
 export {
   useSession,
   useSessionById,
-  useSessionLedger,
   useSessionGoal,
   useSessionRecap,
   useSessionUsage,
