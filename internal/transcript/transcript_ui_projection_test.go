@@ -475,7 +475,9 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 			Timestamp:  timestamp,
 			Title:      "Compact conversation",
 			ToolCallID: "legacy-compact-1",
-			Raw:        json.RawMessage(`{"sessionUpdate":"tool_call","toolCallId":"legacy-compact-1","title":"Compact conversation","kind":"think","rawInput":{}}`),
+			Raw: json.RawMessage(
+				`{"sessionUpdate":"tool_call","toolCallId":"legacy-compact-1","title":"Compact conversation","kind":"think","rawInput":{}}`,
+			),
 		}
 		messages, err := ToUIMessages([]store.SessionEvent{
 			mustUIAgentSessionEvent(t, "ev-legacy-compaction", 1, timestamp, event),
@@ -486,7 +488,14 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 		if len(messages) != 1 || messages[0].Role != UIRoleAssistant {
 			t.Fatalf("messages = %#v, want one assistant message", messages)
 		}
-		if got, want := uiVisiblePartSignatures(messages[0].Parts), []string{"tool-Compact conversation:legacy-compact-1:input-streaming"}; !reflect.DeepEqual(got, want) {
+		if got, want := uiVisiblePartSignatures(
+			messages[0].Parts,
+		), []string{
+			"tool-Compact conversation:legacy-compact-1:input-streaming",
+		}; !reflect.DeepEqual(
+			got,
+			want,
+		) {
 			t.Fatalf("visible part signatures = %#v, want %#v", got, want)
 		}
 		part := messages[0].Parts[0]
