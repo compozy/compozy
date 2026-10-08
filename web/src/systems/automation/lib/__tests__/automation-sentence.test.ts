@@ -47,6 +47,11 @@ describe("describeAutomation", () => {
     expect(text(job("dependency-review"))).toBe(
       "Every Monday at 08:00 UTC, create a task Review dependency updates for reviewers."
     );
+    // A blank task title is valid: the daemon titles the task with the job name.
+    const untitled = job("dependency-review");
+    expect(text({ ...untitled, task: { ...untitled.task!, title: "  " } })).toBe(
+      "Every Monday at 08:00 UTC, create a task dependency-review for reviewers."
+    );
     expect(text(job("release-checklist"))).toBe(
       "Every 30 minutes, ask release-manager to check the release checklist."
     );

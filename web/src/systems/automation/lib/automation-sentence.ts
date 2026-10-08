@@ -329,7 +329,8 @@ function entityTarget(input: AutomationJob | AutomationTrigger): AutomationDraft
   if (job?.task) {
     return {
       kind: "task",
-      taskTitle: job.task.title,
+      // The daemon titles the task with the job name when the title is blank.
+      taskTitle: job.task.title?.trim() ? job.task.title : job.name,
       taskOwner: job.task.owner?.ref,
     };
   }
