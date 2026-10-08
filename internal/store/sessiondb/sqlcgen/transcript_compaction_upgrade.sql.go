@@ -9,32 +9,6 @@ import (
 	"context"
 )
 
-const getNextTranscriptBoundaryEventForUpgrade = `-- name: GetNextTranscriptBoundaryEventForUpgrade :one
-SELECT e.id, e.sequence, e.turn_id, e.type, e.agent_name, e.content, e.archived, e.timestamp, e.transcript_entry_key
-FROM events AS e
-WHERE e.sequence > (SELECT MAX(a.sequence) FROM events AS a WHERE a.transcript_entry_key = ?1)
-  AND e.transcript_entry_key <> ''
-ORDER BY e.sequence ASC
-LIMIT 1
-`
-
-func (q *Queries) GetNextTranscriptBoundaryEventForUpgrade(ctx context.Context, entryKey string) (Event, error) {
-	row := q.db.QueryRowContext(ctx, getNextTranscriptBoundaryEventForUpgrade, entryKey)
-	var i Event
-	err := row.Scan(
-		&i.ID,
-		&i.Sequence,
-		&i.TurnID,
-		&i.Type,
-		&i.AgentName,
-		&i.Content,
-		&i.Archived,
-		&i.Timestamp,
-		&i.TranscriptEntryKey,
-	)
-	return i, err
-}
-
 const listMissingUnarchivedCompactionEntries = `-- name: ListMissingUnarchivedCompactionEntries :many
 SELECT e.transcript_entry_key
 FROM events AS e
@@ -75,8 +49,14 @@ func (q *Queries) ListMissingUnarchivedCompactionEntries(ctx context.Context) ([
 const listTranscriptEntryContextForUpgrade = `-- name: ListTranscriptEntryContextForUpgrade :many
 SELECT e.id, e.sequence, e.turn_id, e.type, e.agent_name, e.content, e.archived, e.timestamp, e.transcript_entry_key
 FROM events AS e
-WHERE e.sequence BETWEEN (SELECT MIN(a.sequence) FROM events AS a WHERE a.transcript_entry_key = ?1)
-                     AND (SELECT MAX(a.sequence) FROM events AS a WHERE a.transcript_entry_key = ?1)
+WHERE e.sequence < (
+    SELECT MIN(f.sequence) FROM events AS f
+    WHERE f.type = 'session.compaction_fired'
+      AND EXISTS (
+        SELECT 1 FROM events AS assigned
+        WHERE assigned.transcript_entry_key = ?1
+          AND assigned.sequence BETWEEN json_extract(f.content, '$.raw.from_sequence')
+                                    AND json_extract(f.content, '$.raw.to_sequence')))
   AND e.transcript_entry_key <> ''
 ORDER BY e.sequence ASC
 `
