@@ -81,7 +81,7 @@ export function AutomationDeleteAction({
         <DialogTrigger
           render={
             <Button
-              data-testid="delete-automation-btn"
+              data-testid="automation-delete-btn"
               disabled={pending}
               size="sm"
               type="button"

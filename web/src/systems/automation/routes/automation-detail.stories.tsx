@@ -52,13 +52,13 @@ export const TriggerDetail: Story = {
     await waitFor(() => expect(canvas.getByTestId("automation-detail-panel")).toBeVisible(), {
       timeout: 5000,
     });
-    await expect(canvas.getByTestId("trigger-detail-sentence")).toHaveTextContent(
+    await expect(canvas.getByTestId("automation-detail-sentence")).toHaveTextContent(
       "When a session stops"
     );
   },
 };
 
-/** Loop target: labeled input rows instead of a prompt, delegated runs. */
+/** Loop target: labeled input rows instead of a prompt, handed-off runs. */
 export const TriggerDetailLoop: Story = {
   args: {},
   tags: ["play-fn"],
@@ -66,7 +66,7 @@ export const TriggerDetailLoop: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId("trigger-loop-mapping")).toBeVisible(), {
+    await waitFor(() => expect(canvas.getByTestId("automation-loop-inputs")).toBeVisible(), {
       timeout: 5000,
     });
   },
@@ -80,14 +80,14 @@ export const TriggerDetailWebhook: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId("trigger-webhook-endpoint")).toBeVisible(), {
+    await waitFor(() => expect(canvas.getByTestId("automation-webhook-endpoint")).toBeVisible(), {
       timeout: 5000,
     });
-    await expect(canvas.getByTestId("automation-trigger-ingress")).toHaveTextContent("Live");
+    await expect(canvas.getByTestId("automation-rail-public-link")).toHaveTextContent("Live");
   },
 };
 
-/** The raw read: runtime enums and the activation envelope, behind Inspect. */
+/** The machine truth: runtime enums and a sample event, behind Inspect. */
 export const TriggerDetailInspect: Story = {
   args: {},
   tags: ["play-fn"],
@@ -95,12 +95,12 @@ export const TriggerDetailInspect: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId("trigger-inspect-btn")).toBeVisible(), {
+    await waitFor(() => expect(canvas.getByTestId("automation-inspect-btn")).toBeVisible(), {
       timeout: 5000,
     });
-    await userEvent.click(canvas.getByTestId("trigger-inspect-btn"));
+    await userEvent.click(canvas.getByTestId("automation-inspect-btn"));
     await expect(
-      within(document.body).findByTestId("trigger-inspect-sheet")
+      within(document.body).findByTestId("automation-inspect-sheet")
     ).resolves.toBeDefined();
   },
 };
@@ -128,10 +128,10 @@ export const TriggerDetailLocked: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId("trigger-detail-lock")).toBeVisible(), {
+    await waitFor(() => expect(canvas.getByTestId("automation-lockbar")).toBeVisible(), {
       timeout: 5000,
     });
-    await expect(canvas.getByTestId("trigger-pause-line")).toBeVisible();
-    await expect(canvas.queryByTestId("edit-trigger-btn")).toBeNull();
+    await expect(canvas.getByTestId("automation-pause-line")).toBeVisible();
+    await expect(canvas.queryByTestId("automation-edit-btn")).toBeNull();
   },
 };

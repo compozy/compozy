@@ -20,6 +20,7 @@ import {
   AutomationRow,
   AutomationStartViews,
   AutomationSuggestionsPanel,
+  automationDetailSearchFrom,
   type AutomationItemControls,
   type AutomationsRouteSearch,
 } from "@/systems/automation";
@@ -92,6 +93,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
   });
 
   const controls: AutomationItemControls = {
+    detailSearch: automationDetailSearchFrom(search),
     unavailable,
     isRunPending: page.isRunPending,
     isTogglePending: page.isTogglePending,

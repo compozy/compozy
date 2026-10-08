@@ -21,14 +21,16 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,
     params: _params,
+    search,
     to,
     ...props
   }: {
     children?: ReactNode;
     params?: Record<string, string>;
+    search?: Record<string, string>;
     to?: string;
   }) => (
-    <a href={to} {...props}>
+    <a href={search ? `${to}?${new URLSearchParams(search).toString()}` : to} {...props}>
       {children}
     </a>
   ),
@@ -46,6 +48,7 @@ const withEntity = (entity: AutomationJob | AutomationTrigger) => toAutomationVi
 
 function controls(overrides: Partial<AutomationItemControls> = {}): AutomationItemControls {
   return {
+    detailSearch: {},
     unavailable: false,
     isRunPending: () => false,
     isTogglePending: () => false,
@@ -80,6 +83,19 @@ describe("AutomationRow", () => {
     );
     expect(within(row).queryByTestId("automation-off-badge")).toBeNull();
     expect(within(row).queryByTestId("automation-source-badge")).toBeNull();
+  });
+
+  it("Should carry the listing search into the detail link so Back restores it (UT-062)", () => {
+    const detailSearch = { start: "schedule", q: "digest", view: "cards" } as const;
+    render(<AutomationRow controls={controls({ detailSearch })} view={view("morning-digest")} />);
+    render(<AutomationCard controls={controls({ detailSearch })} view={view("morning-digest")} />);
+
+    for (const link of screen.getAllByRole("link", { name: "Open morning-digest" })) {
+      expect(link).toHaveAttribute(
+        "href",
+        "/automations/jobs/$jobId?start=schedule&q=digest&view=cards"
+      );
+    }
   });
 
   it("Should show event and webhook glyphs with the last-ran stat", () => {

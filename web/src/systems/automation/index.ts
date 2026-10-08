@@ -126,6 +126,7 @@ export {
   parseAutomationScope,
   parseAutomationSource,
   automationsStartView,
+  automationDetailSearchFrom,
   automationListingSearch,
   parseAutomationTarget,
   validateAutomationDetailSearch,

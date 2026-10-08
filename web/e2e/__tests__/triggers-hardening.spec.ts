@@ -212,14 +212,14 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     const created = await waitForTriggerByName(runtime, initialName);
     expect(created.webhook_secret_present).toBe(true);
     // Saving from the editor navigates straight to the new trigger's detail route.
-    await expect(appPage).toHaveURL(new RegExp(`/automations/triggers/${created.id}$`), {
+    await expect(appPage).toHaveURL(new RegExp(`/automations/triggers/${created.id}(?:\\?.*)?$`), {
       timeout: 20_000,
     });
     await expect(windowTitle(triggersWin)).toContainText(initialName);
     await expect(ui.detailPanel).toContainText(webhookID);
     await expect(ui.detailPanel).not.toContainText(webhookSecret);
 
-    await ui.editTriggerButton.click();
+    await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
     await ui.triggerNameInput.fill(editedName);
     await ui.triggerPromptInput.fill(editedPrompt);
@@ -294,11 +294,11 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     await ui.run(firstRun.id).click();
     await expect(ui.runOpenLink(firstRun.id)).toBeVisible();
 
-    await ui.triggerEnableSwitch.click();
+    await ui.enableSwitch.click();
     await expect
       .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
       .toBe(false);
-    await expect(ui.triggerEnableLabel).toContainText("Disabled");
+    await expect(ui.enableLabel).toHaveText("Off");
     const disabledDelivery = await deliverWebhook(runtime, {
       deliveryID: uniqueName("delivery-disabled"),
       endpoint,
@@ -309,11 +309,11 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     expect(disabledDelivery.body).toMatch(/disabled/i);
     expect(await triggerRunCount(runtime, updated.id)).toBe(1);
 
-    await ui.triggerEnableSwitch.click();
+    await ui.enableSwitch.click();
     await expect
       .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
       .toBe(true);
-    await expect(ui.triggerEnableLabel).toContainText("Enabled");
+    await expect(ui.enableLabel).toHaveText("On");
     const reenabledDelivery = await deliverWebhook(runtime, {
       deliveryID: uniqueName("delivery-reenabled"),
       endpoint,
@@ -372,7 +372,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
       automation_active_tab: "triggers",
       automation_detail_overflow_visible: true,
       automation_run_count: expect.any(Number),
-      automation_run_history_visible: true,
+      automation_run_list_visible: true,
       automation_selected_item: editedName,
       // One open drawer at a time: the accordion never shows two session links at once.
       automation_session_link_count: 1,
@@ -457,7 +457,8 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(trigger.id).click();
-    await expect(ui.detailPanel).toContainText("No retry · 1 / hour");
+    await expect(ui.railReliability).toContainText("No retries");
+    await expect(ui.railReliability).toContainText("Up to 1 run per hour");
 
     const accepted = await deliverWebhook(runtime, {
       deliveryID: uniqueName("delivery-fire-limit-first"),
@@ -497,7 +498,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     );
     await expect(ui.run(limitedRun?.id ?? "")).toBeVisible();
     await expect(ui.run(limitedRun?.id ?? "")).toContainText("Failed");
-    await expect(ui.runHistory).toContainText("Completed");
+    await expect(ui.runList).toContainText("Completed");
     const acceptedWorkspaceID = await resolveAutomationWorkspaceID(
       runtime,
       acceptedRun.workspace_id
@@ -550,8 +551,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await expect(ui.automationsShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
   await ui.itemLink(trigger.id).click();
-  await ui.triggerRailReliability.click();
-  await expect(ui.triggerDetailRail).toContainText("Backoff · 1 time");
+  await expect(ui.railReliability).toContainText("Up to 1, waiting longer each time");
 
   const delivery = await deliverWebhook(runtime, {
     deliveryID: uniqueName("delivery-failure"),
@@ -605,7 +605,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   expect(routeState).toMatchObject({
     automation_active_tab: "triggers",
     automation_run_count: expect.any(Number),
-    automation_run_history_visible: true,
+    automation_run_list_visible: true,
     automation_selected_item: trigger.name,
     automation_view_visible: true,
   });
@@ -959,13 +959,12 @@ async function assertTriggersViewportMatrix(
     await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(triggerID).click();
-    await expect(ui.runHistory).toBeVisible();
+    await expect(ui.runList).toBeVisible();
     await browserArtifacts.captureScreenshot(
       `triggers-lifecycle-history-viewport-${width}`,
       appPage
     );
-    await ui.detailOverflow.click();
-    await appPage.getByTestId("edit-automation-btn").click();
+    await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
     await expect(ui.triggerEndpointSlugInput).toBeVisible();
     await expect(ui.submitTriggerForm).toBeEnabled();
@@ -994,7 +993,7 @@ async function assertTriggerRunViewportMatrix(
     await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(triggerID).click();
-    await expect(ui.runHistory).toBeVisible();
+    await expect(ui.runList).toBeVisible();
     await expect(ui.run(runID)).toBeVisible();
     await browserArtifacts.captureScreenshot(`${prefix}-viewport-${width}`, appPage);
   }

@@ -40,6 +40,7 @@ export function AutomationCard({
       <AutomationDetailLink
         aria-label={`Open ${view.name}`}
         className="flex min-w-0 flex-col gap-3"
+        search={controls.detailSearch}
         view={view}
       >
         <div className="flex items-start gap-3">

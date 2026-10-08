@@ -103,7 +103,7 @@ export function describeRetry(retry: AutomationRetry): string {
 }
 
 export function describeFireLimit(limit: AutomationFireLimit): string {
-  return `Up to ${limit.max} runs per ${humanizeFireWindow(limit.window)}`;
+  return `Up to ${limit.max} ${limit.max === 1 ? "run" : "runs"} per ${humanizeFireWindow(limit.window)}`;
 }
 
 /** `1h` → `hour`, `30m` → `30 minutes`; unknown formats stay verbatim. */

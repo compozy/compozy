@@ -8,6 +8,7 @@ import {
   automationTimeStat,
   type AutomationView,
 } from "../lib/automation-view";
+import type { AutomationDetailRouteSearch } from "../lib/automation-route-search";
 import { AutomationRowSwitch } from "./automation-enable-switch";
 import {
   AutomationBadges,
@@ -21,6 +22,8 @@ import {
 import { ProfileOwnerTag } from "@/systems/profiles";
 
 export interface AutomationItemControls extends AutomationOverflowHandlers {
+  /** Listing state carried into the detail route so Back restores it. */
+  detailSearch: AutomationDetailRouteSearch;
   /** Runtime unavailable: the switch and Run now are disabled. */
   unavailable: boolean;
   isRunPending: (view: AutomationView) => boolean;
@@ -36,12 +39,21 @@ interface AutomationRowProps {
 /** Detail link for a view; routes keep the daemon entity. */
 export function AutomationDetailLink({
   view,
+  search,
   ...props
-}: { view: AutomationView } & Omit<ComponentProps<"a">, "href">) {
+}: { view: AutomationView; search: AutomationDetailRouteSearch } & Omit<
+  ComponentProps<"a">,
+  "href"
+>) {
   return view.kind === "job" ? (
-    <Link params={{ jobId: view.id }} to="/automations/jobs/$jobId" {...props} />
+    <Link params={{ jobId: view.id }} search={search} to="/automations/jobs/$jobId" {...props} />
   ) : (
-    <Link params={{ triggerId: view.id }} to="/automations/triggers/$triggerId" {...props} />
+    <Link
+      params={{ triggerId: view.id }}
+      search={search}
+      to="/automations/triggers/$triggerId"
+      {...props}
+    />
   );
 }
 
@@ -56,7 +68,13 @@ export function AutomationRow({ view, controls }: AutomationRowProps) {
       data-testid={`automation-row-${view.kind}-${view.id}`}
     >
       <ListingRow.Link
-        render={<AutomationDetailLink aria-label={`Open ${view.name}`} view={view} />}
+        render={
+          <AutomationDetailLink
+            aria-label={`Open ${view.name}`}
+            search={controls.detailSearch}
+            view={view}
+          />
+        }
       >
         <ListingRow.Icon>
           <AutomationStartGlyph start={view.start} />

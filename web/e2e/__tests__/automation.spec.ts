@@ -152,17 +152,18 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await expect(jobsUI.item(seeded.job.id)).toBeVisible();
     await jobsUI.itemLink(seeded.job.id).click();
 
-    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${seeded.job.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${seeded.job.id}(?:\\?.*)?$`));
     await expect(jobsUI.detailPanel).toBeVisible();
     await expect(windowTitle(jobsWin)).toContainText(seeded.job.name);
     await expect(jobsUI.detailPanel).toContainText(
       browserAutomationOperatorFlowScenario.job.prompt
     );
-    await expect(jobsUI.runHistory).toBeVisible();
+    await expect(jobsUI.runList).toBeVisible();
     await expect(jobsUI.run(seeded.baselineRun.id)).toBeVisible();
     await expect(jobsUI.run(seeded.baselineRun.id)).toContainText(/completed/i);
-    await expect(jobsUI.runSessionLink(seeded.baselineRun.id)).toBeVisible();
-    await expect(jobsUI.runSessionLink(seeded.baselineRun.id)).toHaveAttribute(
+    await jobsUI.run(seeded.baselineRun.id).click();
+    await expect(jobsUI.runOpenLink(seeded.baselineRun.id)).toBeVisible();
+    await expect(jobsUI.runOpenLink(seeded.baselineRun.id)).toHaveAttribute(
       "href",
       `/session/${seeded.baselineRun.session_id}`
     );
@@ -171,7 +172,7 @@ test("operator manages workspace suggestions and inspects a real automation run 
     // the listing, whose On events view lists the trigger.
     await jobsWin
       .getByRole("navigation", { name: "Window path" })
-      .getByRole("button", { exact: true, name: "Jobs" })
+      .getByRole("button", { exact: true, name: "Automations" })
       .click();
     const triggersWin = appWindow(appPage, "automations");
     const triggersUI = automationOperatorSelectors(triggersWin, appPage);
@@ -182,15 +183,17 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await expect(triggersUI.item(seeded.trigger.id)).toBeVisible();
     await triggersUI.itemLink(seeded.trigger.id).click();
 
-    await expect(appPage).toHaveURL(new RegExp(`/automations/triggers/${seeded.trigger.id}$`));
+    await expect(appPage).toHaveURL(
+      new RegExp(`/automations/triggers/${seeded.trigger.id}(?:\\?.*)?$`)
+    );
     await expect(windowTitle(triggersWin)).toContainText(seeded.trigger.name);
     await expect(triggersUI.detailPanel).toContainText(
       browserAutomationOperatorFlowScenario.trigger.webhookID
     );
 
-    // Edit is a route-chrome action for a trigger the operator owns.
-    await expect(triggersUI.editTriggerButton).toBeEnabled();
-    await triggersUI.editTriggerButton.click();
+    // Edit is a route-chrome action for an automation the operator owns.
+    await expect(triggersUI.editAutomationButton).toBeEnabled();
+    await triggersUI.editAutomationButton.click();
     await expect(triggersUI.triggerNameInput).toHaveValue(seeded.trigger.name);
     const triggerDialog = triggersUI.editorDialog;
     await expect(triggersUI.triggerRetryMax).toBeVisible();
@@ -208,11 +211,10 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await expect(jobsUI.automationsShell).toBeVisible();
     await focusWindowThroughPalette(appPage, jobsWin);
     await jobsUI.itemLink(seeded.job.id).click();
-    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${seeded.job.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${seeded.job.id}(?:\\?.*)?$`));
     await expect(jobsUI.detailPanel).toBeVisible();
 
-    await jobsUI.detailOverflow.click();
-    const editJob = appPage.getByTestId("edit-automation-btn");
+    const editJob = jobsUI.editAutomationButton;
     await expect(editJob).toBeEnabled();
     await editJob.click();
     await expect(jobsUI.jobForm).toBeVisible();
@@ -223,7 +225,7 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await appPage.keyboard.press("Escape");
     await expect(jobsUI.jobForm).toBeHidden();
 
-    await jobsUI.triggerJobButton.click();
+    await jobsUI.detailRunNow.click();
 
     await expect
       .poll(async () => {
@@ -264,7 +266,8 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await expect(jobsUI.run(uiTriggeredRun.id)).toBeVisible();
     await browserArtifacts.captureScreenshot("automation-operator-history", appPage);
 
-    await jobsUI.runSessionLink(uiTriggeredRun.id).click();
+    await jobsUI.run(uiTriggeredRun.id).click();
+    await jobsUI.runOpenLink(uiTriggeredRun.id).click();
 
     await expect
       .poll(() => new URL(appPage.url()).pathname)

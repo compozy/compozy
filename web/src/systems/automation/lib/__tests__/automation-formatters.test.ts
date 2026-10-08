@@ -105,6 +105,7 @@ describe("automation formatter helpers", () => {
       "Up to 4 retries, first after 5s"
     );
     expect(describeFireLimit({ max: 12, window: "1h" })).toBe("Up to 12 runs per hour");
+    expect(describeFireLimit({ max: 1, window: "1h" })).toBe("Up to 1 run per hour");
     expect(formatRunTitle({ status: "running", attempt: 2 } as never)).toBe("Running · attempt 2");
     expect(
       formatRunDuration({

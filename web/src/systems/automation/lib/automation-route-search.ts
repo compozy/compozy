@@ -121,3 +121,12 @@ export function automationListingSearch(
   const { edit: _edit, ...listing } = search;
   return listing;
 }
+
+/** The listing state a row carries into its detail route so Back can restore it (UT-062). */
+export function automationDetailSearchFrom(
+  search: AutomationsRouteSearch
+): AutomationDetailRouteSearch {
+  const { create: _create, loop, ...listing } = search;
+  const loopFilter = automationListLoopFilter({ ...search, loop });
+  return loopFilter === undefined ? listing : { ...listing, loop: loopFilter };
+}
