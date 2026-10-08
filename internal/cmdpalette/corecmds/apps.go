@@ -27,3 +27,18 @@ func appCommands() []cmdpalette.Descriptor {
 	}
 	return commands
 }
+
+// RegisteredApp reports membership in the daemon-owned OS app inventory.
+func RegisteredApp(id string) bool {
+	for _, app := range appOnlyDefinitions {
+		if app.id == id {
+			return true
+		}
+	}
+	for _, app := range sharedAppViewDomains {
+		if app.id == id {
+			return true
+		}
+	}
+	return false
+}

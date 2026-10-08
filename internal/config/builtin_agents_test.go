@@ -61,7 +61,7 @@ func TestBuiltinAgentNamesOwnExactReservations(t *testing.T) {
 	t.Run("Should normalize exact builtin names", func(t *testing.T) {
 		t.Parallel()
 
-		for _, name := range []string{"coordinator", " COORDINATOR ", "dreaming-curator", " DREAMING-CURATOR "} {
+		for _, name := range []string{"coordinator", " COORDINATOR "} {
 			if !IsReservedAgentName(name) {
 				t.Errorf("IsReservedAgentName(%q) = false, want true", name)
 			}
@@ -71,7 +71,7 @@ func TestBuiltinAgentNamesOwnExactReservations(t *testing.T) {
 	t.Run("Should not reserve catalog or prefix names", func(t *testing.T) {
 		t.Parallel()
 
-		for _, name := range []string{"general", "coordinator-helper"} {
+		for _, name := range []string{"general", "coordinator-helper", "dreaming-curator", " DREAMING-CURATOR "} {
 			if IsReservedAgentName(name) {
 				t.Errorf("IsReservedAgentName(%q) = true, want false", name)
 			}

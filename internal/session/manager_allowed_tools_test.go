@@ -138,4 +138,23 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 			t.Fatalf("resolved.DenyTools = %#v, heartbeat must remain available", resolved.DenyTools)
 		}
 	})
+	t.Run("Should retain an explicit empty override after removing retired tools", func(t *testing.T) {
+		t.Parallel()
+		spec := sessionStartSpec{sessionID: "retired-tools-session", allowedToolsOverride: []string{"compozy__memory_list"}}
+		resolved := compozyconfig.ResolvedAgent{}
+		if err := spec.applyAllowedToolsOverride(&resolved, catalog); err != nil {
+			t.Fatal(err)
+		}
+		if !resolved.ToolPolicyEnforced || len(resolved.Tools) != 0 || spec.lineage == nil || !slices.Equal(spec.lineage.PermissionPolicy.Tools, []string{"compozy__memory_list"}) {
+			t.Fatalf("empty override lost restriction: %#v, %#v", resolved, spec.lineage)
+		}
+		if err := validateAllowedToolsOverrideSubset(resolved, []string{toolspkg.ToolIDTaskRead.String()}, catalog); !errors.Is(err, ErrValidation) {
+			t.Fatalf("empty policy widened: %v", err)
+		}
+		ids, err := concreteDelegationTools(resolved, catalog, []toolspkg.ToolID{toolspkg.ToolIDTaskRead})
+		if err != nil || len(ids) != 0 {
+			t.Fatalf("concreteDelegationTools() = %#v, %v", ids, err)
+		}
+	})
+
 }

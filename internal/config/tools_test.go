@@ -451,9 +451,9 @@ trusted_sources = ["mcp:github", "extension:linear"]
 		writeFile(t, agentPath, `---
 name: coder
 provider: claude
-tools: ["compozy__skill_view", "mcp__github__*"]
-toolsets: ["compozy__catalog"]
-deny_tools: ["compozy__task_*"]
+tools: ["compozy__skill_view", "mcp__github__*", "compozy__memory_list"]
+toolsets: ["compozy__catalog", "compozy__memory", "compozy__memory_admin"]
+deny_tools: ["compozy__task_*", "compozy__memory_reset"]
 ---
 
 You are a code agent.
@@ -481,6 +481,22 @@ You are a code agent.
 			t.Fatalf("ResolveAgent() DenyTools = %#v, want %#v", got, want)
 		}
 	})
+	t.Run("Should retain an empty restriction when an authored allowlist contains only retired tools", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultTestConfig(t)
+		agent := AgentDef{Name: "retired-only-agent", Provider: "claude", Prompt: "prompt", Tools: []string{"compozy__memory_list"}, Toolsets: []string{"compozy__memory"}}
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resolved.ToolPolicyEnforced || len(resolved.Tools) != 0 || len(resolved.Toolsets) != 0 {
+			t.Fatalf("ResolveAgent() widened retired policy: %#v", resolved)
+		}
+		if len(agent.Tools) != 1 || len(agent.Toolsets) != 1 {
+			t.Fatal("authored policy mutated")
+		}
+	})
+
 }
 
 func defaultTestConfig(t *testing.T) Config {
@@ -491,6 +507,7 @@ func defaultTestConfig(t *testing.T) Config {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	return DefaultWithHome(homePaths)
+
 }
 
 // TestToolsClarifyUnboundedPolicy pins the unbounded clarification policy.

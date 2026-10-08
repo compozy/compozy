@@ -33,7 +33,6 @@ func ValidateTriggerEvent(event string, path string) error {
 	switch event {
 	case TriggerEventSessionCreated,
 		TriggerEventSessionStopped,
-		TriggerEventMemoryConsolidated,
 		TriggerEventWebhook:
 		return nil
 	}
@@ -63,12 +62,11 @@ func ValidateTriggerEvent(event string, path string) error {
 		)
 	}
 	return fmt.Errorf(
-		"%s %q has no activation producer; supported events are %s, %s, %s, hook.<hook_name>.completed, %s, and ext.*",
+		"%s %q has no activation producer; supported events are %s, %s, hook.<hook_name>.completed, %s, and ext.*",
 		field,
 		event,
 		TriggerEventSessionCreated,
 		TriggerEventSessionStopped,
-		TriggerEventMemoryConsolidated,
 		TriggerEventWebhook,
 	)
 }

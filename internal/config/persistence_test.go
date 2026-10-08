@@ -1520,3 +1520,198 @@ func assertPrivatePathMode(t *testing.T, path string, want os.FileMode) {
 		t.Fatalf("permissions for %q = %o, want %o", path, got, want)
 	}
 }
+
+func TestArchiveRetiredMemorySettings(t *testing.T) {
+	t.Parallel()
+	t.Run("Should archive memory tables losslessly and preserve live settings", func(t *testing.T) {
+		t.Parallel()
+		live := "[roles.auto_title]\nenabled = true\n"
+		contents := []byte("[memory]\nenabled = false\n[memory.dream]\nmin_hours = 2\n" + live)
+		rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		active, archivedText, found := strings.Cut(string(rendered), retiredMemoryArchiveHeader)
+		if !found || !strings.Contains(active, live) {
+			t.Fatalf("live settings or archive missing: %s", rendered)
+		}
+		if !reflect.DeepEqual(archived, []string{"memory", "memory.dream"}) {
+			t.Fatalf("archived = %v", archived)
+		}
+		var original, removed map[string]any
+		if _, err := burnttoml.Decode(string(contents), &original); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := burnttoml.Decode(uncommentMemoryArchive(t, archivedText), &removed); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(original["memory"], removed["memory"]) {
+			t.Fatalf("archive lost values: %#v", removed)
+		}
+		var remaining map[string]any
+		if _, err := burnttoml.Decode(active, &remaining); err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := remaining["memory"]; exists {
+			t.Fatal("memory table remains active")
+		}
+		if _, err := loadConfigOverlayBytes([]byte(active), "config.toml"); err != nil {
+			t.Fatal(err)
+		}
+		again, names, err := archiveRetiredMemorySettings(rendered, "config.toml")
+		if err != nil || len(names) != 0 || !bytes.Equal(rendered, again) {
+			t.Fatalf("second archive changed contents: %v %v", names, err)
+		}
+	})
+	cases := []struct {
+		name, retired, live string
+		names               []string
+	}{
+		{"Should archive dream role", "[roles.dream]\nenabled = true\n", "[roles.auto_title]\nenabled = true\n", []string{"roles.dream"}},
+		{"Should archive checkpoint role", "[roles.checkpoint_summary]\nenabled = true\n", "[roles.auto_title]\nenabled = true\n", []string{"roles.checkpoint_summary"}},
+		{"Should archive extractor role", "[roles.memory_extractor]\nenabled = true\n", "[roles.auto_title]\nenabled = true\n", []string{"roles.memory_extractor"}},
+		{"Should archive controller role", "[roles.memory_controller]\nenabled = true\n", "[roles.auto_title]\nenabled = true\n", []string{"roles.memory_controller"}},
+		{"Should archive compaction", "[session.compaction]\nenabled = true\nthreshold = 0.85\n", "[session.derive]\nmax_replay_bytes = 8192\n", []string{"session.compaction"}},
+		{"Should archive consolidated triggers", "[[automation.triggers]]\nname = 'retired'\nevent = 'memory.consolidated'\nworkspace = 'workspace'\n[automation.triggers.matcher]\nlabels = ['old']\n", "[[automation.triggers]]\nname = 'kept'\nevent = 'session.stopped'\nworkspace = 'workspace'\n", []string{"automation.triggers"}},
+		{"Should retain hooks after archiving matcher keys", "[[hooks.declarations]]\nname = 'audit'\nevent = 'session.compaction'\n[hooks.declarations.matcher]\ncompaction_reason = 'pressure'\ncompaction_strategy = 'summary'\n[hooks.declarations.executor]\ncommand = '/bin/echo'\n", "[roles.auto_title]\nenabled = true\n", []string{"hooks.declarations.matcher.compaction_reason", "hooks.declarations.matcher.compaction_strategy"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			contents := []byte(tc.retired + "\n# keep this section\n" + tc.live)
+			rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			active, archive, found := strings.Cut(string(rendered), retiredMemoryArchiveHeader)
+			if !found || !strings.Contains(active, tc.live) || !strings.Contains(active, "# keep this section") {
+				t.Fatalf("live settings changed: %s", rendered)
+			}
+			if !reflect.DeepEqual(archived, tc.names) {
+				t.Fatalf("archived = %v, want %v", archived, tc.names)
+			}
+			if _, err := loadConfigOverlayBytes([]byte(active), "config.toml"); err != nil {
+				t.Fatal(err)
+			}
+			var original, removed map[string]any
+			if _, err := burnttoml.Decode(string(contents), &original); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := burnttoml.Decode(uncommentMemoryArchive(t, archive), &removed); err != nil {
+				t.Fatal(err)
+			}
+			_, expected, _ := splitRetiredMemoryValues(original, nil)
+			expected = canonicalMemoryArchiveValues(t, expected)
+			if !reflect.DeepEqual(expected, removed) {
+				t.Fatalf("removed values differ: got %#v want %#v", removed, expected)
+			}
+			again, names, err := archiveRetiredMemorySettings(rendered, "config.toml")
+			if err != nil || len(names) != 0 || !bytes.Equal(rendered, again) {
+				t.Fatalf("not idempotent: %v %v", names, err)
+			}
+		})
+	}
+	t.Run("Should leave live files byte identical", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("# untouched\n[roles.auto_title]\nenabled = true\n")
+		rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil || len(archived) != 0 || !bytes.Equal(contents, rendered) {
+			t.Fatalf("unexpected migration: %v %v %s", archived, err, rendered)
+		}
+	})
+	t.Run("Should retain the TOML decoder error for invalid input", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("[memory\nenabled = false\n")
+		var values map[string]any
+		_, want := burnttoml.Decode(string(contents), &values)
+		_, _, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err == nil || err.Error() != want.Error() {
+			t.Fatalf("error = %v, want %v", err, want)
+		}
+	})
+}
+
+func TestArchiveRetiredMemorySettingsTOMLForms(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, contents, preserved string }{
+		{"Should archive dotted memory leaves", "memory.enabled = false\nmemory.dream.min_hours = 2\nroles.auto_title.enabled = true\n", "roles.auto_title.enabled = true"},
+		{"Should archive noncontiguous memory tables", "[memory]\nenabled = false\n[roles.auto_title]\nenabled = true\n[memory.dream]\nmin_hours = 2\n", "[roles.auto_title]\nenabled = true"},
+		{"Should archive an implicit memory parent", "[memory.dream]\nmin_hours = 2\n[roles.auto_title]\nenabled = true\n", "[roles.auto_title]\nenabled = true"},
+		{"Should preserve adjacent inline roles", "roles = { dream = { enabled = true }, auto_title = { enabled = true } }\n", "auto_title = { enabled = true }"},
+		{"Should preserve inline role before retired role", "roles = { auto_title = { enabled = true }, dream = { enabled = true } }\n", "auto_title = { enabled = true }"},
+		{"Should archive consecutive inline roles", "roles = { dream = { enabled = true }, memory_extractor = { enabled = true }, auto_title = { enabled = true } }\n", "auto_title = { enabled = true }"},
+		{"Should archive nested inline memory", "memory = { enabled = false, dream = { min_hours = 2 } }\nroles.auto_title.enabled = true\n", "roles.auto_title.enabled = true"},
+		{"Should preserve inline compaction siblings", "session = { compaction = { enabled = true }, derive = { max_replay_bytes = 8192 } }\n", "derive = { max_replay_bytes = 8192 }"},
+		{"Should preserve inline trigger siblings", "automation.triggers = [{name='old',event='memory.consolidated',workspace='workspace'}, {name='kept',event='session.stopped',workspace='workspace'}]\n", "{name='kept',event='session.stopped',workspace='workspace'}"},
+		{"Should preserve trigger before retired inline entry", "automation.triggers = [{name='kept',event='session.stopped',workspace='workspace'}, {name='old',event='memory.consolidated',workspace='workspace'}]\n", "{name='kept',event='session.stopped',workspace='workspace'}"},
+		{"Should preserve live hook matcher", "[[hooks.declarations]]\nname='audit'\nevent='session.compaction'\nmatcher = { compaction_reason = 'pressure', compaction_strategy = 'summary', session_id = 'keep' }\nexecutor = { command = '/bin/echo' }\n", "session_id = 'keep'"},
+		{"Should archive nested inline hooks", "hooks = { declarations = [{ name='audit', event='session.compaction', matcher={compaction_reason='pressure', session_id='keep'}, executor={command='/bin/echo'} }] }\n", "session_id='keep'"},
+		{"Should archive every retired inline matcher key", "[[hooks.declarations]]\nname='audit'\nevent='session.compaction'\nmatcher = { compaction_reason = 'pressure', compaction_strategy = 'summary' }\nexecutor = { command = '/bin/echo' }\n", "executor = { command = '/bin/echo' }"},
+		{"Should archive consecutive retired trigger entries", "automation.triggers = [{name='old',event='memory.consolidated'}, {name='also-old',event='memory.consolidated'}, {name='kept',event='session.stopped',workspace='workspace'}]\n", "{name='kept',event='session.stopped',workspace='workspace'}"},
+		{"Should archive all inline triggers with a trailing comma", "automation.triggers = [{name='old',event='memory.consolidated'},]\n", "automation.triggers = ["},
+		{"Should archive spec hook shape", "[[hooks]]\nname='audit'\nmatcher = { compaction_reason = 'pressure', session_id = 'keep' }\n", "session_id = 'keep'"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			contents := []byte(tc.contents + "\n# untouched trailing section\n[defaults]\nagent = 'general'\n")
+			rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+			if err != nil || len(archived) == 0 {
+				t.Fatalf("archive error: %v %v", archived, err)
+			}
+			active, archive, found := strings.Cut(string(rendered), retiredMemoryArchiveHeader)
+			if !found || !strings.Contains(active, tc.preserved) || !strings.Contains(active, "# untouched trailing section\n[defaults]\nagent = 'general'\n") {
+				t.Fatalf("changed live bytes: %s", rendered)
+			}
+			var original, kept, removed map[string]any
+			if _, err := burnttoml.Decode(string(contents), &original); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := burnttoml.Decode(active, &kept); err != nil {
+				t.Fatalf("invalid active TOML: %v\n%s", err, active)
+			}
+			if _, err := burnttoml.Decode(uncommentMemoryArchive(t, archive), &removed); err != nil {
+				t.Fatal(err)
+			}
+			_, expectedRemoved, _ := splitRetiredMemoryValues(original, nil)
+			expectedRemoved = canonicalMemoryArchiveValues(t, expectedRemoved)
+			if !reflect.DeepEqual(expectedRemoved, removed) {
+				t.Fatalf("archive changed values: got %#v want %#v", removed, expectedRemoved)
+			}
+			_, _, remaining := splitRetiredMemoryValues(kept, nil)
+			if len(remaining) != 0 {
+				t.Fatalf("retired active values = %v", remaining)
+			}
+			again, names, err := archiveRetiredMemorySettings(rendered, "config.toml")
+			if err != nil || len(names) != 0 || !bytes.Equal(rendered, again) {
+				t.Fatalf("not idempotent: %v %v", names, err)
+			}
+		})
+	}
+}
+
+func uncommentMemoryArchive(t *testing.T, text string) string {
+	t.Helper()
+	var result strings.Builder
+	for line := range strings.SplitSeq(strings.TrimSuffix(text, "\n"), "\n") {
+		value, ok := strings.CutPrefix(line, "# ")
+		if !ok {
+			t.Fatalf("archive line is not commented: %q", line)
+		}
+		result.WriteString(value + "\n")
+	}
+	return result.String()
+}
+
+func canonicalMemoryArchiveValues(t *testing.T, values any) map[string]any {
+	t.Helper()
+	var encoded bytes.Buffer
+	if err := burnttoml.NewEncoder(&encoded).Encode(values); err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if _, err := burnttoml.Decode(encoded.String(), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	return decoded
+}

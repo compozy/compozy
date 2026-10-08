@@ -50,6 +50,23 @@ func TestSessionLineageClassificationUsesSessionType(t *testing.T) {
 		}
 	})
 
+	t.Run("Should ignore retired lineage tools while retaining enforcement", func(t *testing.T) {
+		t.Parallel()
+		inputs := toolspkg.PolicyInputs{}
+		info := &session.Info{ID: "retired-lineage-session", Type: session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{ParentSessionID: "root-session", RootSessionID: "root-session", SpawnDepth: 1,
+				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"compozy__memory_list"}}}}
+		if err := applySessionToolPolicy(&inputs, info); err != nil {
+			t.Fatal(err)
+		}
+		if !inputs.Session.Enforced || len(inputs.Session.Tools) != 0 {
+			t.Fatalf("retired lineage policy = %#v", inputs.Session)
+		}
+		if len(info.Lineage.PermissionPolicy.Tools) != 1 {
+			t.Fatal("persisted lineage mutated")
+		}
+	})
+
 	t.Run("Should classify only spawned session metadata as a memory subagent", func(t *testing.T) {
 		t.Parallel()
 

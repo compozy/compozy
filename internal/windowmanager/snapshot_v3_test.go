@@ -9,6 +9,7 @@ package windowmanager
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -142,4 +143,117 @@ func TestMigrateLegacySnapshotV3(t *testing.T) {
 			t.Fatalf("version mismatch error = %v, want version 2", err)
 		}
 	})
+}
+
+// Invariant: stored apps reconcile without mutating input; topology, client focus and routes remain usable.
+// Owning layer: windowmanager durable aggregate; canonical suite: snapshot_v3_test.go.
+func TestReconcileRegisteredApps(t *testing.T) {
+	t.Parallel()
+	registered := func(app string) bool { return app == "session" || app == "settings" }
+	t.Run("Should repair a tiled frame after dropping a retired app [UT-012]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := reconcileSnapshotFixture(t)
+		before, err := json.Marshal(snapshot)
+		if err != nil {
+			t.Fatalf("Marshal(before) = %v", err)
+		}
+		got, changed := ReconcileRegisteredApps(snapshot, registered)
+		if !changed || len(got.Windows) != 2 {
+			t.Fatalf("reconcile = %+v, changed = %v", got, changed)
+		}
+		root := got.Desktops[0].Groups[0].Root
+		if len(root.Children) != 2 || valueOrZero(root.Children[0].WindowID) != "session" ||
+			valueOrZero(root.Children[1].WindowID) != "settings" ||
+			!reflect.DeepEqual(root.Weights, []float64{0.5, 0.5}) {
+			t.Fatalf("surviving frame = %+v", root)
+		}
+		after, err := json.Marshal(snapshot)
+		if err != nil {
+			t.Fatalf("Marshal(after) = %v", err)
+		}
+		if string(after) != string(before) {
+			t.Fatal("reconciliation mutated its input")
+		}
+		requireValidSnapshot(t, got)
+	})
+	t.Run("Should remove an empty frame and repair focus to the next stored window [UT-013]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := reconcileSnapshotFixture(t)
+		snapshot.Desktops[0].Groups = []LayoutGroup{
+			{ID: "retired", Frame: NormalizedRect{Width: 0.5, Height: 1},
+				Root: LayoutNode{ID: "retired-leaf", Kind: NodeKindLeaf, WindowID: new(WindowID("knowledge"))}},
+			{ID: "kept", Frame: NormalizedRect{X: 0.5, Width: 0.5, Height: 1},
+				Root: LayoutNode{ID: "kept-leaf", Kind: NodeKindLeaf, WindowID: new(WindowID("session"))}},
+		}
+		delete(snapshot.Windows, "settings")
+		got, changed := ReconcileRegisteredApps(snapshot, registered)
+		view := repairClientView(ClientView{ActiveDesktopID: "desktop", FocusedWindowID: new(WindowID("knowledge")),
+			FocusOrder: []WindowID{"knowledge", "session"}}, got)
+		if !changed || len(got.Desktops[0].Groups) != 1 || valueOrZero(view.FocusedWindowID) != "session" {
+			t.Fatalf("reconciled topology = %+v, focus = %+v", got.Desktops, view)
+		}
+		requireValidSnapshot(t, got)
+		delete(snapshot.Windows, "session")
+		snapshot = NormalizeSnapshot(snapshot)
+		empty, changed := ReconcileRegisteredApps(snapshot, registered)
+		view = repairClientView(view, empty)
+		if !changed || len(empty.Windows) != 0 || len(empty.Desktops[0].Groups) != 0 || view.FocusedWindowID != nil {
+			t.Fatalf("empty desktop = %+v, focus = %+v", empty, view)
+		}
+		requireValidSnapshot(t, empty)
+	})
+	t.Run("Should retain usable history and closed windows after retirement", func(t *testing.T) {
+		t.Parallel()
+		snapshot := reconcileSnapshotFixture(t)
+		snapshot.History.Undo = []HistoryEntry{{Before: snapshotState(snapshot), After: snapshotState(snapshot)}}
+		snapshot.ClosedEntries = []ClosedEntry{{DesktopID: "desktop", Rect: NormalizedRect{Width: 1, Height: 1},
+			ActiveID: new(WindowID("knowledge")), Windows: []Window{snapshot.Windows["knowledge"], snapshot.Windows["settings"]}}}
+		got, changed := ReconcileRegisteredApps(snapshot, registered)
+		if !changed || len(got.History.Undo) != 1 || len(got.History.Undo[0].Before.Windows) != 2 ||
+			len(got.History.Undo[0].After.Windows) != 2 || len(got.ClosedEntries) != 1 ||
+			len(got.ClosedEntries[0].Windows) != 1 || got.ClosedEntries[0].Windows[0].App != "settings" ||
+			valueOrZero(got.ClosedEntries[0].ActiveID) != "settings" {
+			t.Fatalf("reconciled history = %+v, closed windows = %+v", got.History, got.ClosedEntries)
+		}
+		requireValidSnapshot(t, got)
+		again, changed := ReconcileRegisteredApps(got, registered)
+		if changed || !reflect.DeepEqual(got, again) {
+			t.Fatal("reconciled restore state changed on second pass")
+		}
+	})
+	t.Run("Should rewrite retained settings navigation once [UT-014]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := reconcileSnapshotFixture(t)
+		window := snapshot.Windows["settings"]
+		window.Route.Pathname = "/settings/memory"
+		window.NavStack = []RouteIntent{{Pathname: "/settings/memory", Search: RouteSearch{}}}
+		snapshot.Windows["settings"] = window
+		got, changed := ReconcileRegisteredApps(snapshot, registered)
+		if !changed || got.Windows["settings"].Route.Pathname != "/settings" ||
+			got.Windows["settings"].NavStack[0].Pathname != "/settings" {
+			t.Fatalf("reconciled settings = %+v, changed = %v", got.Windows["settings"], changed)
+		}
+		again, changed := ReconcileRegisteredApps(got, registered)
+		if changed || !reflect.DeepEqual(got, again) {
+			t.Fatalf("second reconciliation changed snapshot: %+v", again)
+		}
+		requireValidSnapshot(t, again)
+	})
+}
+
+func reconcileSnapshotFixture(t *testing.T) Snapshot {
+	t.Helper()
+	snapshot := Snapshot{Version: SnapshotVersion, WorkspaceID: "workspace-a", Revision: 1,
+		Desktops: []Desktop{{ID: "desktop", Name: "Desktop", Groups: []LayoutGroup{{ID: "frame",
+			Frame: NormalizedRect{Width: 1, Height: 1}, Root: LayoutNode{ID: "split", Kind: NodeKindSplit,
+				Axis: new(AxisHorizontal), Weights: []float64{0.25, 0.5, 0.25}}}}}},
+		Windows: map[WindowID]Window{}}
+	for _, app := range []string{"session", "knowledge", "settings"} {
+		id := WindowID(app)
+		snapshot.Windows[id] = Window{ID: id, App: app, DesktopID: "desktop", Placement: WindowPlacementTiled,
+			Route: RouteIntent{Pathname: "/" + app, Search: RouteSearch{}}, FloatingRect: NormalizedRect{Width: 0.5, Height: 0.5}}
+		snapshot.Desktops[0].Groups[0].Root.Children = append(snapshot.Desktops[0].Groups[0].Root.Children,
+			LayoutNode{ID: NodeID("leaf-" + app), Kind: NodeKindLeaf, WindowID: new(id)})
+	}
+	return snapshot
 }

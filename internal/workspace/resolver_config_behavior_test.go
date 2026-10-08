@@ -479,10 +479,10 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 		if got := agentModel(resolved.Agents, compozyconfig.BuiltinCoordinatorAgentName); got != "" {
 			t.Fatalf("reserved coordinator model = %q, want excluded", got)
 		}
-		if got := agentModel(resolved.Agents, compozyconfig.BuiltinDreamingCuratorAgentName); got != "" {
-			t.Fatalf("reserved dreaming-curator model = %q, want excluded", got)
+		if got := agentModel(resolved.Agents, compozyconfig.BuiltinDreamingCuratorAgentName); got != "shadowed-curator" {
+			t.Fatalf("authored dreaming-curator model = %q, want shadowed-curator", got)
 		}
-		if got, want := len(resolved.AgentDiagnostics), 3; got != want {
+		if got, want := len(resolved.AgentDiagnostics), 2; got != want {
 			t.Fatalf("len(AgentDiagnostics) = %d, want %d: %#v", got, want, resolved.AgentDiagnostics)
 		}
 		names := make([]string, 0, len(resolved.AgentDiagnostics))
@@ -496,7 +496,6 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 		wantNames := []string{
 			compozyconfig.BuiltinCoordinatorAgentName,
 			compozyconfig.BuiltinCoordinatorAgentName,
-			compozyconfig.BuiltinDreamingCuratorAgentName,
 		}
 		if !slices.Equal(names, wantNames) {
 			t.Fatalf("diagnostic names = %#v, want %#v", names, wantNames)

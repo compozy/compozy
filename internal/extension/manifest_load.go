@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -210,6 +211,9 @@ func loadManifestTOMLContent(path string, data []byte) (*Manifest, error) {
 		return nil, err
 	}
 	manifest.Format = FormatCompozy
+	if dropped := dropRetiredMemoryManifestEntries(&manifest); len(dropped) > 0 {
+		slog.Warn("extension.retired_entries_ignored", "extension", manifest.Name, "entries", dropped)
+	}
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
@@ -241,6 +245,9 @@ func loadManifestJSONContent(path string, data []byte) (*Manifest, error) {
 		return nil, err
 	}
 	manifest.Format = FormatCompozy
+	if dropped := dropRetiredMemoryManifestEntries(&manifest); len(dropped) > 0 {
+		slog.Warn("extension.retired_entries_ignored", "extension", manifest.Name, "entries", dropped)
+	}
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}

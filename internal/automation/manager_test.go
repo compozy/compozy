@@ -421,7 +421,7 @@ func TestManagerStatusReportsCountsAndNextFire(t *testing.T) {
 					AutomationScopeWorkspace,
 					"disabled-trigger",
 					h.workspaceRoot,
-					"memory.consolidated",
+					"ext.test.completed",
 				)
 				trigger.Enabled = false
 				trigger.Filter = nil
@@ -646,7 +646,7 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 				trigger.Filter = map[string]string{"data.hook_outcome": "applied"}
 				return trigger
 			}(),
-			managerConfigTrigger(AutomationScopeWorkspace, "memory", h.workspaceRoot, "memory.consolidated"),
+			managerConfigTrigger(AutomationScopeWorkspace, "extension", h.workspaceRoot, "ext.test.completed"),
 		},
 	}
 
@@ -697,11 +697,10 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("WriteHookRecord() error = %v", err)
 	}
-	if err := manager.MemoryObserver().OnMemoryConsolidated(h.ctx, MemoryConsolidatedEvent{
-		WorkspaceID: h.workspace.ID,
-		Timestamp:   time.Now().UTC(),
+	if _, err := manager.triggerEngineSnapshot().Fire(h.ctx, ActivationEnvelope{
+		Kind: "ext.test.completed", Scope: AutomationScopeWorkspace, WorkspaceID: h.workspace.ID, Source: ActivationSourceObserver, Data: map[string]any{},
 	}); err != nil {
-		t.Fatalf("OnMemoryConsolidated() error = %v", err)
+		t.Fatalf("Fire() error = %v", err)
 	}
 
 	if got, want := h.sessions.promptCount(), 4; got != want {
@@ -2632,7 +2631,7 @@ func managerConfigTrigger(
 	switch event {
 	case "session.stopped":
 		trigger.Filter = map[string]string{"data.agent_name": "reviewer"}
-	case "memory.consolidated":
+	case "ext.test.completed":
 		trigger.Filter = nil
 	}
 	return trigger

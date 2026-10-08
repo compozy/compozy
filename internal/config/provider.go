@@ -191,13 +191,14 @@ type MCPAuthConfig struct {
 
 // ResolvedAgent is the effective runtime configuration for a parsed agent definition.
 type ResolvedAgent struct {
-	Name            string
-	ProfileName     string
-	Provider        string
-	Command         string
-	DisplayName     string
-	Model           string
-	ReasoningEffort string
+	ToolPolicyEnforced bool `json:"-"`
+	Name               string
+	ProfileName        string
+	Provider           string
+	Command            string
+	DisplayName        string
+	Model              string
+	ReasoningEffort    string
 	*AgentRuntimeDefaults
 	Tools           []string
 	Toolsets        []string

@@ -85,6 +85,7 @@ func (g SourceGrant) Match(source SourceRef) bool {
 
 // AgentToolPolicy captures agent-local allow and deny grammar.
 type AgentToolPolicy struct {
+	Enforced  bool          `json:"-"`
 	Tools     []ToolPattern `json:"-"`
 	Toolsets  []ToolsetID   `json:"toolsets,omitempty"`
 	DenyTools []ToolPattern `json:"-"`
@@ -135,6 +136,7 @@ func NewEffectivePolicyEvaluator(
 	toolsets ToolsetCatalog,
 	universe []ToolID,
 ) (*EffectivePolicyEvaluator, error) {
+	inputs = dropRetiredPolicyInputs(inputs)
 	normalizedUniverse := normalizeToolUniverse(universe)
 	if err := validatePolicyInputs(inputs); err != nil {
 		return nil, err
@@ -254,7 +256,7 @@ func (e *EffectivePolicyEvaluator) externalDefault() ExternalDefault {
 }
 
 func (e *EffectivePolicyEvaluator) agentPolicyRestricts() bool {
-	return len(e.inputs.Agent.Tools) > 0 || len(e.inputs.Agent.Toolsets) > 0
+	return e.inputs.Agent.Enforced || len(e.inputs.Agent.Tools) > 0 || len(e.inputs.Agent.Toolsets) > 0
 }
 
 func (e *EffectivePolicyEvaluator) matchesAny(patterns []ToolPattern, id ToolID) bool {
