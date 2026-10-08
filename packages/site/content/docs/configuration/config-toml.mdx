@@ -15,7 +15,9 @@ audit row.
 | `<workspace>/.compozy/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
 | `<workspace>/.compozy/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
 
-Unknown TOML keys are errors. Use the supported sections below.
+Unknown TOML keys are errors. Use the supported sections below. Retired tables are the one exception:
+CompozyOS archives them on load instead of failing; see
+[Archived retired settings](#archived-retired-settings).
 
 <OperatorNote>
   Workspace `.env` files are loaded before CompozyOS resolves `$COMPOZY_HOME`. This means
@@ -38,16 +40,11 @@ Unknown TOML keys are errors. Use the supported sections below.
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | windows tile beside focus, flush gaps, adaptive stacks, 50-entry history                              |
 | `[defaults]`                         | Default agent and provider resolution.                                                 | `agent = "general"`, `provider = ""`                                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                             | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
-| `[roles.dream]`                      | Dream-session routing.                                                                 | disabled, builtin `dreaming-curator`                                                                  |
-| `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                    | enabled, builtin `dreaming-curator`                                                                   |
-| `[roles.memory_extractor]`           | Memory-extractor session routing.                                                      | enabled, inherits the invoking agent                                                                  |
 | `[roles.auto_title]`                 | Automatic-title session routing.                                                       | enabled, inherits the invoking agent                                                                  |
-| `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                            | enabled, `pi` + `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens             |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                           | `max_concurrent_agents = 20`                                                                          |
 | `[session.limits]`                   | Session-scoped wall-clock timeout.                                                     | `timeout = "0s"`                                                                                      |
 | `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.        | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes                    |
-| `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.                 | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                                 |
-| `[session.derive]`                   | Size bounds of the context carried into a continued or forked session.                 | `max_replay_bytes = 131072`, `max_message_bytes = 16384`                                              |
+| `[session.derive]`                   | Size bounds of every transcript replay into a new agent session.                       | `max_replay_bytes = 131072`, `max_message_bytes = 16384`                                              |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.                | enabled, 32 KiB body, 2 KiB compact projection                                                        |
 | `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.         | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
 | `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                    | `mode = "approve-all"`                                                                                |
@@ -66,18 +63,6 @@ Unknown TOML keys are errors. Use the supported sections below.
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                         | enabled, 1 MiB segments, 256 MiB per session                                                          |
 | `[log]`                              | Structured log level and daemon-owned rotation.                                        | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                         |
 | `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.      | `enabled = true`                                                                                      |
-| `[memory]`                           | Persistent memory runtime and profile memory directory.                                | disabled, `$COMPOZY_HOME/profiles/default/memory`                                                     |
-| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                                | hybrid, 300 ms, noop                                                                                  |
-| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                           | 4096 chars, 60 writes/min, all canonical origins                                                      |
-| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                         | top-K 5, raw 50, weighted fusion                                                                      |
-| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                           | 90 days, audit summary on, 64 KiB body cap                                                            |
-| `[memory.extractor]`                 | Post-message extractor policy and bounded queue.                                       | post_message mode, capacity 1, coalesce 16                                                            |
-| `[memory.dream]`                     | Dreaming gates, cadence, and scoring policy.                                           | 24 h, 3 sessions, 30 min ticker                                                                       |
-| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.               | jsonl, `$COMPOZY_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition                |
-| `[memory.daily]`                     | Daily-log retention and rotation.                                                      | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                                  |
-| `[memory.file]`                      | Curated memory body and prompt-index limits.                                           | 200 lines, 25 KiB                                                                                     |
-| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                  | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                                 |
-| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                    | `<workspace>/.compozy/workspace.toml`, auto-create on first touch                                     |
 | `[skills]`                           | Skill discovery, source roots, polling, disable list, and installed-skill trust gates. | enabled, `agents` on, no custom sources, poll every 3 seconds                                         |
 | `[extensions.trust]`                 | Operator policy for non-curated extension installs.                                    | `allow_unverified = true`; per-install consent still required                                         |
 | `[extensions.sources.*]`             | Published extension source availability and endpoints.                                 | GitHub and git enabled, `https://api.github.com`                                                      |
@@ -102,14 +87,14 @@ Unknown TOML keys are errors. Use the supported sections below.
 
 ## Load And Merge Order
 
-| Order | Source                             | Merge behavior                                                                            |
-| ----- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
-| 1     | Built-in defaults                  | Base config.                                                                              |
-| 2     | `$COMPOZY_HOME/config.toml`        | Scalar fields replace defaults. TOML MCP and provider MCP entries merge by `name`.        |
-| 3     | `$COMPOZY_HOME/mcp.json`           | Same-name MCP servers replace the whole server object.                                    |
-| 4     | `<workspace>/.compozy/config.toml` | Workspace overlay applies over global config.                                             |
-| 5     | `<workspace>/.compozy/mcp.json`    | Same-name MCP servers replace the whole server object after workspace TOML.               |
-| 6     | Path normalization and validation  | `~` is expanded for `daemon.socket` and `memory.global_dir`; invalid values fail startup. |
+| Order | Source                             | Merge behavior                                                                     |
+| ----- | ---------------------------------- | ---------------------------------------------------------------------------------- |
+| 1     | Built-in defaults                  | Base config.                                                                       |
+| 2     | `$COMPOZY_HOME/config.toml`        | Scalar fields replace defaults. TOML MCP and provider MCP entries merge by `name`. |
+| 3     | `$COMPOZY_HOME/mcp.json`           | Same-name MCP servers replace the whole server object.                             |
+| 4     | `<workspace>/.compozy/config.toml` | Workspace overlay applies over global config.                                      |
+| 5     | `<workspace>/.compozy/mcp.json`    | Same-name MCP servers replace the whole server object after workspace TOML.        |
+| 6     | Path normalization and validation  | `~` is expanded for `daemon.socket`; invalid values fail startup.                  |
 
 TOML `[[mcp_servers]]` entries merge fields by `name`: non-empty `command`, non-empty `args`, and
 new `env` keys overlay the existing server. JSON sidecars replace same-name servers as whole
@@ -117,6 +102,19 @@ objects.
 
 Daemon boot uses the home config for boot-time daemon settings. The general config loader applies
 global and workspace MCP sidecars for session and runtime resolution.
+
+## Archived retired settings
+
+A `config.toml` that still carries settings for features CompozyOS removed does not fail the load.
+When the loader finds a retired setting (a table, a trigger entry, or a hook matcher key) in the
+global, a profile, or a workspace file, it removes the setting, appends it to the end of the same
+file as a commented block that starts with
+`# Archived retired memory and compaction settings; these values are inactive.`, rewrites the file
+atomically, and logs `config.retired_keys_archived` once. The load always continues, and the next
+load finds nothing to archive. The archived values stay in the file as comments and no longer apply.
+
+Setting a retired key with `compozy config set` is still refused. The
+[migration guide](/docs/migration#memory-removal) lists the retired settings and the upgrade steps.
 
 ## Complete Annotated Example
 
@@ -229,19 +227,6 @@ ttl = "2h"
 max_children = 5
 max_active_sessions_per_workspace = 5
 
-[roles.dream]
-# Explicitly enable background dreaming after enabling memory.
-enabled = false
-agent = "memory-curator"
-
-[roles.checkpoint_summary]
-# Empty agent selects the builtin dreaming-curator.
-enabled = true
-
-[roles.memory_extractor]
-# Empty agent inherits the invoking context's agent at runtime.
-enabled = true
-
 [roles.auto_title]
 # Use a small model for the bounded automatic-title pass.
 enabled = true
@@ -256,16 +241,6 @@ model = "grok-4.6"
 reasoning_effort = "high"
 speed = "fast"
 acp_options = [{ id = "thinking", bool_value = true }]
-
-[roles.memory_controller]
-# This in-process role has no agent field.
-enabled = true
-provider = "pi"
-model = "anthropic/claude-haiku-4"
-timeout = "250ms"
-top_k = 5
-prompt_version = "v1"
-max_tokens_out = 256
 
 [limits]
 # Positive daemon-wide agent concurrency bound.
@@ -293,21 +268,12 @@ stop_grace = "10m"
 # Grace after an explicit prompt-budget cancellation.
 timeout_cancel_grace = "30s"
 
-[session.compaction]
-# Disable all pressure-triggered compaction work when false.
-enabled = true
-# Context-used/context-size ratio that admits compaction. 0 also disables admission.
-pressure_threshold = 0.85
-# Maximum failed or successful compaction starts admitted for one triggering turn.
-max_attempts_per_turn = 1
-# Delay before a failed session compaction may be attempted again.
-failure_cooldown = "10m"
-
 [session.derive]
-# Hard upper bound, in bytes, of the transcript JSON carried into a continued or forked session.
+# Hard upper bound, in bytes, of the transcript JSON replayed into any new agent session
+# (resume, runtime or model replacement, account fallback, recovery, continue, fork).
 # Oldest messages are dropped first; the 8 most recent messages are kept while they fit.
 max_replay_bytes = 131072
-# Per-message cap on carried message bodies; longer bodies end with " [content truncated]".
+# Per-message cap on replayed message bodies; longer bodies end with " [content truncated]".
 max_message_bytes = 16384
 
 [agents.soul]
@@ -478,112 +444,6 @@ compress_backups = false
 # Detect likely credentials in content before logs, streams, or event storage receive them.
 # Changing this value requires a daemon restart.
 enabled = true
-
-[memory]
-enabled = false
-global_dir = "~/.compozy/profiles/default/memory"
-
-[memory.controller]
-mode = "hybrid"                              # hybrid | rules | llm
-max_latency = "300ms"
-default_op_on_fail = "noop"
-
-[memory.controller.policy]
-max_content_chars = 4096
-max_writes_per_min = 60
-allow_origins = ["cli", "http", "uds", "tool", "extractor", "dreaming", "file", "provider"]
-
-[memory.recall]
-top_k = 5
-raw_candidates = 50
-fusion = "weighted"
-include_already_surfaced = false
-include_system = false
-
-[memory.recall.weights]
-bm25_unicode = 0.55
-bm25_trigram = 0.20
-recency = 0.15
-recall_signal = 0.10
-
-[memory.recall.freshness]
-banner_after_days = 1
-
-[memory.recall.signals]
-queue_capacity = 256
-worker_retry_max = 3
-
-[memory.decisions]
-prune_after_applied_days = 90
-keep_audit_summary = true
-max_post_content_bytes = 65536
-
-[memory.extractor]
-mode = "post_message"
-throttle_turns = 1
-deadline = "60s"
-sandbox_inbox_only = true
-inbox_path = "$COMPOZY_HOME/profiles/default/memory/_inbox"
-dlq_path = "$COMPOZY_HOME/profiles/default/memory/_system/extractor/failures"
-
-[memory.extractor.queue]
-capacity = 1
-coalesce_max = 16
-
-[memory.dream]
-min_hours = 24
-min_sessions = 3
-debounce = "10m"
-prompt_version = "v1"
-check_interval = "30m"
-
-[memory.dream.gates]
-min_unpromoted = 5
-min_recall_count = 2
-min_score = 0.75
-
-[memory.dream.scoring]
-recency_half_life_days = 14
-
-[memory.dream.scoring.weights]
-frequency = 0.30
-relevance = 0.35
-recency = 0.20
-freshness = 0.15
-
-[memory.session]
-ledger_format = "jsonl"
-ledger_root = "$COMPOZY_HOME/sessions"
-events_purge_grace = "24h"
-cold_archive_days = 30
-hard_delete_days = 0
-max_archive_bytes = 10737418240
-unbound_partition = "_unbound"
-
-[memory.daily]
-max_bytes = 1048576
-max_lines = 5000
-rotate_format = "{date}.{seq}.md"
-dreaming_window = 7
-cold_archive_days = 30
-hard_delete_days = 0
-max_archive_bytes = 1073741824
-sweep_hour = 3
-archive_path = "_system/archive"
-
-[memory.file]
-max_lines = 200
-max_bytes = 25600
-
-[memory.provider]
-name = ""                                    # empty = bundled local provider
-timeout = "2s"
-failure_threshold = 5
-cooldown = "30s"
-
-[memory.workspace]
-toml_path = "<workspace>/.compozy/workspace.toml" # informational; not configurable
-auto_create = true
 
 [skills]
 enabled = true
@@ -1080,27 +940,23 @@ browser-mode behavior.
 ## `[roles.<role>]`
 
 `[roles]` is the closed routing roster for daemon-owned background work. It is not an extension
-registry: only the six sections below are accepted. Global `$COMPOZY_HOME/config.toml` values apply to
+registry: only the two sections below are accepted. Global `$COMPOZY_HOME/config.toml` values apply to
 every workspace unless the selected workspace's `.compozy/config.toml` overlays them.
 
-| Role                 | Default | Empty `agent` resolution   | Extra policy owned here                                   |
-| -------------------- | ------- | -------------------------- | --------------------------------------------------------- |
-| `coordinator`        | off     | builtin `coordinator`      | `ttl`, child cap, workspace active-session cap            |
-| `dream`              | on      | builtin `dreaming-curator` | none                                                      |
-| `checkpoint_summary` | on      | builtin `dreaming-curator` | none                                                      |
-| `memory_extractor`   | on      | invoking context           | none                                                      |
-| `auto_title`         | on      | invoking context           | none                                                      |
-| `memory_controller`  | on      | not applicable             | call timeout, candidate count, prompt version, output cap |
+| Role          | Default | Empty `agent` resolution | Extra policy owned here                        |
+| ------------- | ------- | ------------------------ | ---------------------------------------------- |
+| `coordinator` | off     | builtin `coordinator`    | `ttl`, child cap, workspace active-session cap |
+| `auto_title`  | on      | invoking context         | none                                           |
 
-`coordinator` and `dreaming-curator` are CompozyOS-owned virtual identities. They resolve without an
-authored `AGENT.md`, do not appear in public agent catalogs, and are reserved from create, update,
-duplicate, and extension agent publication. Their embedded prompts are fixed; selecting a custom
-`agent` changes routing, not the builtin prompt.
+`coordinator` is a CompozyOS-owned virtual identity. It resolves without an authored `AGENT.md`,
+does not appear in public agent catalogs, and is reserved from create, update, duplicate, and
+extension agent publication. Its embedded prompt is fixed; selecting a custom `agent` changes
+routing, not the builtin prompt. Automatic titling runs under a fixed 60-second deadline that is not
+configurable.
 
 ### Session-backed role fields
 
-These fields apply to `coordinator`, `dream`, `checkpoint_summary`, `memory_extractor`, and
-`auto_title`.
+These fields apply to `coordinator` and `auto_title`.
 
 | Field              | Type                  | Default       | Valid values                                                                 | Description                                                                                                 |
 | ------------------ | --------------------- | ------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -1169,27 +1025,7 @@ enqueued, the role must be enabled, and no healthy workspace coordinator may alr
 | `max_children`                      | integer  | `5`     | `1` through `5`    | Maximum concurrently held safe-spawn children.                |
 | `max_active_sessions_per_workspace` | integer  | `5`     | Positive integer   | Active coordinator and spawned-session cap for one workspace. |
 
-### `[roles.memory_controller]`
-
-The memory controller is an in-process model call, so it has no `agent` field. It accepts `enabled`,
-`provider`, `model`, `reasoning_effort`, `speed`, `acp_options`, and `fallback_chain` (including route
-`command`) with the same routing semantics above. Its chain is live: unless
-`memory.controller.mode = "rules"`, the write-controller tiebreaker launches a transient ACP call on
-this route and advances through `fallback_chain` when a route is refused before acceptance. It also
-accepts these call-policy fields:
-
-| Field            | Type     | Default                    | Valid values             | Description                                        |
-| ---------------- | -------- | -------------------------- | ------------------------ | -------------------------------------------------- |
-| `provider`       | string   | `pi`                       | Configured provider name | ACP transport used by the transient model call.    |
-| `model`          | string   | `anthropic/claude-haiku-4` | Non-empty when enabled   | Model used by the controller tiebreaker.           |
-| `timeout`        | duration | `250ms`                    | Positive Go duration     | Deadline for one controller model call.            |
-| `top_k`          | integer  | `5`                        | Positive integer         | Candidate count passed to the tiebreaker.          |
-| `prompt_version` | string   | `v1`                       | Non-empty pinned version | Fixed prompt version recorded for replay fidelity. |
-| `max_tokens_out` | integer  | `256`                      | Positive integer         | Output-token cap for one call.                     |
-
-`timeout` is valid only for `roles.memory_controller`; the strict decoder rejects it on any
-session-backed role. Role changes are classified `live` and affect later invocations without a
-daemon restart. Inspect the resolved roster and per-field provenance with:
+Role changes are classified `live` and affect later invocations without a daemon restart. Inspect the resolved roster and per-field provenance with:
 
 ```bash
 compozy roles list --workspace <workspace> -o json
@@ -1289,39 +1125,32 @@ and equal warning/stop thresholds. Setting either new timing key selects the new
 explicit new values override the corresponding translated legacy value. With ordinary positive
 legacy thresholds, migrate the warning threshold to `quiet_after` and their difference to `stop_grace`.
 
-## `[session.compaction]`
-
-`[session.compaction]` bounds daemon-owned compaction of completed persisted turns when an ACP
-usage update reports context pressure. CompozyOS first updates the workspace checkpoint with durable
-sequence coverage, then marks that exact event range archived. Archived rows remain queryable in
-session events and history; only degraded transcript replay excludes them. The triggering turn is
-never included in its own compaction span.
-
-| Field                   | Type     | Default | Valid values            | Description                                                            |
-| ----------------------- | -------- | ------- | ----------------------- | ---------------------------------------------------------------------- |
-| `enabled`               | boolean  | `true`  | `true` or `false`       | Enables pressure-triggered compaction.                                 |
-| `pressure_threshold`    | number   | `0.85`  | `0.0` through `1.0`     | Admission ratio. `0.0` disables admission even when enabled.           |
-| `max_attempts_per_turn` | integer  | `1`     | Positive integer.       | Per-trigger-turn attempt cap, including failed attempts.               |
-| `failure_cooldown`      | duration | `10m`   | Zero or positive value. | Per-session delay after a failed summary, archive, or hook transition. |
-
-These paths are global or workspace desired state and are available through `compozy config set` and
-the `compozy__config_*` native tools. Structured writes return `lifecycle="restart-required"` and
-`next_action="restart-daemon"`; the running daemon keeps its bound compaction policy until restart.
-Use `compozy config apply-history -o json` to inspect the blocked apply record.
-
 ## `[session.derive]`
 
-`[session.derive]` bounds the carried context that `compozy session continue` (and the Web
-"Continue with another agent…" action) copies from the source session into the new session. The
-bound applies to the serialized transcript JSON and is never exceeded: CompozyOS caps each message
-body first, then drops the oldest messages, keeping the 8 most recent while they fit, and finally
-drops even those down to one. Every omission is stated in the carried context
-(`[N earlier messages omitted to fit the context budget]`) and in the response (`truncated`,
-`omitted_count`). Bounding never fails a continue.
+`[session.derive]` bounds every transcript replay into a new agent session: resuming a session
+without native session loading, replacing its runtime or model, account fallback, prompt recovery,
+and `compozy session continue` or fork (including the Web "Continue with another agent…" action).
+CompozyOS never compacts a session itself and the agent owns its live context window, so the replay
+is the only context CompozyOS rebuilds, and it is bounded. Native compaction is observed, not
+performed, by CompozyOS; see [Session compaction](/docs/sessions/compaction).
+
+The bound applies to the serialized transcript JSON and is never exceeded: CompozyOS caps each
+message body first, then drops the oldest messages, keeping the 8 most recent while they fit, and
+finally drops even those down to one. When messages are dropped:
+
+- the earliest user message stays pinned ahead of the omission note;
+- the omission note `[N earlier messages omitted to fit the context budget]` states how many were dropped;
+- the replay header adds `Earlier messages were omitted. Read them with the compozy__session_history tool (session_id: <id>) when you need them.`
+  only when the session's tool surface includes `compozy__session_history`. For a derived child,
+  `<id>` is the source session.
+
+Every replay header also tells the agent that the files and git state in the workspace are
+authoritative and must be inspected before acting on the transcript. Continue and fork responses
+report the omission as `truncated` and `omitted_count`. Bounding never fails a rebuild.
 
 | Field               | Type    | Default  | Valid values                       | Description                                                   |
 | ------------------- | ------- | -------- | ---------------------------------- | ------------------------------------------------------------- |
-| `max_replay_bytes`  | integer | `131072` | `4096` or more.                    | Hard upper bound of the carried transcript, in bytes.         |
+| `max_replay_bytes`  | integer | `131072` | `4096` or more.                    | Hard upper bound of the replayed transcript, in bytes.        |
 | `max_message_bytes` | integer | `16384`  | `1024` through `max_replay_bytes`. | Per-message cap; a cut body ends with ` [content truncated]`. |
 
 Invalid values fail config validation with
@@ -1903,204 +1732,6 @@ or the live `compozy__config_set` descriptor. These writes return
 `lifecycle="restart-required"` and `next_action="restart-daemon"`; they do not change the running
 process.
 
-## `[memory]`
-
-The `[memory]` tree is the Memory v2 runtime configuration. Memory v2 is the only memory subsystem;
-there is no `[memory.v2] enabled` flag and no parallel compatibility namespace. Disabling
-`[memory] enabled` short-circuits prompt assembly, the controller, recall, dreaming, the extractor,
-and the bundled local provider. Memory and `roles.dream.enabled` both default to `false`:
-CompozyOS is a control plane, so persistent memory and background consolidation require deliberate
-opt-in. Set `memory.enabled = true` in the daemon configuration and restart to activate memory.
-Enable `roles.dream.enabled = true` separately to allow dreaming. Explicit saved values and stored
-memory files are preserved; omitted settings take the disabled defaults. Profile/workspace role
-overlays retain their normal precedence when the daemon memory runtime is enabled.
-
-Session pressure compaction remains controlled separately by `session.compaction.enabled`. It can
-create a checkpoint summary child on actual context pressure while memory is disabled, without
-registering a public memory provider, extractor, dream scheduler, or session-end memory worker.
-An explicit `roles.checkpoint_summary.enabled = false` prevents new summaries and leaves uncovered
-events unarchived.
-
-| Field        | Type        | Default                                 | Valid values                              | Description                                                                                       |
-| ------------ | ----------- | --------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `enabled`    | boolean     | `false`                                 | `true` or `false`                         | Master switch for the Memory v2 runtime.                                                          |
-| `global_dir` | string path | `$COMPOZY_HOME/profiles/default/memory` | Non-empty path when set. `~` is expanded. | The `default` profile's memory directory. Blank overlays are ignored and keep the previous value. |
-
-## `[memory.controller]`
-
-| Field                | Type     | Default  | Valid values             | Description                                                                                         |
-| -------------------- | -------- | -------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
-| `mode`               | string   | `hybrid` | `hybrid`, `rules`, `llm` | Controller decision mode. `hybrid` runs the rule-first lexical/entity logic with an LLM tiebreaker. |
-| `max_latency`        | duration | `300ms`  | Positive Go duration.    | Maximum end-to-end controller latency before fall-back behavior triggers.                           |
-| `default_op_on_fail` | string   | `noop`   | `noop`, `reject`         | Decision op used when the controller fails or its deadline is exceeded.                             |
-
-## `[memory.controller.policy]`
-
-| Field                | Type         | Default                                                                | Valid values                 | Description                                                                       |
-| -------------------- | ------------ | ---------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------- |
-| `max_content_chars`  | integer      | `4096`                                                                 | Positive integer.            | Hard cap on candidate body length.                                                |
-| `max_writes_per_min` | integer      | `60`                                                                   | Positive integer.            | Per-workspace write rate limit before the controller starts rejecting candidates. |
-| `allow_origins`      | string array | `["cli","http","uds","tool","extractor","dreaming","file","provider"]` | Subset of canonical origins. | Origins permitted to submit candidates. Empty rejects every write.                |
-
-## `[memory.recall]`
-
-| Field                      | Type    | Default    | Valid values      | Description                                              |
-| -------------------------- | ------- | ---------- | ----------------- | -------------------------------------------------------- |
-| `top_k`                    | integer | `5`        | Positive integer. | Top-K curated entries packaged per recall response.      |
-| `raw_candidates`           | integer | `50`       | Positive integer. | Raw candidate pool before scoring/shadowing.             |
-| `fusion`                   | string  | `weighted` | `weighted`, `rrf` | Score fusion strategy. `rrf` is reserved for slice 3.    |
-| `include_already_surfaced` | boolean | `false`    | `true` or `false` | Includes entries already surfaced this session.          |
-| `include_system`           | boolean | `false`    | `true` or `false` | Includes `_system/` artifacts in recall (operator-only). |
-
-## `[memory.recall.weights]`
-
-Weights are blended into the recall score. Defaults sum to `1.0`.
-
-| Field           | Type  | Default | Valid values | Description                             |
-| --------------- | ----- | ------- | ------------ | --------------------------------------- |
-| `bm25_unicode`  | float | `0.55`  | `0.0`–`1.0`  | BM25 score from the unicode FTS5 index. |
-| `bm25_trigram`  | float | `0.20`  | `0.0`–`1.0`  | BM25 score from the trigram FTS5 index. |
-| `recency`       | float | `0.15`  | `0.0`–`1.0`  | Time-decay factor.                      |
-| `recall_signal` | float | `0.10`  | `0.0`–`1.0`  | Live recall-signal feedback factor.     |
-
-## `[memory.recall.freshness]`
-
-| Field               | Type    | Default | Valid values      | Description                                                         |
-| ------------------- | ------- | ------- | ----------------- | ------------------------------------------------------------------- |
-| `banner_after_days` | integer | `1`     | Positive integer. | Adds a "verify before asserting" banner to entries older than this. |
-
-## `[memory.recall.signals]`
-
-| Field              | Type    | Default | Valid values      | Description                                                              |
-| ------------------ | ------- | ------- | ----------------- | ------------------------------------------------------------------------ |
-| `queue_capacity`   | integer | `256`   | Positive integer. | Bounded channel for recall-signal updates. Oldest drops on overflow.     |
-| `worker_retry_max` | integer | `3`     | Positive integer. | Per-update retries before emitting `memory.recall.signal_update_failed`. |
-
-## `[memory.decisions]`
-
-WAL retention controls. Pruned rows are replaced by a redaction-safe summary so audit history
-survives.
-
-| Field                      | Type    | Default | Valid values      | Description                                                                                               |
-| -------------------------- | ------- | ------- | ----------------- | --------------------------------------------------------------------------------------------------------- |
-| `prune_after_applied_days` | integer | `90`    | Positive integer. | Decisions with `applied_at` older than this are pruned after a `memory.decisions.audit_summarized` event. |
-| `keep_audit_summary`       | boolean | `true`  | `true` or `false` | Emits the audit-summary event before pruning.                                                             |
-| `max_post_content_bytes`   | integer | `65536` | Positive integer. | Per-row body cap. Oversized rows store a content-hash reference instead.                                  |
-
-## `[memory.extractor]`
-
-The extractor consumes the `session.message_persisted` hook and writes structured proposals via the
-controller. `inbox_path` and `dlq_path` are validation-locked to the canonical CompozyOS-managed
-locations.
-
-| Field                | Type     | Default                                                            | Valid values          | Description                                                                                                       |
-| -------------------- | -------- | ------------------------------------------------------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `mode`               | string   | `post_message`                                                     | `post_message`        | Extraction mode. CompozyOS currently supports only post-message extraction.                                       |
-| `throttle_turns`     | integer  | `1`                                                                | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
-| `deadline`           | duration | `60s`                                                              | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
-| `sandbox_inbox_only` | boolean  | `true`                                                             | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
-| `inbox_path`         | string   | `$COMPOZY_HOME/profiles/default/memory/_inbox`                     | Daemon-managed.       | Read-only display field; the daemon manages the inbox path.                                                       |
-| `dlq_path`           | string   | `$COMPOZY_HOME/profiles/default/memory/_system/extractor/failures` | Daemon-managed.       | Read-only display field; the daemon manages the DLQ path.                                                         |
-
-## `[memory.extractor.queue]`
-
-| Field          | Type    | Default | Valid values                                                | Description                                                                                                        |
-| -------------- | ------- | ------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `capacity`     | integer | `1`     | Positive integer.                                           | Maximum concurrent provider-backed extractor child sessions; additional sessions wait without losing queued turns. |
-| `coalesce_max` | integer | `16`    | Positive integer greater than or equal to `throttle_turns`. | Maximum coalesced turns when consecutive triggers arrive while the extractor is busy.                              |
-
-## `[memory.dream]`
-
-| Field            | Type     | Default | Valid values              | Description                                                              |
-| ---------------- | -------- | ------- | ------------------------- | ------------------------------------------------------------------------ |
-| `min_hours`      | float    | `24`    | Positive number.          | Time-gate threshold before another successful run.                       |
-| `min_sessions`   | integer  | `3`     | Positive integer.         | Sessions-gate threshold (completed sessions since last run).             |
-| `debounce`       | duration | `10m`   | Positive Go duration.     | Debounce window for triggers fed by `session.post_stop`.                 |
-| `prompt_version` | string   | `v1`    | Non-empty pinned version. | Prompt template version pinned to dreaming sessions for replay fidelity. |
-| `check_interval` | duration | `30m`   | Positive Go duration.     | Background ticker interval.                                              |
-
-## `[memory.dream.gates]`
-
-| Field              | Type    | Default | Valid values      | Description                                                    |
-| ------------------ | ------- | ------- | ----------------- | -------------------------------------------------------------- |
-| `min_unpromoted`   | integer | `5`     | Positive integer. | Minimum unpromoted candidates with sufficient signal.          |
-| `min_recall_count` | integer | `2`     | Positive integer. | Minimum recall hits per candidate before it qualifies.         |
-| `min_score`        | float   | `0.75`  | `0.0`–`1.0`       | Minimum scored value for a candidate to clear the signal gate. |
-
-## `[memory.dream.scoring]`
-
-| Field                    | Type    | Default | Valid values      | Description                                                |
-| ------------------------ | ------- | ------- | ----------------- | ---------------------------------------------------------- |
-| `recency_half_life_days` | integer | `14`    | Positive integer. | Half-life applied to recall recency in the dreaming score. |
-
-## `[memory.dream.scoring.weights]`
-
-Defaults sum to `1.0` across the four factors.
-
-| Field       | Type  | Default | Valid values | Description                                       |
-| ----------- | ----- | ------- | ------------ | ------------------------------------------------- |
-| `frequency` | float | `0.30`  | `0.0`–`1.0`  | Weight of recall frequency.                       |
-| `relevance` | float | `0.35`  | `0.0`–`1.0`  | Weight of BM25 relevance.                         |
-| `recency`   | float | `0.20`  | `0.0`–`1.0`  | Weight of recency decay.                          |
-| `freshness` | float | `0.15`  | `0.0`–`1.0`  | Penalty weight for stale, never-promoted entries. |
-
-## `[memory.session]`
-
-Forensic ledger materialization. The materializer writes one read-only `ledger.jsonl`
-under `<ledger_root>/<workspace_id>/<session_id>/`. Sessions without a workspace use
-`<unbound_partition>` instead of a workspace_id segment.
-
-| Field                | Type     | Default                  | Valid values          | Description                                                         |
-| -------------------- | -------- | ------------------------ | --------------------- | ------------------------------------------------------------------- |
-| `ledger_format`      | string   | `jsonl`                  | `jsonl`               | Forensic ledger format.                                             |
-| `ledger_root`        | string   | `$COMPOZY_HOME/sessions` | Daemon-managed.       | Ledger root. Read-only; daemon-managed path.                        |
-| `events_purge_grace` | duration | `24h`                    | Positive Go duration. | Time after materialization before live `events.db` rows are purged. |
-| `cold_archive_days`  | integer  | `30`                     | Zero or positive.     | Cold-archive window for `ledger.jsonl`. `0` keeps ledgers in-place. |
-| `hard_delete_days`   | integer  | `0`                      | Zero or positive.     | `0` keeps ledgers forever; explicit prune via CLI.                  |
-| `max_archive_bytes`  | integer  | `10737418240`            | Positive integer.     | Safety-valve cap on the cold-archive store.                         |
-| `unbound_partition`  | string   | `_unbound`               | Daemon-managed.       | Partition used for sessions without a workspace_id.                 |
-
-## `[memory.daily]`
-
-| Field               | Type    | Default           | Valid values      | Description                                           |
-| ------------------- | ------- | ----------------- | ----------------- | ----------------------------------------------------- |
-| `max_bytes`         | integer | `1048576`         | Positive integer. | Per-day daily-log byte cap before rotation.           |
-| `max_lines`         | integer | `5000`            | Positive integer. | Per-day daily-log line cap before rotation.           |
-| `rotate_format`     | string  | `{date}.{seq}.md` | Daemon-managed.   | Rotation filename format. Read-only.                  |
-| `dreaming_window`   | integer | `7`               | Positive integer. | Days the dreaming curator reads from daily logs.      |
-| `cold_archive_days` | integer | `30`              | Zero or positive. | Cold-archive window for rotated daily logs.           |
-| `hard_delete_days`  | integer | `0`               | Zero or positive. | `0` keeps daily logs forever; explicit prune via CLI. |
-| `max_archive_bytes` | integer | `1073741824`      | Positive integer. | Safety-valve cap on the daily archive.                |
-| `sweep_hour`        | integer | `3`               | `0`–`23`          | Local hour for daily housekeeping sweep.              |
-| `archive_path`      | string  | `_system/archive` | Daemon-managed.   | Archive subdirectory under each scope's `_system/`.   |
-
-## `[memory.file]`
-
-| Field       | Type    | Default | Valid values      | Description                                                                               |
-| ----------- | ------- | ------- | ----------------- | ----------------------------------------------------------------------------------------- |
-| `max_lines` | integer | `200`   | Positive integer. | Maximum final body lines for controlled writes and `MEMORY.md` lines included in prompts. |
-| `max_bytes` | integer | `25600` | Positive integer. | Maximum final body bytes for controlled writes and `MEMORY.md` bytes included in prompts. |
-
-## `[memory.provider]`
-
-`name = ""` selects the bundled local provider. Setting a configured provider name routes runtime
-calls through the registered `MemoryProvider` while keeping the local provider as a circuit-breaker
-fallback (see [Extensions](/docs/extensions)).
-
-| Field               | Type     | Default | Valid values              | Description                                                         |
-| ------------------- | -------- | ------- | ------------------------- | ------------------------------------------------------------------- |
-| `name`              | string   | empty   | Empty or registered name. | Active provider. Empty falls back to the bundled local provider.    |
-| `timeout`           | duration | `2s`    | Positive Go duration.     | Per-method deadline before fail-open to the bundled local provider. |
-| `failure_threshold` | integer  | `5`     | Positive integer.         | Consecutive failures before the circuit opens.                      |
-| `cooldown`          | duration | `30s`   | Positive Go duration.     | How long the circuit stays open before retry.                       |
-
-## `[memory.workspace]`
-
-| Field         | Type    | Default                               | Valid values    | Description                                                                                 |
-| ------------- | ------- | ------------------------------------- | --------------- | ------------------------------------------------------------------------------------------- |
-| `toml_path`   | string  | `<workspace>/.compozy/workspace.toml` | Daemon-managed. | Read-only display field. Workspace identity always lives at this path.                      |
-| `auto_create` | boolean | `true`                                | `true`/`false`  | Auto-create `<workspace>/.compozy/workspace.toml` on first daemon touch of a new workspace. |
-
 ## `[skills]`
 
 If `enabled = false`, local skill discovery and polling are disabled.
@@ -2255,22 +1886,22 @@ Jobs are appended by overlays; they do not replace earlier jobs with the same na
 
 Triggers are appended by overlays; they do not replace earlier triggers with the same name.
 
-| Field                | Type       | Default                                                            | Valid values                                                                                                      | Description                                                                        |
-| -------------------- | ---------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `scope`              | string     | required                                                           | `global` or `workspace`                                                                                           | Binding scope.                                                                     |
-| `name`               | string     | required                                                           | Non-empty.                                                                                                        | Trigger name.                                                                      |
-| `agent`              | string     | required for an Agent target; empty for a Loop target              | After trimming, `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters).                                              | Agent that handles the trigger prompt.                                             |
-| `workspace`          | string     | required when `scope = "workspace"`, empty when `scope = "global"` | Workspace ID or root accepted by the automation resolver.                                                         | Workspace binding.                                                                 |
-| `prompt`             | string     | required                                                           | Valid Go template over the activation envelope.                                                                   | Prompt submitted when the trigger fires.                                           |
-| `event`              | string     | required                                                           | `session.created`, `session.stopped`, `memory.consolidated`, `hook.<hook_name>.completed`, `webhook`, or `ext.*`. | Producer-backed event name; surrounding whitespace and unknown names are rejected. |
-| `filter`             | string map | empty                                                              | Keys `kind`, `scope`, `workspace_id`, `source`, or `data.<field>`; values non-empty.                              | Activation-envelope filter.                                                        |
-| `enabled`            | boolean    | `true`                                                             | `true` or `false`                                                                                                 | Enables this trigger.                                                              |
-| `retry.strategy`     | string     | `none`                                                             | `none` or `backoff`                                                                                               | Retry behavior.                                                                    |
-| `retry.max_retries`  | integer    | `0`                                                                | `0` for `none`; positive for `backoff`.                                                                           | Maximum retry count.                                                               |
-| `retry.base_delay`   | string     | empty                                                              | Empty for `none`; positive Go duration for `backoff`.                                                             | Base backoff delay.                                                                |
-| `fire_limit`         | object     | `[automation].default_fire_limit`                                  | `max` positive, `window` positive Go duration.                                                                    | Per-trigger fire limit.                                                            |
-| `endpoint_slug`      | string     | empty                                                              | Required when `event = "webhook"`; empty otherwise.                                                               | Webhook endpoint slug.                                                             |
-| `webhook_secret_ref` | string     | empty                                                              | Required when `event = "webhook"`; must be `env:NAME` or `vault:automation/...`; empty otherwise.                 | Secret ref used to validate webhook requests.                                      |
+| Field                | Type       | Default                                                            | Valid values                                                                                      | Description                                                                        |
+| -------------------- | ---------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `scope`              | string     | required                                                           | `global` or `workspace`                                                                           | Binding scope.                                                                     |
+| `name`               | string     | required                                                           | Non-empty.                                                                                        | Trigger name.                                                                      |
+| `agent`              | string     | required for an Agent target; empty for a Loop target              | After trimming, `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters).                              | Agent that handles the trigger prompt.                                             |
+| `workspace`          | string     | required when `scope = "workspace"`, empty when `scope = "global"` | Workspace ID or root accepted by the automation resolver.                                         | Workspace binding.                                                                 |
+| `prompt`             | string     | required                                                           | Valid Go template over the activation envelope.                                                   | Prompt submitted when the trigger fires.                                           |
+| `event`              | string     | required                                                           | `session.created`, `session.stopped`, `hook.<hook_name>.completed`, `webhook`, or `ext.*`.        | Producer-backed event name; surrounding whitespace and unknown names are rejected. |
+| `filter`             | string map | empty                                                              | Keys `kind`, `scope`, `workspace_id`, `source`, or `data.<field>`; values non-empty.              | Activation-envelope filter.                                                        |
+| `enabled`            | boolean    | `true`                                                             | `true` or `false`                                                                                 | Enables this trigger.                                                              |
+| `retry.strategy`     | string     | `none`                                                             | `none` or `backoff`                                                                               | Retry behavior.                                                                    |
+| `retry.max_retries`  | integer    | `0`                                                                | `0` for `none`; positive for `backoff`.                                                           | Maximum retry count.                                                               |
+| `retry.base_delay`   | string     | empty                                                              | Empty for `none`; positive Go duration for `backoff`.                                             | Base backoff delay.                                                                |
+| `fire_limit`         | object     | `[automation].default_fire_limit`                                  | `max` positive, `window` positive Go duration.                                                    | Per-trigger fire limit.                                                            |
+| `endpoint_slug`      | string     | empty                                                              | Required when `event = "webhook"`; empty otherwise.                                               | Webhook endpoint slug.                                                             |
+| `webhook_secret_ref` | string     | empty                                                              | Required when `event = "webhook"`; must be `env:NAME` or `vault:automation/...`; empty otherwise. | Secret ref used to validate webhook requests.                                      |
 
 See [Vault](/docs/configuration/vault) for the CLI, HTTP, UDS, web, and session-scoped
 surfaces that store and inspect encrypted CompozyOS-managed secret refs.
@@ -2557,8 +2188,10 @@ name.
 
 Supported matcher fields are `agent_name`, `agent_type`, `workspace_id`, `workspace_root`,
 `session_type`, `input_class`, `acp_event_type`, `turn_id`, `tool_name`, `tool_namespace`,
-`tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, `compaction_reason`, and
-`compaction_strategy`.
+`tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, and `compaction_trigger`.
+`compaction_trigger` is `requested` or `agent` and narrows `context.pre_compact` and
+`context.post_compact`, which observe real agent compactions; see
+[Hook declarations](/docs/hooks/declaration).
 
 Current hook events are:
 

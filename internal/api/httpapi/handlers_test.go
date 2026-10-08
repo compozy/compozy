@@ -1005,8 +1005,18 @@ func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 			engine.ServeHTTP(unknown, httptest.NewRequest(tc.method, "/api/nope", nil))
 			response := httptest.NewRecorder()
 			engine.ServeHTTP(response, httptest.NewRequest(tc.method, tc.path, nil))
-			if response.Code != http.StatusNotFound || response.Code != unknown.Code || response.Body.String() != unknown.Body.String() || response.Header().Get("Content-Type") != unknown.Header().Get("Content-Type") {
-				t.Fatalf("retired route response = %d %q %q, unknown = %d %q %q", response.Code, response.Body.String(), response.Header().Get("Content-Type"), unknown.Code, unknown.Body.String(), unknown.Header().Get("Content-Type"))
+			if response.Code != http.StatusNotFound || response.Code != unknown.Code ||
+				response.Body.String() != unknown.Body.String() ||
+				response.Header().Get("Content-Type") != unknown.Header().Get("Content-Type") {
+				t.Fatalf(
+					"retired route response = %d %q %q, unknown = %d %q %q",
+					response.Code,
+					response.Body.String(),
+					response.Header().Get("Content-Type"),
+					unknown.Code,
+					unknown.Body.String(),
+					unknown.Header().Get("Content-Type"),
+				)
 			}
 		})
 	}

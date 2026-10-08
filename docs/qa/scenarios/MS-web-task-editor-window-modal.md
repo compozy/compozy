@@ -20,7 +20,7 @@ story: As a person running agent work I create and edit tasks in a modal over th
 
 The OS-shell migration (`feat: os shell implementation (#330)`) had converted both editors into full-window locations under the "route-backed modals become in-window locations" decision. That decision's own rule of thumb reserves internal navigation for wizard-class (`lg`/`xl`) flows; the task editor is a `--width-modal-md` single-entity form, so `MODAL-STANDARD.md` § Hosts puts it back on the dialog host. Restored 2026-07-25.
 
-The dialog host is `TaskEditorModal`; the window scoping comes from `OverlayContainerContext` supplied by `os-window.tsx`, the same seam knowledge and confirm dialogs already use.
+The dialog host is `TaskEditorModal`; the window scoping comes from `OverlayContainerContext` supplied by `os-window.tsx`, the same seam confirm dialogs already use.
 
 src: web/src/systems/os/apps/tasks/task-editor-dialogs.tsx; web/src/systems/os/apps/tasks/tasks-window.tsx; web/src/systems/os/apps/tasks/task-window-location.ts; web/src/systems/tasks/components/task-editor-modal.tsx
 

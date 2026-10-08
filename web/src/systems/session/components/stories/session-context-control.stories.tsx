@@ -13,7 +13,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Reported: Story = {};
-export const Warning: Story = {
+export const NearlyFull: Story = {
   args: { context: deriveSessionContext({ ...sessionContextFixture, used: 225_280, ratio: 0.88 }) },
 };
 export const Unknown: Story = { args: { context: deriveSessionContext() } };
@@ -29,7 +29,6 @@ export const EstimatedSize: Story = {
       ...sessionContextFixture,
       state: "estimated_size",
       size_source: "catalog",
-      pressure_threshold: undefined,
     }),
   },
 };
@@ -71,7 +70,6 @@ export const StaleEstimatedSize: Story = {
       stale: true,
       state: "estimated_size",
       size_source: "catalog",
-      pressure_threshold: undefined,
     }),
   },
 };

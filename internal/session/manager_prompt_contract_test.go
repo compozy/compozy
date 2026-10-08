@@ -2560,50 +2560,54 @@ func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {
 func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
+	t.Run("Should deliver the assembled startup context", func(t *testing.T) {
+		t.Parallel()
 
-	var (
-		called         bool
-		gotWorkspace   string
-		gotAgentName   string
-		gotAgentPrompt string
-	)
-	h.manager = newManagerWithHarness(
-		t,
-		h,
-		WithPromptAssembler(
-			promptAssemblerFunc(
-				func(_ context.Context, agent compozyconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
-					called = true
-					gotWorkspace = workspace.RootDir
-					gotAgentName = agent.Name
-					gotAgentPrompt = agent.Prompt
-					return agent.Prompt + "\n\nmemory block", nil
-				},
+		h := newHarness(t)
+
+		var (
+			called         bool
+			gotWorkspace   string
+			gotAgentName   string
+			gotAgentPrompt string
+		)
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithPromptAssembler(
+				promptAssemblerFunc(
+					func(_ context.Context, agent compozyconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
+						called = true
+						gotWorkspace = workspace.RootDir
+						gotAgentName = agent.Name
+						gotAgentPrompt = agent.Prompt
+						return agent.Prompt + "\n\nstartup context block", nil
+					},
+				),
 			),
-		),
-	)
+		)
 
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+
+		if !called {
+			t.Fatal("Create() did not invoke the configured prompt assembler")
+		}
+		if gotWorkspace != h.workspace {
+			t.Fatalf("assembler workspace = %q, want %q", gotWorkspace, h.workspace)
+		}
+		if gotAgentName != "coder" {
+			t.Fatalf("assembler agent name = %q, want %q", gotAgentName, "coder")
+		}
+		if gotAgentPrompt != "You are a coding assistant." {
+			t.Fatalf("assembler prompt = %q, want original agent prompt", gotAgentPrompt)
+		}
+		if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\nstartup context block" {
+			t.Fatalf("start system prompt = %q, want assembled prompt", got)
+		}
 	})
-
-	if !called {
-		t.Fatal("Create() did not invoke the configured prompt assembler")
-	}
-	if gotWorkspace != h.workspace {
-		t.Fatalf("assembler workspace = %q, want %q", gotWorkspace, h.workspace)
-	}
-	if gotAgentName != "coder" {
-		t.Fatalf("assembler agent name = %q, want %q", gotAgentName, "coder")
-	}
-	if gotAgentPrompt != "You are a coding assistant." {
-		t.Fatalf("assembler prompt = %q, want original agent prompt", gotAgentPrompt)
-	}
-	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\nmemory block" {
-		t.Fatalf("start system prompt = %q, want assembled prompt", got)
-	}
 }
 
 func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
@@ -2657,48 +2661,6 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 	}
 	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\noverlay block" {
 		t.Fatalf("start system prompt = %q, want overlay output", got)
-	}
-}
-
-func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	h.cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
-	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		ID:      h.workspaceID,
-		RootDir: h.workspace,
-		Name:    h.workspaceName,
-		Config:  h.cfg,
-		Agents: []compozyconfig.AgentDef{
-			{
-				Name:     compozyconfig.DefaultAgentName,
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-			},
-			{
-				Name:     "coder",
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-			},
-		},
-	})
-	h.manager = newManagerWithHarness(t, h)
-
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-		Type:      SessionTypeDream,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveAll {
-		t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveAll)
 	}
 }
 

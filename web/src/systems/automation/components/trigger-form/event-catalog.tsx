@@ -49,7 +49,7 @@ export function EventCatalog({
           aria-label="Search events"
           className="pl-8"
           onChange={event => setQuery(event.target.value)}
-          placeholder="Search events… session, memory, webhook"
+          placeholder="Search events… session, webhook"
           value={query}
         />
       </div>

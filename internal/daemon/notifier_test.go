@@ -806,17 +806,15 @@ func (o *recordingEventRecordWatchObserver) OnEventPostRecord(
 	return nil
 }
 
-func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
+func TestDaemonNativeHooksDriveObserverAndAutoTitleCallbacks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should drive observer dream extractor and automatic title callbacks", func(t *testing.T) {
+	t.Run("Should drive observer and automatic title callbacks", func(t *testing.T) {
 		t.Parallel()
 
 		observer := &spyLifecycleObserver{}
-		dream := &spyDreamRuntime{}
-		extractor := newSpyMessagePersistedObserver()
 		title := newSpyMessagePersistedObserver()
-		decls, executors := daemonNativeHooks(observer, dream, extractor, title)
+		decls, executors := daemonNativeHooks(observer, title)
 		hooks := hookspkg.NewHooks(
 			hookspkg.WithLogger(discardLogger()),
 			hookspkg.WithNativeDeclarations(decls),
@@ -877,54 +875,9 @@ func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 		if observer.created[0].Info().CreatedAt != sess.CreatedAt {
 			t.Fatalf("observer created CreatedAt = %s, want %s", observer.created[0].Info().CreatedAt, sess.CreatedAt)
 		}
-		if got, want := dream.calls, []string{"session_stop:ws-1"}; !testutil.EqualStringSlices(got, want) {
-			t.Fatalf("dream calls = %#v, want %#v", got, want)
-		}
-		gotMessage := extractor.wait(t)
-		if gotMessage.SessionID != sess.ID || gotMessage.MessageID != "msg-1" {
-			t.Fatalf("extractor payload = %#v, want session/message ids", gotMessage)
-		}
 		gotTitleMessage := title.wait(t)
 		if gotTitleMessage.SessionID != sess.ID || gotTitleMessage.MessageID != "msg-1" {
 			t.Fatalf("automatic title payload = %#v, want session/message ids", gotTitleMessage)
-		}
-	})
-}
-
-func TestDreamSessionStopExecutorSkipsDreamSessions(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should skip dream sessions without enqueueing a check", func(t *testing.T) {
-		t.Parallel()
-
-		dream := &spyDreamRuntime{}
-		type typedExecutor = hookspkg.TypedNativeExecutor[
-			hookspkg.SessionLifecyclePayload,
-			hookspkg.SessionPostStopPatch,
-		]
-		rawExecutor := dreamSessionStopExecutor(dream)
-		executor, ok := rawExecutor.(*typedExecutor)
-		if !ok {
-			t.Fatalf("dreamSessionStopExecutor() type = %T, want typed native executor", rawExecutor)
-		}
-
-		if _, err := executor.ExecuteTyped(
-			testutil.Context(t),
-			hookspkg.RegisteredHook{Name: "daemon.dream.session_stop", Event: hookspkg.HookSessionPostStop},
-			hookspkg.SessionLifecyclePayload{
-				Event:       hookspkg.HookSessionPostStop,
-				Timestamp:   time.Date(2026, 4, 9, 15, 0, 0, 0, time.UTC),
-				SessionID:   "sess-dream",
-				WorkspaceID: "ws-dream",
-				SessionType: string(session.SessionTypeDream),
-				State:       string(session.StateStopped),
-			},
-		); err != nil {
-			t.Fatalf("ExecuteTyped() error = %v", err)
-		}
-
-		if got := dream.calls; len(got) != 0 {
-			t.Fatalf("dream calls = %#v, want none for dream session stop", got)
 		}
 	})
 }
@@ -1795,14 +1748,6 @@ func (s *spyLifecycleObserver) OnSessionStopped(_ context.Context, sess *session
 	s.stopped = append(s.stopped, sess)
 }
 
-type spyDreamRuntime struct {
-	calls []string
-}
-
-func (s *spyDreamRuntime) EnqueueCheck(reason string, workspaceRef string) {
-	s.calls = append(s.calls, reason+":"+workspaceRef)
-}
-
 type spyMessagePersistedObserver struct {
 	ch chan hookspkg.SessionMessagePersistedPayload
 }
@@ -1825,7 +1770,7 @@ func (s *spyMessagePersistedObserver) wait(t *testing.T) hookspkg.SessionMessage
 	case payload := <-s.ch:
 		return payload
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for memory extractor hook")
+		t.Fatal("timed out waiting for automatic title hook")
 		return hookspkg.SessionMessagePersistedPayload{}
 	}
 }

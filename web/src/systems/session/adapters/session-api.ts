@@ -53,11 +53,9 @@ export {
 export {
   fetchSessionEvents,
   fetchSessionHistory,
-  fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,
   fetchSessionUsageTurns,
-  SessionLedgerUnavailableError,
 } from "./session-history-api";
 
 export type {

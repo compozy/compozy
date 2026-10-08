@@ -50,18 +50,6 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 		return d.shutdownAfterRunTrigger(ctx)
 	}
-	if d.dreamRuntime != nil {
-		d.dreamRuntime.Start(runCtx)
-	}
-	if d.memoryExtractor != nil {
-		if err := d.memoryExtractor.Start(runCtx); err != nil {
-			shutdownErr := d.shutdownAfterRunTrigger(ctx)
-			return errors.Join(
-				fmt.Errorf("daemon: start memory extractor: %w", err),
-				shutdownErr,
-			)
-		}
-	}
 	if err := d.startObserverRetention(runCtx); err != nil {
 		shutdownErr := d.shutdownAfterRunTrigger(ctx)
 		return errors.Join(

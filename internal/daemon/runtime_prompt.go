@@ -87,7 +87,7 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 	builder.WriteString(
 		"You are running inside Compozy. Compozy is a local-first daemon and agent operating system " +
 			"that launched and supervises this agent session. Compozy owns the session lifecycle, " +
-			"workspace context, memory and situation prompt sections, native tool gateway, and " +
+			"workspace context and situation prompt sections, native tool gateway, and " +
 			"observable event stream.\n\n",
 	)
 	builder.WriteString(

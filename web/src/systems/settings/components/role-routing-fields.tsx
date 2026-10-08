@@ -39,30 +39,28 @@ export function RoleRoutingFields({
 
   return (
     <>
-      {vm.supportsAgent ? (
-        <SettingsFieldRow
-          data-testid={`${testId}-agent`}
-          label="Agent"
-          help="Route to a catalog agent, or keep the role default."
-          description={
-            <RoleEffectiveHint
-              effective={vm.effective.agent ?? null}
-              emptyLabel="Decided when the role runs."
-            />
-          }
-          control={
-            <AgentCommandSelect
-              agents={options.agents}
-              value={vm.agent || null}
-              clearLabel="Role default"
-              disabled={disabled}
-              className="w-64"
-              triggerTestId={`${testId}-agent-select`}
-              onChange={next => onAgentChange(next ?? "")}
-            />
-          }
-        />
-      ) : null}
+      <SettingsFieldRow
+        data-testid={`${testId}-agent`}
+        label="Agent"
+        help="Route to a catalog agent, or keep the role default."
+        description={
+          <RoleEffectiveHint
+            effective={vm.effective.agent ?? null}
+            emptyLabel="Decided when the role runs."
+          />
+        }
+        control={
+          <AgentCommandSelect
+            agents={options.agents}
+            value={vm.agent || null}
+            clearLabel="Role default"
+            disabled={disabled}
+            className="w-64"
+            triggerTestId={`${testId}-agent-select`}
+            onChange={next => onAgentChange(next ?? "")}
+          />
+        }
+      />
       <SettingsFieldRow
         data-testid={`${testId}-runtime`}
         label={<span id={runtimeLabelId}>Model</span>}

@@ -56,7 +56,7 @@ src: .compozy/tasks/hermes-comparison/_user_stories.md#us-001-durable-approval-g
 2026-09-27 scope update: retired product surfaces were removed from this active scenario. Historical evidence remains in the dated reports; this revised contract requires a fresh walk.
 
 QA impact 2026-09-28: the Web rows read plain words (session normie pass). Tool ids render humanized
-(`compozy__memory_note` → "memory note", raw id on hover); the decision pill reads "Allowed"/"Blocked";
+(`compozy__task_list` → "task list", raw id on hover); the decision pill reads "Allowed"/"Blocked";
 scope reads "Only this exact request", "Every request from this agent", or "Every request, any agent";
 the set action and dialog read "Add rule" / "Add a rule". The approval dock asks "Allow {agent} to …?"
 with "Don't allow" / "Never allow". Contracts, test ids, and persisted data are unchanged.

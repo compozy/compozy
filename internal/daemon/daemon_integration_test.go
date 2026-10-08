@@ -28,8 +28,6 @@ import (
 
 	"github.com/compozy/compozy/internal/gateway"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/memory/consolidation"
 
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
@@ -49,7 +47,6 @@ const daemonSessionStopHelperEnvKey = "COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER"
 func daemonMigrationStreams() []store.MigrationStream {
 	return []store.MigrationStream{
 		globaldb.MigrationStream(),
-		memory.MigrationStream(),
 	}
 }
 
@@ -1751,7 +1748,11 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 			}
 		}
 		if len(daemonHooks) != len(activeProfiles) {
-			t.Fatalf("ext-good hook count = %d, want %d (one per active profile)", len(daemonHooks), len(activeProfiles))
+			t.Fatalf(
+				"ext-good hook count = %d, want %d (one per active profile)",
+				len(daemonHooks),
+				len(activeProfiles),
+			)
 		}
 		for _, profile := range activeProfiles {
 			count := 0
@@ -1960,10 +1961,79 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 	}
 }
 
-func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
+// IT-004: boot archives retired settings losslessly once and preserves a stable second boot.
+func TestBootArchivesRetiredMemorySettingsIntegration(t *testing.T) {
+	t.Run("Should start with retired settings and preserve the archived config on second boot", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		original := fmt.Sprintf(
+			"[http]\nhost = %q\nport = %d\n[daemon]\nsocket = %q\n[automation]\nenabled = false\n[memory]\nenabled = true\n[roles.dream]\nenabled = true\n[session.compaction]\npressure_threshold = 0.8\n",
+			cfg.HTTP.Host,
+			cfg.HTTP.Port,
+			cfg.Daemon.Socket,
+		)
+		writeDaemonFile(t, homePaths.ConfigFile, original)
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		previousLogger := slog.Default()
+		slog.SetDefault(logger)
+		t.Cleanup(func() { slog.SetDefault(previousLogger) })
+		boot := func() {
+			t.Helper()
+			d, err := New(
+				WithHomePaths(homePaths),
+				WithLogger(logger),
+				WithConfigLoader(func() (compozyconfig.Config, error) {
+					return compozyconfig.LoadForHome(homePaths)
+				}),
+			)
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) { return &fakeSessionManager{}, nil }
+			d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+			d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "http"}, nil }
+			d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
+			if err := d.boot(t.Context()); err != nil {
+				t.Fatalf("boot() error = %v", err)
+			}
+			if err := d.Shutdown(t.Context()); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		}
+		boot()
+		archived, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(config) error = %v", err)
+		}
+		if !bytes.Contains(
+			archived,
+			[]byte("# Archived retired memory and compaction settings; these values are inactive."),
+		) {
+			t.Fatalf("archived config = %q, want archive block", archived)
+		}
+		for _, line := range []string{"# [memory]", "#   [roles.dream]", "#   [session.compaction]", "#     pressure_threshold = 0.8"} {
+			if !bytes.Contains(archived, []byte(line)) {
+				t.Fatalf("archived config = %q, want %q", archived, line)
+			}
+		}
+		boot()
+		reopened, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(config after second boot) error = %v", err)
+		}
+		if !bytes.Equal(reopened, archived) {
+			t.Fatalf("second boot rewrote archive: %q", reopened)
+		}
+		if got := strings.Count(logs.String(), "config.retired_keys_archived"); got != 1 {
+			t.Fatalf("archive log entries = %d, want 1; logs: %s", got, logs.String())
+		}
+	})
+}
+
+func TestBootInitializesRuntimeAssemblerIntegration(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Memory.GlobalDir = filepath.Join(homePaths.HomeDir, "external-memory")
 
 	var capturedDeps SessionManagerDeps
 
@@ -1998,13 +2068,19 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 		}
 	})
 
-	if d.memoryStore == nil {
-		t.Fatal("boot() did not initialize the memory store")
-	}
 	registry, ok := d.registry.(*globaldb.GlobalDB)
 	if !ok {
 		t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
 	}
+	// IT-029: the runtime status contract exposes the sole registered global stream.
+	statuses, err := newDaemonSchemaStreamStatusReader(registry).SchemaStreamStatuses(t.Context())
+	if err != nil {
+		t.Fatalf("schemaStreamStatuses() error = %v", err)
+	}
+	if len(statuses) != 1 || statuses[0].Stream != "global" {
+		t.Fatalf("schema streams = %#v, want one global stream", statuses)
+	}
+
 	for _, stream := range daemonMigrationStreams() {
 		if err := store.RequireCurrent(testutil.Context(t), registry.DB(), stream); err != nil {
 			t.Fatalf("RequireCurrent(%s after boot) error = %v", stream.Name, err)
@@ -2022,15 +2098,11 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 	if capturedDeps.WorkspaceResolver == nil {
 		t.Fatal("boot() did not inject the workspace resolver")
 	}
-	if _, err := os.Stat(cfg.Memory.GlobalDir); err != nil {
-		t.Fatalf("stat external memory directory error = %v", err)
-	}
 }
 
 func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = false
 	cfg.Skills.Enabled = true
 
 	var capturedDeps SessionManagerDeps
@@ -2092,37 +2164,7 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 	}
 
 	assertPromptContainsInOrder(t, prompt, "Base prompt.", "<available-skills>", "compozy")
-	assertPromptExcludes(t, prompt, "# Persistent Memory")
 
-	t.Run("Should migrate every shared database stream while memory is disabled", func(t *testing.T) {
-		if d.memoryStore != nil {
-			t.Fatal("boot() initialized the memory runtime while memory is disabled")
-		}
-		registry, ok := d.registry.(*globaldb.GlobalDB)
-		if !ok {
-			t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
-		}
-		for _, stream := range daemonMigrationStreams() {
-			if err := store.RequireCurrent(testutil.Context(t), registry.DB(), stream); err != nil {
-				t.Fatalf(
-					"RequireCurrent(%s after memory-disabled boot) error = %v",
-					stream.Name,
-					err,
-				)
-			}
-		}
-
-		var memoryTable string
-		if queryErr := registry.DB().QueryRowContext(
-			testutil.Context(t),
-			`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'memory_catalog_entries'`,
-		).Scan(&memoryTable); queryErr != nil {
-			t.Fatalf("query memory domain table after memory-disabled boot: %v", queryErr)
-		}
-		if memoryTable != "memory_catalog_entries" {
-			t.Fatalf("memory domain table = %q, want memory_catalog_entries", memoryTable)
-		}
-	})
 }
 
 func TestBootLeavesSkillDependenciesNilWhenSkillsDisabled(t *testing.T) {
@@ -2176,7 +2218,6 @@ func TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills(t *testing.T) {
 	t.Run("Should build hooks from workspace config agent and skills", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Memory.Enabled = false
 		cfg.Skills.Enabled = true
 
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
@@ -2442,7 +2483,6 @@ func TestBootRunsWorkspaceTaskRunHookWithRelativeScriptPath(t *testing.T) {
 	t.Run("Should run workspace task-run hook with relative script path", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Memory.Enabled = false
 		cfg.Skills.Enabled = false
 
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
@@ -2556,7 +2596,6 @@ args = [".compozy/hooks/capture-task-run.sh", ".compozy/task-run-enqueued.json"]
 func TestBootSkillsWatcherRebuildsHooksBeforeNextDispatch(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = false
 	cfg.Skills.Enabled = true
 	cfg.Skills.PollInterval = 10 * time.Millisecond
 
@@ -2649,7 +2688,6 @@ func TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart(t *testing.T) {
 	t.Run("Should publish workspace skills after a hot add", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		cfg.Memory.Enabled = false
 		cfg.Skills.Enabled = true
 		cfg.Skills.Sources = []string{compozyconfig.SkillSourceAgents}
 		cfg.Skills.PollInterval = 10 * time.Millisecond
@@ -2903,95 +2941,6 @@ func findDaemonIntegrationSkillSource(
 		}
 	}
 	return nil
-}
-
-func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Memory.Dream.CheckInterval = 10 * time.Millisecond
-	if err := os.WriteFile(
-		homePaths.ConfigFile,
-		[]byte("[memory]\nenabled = true\n[roles.dream]\nenabled = true\n"),
-		0o600,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	workspace := filepath.Join(t.TempDir(), "workspace")
-	resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspace)
-	dream := &fakeDreamService{
-		shouldRun: true,
-		runHook: func(ctx context.Context, spawn memory.SessionSpawner, workspace string) error {
-			return spawn(ctx, "memory-consolidation", "integration prompt", workspace, time.Time{})
-		},
-	}
-	sessions := &fakeSessionManager{
-		infos: []*session.Info{
-			{
-				ProfileID:   store.DefaultProfileID,
-				ID:          "sess-user",
-				WorkspaceID: resolvedWorkspace.WorkspaceID,
-				Type:        session.SessionTypeUser,
-				UpdatedAt:   time.Date(2026, 4, 4, 10, 0, 0, 0, time.UTC),
-			},
-		},
-	}
-
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(&cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return sessions, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.newDreamService = func(opts ...memory.Option) consolidation.Service {
-		return dream
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-
-	runCtx, cancel := context.WithCancel(t.Context())
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- d.Run(runCtx)
-	}()
-
-	<-d.readyCh
-	waitForCondition(t, "integration dream run", func() bool {
-		return sessions.createCount() > 0
-	})
-
-	cancel()
-	if err := <-errCh; err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-
-	if got := sessions.createCall(0).Type; got != session.SessionTypeDream {
-		t.Fatalf("Create() session type = %q, want %q", got, session.SessionTypeDream)
-	}
-	if got := sessions.createCall(0).Provider; got != "" {
-		t.Fatalf("Create() provider = %q, want explicit empty provider", got)
-	}
-	if got := sessions.createCall(0).Workspace; got != resolvedWorkspace.WorkspaceID {
-		t.Fatalf("Create() workspace = %q, want %q", got, resolvedWorkspace.WorkspaceID)
-	}
-	if got := sessions.createCall(0).WorkspacePath; got != "" {
-		t.Fatalf("Create() workspace_path = %q, want empty", got)
-	}
-	if got := sessions.promptCount(); got == 0 || sessions.promptCall(0).msg != "integration prompt" {
-		t.Fatalf("Prompt() calls = %d, want integration prompt", got)
-	}
 }
 
 func integrationHomePaths(t *testing.T) compozyconfig.HomePaths {

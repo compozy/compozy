@@ -26,7 +26,7 @@ test.use({
   },
 });
 
-test("operator applies Memory, Automation, and Observability settings with config parity", async ({
+test("operator applies Automation, Observability, and Providers settings with config parity", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -35,24 +35,6 @@ test("operator applies Memory, Automation, and Observability settings with confi
 
   await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-
-  const memoryBefore = await runtime.requestJSON<{ config: { recall: { top_k: number } } }>(
-    "/api/settings/memory"
-  );
-  const nextTopK = memoryBefore.config.recall.top_k + 1;
-  await appPage.goto(runtime.url("/settings/memory"), { waitUntil: "domcontentloaded" });
-  // Recall tuning lives in the Advanced fold.
-  await appPage
-    .getByTestId("settings-page-memory-advanced")
-    .getByTestId("settings-advanced-toggle")
-    .click();
-  await expect(appPage.getByTestId("settings-page-memory-recall-top-k-input")).toBeVisible();
-  await appPage.getByTestId("settings-page-memory-recall-top-k-input").fill(String(nextTopK));
-  await expect(appPage.getByTestId("settings-page-memory-save")).toBeEnabled();
-  await appPage.getByTestId("settings-page-memory-save").click();
-  await expect(appPage.getByTestId("settings-page-memory-save-message")).toContainText(
-    /restart required/i
-  );
 
   const automationBefore = await runtime.requestJSON<{
     config: { max_concurrent_jobs: number };
@@ -109,7 +91,6 @@ test("operator applies Memory, Automation, and Observability settings with confi
 
   const parity = {
     http: {
-      memory: await runtime.requestJSON<unknown>("/api/settings/memory"),
       automation: await runtime.requestJSON<unknown>("/api/settings/automation"),
       observability: await runtime.requestJSON<unknown>("/api/settings/observability"),
       provider_catalog: await runtime.requestJSON<unknown>(
@@ -117,7 +98,6 @@ test("operator applies Memory, Automation, and Observability settings with confi
       ),
     },
     uds: {
-      memory: await requestOperatorJSON<unknown>(runtime, "/api/settings/memory"),
       automation: await requestOperatorJSON<unknown>(runtime, "/api/settings/automation"),
       observability: await requestOperatorJSON<unknown>(runtime, "/api/settings/observability"),
       provider_catalog: await requestOperatorJSON<unknown>(
@@ -126,13 +106,6 @@ test("operator applies Memory, Automation, and Observability settings with confi
       ),
     },
     cli: {
-      memory_top_k: await runCLIJSON(runtime.paths, [
-        "config",
-        "get",
-        "memory.recall.top_k",
-        "-o",
-        "json",
-      ]),
       automation_max_concurrent_jobs: await runCLIJSON(runtime.paths, [
         "config",
         "get",
@@ -159,14 +132,12 @@ test("operator applies Memory, Automation, and Observability settings with confi
     config_file_excerpt: await readFile(runtime.paths.configFile, "utf8"),
   };
 
-  expect(JSON.stringify(parity.http.memory)).toContain(`"top_k":${nextTopK}`);
   expect(JSON.stringify(parity.http.automation)).toContain(
     `"max_concurrent_jobs":${nextMaxConcurrent}`
   );
   expect(JSON.stringify(parity.http.observability)).toContain(
     `"retention_days":${nextRetentionDays}`
   );
-  expect(JSON.stringify(parity.cli.memory_top_k)).toContain(`"value":${nextTopK}`);
   expect(JSON.stringify(parity.cli.automation_max_concurrent_jobs)).toContain(
     `"value":${nextMaxConcurrent}`
   );

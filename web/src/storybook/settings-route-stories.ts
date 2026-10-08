@@ -66,13 +66,6 @@ export const settingsRouteStories = [
   },
   {
     system: "settings",
-    routePath: "/settings/memory",
-    storybookPath: "/settings/memory",
-    title: "systems/settings/routes/SettingsMemory",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
     routePath: "/settings/roles",
     storybookPath: "/settings/roles",
     title: "systems/settings/routes/SettingsRoles",

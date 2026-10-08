@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report: docs/qa/reports/2026-10-02-untested.md
-overlaps: ET-profile-cli-lifecycle; MS-layered-config-write-truth; MS-profile-memory-tier-scope
+overlaps: ET-profile-cli-lifecycle; MS-layered-config-write-truth
 ---
 
 Flagged by Profiles task 08. Task 13 owns the isolated repository-adoption walk and verdict.

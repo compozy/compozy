@@ -5,7 +5,6 @@ import { handlers as automationHandlers } from "@/systems/automation/mocks";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
 import { handlers as dashboardHandlers } from "@/systems/dashboard/mocks";
 import { handlers as extensionHandlers } from "@/systems/extensions/mocks";
-import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
 import { handlers as loopsHandlers } from "@/systems/loops/mocks";
 import { handlers as marketplaceHandlers } from "@/systems/marketplace/mocks";
 import { handlers as modelCatalogHandlers } from "@/systems/model-catalog/mocks";
@@ -32,7 +31,6 @@ export type StorybookHandlerGroupName =
   | "design-system"
   | "extensions"
   | "guard"
-  | "knowledge"
   | "loops"
   | "marketplace"
   | "model-catalog"
@@ -60,7 +58,6 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   dashboard: dashboardHandlers,
   "design-system": [],
   extensions: extensionHandlers,
-  knowledge: knowledgeHandlers,
   loops: loopsHandlers,
   marketplace: marketplaceHandlers,
   "model-catalog": modelCatalogHandlers,

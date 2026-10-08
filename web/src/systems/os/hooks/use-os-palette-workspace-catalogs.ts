@@ -2,7 +2,6 @@ import { queryOptions, useQueries, useQuery } from "@tanstack/react-query";
 
 import { agentsListOptions, type AgentPayload } from "@/systems/agent";
 import { extensionsListOptions, type ExtensionEntry } from "@/systems/extensions";
-import { listMemories, memoriesListOptions, type MemoryHeader } from "@/systems/knowledge";
 import { listLoops, loopsCatalogOptions, type LoopCatalogEntry } from "@/systems/loops";
 import type { ProfileOwnerLabel } from "@/systems/profiles";
 import { worktreesListOptions } from "@/systems/workspace";
@@ -36,9 +35,6 @@ export interface OsPaletteWorkspaceCatalogs {
   readonly loops: readonly PaletteWorkspaceLoop[];
   readonly loopTotal: number;
   readonly loopState: QueryState;
-  readonly workspaceMemories: readonly MemoryHeader[];
-  readonly workspaceMemoryTotal: number;
-  readonly workspaceMemoryState: QueryState;
   readonly workspaceAgents: readonly PaletteWorkspaceAgent[];
   readonly workspaceAgentState: QueryState;
   readonly publishedExtensions: readonly ExtensionEntry[];
@@ -53,7 +49,6 @@ export interface UseOsPaletteWorkspaceCatalogsOptions {
   readonly profile: string;
   readonly workspaceIds: readonly string[];
   readonly loopsEnabled: boolean;
-  readonly knowledgeEnabled: boolean;
   readonly agentsEnabled: boolean;
   readonly extensionsEnabled: boolean;
   readonly worktreesEnabled: boolean;
@@ -88,32 +83,6 @@ async function fetchAllWorkspaceLoops(profile: string, workspaceId: string, sign
   }
 }
 
-async function fetchAllWorkspaceMemories(
-  profile: string,
-  workspaceId: string,
-  signal: AbortSignal
-) {
-  const memories: MemoryHeader[] = [];
-  const seenCursors = new Set<string>();
-  let cursor: string | undefined;
-  let total = 0;
-  for (;;) {
-    const page = await listMemories(
-      { profile, scope: "workspace", workspaceId, includeSystem: false, cursor },
-      signal
-    );
-    memories.push(...page.memories);
-    total = page.page.total;
-    if (!page.page.has_more) return { memories, total };
-    const nextCursor = page.page.next_cursor?.trim();
-    if (!nextCursor || seenCursors.has(nextCursor)) {
-      throw new Error(`Memory catalog returned an invalid continuation for ${workspaceId}`);
-    }
-    seenCursors.add(nextCursor);
-    cursor = nextCursor;
-  }
-}
-
 /**
  * Globe-mode catalogs that have no all-workspaces list API. Each workspace is
  * its own query under the domain option factory.
@@ -122,7 +91,6 @@ export function useOsPaletteWorkspaceCatalogs({
   profile,
   workspaceIds,
   loopsEnabled,
-  knowledgeEnabled,
   agentsEnabled,
   extensionsEnabled,
   worktreesEnabled,
@@ -137,23 +105,6 @@ export function useOsPaletteWorkspaceCatalogs({
         queryFn: ({ signal }) => fetchAllWorkspaceLoops(profile, workspaceId, signal),
         enabled: loopsEnabled,
         staleTime: 15_000,
-      });
-    }),
-  });
-  const memoryQueries = useQueries({
-    queries: ids.map(workspaceId => {
-      const base = memoriesListOptions({
-        profile,
-        scope: "workspace",
-        workspaceId,
-        includeSystem: false,
-      });
-      const queryKey: readonly unknown[] = [...base.queryKey, "palette-all-pages"];
-      return queryOptions({
-        queryKey,
-        queryFn: ({ signal }) => fetchAllWorkspaceMemories(profile, workspaceId, signal),
-        enabled: knowledgeEnabled,
-        staleTime: 30_000,
       });
     }),
   });
@@ -180,13 +131,6 @@ export function useOsPaletteWorkspaceCatalogs({
       loops.push({ loop, workspaceId });
     }
   });
-
-  const workspaceMemories: MemoryHeader[] = [];
-  let workspaceMemoryTotal = 0;
-  for (const result of memoryQueries) {
-    workspaceMemoryTotal += result.data?.total ?? 0;
-    workspaceMemories.push(...(result.data?.memories ?? []));
-  }
 
   const workspaceAgents: PaletteWorkspaceAgent[] = [];
   ids.forEach((workspaceId, index) => {
@@ -225,9 +169,6 @@ export function useOsPaletteWorkspaceCatalogs({
     loops,
     loopTotal,
     loopState: queryState(loopQueries),
-    workspaceMemories,
-    workspaceMemoryTotal,
-    workspaceMemoryState: queryState(memoryQueries),
     workspaceAgents,
     workspaceAgentState: queryState(agentQueries),
     publishedExtensions: publishedExtensions.data ?? [],

@@ -259,6 +259,11 @@ session-origin Goal requires explicit approval before recovery reseeds into a ne
 The origin session remains the Goal owner; use the new `bound_session_id` for ordinary messages.
 Pause/Resume, approval, and reseed each allocate at most one successor control epoch.
 
+The Goal executor's context-compaction turn sends the agent's advertised `/compact` (or `/compress`)
+command on its managed path (experimental). It succeeds when the turn observes a terminal `completed`
+compaction and fails on a terminal `failed` or `cancelled` one; an agent advertising neither command
+goes straight to the reseed path.
+
 The checkpoint-local approval scopes are narrow: turn exhaustion grants
 `turn-extension/turn-limit`; budget crossed after work grants `budget/settle-current` and cannot
 start new work; budget crossed before work grants `budget/work-and-settle` for one candidate turn

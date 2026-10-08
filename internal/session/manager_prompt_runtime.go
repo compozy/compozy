@@ -324,7 +324,7 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	}
 	if err := acp.ValidateACPModePermissions(
 		spec.acpOptions,
-		m.startPermissions(session.Type, startSpecPermissions(&spec, runtime.agent.Permissions)),
+		m.startPermissions(startSpecPermissions(&spec, runtime.agent.Permissions)),
 	); err != nil {
 		return nil, fmt.Errorf("session: validate prompt runtime ACP mode: %w", err)
 	}

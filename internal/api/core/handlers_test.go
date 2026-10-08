@@ -3795,7 +3795,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			"/agents/coder",
 			mustJSON(t, contract.UpdateAgentRequest{
 				Agent: contract.CreateAgentPayload{
-					Name: "dreaming-curator", Provider: "codex", Prompt: "Replacement.",
+					Name: "coordinator", Provider: "codex", Prompt: "Replacement.",
 				},
 				ExpectedDigest: digest,
 			}),
@@ -5554,16 +5554,23 @@ func TestEventsRejectInvalidComponentsIT014(t *testing.T) {
 	for _, component := range []string{"memory", "nope"} {
 		t.Run("Should reject component "+component, func(t *testing.T) {
 			t.Parallel()
-			observer := testutil.StubObserver{QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
-				t.Fatal("invalid component reached observer")
-				return nil, nil
-			}}
+			observer := testutil.StubObserver{
+				QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+					t.Fatal("invalid component reached observer")
+					return nil, nil
+				},
+			}
 			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Observer: observer})
 			engine := gin.New()
 			engine.GET("/api/events", handlers.ListLogs)
 			response := performRequest(t, engine, http.MethodGet, "/api/events?component="+component, nil)
-			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "invalid event summary component") {
-				t.Fatalf("events status = %d body=%s, want invalid component 400", response.Code, response.Body.String())
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(response.Body.String(), "invalid event summary component") {
+				t.Fatalf(
+					"events status = %d body=%s, want invalid component 400",
+					response.Code,
+					response.Body.String(),
+				)
 			}
 		})
 	}

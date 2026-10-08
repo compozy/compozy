@@ -81,8 +81,6 @@ const (
 	SectionGeneral SectionName = "general"
 	// SectionPersona exposes profile-layerable agent and provider defaults.
 	SectionPersona SectionName = "persona"
-	// SectionMemory exposes memory and dream settings.
-	SectionMemory SectionName = "memory"
 	// SectionRoles exposes background role routing settings.
 	SectionRoles SectionName = "roles"
 	// SectionSkills exposes global skills-engine settings.
@@ -208,7 +206,6 @@ type SectionUpdateRequest struct {
 	SectionRequest
 	General                        *GeneralSettings
 	Persona                        *compozyconfig.DefaultsConfig
-	Memory                         *compozyconfig.MemoryConfig
 	Roles                          *compozyconfig.RolesConfig
 	Skills                         *compozyconfig.SkillsConfig
 	SkillSourcesOverride           *SkillSourcesOverride
@@ -284,7 +281,6 @@ type SectionEnvelope struct {
 	AvailableScopes []ScopeKind
 	General         *GeneralSection
 	Persona         *PersonaSection
-	Memory          *MemorySection
 	Roles           *RolesSection
 	Skills          *SkillsSection
 	Automation      *AutomationSection

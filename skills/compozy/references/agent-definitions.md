@@ -68,17 +68,15 @@ It is recreated only when missing; operator edits are preserved.
 
 ## Reserved Background-Role Identities
 
-`coordinator` and `dreaming-curator` are virtual CompozyOS-owned identities, not managed or authored
-agent definitions. They resolve for the coordinator, dream, and checkpoint-summary roles without an
-`AGENT.md`, use embedded fixed prompts, and stay absent from public fleet/catalog reads.
+`coordinator` is a virtual CompozyOS-owned identity, not a managed or authored agent definition. It
+resolves for the coordinator role without an `AGENT.md`, uses an embedded fixed prompt, and stays
+absent from public fleet/catalog reads.
 
-Do not create, update, rename, duplicate, or bundle-materialize either name. Every authoring surface
+Do not create, update, rename, duplicate, or bundle-materialize that name. Every authoring surface
 returns `agent_name_reserved` and leaves the filesystem and catalog unchanged. `general` is not
 reserved; it remains the editable managed public agent described above.
 
-Background routing lives under `[roles.coordinator]`, `[roles.dream]`,
-`[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.auto_title]`, and
-`[roles.memory_controller]`. A non-empty session-role `agent` selects an authored definition; it
+Background routing lives under `[roles.coordinator]` and `[roles.auto_title]`. A non-empty session-role `agent` selects an authored definition; it
 does not customize an embedded builtin prompt. Read the effective projection with `compozy roles list`
 or `compozy roles show <role>` before diagnosing provider or model behavior.
 

@@ -1149,6 +1149,22 @@ func TestConfigSetPreservesOverriddenFeedbackAfterDaemonReload(t *testing.T) {
 func TestConfigSetRejectsRemovedMutationPaths(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should refuse an explicit retired memory setting without writing config [UT-005]", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = executeRootCommand(t, deps, "config", "set", "memory.enabled", "true")
+		if err == nil || err.Error() != `cli: config path "memory.enabled" is not supported by config set` {
+			t.Fatalf("config set error = %v", err)
+		}
+		if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+			t.Fatalf("config set wrote a retired setting: stat error = %v", err)
+		}
+	})
+
 	tests := []struct {
 		name string
 		path string

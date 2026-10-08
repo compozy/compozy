@@ -11,13 +11,7 @@
 
 export type EventFamily = "fixed" | "hook" | "ext" | "webhook";
 
-export type EventIconKey =
-  | "session-start"
-  | "session-stop"
-  | "memory"
-  | "hook"
-  | "webhook"
-  | "extension";
+export type EventIconKey = "session-start" | "session-stop" | "hook" | "webhook" | "extension";
 
 export type EnvelopeScope = "global" | "workspace";
 
@@ -44,17 +38,16 @@ export interface EventDef {
   /** Realistic envelope used to drive the live preview. */
   sample: TriggerEnvelope;
   /**
-   * Open-payload events (memory, webhook, extension) carry arbitrary
+   * Open-payload events (webhook, extension) carry arbitrary
    * user-defined `data.*` keys, so filters accept any `data.<path>`.
    */
   openPayload?: boolean;
 }
 
-export type EventGroup = "Session lifecycle" | "Memory" | "Hooks" | "External" | "Extensions";
+export type EventGroup = "Session lifecycle" | "Hooks" | "External" | "Extensions";
 
 export const EVENT_GROUP_ORDER: readonly EventGroup[] = [
   "Session lifecycle",
-  "Memory",
   "Hooks",
   "External",
   "Extensions",
@@ -130,26 +123,6 @@ export const EVENTS: readonly EventDef[] = [
         stop_detail: "context deadline exceeded",
         created_at: "2026-06-01T03:11:08Z",
         updated_at: "2026-06-01T03:42:55Z",
-      },
-    },
-  },
-  {
-    id: "memory.consolidated",
-    group: "Memory",
-    family: "fixed",
-    icon: "memory",
-    label: "Memory consolidated",
-    description: "Durable-memory consolidation finishes for a workspace.",
-    openPayload: true,
-    fields: ["data.workspace_id", "data.completed_at"],
-    sample: {
-      kind: "memory.consolidated",
-      scope: "workspace",
-      workspace_id: "ws_checkout_api",
-      source: "observer",
-      data: {
-        workspace_id: "ws_checkout_api",
-        completed_at: "2026-06-01T04:00:12Z",
       },
     },
   },

@@ -61,12 +61,6 @@ export const daemonStatusFixture: DaemonStatusPayload = {
       applied_count: 1,
       sum_digest: "sha256:global-schema",
     },
-    {
-      stream: "memory",
-      version: 1,
-      applied_count: 1,
-      sum_digest: "sha256:memory-schema",
-    },
   ],
 };
 
@@ -83,26 +77,6 @@ export const statusFixture: StatusPayload = {
     },
   },
   health: daemonHealthFixture,
-  memory: {
-    status: "ok",
-    enabled: true,
-    configured: true,
-    global_dir: "/Users/pedro/.compozy/memory",
-    dream_agent: "general",
-    dream_min_hours: 24,
-    dream_min_sessions: 3,
-    dream_check_interval: "1h0m0s",
-    dream_enabled: true,
-    global_files: 4,
-    workspace_files: 12,
-    workspace_count: 2,
-    indexed_files: 16,
-    orphaned_files: 0,
-    operation_count: 18,
-    last_consolidation: null,
-    last_operation_at: null,
-    last_reindex: null,
-  },
   automation: {
     enabled: true,
     jobs: {

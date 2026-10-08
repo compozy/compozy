@@ -17,8 +17,6 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/goal"
-	"github.com/compozy/compozy/internal/memory"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -266,7 +264,6 @@ func assertCompleteSeedSurfaces(
 	if _, err := os.Stat(worktrees[0].Path); err != nil {
 		t.Fatalf("Stat(seed worktree) error = %v", err)
 	}
-	assertSeedMemoriesReadable(t, ctx, db, paths, result)
 	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionRollbackDrillID)))
 	if err != nil {
 		t.Fatalf("ReadSessionMeta(checkout engineer) error = %v", err)
@@ -274,56 +271,6 @@ func assertCompleteSeedSurfaces(
 	if meta.EffectivePermissionsValue() != approveAll {
 		t.Fatalf("checkout engineer permissions = %q, want %q", meta.EffectivePermissionsValue(), approveAll)
 	}
-}
-
-func assertSeedMemoriesReadable(
-	t *testing.T,
-	ctx context.Context,
-	db *globaldb.GlobalDB,
-	paths config.HomePaths,
-	result Result,
-) {
-	t.Helper()
-	memoryStore := memory.NewStore(paths.MemoryDir)
-	profile, err := memoryStore.Scan(ctx, memcontract.ScopeProfile)
-	if err != nil {
-		t.Fatalf("Memory.Scan(profile) error = %v", err)
-	}
-	readable := len(profile)
-	for _, workspaceID := range result.WorkspaceIDs {
-		workspaceRecord, err := db.GetWorkspace(ctx, workspaceID)
-		if err != nil {
-			t.Fatalf("GetWorkspace(%q) error = %v", workspaceID, err)
-		}
-		workspaceStore := memoryStore.ForWorkspace(workspaceRecord.RootDir)
-		workspaceMemories, err := workspaceStore.Scan(ctx, memcontract.ScopeWorkspace)
-		if err != nil {
-			t.Fatalf("Memory.Scan(workspace %q) error = %v", workspaceID, err)
-		}
-		readable += len(workspaceMemories)
-		for _, agent := range scenarioAgents() {
-			if stateKeyForWorkspaceName(workspaceRecord.Name) != agent.WorkspaceKey {
-				continue
-			}
-			agentMemories, err := workspaceStore.ForAgent(
-				workspaceID, agent.Name, memcontract.AgentTierWorkspace,
-			).Scan(ctx, memcontract.ScopeAgent)
-			if err != nil {
-				t.Fatalf("Memory.Scan(agent %q) error = %v", agent.Name, err)
-			}
-			readable += len(agentMemories)
-		}
-	}
-	if readable != result.Counts.Memories {
-		t.Fatalf("readable memories = %d, want %d", readable, result.Counts.Memories)
-	}
-}
-
-func stateKeyForWorkspaceName(name string) string {
-	if name == launchWorkspaceName {
-		return workspaceKeyLaunch
-	}
-	return workspaceKeyPlatform
 }
 
 func assertWorkspaceRecords(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, result Result) {

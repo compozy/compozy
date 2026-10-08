@@ -2,7 +2,6 @@ import {
   Activity,
   Blocks,
   Bot,
-  Brain,
   FileEdit,
   FileText,
   FolderSearch,
@@ -64,7 +63,6 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
 const COMPOZY_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
   terminal: Terminal,
   edit: FileEdit,
-  memory: Brain,
   config: SlidersHorizontal,
   automation: Workflow,
   loop: Repeat,
@@ -80,8 +78,8 @@ const COMPOZY_NATIVE_PREFIX = "compozy__";
 const MCP_PREFIX = "mcp__";
 
 /**
- * Extract the family segment of a CompozyOS native tool id (`compozy__memory_note` →
- * `memory`). Returns null for non-native ids or an empty family segment.
+ * Extract the family segment of a CompozyOS native tool id (`compozy__config_set` →
+ * `config`). Returns null for non-native ids or an empty family segment.
  */
 function compozyNativeFamily(toolName: string): string | null {
   if (!toolName.startsWith(COMPOZY_NATIVE_PREFIX)) return null;
@@ -241,7 +239,7 @@ function capitalize(word: string): string {
  * Friendly name for a tool id with no catalogued label: drops the `compozy__`
  * and `mcp__<server>__` prefixes, turns separators into spaces, and names the
  * MCP server in parentheses. `mcp__github__create_issue` → "create issue
- * (Github)"; `compozy__memory_write` → "memory write". The raw id stays one
+ * (Github)"; `compozy__config_set` → "config set". The raw id stays one
  * step deeper (tooltips, copied payloads), never on the row itself.
  */
 export function humanizeToolId(toolId: string): string {

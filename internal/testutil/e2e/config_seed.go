@@ -63,7 +63,6 @@ type configSeedFile struct {
 	Permissions *configSeedPermissionsSection `toml:"permissions,omitempty"`
 	Session     *compozyconfig.SessionConfig  `toml:"session,omitempty"`
 	Roles       *compozyconfig.RolesConfig    `toml:"roles,omitempty"`
-	Memory      *compozyconfig.MemoryConfig   `toml:"memory,omitempty"`
 
 	Tools       *compozyconfig.ToolsConfig              `toml:"tools,omitempty"`
 	Marketplace *compozyconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
@@ -109,9 +108,6 @@ func SeedConfig(t testing.TB, homePaths compozyconfig.HomePaths, opts ConfigSeed
 	t.Helper()
 
 	cfg := compozyconfig.DefaultWithHome(homePaths)
-	// Full-feature runtime fixtures opt in; factory-default scenarios override these switches.
-	cfg.Memory.Enabled = true
-	cfg.Roles.Dream.Enabled = true
 	cfg.HTTP.Host = defaultString(opts.Host, "127.0.0.1")
 	if opts.HTTPPort > 0 {
 		cfg.HTTP.Port = opts.HTTPPort
@@ -169,7 +165,6 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 		},
 		Session: cloneSessionConfig(cfg.Session),
 		Roles:   cloneRolesConfig(&cfg.Roles),
-		Memory:  cloneMemoryConfig(&cfg.Memory),
 
 		Tools:       cloneToolsConfig(&cfg.Tools),
 		Marketplace: &cfg.Marketplace,
@@ -208,10 +203,6 @@ func cloneSessionConfig(cfg compozyconfig.SessionConfig) *compozyconfig.SessionC
 
 func cloneRolesConfig(cfg *compozyconfig.RolesConfig) *compozyconfig.RolesConfig {
 	return new(compozyconfig.CloneRolesConfig(cfg))
-}
-
-func cloneMemoryConfig(cfg *compozyconfig.MemoryConfig) *compozyconfig.MemoryConfig {
-	return new(compozyconfig.CloneMemoryConfig(cfg))
 }
 
 func cloneToolsConfig(cfg *compozyconfig.ToolsConfig) *compozyconfig.ToolsConfig {

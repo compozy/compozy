@@ -32,16 +32,10 @@ func (d *Daemon) nativeToolsDeps(
 		MarketplaceCatalog:  state.deps.MarketplaceCatalog,
 		Settings:            func() core.SettingsService { return state.deps.Settings },
 
-		Tasks:               state.deps.Tasks,
-		TaskDesignations:    state.registry,
-		TaskClaimHandoff:    taskClaimHandoffForState(state),
-		MemoryStore:         state.memoryStore,
-		MemoryToolWrites:    state.memoryExtractor,
-		DreamTrigger:        state.deps.DreamTrigger,
-		Roles:               roleResolverForState(state),
-		MemoryExtractor:     state.deps.MemoryExtractor,
-		MemoryProviders:     state.deps.MemoryProviders,
-		MemorySessionLedger: state.deps.MemorySessionLedger,
+		Tasks:            state.deps.Tasks,
+		TaskDesignations: state.registry,
+		TaskClaimHandoff: taskClaimHandoffForState(state),
+		Roles:            roleResolverForState(state),
 
 		Gateway: func() core.GatewayService {
 			if state.deps.Gateway == nil {

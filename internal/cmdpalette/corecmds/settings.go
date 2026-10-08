@@ -30,7 +30,6 @@ var settingsDestinations = []settingsDestination{
 		Keywords: []string{"window manager", "desktops", "shortcuts"},
 	},
 	{Slug: "providers", Title: "Providers", Icon: "cpu", Keywords: []string{"models", "auth", "codex", "claude"}},
-	{Slug: "memory", Title: "Memory", Icon: "brain", Keywords: []string{"recall", "ledger", "dream"}},
 	{Slug: "roles", Title: "Roles", Icon: "route", Keywords: []string{"coordinator", "routing", "model"}},
 	{Slug: "skills", Title: "Skills", Icon: "wrench", Keywords: []string{"registry", coreAppMarketplace, "install"}},
 	{

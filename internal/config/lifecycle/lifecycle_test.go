@@ -123,7 +123,7 @@ func TestClassifyPath(t *testing.T) {
 		},
 		{
 			name:          "Should classify role changes as live",
-			path:          "roles.dream.model",
+			path:          "roles.auto_title.model",
 			wantLifecycle: Live,
 			wantDiffClass: DiffClassLive,
 		},

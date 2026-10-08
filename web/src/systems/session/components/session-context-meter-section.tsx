@@ -59,7 +59,7 @@ function compozyTierItem(tiers: SessionContextTiersView): StatusBreakdownItem[] 
   ];
 }
 
-/** The three-tier bar and its legend: magnitude colours only, the tick is the one signal. */
+/** The three-tier bar and its legend: magnitude colours only. */
 function SessionContextTiers({ tiers }: { tiers: SessionContextTiersView }) {
   const items: StatusBreakdownItem[] = [
     ...compozyTierItem(tiers),
@@ -84,24 +84,15 @@ function SessionContextTiers({ tiers }: { tiers: SessionContextTiersView }) {
   ];
   return (
     <>
-      <div className="relative">
-        <StackedProgress
-          className={tiers.stale ? "[&_[data-tone=accent]]:bg-accent-dim" : undefined}
-          ariaLabel={`Context window: ${formatContextTokens(tiers.used)} of ${formatContextTokens(tiers.total)} used`}
-          total={tiers.total}
-          segments={[
-            { value: tiers.compozy?.value ?? 0, tone: "accent", label: "CompozyOS context" },
-            { value: tiers.agent, tone: "neutral", label: "Agent & conversation" },
-          ]}
-        />
-        {tiers.tick != null ? (
-          <span
-            aria-hidden="true"
-            className="absolute -inset-y-0.75 w-px bg-warning opacity-90"
-            style={{ left: `${tiers.tick * 100}%` }}
-          />
-        ) : null}
-      </div>
+      <StackedProgress
+        className={tiers.stale ? "[&_[data-tone=accent]]:bg-accent-dim" : undefined}
+        ariaLabel={`Context window: ${formatContextTokens(tiers.used)} of ${formatContextTokens(tiers.total)} used`}
+        total={tiers.total}
+        segments={[
+          { value: tiers.compozy?.value ?? 0, tone: "accent", label: "CompozyOS context" },
+          { value: tiers.agent, tone: "neutral", label: "Agent & conversation" },
+        ]}
+      />
       <StatusBreakdown total={tiers.total} items={items} />
     </>
   );
@@ -124,12 +115,7 @@ function SessionContextMeterBody({ view }: { view: SessionContextMeterView }) {
   return (
     <>
       <div className="flex flex-wrap items-baseline gap-2 tabular-nums">
-        <span
-          className={cn(
-            "text-kpi-compact leading-none font-semibold tracking-tight text-fg",
-            view.warning && "text-warning"
-          )}
-        >
+        <span className="text-kpi-compact leading-none font-semibold tracking-tight text-fg">
           {view.value}
         </span>
         <span className="font-mono text-mono-id text-muted">{view.amount}</span>

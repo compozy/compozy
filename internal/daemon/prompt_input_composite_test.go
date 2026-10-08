@@ -7,13 +7,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+
 	"strings"
 	"testing"
 
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -157,16 +157,16 @@ func TestPromptInputCompositeAppliesAggregateBudgetPolicies(t *testing.T) {
 		ctx, collect := acp.CollectPromptSections(t.Context())
 		accepted, _ := applyPromptInputAugmenterBudget(
 			"request",
-			"memory text\n\nrequest",
+			"status text\n\nrequest",
 			true,
 			6,
 			promptInputAugmenterBudgetBehaviorTrim,
 		)
-		registerDeliveredAugmentation(ctx, HarnessAugmenterDurableMemory, "request", accepted)
+		registerDeliveredAugmentation(ctx, HarnessAugmenterSituation, "request", accepted)
 		registerDeliveredAugmentation(ctx, HarnessAugmenterSituation, accepted, accepted)
 		registerDeliveredAugmentation(ctx, HarnessAugmenterSkills, accepted, "catalog\n"+accepted)
 		got := collect()
-		if len(got) != 1 || got[0].Key != "memory" || got[0].Content != "memory" ||
+		if len(got) != 1 || got[0].Key != "situation" || got[0].Content != "status" ||
 			!strings.Contains(accepted, got[0].Content) {
 			t.Fatalf("accepted %q, sections %#v", accepted, got)
 		}
@@ -508,121 +508,93 @@ func TestPromptInputCompositeBlankOutputPreservesLastValidMessage(t *testing.T) 
 	})
 }
 
-func TestPromptInputCompositeIncludesDurableMemoryRecall(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should include durable memory recall", func(t *testing.T) {
+// Invariant: upgraded prompts preserve active context without retired memory frames.
+// Owner: daemon composition; canonical suite: prompt_input_composite.
+func TestPromptInputCompositeUpgradedPromptContent(t *testing.T) {
+	t.Run("Should preserve soul skills and situation after loading retired settings [UT-018]", func(t *testing.T) {
 		t.Parallel()
-
-		baseDir := t.TempDir()
-		globalDir := filepath.Join(baseDir, "global")
-		workspaceRoot := filepath.Join(baseDir, "workspace")
-		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", workspaceRoot, err)
-		}
-
-		store := memory.NewStore(
-			globalDir,
-			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "catalog.db")),
-		)
-		openDaemonMemoryCatalog(t, store)
-		workspaceStore := store.ForWorkspace(workspaceRoot)
-		if err := workspaceStore.EnsureDirs(); err != nil {
-			t.Fatalf("EnsureDirs() error = %v", err)
-		}
-		if err := workspaceStore.Write(t.Context(), memcontract.ScopeWorkspace, "auth.md", []byte(`---
-name: Auth
-description: Auth migration notes
-type: project
----
-Remember auth migration sessions and workspace-scoped handling.
-`)); err != nil {
-			t.Fatalf("Write() error = %v", err)
-		}
-
-		resolver := &staticPromptInputAugmenterResolver{
-			resolved: ResolvedHarnessContext{
-				Policy: ResolvedHarnessPolicy{
-					EnableAugmenters: []HarnessAugmenter{HarnessAugmenterDurableMemory},
-				},
-			},
-		}
-		augmenter, err := newPromptInputCompositeAugmenter(
-			discardLogger(),
-			resolver,
-			nil,
-			defaultPromptInputAugmenterDescriptors(nil, memory.NewRecallAugmenter(store), nil)...,
-		)
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
-			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
+			t.Fatal(err)
 		}
-
-		got, err := augmenter(
+		if err := compozyconfig.EnsureHomeLayout(home); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(home.ConfigFile, []byte("[memory]\nenabled = true\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := compozyconfig.LoadForHome(home); err != nil {
+			t.Fatal(err)
+		}
+		workspaceRoot := filepath.Join(home.HomeDir, "workspace")
+		resolver := NewHarnessContextResolver(
+			HarnessRuntimeSignals{
+				SkillsPromptSectionEnabled:    true,
+				SituationPromptSectionEnabled: true,
+				SkillsAugmenter:               true,
+				SituationAugmenter:            true,
+			},
+		)
+		descriptors := defaultStartupPromptSectionDescriptors(staticPromptProvider("STARTUP_SKILLS"), nil)
+		descriptors = append(
+			descriptors,
+			PromptSectionDescriptor{
+				Name:      string(HarnessPromptSectionSituation),
+				Position:  PromptSectionPositionPrepend,
+				Provider:  staticPromptProvider("STARTUP_SITUATION"),
+				Predicate: policyIncludesSection(HarnessPromptSectionSituation),
+			},
+		)
+		assembler := NewComposedAssembler(
+			WithSectionSelector(NewSectionSelector(resolver, nil)),
+			WithPromptSectionDescriptors(descriptors...),
+		)
+		workspace := testResolvedWorkspace(workspaceRoot)
+		startup, err := assembler.AssembleStartup(
 			t.Context(),
-			newPromptInputTestSession(workspaceRoot),
-			"auth migration sessions",
+			session.StartupPromptContext{
+				SessionType:  session.SessionTypeUser,
+				SoulSnapshot: testPromptSoulSnapshot(t, "PERSONA_BODY"),
+			},
+			testPromptAgent("Base prompt."),
+			&workspace,
 		)
 		if err != nil {
-			t.Fatalf("Augment() error = %v", err)
-		}
-		if !strings.Contains(got, "Relevant durable memory for this turn:") {
-			t.Fatalf("Augment() = %q, want durable memory recall block", got)
-		}
-		if !strings.Contains(got, "Auth") {
-			t.Fatalf("Augment() = %q, want recalled memory metadata", got)
-		}
-		if !strings.Contains(got, "</turn-recall>\n\n<user-message>\nauth migration sessions\n</user-message>") {
-			t.Fatalf("Augment() = %q, want preserved user message suffix", got)
-		}
-		if strings.Contains(got, "User message:") {
-			t.Fatalf("Augment() = %q, want no legacy user message marker", got)
-		}
-	})
-}
-
-func TestPromptInputCompositeOmitsOverBudgetDurableMemoryRecall(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should omit over-budget durable memory recall", func(t *testing.T) {
-		t.Parallel()
-
-		resolver := &staticPromptInputAugmenterResolver{
-			resolved: ResolvedHarnessContext{
-				Policy: ResolvedHarnessPolicy{
-					EnableAugmenters: []HarnessAugmenter{HarnessAugmenterDurableMemory},
-				},
-			},
-		}
-		oversizedRecall := func(_ context.Context, _ *session.Session, message string) (string, error) {
-			return strings.Join([]string{
-				"<turn-recall>",
-				strings.Repeat("x", memory.RecallAugmenterBudget+32),
-				"</turn-recall>",
-				"",
-				"<user-message>",
-				message,
-				"</user-message>",
-			}, "\n"), nil
+			t.Fatal(err)
 		}
 		augmenter, err := newPromptInputCompositeAugmenter(
 			discardLogger(),
 			resolver,
 			nil,
-			defaultPromptInputAugmenterDescriptors(nil, oversizedRecall, nil)...,
-		)
+			defaultPromptInputAugmenterDescriptors(
+				func(_ context.Context, _ *session.Session, message string) (string, error) {
+					return "CURRENT_SKILLS\n\n" + message, nil
+				},
+				func(_ context.Context, _ *session.Session, message string) (string, error) {
+					return "TURN_SITUATION\n\n" + message, nil
+				},
+			)...)
 		if err != nil {
-			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
+			t.Fatal(err)
 		}
-
-		got, err := augmenter(t.Context(), newPromptInputTestSession(""), "hello")
+		turn, err := augmenter(t.Context(), newPromptInputTestSession(workspaceRoot), "request")
 		if err != nil {
-			t.Fatalf("Augment() error = %v", err)
+			t.Fatal(err)
 		}
-		if got != "hello" {
-			t.Fatalf("Augment() = %q, want original message after over-budget recall omission", got)
+		for _, want := range []string{"PERSONA_BODY", "STARTUP_SKILLS", "STARTUP_SITUATION"} {
+			if !strings.Contains(startup, want) {
+				t.Fatalf("startup = %q, want %q", startup, want)
+			}
 		}
-		if strings.Contains(got, "<turn-recall>") || strings.Contains(got, "<user-message>") {
-			t.Fatalf("Augment() = %q, want no partially emitted recall wrappers", got)
+		for _, want := range []string{"CURRENT_SKILLS", "TURN_SITUATION", "request"} {
+			if !strings.Contains(turn, want) {
+				t.Fatalf("turn = %q, want %q", turn, want)
+			}
+		}
+		for _, retired := range []string{"# Persistent Memory", "<compozy_checkpoint_summary>", "<turn-recall>", "<workspace-knowledge-snapshot>"} {
+			if strings.Contains(startup, retired) || strings.Contains(turn, retired) {
+				t.Fatalf("delivered retired frame %q", retired)
+			}
 		}
 	})
 }

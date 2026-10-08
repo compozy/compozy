@@ -39,7 +39,6 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	changed = append(changed, diffGeneralSettings(current, generalSettingsFromConfig(desired))...)
 	changed = append(changed, diffSkillsSettings(current.Skills, desired.Skills)...)
 	changed = append(changed, diffRolesSettings(&current.Roles, &desired.Roles)...)
-	changed = append(changed, diffMemorySettings(&current.Memory, &desired.Memory)...)
 	changed = append(changed, diffAutomationSettings(current, automationSettingsFromConfig(desired))...)
 	if current.Automation.Suggestions.PendingCap != desired.Automation.Suggestions.PendingCap {
 		changed = append(changed, "automation.suggestions.pending_cap")

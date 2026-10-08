@@ -8,12 +8,10 @@ import {
   fetchSessionInputs,
   fetchSessionInteractions,
   fetchSessionGoal,
-  fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,
   fetchSessionUsageTurns,
   fetchSessions,
-  SessionLedgerUnavailableError,
   SessionApiError,
 } from "../adapters/session-api";
 import { fetchSessionAttentionSummary } from "../adapters/session-attention-api";
@@ -359,30 +357,6 @@ export function sessionUsageOptions(
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
-  });
-}
-
-export interface SessionLedgerQueryOptions {
-  enabled?: boolean;
-}
-
-export function sessionLedgerOptions(
-  workspace: string,
-  id: string,
-  options?: SessionLedgerQueryOptions
-) {
-  const enabled = (options?.enabled ?? true) && !!workspace && !!id;
-  return queryOptions({
-    queryKey: sessionKeys.ledger(workspace, id),
-    queryFn: ({ signal }) => fetchSessionLedger(workspace, id, signal),
-    staleTime: 10_000,
-    enabled,
-    retry: (failureCount, error) => {
-      if (error instanceof SessionLedgerUnavailableError) {
-        return false;
-      }
-      return failureCount < 1;
-    },
   });
 }
 

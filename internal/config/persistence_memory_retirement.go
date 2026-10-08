@@ -10,7 +10,12 @@ import (
 	tomlast "github.com/pelletier/go-toml/v2/unstable"
 )
 
-const retiredMemoryArchiveHeader = "\n# Archived retired memory and compaction settings; these values are inactive.\n"
+const (
+	retiredMemoryArchiveHeader     = "\n# Archived retired memory and compaction settings; these values are inactive.\n"
+	retiredMemoryAutomationKey     = "automation"
+	retiredMemoryTriggersKey       = "triggers"
+	retiredMemoryConsolidatedEvent = "memory.consolidated"
+)
 
 // This boundary archive is removed in v0.6.0.
 func archiveRetiredMemorySettings(contents []byte, source string) ([]byte, []string, error) {
@@ -55,7 +60,8 @@ func isRetiredMemoryPath(path []string) bool {
 		return true
 	}
 	if len(path) >= 2 {
-		if path[0] == "roles" && slices.Contains([]string{"dream", "checkpoint_summary", "memory_extractor", "memory_controller"}, path[1]) {
+		retiredRoles := []string{"dream", "checkpoint_summary", "memory_extractor", "memory_controller"}
+		if path[0] == "roles" && slices.Contains(retiredRoles, path[1]) {
 			return true
 		}
 		if path[0] == "session" && path[1] == "compaction" {
@@ -96,21 +102,13 @@ func splitRetiredMemoryValues(value any, path []string) (any, any, []string) {
 		for i := range item {
 			elements[i] = item[i]
 		}
-		kept, removed, names := splitRetiredMemoryValues(elements, path)
-		toTables := func(value any) []map[string]any {
-			var tables []map[string]any
-			for _, element := range value.([]any) {
-				tables = append(tables, element.(map[string]any))
-			}
-			return tables
-		}
-		return toTables(kept), toTables(removed), names
+		return splitRetiredMemoryValues(elements, path)
 	case []any:
 		var kept, removed []any
 		var names []string
 		for _, child := range item {
-			if pathsEqual(path, []string{"automation", "triggers"}) {
-				if entry, ok := child.(map[string]any); ok && entry["event"] == "memory.consolidated" {
+			if pathsEqual(path, []string{retiredMemoryAutomationKey, retiredMemoryTriggersKey}) {
+				if entry, ok := child.(map[string]any); ok && entry["event"] == retiredMemoryConsolidatedEvent {
 					removed = append(removed, child)
 					names = append(names, "automation.triggers")
 					continue
@@ -169,8 +167,8 @@ func removeRetiredMemorySettings(editor *OverlayEditor) error {
 		return err
 	}
 	retiredExpressions := make(map[int]bool)
-	for _, block := range document.arrayTableBlocks([]string{"automation", "triggers"}) {
-		if event, ok := document.blockStringField(block, "event"); ok && event == "memory.consolidated" {
+	for _, block := range document.arrayTableBlocks([]string{retiredMemoryAutomationKey, retiredMemoryTriggersKey}) {
+		if event, ok := document.blockStringField(block, "event"); ok && event == retiredMemoryConsolidatedEvent {
 			for i := block.startIdx; i <= block.endIdx; i++ {
 				retiredExpressions[i] = true
 			}
@@ -183,7 +181,9 @@ func removeRetiredMemorySettings(editor *OverlayEditor) error {
 	index := 0
 	for parser.NextExpression() {
 		node := parser.Expression()
-		if node.Kind != tomlast.Table && node.Kind != tomlast.ArrayTable && node.Kind != tomlast.KeyValue && node.Kind != tomlast.Comment {
+		switch node.Kind {
+		case tomlast.Table, tomlast.ArrayTable, tomlast.KeyValue, tomlast.Comment:
+		default:
 			continue
 		}
 		expr := document.expressions[index]
@@ -246,19 +246,11 @@ func retiredMemoryInlineEdits(source []byte, node *tomlast.Node, path []string) 
 			value = child.Value()
 		}
 		retired := isRetiredMemoryPath(childPath)
-		if pathsEqual(path, []string{"automation", "triggers"}) && child.Kind == tomlast.InlineTable {
-			fields := child.Children()
-			for fields.Next() {
-				field := fields.Node()
-				key, err := nodePath(field)
-				if err != nil {
-					return nil, err
-				}
-				if pathsEqual(key, []string{"event"}) && string(field.Value().Data) == "memory.consolidated" {
-					retired = true
-				}
-			}
+		retiredTrigger, err := isRetiredMemoryInlineTrigger(child, path)
+		if err != nil {
+			return nil, err
 		}
+		retired = retired || retiredTrigger
 		removed = append(removed, retired)
 		if retired {
 			continue
@@ -279,17 +271,18 @@ func retiredMemoryInlineEdits(source []byte, node *tomlast.Node, path []string) 
 		}
 		start := rangeStart(expressionRange(children[first]))
 		end := retiredMemoryNodeEnd(source, children[i])
-		if i+1 < len(children) {
+		switch {
+		case i+1 < len(children):
 			nextStart := rangeStart(expressionRange(children[i+1]))
 			if comma := retiredMemorySeparator(source[end:nextStart]); comma >= 0 {
 				end += comma + 1
 			}
-		} else if first > 0 {
+		case first > 0:
 			previousEnd := retiredMemoryNodeEnd(source, children[first-1])
 			if comma := retiredMemorySeparator(source[previousEnd:start]); comma >= 0 {
 				start = previousEnd + comma
 			}
-		} else {
+		default:
 			if comma := retiredMemorySeparator(source[end:]); comma >= 0 {
 				end += comma + 1
 			}
@@ -328,4 +321,23 @@ func retiredMemorySeparator(source []byte) int {
 		}
 	}
 	return -1
+}
+
+func isRetiredMemoryInlineTrigger(child *tomlast.Node, path []string) (bool, error) {
+	if !pathsEqual(path, []string{retiredMemoryAutomationKey, retiredMemoryTriggersKey}) ||
+		child.Kind != tomlast.InlineTable {
+		return false, nil
+	}
+	fields := child.Children()
+	for fields.Next() {
+		field := fields.Node()
+		key, err := nodePath(field)
+		if err != nil {
+			return false, err
+		}
+		if pathsEqual(key, []string{"event"}) && string(field.Value().Data) == retiredMemoryConsolidatedEvent {
+			return true, nil
+		}
+	}
+	return false, nil
 }

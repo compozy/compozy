@@ -24,7 +24,7 @@ journey:
   actions:
     - step: 1
       verb: Seed the Northstar Pay scenario into an isolated Compozy home
-      expected_observable: The command reports populated counts across workspaces, sessions, tasks, Loops, goals, worktrees, memory, automation, and observability
+      expected_observable: The command reports populated counts across workspaces, sessions, tasks, Loops, goals, worktrees, automation, and observability
     - step: 2
       verb: Start Compozy against that home and inspect the scenario
       expected_observable: Public read surfaces return the seeded world and mark imported Loop runs as history

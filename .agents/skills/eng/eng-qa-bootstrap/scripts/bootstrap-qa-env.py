@@ -105,7 +105,6 @@ def ensure_lab_scaffold(workspace_path: Path, qa_output_path: Path) -> None:
         workspace_path / "ops" / "runbooks",
         workspace_path / "ops" / "logs",
         workspace_path / "reviews" / "findings",
-        workspace_path / "knowledge",
         workspace_path / "hooks",
         workspace_path / "extensions",
         workspace_path / "skills",
@@ -451,7 +450,7 @@ def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
         {
             "probe_id": f"{seed.get('type', 'probe')}-{seed.get('seed_at_minute', 0)}",
             "type": seed.get("type", ""),
-            "delivery": seed.get("delivery", "knowledge_file"),
+            "delivery": seed.get("delivery", "task_event"),
             "expected_recovery": seed.get("expected_recovery", ""),
         }
         for seed in playbook.get("disruption_probe_seeds", [])
@@ -714,8 +713,7 @@ def main() -> int:
         try:
             seed_summary = seed_playbook_workspace(repo_root, workspace_path, playbook_ref)
             status_notes.append(
-                f"seeded playbook {playbook_ref!r} ({len(seed_summary.get('agents_registered', []))} agents, "
-                f"{len(seed_summary.get('knowledge_files_written', []))} knowledge files)"
+                f"seeded playbook {playbook_ref!r} ({len(seed_summary.get('agents_registered', []))} agents)"
             )
         except (RuntimeError, subprocess.CalledProcessError) as err:
             raise RuntimeError(f"seed-playbook-workspace failed for {playbook_ref!r}: {err}") from err

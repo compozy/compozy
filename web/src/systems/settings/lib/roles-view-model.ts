@@ -6,12 +6,10 @@ import type {
   SettingsRolesConfig,
 } from "../types";
 import {
-  ROLE_ADVANCED_FIELDS,
   ROLE_DESCRIPTIONS,
   ROLE_FIELDS,
   ROLE_LABELS,
   ROLE_ORDER,
-  ROLE_SUPPORTS_AGENT,
   type RoleFieldDescriptor,
   type RoleRuntimeValue,
 } from "./roles-config";
@@ -22,8 +20,6 @@ export interface RoleViewModel {
   label: string;
   description: string;
   enabled: boolean;
-  /** Whether this role has an `agent` key at all. */
-  supportsAgent: boolean;
   /** Draft agent override; empty means the role default. */
   agent: string;
   /** Draft provider/model/reasoning route, as the runtime selector reads it. */
@@ -32,8 +28,6 @@ export interface RoleViewModel {
   hasRuntimeOverride: boolean;
   /** Editable policy fields shown in the role body. */
   fields: readonly RoleFieldDescriptor[];
-  /** Operator-grade fields shown inside the role's Advanced fold. */
-  advancedFields: readonly RoleFieldDescriptor[];
   /** Draft values for every scalar field, flattened at this read boundary. */
   values: Record<string, string | number | boolean>;
   /** Draft fallback routes for this role. */
@@ -79,16 +73,12 @@ export function computeResolutionLine(status: RoleStatus): string {
 }
 
 function buildEffective(status: RoleStatus): Record<string, string | null> {
-  const effective: Record<string, string | null> = {
+  return {
     agent: status.agent,
     provider: status.provider,
     model: status.model,
     reasoning_effort: status.reasoning_effort,
   };
-  if (status.timeout != null) {
-    effective.timeout = status.timeout;
-  }
-  return effective;
 }
 
 function buildRoleViewModel(
@@ -97,13 +87,12 @@ function buildRoleViewModel(
   config: SettingsRolesConfig
 ): RoleViewModel {
   const fields = ROLE_FIELDS[role];
-  const advancedFields = ROLE_ADVANCED_FIELDS[role];
   // Flatten the union-typed role config into a descriptor-keyed value map. The
   // cast is contained to this read boundary; only scalar keys are read (never
   // `fallback_chain`), so widening through `unknown` is safe.
   const roleConfig = config[role] as unknown as Record<string, string | number | boolean>;
   const values: Record<string, string | number | boolean> = {};
-  for (const field of [...fields, ...advancedFields]) {
+  for (const field of fields) {
     values[field.key] = roleConfig[field.key];
   }
   const runtime: RoleRuntimeValue = {
@@ -113,14 +102,12 @@ function buildRoleViewModel(
     speed: roleConfig.speed === "normal" || roleConfig.speed === "fast" ? roleConfig.speed : "",
     acp_options: normalizeRuntimeACPSelections(config[role].acp_options),
   };
-  const supportsAgent = ROLE_SUPPORTS_AGENT[role];
   return {
     role,
     label: ROLE_LABELS[role],
     description: ROLE_DESCRIPTIONS[role],
     enabled: Boolean(roleConfig.enabled),
-    supportsAgent,
-    agent: supportsAgent ? String(roleConfig.agent ?? "") : "",
+    agent: String(roleConfig.agent ?? ""),
     runtime,
     hasRuntimeOverride:
       runtime.provider.trim() !== "" ||
@@ -129,7 +116,6 @@ function buildRoleViewModel(
       runtime.speed !== "" ||
       (runtime.acp_options?.length ?? 0) > 0,
     fields,
-    advancedFields,
     values,
     fallbackChain: config[role].fallback_chain,
     effective: buildEffective(status),
@@ -142,7 +128,7 @@ function buildRoleViewModel(
 }
 
 /**
- * Join the read-only projection with the editable draft into the six role view
+ * Join the read-only projection with the editable draft into the role view
  * models in fixed product order (`ROLE_ORDER`), independent of the API's lexical
  * ordering. A role absent from the projection is skipped rather than fabricated.
  */

@@ -73,11 +73,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"compozy__task_run_cancel",
 			"compozy__mcp_auth_login",
 			"compozy__mcp_auth_logout",
-			"compozy__memory_read",
-			"compozy__memory_history",
-			"compozy__memory_write",
-			"compozy__memory_edit",
-			"compozy__memory_delete",
 		}
 		for _, id := range excluded {
 			if _, ok := got[id]; ok {
@@ -453,49 +448,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 					t.Fatalf("%s input schema accepted forbidden payload", descriptor.ID)
 				}
 			})
-		}
-	})
-
-	t.Run("Should expose a closed atomic memory operations batch schema", func(t *testing.T) {
-		t.Parallel()
-
-		type schemaField struct {
-			Type                 string                 `json:"type"`
-			Enum                 []string               `json:"enum"`
-			MinItems             int                    `json:"minItems"`
-			Required             []string               `json:"required"`
-			Properties           map[string]schemaField `json:"properties"`
-			Items                *schemaField           `json:"items"`
-			AdditionalProperties *bool                  `json:"additionalProperties"`
-		}
-		descriptor := descriptors[toolspkg.ToolIDMemoryPropose]
-		var schema schemaField
-		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-			t.Fatalf("memory_propose input schema unmarshal error = %v", err)
-		}
-		operations := schema.Properties["operations"]
-		if operations.Type != "array" || operations.MinItems != 1 || operations.Items == nil {
-			t.Fatalf("memory_propose operations schema = %#v, want non-empty array", operations)
-		}
-		items := operations.Items
-		if !slices.Equal(items.Required, []string{"action"}) {
-			t.Fatalf("memory_propose operation required = %#v, want [action]", items.Required)
-		}
-		if items.AdditionalProperties == nil || *items.AdditionalProperties {
-			t.Fatalf(
-				"memory_propose operation additionalProperties = %#v, want false",
-				items.AdditionalProperties,
-			)
-		}
-		gotActions := items.Properties["action"].Enum
-		wantActions := []string{"add", "replace", "remove"}
-		if !slices.Equal(gotActions, wantActions) {
-			t.Fatalf("memory_propose operation action enum = %#v, want %#v", gotActions, wantActions)
-		}
-		for _, field := range []string{"content", "old_text"} {
-			if got := items.Properties[field].Type; got != "string" {
-				t.Fatalf("memory_propose operation %s type = %q, want string", field, got)
-			}
 		}
 	})
 
@@ -1424,76 +1376,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__mcp_auth_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__mcp_status", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_admin_history", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_daily_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_decisions_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_decisions_revert", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
-		{id: "compozy__memory_decisions_show", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_retry", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_show", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_status", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_dream_trigger", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_extractor_drain", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_extractor_failures", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_extractor_retry", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_extractor_status", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_health", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_note", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_promote", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_propose", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_disable", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_enable", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_get", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_list", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_provider_select", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_recall_trace", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_reindex", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_reload", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_reset", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
-		{id: "compozy__memory_scope_show", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_search", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_session_ledger", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__memory_session_replay", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_sessions_prune", risk: toolspkg.RiskDestructive,
-			readOnly: false, destructive: true, openWorld: false},
-		{id: "compozy__memory_sessions_repair", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__memory_show", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__notify", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
@@ -3035,60 +2917,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			toolspkg.ToolIDProviderModelsStatus,
 		}; !slices.Equal(providerModels, want) {
 			t.Fatalf("provider models expansion = %#v, want %#v", providerModels, want)
-		}
-
-		memory, err := catalog.Expand(toolspkg.ToolsetIDMemory, universe)
-		if err != nil {
-			t.Fatalf("Expand(memory) error = %v", err)
-		}
-		if !slices.Contains(memory, toolspkg.ToolIDMemoryShow) ||
-			!slices.Contains(memory, toolspkg.ToolIDMemoryPropose) ||
-			!slices.Contains(memory, toolspkg.ToolIDMemoryNote) ||
-			slices.Contains(memory, toolspkg.ToolIDMemoryHealth) ||
-			slices.Contains(memory, toolspkg.ToolIDMemoryReset) ||
-			slices.Contains(memory, toolspkg.ToolID("compozy__memory_read")) ||
-			slices.Contains(memory, toolspkg.ToolID("compozy__memory_history")) ||
-			slices.Contains(memory, toolspkg.ToolID("compozy__memory_write")) {
-			t.Fatalf("memory toolset expansion = %#v, want Memory v2 Slice 1 tools", memory)
-		}
-
-		memoryAdmin, err := catalog.Expand(toolspkg.ToolsetIDMemoryAdmin, universe)
-		if err != nil {
-			t.Fatalf("Expand(memory_admin) error = %v", err)
-		}
-		if want := []toolspkg.ToolID{
-			toolspkg.ToolIDMemoryAdminHistory,
-			toolspkg.ToolIDMemoryDailyList,
-			toolspkg.ToolIDMemoryDecisionsList,
-			toolspkg.ToolIDMemoryDecisionsRevert,
-			toolspkg.ToolIDMemoryDecisionsShow,
-			toolspkg.ToolIDMemoryDreamList,
-			toolspkg.ToolIDMemoryDreamRetry,
-			toolspkg.ToolIDMemoryDreamShow,
-			toolspkg.ToolIDMemoryDreamStatus,
-			toolspkg.ToolIDMemoryDreamTrigger,
-			toolspkg.ToolIDMemoryExtractorDrain,
-			toolspkg.ToolIDMemoryExtractorFailures,
-			toolspkg.ToolIDMemoryExtractorRetry,
-			toolspkg.ToolIDMemoryExtractorStatus,
-			toolspkg.ToolIDMemoryHealth,
-			toolspkg.ToolIDMemoryPromote,
-			toolspkg.ToolIDMemoryProviderDisable,
-			toolspkg.ToolIDMemoryProviderEnable,
-			toolspkg.ToolIDMemoryProviderGet,
-			toolspkg.ToolIDMemoryProviderList,
-			toolspkg.ToolIDMemoryProviderSelect,
-			toolspkg.ToolIDMemoryRecallTrace,
-			toolspkg.ToolIDMemoryReindex,
-			toolspkg.ToolIDMemoryReload,
-			toolspkg.ToolIDMemoryReset,
-			toolspkg.ToolIDMemoryScopeShow,
-			toolspkg.ToolIDMemorySessionLedger,
-			toolspkg.ToolIDMemorySessionReplay,
-			toolspkg.ToolIDMemorySessionsPrune,
-			toolspkg.ToolIDMemorySessionsRepair,
-		}; !slices.Equal(memoryAdmin, want) {
-			t.Fatalf("memory admin toolset expansion = %#v, want %#v", memoryAdmin, want)
 		}
 
 		observe, err := catalog.Expand(toolspkg.ToolsetIDObserve, universe)

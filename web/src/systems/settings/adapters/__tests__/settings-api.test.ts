@@ -31,7 +31,6 @@ import {
   updateSettingsAttention,
   updateSettingsAutomation,
   updateSettingsHooksExtensions,
-  updateSettingsMemory,
   updateSettingsObservability,
   updateSettingsCmdPalette,
   updateSettingsGeneral,
@@ -50,7 +49,6 @@ import {
   settingsAutomationSectionFixture,
   settingsGeneralSectionFixture,
   settingsHooksExtensionsSectionFixture,
-  settingsMemoryConfigFixture,
   settingsObservabilitySectionFixture,
   settingsSkillsSectionFixture,
 } from "../../mocks/fixtures";
@@ -122,7 +120,6 @@ describe("section reads and updates", () => {
       name: "General",
       save: () => updateSettingsGeneral({ config: settingsGeneralSectionFixture.config }),
     },
-    { name: "Memory", save: () => updateSettingsMemory({ config: settingsMemoryConfigFixture }) },
     {
       name: "Automation",
       save: () => updateSettingsAutomation({ config: settingsAutomationSectionFixture.config }),
@@ -472,7 +469,7 @@ describe("roles section", () => {
 
     const result = await getRolesStatus();
 
-    expect(result.roles).toHaveLength(6);
+    expect(result.roles).toHaveLength(2);
     await expectFetchRequest({ path: "/api/roles" });
   });
 
@@ -482,7 +479,7 @@ describe("roles section", () => {
     const result = await getSettingsRoles();
 
     expect(result.section).toBe("roles");
-    expect(result.config.memory_controller.timeout).toBe("250ms");
+    expect(result.config.coordinator.ttl).toBe("2h");
     await expectFetchRequest({ path: "/api/settings/roles" });
   });
 

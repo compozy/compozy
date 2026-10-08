@@ -20,7 +20,7 @@ charter:
       - "Refresh the Web session and independently inspect active and archived history from the CLI or API."
       - "Cancel the confirmation once and verify that no transcript or composer state changes."
     must_avoid:
-      - "Do not treat filesystem, tool, memory, or network side effects as part of rewind."
+      - "Do not treat filesystem, tool, or network side effects as part of rewind."
       - "Do not use internal database inspection as pass evidence."
 ```
 

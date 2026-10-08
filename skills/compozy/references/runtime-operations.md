@@ -14,7 +14,7 @@
 
 ## Operating Model
 
-CompozyOS is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, memory, skills, and extension resources.
+CompozyOS is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, skills, and extension resources.
 
 Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public CompozyOS surfaces with structured output.
 
@@ -62,12 +62,12 @@ next-prompt selection does not replace that identity before it is applied.
 `runtime.acp_caps` (absent while unbound) includes `supports_load_session`, `supports_fork_session`,
 and `supports_resume_session`; each is `true` only when the bound agent advertised it.
 
-Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
+Session types include user sessions and daemon-managed sessions such as system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
 The Web composer accepts prompts for public `user`, `system`, `coordinator`, and `spawned` sessions.
 When one is busy, operators can queue, steer, interrupt, or stop the active generation. This prompt
 authority does not grant lifecycle authority: daemon-managed sessions keep rename, clear, attach,
-delete, and whole-session stop unavailable. Dream and hidden maintenance sessions remain read-only.
+delete, and whole-session stop unavailable. Hidden maintenance sessions remain read-only.
 
 The daemon owns `coordinator` and `spawned` classification. A `session.pre_create` hook cannot change
 a session into or out of either type, and later lifecycle hooks cannot change any persisted session
@@ -107,7 +107,7 @@ Use `interrupt` with replacement text to cancel the expected active turn and sub
 as the next generation-fenced input. Use `steer` for the same fenced replacement semantics when the
 operator intent is guidance. Neither mode reuses or combines the canceled authored prompt.
 
-The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
+The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache or JSONL sidecars.
 
 ### Session event store ownership
 
@@ -143,28 +143,56 @@ repair events to an already valid session store.
 
 Treat `transcript_marker.file_mutation_unverified` as a required verification signal: one or more persisted `edit` mutations failed without a later successful mutation for the same path in that turn. Inspect the bounded paths and verify them before trusting completion claims; the marker is advisory and does not replace filesystem inspection.
 
-Pressure compaction preserves complete prior turns in the workspace checkpoint before marking their
-event rows archived. Read archived rows with `compozy session events|history --archive archived`, or
-combine active and archived rows with `--archive all`. Degraded replay excludes them to avoid
-duplicating checkpoint-covered context. Inspect
-`session.compaction_fired` for the admitted sequence span; the event is correlation evidence, not a
-success verdict for the later archive.
-
 The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta`, and terminal `session_stopped` frames. Reconnect with the last SSE cursor plus the snapshot's `epoch` and `generation`; a fence mismatch returns an explicit reset snapshot. A reconnect at the current watermark receives an empty `transcript_delta` with `has_more: false`; it confirms catch-up without advancing the cursor. The removed `replay` query is invalid. Use `frames=raw` for persisted `SessionEventPayload` rows; `compozy session events --follow` already requests raw frames.
 
-### Workspace knowledge on live turns
+### Context window and bounded rebuilds
 
-Markdown files under `<workspace>/knowledge/` are current workspace data. On each accepted user,
-or synthetic turn, CompozyOS reopens the tree and supplies a bounded
-`<workspace-knowledge-snapshot>` with workspace-relative paths, current bytes, a revision digest,
-and omission metadata. Treat the newest snapshot as authoritative over earlier copies of the same
-file.
+CompozyOS never compacts a session itself. The agent owns its live context window: no usage reading,
+threshold, or timer makes CompozyOS summarize, archive, or start a child session, and the context
+meter has no warning band or threshold. When a session is rebuilt into a new agent session (resume
+without native load, runtime or model replacement, account fallback, prompt recovery, `continue`, or
+`fork`), the replayed transcript is bounded by `[session.derive] max_replay_bytes` and
+`max_message_bytes`. The last 8 messages are protected while they fit, and the earliest user message
+stays ahead of the `[N earlier messages omitted to fit the context budget]` note. The replay header
+always says the workspace files and git state are authoritative. When messages were omitted and
+`compozy__session_history` is in the session's tool surface, it also names that tool and the session
+to read the omitted messages from (for a derived child, the source session). History that earlier
+releases archived through compaction is visible again.
 
-The reader accepts regular `.md` files, does not follow symbolic links, and stays inside the session
-workspace. A file change does not wake a session. The next eligible turn—including task and
-Heartbeat wakes—carries the changed bytes without an additional operator prompt. This is prompt
-context, not durable CompozyOS memory; use the memory tools when information must be curated or
-searched.
+### Observed native compaction (experimental)
+
+CompozyOS advertises `clientCapabilities.session.compaction` at ACP initialize and observes the
+compaction an agent performs on its own context. This follows an unstable upstream ACP contract and
+may change. An agent that does not honor the capability produces none of the items below; its own
+"Compact conversation" tool call stays an ordinary tool row. For an honoring agent, each compaction id
+produces exactly one `compaction` item in session history and the timeline (`compaction_id`, `status`
+of `in_progress`, `completed`, `failed`, `cancelled`, or a vendor value passed through verbatim, plus
+an optional redacted `summary` capped at 16 KiB and an `error` on failure), one
+`session.compaction_fired` event with `{compaction_id, trigger, context_used, context_size}` where
+`trigger` is `requested` or `agent`, and one `compactions[]` usage marker. Summaries exist only when the
+agent sends one; Claude does and Codex does not. After a terminal compaction `context.used` is `null`
+with `state: "unknown"` until the agent sends a later usage report. Events recorded by earlier releases
+stay readable as opaque history.
+
+Hooks `context.pre_compact` and `context.post_compact` are observation-only: they fire on real agent
+compaction, accept only a `{"labels": {...}}` patch, and match on `compaction_trigger`
+(`requested` or `agent`).
+
+### Compact now (experimental)
+
+Request the agent's own compaction with `compozy session compact <session-id> [-o json]`,
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/compact` (`compactSession`, body `{}`), or
+`compozy__session_compact`. CompozyOS sends exactly `/compact`, or `/compress` when the agent
+advertises that instead, as its own prompt turn in maintenance delivery mode: no skill expansion, no
+augmenters, no startup instructions, and any pending resume replay rides the next ordinary prompt. The
+CLI waits and reports `outcome` as `completed`, `failed`, `cancelled`, `turn_completed` (the turn ended
+without a compaction lifecycle report), or `turn_failed`. HTTP and UDS return `202` with
+`{"session_id","prompt_id","command","status":"accepted"}`. A running turn or another in-flight request
+fails with `session_busy`; an agent advertising neither command fails with `compaction_unsupported`
+(both `409`). Observe the outcome through the compaction item and events above. The Web session context
+meter offers **Compact now** only for agents that advertise the command and disables it while a turn
+runs. A Goal's context-compaction turn uses the same advertised command; an agent advertising neither
+goes straight to the Goal reseed path.
 
 ## Session CLI
 
@@ -271,7 +299,7 @@ sequence returned by the transcript API. Stale values return a conflict without 
 Rewind is available only for idle ordinary user sessions; parented children (`lineage.kind`
 `provenance`, `recovery`, `continue`, `fork`) rewind too, and only `spawn` sessions are refused.
 It archives the removed suffix for audit. It does not undo file changes, tool or network effects,
-saved memory, or external provider actions. Use `--archive archived` or `--archive all` on events
+or external provider actions. Use `--archive archived` or `--archive all` on events
 and history to inspect the discarded suffix.
 
 `session continue` starts a **new** user session for another agent (optionally with an explicit
@@ -315,7 +343,7 @@ onto that route when the agent still declares it compatibly). Without `--message
 whole conversation through the last settled turn; with it, through that durable user message **and its
 turn** (reply and tool work included). A cut turn that has not settled fails with
 `session_turn_in_progress`; a message that is not a durable user message fails with `message_not_found`;
-anchors stay valid after compaction or after a rewind followed by new turns. Retries, fences, and the
+anchors stay valid after a rewind followed by new turns. Retries, fences, and the
 carried context behave as for `continue`. When the source is bound, idle, and its agent advertises both
 ACP `session/fork` and `session/load`, a whole-session fork uses the agent's own clone
 (`seed: native_fork`, `native_state: pending`, preview `native_fork_possible: true`); the new session's
@@ -475,21 +503,21 @@ If a CompozyOS-native session tool is visible, prefer the tool because it is pol
 
 ## Background Roles
 
-CompozyOS routes six daemon-owned background responsibilities through the closed `[roles]` roster:
-`coordinator`, `dream`, `checkpoint_summary`, `memory_extractor`, `auto_title`, and
-`memory_controller`. Inspect the effective global or workspace projection with structured output:
+CompozyOS routes two daemon-owned background responsibilities through the closed `[roles]` roster:
+`coordinator` and `auto_title`. Inspect the effective global or workspace projection with structured
+output:
 
     compozy roles list -o json
     compozy roles list --workspace <id|name|path> -o json
-    compozy roles show dream --workspace <id|name|path> -o json
+    compozy roles show auto_title --workspace <id|name|path> -o json
 
 HTTP and UDS expose the same `GET /api/roles` and `GET /api/roles/{role}` payloads. Each projection
 reports `enabled`, `resolution_mode`, nullable agent/provider/model/reasoning/speed values, typed
-`acp_options`, controller-only `timeout`, the ordered `fallback_chain`, per-field `provenance`, and
+`acp_options`, the ordered `fallback_chain`, per-field `provenance`, and
 current `diagnostics`. Preserve nulls: `resolution_mode=inherit` means the invoking context decides at
 invocation, not that a client should substitute `[defaults]`.
 
-`coordinator` and `dreaming-curator` are virtual builtin identities and never fleet entries. A
+`coordinator` is a virtual builtin identity and never a fleet entry. A
 configured authored agent that cannot be resolved produces `role_agent_not_found`; an unknown role
 returns `role_unknown`. The reads are diagnostic only and never simulate a provider invocation.
 
@@ -501,8 +529,7 @@ a workspace overlay. A fallback may advance only at the owning invocation's pre-
 an accepted ACP session is never silently rerouted, even when a later configuration step fails.
 Immediately before each fallback attempt, CompozyOS emits `role.fallback.used` with the attempt,
 provider, model, and `provider_command_fingerprint` when the route sets `command`; the event records
-that the route was tried, not that it succeeded. The `memory_controller` chain is live through the
-write-controller tiebreaker unless `memory.controller.mode = "rules"`.
+that the route was tried, not that it succeeded.
 
 Work sessions use the agent definition's `fallback_chain` instead (agent frontmatter,
 `compozy agent create|update --fallback-route`, or `compozy__agent_create`). It runs at the first
@@ -522,8 +549,7 @@ command fingerprint, and otherwise restarts on the primary route with context re
 Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, `speed`,
 `acp_options`, and `fallback_chain`. ACP option entries require `id` and exactly one of `value_id` or
 `bool_value`; fallback routes may set the same runtime fields. Coordinator additionally owns `ttl`, `max_children`, and
-`max_active_sessions_per_workspace`. The in-process `memory_controller` has no `agent`; it owns
-the same runtime fields plus `timeout`, `top_k`, `prompt_version`, and `max_tokens_out`. Do not move Loop runtime defaults/rules,
+`max_active_sessions_per_workspace`. Do not move Loop runtime defaults/rules,
 TaskExecutionProfile selectors, automation resources, or subsystem policy into `[roles]`.
 
 ### Usage cost truth
@@ -574,20 +600,23 @@ Prefer `compozy session usage <session-id> -o json` when an agent needs the same
 
 The same response includes `context.state`: `reported`, `estimated_size`, `unknown`, or `unavailable`.
 Context is the latest ledger report, not a token sum. An estimated size comes from the current model
-catalog and does not enable pressure compaction. `stale` means the report precedes a different settled
-turn. Failed context reads retain the aggregate and return `context: {state: "unavailable"}`.
+catalog. `stale` means the report precedes a different settled turn. After a terminal compaction the
+state is `unknown` until the agent sends a later usage report. Failed context reads retain the
+aggregate and return `context: {state: "unavailable"}`.
 
 Use `compozy session usage <session-id> --turns -o json` or `GET …/usage/turns` to inspect each turn
-that has usage or a delivery. `compactions[].span_archived` describes the persisted replay span's
-current archive flags; it is not proof that the agent compacted its window. A failed turns read returns
-an error. Listen for `session_usage_changed` on the transcript stream to refresh these queries; the
-signal never advances the transcript cursor. Its replay watermark is independent of transcript
-projection reads, so concurrent usage commits remain eligible for the next refresh.
+that has usage or a delivery. Each `compactions[]` marker is an observed agent compaction
+(`turn_id`, `sequence`, `at`, `compaction_id`, `trigger`, `status`, `context_used`, `context_size`),
+experimental like the compaction item itself; usage carries no CompozyOS compaction threshold. A
+failed turns read returns an error. Listen for `session_usage_changed` on the transcript stream to
+refresh these queries; the signal never advances the transcript cursor. Its replay watermark is
+independent of transcript projection reads, so concurrent usage commits remain eligible for the next
+refresh.
 
 For TOON consumers, aggregate output includes `context_reported_at` and a `context_rows` array with
 delivery ownership and freshness. `--turns -o toon` emits separate `session_usage_turns`, `usage`,
-`deliveries`, `spans`, and `compactions` arrays joined by `turn_id`; numeric values, timestamps, and
-archive fields stay structured rather than being embedded in display text.
+`deliveries`, `spans`, and `compactions` arrays joined by `turn_id`; numeric values and timestamps
+stay structured rather than being embedded in display text.
 
 `compozy session stop <id>` requests asynchronous termination and returns the updated session resource.
 For a named profile, pass the session owner's `--profile <name>`; HTTP/UDS callers pass
@@ -661,7 +690,7 @@ session directory. Use removal only when the operator intends to discard that hi
 for active, stopped, and archived user sessions without starting or replacing ACP and preserves the
 session ID, transcript, archive state, and lineage.
 
-The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
+The session catalog is counted and workspace-scoped. Internal auto-title sessions never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
 For document-wide subscriptions, the session catalog, worktree catalog, and `/api/logs/stream`
 also accept WebSocket upgrades. Each text message is one complete SSE frame, preserving named
@@ -699,7 +728,7 @@ stdio. It infers the workspace through the shared context chain; pass
 `--workspace <id|name|path>` only when the client's launch directory is not the intended workspace.
 The command is a foreground relay to the running daemon; it does not start another daemon or open
 stores directly. Published names use `compozy_host__<family>__<verb>`, not the native `compozy__*`
-namespace. Sessions, workspace-safe task operations, memory, and resources are included;
+namespace. Sessions, workspace-safe task operations, and resources are included;
 target-only task mutations and unrelated Host API families are excluded.
 
 The resolved workspace binding is injected into every call. Conflicting caller workspace fields are
@@ -834,7 +863,7 @@ protect it like a key. Copying `config.toml` alone never transfers an identity.
 When a remote profile is active, commands report the selected target on stderr while structured
 stdout remains parseable. `compozy open` uses the selected HTTPS origin.
 
-Direct profiles can operate sessions; read tasks; and use Loops, memory, settings,
+Direct profiles can operate sessions; read tasks; and use Loops, settings,
 extensions, and private Gateway management. Task mutations, task-run queue and scheduler authority,
 agent-internal routes, run lifecycle mutations, and resource mutations are local-only and fail before network I/O. Use the
 local daemon or an SSH forward when that authority is required. Each remote SSE or WebSocket connect
@@ -878,7 +907,7 @@ When a session behaves unexpectedly:
 6. Run `compozy doctor -o json` and only then check provider command availability or external auth state.
 7. Use `compozy session repair <id> --dry-run -o json` before any repair write.
 
-Do not treat stale UI state, chat messages, or memory notes as runtime authority.
+Do not treat stale UI state or chat messages as runtime authority.
 
 ## Status, Doctor, Logs, And Support
 
@@ -892,7 +921,7 @@ per-agent share (`--usage-window 7|30|90`), an hour-by-weekday event pulse, toda
 counters, and freshness. Aggregate usage includes owner-labeled `usage.profiles` rows. The same
 payload backs the web home dashboard.
 
-`compozy status -o json` is the consolidated daemon-wide status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. To resolve skill diagnostics for one workspace, call `GET /api/status?workspace_id=<id>` or `GET /api/status?workspace=<id|name|path>`; bare `compozy status` does not select a workspace. Inspect `schema_streams` after startup to confirm that the global and memory streams report their expected version, applied migration count, and digest. An incompatible daemon-global `compozy.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `compozy session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
+`compozy status -o json` is the consolidated daemon-wide status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. To resolve skill diagnostics for one workspace, call `GET /api/status?workspace_id=<id>` or `GET /api/status?workspace=<id|name|path>`; bare `compozy status` does not select a workspace. Inspect `schema_streams` after startup to confirm that the global stream reports its expected version, applied migration count, and digest. An incompatible daemon-global `compozy.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `compozy session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
 
 `GET /api/status/identity` is the bounded HTTP/UDS process and listener identity used by the native
 desktop shell for frequent liveness checks. It intentionally omits runtime diagnostics; use
@@ -918,7 +947,7 @@ For unreadable session metadata, run `compozy doctor --only runtime.session_meta
 It reports live checked/unreadable counts and at most five session/error samples, including invalid
 catalog creation witnesses. Versions 4 and 5 retain their original content-addressed identities;
 unknown versions and corrupted witnesses remain unchanged. Preserve the complete home before repair.
-Repeated listing/memory warnings are summarized and backed off for five minutes when unchanged;
+Repeated listing warnings are summarized and backed off for five minutes when unchanged;
 new failures are reported on the next scan. Doctor does not validate session event databases.
 
 For `legacy_database`, stop CompozyOS and preserve a cold copy of the complete containing `COMPOZY_HOME` or workspace `.compozy` family. Identify the originating release and a supported lossless upgrade path; if none exists, report the migration gap instead of resetting released user state. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible CompozyOS binary against the stopped, intact family—the state-preserving recovery. A separate fresh home is not recovery of the existing data; data loss requires the operator's explicit recorded decision. If CompozyOS reports SQLite corruption, stop it and cold-copy the complete containing family before inspection. CompozyOS leaves the named database and its `-wal` and `-shm` sidecars unchanged instead of quarantining or recreating them; diagnose a copy, then restore a complete known-good family and preserve retained state while an explicit recovery/migration decision is made. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `compozy doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents. Its `runtime.memory` item reports the latest daemon-owned heap, goroutine, uptime, and resident-memory snapshot. Treat `resident_memory_kind=peak` as a high-water mark, not current use. When `enabled=false`, set `daemon.memory_report_interval` above zero and restart the daemon; there is no native doctor tool.
@@ -1010,7 +1039,7 @@ For transcript SSE, preserve the cursor together with its epoch and generation. 
 `transcript_snapshot` with `reset: true` as a replacement for that session's cached window;
 `reason: "cursor_expired"` identifies a position removed by retention.
 A `stream.consumer_degraded` frame does not advance the cursor: drain transcript updates
-through its `through_sequence` before treating the view as current. Compaction advances the
+through its `through_sequence` before treating the view as current. Rewind and clear advance the
 projection generation atomically while preserving the active turn; archived event history
 remains available explicitly. Log resume positions now use stable monotonic sequences.
 
@@ -1032,7 +1061,7 @@ For retained Global history, CLI selects `/api/sessions/{session_id}/transcript/
 `/transcript/outline` automatically. These HTTP/UDS routes accept only Global-owned sessions
 and enforce profile read scope. Native session tools retain their project/caller workspace
 boundary; use the operator CLI or HTTP/UDS Global routes to inspect migrated home history.
-After compaction/rewind/clear, re-read navigation against the current transcript fences.
+After rewind/clear, re-read navigation against the current transcript fences.
 
 Session resource reads include `stop_cause` with the existing `stop_reason`,
 `stop_detail`, `verified` and `escalated` fields. Use the cause to distinguish
@@ -1066,7 +1095,7 @@ account's model. Claude logical IDs resolve to aliases advertised by the selecte
 receipts. `context.injected` estimates text with `bytes_div_4`, retains full owners for unchanged
 sections, and reports binary attachment bytes without tokens. An opaque hook-replaced startup prompt
 has one System prompt owner. Treat `stale` as possible summarization after a reported context drop;
-a replay-compaction marker alone does not establish that. Use session events to inspect receipt
+read the observed `compactions[]` markers to see whether the agent compacted. Use session events to inspect receipt
 send times and exact per-turn spans. These receipts cover CompozyOS-owned content, not the agent's
 private context, and a failed transport dispatch produces no receipt.
 

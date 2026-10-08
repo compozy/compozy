@@ -43,15 +43,3 @@ func (s *triggerHookTelemetrySink) WriteHookRecord(
 	_, err := s.engine.FireHookCompletion(ctx, sessionID, record)
 	return err
 }
-
-type triggerMemoryObserver struct {
-	engine *TriggerEngine
-}
-
-func (o *triggerMemoryObserver) OnMemoryConsolidated(ctx context.Context, event MemoryConsolidatedEvent) error {
-	if o == nil || o.engine == nil {
-		return nil
-	}
-	_, err := o.engine.FireMemoryConsolidated(ctx, event)
-	return err
-}

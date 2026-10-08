@@ -1,10 +1,8 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { SessionLedgerUnavailableError } from "../adapters/session-api";
 
 import {
   sessionScopedDetailOptions,
   sessionGoalOptions,
-  sessionLedgerOptions,
   sessionRecapOptions,
   sessionUsageOptions,
   sessionsListOptions,
@@ -64,31 +62,6 @@ export function useSessionGoal(workspaceId: string, sessionId: string, enabled =
     ...sessionGoalOptions(workspaceId, sessionId),
     enabled: enabled && workspaceId !== "" && sessionId !== "",
   });
-}
-
-export interface UseSessionLedgerOptions {
-  enabled?: boolean;
-}
-
-/**
- * The forensic ledger only materializes after `OnSessionEnd`, so the caller
- * must gate this query on `session.state === "stopped"`. Calling it earlier
- * causes a 404 path that lingers as the cached state and prevents the query
- * from naturally fetching when the session later transitions to stopped.
- */
-export function useSessionLedger(
-  id: string,
-  workspace?: string | null,
-  options?: UseSessionLedgerOptions
-) {
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
-  const query = useQuery(sessionLedgerOptions(workspaceId, id, options));
-  return {
-    ...query,
-    availability:
-      query.error instanceof SessionLedgerUnavailableError ? query.error.reason : undefined,
-  };
 }
 
 export function useSessionRecap(id: string, workspace?: string | null, limit?: number) {

@@ -1,10 +1,8 @@
 import { useExtensionInventory } from "@/systems/extensions";
-import { useMemories } from "@/systems/knowledge";
 import { useMarketplaceCatalog } from "@/systems/marketplace";
 import { useVaultSecrets } from "@/systems/vault";
 
 import {
-  knowledgeRoute,
   marketplaceEntryRoute,
   projectVaultRows,
   rowSeed,
@@ -17,7 +15,6 @@ import {
   type OsPaletteDomainContext,
 } from "../lib/os-palette-domain-context";
 import type { OsPaletteWorkspaceCatalogs } from "./use-os-palette-workspace-catalogs";
-import { usePaletteInfiniteCatalog } from "./use-palette-infinite-catalog";
 
 const EMPTY_SECTION = (title: string): OsPaletteDomainSection => ({
   title,
@@ -32,79 +29,10 @@ export function useOsPaletteResourceSections(
   catalogs: OsPaletteWorkspaceCatalogs
 ): readonly OsPaletteDomainSection[] {
   return [
-    useKnowledgeSection(context, catalogs),
     useVaultSection(context),
     useMarketplaceSection(context),
     useExtensionSection(context, catalogs),
   ];
-}
-
-function useKnowledgeSection(
-  context: OsPaletteDomainContext,
-  catalogs: OsPaletteWorkspaceCatalogs
-) {
-  const workspaceEnabled =
-    paletteDomainEnabled(context, "Knowledge") && context.scopedWorkspace !== null;
-  const globalEnabled = paletteDomainEnabled(context, "Knowledge") && context.scope === "global";
-  const globalMemories = useMemories(
-    { profile: context.profile, scope: "profile" },
-    { enabled: globalEnabled }
-  );
-  const workspaceMemories = useMemories(
-    {
-      profile: context.profile,
-      scope: "workspace",
-      workspaceId: context.scopedWorkspace ?? "",
-    },
-    { enabled: workspaceEnabled }
-  );
-  usePaletteInfiniteCatalog(globalMemories, globalEnabled);
-  usePaletteInfiniteCatalog(workspaceMemories, workspaceEnabled);
-  if (context.signals === null) return EMPTY_SECTION("Knowledge");
-  const memories =
-    context.scope === "global"
-      ? [...(globalMemories.data ?? []), ...catalogs.workspaceMemories]
-      : (workspaceMemories.data ?? []);
-  const total =
-    context.scope === "global"
-      ? globalMemories.total + catalogs.workspaceMemoryTotal
-      : workspaceMemories.total;
-  return section(
-    "Knowledge",
-    memories.map(memory =>
-      rowSeed("Knowledge", {
-        key: `knowledge:${memory.scope}:${memory.workspace_id ?? ""}:${memory.filename}`,
-        label: memory.name,
-        detail: memory.description,
-        workspaceLabel: workspaceLabel(context.scope, memory.workspace_id, context.workspaceNames),
-        app: "knowledge",
-        route: knowledgeRoute({
-          filename: memory.filename,
-          scope: memory.scope === "workspace" ? "workspace" : "global",
-          workspaceId: memory.workspace_id,
-        }),
-        workspaceId: memory.scope === "workspace" ? memory.workspace_id : undefined,
-      })
-    ),
-    {
-      isLoading:
-        context.scope === "global"
-          ? globalMemories.isLoading || catalogs.workspaceMemoryState.isLoading
-          : workspaceMemories.isLoading,
-      isError:
-        context.scope === "global"
-          ? globalMemories.isError || catalogs.workspaceMemoryState.isError
-          : workspaceMemories.isError,
-      error:
-        context.scope === "global"
-          ? (globalMemories.error ?? catalogs.workspaceMemoryState.error)
-          : workspaceMemories.error,
-    },
-    paletteDomainEnabled(context, "Knowledge"),
-    context.query,
-    context.signals,
-    { limit: context.domainLimit, catalogTotal: total }
-  );
 }
 
 function useVaultSection(context: OsPaletteDomainContext) {

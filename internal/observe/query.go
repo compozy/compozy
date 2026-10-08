@@ -1,17 +1,14 @@
 package observe
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
-	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 // QueryEvents returns cross-session event summaries ordered for CLI/API consumption.
@@ -24,130 +21,12 @@ func (o *Observer) QueryEvents(ctx context.Context, query store.EventSummaryQuer
 		return nil, err
 	}
 
-	o.mu.RLock()
-	memorySource := o.memoryEventSource
-	o.mu.RUnlock()
-	if memorySource == nil || strings.TrimSpace(query.SessionID) != "" || strings.TrimSpace(query.WorktreeID) != "" {
-		return events, nil
-	}
-
-	workspaces, err := o.memoryEventWorkspaces(ctx, query.ReadScope, query.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	memoryQuery, err := memoryEventQueryForWorkspaces(ctx, query, workspaces)
-	if err != nil {
-		return nil, err
-	}
-	memoryEvents, err := memorySource.ListMemoryEventSummaries(ctx, workspaces, memoryQuery)
-	if err != nil {
-		return nil, fmt.Errorf("observe: query memory events: %w", err)
-	}
-
-	events = append(filterRegistryMemoryEvents(events), memoryEvents...)
-	sortEventSummaries(events)
-	return clampEventSummaries(events, query.Limit), nil
+	return events, nil
 }
 
 // QueryTokenStats returns aggregated per-session token usage rows.
 func (o *Observer) QueryTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error) {
 	return o.registry.ListTokenStats(ctx, query)
-}
-
-func (o *Observer) memoryEventWorkspaces(
-	ctx context.Context,
-	readScope store.ReadScope,
-	workspaceID string,
-) ([]string, error) {
-	if o.workspaceResolver == nil {
-		return nil, nil
-	}
-	if trimmedWorkspaceID := strings.TrimSpace(workspaceID); trimmedWorkspaceID != "" {
-		resolved, err := o.workspaceResolver.Resolve(ctx, trimmedWorkspaceID)
-		if err != nil {
-			return nil, fmt.Errorf("observe: resolve memory event workspace %q: %w", trimmedWorkspaceID, err)
-		}
-		if root := strings.TrimSpace(resolved.RootDir); root != "" {
-			return []string{root}, nil
-		}
-		return nil, nil
-	}
-	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{ReadScope: readScope})
-	if err != nil {
-		return nil, fmt.Errorf("observe: list sessions for memory event workspaces: %w", err)
-	}
-	seen := make(map[string]struct{})
-	workspaces := make([]string, 0, len(sessions))
-	for _, session := range sessions {
-		workspaceID := strings.TrimSpace(session.WorkspaceID)
-		if workspaceID == "" {
-			continue
-		}
-		if _, exists := seen[workspaceID]; exists {
-			continue
-		}
-		seen[workspaceID] = struct{}{}
-		resolved, err := o.workspaceResolver.Resolve(ctx, workspaceID)
-		if err != nil {
-			return nil, fmt.Errorf("observe: resolve memory event workspace %q: %w", workspaceID, err)
-		}
-		if root := strings.TrimSpace(resolved.RootDir); root != "" {
-			workspaces = append(workspaces, root)
-		}
-	}
-	return workspaces, nil
-}
-
-func filterRegistryMemoryEvents(events []store.EventSummary) []store.EventSummary {
-	filtered := events[:0]
-	for _, event := range events {
-		if strings.HasPrefix(strings.TrimSpace(event.Type), "memory.") {
-			continue
-		}
-		filtered = append(filtered, event)
-	}
-	return filtered
-}
-
-func sortEventSummaries(events []store.EventSummary) {
-	slices.SortStableFunc(events, func(a, b store.EventSummary) int {
-		return cmp.Or(
-			a.Timestamp.UTC().Compare(b.Timestamp.UTC()),
-			cmp.Compare(a.Sequence, b.Sequence),
-			cmp.Compare(a.ID, b.ID),
-		)
-	})
-}
-
-func clampEventSummaries(events []store.EventSummary, limit int) []store.EventSummary {
-	if limit <= 0 || len(events) <= limit {
-		return events
-	}
-	return append([]store.EventSummary(nil), events[len(events)-limit:]...)
-}
-
-func memoryEventQueryForWorkspaces(
-	ctx context.Context,
-	query store.EventSummaryQuery,
-	workspaces []string,
-) (store.EventSummaryQuery, error) {
-	if strings.TrimSpace(query.WorkspaceID) == "" || len(workspaces) != 1 {
-		return query, nil
-	}
-	workspaceRoot := strings.TrimSpace(workspaces[0])
-	if workspaceRoot == "" {
-		return query, nil
-	}
-	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
-	if err != nil {
-		return store.EventSummaryQuery{}, fmt.Errorf(
-			"observe: resolve memory event workspace identity %q: %w",
-			workspaceRoot,
-			err,
-		)
-	}
-	query.WorkspaceID = identity.WorkspaceID
-	return query, nil
 }
 
 // QueryPermissionLog returns permission audit rows.

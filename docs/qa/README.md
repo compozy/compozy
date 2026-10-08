@@ -21,7 +21,7 @@ Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-executi
 | RT | Runtime & sessions (daemon, session lifecycle, providers) |
 | TA | Tasks & automation (task runs, leases, scheduling, loops) |
 | ET | Extensibility & tools (extensions, hooks, skills, registries, bundles) |
-| MS | Memory & settings (memory, config lifecycle, environment) |
+| MS | Settings (config lifecycle, roles, providers, vault, environment) |
 | LP | Loops (workflow runs, catalog, configure/fork, editor) |
 | GL | Goal (conversational convergence, controls, context, recovery) |
 | REL | Release and distribution (installers, registries, channels, provenance) |
@@ -65,3 +65,17 @@ Sandbox work. Dedicated retired plans were removed. Dated reports, retained bug 
 receipts, and mixed `_seeds/` research record historical observations only; they are not a current
 capability catalog or an executable release plan. Use `scenarios/` for current coverage. The two
 retirement canaries are `ET-retired-product-surfaces-absent` and `RT-authored-context-lifecycle`.
+
+### Product retirement — memory (2026-10-07)
+
+Agent memory, Dream consolidation, the Knowledge app and workspace knowledge injection, and CompozyOS-side
+session compaction (pressure compaction, checkpoint summaries, archived spans) are retired. Their dedicated
+scenarios (`MS-001..MS-024`, `MS-026`, `MS-059`, and the memory-named `MS-`, `RT-`, and `TA-` scenarios), journeys
+(`J-25` and three memory journeys), and charters (including `CH-039`) were deleted; mixed scenarios, journeys, and
+charters were rewritten in place, and the compaction scenarios now cover the replacement behavior (bounded
+rebuilds, observed agent compaction, Compact now). `MS-025` and `MS-027..MS-058` stay: they are settings, vault,
+model, and support scenarios. The `MS` code and the retired ids are never reused. The retirement canary is
+`ET-retired-product-surfaces-absent` (extended with the memory legs); the upgrade walk is
+`RT-upgrade-memory-removal-home`. Dated reports, bug receipts, `_seeds/`, and `evidence/` that mention memory,
+Dream, Knowledge, or compaction record historical observations only; they are not a current capability catalog
+or an executable plan.

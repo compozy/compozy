@@ -31,7 +31,6 @@ const (
 	toolTaskList    = "compozy__task_list"
 	toolTaskRead    = "compozy__task_read"
 	toolTaskUpdate  = "compozy__task_update"
-	toolMemoryStore = "compozy__memory_store"
 	toolLoopStatus  = "compozy__loop_status"
 	toolKindRead    = "read"
 	toolKindEdit    = "edit"

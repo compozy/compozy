@@ -939,20 +939,19 @@ func TestStringifyEnvelopeValueHandlesScalarKindsAndFallbacks(t *testing.T) {
 func TestTriggerObserversHandleNilReceiversAndAgentEvents(t *testing.T) {
 	t.Parallel()
 
-	var sessionObserver *triggerSessionObserver
-	sessionObserver.OnSessionCreated(testutil.Context(t), nil)
-	sessionObserver.OnSessionStopped(testutil.Context(t), nil)
-	sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
+	t.Run("Should tolerate nil session and hook observers", func(t *testing.T) {
+		t.Parallel()
 
-	var hookSink *triggerHookTelemetrySink
-	if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
-		t.Fatalf("WriteHookRecord(nil engine) error = %v", err)
-	}
+		var sessionObserver *triggerSessionObserver
+		sessionObserver.OnSessionCreated(testutil.Context(t), nil)
+		sessionObserver.OnSessionStopped(testutil.Context(t), nil)
+		sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
 
-	var memoryObserver *triggerMemoryObserver
-	if err := memoryObserver.OnMemoryConsolidated(testutil.Context(t), MemoryConsolidatedEvent{}); err != nil {
-		t.Fatalf("OnMemoryConsolidated(nil engine) error = %v", err)
-	}
+		var hookSink *triggerHookTelemetrySink
+		if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
+			t.Fatalf("WriteHookRecord(nil engine) error = %v", err)
+		}
+	})
 }
 
 func TestTriggerEngineRejectsWebhookScopeMismatchAndDuplicateWebhookID(t *testing.T) {

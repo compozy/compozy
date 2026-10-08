@@ -33,7 +33,6 @@ describe("trigger-catalog", () => {
     const groups = listEventGroups();
     expect(groups.map(bucket => bucket.group)).toEqual([
       "Session lifecycle",
-      "Memory",
       "Hooks",
       "External",
       "Extensions",

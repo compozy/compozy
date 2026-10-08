@@ -7,12 +7,8 @@ import { useSessionCatalog } from "../use-session-catalog";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import { sessionCatalogOptions } from "../../lib/session-catalog-options";
 import { sessionKeys } from "../../lib/query-keys";
-import { useSession, useSessionById, useSessionLedger, useSessions } from "../use-sessions";
-import {
-  fetchSessionLedger,
-  SessionLedgerUnavailableError,
-  fetchSessions,
-} from "../../adapters/session-api";
+import { useSession, useSessionById, useSessions } from "../use-sessions";
+import { fetchSessions } from "../../adapters/session-api";
 import { fetchSessionById } from "../../adapters/session-owner-api";
 import { useSessionContext, useSessionUsageTurns } from "../use-session-context";
 import { fetchSessionUsage, fetchSessionUsageTurns } from "../../adapters/session-api";
@@ -23,8 +19,7 @@ import {
 } from "../../mocks/context-fixtures";
 import type { SessionUsagePayload } from "../../types";
 
-vi.mock("../../adapters/session-api", async importOriginal => ({
-  fetchSessionLedger: vi.fn(),
+vi.mock("../../adapters/session-api", () => ({
   fetchSessionRecap: vi.fn(),
   fetchSessionUsage: vi.fn(),
   fetchSessionUsageTurns: vi.fn(),
@@ -43,9 +38,6 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
       this.name = "SessionApiError";
     }
   },
-  SessionLedgerUnavailableError: (
-    await importOriginal<typeof import("../../adapters/session-api")>()
-  ).SessionLedgerUnavailableError,
   SessionNotFoundError: class SessionNotFoundError extends Error {
     constructor(public readonly sessionId: string) {
       super(`Session not found: ${sessionId}`);
@@ -389,48 +381,14 @@ describe("useSessionById", () => {
   });
 });
 
-describe("session ledger availability projection", () => {
-  it.each(["not-materialized", "unsupported"] as const)(
-    "Should expose %s independently of the adapter error",
-    async reason => {
-      vi.mocked(fetchSessionLedger).mockRejectedValue(
-        new SessionLedgerUnavailableError("sess-001", reason)
-      );
-      const { result } = renderHook(() => useSessionLedger("sess-001", "ws_alpha"), {
-        wrapper: createWrapper(),
-      });
-      await waitFor(() => expect(result.current.availability).toBe(reason));
-      expect(result.current.isLoading).toBe(false);
-    }
-  );
-
-  it("Should retain unexpected ledger read failures as errors", async () => {
-    // The query owns retry/error projection; advance its delay without a real wait.
-    vi.useFakeTimers();
-    const error = new Error("ledger materializer crashed");
-    vi.mocked(fetchSessionLedger).mockRejectedValue(error);
-    const { result, unmount } = renderHook(() => useSessionLedger("sess-001", "ws_alpha"), {
-      wrapper: createWrapper(),
-    });
-    try {
-      await act(() => vi.advanceTimersByTimeAsync(1_100));
-      expect(result.current.error).toBe(error);
-      expect(result.current.availability).toBeUndefined();
-    } finally {
-      unmount();
-      vi.useRealTimers();
-    }
-  });
-});
-
-// Invariant: the usage read alone owns context; ledger sequence fences observations while equal-sequence policy and attribution remain live.
+// Invariant: the usage read alone owns context; ledger sequence fences observations while equal-sequence attribution remains live.
 // Owner and canonical suite: session query hooks; HTTP responses are supplied at the adapter I/O boundary.
 
 describe("Session context query projection", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
-  it("Should retain sequenced observations, refresh attribution and policy, and survive unavailable reads", async () => {
+  it("Should retain sequenced observations, refresh attribution, and survive unavailable reads", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const key = sessionKeys.usage("ws", "session");
     const wrapper = ({ children }: { children: ReactNode }) =>
@@ -449,7 +407,7 @@ describe("Session context query projection", () => {
       ...sessionContextUsageFixture,
       context: { ...sessionContextUsageFixture.context, used: 225_280, ratio: 0.88, sequence: 500 },
     });
-    await waitFor(() => expect(result.current.context.warning).toBe(true));
+    await waitFor(() => expect(result.current.context.ratio).toBe(0.88));
     await update({
       ...sessionContextUsageFixture,
       cache_read_tokens: 900,
@@ -457,18 +415,16 @@ describe("Session context query projection", () => {
         ...sessionContextUsageFixture.context,
         sequence: 499,
         injected: { estimate: "bytes_div_4", rows: [], tokens: 999, stale: false },
-        pressure_threshold: 0.9,
       },
     });
     await waitFor(() => expect(result.current.context.injected?.tokens).toBe(999));
     expect(result.current.context.ratio).toBe(0.88);
-    expect(result.current.context.warning).toBe(false);
     expect(result.current.usage?.cache_read_tokens).toBe(900);
     await update({
       ...sessionContextUsageFixture,
-      context: { ...sessionContextUsageFixture.context, sequence: 500, pressure_threshold: 0.8 },
+      context: { ...sessionContextUsageFixture.context, sequence: 500 },
     });
-    await waitFor(() => expect(result.current.context.warning).toBe(true));
+    await waitFor(() => expect(result.current.context.injected?.tokens).toBe(12_400));
     expect(result.current.context.used).toBe(225_280);
     await update({
       ...sessionContextUsageFixture,

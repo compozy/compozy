@@ -13,7 +13,6 @@ import (
 
 	"time"
 
-	modelpkg "github.com/compozy/compozy/internal/automation/model"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 )
@@ -113,29 +112,6 @@ func sessionEnvelope(kind string, sess *session.Session) (ActivationEnvelope, er
 		Source:      ActivationSourceObserver,
 		Data:        data,
 	}, nil
-}
-
-func memoryConsolidatedEnvelope(event MemoryConsolidatedEvent) (ActivationEnvelope, error) {
-	workspaceID := strings.TrimSpace(event.WorkspaceID)
-	data := cloneAnyMap(event.Data)
-	if data == nil {
-		data = make(map[string]any)
-	}
-	if !event.Timestamp.IsZero() {
-		data[triggerCompletedAtKey] = event.Timestamp.UTC().Format(time.RFC3339Nano)
-	}
-	if workspaceID != "" {
-		data[triggerWorkspaceIDKey] = workspaceID
-	}
-
-	envelope := ActivationEnvelope{
-		Kind:        modelpkg.TriggerEventMemoryConsolidated,
-		Scope:       scopeFromWorkspaceID(workspaceID),
-		WorkspaceID: workspaceID,
-		Source:      ActivationSourceObserver,
-		Data:        data,
-	}
-	return envelope, envelope.Validate("envelope")
 }
 
 func webhookEnvelope(request WebhookRequest, trigger Trigger) (ActivationEnvelope, error) {

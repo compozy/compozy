@@ -1,8 +1,8 @@
 /**
  * Status-to-tone dictionaries for the core status-tone vocabulary.
  *
- * Three exhaustive `Record<...>` maps consumed by Tasks, Knowledge,
- * Automation, and other system formatters. `as const satisfies Record<Key, PillTone>`
+ * Three exhaustive `Record<...>` maps consumed by Tasks, Automation, and
+ * other system formatters. `as const satisfies Record<Key, PillTone>`
  * gives compile-time exhaustiveness against the local key types: if a new task
  * status surfaces in the UI, `make bun-typecheck` fails on the dictionary until
  * the entry is added.

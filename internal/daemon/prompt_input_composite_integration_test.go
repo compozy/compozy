@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/situation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -31,7 +31,6 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 	cfg := testConfig(t, homePaths)
 	workspaceRoot := homePaths.HomeDir + "/workspace"
 	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
-	writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
 
 	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
@@ -55,8 +54,6 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 		nil,
 		append(
 			defaultPromptInputAugmenterDescriptors(
-				situation.WorkspaceKnowledgeAugmenter,
-				memory.NewRecallAugmenter(daemonInstance.memoryStore),
 				newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, nil, func() promptSkillsWorkspaceResolver {
 					return workspaceResolver
 				}, nil),
@@ -120,9 +117,7 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 	}
 	drainHarnessIntegrationEvents(userEvents)
 
-	if got := driver.promptCalls[0].Message; !strings.Contains(got, "Relevant durable memory for this turn:") {
-		t.Fatalf("user prompt message = %q, want durable memory recall", got)
-	} else if !strings.Contains(got, "<current-available-skills>") {
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<current-available-skills>") {
 		t.Fatalf("user prompt message = %q, want current skills catalog", got)
 	} else if !strings.Contains(got, "SUFFIX CONTEXT") {
 		t.Fatalf("user prompt message = %q, want suffix augmenter output", got)
@@ -148,8 +143,7 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 	if !strings.Contains(storedMessages[0], `"text":"workspace note"`) {
 		t.Fatalf("stored user message = %q, want canonical user input", storedMessages[0])
 	}
-	if strings.Contains(storedMessages[0], "Relevant durable memory for this turn:") ||
-		strings.Contains(storedMessages[0], "SUFFIX CONTEXT") {
+	if strings.Contains(storedMessages[0], "SUFFIX CONTEXT") {
 		t.Fatalf("stored user message = %q, want no augmenter content", storedMessages[0])
 	}
 	if !strings.Contains(storedMessages[1], `"text":"follow-up note"`) {
@@ -160,103 +154,178 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 	}
 }
 
-func TestPromptInputCompositeIntegrationRefreshesWorkspaceKnowledgeOnSyntheticWake(t *testing.T) {
-	t.Run("Should deliver current confined knowledge bytes on every synthetic wake", func(t *testing.T) {
+// Invariant: workspace files stay uninjected in both user and synthetic deliveries.
+// Owner: daemon prompt composition; canonical suite: prompt_input_composite integration.
+func TestPromptInputCompositeIntegrationWorkspaceFilesRemainUserOwned(t *testing.T) {
+	t.Run("Should deliver user and synthetic inputs without workspace knowledge [IT-010]", func(t *testing.T) {
+		driverPath := acpmock.RequireDriver(t)
 		homePaths := integrationHomePaths(t)
 		cfg := testConfig(t, homePaths)
 		workspaceRoot := filepath.Join(homePaths.HomeDir, "workspace")
 		resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
-		knowledgePath := filepath.Join(workspaceRoot, "knowledge", "workspace", "bench-harness-status.md")
-		writePromptKnowledgeFile(t, knowledgePath, "baseline_ms: 410\ncandidate_ms: 410\n")
-
+		writePromptKnowledgeFile(t, filepath.Join(workspaceRoot, "knowledge", "notes.md"), "WORKSPACE_NOTE_SENTINEL")
 		daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 		t.Cleanup(func() {
 			if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-				t.Errorf("Shutdown() error = %v", err)
+				t.Errorf("Shutdown(): %v", err)
 			}
 		})
-
-		driver := newHarnessIntegrationDriver()
 		if err := daemonInstance.registry.InsertWorkspace(
 			testutil.Context(t),
 			resolvedWorkspace.Workspace,
 		); err != nil {
-			t.Fatalf("InsertWorkspace() error = %v", err)
+			t.Fatal(err)
 		}
-		manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver,
+		diagnostics := filepath.Join(t.TempDir(), "prompts.jsonl")
+		command := acpmock.BuildCommand(
+			driverPath,
+			mockFixturePath(t, "agent_roles_fixture.json"),
+			"role-agent",
+			diagnostics,
+		)
+		resolvedWorkspace.Config.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
+		resolvedWorkspace.Agents[0].Provider = acpmock.ProviderName
+		resolvedWorkspace.Agents[0].Model = "auto-title-model-v1"
+		driver := session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(daemonInstance.providerPreStarter)))
+		manager := newHarnessIntegrationManager(
+			t,
+			homePaths,
+			capturedDeps,
+			resolvedWorkspace,
+			driver,
 			session.WithSessionCatalog(capturedDeps.SessionCatalog),
 			session.WithSessionInputQueueStore(capturedDeps.SessionInputQueue),
 			session.WithSessionPromptAdmissionStore(capturedDeps.SessionPromptAdmission),
 		)
-		created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-			AgentName: resolvedWorkspace.Agents[0].Name,
-			Name:      "knowledge-worker",
-			Workspace: resolvedWorkspace.ID,
-			Type:      session.SessionTypeSystem,
-		})
+		created, err := manager.Create(
+			testutil.Context(t),
+			session.CreateOpts{AgentName: resolvedWorkspace.Agents[0].Name, Workspace: resolvedWorkspace.ID},
+		)
 		if err != nil {
-			t.Fatalf("Create() error = %v", err)
+			t.Fatal(err)
 		}
 		t.Cleanup(func() {
 			if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
-				t.Errorf("Stop() error = %v", err)
+				t.Errorf("Stop(): %v", err)
 			}
 		})
-
-		firstEvents, err := manager.PromptSynthetic(
+		user, err := manager.Prompt(testutil.Context(t), created.ID, "inspect the workspace")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drainHarnessIntegrationEvents(user)
+		synthetic, err := manager.PromptSynthetic(
 			testutil.Context(t),
 			created.ID,
 			session.SyntheticPromptOpts{
-				Message: "inspect the current benchmark",
-				Metadata: acp.PromptSyntheticMeta{
-					TaskRunID: "run-bench-1",
-					Reason:    "task_run_ready",
-				},
+				Message:  "continue the task",
+				Metadata: acp.PromptSyntheticMeta{TaskRunID: "run-1", Reason: "task_run_ready"},
 			},
 		)
 		if err != nil {
-			t.Fatalf("PromptSynthetic(first) error = %v", err)
+			t.Fatal(err)
 		}
-		drainHarnessIntegrationEvents(firstEvents)
-		if got := driver.promptCalls[0].Message; !strings.Contains(got, `candidate_ms: 410\n`) {
-			t.Fatalf("first synthetic prompt = %q, want initial knowledge bytes", got)
+		drainHarnessIntegrationEvents(synthetic)
+		records, err := acpmock.ReadDiagnostics(diagnostics)
+		if err != nil {
+			t.Fatal(err)
 		}
+		prompts := acpmock.PromptDiagnostics(records)
+		if len(prompts) != 2 {
+			t.Fatalf("prompt calls = %d, want user and synthetic", len(prompts))
+		}
+		for _, prompt := range prompts {
+			if strings.Contains(prompt.Prompt, "<workspace-knowledge-snapshot>") ||
+				strings.Contains(prompt.Prompt, "WORKSPACE_NOTE_SENTINEL") {
+				t.Fatalf("delivered prompt = %q", prompt.Prompt)
+			}
+		}
+		deliveries, err := manager.Deliveries(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(deliveries) != 2 {
+			t.Fatalf("delivery ledger = %#v, want two receipts", deliveries)
+		}
+		for _, delivery := range deliveries {
+			for _, span := range delivery.Manifest.Spans {
+				if span.Key == "knowledge" {
+					t.Fatalf("knowledge delivery span = %#v", span)
+				}
+			}
+		}
+	})
+}
 
-		writePromptKnowledgeFile(t, knowledgePath, "baseline_ms: 410\ncandidate_ms: 500\n")
-		outsideSecretPath := filepath.Join(t.TempDir(), "outside-secret.md")
-		writePromptKnowledgeFile(t, outsideSecretPath, "OUTSIDE_WORKSPACE_SECRET")
-		if err := os.Symlink(
-			outsideSecretPath,
-			filepath.Join(filepath.Dir(knowledgePath), "escaped.md"),
-		); err != nil {
-			t.Fatalf("Symlink() error = %v", err)
+// Invariant: retired SOUL metadata never prevents session startup or hides active persona.
+// Owner: daemon session startup; canonical suite: prompt_input_composite integration.
+func TestPromptInputCompositeIntegrationSoulRetiredPolicy(t *testing.T) {
+	t.Run("Should start with retained soul content and no retired policy diagnostic [IT-005]", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		workspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, filepath.Join(homePaths.HomeDir, "workspace"))
+		agentPath := filepath.Join(workspace.RootDir, ".compozy", "agents", "coder", "AGENT.md")
+		writePromptKnowledgeFile(t, agentPath, "# Coder")
+		writePromptKnowledgeFile(
+			t,
+			filepath.Join(filepath.Dir(agentPath), "SOUL.md"),
+			"---\nrole: Reviewer\nprinciples: [protect correctness]\nmemory_policy: [keep notes]\n---\nKeep the persona.",
+		)
+		workspace.Agents[0].SourcePath = agentPath
+		daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+		t.Cleanup(func() {
+			if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown(): %v", err)
+			}
+		})
+		if err := daemonInstance.registry.InsertWorkspace(testutil.Context(t), workspace.Workspace); err != nil {
+			t.Fatal(err)
 		}
-
-		secondEvents, err := manager.PromptSynthetic(
+		driver := newHarnessIntegrationDriver()
+		manager := newHarnessIntegrationManager(
+			t,
+			homePaths,
+			deps,
+			workspace,
+			driver,
+			session.WithSoulSnapshotStore(deps.SoulStore),
+		)
+		created, err := manager.Create(
 			testutil.Context(t),
-			created.ID,
-			session.SyntheticPromptOpts{
-				Message: "continue the benchmark review",
-				Metadata: acp.PromptSyntheticMeta{
-					TaskRunID: "run-bench-1",
-					Reason:    "task_run_progress",
-				},
-			},
+			session.CreateOpts{AgentName: "coder", Workspace: workspace.ID},
 		)
 		if err != nil {
-			t.Fatalf("PromptSynthetic(second) error = %v", err)
+			t.Fatal(err)
 		}
-		drainHarnessIntegrationEvents(secondEvents)
-
-		got := driver.promptCalls[1].Message
-		if !strings.Contains(got, `candidate_ms: 500\n`) {
-			t.Fatalf("second synthetic prompt = %q, want refreshed knowledge bytes", got)
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Errorf("Stop(): %v", err)
+			}
+		})
+		output, err := manager.Prompt(testutil.Context(t), created.ID, "review the change")
+		if err != nil {
+			t.Fatal(err)
 		}
-		if strings.Contains(got, `candidate_ms: 410\n`) {
-			t.Fatalf("second synthetic prompt = %q, want no stale knowledge bytes", got)
+		drainHarnessIntegrationEvents(output)
+		prompt := driver.startCalls[0].SystemPrompt
+		for _, content := range []string{"<compozy-agent-soul>", "Role: Reviewer", "protect correctness", "Keep the persona."} {
+			if !strings.Contains(prompt, content) {
+				t.Fatalf("startup prompt = %q, want %q", prompt, content)
+			}
 		}
-		if strings.Contains(got, "OUTSIDE_WORKSPACE_SECRET") {
-			t.Fatalf("second synthetic prompt = %q, want symlink target excluded", got)
+		if strings.Contains(prompt, "Memory policy") || strings.Contains(prompt, "keep notes") {
+			t.Fatalf("startup prompt = %q", prompt)
+		}
+		snapshot, err := deps.SoulStore.GetSoulSnapshot(testutil.Context(t), created.Info().SoulSnapshotID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		profile, err := snapshot.ProfileEnvelope()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(profile.Diagnostics) != 0 {
+			t.Fatalf("SOUL diagnostics = %#v", profile.Diagnostics)
 		}
 	})
 }

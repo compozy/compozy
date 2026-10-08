@@ -545,7 +545,7 @@
   /* Forms / dialog body sizing. */
   --height-editor-footer: 52px;
   --width-detail-inspector-inline: 320px;
-  /* Key/value gutter — ContextBox + MetadataList converge on 140. */
+  /* Key/value gutter — MetadataList label column. */
   --width-kv-label: 140px;
 
   /* Table cell width ladder — recurring max-width cells across detail panels. */

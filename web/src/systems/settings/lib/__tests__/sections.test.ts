@@ -18,7 +18,6 @@ describe("settings sections metadata", () => {
       "layouts",
       "profiles",
       "providers",
-      "memory",
       "roles",
       "skills",
       "mcp",
@@ -52,7 +51,7 @@ describe("settings sections metadata", () => {
   });
 
   it("looks sections up by slug", () => {
-    expect(findSettingsSection("memory")?.label).toBe("Memory");
+    expect(findSettingsSection("roles")?.label).toBe("Roles");
     expect(findSettingsSection("terminal")?.label).toBe("Terminal");
     expect(findSettingsSection("nope")).toBeUndefined();
     expect(findSettingsSection(null)).toBeUndefined();

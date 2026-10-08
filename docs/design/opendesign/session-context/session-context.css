@@ -22,7 +22,7 @@
 /* ============ 01 · SessionContextControl (composer left cluster) ============
    production host: session-composer-action-row.tsx left cluster after environmentControl.
    Ghost icon Button, 24×24 (btn--xs btn--icon), one 16px SVG ring. Track = line,
-   progress = fg; warning tone only at ratio ≥ pressure_threshold; unknown = dashed
+   progress = fg; no warning tone (CompozyOS has no compaction threshold); unknown = dashed
    track, no arc; used-only = solid track, no arc, faint dot; stale = dotted arc. */
 .session-context-control{position:relative;display:inline-grid;place-items:center;width:24px;height:24px;flex:none;border-radius:var(--radius);color:var(--muted)}
 .session-context-control:hover,.session-context-control:focus-visible{background:var(--ghost-hover);color:var(--fg)}
@@ -30,8 +30,6 @@
 .session-context-control__ring{width:var(--sc-ring);height:var(--sc-ring);display:block;transform:rotate(-90deg)}
 .session-context-control__ring .track{fill:none;stroke:var(--line-strong);stroke-width:2}
 .session-context-control__ring .arc{fill:none;stroke:var(--fg);stroke-width:2;stroke-linecap:round;stroke-dasharray:40.84;stroke-dashoffset:calc(40.84 * (1 - var(--ratio,0)));transition:stroke-dashoffset var(--dur-slow) var(--ease)}
-.session-context-control[data-state="warning"] .arc{stroke:var(--warning)}
-.session-context-control[data-state="warning"]{color:var(--warning)}
 .session-context-control[data-state="unknown"] .track{stroke-dasharray:2 2.2;stroke:var(--faint)}
 .session-context-control[data-state="unknown"] .arc{display:none}
 .session-context-control[data-state="used-only"] .arc{display:none}
@@ -56,8 +54,6 @@
 .session-context-tip__row{display:flex;align-items:center;gap:6px;color:var(--subtle)}
 .session-context-tip__row .pill{flex:none}
 .session-context-tip__row .sep{color:var(--faint)}
-.session-context-tip__row[data-kind="warning"]{color:var(--warning)}
-.session-context-tip__row[data-kind="warning"] svg{width:12px;height:12px;flex:none}
 .session-context-tip__sentence{color:var(--muted);text-wrap:pretty}
 .session-context-tip--unknown .session-context-tip__num b{font-weight:510;color:var(--fg)}
 
@@ -84,16 +80,14 @@
 /* ============ 04 · SessionContextMeterSection ============
    headline: percent (kpi compact 17px, tabular) + "used / size" mono + state Pill xs;
    bar: StackedProgress h-1.5 (6px) rounded-pill on canvas-tint, segments accent /
-   neutral / (track = free); threshold tick 1px warning at pressure_threshold;
+   neutral / (track = free);
    legend: StatusBreakdown-style rows (label · bar · value). */
 .session-context-meter__headline{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .session-context-meter__pct{font-size:var(--text-kpi-compact);font-weight:620;letter-spacing:var(--track-tight);line-height:1;color:var(--fg-strong);font-variant-numeric:tabular-nums}
-.session-context-meter__pct[data-tone="warning"]{color:var(--warning)}
 .session-context-meter__pct[data-tone="unknown"]{font-size:var(--text-small-body);font-weight:510;color:var(--fg)}
 .session-context-meter__nums{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--muted);font-variant-numeric:tabular-nums}
 .session-context-meter__chip{margin-left:auto}
 .session-context-meter__line{position:relative;display:flex;align-items:center;gap:6px;font-size:var(--text-micro);color:var(--subtle)}
-.session-context-meter__line[data-kind="warning"]{color:var(--warning)}
 .session-context-meter__line svg{width:11px;height:11px;flex:none}
 .stacked-progress{position:relative;display:flex;height:6px;width:100%;overflow:visible;border-radius:var(--radius-pill);background:var(--canvas-tint)}
 .stacked-progress__seg{height:100%}
@@ -101,7 +95,6 @@
 .stacked-progress__seg[data-tone="accent"]{background:var(--accent)}
 .stacked-progress__seg[data-tone="neutral"]{background:var(--neutral)}
 .stacked-progress__seg[data-tone="warning"]{background:var(--warning)}
-.stacked-progress__tick{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--warning);opacity:.9}
 .status-breakdown{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
 .status-breakdown__row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;font-size:var(--text-form);color:var(--muted)}
 .status-breakdown__row .lbl{display:inline-flex;align-items:center;gap:7px;min-width:0}
@@ -150,7 +143,7 @@
 
 /* ============ 07 · SessionContextTurnsSection ============
    rows newest first: turn id (mono) · used/size · in/out · cost; marker row for
-   session.compaction_fired; "Show earlier turns" ghost button after 50. */
+   an observed agent compaction (session.compaction_fired); "Show earlier turns" ghost button after 50. */
 .session-context-turns{position:relative;display:flex;flex-direction:column;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas)}
 .session-context-turns__row{position:relative;display:grid;grid-template-columns:60px minmax(0,1fr) auto;align-items:center;gap:8px;padding:7px 10px;font-size:var(--text-form);color:var(--muted)}
 .session-context-turns__row + .session-context-turns__row,.session-context-turns__row + .session-context-turns__marker,.session-context-turns__marker + .session-context-turns__row{border-top:1px solid var(--line-soft)}

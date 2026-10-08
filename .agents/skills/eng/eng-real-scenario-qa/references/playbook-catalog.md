@@ -1,7 +1,7 @@
 # Real-Scenario QA Playbook Catalog
 
 Select exactly one startup project per real-scenario run. Bootstrap materializes
-its workspaces, knowledge, agents, and open task tree; the operator posts one
+its workspaces, agents, and open task tree; the operator posts one
 in-persona kickoff; the runtime drives the work; the auditor verifies real
 deliverables, collaboration, and disruption recovery.
 
@@ -39,14 +39,13 @@ is infrastructure for other QA flows, not real-scenario evidence.
 4. Make every `kickoff_brief` and agent `system_prompt` in-persona and compliant
    with `references/forbidden-prompt-phrases.md`.
 5. Require at least four non-Markdown deliverables. Deliver disruption probes
-   through `knowledge_file`, `task_event`, or
-   `config_change`, never a direct agent prompt.
+   through `task_event` or `config_change`, never a direct agent prompt.
 6. Smoke-test bootstrap with a temporary scenario and tear down its emitted
    manifest on every terminal path.
 
 ## Synchronization boundary
 
 `northstar-pay` mirrors the scenario identities used by
-`web/src/storybook/fintech-scenario.ts` and its Knowledge and Workspace fixtures. Synchronization is review-driven: when those identifiers
+`web/src/storybook/fintech-scenario.ts` and its Workspace fixtures. Synchronization is review-driven: when those identifiers
 move, update the playbook in the same change rather than importing Web fixtures
 into the QA loader.

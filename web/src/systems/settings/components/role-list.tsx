@@ -34,7 +34,7 @@ function summarize(roles: readonly RoleViewModel[]): string {
   return off > 0 ? `${roleCount} · ${off} off` : roleCount;
 }
 
-/** The six background roles as one list of disclosure rows. */
+/** The background roles as one list of disclosure rows. */
 export function RoleList({ roles, disclosure, ...panelProps }: RoleListProps) {
   const allExpanded = roles.every(role => disclosure.isOpen(role.role));
 

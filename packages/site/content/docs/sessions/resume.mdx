@@ -214,10 +214,20 @@ session with `compozy session new --parent <session-id>` when you need to contin
 The per-session store is append-only for the CompozyOS session ID. Attach records and transcript markers
 are additional evidence, not replacements for earlier events.
 
-The stopped-session `ledger.jsonl` is a read-only projection, not the source of truth. Before a
-stopped session resumes, CompozyOS removes that projection so new events cannot conflict with stale
-content. The next stop rebuilds it from the complete event store. If provider startup fails, CompozyOS
-restores the stopped-session ledger before returning the failure.
+### Restoring a stopped session rebuilds a bounded context
+
+A normal prompt on an eligible stopped session first tries ACP `session/load`. When the agent cannot
+load its own conversation, CompozyOS starts a fresh agent session and sends the stored transcript as one
+bounded replay. The same bound applies when a runtime or model replacement, an account fallback, or a
+prompt recovery starts a new agent session. The bound is `[session.derive] max_replay_bytes` (default
+131072): the newest messages and the original request are kept, older ones are replaced by an omission
+note, and the agent is told where to read them. See
+[Context compaction](/docs/sessions/compaction#rebuilt-sessions-and-bounded-replay) for the exact block
+and rules.
+
+The replay is only the agent's working context. The stored event log is unchanged, and
+`compozy session events`, `compozy session history`, and the transcript API still return the full
+history.
 
 ### The command name is historical
 
@@ -228,4 +238,5 @@ key off the HTTP operation and response payload, not the English verb in the CLI
 
 - Use [Event Streaming](/docs/sessions/events) to inspect the stored event log and live SSE stream.
 - Use [Session Lifecycle](/docs/sessions/lifecycle) to understand stopped-session continuation and repair.
+- Use [Context compaction](/docs/sessions/compaction) to understand bounded rebuilds and how CompozyOS observes the agent's own compaction.
 - Use [Permissions](/docs/sessions/permissions) to understand what requires approval before and after attach.

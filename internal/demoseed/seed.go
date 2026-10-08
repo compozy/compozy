@@ -109,10 +109,6 @@ func seedScenarioContent(ctx context.Context, db *globaldb.GlobalDB, state *scen
 	if err := seedAutomation(ctx, db, state); err != nil {
 		return Counts{}, err
 	}
-	memories, err := seedMemories(state)
-	if err != nil {
-		return Counts{}, err
-	}
 	worktrees, err := seedWorktree(ctx, db, state)
 	if err != nil {
 		return Counts{}, err
@@ -124,7 +120,7 @@ func seedScenarioContent(ctx context.Context, db *globaldb.GlobalDB, state *scen
 		LoopDefinitions: loops,
 		LoopRuns:        loopCounts.runs, LoopGenerations: loopCounts.generations,
 		LoopRunEvents: loopCounts.events, GoalTurns: loopCounts.goalTurns,
-		Memories: memories, Worktrees: worktrees,
+		Worktrees:      worktrees,
 		AutomationJobs: automationJobCount, AutomationRuns: automationRunCount,
 	}, nil
 }
@@ -160,7 +156,6 @@ func suggestedWebPaths() []string {
 		"/loop-runs",
 		fmt.Sprintf("/loop-runs/%s", loopApprovalRunID),
 		fmt.Sprintf("/loops/%s/editor", loopMarketRollout),
-		"/knowledge",
 		"/tasks?mode=dashboard",
 		fmt.Sprintf("/agents/%s/sessions/%s", agentProductLead, sessionLaunchDecisionID),
 	}

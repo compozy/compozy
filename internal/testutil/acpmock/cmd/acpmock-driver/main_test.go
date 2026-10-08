@@ -47,10 +47,6 @@ func TestExtractPromptTextPreservesAugmentedPromptDiagnostics(t *testing.T) {
 		prompt := "Session instructions\n\n" +
 			"User request:\n\n" +
 			"<compozy-situation-context>{}</compozy-situation-context>\n\n" +
-			"<turn-recall>\n" +
-			"Relevant durable memory for this turn:\n" +
-			"- Auth [workspace]\n" +
-			"</turn-recall>\n\n" +
 			"<user-message>\n" +
 			"hello alpha\n" +
 			"</user-message>"

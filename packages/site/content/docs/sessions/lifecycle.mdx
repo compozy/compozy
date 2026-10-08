@@ -199,7 +199,8 @@ Two operational details matter here:
   accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
 - If a snapshot keeps the same provider, CompozyOS configures the existing ACP session in place when
   the provider exposes the needed live options. A provider or harness change replaces the process
-  and replays the canonical stored transcript into the replacement ACP session.
+  and replays the stored transcript into the replacement ACP session as a
+  [bounded replay](/docs/sessions/compaction#rebuilt-sessions-and-bounded-replay).
 - A Cursor model, Reasoning, Fast, or Thinking change resolves a different private launch alias and
   atomically replaces the process. Public session data continues to expose only the logical model ID.
 - CompozyOS records `user_message` only after runtime binding or reconfiguration succeeds. If binding,
@@ -228,7 +229,9 @@ running, session reads expose:
   `runtime_recovery_exhausted` events
 
 The replacement process first tries ACP `session/load`. When that is unavailable, CompozyOS rebuilds
-context from the durable transcript. It then replays the interrupted turn with its original turn ID;
+context from the durable transcript as a
+[bounded replay](/docs/sessions/compaction#rebuilt-sessions-and-bounded-replay). It then replays the
+interrupted turn with its original turn ID;
 the authored user message is not inserted again. A successful replacement continues the same prompt
 stream. Viewer disconnects remain detached from execution and do not stop recovery.
 
@@ -285,22 +288,6 @@ Each value is `true` only when the agent declared it. Traffic that an agent send
 other than the one bound to the CompozyOS session is dropped and logged, so it never appears in that
 session's transcript.
 
-### Workspace knowledge on live turns
-
-Put workspace-owned reference material under `<workspace>/knowledge/` as Markdown files. Before an
-accepted user or synthetic turn reaches the agent, CompozyOS reopens that tree and adds a
-bounded `<workspace-knowledge-snapshot>` to the prompt. The snapshot carries the current file bytes,
-workspace-relative paths, a revision digest, and omission metadata when a safety limit is reached.
-
-CompozyOS reads regular `.md` files only and does not follow symbolic links. The read stays inside the
-session workspace. A file change does not wake a session by itself; the next eligible turn receives
-the new snapshot. This includes task, task-creator, and Heartbeat wakes, so an active worker does not
-need a second operator prompt to observe a knowledge change.
-
-The snapshot is prompt context, not durable CompozyOS memory. Use the [memory
-system](/docs/memory/system) when the information must be curated, searched, or retained across
-workspaces and sessions.
-
 ### Busy input modes
 
 An active session still processes one prompt turn at a time, but CompozyOS accepts explicit busy-input
@@ -312,7 +299,7 @@ The Web composer is available for active and eligible stopped `user`, `system`, 
 `spawned` sessions. While one of these sessions is busy, the Web controls can queue a prompt, steer
 or interrupt the current turn, or stop generation. These are turn-level controls: daemon-managed
 sessions still do not expose user-session lifecycle actions such as rename, clear, attach, delete,
-or stop session. Dream and hidden maintenance sessions remain read-only in the Web session view.
+or stop session. Hidden maintenance sessions remain read-only in the Web session view.
 
 | Mode        | CLI                                                                             | HTTP shape                                                                                                                                                                                                                 | Result                                                                                                                                                                  |
 | ----------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -413,7 +400,7 @@ Children created with `--parent` (`provenance`), `recovery` sessions, and contin
 rewind like any user session; only governed `spawn` sessions are refused as daemon-managed.
 
 Rewind changes the conversation only. It does not undo file changes, tool effects, network actions,
-saved memory, or external provider actions. Removed events remain archived for audit:
+or external provider actions. Removed events remain archived for audit:
 
 ```bash
 compozy session events sess-1234 --archive archived
@@ -470,7 +457,9 @@ ends with a note that it was not included and that its tools may have partially 
 
 The carried context is stored on the new session and prepended exactly once whenever that session's
 history is rebuilt for an agent: its first prompt, a later provider replacement, a recovery without a
-native session id, or a rewind restart. The first prompt reads:
+native session id, or a rewind restart. Every such rebuild uses the same bounded replay described in
+[Context compaction](/docs/sessions/compaction#rebuilt-sessions-and-bounded-replay). The first prompt
+reads:
 
 ```
 Context rebuilt from log.
@@ -495,8 +484,12 @@ carried as metadata only.
 
 The carried context is bounded by `[session.derive]` (see
 [config.toml](/docs/configuration/config-toml#sessionderive)): `max_replay_bytes` (default 131072) is a
-hard bound and `max_message_bytes` (default 16384) caps each message body. Omissions are stated in the
-context and reported as `truncated` and `omitted_count`.
+hard bound and `max_message_bytes` (default 16384) caps each message body. The newest 8 messages are
+protected while they fit, and the earliest user message stays pinned ahead of the omission note
+`[N earlier messages omitted to fit the context budget]`. Omissions are stated in the context and
+reported as `truncated` and `omitted_count`. When messages were omitted and the new session can call
+`compozy__session_history`, the header also points the agent at the **source** session
+(`session_id: <source id>`) so it can read the earlier messages on demand.
 
 ### Retries
 
@@ -563,7 +556,7 @@ cut turn as `through_turn_id`.
 A cut turn must have settled: it ended with `done`, an error, or a cancellation. A message whose turn
 is still running returns `session_turn_in_progress`; wait or fork from an earlier message. A message
 that is not a durable user message in the session returns `message_not_found`. Messages remain valid
-fork points after compaction or after a rewind followed by new turns; only rewind itself refuses those.
+fork points after a rewind followed by new turns; only rewind itself refuses those.
 `GET …/derive/preview?message_id=…` reports the cut as `cut.turn_id` and `cut.turn_settled` before you
 fork; `message_count` is what the cut carries and `source_message_count` is the whole source.
 
@@ -657,7 +650,7 @@ curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/ar
 ```
 
 Archive is catalog metadata, separate from the session lifecycle state. Only a `stopped` session can
-be archived. Its metadata, events, ledger, runtime selection, and direct read operations remain
+be archived. Its metadata, events, runtime selection, and direct read operations remain
 available. Attach, prompt, and resume operations are rejected while it is archived.
 
 Restore the session to the default catalog before restarting it:
@@ -808,12 +801,9 @@ CompozyOS records why a session exists:
 | Type          | Meaning                                                                  |
 | ------------- | ------------------------------------------------------------------------ |
 | `user`        | Normal interactive work created by a person or client.                   |
-| `dream`       | Background memory consolidation work.                                    |
 | `system`      | Internal CompozyOS-managed work.                                         |
 | `coordinator` | Managed autonomy coordinator for workspace-scoped coordinated task runs. |
 | `spawned`     | Child session created by an agent through safe spawn.                    |
-
-Dream sessions are special for permissions: they always start with `approve-all`.
 
 Coordinator sessions are root lineage rows. They are created only after executable coordinated work
 is enqueued, not when a task is merely created. Spawned sessions record parent, root, depth, role,
@@ -829,5 +819,6 @@ lineage; views show it as a root when the recorded parent is no longer available
 
 - Use [Resume Attach and Replay](/docs/sessions/resume) when you need to attach to an eligible live session or reconstruct prior work from durable reads.
 - Use [Event Streaming](/docs/sessions/events) when you need the exact stored and streamed session record.
+- Use [Context compaction](/docs/sessions/compaction) when a session is rebuilt into a new agent session or the agent compacts its own context.
 - Use [Runtime Autonomy](/docs/autonomy) for coordinator, task lease, and safe-spawn behavior.
 - Use [Permissions](/docs/sessions/permissions) when you need to control or approve agent actions.

@@ -281,16 +281,12 @@ func TestWorkspaceContractConfigClone(t *testing.T) {
 		}
 	})
 
-	t.Run("Should deep copy mutable memory extensions and automation config", func(t *testing.T) {
+	t.Run("Should deep copy mutable skills extensions and automation config", func(t *testing.T) {
 		t.Parallel()
 
 		original := compozyconfig.Config{
-			Memory: compozyconfig.MemoryConfig{
-				Controller: compozyconfig.MemoryControllerConfig{
-					Policy: compozyconfig.MemoryControllerPolicyConfig{
-						AllowOrigins: []string{"agent"},
-					},
-				},
+			Skills: compozyconfig.SkillsConfig{
+				DisabledSkills: []string{"agent"},
 			},
 			Extensions: compozyconfig.ExtensionsConfig{
 				Resources: compozyconfig.ExtensionsResourcesConfig{
@@ -306,12 +302,12 @@ func TestWorkspaceContractConfigClone(t *testing.T) {
 		}
 
 		cloned := cloneConfig(&original)
-		cloned.Memory.Controller.Policy.AllowOrigins[0] = "operator"
+		cloned.Skills.DisabledSkills[0] = "operator"
 		cloned.Extensions.Resources.AllowedKinds[0] = resources.ResourceKind("task")
 		cloned.Automation.Triggers[0].Filter["branch"] = "release"
 
-		if got, want := original.Memory.Controller.Policy.AllowOrigins, []string{"agent"}; !slices.Equal(got, want) {
-			t.Fatalf("original Memory.Controller.Policy.AllowOrigins = %#v, want %#v", got, want)
+		if got, want := original.Skills.DisabledSkills, []string{"agent"}; !slices.Equal(got, want) {
+			t.Fatalf("original Skills.DisabledSkills = %#v, want %#v", got, want)
 		}
 		if got, want := original.Extensions.Resources.AllowedKinds, []resources.ResourceKind{
 			resources.ResourceKind("tool"),
@@ -355,7 +351,7 @@ func TestWorkspaceContractAgentConfigResolution(t *testing.T) {
 			AdditionalDirs: []string{additionalDir},
 		}
 		cfg := validConfig(homePaths)
-		cfg.Memory.Controller.Policy.AllowOrigins = []string{"agent"}
+		cfg.Skills.DisabledSkills = []string{"agent"}
 		cfg.Automation.Triggers = []compozyconfig.AutomationTrigger{{
 			Name: "github-push", Filter: map[string]string{"branch": "main"},
 		}}
@@ -377,8 +373,8 @@ func TestWorkspaceContractAgentConfigResolution(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ResolveAgentConfig(attempt %d) error = %v", attempt, err)
 			}
-			if got := resolved.Config.Memory.Controller.Policy.AllowOrigins; !slices.Equal(got, []string{"agent"}) {
-				t.Fatalf("config origins on attempt %d = %#v, want original agent slice", attempt, got)
+			if got := resolved.Config.Skills.DisabledSkills; !slices.Equal(got, []string{"agent"}) {
+				t.Fatalf("config disabled skills on attempt %d = %#v, want original agent slice", attempt, got)
 			}
 			if got := resolved.Config.Automation.Triggers; len(got) != 1 || got[0].Filter["branch"] != "main" {
 				t.Fatalf("config automation on attempt %d = %#v, want original main filter", attempt, got)
@@ -393,7 +389,7 @@ func TestWorkspaceContractAgentConfigResolution(t *testing.T) {
 			if attempt == 2 {
 				continue
 			}
-			resolved.Config.Memory.Controller.Policy.AllowOrigins[0] = "caller-origin"
+			resolved.Config.Skills.DisabledSkills[0] = "caller-origin"
 			resolved.Config.Automation.Triggers[0].Filter["branch"] = "caller-branch"
 			resolved.Agents[0].Model = "caller-model"
 			resolved.Agents[0].Tools[0] = "caller-tool"

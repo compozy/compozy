@@ -517,7 +517,6 @@ describe("useSessionPageControls", () => {
   );
 
   it.each([
-    { label: "dream", session: makeSession("active", undefined, "dream") },
     { label: "missing-type", session: { ...makeSession("active"), type: undefined } },
     { label: "starting", session: makeSession("starting", undefined, "system") },
     { label: "stopping", session: makeSession("stopping", undefined, "system") },

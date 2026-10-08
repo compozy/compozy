@@ -39,7 +39,7 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		description: "List persistent desktops in one workspace.",
 		inputSchema: windowManagerReadInputSchema, outputSchema: windowManagerReadOutputSchema,
 		risk: toolspkg.RiskRead, readOnly: true, capability: windowManagerReadCapability,
-		tags: []string{windowManagerTag, windowManagerDesktopsTag, memoryListKey},
+		tags: []string{windowManagerTag, windowManagerDesktopsTag, descriptorKeywordList},
 	},
 	{
 		id: toolspkg.ToolIDDesktopCreate, nativeName: "desktop_create", title: "Desktop Create",
@@ -88,7 +88,7 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		description: "List managed windows from the authoritative workspace snapshot.",
 		inputSchema: windowManagerWindowListInputSchema, outputSchema: windowManagerReadOutputSchema,
 		risk: toolspkg.RiskRead, readOnly: true, capability: windowManagerReadCapability,
-		tags: []string{windowManagerTag, windowManagerWindowsTag, memoryListKey},
+		tags: []string{windowManagerTag, windowManagerWindowsTag, descriptorKeywordList},
 	},
 	{
 		id: toolspkg.ToolIDWindowOpen, nativeName: "window_open", title: "Window Open",

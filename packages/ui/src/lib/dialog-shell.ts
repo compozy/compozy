@@ -6,7 +6,7 @@
  *
  * | Size | Width token | Height ceiling | Surfaces |
  * | --- | --- | --- | --- |
- * | `sm` | `--width-modal-sm` 560 | `--height-modal-tall` | start session · create/edit knowledge · create/edit channel · add vault secret |
+ * | `sm` | `--width-modal-sm` 560 | `--height-modal-tall` | start session · create/edit channel · add vault secret |
  * | `md` | `--width-modal-md` 720 | `--height-modal-md` | task editor · add/edit MCP server |
  * | `lg` | `--width-modal-lg` 880 | `--height-modal-tall` | create agent |
  * | `xl` | `--width-modal-xl` 1180 | `--height-modal-xl` | job/trigger editor · add workspace (split body) |

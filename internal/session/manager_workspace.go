@@ -299,8 +299,6 @@ func builtinSessionAgentDef(agentName string, sessionType Type) (compozyconfig.A
 	switch normalizeSessionType(sessionType) {
 	case SessionTypeCoordinator:
 		expectedName = compozyconfig.BuiltinCoordinatorAgentName
-	case SessionTypeDream:
-		expectedName = compozyconfig.BuiltinDreamingCuratorAgentName
 	default:
 		return compozyconfig.AgentDef{}, false
 	}

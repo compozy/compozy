@@ -43,7 +43,6 @@ func TestCloneConfig(t *testing.T) {
 		provider.MCPServers[0].Env["TOKEN"] = "mutated"
 		cloned.Providers["codex"] = provider
 		*cloned.ModelCatalog.Sources.ModelsDev.Enabled = false
-		cloned.Memory.Controller.Policy.AllowOrigins[0] = "mutated"
 		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated"
 		cloned.RoleSources[RoleCoordinator][RoleFieldModel] = RoleFieldSourceWorkspace
 		cloned.Skills.DisabledSkills[0] = "mutated"
@@ -107,9 +106,6 @@ func configCloneFixture() Config {
 		},
 		ModelCatalog: ModelCatalogConfig{Sources: ModelCatalogSourcesConfig{
 			ModelsDev: ModelsDevSourceConfig{Enabled: &enabled},
-		}},
-		Memory: MemoryConfig{Controller: MemoryControllerConfig{
-			Policy: MemoryControllerPolicyConfig{AllowOrigins: []string{"agent"}},
 		}},
 		Roles: RolesConfig{Coordinator: CoordinatorRoleConfig{
 			FallbackChain: []RoleFallback{{Provider: "codex", Model: "gpt-5.6"}},

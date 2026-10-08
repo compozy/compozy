@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	BuiltinCoordinatorAgentName     = "coordinator"
-	BuiltinDreamingCuratorAgentName = "dreaming-curator"
+	BuiltinCoordinatorAgentName = "coordinator"
 )
 
 // ErrAgentNameReserved marks attempts to author a catalog agent with a builtin identity.
@@ -19,17 +18,11 @@ var ErrAgentNameReserved = errors.New("config: agent name is reserved")
 var (
 	//go:embed prompts/coordinator.md
 	coordinatorBuiltinPrompt string
-	//go:embed prompts/dreaming-curator.md
-	dreamingCuratorBuiltinPrompt string
 
 	builtinAgentDefs = map[string]AgentDef{
 		BuiltinCoordinatorAgentName: {
 			Name:   BuiltinCoordinatorAgentName,
 			Prompt: strings.TrimSpace(coordinatorBuiltinPrompt),
-		},
-		BuiltinDreamingCuratorAgentName: {
-			Name:   BuiltinDreamingCuratorAgentName,
-			Prompt: strings.TrimSpace(dreamingCuratorBuiltinPrompt),
 		},
 	}
 )

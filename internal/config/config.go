@@ -5,19 +5,11 @@ import (
 )
 
 const (
-	configCLIKey                             = "cli"
-	configDefaultsAgentPath                  = "defaults.agent"
-	configDreamingKey                        = "dreaming"
-	configExtractorKey                       = "extractor"
-	configExtractorModePostMessage           = "post_message"
-	configHybridKey                          = "hybrid"
-	configLLMKey                             = "llm"
-	configJsonlKey                           = "jsonl"
-	configExtractorQueueCoalesceMaxPath      = "memory.extractor.queue.coalesce_max"
-	configMemoryRecallWeightsBm25UnicodePath = "memory.recall.weights.bm25_unicode"
-	configProviderKey                        = "provider"
-	configToolKey                            = "tool"
-	configUDSKey                             = "uds"
+	configCLIKey            = "cli"
+	configDefaultsAgentPath = "defaults.agent"
+	configProviderKey       = "provider"
+	configToolKey           = "tool"
+	configUDSKey            = "uds"
 )
 
 const (
@@ -29,8 +21,6 @@ const (
 	marketplaceSchemeHTTP = "http"
 	urlSchemeHTTPS        = "https"
 )
-
-const defaultMemoryWorkspaceTOMLPath = "<workspace>/" + DirName + "/workspace.toml"
 
 // DefaultsConfig holds global runtime defaults.
 type DefaultsConfig struct {

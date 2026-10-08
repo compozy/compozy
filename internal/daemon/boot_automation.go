@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	memorypkg "github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/resources"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -86,18 +85,6 @@ func (d *Daemon) automationManagerDependencies(
 }
 
 func wireAutomationObservers(state *bootState, manager automationRuntime) {
-	if state.dreamRuntime != nil {
-		memoryObserver := manager.MemoryObserver()
-		state.dreamRuntime.SetCompletionObserver(func(
-			ctx context.Context,
-			result memorypkg.ConsolidationResult,
-		) error {
-			return memoryObserver.OnMemoryConsolidated(ctx, automationpkg.MemoryConsolidatedEvent{
-				WorkspaceID: result.WorkspaceID,
-				Timestamp:   result.CompletedAt,
-			})
-		})
-	}
 	if state.lifecycleObservers != nil {
 		state.lifecycleObservers.Add(manager.SessionObserver())
 	}

@@ -14,7 +14,6 @@ import {
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
-  updateSettingsMemory,
   updateSettingsObservability,
   updateSettingsPersona,
   updateSettingsRoles,
@@ -42,7 +41,6 @@ import type {
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
-  SettingsUpdateMemoryRequest,
   SettingsUpdateShellRequest,
   SettingsUpdateObservabilityRequest,
   SettingsUpdatePersonaRequest,
@@ -156,17 +154,6 @@ export function useUpdateSettingsPersona() {
         }),
         invalidateSettingsApplyRecords(queryClient),
       ]),
-  });
-}
-
-export function useUpdateSettingsMemory() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    networkMode: "always",
-    mutationFn: (body: SettingsUpdateMemoryRequest) => updateSettingsMemory(body),
-    onSuccess: recordSettingsMutation,
-    onSettled: () => invalidateSection(queryClient, "memory"),
   });
 }
 

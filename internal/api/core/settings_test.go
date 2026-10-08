@@ -4258,7 +4258,11 @@ func TestUpdateSettingsRolesRejectsRetiredFieldsWithoutWriting(t *testing.T) {
 					t.Fatalf("error = %q, want unknown field %s", payload.Error, field)
 				}
 				if service.UpdateSectionCalls != 0 || service.ApplySectionCalls != 0 {
-					t.Fatalf("settings writes = %d/%d, want zero", service.UpdateSectionCalls, service.ApplySectionCalls)
+					t.Fatalf(
+						"settings writes = %d/%d, want zero",
+						service.UpdateSectionCalls,
+						service.ApplySectionCalls,
+					)
 				}
 				persisted, err := os.ReadFile(fixture.HomePaths.ConfigFile)
 				if err != nil {

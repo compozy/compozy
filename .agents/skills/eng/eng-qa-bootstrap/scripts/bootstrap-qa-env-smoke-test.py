@@ -195,25 +195,6 @@ def main() -> None:
             )
         if (runtime_workspace_path / "qa-artifacts").exists():
             raise AssertionError("runtime workspace exposes QA artifacts to agents under test")
-        global_knowledge = Path("knowledge/global/launch-week-brief.md")
-        for workspace_name in (
-            "launch-hq",
-            "product-studio",
-            "growth-studio",
-            "platform-control",
-            "finance-command",
-            "merchant-success",
-            "risk-ops",
-        ):
-            projected = runtime_workspace_path / "workspaces" / workspace_name / global_knowledge
-            if not projected.is_file():
-                raise AssertionError(f"global knowledge was not projected into {workspace_name}")
-        risk_memo = Path("knowledge/workspace/executive-risk-memo.md")
-        if not (runtime_workspace_path / "workspaces" / "launch-hq" / risk_memo).is_file():
-            raise AssertionError("launch-hq is missing its declared scoped knowledge")
-        if (runtime_workspace_path / "workspaces" / "product-studio" / risk_memo).exists():
-            raise AssertionError("scoped launch-hq knowledge leaked into product-studio")
-
         open_tasks = json.loads((workspace_path / ".compozy" / "tasks" / "open-tasks.json").read_text())
         runtime_ids = [task.get("runtime_id") for task in open_tasks]
         expected_ids = [f"task-northstar-pay-{index:03d}" for index in range(1, 13)]

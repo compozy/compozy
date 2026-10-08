@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
-overlaps: MS-013; LP-050
+overlaps: LP-050
 ---
 
 Start an isolated daemon with the default redaction setting and emit one unique provider-shaped

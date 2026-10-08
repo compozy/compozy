@@ -25,7 +25,6 @@ type automationRuntime interface {
 	Shutdown(ctx context.Context) error
 	SessionObserver() session.Notifier
 	HookTelemetrySink() hookspkg.TelemetrySink
-	MemoryObserver() automationpkg.MemoryConsolidationObserver
 	EffectivePackageAutomation(
 		context.Context,
 		[]automationpkg.Job,

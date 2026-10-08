@@ -148,11 +148,11 @@ const DESKTOPS: DesktopOverviewItem[] = [
     aspectRatio: WORK_AREA.w / WORK_AREA.h,
     switchShortcut: "⌃3",
     thumbnail: thumbnail([
-      storyWindow("knowledge", "knowledge", { x: 0, y: 0, w: 1380, h: 424 }),
+      storyWindow("marketplace", "marketplace", { x: 0, y: 0, w: 1380, h: 424 }),
       storyWindow("vault", "vault", { x: 0, y: 424, w: 1380, h: 424 }),
     ]),
     windows: [
-      { id: "knowledge", title: "Knowledge" },
+      { id: "marketplace", title: "Marketplace" },
       { id: "vault", title: "Vault" },
     ],
   },

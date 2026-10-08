@@ -31,7 +31,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 1. Activate `eng-qa-bootstrap` with scenario `$PLAYBOOK_REF` and `--playbook "$PLAYBOOK_REF"`; follow its setup, handoff, and continuation contract (Steps 1–4). Keep the lab alive for execution; bootstrap Step 5 runs at this workflow's terminal teardown.
 2. Consume the canonical `BOOTSTRAP_MANIFEST` and its emitted paths. Never reconstruct provider, browser, proxy, audit, or teardown state here.
-3. Confirm the selected playbook, agent registrations, open-task tree, knowledge files, required deliverables/collaboration, and populated charter all belong to the same healthy manifest. Register only `RUNTIME_WORKSPACE_PATH` with Compozy, and capture the returned public id as `RUNTIME_WORKSPACE_ID`; agents must not see the lab's `qa-artifacts/` or audit contracts.
+3. Confirm the selected playbook, agent registrations, open-task tree, required deliverables/collaboration, and populated charter all belong to the same healthy manifest. Register only `RUNTIME_WORKSPACE_PATH` with Compozy, and capture the returned public id as `RUNTIME_WORKSPACE_ID`; agents must not see the lab's `qa-artifacts/` or audit contracts.
 
 *Done when:* bootstrap's setup/handoff criteria pass, the lab is alive, and the charter has no placeholders.
 

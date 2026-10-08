@@ -10,12 +10,10 @@ import (
 
 func daemonNativeHooks(
 	observer sessionLifecycleObserver,
-	dreamRuntime dreamCheckEnqueuer,
-	memoryExtractor sessionMessagePersistedObserver,
 	autoTitle sessionMessagePersistedObserver,
 ) ([]hookspkg.HookDecl, map[string]hookspkg.Executor) {
-	decls := make([]hookspkg.HookDecl, 0, 5)
-	executors := make(map[string]hookspkg.Executor, 5)
+	decls := make([]hookspkg.HookDecl, 0, 3)
+	executors := make(map[string]hookspkg.Executor, 3)
 
 	if observer != nil {
 		const (
@@ -43,34 +41,6 @@ func daemonNativeHooks(
 		)
 		executors[createName] = observeSessionCreateExecutor(observer)
 		executors[stopName] = observeSessionStopExecutor(observer)
-	}
-
-	if dreamRuntime != nil {
-		const dreamName = "daemon.dream.session_post_stop"
-
-		decls = append(decls, hookspkg.HookDecl{
-			Name:         dreamName,
-			Event:        hookspkg.HookSessionPostStop,
-			Mode:         hookspkg.HookModeSync,
-			Priority:     900,
-			PrioritySet:  true,
-			ExecutorKind: hookspkg.HookExecutorNative,
-		})
-		executors[dreamName] = dreamSessionStopExecutor(dreamRuntime)
-	}
-
-	if memoryExtractor != nil {
-		const extractorName = "daemon.memory.extractor.session_message_persisted"
-
-		decls = append(decls, hookspkg.HookDecl{
-			Name:         extractorName,
-			Event:        hookspkg.HookSessionMessagePersisted,
-			Mode:         hookspkg.HookModeAsync,
-			Priority:     900,
-			PrioritySet:  true,
-			ExecutorKind: hookspkg.HookExecutorNative,
-		})
-		executors[extractorName] = sessionMessagePersistedExecutor(memoryExtractor)
 	}
 
 	if autoTitle != nil {

@@ -62,7 +62,6 @@ type Config struct {
 	Observability ObservabilityConfig       `toml:"observability"`
 	Log           LogConfig                 `toml:"log"`
 	Redact        RedactConfig              `toml:"redact"`
-	Memory        MemoryConfig              `toml:"memory"`
 	Roles         RolesConfig               `toml:"roles"`
 	RoleSources   RoleFieldSources          `toml:"-"                     json:"-"`
 	Skills        SkillsConfig              `toml:"skills"`

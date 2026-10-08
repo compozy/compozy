@@ -10,10 +10,9 @@ import (
 // events use the open `ext.*` namespace; every other name must match one of
 // these constants or no producer will ever fire the trigger.
 const (
-	TriggerEventSessionCreated     = "session.created"
-	TriggerEventSessionStopped     = "session.stopped"
-	TriggerEventMemoryConsolidated = "memory.consolidated"
-	TriggerEventWebhook            = "webhook"
+	TriggerEventSessionCreated = "session.created"
+	TriggerEventSessionStopped = "session.stopped"
+	TriggerEventWebhook        = "webhook"
 
 	triggerEventHookPrefix      = "hook."
 	triggerEventHookSuffix      = ".completed"

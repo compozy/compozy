@@ -88,9 +88,7 @@ func (d *Daemon) bootRegistryState(
 	if err := startLoopReconciliation(ctx, state, registry, cleanup, d.readyCh); err != nil {
 		return err
 	}
-	if err := d.bootMemoryCatalog(ctx, state, cleanup); err != nil {
-		return err
-	}
+
 	if profileStore, ok := registry.(*globaldb.GlobalDB); ok {
 		profiles, err := d.bootProfiles(state, profileStore)
 		if err != nil {
@@ -129,11 +127,7 @@ func (d *Daemon) bootRegistryState(
 	if err := recoverProfiles(ctx, state); err != nil {
 		return err
 	}
-	memoryProviders, err := newDaemonMemoryProviderRegistry(ctx, state)
-	if err != nil {
-		return fmt.Errorf("daemon: create memory provider registry: %w", err)
-	}
-	state.memoryProviderRegistry = memoryProviders
+
 	return nil
 }
 

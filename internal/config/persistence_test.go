@@ -109,11 +109,11 @@ func TestEditConfigOverlayRejectsSymlinkWithoutReadingTarget(t *testing.T) {
 func TestEditConfigOverlayUpdatesExistingBooleanValue(t *testing.T) {
 	t.Parallel()
 
-	editor, err := newOverlayEditor(ConfigName, []byte("[memory]\nenabled = true\nglobal_dir = \"/tmp/memory\"\n"))
+	editor, err := newOverlayEditor(ConfigName, []byte("[observability]\nenabled = true\nretention_days = 21\n"))
 	if err != nil {
 		t.Fatalf("newOverlayEditor() error = %v", err)
 	}
-	if err := editor.SetValue([]string{"memory", "enabled"}, false); err != nil {
+	if err := editor.SetValue([]string{"observability", "enabled"}, false); err != nil {
 		t.Fatalf("editor.SetValue() error = %v", err)
 	}
 	rendered, err := editor.Bytes()
@@ -122,9 +122,9 @@ func TestEditConfigOverlayUpdatesExistingBooleanValue(t *testing.T) {
 	}
 	text := string(rendered)
 	for _, want := range []string{
-		"[memory]",
+		"[observability]",
 		"enabled = false",
-		`global_dir = "/tmp/memory"`,
+		`retention_days = 21`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("rendered config missing %q\n%s", want, text)
@@ -144,19 +144,19 @@ func TestEditConfigOverlayUpdatesExistingBooleanValue(t *testing.T) {
 	}
 
 	writeFile(t, homePaths.ConfigFile, `
-[memory]
+[observability]
 enabled = true
-global_dir = "/tmp/memory"
+retention_days = 21
 `)
 
 	cfg, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-		return editor.SetValue([]string{"memory", "enabled"}, false)
+		return editor.SetValue([]string{"observability", "enabled"}, false)
 	})
 	if err != nil {
 		t.Fatalf("EditConfigOverlay() error = %v", err)
 	}
-	if got, want := cfg.Memory.Enabled, false; got != want {
-		t.Fatalf("EditConfigOverlay() Memory.Enabled = %v, want %v", got, want)
+	if got, want := cfg.Observability.Enabled, false; got != want {
+		t.Fatalf("EditConfigOverlay() Observability.Enabled = %v, want %v", got, want)
 	}
 
 	contents, err := os.ReadFile(homePaths.ConfigFile)
@@ -165,15 +165,15 @@ global_dir = "/tmp/memory"
 	}
 	text = string(contents)
 	for _, want := range []string{
-		"[memory]",
+		"[observability]",
 		"enabled = false",
-		`global_dir = "/tmp/memory"`,
+		`retention_days = 21`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config contents missing %q\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, "false[memory]") {
+	if strings.Contains(text, "false[observability]") {
 		t.Fatalf("config contents corrupted by boolean update\n%s", text)
 	}
 }
@@ -1567,13 +1567,48 @@ func TestArchiveRetiredMemorySettings(t *testing.T) {
 		name, retired, live string
 		names               []string
 	}{
-		{"Should archive dream role", "[roles.dream]\nenabled = true\n", "[roles.auto_title]\nenabled = true\n", []string{"roles.dream"}},
-		{"Should archive checkpoint role", "[roles.checkpoint_summary]\nenabled = true\n", "[roles.auto_title]\nenabled = true\n", []string{"roles.checkpoint_summary"}},
-		{"Should archive extractor role", "[roles.memory_extractor]\nenabled = true\n", "[roles.auto_title]\nenabled = true\n", []string{"roles.memory_extractor"}},
-		{"Should archive controller role", "[roles.memory_controller]\nenabled = true\n", "[roles.auto_title]\nenabled = true\n", []string{"roles.memory_controller"}},
-		{"Should archive compaction", "[session.compaction]\nenabled = true\nthreshold = 0.85\n", "[session.derive]\nmax_replay_bytes = 8192\n", []string{"session.compaction"}},
-		{"Should archive consolidated triggers", "[[automation.triggers]]\nname = 'retired'\nevent = 'memory.consolidated'\nworkspace = 'workspace'\n[automation.triggers.matcher]\nlabels = ['old']\n", "[[automation.triggers]]\nname = 'kept'\nevent = 'session.stopped'\nworkspace = 'workspace'\n", []string{"automation.triggers"}},
-		{"Should retain hooks after archiving matcher keys", "[[hooks.declarations]]\nname = 'audit'\nevent = 'session.compaction'\n[hooks.declarations.matcher]\ncompaction_reason = 'pressure'\ncompaction_strategy = 'summary'\n[hooks.declarations.executor]\ncommand = '/bin/echo'\n", "[roles.auto_title]\nenabled = true\n", []string{"hooks.declarations.matcher.compaction_reason", "hooks.declarations.matcher.compaction_strategy"}},
+		{
+			"Should archive dream role",
+			"[roles.dream]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"roles.dream"},
+		},
+		{
+			"Should archive checkpoint role",
+			"[roles.checkpoint_summary]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"roles.checkpoint_summary"},
+		},
+		{
+			"Should archive extractor role",
+			"[roles.memory_extractor]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"roles.memory_extractor"},
+		},
+		{
+			"Should archive controller role",
+			"[roles.memory_controller]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"roles.memory_controller"},
+		},
+		{
+			"Should archive compaction",
+			"[session.compaction]\nenabled = true\nthreshold = 0.85\n",
+			"[session.derive]\nmax_replay_bytes = 8192\n",
+			[]string{"session.compaction"},
+		},
+		{
+			"Should archive consolidated triggers",
+			"[[automation.triggers]]\nname = 'retired'\nevent = 'memory.consolidated'\nworkspace = 'workspace'\n[automation.triggers.matcher]\nlabels = ['old']\n",
+			"[[automation.triggers]]\nname = 'kept'\nevent = 'session.stopped'\nworkspace = 'workspace'\n",
+			[]string{"automation.triggers"},
+		},
+		{
+			"Should retain hooks after archiving matcher keys",
+			"[[hooks.declarations]]\nname = 'audit'\nevent = 'session.compaction'\n[hooks.declarations.matcher]\ncompaction_reason = 'pressure'\ncompaction_strategy = 'summary'\n[hooks.declarations.executor]\ncommand = '/bin/echo'\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"hooks.declarations.matcher.compaction_reason", "hooks.declarations.matcher.compaction_strategy"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1634,22 +1669,86 @@ func TestArchiveRetiredMemorySettings(t *testing.T) {
 func TestArchiveRetiredMemorySettingsTOMLForms(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, contents, preserved string }{
-		{"Should archive dotted memory leaves", "memory.enabled = false\nmemory.dream.min_hours = 2\nroles.auto_title.enabled = true\n", "roles.auto_title.enabled = true"},
-		{"Should archive noncontiguous memory tables", "[memory]\nenabled = false\n[roles.auto_title]\nenabled = true\n[memory.dream]\nmin_hours = 2\n", "[roles.auto_title]\nenabled = true"},
-		{"Should archive an implicit memory parent", "[memory.dream]\nmin_hours = 2\n[roles.auto_title]\nenabled = true\n", "[roles.auto_title]\nenabled = true"},
-		{"Should preserve adjacent inline roles", "roles = { dream = { enabled = true }, auto_title = { enabled = true } }\n", "auto_title = { enabled = true }"},
-		{"Should preserve inline role before retired role", "roles = { auto_title = { enabled = true }, dream = { enabled = true } }\n", "auto_title = { enabled = true }"},
-		{"Should archive consecutive inline roles", "roles = { dream = { enabled = true }, memory_extractor = { enabled = true }, auto_title = { enabled = true } }\n", "auto_title = { enabled = true }"},
-		{"Should archive nested inline memory", "memory = { enabled = false, dream = { min_hours = 2 } }\nroles.auto_title.enabled = true\n", "roles.auto_title.enabled = true"},
-		{"Should preserve inline compaction siblings", "session = { compaction = { enabled = true }, derive = { max_replay_bytes = 8192 } }\n", "derive = { max_replay_bytes = 8192 }"},
-		{"Should preserve inline trigger siblings", "automation.triggers = [{name='old',event='memory.consolidated',workspace='workspace'}, {name='kept',event='session.stopped',workspace='workspace'}]\n", "{name='kept',event='session.stopped',workspace='workspace'}"},
-		{"Should preserve trigger before retired inline entry", "automation.triggers = [{name='kept',event='session.stopped',workspace='workspace'}, {name='old',event='memory.consolidated',workspace='workspace'}]\n", "{name='kept',event='session.stopped',workspace='workspace'}"},
-		{"Should preserve live hook matcher", "[[hooks.declarations]]\nname='audit'\nevent='session.compaction'\nmatcher = { compaction_reason = 'pressure', compaction_strategy = 'summary', session_id = 'keep' }\nexecutor = { command = '/bin/echo' }\n", "session_id = 'keep'"},
-		{"Should archive nested inline hooks", "hooks = { declarations = [{ name='audit', event='session.compaction', matcher={compaction_reason='pressure', session_id='keep'}, executor={command='/bin/echo'} }] }\n", "session_id='keep'"},
-		{"Should archive every retired inline matcher key", "[[hooks.declarations]]\nname='audit'\nevent='session.compaction'\nmatcher = { compaction_reason = 'pressure', compaction_strategy = 'summary' }\nexecutor = { command = '/bin/echo' }\n", "executor = { command = '/bin/echo' }"},
-		{"Should archive consecutive retired trigger entries", "automation.triggers = [{name='old',event='memory.consolidated'}, {name='also-old',event='memory.consolidated'}, {name='kept',event='session.stopped',workspace='workspace'}]\n", "{name='kept',event='session.stopped',workspace='workspace'}"},
-		{"Should archive all inline triggers with a trailing comma", "automation.triggers = [{name='old',event='memory.consolidated'},]\n", "automation.triggers = ["},
-		{"Should archive spec hook shape", "[[hooks]]\nname='audit'\nmatcher = { compaction_reason = 'pressure', session_id = 'keep' }\n", "session_id = 'keep'"},
+		{
+			"Should archive dotted memory leaves",
+			"memory.enabled = false\nmemory.dream.min_hours = 2\nroles.auto_title.enabled = true\n",
+			"roles.auto_title.enabled = true",
+		},
+		{
+			"Should archive noncontiguous memory tables",
+			"[memory]\nenabled = false\n[roles.auto_title]\nenabled = true\n[memory.dream]\nmin_hours = 2\n",
+			"[roles.auto_title]\nenabled = true",
+		},
+		{
+			"Should archive an implicit memory parent",
+			"[memory.dream]\nmin_hours = 2\n[roles.auto_title]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true",
+		},
+		{
+			"Should preserve adjacent inline roles",
+			"roles = { dream = { enabled = true }, auto_title = { enabled = true } }\n",
+			"auto_title = { enabled = true }",
+		},
+		{
+			"Should preserve inline role before retired role",
+			"roles = { auto_title = { enabled = true }, dream = { enabled = true } }\n",
+			"auto_title = { enabled = true }",
+		},
+		{
+			"Should archive consecutive inline roles",
+			"roles = { dream = { enabled = true }, memory_extractor = { enabled = true }, auto_title = { enabled = true } }\n",
+			"auto_title = { enabled = true }",
+		},
+		{
+			"Should archive nested inline memory",
+			"memory = { enabled = false, dream = { min_hours = 2 } }\nroles.auto_title.enabled = true\n",
+			"roles.auto_title.enabled = true",
+		},
+		{
+			"Should preserve inline compaction siblings",
+			"session = { compaction = { enabled = true }, derive = { max_replay_bytes = 8192 } }\n",
+			"derive = { max_replay_bytes = 8192 }",
+		},
+		{
+			"Should preserve inline trigger siblings",
+			"automation.triggers = [{name='old',event='memory.consolidated',workspace='workspace'}, {name='kept',event='session.stopped',workspace='workspace'}]\n",
+			"{name='kept',event='session.stopped',workspace='workspace'}",
+		},
+		{
+			"Should preserve trigger before retired inline entry",
+			"automation.triggers = [{name='kept',event='session.stopped',workspace='workspace'}, {name='old',event='memory.consolidated',workspace='workspace'}]\n",
+			"{name='kept',event='session.stopped',workspace='workspace'}",
+		},
+		{
+			"Should preserve live hook matcher",
+			"[[hooks.declarations]]\nname='audit'\nevent='session.compaction'\nmatcher = { compaction_reason = 'pressure', compaction_strategy = 'summary', session_id = 'keep' }\nexecutor = { command = '/bin/echo' }\n",
+			"session_id = 'keep'",
+		},
+		{
+			"Should archive nested inline hooks",
+			"hooks = { declarations = [{ name='audit', event='session.compaction', matcher={compaction_reason='pressure', session_id='keep'}, executor={command='/bin/echo'} }] }\n",
+			"session_id='keep'",
+		},
+		{
+			"Should archive every retired inline matcher key",
+			"[[hooks.declarations]]\nname='audit'\nevent='session.compaction'\nmatcher = { compaction_reason = 'pressure', compaction_strategy = 'summary' }\nexecutor = { command = '/bin/echo' }\n",
+			"executor = { command = '/bin/echo' }",
+		},
+		{
+			"Should archive consecutive retired trigger entries",
+			"automation.triggers = [{name='old',event='memory.consolidated'}, {name='also-old',event='memory.consolidated'}, {name='kept',event='session.stopped',workspace='workspace'}]\n",
+			"{name='kept',event='session.stopped',workspace='workspace'}",
+		},
+		{
+			"Should archive all inline triggers with a trailing comma",
+			"automation.triggers = [{name='old',event='memory.consolidated'},]\n",
+			"automation.triggers = [",
+		},
+		{
+			"Should archive spec hook shape",
+			"[[hooks]]\nname='audit'\nmatcher = { compaction_reason = 'pressure', session_id = 'keep' }\n",
+			"session_id = 'keep'",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1660,7 +1759,8 @@ func TestArchiveRetiredMemorySettingsTOMLForms(t *testing.T) {
 				t.Fatalf("archive error: %v %v", archived, err)
 			}
 			active, archive, found := strings.Cut(string(rendered), retiredMemoryArchiveHeader)
-			if !found || !strings.Contains(active, tc.preserved) || !strings.Contains(active, "# untouched trailing section\n[defaults]\nagent = 'general'\n") {
+			if !found || !strings.Contains(active, tc.preserved) ||
+				!strings.Contains(active, "# untouched trailing section\n[defaults]\nagent = 'general'\n") {
 				t.Fatalf("changed live bytes: %s", rendered)
 			}
 			var original, kept, removed map[string]any
@@ -1714,4 +1814,95 @@ func canonicalMemoryArchiveValues(t *testing.T, values any) map[string]any {
 		t.Fatal(err)
 	}
 	return decoded
+}
+
+// Invariant: every persisted overlay archives retired keys once, preserves concurrent edits,
+// and applies the retained role and replay configuration. Owner: config persistence (UT-004/UT-007).
+func TestLoadPersistedConfigArchivesRetiredMemory(t *testing.T) {
+	t.Parallel()
+	for _, layer := range []string{"global", "profile", "workspace"} {
+		t.Run("Should archive and reload the "+layer+" overlay", func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), layer, ConfigName)
+			writeFile(
+				t,
+				path,
+				"[memory]\nenabled = true\n[roles.auto_title]\nmodel = 'title-model'\n[roles.coordinator]\nmax_children = 3\n",
+			)
+			_, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			homePaths, err := ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			homePaths.ConfigFile = path
+			cfg, err := LoadForHome(homePaths, withoutDotEnv())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Roles.AutoTitle.Model != "title-model" || cfg.Roles.Coordinator.MaxChildren != 3 {
+				t.Fatalf("retained config was not applied: %#v", cfg)
+			}
+			first, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(first), retiredMemoryArchiveHeader) {
+				t.Fatal("retired config was not archived")
+			}
+			if _, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes); err != nil {
+				t.Fatal(err)
+			}
+			second, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(first, second) {
+				t.Fatal("second load rewrote archived config")
+			}
+		})
+		t.Run("Should preserve a concurrent edit to the "+layer+" overlay", func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), layer, ConfigName)
+			writeFile(t, path, "[memory]\nenabled = true\n")
+			const edited = "[roles.auto_title]\nmodel = 'edited-model'\n"
+			_, err := loadPersistedConfigOverlay(path, func(content []byte, source string) (configOverlay, error) {
+				overlay, err := loadConfigOverlayBytes(content, source)
+				if err != nil {
+					return overlay, err
+				}
+				writeFile(t, path, edited)
+				return overlay, nil
+			})
+			if err == nil || !strings.Contains(err.Error(), "config changed during retirement migration") {
+				t.Fatalf("race error = %v", err)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || string(got) != edited {
+				t.Fatalf("concurrent edit overwritten: %q, %v", got, err)
+			}
+		})
+	}
+	t.Run("Should load retained role and replay settings", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(
+			t,
+			homePaths.ConfigFile,
+			"[roles.auto_title]\nmodel = 'title-model'\n[roles.coordinator]\nmax_children = 3\n[session.derive]\nmax_replay_bytes = 8192\n",
+		)
+		cfg, err := LoadForHome(homePaths, withoutDotEnv())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Roles.AutoTitle.Model != "title-model" || cfg.Roles.Coordinator.MaxChildren != 3 ||
+			cfg.Session.Derive.MaxReplayBytes != 8192 {
+			t.Fatalf("retained config was not applied: %#v", cfg)
+		}
+	})
 }

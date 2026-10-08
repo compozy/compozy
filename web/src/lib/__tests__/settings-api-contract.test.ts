@@ -32,7 +32,6 @@ describe("settings openapi contract", () => {
       | "general"
       | "persona"
       | "marketplace"
-      | "memory"
       | "roles"
       | "skills"
       | "automation"
@@ -63,12 +62,7 @@ describe("settings openapi contract", () => {
 
     expectTypeOf<GetSettingsRolesResponse["scope"]>().toEqualTypeOf<"user" | "workspace">();
     expectTypeOf<keyof NonNullable<UpdateSettingsRolesBody["config"]>>().toEqualTypeOf<
-      | "auto_title"
-      | "checkpoint_summary"
-      | "coordinator"
-      | "dream"
-      | "memory_controller"
-      | "memory_extractor"
+      "auto_title" | "coordinator"
     >();
 
     expectTypeOf<PutSettingsMCPServerQuery["scope"]>().toEqualTypeOf<

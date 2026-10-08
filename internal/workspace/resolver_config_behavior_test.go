@@ -456,10 +456,10 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 			t,
 			filepath.Join(
 				homePaths.AgentsDir,
-				compozyconfig.BuiltinDreamingCuratorAgentName,
+				"dreaming-curator",
 				agentDefinitionFile,
 			),
-			compozyconfig.BuiltinDreamingCuratorAgentName,
+			"dreaming-curator",
 			"shadowed-curator",
 		)
 		writeAgentDef(
@@ -479,7 +479,7 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 		if got := agentModel(resolved.Agents, compozyconfig.BuiltinCoordinatorAgentName); got != "" {
 			t.Fatalf("reserved coordinator model = %q, want excluded", got)
 		}
-		if got := agentModel(resolved.Agents, compozyconfig.BuiltinDreamingCuratorAgentName); got != "shadowed-curator" {
+		if got := agentModel(resolved.Agents, "dreaming-curator"); got != "shadowed-curator" {
 			t.Fatalf("authored dreaming-curator model = %q, want shadowed-curator", got)
 		}
 		if got, want := len(resolved.AgentDiagnostics), 2; got != want {

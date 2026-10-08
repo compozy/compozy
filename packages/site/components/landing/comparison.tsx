@@ -21,11 +21,6 @@ const STACK_ROWS: StackRow[] = [
     builtIn: "Automation the daemon owns: cron, webhooks, and event triggers.",
   },
   {
-    name: "Memory",
-    diy: "Memory files and recall scripts that drift per machine.",
-    builtIn: "Scoped, file-backed memory per workspace and agent, inspectable from every surface.",
-  },
-  {
     name: "Permissions and approvals",
     diy: "Permission wrappers and approval prompts enforced only by convention.",
     builtIn: "Permissions and approvals enforced in the runtime, not in the prompt.",
@@ -51,7 +46,7 @@ export function Comparison() {
         align="start"
         eyebrow="The DIY agent stack"
         title="Every piece you would otherwise assemble."
-        description="Getting continuous work out of agents means wiring loops, triggers, cron, memory, permissions, approvals, and observability, then maintaining the glue between them. In CompozyOS those are core objects in one runtime."
+        description="Getting continuous work out of agents means wiring loops, triggers, cron, permissions, approvals, and observability, then maintaining the glue between them. In CompozyOS those are core objects in one runtime."
       />
 
       <div className="mt-10 overflow-hidden rounded-diagram border border-line bg-canvas-soft">

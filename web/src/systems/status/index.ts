@@ -1,11 +1,5 @@
 // Types
-export type {
-  DaemonStatusPayload,
-  DoctorPayload,
-  HealthPayload,
-  MemoryHealthPayload,
-  StatusPayload,
-} from "./types";
+export type { DaemonStatusPayload, DoctorPayload, HealthPayload, StatusPayload } from "./types";
 
 // Adapters
 export { fetchStatus } from "./adapters/daemon-api";

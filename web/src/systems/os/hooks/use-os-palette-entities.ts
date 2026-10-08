@@ -14,7 +14,7 @@ import {
   type WorktreeNestEntry,
 } from "@/systems/workspace";
 
-import { getOsAppDescriptor } from "../lib/app-catalog";
+import { getOsAppDescriptor, osAppId } from "../lib/app-catalog";
 import { isNeedsYouSession } from "../lib/attention-model";
 import type { OsAppId, OsWindowRoute, OsDesktopRuntimeStore } from "../lib/os-types";
 import {
@@ -323,18 +323,20 @@ function projectPaletteTabs(
     const desktopNames = new Map(desktopData.desktops.map(desktop => [desktop.id, desktop.name]));
     const sessionsById = new Map(sessions.map(session => [session.id, session]));
     for (const win of Object.values(desktopData.windows)) {
-      if (win.app === "new-tab" && win.id === destinationWindowId) continue;
+      const app = osAppId(win.app);
+      if (app === null) continue;
+      if (app === "new-tab" && win.id === destinationWindowId) continue;
       const session = win.instanceKey !== null ? sessionsById.get(win.instanceKey) : undefined;
       const slot = slots.get(win.id);
       const label =
-        win.app === "session" && session
+        app === "session" && session
           ? getSessionDisplayTitle(session)
           : typeof slot?.crumb === "string"
             ? slot.crumb
-            : getOsAppDescriptor(win.app).title;
+            : getOsAppDescriptor(app).title;
       tabs.push({
         windowId: win.id,
-        app: win.app,
+        app,
         label,
         desktopName: desktopNames.get(win.desktopId) ?? "",
         needsInput: session !== undefined && isNeedsYouSession(session),

@@ -16,7 +16,7 @@ ways to reach a daemon that is not in front of you — pick the one that matches
 
 Remote connections operate the same daemon state as local ones, with one deliberate boundary:
 
-- **Remote-capable:** sessions, task reads, loops, memory, settings, extensions, and
+- **Remote-capable:** sessions, task reads, loops, settings, extensions, and
   gateway management.
 - **Local-only:** task mutations, task-run queue and scheduler authority, the agent kernel, hosted
   MCP and the MCP Host API, and resource mutation. These verbs refuse deterministically from a

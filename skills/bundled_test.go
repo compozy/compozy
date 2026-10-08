@@ -17,7 +17,6 @@ var expectedCompozyReferences = []string{
 	"references/extension-authoring.md",
 	"references/extensions.md",
 	"references/loops.md",
-	"references/memory.md",
 	"references/native-tools.md",
 	"references/profiles.md",
 	"references/runtime-operations.md",

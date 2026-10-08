@@ -6,7 +6,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/modelcatalog"
 
 	"github.com/compozy/compozy/internal/session"
@@ -27,7 +26,6 @@ type SessionManagerDeps struct {
 	PromptInputAugmenter    session.PromptInputAugmenter
 	CommandService          session.CommandService
 	WorkAdmission           admission.Checker
-	MemoryStore             *memory.Store
 	AgentResolver           session.AgentResolver
 	SkillRegistry           session.SkillRegistry
 	MCPResolver             session.MCPResolver
@@ -83,7 +81,6 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		PromptInputAugmenter: state.promptAugmenter,
 		CommandService:       state.commandService,
 		WorkAdmission:        &d.admission,
-		MemoryStore:          state.memoryStore,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,

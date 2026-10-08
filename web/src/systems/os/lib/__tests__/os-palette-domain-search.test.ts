@@ -10,7 +10,6 @@ import { describe, expect, it } from "vitest";
 import type { CmdPaletteRankSignals } from "../cmd-palette-types";
 import {
   agentRoute,
-  knowledgeRoute,
   jobRoute,
   loopRoute,
   marketplaceEntryRoute,
@@ -104,15 +103,6 @@ describe("os-palette-domain-search helpers", () => {
     expect(vaultRoute("vault:providers/ops/api-token")).toEqual({
       pathname: "/vault",
       search: { ref: "vault:providers/ops/api-token" },
-    });
-  });
-
-  it("Should emit a memory search key for Knowledge rows", () => {
-    expect(
-      knowledgeRoute({ filename: "notes.md", scope: "workspace", workspaceId: "ws-a" })
-    ).toEqual({
-      pathname: "/knowledge",
-      search: { memory: "notes.md", scope: "workspace", workspace: "ws-a" },
     });
   });
 

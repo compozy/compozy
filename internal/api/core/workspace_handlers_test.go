@@ -4,6 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+	"time"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -11,12 +18,6 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	"net/http"
-	"os"
-	"path/filepath"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestWorkspaceHandlersDelegateToService(t *testing.T) {

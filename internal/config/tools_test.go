@@ -481,10 +481,16 @@ You are a code agent.
 			t.Fatalf("ResolveAgent() DenyTools = %#v, want %#v", got, want)
 		}
 	})
-	t.Run("Should retain an empty restriction when an authored allowlist contains only retired tools", func(t *testing.T) {
+	t.Run("Should preserve retired-only authored tool restrictions", func(t *testing.T) {
 		t.Parallel()
 		cfg := defaultTestConfig(t)
-		agent := AgentDef{Name: "retired-only-agent", Provider: "claude", Prompt: "prompt", Tools: []string{"compozy__memory_list"}, Toolsets: []string{"compozy__memory"}}
+		agent := AgentDef{
+			Name:     "retired-only-agent",
+			Provider: "claude",
+			Prompt:   "prompt",
+			Tools:    []string{"compozy__memory_list"},
+			Toolsets: []string{"compozy__memory"},
+		}
 		resolved, err := cfg.ResolveAgent(agent)
 		if err != nil {
 			t.Fatal(err)
@@ -496,7 +502,6 @@ You are a code agent.
 			t.Fatal("authored policy mutated")
 		}
 	})
-
 }
 
 func defaultTestConfig(t *testing.T) Config {
@@ -507,7 +512,6 @@ func defaultTestConfig(t *testing.T) Config {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	return DefaultWithHome(homePaths)
-
 }
 
 // TestToolsClarifyUnboundedPolicy pins the unbounded clarification policy.

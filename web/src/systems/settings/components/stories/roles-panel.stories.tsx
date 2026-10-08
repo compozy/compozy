@@ -116,13 +116,13 @@ const meta: Meta<typeof RolesPanelHarness> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Default read: six collapsed rows carrying name, resolution, route and switch. */
+/** Default read: two collapsed rows carrying name, resolution, route and switch. */
 export const Collapsed: Story = {};
 
 /** Every role expanded, showing the two routing decisions and role policy fields. */
 export const Expanded: Story = { args: { expanded: true } };
 
-/** Dream routed at a missing catalog agent — the row opens itself on the warning. */
+/** Auto title routed at a missing catalog agent — the row opens itself on the warning. */
 export const Diagnostics: Story = {
   args: {
     statuses: rolesStatusWithDiagnosticFixture.roles,
@@ -130,7 +130,7 @@ export const Diagnostics: Story = {
     // rather than collapsing an out-of-catalog value into the default.
     config: {
       ...settingsRolesConfigFixture,
-      dream: { ...settingsRolesConfigFixture.dream, agent: "ghost" },
+      auto_title: { ...settingsRolesConfigFixture.auto_title, agent: "ghost" },
     },
   },
 };
@@ -140,15 +140,15 @@ export const FallbackEditor: Story = {
   args: {
     config: {
       ...settingsRolesConfigWithFallbackFixture,
-      dream: {
-        ...settingsRolesConfigWithFallbackFixture.dream,
+      auto_title: {
+        ...settingsRolesConfigWithFallbackFixture.auto_title,
         fallback_chain: [
-          settingsRolesConfigWithFallbackFixture.dream.fallback_chain[0]!,
+          settingsRolesConfigWithFallbackFixture.auto_title.fallback_chain[0]!,
           { provider: "", model: "", reasoning_effort: "", acp_options: [], command: "" },
         ],
       },
     },
-    validationErrors: { "dream.fallback.1": "Choose a provider and model." },
+    validationErrors: { "auto_title.fallback.1": "Choose a provider and model." },
   },
 };
 

@@ -105,7 +105,7 @@ func TestFilesImporting(t *testing.T) {
 			t,
 			root,
 			"prefix.go",
-			"package fixture\nimport _ \"github.com/compozy/compozy/internal/sessions/ledger\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/internal/session/contextusage\"\n",
 		)
 		files, err := filesImporting(root, "github.com/compozy/compozy/internal/session")
 		if err != nil {

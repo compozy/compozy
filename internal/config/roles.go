@@ -22,21 +22,13 @@ var _ providerResolver = (*Config)(nil)
 type RoleName string
 
 const (
-	RoleCoordinator       RoleName = "coordinator"
-	RoleDream             RoleName = "dream"
-	RoleCheckpointSummary RoleName = "checkpoint_summary"
-	RoleMemoryExtractor   RoleName = "memory_extractor"
-	RoleAutoTitle         RoleName = "auto_title"
-	RoleMemoryController  RoleName = "memory_controller"
+	RoleCoordinator RoleName = "coordinator"
+	RoleAutoTitle   RoleName = "auto_title"
 )
 
 var allRoleNames = []RoleName{
 	RoleCoordinator,
-	RoleDream,
-	RoleCheckpointSummary,
-	RoleMemoryExtractor,
 	RoleAutoTitle,
-	RoleMemoryController,
 }
 
 // RoleNames returns the complete closed role roster.
@@ -46,12 +38,8 @@ func RoleNames() []RoleName {
 
 // RolesConfig is the closed [roles] roster.
 type RolesConfig struct {
-	Coordinator       CoordinatorRoleConfig      `toml:"coordinator"`
-	Dream             RoleConfig                 `toml:"dream"`
-	CheckpointSummary RoleConfig                 `toml:"checkpoint_summary"`
-	MemoryExtractor   RoleConfig                 `toml:"memory_extractor"`
-	AutoTitle         RoleConfig                 `toml:"auto_title"`
-	MemoryController  MemoryControllerRoleConfig `toml:"memory_controller"`
+	Coordinator CoordinatorRoleConfig `toml:"coordinator"`
+	AutoTitle   RoleConfig            `toml:"auto_title"`
 }
 
 // CloneRolesConfig returns an ownership-safe copy of the roles configuration.
@@ -61,17 +49,9 @@ func CloneRolesConfig(source *RolesConfig) RolesConfig {
 	}
 	cloned := *source
 	cloned.Coordinator.ACPOptions = CloneACPOptionSelections(source.Coordinator.ACPOptions)
-	cloned.Dream.ACPOptions = CloneACPOptionSelections(source.Dream.ACPOptions)
-	cloned.CheckpointSummary.ACPOptions = CloneACPOptionSelections(source.CheckpointSummary.ACPOptions)
-	cloned.MemoryExtractor.ACPOptions = CloneACPOptionSelections(source.MemoryExtractor.ACPOptions)
 	cloned.AutoTitle.ACPOptions = CloneACPOptionSelections(source.AutoTitle.ACPOptions)
-	cloned.MemoryController.ACPOptions = CloneACPOptionSelections(source.MemoryController.ACPOptions)
 	cloned.Coordinator.FallbackChain = cloneRoleFallbacks(source.Coordinator.FallbackChain)
-	cloned.Dream.FallbackChain = cloneRoleFallbacks(source.Dream.FallbackChain)
-	cloned.CheckpointSummary.FallbackChain = cloneRoleFallbacks(source.CheckpointSummary.FallbackChain)
-	cloned.MemoryExtractor.FallbackChain = cloneRoleFallbacks(source.MemoryExtractor.FallbackChain)
 	cloned.AutoTitle.FallbackChain = cloneRoleFallbacks(source.AutoTitle.FallbackChain)
-	cloned.MemoryController.FallbackChain = cloneRoleFallbacks(source.MemoryController.FallbackChain)
 	return cloned
 }
 
@@ -137,21 +117,6 @@ const (
 	DefaultCoordinatorMaxActiveSessionsPerWorkspace = 5
 )
 
-// MemoryControllerRoleConfig controls the in-process memory-controller model call.
-type MemoryControllerRoleConfig struct {
-	Enabled         bool                 `toml:"enabled"`
-	Provider        string               `toml:"provider,omitempty"`
-	Model           string               `toml:"model"`
-	ReasoningEffort string               `toml:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed       `toml:"speed,omitempty"`
-	ACPOptions      []ACPOptionSelection `toml:"acp_options,omitempty"`
-	Timeout         time.Duration        `toml:"timeout"`
-	TopK            int                  `toml:"top_k"`
-	PromptVersion   string               `toml:"prompt_version"`
-	MaxTokensOut    int                  `toml:"max_tokens_out"`
-	FallbackChain   []RoleFallback       `toml:"fallback_chain,omitempty"`
-}
-
 // ResolvedCoordinatorRole is the coordinator runtime policy assembled from a resolved role.
 type ResolvedCoordinatorRole struct {
 	Enabled                       bool
@@ -182,7 +147,7 @@ func DefaultResolvedCoordinatorRole() ResolvedCoordinatorRole {
 	}
 }
 
-// DefaultRolesConfig returns routing defaults with background dreaming disabled.
+// DefaultRolesConfig returns routing defaults for the closed role roster.
 func DefaultRolesConfig() RolesConfig {
 	return RolesConfig{
 		Coordinator: CoordinatorRoleConfig{
@@ -191,19 +156,7 @@ func DefaultRolesConfig() RolesConfig {
 			MaxChildren:                   DefaultCoordinatorMaxChildren,
 			MaxActiveSessionsPerWorkspace: DefaultCoordinatorMaxActiveSessionsPerWorkspace,
 		},
-		Dream:             RoleConfig{Enabled: false},
-		CheckpointSummary: RoleConfig{Enabled: true},
-		MemoryExtractor:   RoleConfig{Enabled: true},
-		AutoTitle:         RoleConfig{Enabled: true},
-		MemoryController: MemoryControllerRoleConfig{
-			Enabled:       true,
-			Provider:      "pi",
-			Model:         "anthropic/claude-haiku-4",
-			Timeout:       250 * time.Millisecond,
-			TopK:          5,
-			PromptVersion: "v1",
-			MaxTokensOut:  256,
-		},
+		AutoTitle: RoleConfig{Enabled: true},
 	}
 }
 
@@ -219,16 +172,13 @@ func (c *RolesConfig) Validate(path string, resolver providerResolver) error {
 		name   RoleName
 		config RoleConfig
 	}{
-		{name: RoleDream, config: c.Dream},
-		{name: RoleCheckpointSummary, config: c.CheckpointSummary},
-		{name: RoleMemoryExtractor, config: c.MemoryExtractor},
 		{name: RoleAutoTitle, config: c.AutoTitle},
 	} {
 		if err := role.config.validate(path+"."+string(role.name), resolver); err != nil {
 			return err
 		}
 	}
-	return c.MemoryController.validate(path+"."+string(RoleMemoryController), resolver)
+	return nil
 }
 
 func (c CoordinatorRoleConfig) validate(path string, resolver providerResolver) error {
@@ -281,51 +231,6 @@ func (c RoleConfig) validate(path string, resolver providerResolver) error {
 		return err
 	}
 	return validateRoleFallbacks(path, c.FallbackChain, resolver)
-}
-
-func (c MemoryControllerRoleConfig) validate(path string, resolver providerResolver) error {
-	if err := validateRoleReasoningEffort(path+".reasoning_effort", c.ReasoningEffort); err != nil {
-		return err
-	}
-	if err := validateAgentSpeed(c.Speed, path+".speed"); err != nil {
-		return err
-	}
-	if err := validateRoleACPOptions(path+".acp_options", c.ACPOptions); err != nil {
-		return err
-	}
-	if err := validateRoleACPOptionConflicts(
-		path+".acp_options",
-		c.ACPOptions,
-		c.Speed,
-		c.ReasoningEffort,
-	); err != nil {
-		return err
-	}
-	if err := validateRoleProvider(path, c.Provider, resolver); err != nil {
-		return err
-	}
-	if err := validateRoleFallbacks(path, c.FallbackChain, resolver); err != nil {
-		return err
-	}
-	if !c.Enabled {
-		return nil
-	}
-	if strings.TrimSpace(c.Model) == "" {
-		return fmt.Errorf("%s.model is required", path)
-	}
-	if c.Timeout <= 0 {
-		return fmt.Errorf("%s.timeout must be positive: %s", path, c.Timeout)
-	}
-	if c.TopK <= 0 {
-		return fmt.Errorf("%s.top_k must be positive: %d", path, c.TopK)
-	}
-	if strings.TrimSpace(c.PromptVersion) == "" {
-		return fmt.Errorf("%s.prompt_version is required", path)
-	}
-	if c.MaxTokensOut <= 0 {
-		return fmt.Errorf("%s.max_tokens_out must be positive: %d", path, c.MaxTokensOut)
-	}
-	return nil
 }
 
 func validateRoleProvider(path, providerName string, resolver providerResolver) error {

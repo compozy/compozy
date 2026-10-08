@@ -340,7 +340,7 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 		t.Parallel()
 
 		config := compozyconfig.Config{}
-		want := compozydaemon.GracefulShutdownTimeout(&config) + daemonStopWaitMargin
+		want := max(defaultStopTimeout, compozydaemon.GracefulShutdownTimeout(&config)+daemonStopWaitMargin)
 		if got := daemonStopWaitTimeout(defaultStopTimeout, &config); got != want {
 			t.Fatalf("daemonStopWaitTimeout() = %s, want %s", got, want)
 		}

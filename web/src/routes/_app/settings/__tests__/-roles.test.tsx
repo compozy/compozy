@@ -168,26 +168,22 @@ describe("RolesSettingsPage", () => {
     expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("renders six collapsed role rows in product order with built-in resolution lines (UT-074)", () => {
+  it("renders two collapsed role rows in product order with built-in resolution lines (UT-074)", () => {
     render(<RolesSettingsPage />);
 
     const groups = screen.getAllByTestId(/^settings-page-roles-group-/);
     expect(groups.map(node => node.dataset.testid)).toEqual([
       "settings-page-roles-group-coordinator",
-      "settings-page-roles-group-dream",
-      "settings-page-roles-group-checkpoint_summary",
-      "settings-page-roles-group-memory_extractor",
       "settings-page-roles-group-auto_title",
-      "settings-page-roles-group-memory_controller",
     ]);
-    for (const role of ["coordinator", "dream", "checkpoint_summary"]) {
-      expect(screen.getByTestId(`settings-page-roles-${role}-resolution`)).toHaveTextContent(
-        /^Built in/
-      );
-      expect(within(group(role)).queryByText("BUILTIN")).not.toBeInTheDocument();
-    }
+    expect(screen.getByTestId("settings-page-roles-coordinator-resolution")).toHaveTextContent(
+      /^Built in/
+    );
+    expect(within(group("coordinator")).queryByText("BUILTIN")).not.toBeInTheDocument();
     // Every row starts closed, so the routing controls stay out of the way.
-    expect(screen.queryByTestId("settings-page-roles-dream-runtime-select")).not.toBeVisible();
+    expect(
+      screen.queryByTestId("settings-page-roles-coordinator-runtime-select")
+    ).not.toBeVisible();
   });
 
   it("carries enabled state on the header switch without expanding the row", () => {
@@ -195,7 +191,7 @@ describe("RolesSettingsPage", () => {
 
     const coordinator = screen.getByTestId("settings-page-roles-coordinator-enabled-switch");
     expect(coordinator).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByTestId("settings-page-roles-dream-enabled-switch")).toHaveAttribute(
+    expect(screen.getByTestId("settings-page-roles-auto_title-enabled-switch")).toHaveAttribute(
       "aria-checked",
       "true"
     );
@@ -205,61 +201,59 @@ describe("RolesSettingsPage", () => {
   });
 
   it("states the default-agent resolution for inherit roles without a pill (UT-075)", () => {
-    pageState.disclosure = disclosureFor(new Set(["auto_title", "memory_extractor"]));
+    pageState.disclosure = disclosureFor(new Set(["auto_title"]));
     render(<RolesSettingsPage />);
 
-    for (const role of ["auto_title", "memory_extractor"]) {
-      expect(within(group(role)).queryByText("INHERIT")).not.toBeInTheDocument();
-      expect(screen.getByTestId(`settings-page-roles-${role}-resolution`)).toHaveTextContent(
-        "Uses your default agent."
-      );
-      // A null projection is stated as unresolved, never as a fabricated route.
-      expect(screen.getByTestId(`settings-page-roles-${role}-runtime`)).toHaveTextContent(
-        "Decided when the role runs."
-      );
-      expect(screen.queryByTestId(`settings-page-roles-${role}-route`)).not.toBeInTheDocument();
-    }
+    expect(within(group("auto_title")).queryByText("INHERIT")).not.toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-roles-auto_title-resolution")).toHaveTextContent(
+      "Uses your default agent."
+    );
+    // A null projection is stated as unresolved, never as a fabricated route.
+    expect(screen.getByTestId("settings-page-roles-auto_title-runtime")).toHaveTextContent(
+      "Decided when the role runs."
+    );
+    expect(screen.queryByTestId("settings-page-roles-auto_title-route")).not.toBeInTheDocument();
   });
 
-  it("renders the timeout row only for memory_controller (UT-076)", () => {
-    pageState.disclosure = disclosureFor(new Set(["dream", "memory_controller"]));
+  it("renders policy rows only for roles that declare them (UT-076)", () => {
+    pageState.disclosure = disclosureFor(new Set(["coordinator", "auto_title"]));
     render(<RolesSettingsPage />);
 
-    expect(screen.queryByTestId("settings-page-roles-dream-timeout-input")).not.toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-roles-coordinator-ttl-input")).toBeInTheDocument();
     expect(
-      screen.getByTestId("settings-page-roles-memory_controller-timeout-input")
-    ).toBeInTheDocument();
-    // memory_controller has no session identity, so no agent picker.
-    expect(
-      screen.queryByTestId("settings-page-roles-memory_controller-agent-select")
+      screen.queryByTestId("settings-page-roles-auto_title-ttl-input")
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-roles-dream-agent-select")).toBeInTheDocument();
+    // Every role carries a session identity, so each one offers an agent picker.
+    expect(screen.getByTestId("settings-page-roles-coordinator-agent-select")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-roles-auto_title-agent-select")).toBeInTheDocument();
   });
 
   it("surfaces a role diagnostic as a visible warning on the affected row (UT-077)", () => {
     pageState.roles = diagnosticRoles;
-    pageState.disclosure = disclosureFor(new Set(["dream"]));
+    pageState.disclosure = disclosureFor(new Set(["auto_title"]));
     render(<RolesSettingsPage />);
 
-    const notice = screen.getByTestId("settings-page-roles-dream-diagnostics-role_agent_not_found");
+    const notice = screen.getByTestId(
+      "settings-page-roles-auto_title-diagnostics-role_agent_not_found"
+    );
     expect(notice).toHaveTextContent("Warning");
     expect(notice).toHaveTextContent("ghost");
     // The collapsed header marks the warning too, so it is findable while closed.
-    expect(screen.getByTestId("settings-page-roles-dream-warning-mark")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-roles-auto_title-warning-mark")).toBeInTheDocument();
   });
 
   it("renders the editable fallback chain and wires add to the page handler", () => {
-    pageState.disclosure = disclosureFor(new Set(["dream"]));
+    pageState.disclosure = disclosureFor(new Set(["auto_title"]));
     render(<RolesSettingsPage />);
 
-    fireEvent.click(screen.getByTestId("settings-page-roles-dream-advanced-fallback-add"));
-    expect(pageState.addFallback).toHaveBeenCalledWith("dream");
+    fireEvent.click(screen.getByTestId("settings-page-roles-auto_title-advanced-fallback-add"));
+    expect(pageState.addFallback).toHaveBeenCalledWith("auto_title");
   });
 
   it("offers a bulk expand control over the role list", () => {
     render(<RolesSettingsPage />);
 
-    expect(screen.getByTestId("settings-page-roles-count")).toHaveTextContent("6 roles · 1 off");
+    expect(screen.getByTestId("settings-page-roles-count")).toHaveTextContent("2 roles · 1 off");
     fireEvent.click(screen.getByTestId("settings-page-roles-expand-toggle"));
     expect(pageState.disclosure.expandAll).toHaveBeenCalledTimes(1);
   });

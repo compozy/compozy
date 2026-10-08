@@ -5,7 +5,7 @@ title: Settings takeover shell with srow pages and save models
 persona: Dora
 journey: J-administer-runtime-settings
 expected: The settings window renders the 264px takeover sidebar (the host's Close Settings action closes the window; search with `/` shortcut filters sections; Basics/Personal/Agents/Advanced groups; runtime foot naming CompozyOS, never "daemon") collapsing to a chip strip under 56rem. Section labels read Remote access, Notifications, and Diagnostics, while their slugs stay `gateway`, `attention`, and `observability`, and searching the retired word still finds the renamed section. Pages use one-decision srows with consequence sentences, at most one Advanced fold per page, and choice cards with neutral selection. Draft pages show the floating save bar only when dirty/saving/error and flash "Saved" after a clean save; restart-needed changes surface the typed restart notice.
-entry_points: web settings window (General, Memory, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
+entry_points: web settings window (General, Automation, Skills, Hooks, Extensions, Diagnostics, Notifications, Remote access)
 qa_status: pass
 bug_ids: BUG-20261004-settings-search-shortcut-inactive; BUG-20261004-settings-choices-ignore-window; BUG-20261004-settings-idle-timeout-display; BUG-20261004-settings-startup-false-offline; BUG-20261004-settings-offline-save-stuck
 fix_status: fixed
@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: b4166a6c2; baec8d019; 3268b7477; 4ce6fd811; 23dddb441
 evidence: docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-reload-observed.json; docs/qa/evidence/2026-10-02-untested/settings-idle-typeahead-dora-after-save.json; docs/qa/reports/2026-10-02-untested.md
 last_report: docs/qa/reports/2026-10-02-untested.md
-overlaps: MS-026; MS-037; ET-012; ET-044; ET-045
+overlaps: MS-037; ET-012; ET-044; ET-045
 ---
 
 2026-08-20 retry: skipped by explicit user instruction. No settings search, save, or error path was walked.
@@ -115,3 +115,5 @@ The non-loopback transport scenario verifies
 the fixed safe refusal remains visible through the root error boundary while
 HTTP is denied and UDS/CLI config access still works. Both re-walks passed. See
 [PR 691 CI remediation](../reports/2026-10-05-pr-691-ci.md).
+
+QA impact 2026-10-07 (memory removal): Settings now lists 18 sections; the Memory section and `/settings/memory` were removed (a restored Settings window on that route lands on the overview, and a direct visit renders not-found). The takeover shell contract is unchanged; the "Memory page" remarks in the 2026-10-04 walks above are historical. No verdict change.

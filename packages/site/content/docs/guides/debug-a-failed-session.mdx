@@ -52,8 +52,8 @@ private; redaction does not replace secure handling.
 compozy doctor -o json
 ```
 
-Look for unhealthy subsystems before focusing on the agent process. Memory indexing, event storage,
-or daemon connectivity problems can make a session look broken even when the provider process is
+Look for unhealthy subsystems before focusing on the agent process. Event storage or daemon
+connectivity problems can make a session look broken even when the provider process is
 not the root cause.
 
 ## 4. Inspect the session status
@@ -168,7 +168,6 @@ data-loss problem.
 | Web UI is stale                            | `compozy status` and `compozy doctor`                           | [Web UI](/docs/getting-started/web-ui)            |
 | Attach is refused                          | `compozy session list --resumable` and `compozy session recap`  | [Resume Attach and Replay](/docs/sessions/resume) |
 | Agent cannot see project context           | `compozy workspace info <name>`                                 | [Workspace Resolver](/docs/workspaces/resolver)   |
-| Memory is missing                          | `compozy memory health -o json`                                 | [Memory System](/docs/memory/system)              |
 
 ## Evidence to collect before filing a bug
 

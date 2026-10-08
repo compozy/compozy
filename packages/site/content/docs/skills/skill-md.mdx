@@ -53,7 +53,6 @@ AgentSkills readers.
 | `metadata.compozy.when`        | activation gate object      | no       | Controls whether the skill is offered in the current prompt catalog. Unknown gate names or malformed values fail parsing. |
 | `metadata.compozy.mcp_servers` | array of MCP server objects | no       | Parsed into skill MCP declarations and merged into session startup MCP servers. Malformed entries are warned and skipped. |
 | `metadata.compozy.hooks`       | array of hook declarations  | no       | Parsed into skill-sourced hooks. Invalid hook declarations fail skill parsing.                                            |
-| `metadata.compozy.memory_tags` | string array                | no       | RFC-only today. The current runtime does not use this field.                                                              |
 
 ### `metadata.compozy.when`
 

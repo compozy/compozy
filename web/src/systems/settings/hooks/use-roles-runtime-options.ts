@@ -22,7 +22,7 @@ function toCatalogProviders(providers: RuntimeProviderOption[]): RuntimeCatalogP
 
 /**
  * One catalog read for the whole Roles page. Every runtime selector on the page
- * — six role routes plus each fallback entry — is fed from this single query
+ * — each role route plus each fallback entry — is fed from this single query
  * through props; no selector fetches on its own.
  */
 export function useRolesRuntimeOptions(): RolesRuntimeOptions {

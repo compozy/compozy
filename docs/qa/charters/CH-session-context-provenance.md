@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Compare human/JSON/TOON CLI, HTTP and UDS usage and turns. Context is a latest observation, counters accumulate completed turns and no report stays unknown."
-      - "Inspect confirmed events and sanitized metadata, binary bytes without tokens, stopped readback and archive facts without inferring agent compaction."
+      - "Inspect confirmed events and sanitized metadata, binary bytes without tokens, stopped readback and observed agent-compaction markers without inferring compaction the agent did not report."
       - "Complete a real OpenCode turn and compare cache/cost provenance with the sidebar and structured reads. Record actual provider blockers rather than substituting fixture evidence."
       - "Exercise threshold0.85 and disabled0, catalog-only size without warning and failed transport without receipt. Reuse unit/SQLite evidence for read failures and adversarial ordering."
     must_avoid:

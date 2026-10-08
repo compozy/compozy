@@ -154,36 +154,6 @@ export const automationOperatorTestIds = {
   editTriggerButton: "edit-trigger-btn",
 } as const;
 
-export const knowledgeOperatorTestIds = {
-  osDesktop: sessionLifecycleTestIds.osDesktop,
-  cancelCreateMemory: "cancel-create-memory-btn",
-  confirmCreateMemory: "confirm-create-memory-btn",
-  confirmDeleteMemory: "confirm-delete-memory-btn",
-  confirmEditMemory: "confirm-edit-memory-btn",
-  contentPreview: "content-preview",
-  createButton: "create-memory-btn",
-  createContent: "knowledge-create-content",
-  createDescription: "knowledge-create-description",
-  createDialog: "knowledge-create-dialog",
-  createName: "knowledge-create-name",
-  createType: "knowledge-create-type-grid",
-  deleteButton: "delete-memory-btn",
-  deleteDialog: "knowledge-delete-dialog",
-  detailPanel: "knowledge-detail-panel",
-  editButton: "edit-memory-btn",
-  editContent: "knowledge-edit-content",
-  editDescription: "knowledge-edit-description",
-  editDialog: "knowledge-edit-dialog",
-  guard: "knowledge-guard",
-  listPanel: "knowledge-list-panel",
-  searchInput: "knowledge-search-input",
-  searchInfo: "knowledge-search-info",
-  shell: "knowledge-shell",
-  tabAgent: "tab-agent",
-  tabProfile: "tab-profile",
-  tabWorkspace: "tab-workspace",
-} as const;
-
 export const marketplaceOperatorTestIds = {
   extensionAutomationStarted: "extension-automation-started",
   extensionEnvironmentState: "extension-environment-state",
@@ -281,38 +251,6 @@ export interface AutomationOperatorSelectors {
   editTriggerButton: Locator;
   runDrawer(runId: string): Locator;
   runOpenLink(runId: string): Locator;
-}
-
-export interface KnowledgeOperatorSelectors {
-  osDesktop: Locator;
-  cancelCreateMemory: Locator;
-  confirmCreateMemory: Locator;
-  confirmDeleteMemory: Locator;
-  confirmEditMemory: Locator;
-  contentPreview: Locator;
-  createButton: Locator;
-  createContent: Locator;
-  createDescription: Locator;
-  createDialog: Locator;
-  createName: Locator;
-  createType: Locator;
-  deleteButton: Locator;
-  deleteDialog: Locator;
-  detailPanel: Locator;
-  editButton: Locator;
-  editContent: Locator;
-  editDescription: Locator;
-  editDialog: Locator;
-  guard: Locator;
-  item(memoryKey: string): Locator;
-  listPanel: Locator;
-  revertDecision(decisionId: string): Locator;
-  searchInput: Locator;
-  searchInfo: Locator;
-  shell: Locator;
-  tabAgent: Locator;
-  tabProfile: Locator;
-  tabWorkspace: Locator;
 }
 
 export interface MarketplaceOperatorSelectors {
@@ -906,44 +844,6 @@ export function sessionWorkspaceSwitchSelectors(
     dialog: page.getByTestId(sessionWorkspaceSwitchTestIds.dialog),
     confirm: page.getByTestId(sessionWorkspaceSwitchTestIds.confirm),
     cancel: page.getByTestId(sessionWorkspaceSwitchTestIds.cancel),
-  };
-}
-
-export function knowledgeOperatorSelectors(
-  page: Pick<Page, "getByTestId">,
-  portalRoot: Pick<Page, "getByTestId"> = page
-): KnowledgeOperatorSelectors {
-  return {
-    osDesktop: page.getByTestId(knowledgeOperatorTestIds.osDesktop),
-    cancelCreateMemory: portalRoot.getByTestId(knowledgeOperatorTestIds.cancelCreateMemory),
-    confirmCreateMemory: portalRoot.getByTestId(knowledgeOperatorTestIds.confirmCreateMemory),
-    confirmDeleteMemory: portalRoot.getByTestId(knowledgeOperatorTestIds.confirmDeleteMemory),
-    confirmEditMemory: portalRoot.getByTestId(knowledgeOperatorTestIds.confirmEditMemory),
-    contentPreview: page.getByTestId(knowledgeOperatorTestIds.contentPreview),
-    createButton: page.getByTestId(knowledgeOperatorTestIds.createButton),
-    createContent: portalRoot.getByTestId(knowledgeOperatorTestIds.createContent),
-    createDescription: portalRoot.getByTestId(knowledgeOperatorTestIds.createDescription),
-    createDialog: portalRoot.getByTestId(knowledgeOperatorTestIds.createDialog),
-    createName: portalRoot.getByTestId(knowledgeOperatorTestIds.createName),
-    createType: portalRoot.getByTestId(knowledgeOperatorTestIds.createType),
-    deleteButton: page.getByTestId(knowledgeOperatorTestIds.deleteButton),
-    deleteDialog: portalRoot.getByTestId(knowledgeOperatorTestIds.deleteDialog),
-    detailPanel: page.getByTestId(knowledgeOperatorTestIds.detailPanel),
-    editButton: page.getByTestId(knowledgeOperatorTestIds.editButton),
-    editContent: portalRoot.getByTestId(knowledgeOperatorTestIds.editContent),
-    editDescription: portalRoot.getByTestId(knowledgeOperatorTestIds.editDescription),
-    editDialog: portalRoot.getByTestId(knowledgeOperatorTestIds.editDialog),
-    guard: page.getByTestId(knowledgeOperatorTestIds.guard),
-    item: (memoryKey: string) => page.getByTestId(`memory-item-${memoryKey}`),
-    listPanel: page.getByTestId(knowledgeOperatorTestIds.listPanel),
-    revertDecision: (decisionId: string) =>
-      page.getByTestId(`revert-memory-decision-${decisionId}`),
-    searchInput: page.getByTestId(knowledgeOperatorTestIds.searchInput),
-    searchInfo: page.getByTestId(knowledgeOperatorTestIds.searchInfo),
-    shell: page.getByTestId(knowledgeOperatorTestIds.shell),
-    tabAgent: page.getByTestId(knowledgeOperatorTestIds.tabAgent),
-    tabProfile: page.getByTestId(knowledgeOperatorTestIds.tabProfile),
-    tabWorkspace: page.getByTestId(knowledgeOperatorTestIds.tabWorkspace),
   };
 }
 

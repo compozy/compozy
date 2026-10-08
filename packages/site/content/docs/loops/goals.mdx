@@ -120,8 +120,13 @@ The context gauge reports evidence from the active Goal checkpoint:
 | `pending` | Compaction ran, but CompozyOS still needs a strictly newer usage report before it can call the context fresh. |
 
 `[goals].context_nudge_ratio` is pinned when the Run starts. When known usage reaches that threshold,
-CompozyOS requests correlated compaction. Compaction is an operational prompt, not a user-authored human
-message and not a Goal work turn.
+CompozyOS asks the agent to compact its own context by sending the command the agent advertises,
+`/compact` or else `/compress`, as an operational prompt in maintenance mode on the managed Goal
+path. It is not a user-authored human message and not a Goal work turn. The compaction succeeds when
+CompozyOS observes a terminal `completed` update for it; a `failed` or `cancelled` update does not.
+An agent that advertises neither command goes straight to the reseed path below. This turn is
+**experimental**, because it follows an unstable upstream agent contract. See
+[Session compaction](/docs/sessions/compaction).
 
 CompozyOS does not replay an ACP prompt after its durable start. A restart with exact terminal evidence
 reconciles that terminal result. Missing proof becomes an `ambiguous` turn and a typed approval

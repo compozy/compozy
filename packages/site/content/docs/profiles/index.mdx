@@ -27,8 +27,7 @@ New to profiles? [Create your first one](/docs/profiles/quickstart). It takes ab
 | Config, MCP, agent, and skill layers under `profiles/<name>/` | Published extension resources — per-profile enablement        |
 | Provider and extension credential overrides in the Vault      | Your user credentials, used until a profile overrides them    |
 | Desktops and window arrangements                              | Native provider CLI logins                                    |
-| Tool approval grants                                          | Repository-committed workspace memory                         |
-| [Profile-scope memory](/docs/memory/scopes)                   | Daemon identity: ports, database, logs, gateway               |
+| Tool approval grants                                          | Daemon identity: ports, database, logs, gateway               |
 
 Two entries are worth reading twice. **Worktrees appear in every profile** because they describe
 filesystem state that belongs to a workspace, not to a context; each row still carries the profile
@@ -112,13 +111,6 @@ key that extensions place resources into.
     title="Resource placement"
     description="Binding a contributed skill, agent, or command to a named profile."
     meta="Authoring"
-  />
-  <RouteRow
-    href="/docs/memory/scopes"
-    label="Memory"
-    title="Profile memory scope"
-    description="How profile memory relates to workspace memory and to the agent tiers."
-    meta="Scopes"
   />
   <RouteRow
     href="/docs/extensions/cmd-palette"
