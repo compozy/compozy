@@ -156,7 +156,6 @@ func suggestedWebPaths() []string {
 		"/loop-runs",
 		fmt.Sprintf("/loop-runs/%s", loopApprovalRunID),
 		fmt.Sprintf("/loops/%s/editor", loopMarketRollout),
-		"/knowledge",
 		"/tasks?mode=dashboard",
 		fmt.Sprintf("/agents/%s/sessions/%s", agentProductLead, sessionLaunchDecisionID),
 	}
