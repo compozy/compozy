@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+type TerminalObservationPatch struct{}
+
+type TerminalOpenedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	Mode        string    `json:"mode"`
+	Cwd         string    `json:"cwd"`
+	Title       string    `json:"title,omitempty"`
+}
+
 type TerminalRecordingStartedPayload struct {
 	Event       HookEvent `json:"event"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -225,31 +244,32 @@ type ToolResultPatch struct {
 type ToolsetID string
 
 type Trigger struct {
-	ID                   string                 `json:"id"`
-	ProfileID            string                 `json:"profile_id"`
-	ProfileName          string                 `json:"profile_name"`
-	ProfileColor         string                 `json:"profile_color,omitempty"`
-	ProfileIcon          string                 `json:"profile_icon,omitempty"`
-	Scope                Scope                  `json:"scope"`
-	Name                 string                 `json:"name"`
-	TargetKind           TargetKind             `json:"target_kind"`
-	AgentName            string                 `json:"agent_name"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	Prompt               string                 `json:"prompt"`
-	Event                string                 `json:"event"`
-	Filter               map[string]string      `json:"filter,omitempty"`
-	LoopTarget           *LoopTarget            `json:"loop_target,omitempty"`
-	Enabled              bool                   `json:"enabled"`
-	Retry                RetryConfig            `json:"retry"`
-	FireLimit            FireLimitConfig        `json:"fire_limit"`
-	Source               JobSource              `json:"source"`
-	WebhookID            string                 `json:"webhook_id,omitempty"`
-	EndpointSlug         string                 `json:"endpoint_slug,omitempty"`
-	WebhookSecretPresent bool                   `json:"webhook_secret_present"`
-	WebhookSecretHash    string                 `json:"webhook_secret_hash,omitempty"`
-	Ingress              *GatewayIngressPayload `json:"ingress,omitempty"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
+	ID                   string                    `json:"id"`
+	ProfileID            string                    `json:"profile_id"`
+	ProfileName          string                    `json:"profile_name"`
+	ProfileColor         string                    `json:"profile_color,omitempty"`
+	ProfileIcon          string                    `json:"profile_icon,omitempty"`
+	Scope                Scope                     `json:"scope"`
+	Name                 string                    `json:"name"`
+	TargetKind           TargetKind                `json:"target_kind"`
+	AgentName            string                    `json:"agent_name"`
+	WorkspaceID          string                    `json:"workspace_id,omitempty"`
+	Prompt               string                    `json:"prompt"`
+	Event                string                    `json:"event"`
+	Filter               map[string]string         `json:"filter,omitempty"`
+	LoopTarget           *LoopTarget               `json:"loop_target,omitempty"`
+	Enabled              bool                      `json:"enabled"`
+	Retry                RetryConfig               `json:"retry"`
+	FireLimit            FireLimitConfig           `json:"fire_limit"`
+	Source               JobSource                 `json:"source"`
+	WebhookID            string                    `json:"webhook_id,omitempty"`
+	EndpointSlug         string                    `json:"endpoint_slug,omitempty"`
+	WebhookSecretPresent bool                      `json:"webhook_secret_present"`
+	WebhookSecretHash    string                    `json:"webhook_secret_hash,omitempty"`
+	Ingress              *GatewayIngressPayload    `json:"ingress,omitempty"`
+	CreatedAt            time.Time                 `json:"created_at"`
+	UpdatedAt            time.Time                 `json:"updated_at"`
+	LastRun              *AutomationLastRunPayload `json:"last_run,omitzero"`
 }
 
 type TriggerResult struct {
@@ -268,34 +288,6 @@ type TurnEndPatch struct {
 }
 
 type TurnEndPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
-}
-
-type TurnPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-type TurnPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
 	ProfileID      string    `json:"profile_id,omitempty"`

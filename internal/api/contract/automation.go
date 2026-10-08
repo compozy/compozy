@@ -69,6 +69,18 @@ type JobPayload struct {
 	UpdatedAt    time.Time                        `json:"updated_at"`
 	NextRun      *time.Time                       `json:"next_run,omitempty"`
 	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
+	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
+}
+
+// AutomationLastRunPayload summarizes the newest run of one job or trigger.
+// It equals the first run of the owner's run list; skipped scheduled fires
+// carry the reason stored in the run metadata.
+type AutomationLastRunPayload struct {
+	ID         string                            `json:"id"`
+	Status     automationpkg.RunStatus           `json:"status"`
+	StartedAt  *time.Time                        `json:"started_at,omitzero"`
+	EndedAt    *time.Time                        `json:"ended_at,omitzero"`
+	SkipReason automationpkg.SchedulerSkipReason `json:"skip_reason,omitempty"`
 }
 
 // AutomationSuggestionPayload is a workspace-scoped, consent-first Job proposal.
@@ -111,6 +123,7 @@ type TriggerPayload struct {
 	Ingress              *GatewayIngressPayload        `json:"ingress,omitempty"`
 	CreatedAt            time.Time                     `json:"created_at"`
 	UpdatedAt            time.Time                     `json:"updated_at"`
+	LastRun              *AutomationLastRunPayload     `json:"last_run,omitzero"`
 }
 
 // TriggerPayloadFromTrigger converts an internal automation trigger into the

@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type ClarifyAskParams struct {
+	InvocationID string   `json:"invocation_id"`
+	Question     string   `json:"question"`
+	Choices      []string `json:"choices,omitempty"`
+}
+
 type ClientID string
 
 type CmdPaletteAction struct {
@@ -174,14 +180,6 @@ type ContextCompactPayload struct {
 }
 
 type ContextCompactionPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Reason        *string        `json:"reason,omitempty"`
-	Strategy      *string        `json:"strategy,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextPostCompactPatch struct {
 	Deny          bool           `json:"deny,omitempty"`
 	DenyReason    string         `json:"deny_reason,omitempty"`
 	Reason        *string        `json:"reason,omitempty"`

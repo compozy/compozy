@@ -20660,6 +20660,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Filter by job source */
         source?: "config" | "package" | "dynamic";
+        /** @description Filter by target kind; task matches jobs with a task target */
+        target?: "agent" | "loop" | "task";
         /** @description Filter by enabled state */
         enabled?: boolean;
         /** @description Search jobs by name, agent, prompt, scope, source, or schedule */
@@ -20698,6 +20700,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -20953,6 +20965,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -21214,6 +21236,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -21605,6 +21637,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -22542,6 +22584,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Filter by trigger source */
         source?: "config" | "package" | "dynamic";
+        /** @description Filter by target kind; task matches no trigger */
+        target?: "agent" | "loop" | "task";
         /** @description Filter by enabled state */
         enabled?: boolean;
         /** @description Filter by trigger event */
@@ -22605,6 +22649,16 @@ export interface operations {
                 subject_kind: string;
                 url?: string;
                 workspace_id?: string;
+              } | null;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
               } | null;
               loop_target?: {
                 input_mapping?: {
@@ -22822,6 +22876,16 @@ export interface operations {
                 subject_kind: string;
                 url?: string;
                 workspace_id?: string;
+              } | null;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
               } | null;
               loop_target?: {
                 input_mapping?: {
@@ -23063,6 +23127,16 @@ export interface operations {
                 subject_kind: string;
                 url?: string;
                 workspace_id?: string;
+              } | null;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
               } | null;
               loop_target?: {
                 input_mapping?: {
@@ -23422,6 +23496,16 @@ export interface operations {
                 subject_kind: string;
                 url?: string;
                 workspace_id?: string;
+              } | null;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
               } | null;
               loop_target?: {
                 input_mapping?: {
@@ -90794,6 +90878,22 @@ export interface operations {
                   window: string;
                 };
                 id: string;
+                last_run?: {
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  id: string;
+                  skip_reason?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "scheduled"
+                    | "running"
+                    | "delegated"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                } | null;
                 loop_target?: {
                   input_mapping?: {
                     [key: string]: string;
@@ -91029,6 +91129,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              last_run?: {
+                /** Format: date-time */
+                ended_at?: string | null;
+                id: string;
+                skip_reason?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
+              } | null;
               loop_target?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -91116,6 +91226,22 @@ export interface operations {
                   window: string;
                 };
                 id: string;
+                last_run?: {
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  id: string;
+                  skip_reason?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "scheduled"
+                    | "running"
+                    | "delegated"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                } | null;
                 loop_target?: {
                   input_mapping?: {
                     [key: string]: string;
@@ -91386,6 +91512,22 @@ export interface operations {
                   window: string;
                 };
                 id: string;
+                last_run?: {
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  id: string;
+                  skip_reason?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "scheduled"
+                    | "running"
+                    | "delegated"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                } | null;
                 loop_target?: {
                   input_mapping?: {
                     [key: string]: string;

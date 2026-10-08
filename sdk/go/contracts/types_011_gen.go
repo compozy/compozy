@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type JobTaskConfig struct {
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Owner       *Ownership `json:"owner,omitempty"`
+}
+
 type LineageKind string
 
 type ListLogsParams struct {
@@ -360,11 +366,3 @@ type MemoryRecallParams struct {
 }
 
 type MemoryScope string
-
-type MemoryStoreParams struct {
-	Key       string      `json:"key"`
-	Content   string      `json:"content"`
-	Scope     MemoryScope `json:"scope,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-	Tags      []string    `json:"tags,omitempty"`
-}

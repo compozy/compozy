@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type HeartbeatDeleteRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
 type HeartbeatFrontmatterPayload struct {
 	Version     int                                    `json:"version"`
 	Enabled     bool                                   `json:"enabled"`
@@ -194,16 +200,3 @@ type HeartbeatWakeResponse struct {
 type HeartbeatWakeResult string
 
 type HeartbeatWakeSource string
-
-type HeartbeatWakeStatePayload struct {
-	WorkspaceID      string              `json:"workspace_id,omitempty"`
-	AgentName        string              `json:"agent_name,omitempty"`
-	SessionID        string              `json:"session_id"`
-	PolicySnapshotID string              `json:"policy_snapshot_id,omitempty"`
-	LastWakeAt       *time.Time          `json:"last_wake_at,omitempty"`
-	NextAllowedAt    *time.Time          `json:"next_allowed_at,omitempty"`
-	CoalescedCount   int                 `json:"coalesced_count"`
-	LastResult       HeartbeatWakeResult `json:"last_result"`
-	LastReason       HeartbeatWakeReason `json:"last_reason,omitempty"`
-	UpdatedAt        time.Time           `json:"updated_at"`
-}

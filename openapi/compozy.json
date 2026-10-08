@@ -41534,6 +41534,19 @@
             }
           },
           {
+            "description": "Filter by target kind; task matches jobs with a task target",
+            "in": "query",
+            "name": "target",
+            "schema": {
+              "enum": [
+                "agent",
+                "loop",
+                "task"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by enabled state",
             "in": "query",
             "name": "enabled",
@@ -41627,6 +41640,43 @@
                           },
                           "id": {
                             "type": "string"
+                          },
+                          "last_run": {
+                            "nullable": true,
+                            "properties": {
+                              "ended_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "skip_reason": {
+                                "type": "string"
+                              },
+                              "started_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "scheduled",
+                                  "running",
+                                  "delegated",
+                                  "completed",
+                                  "failed",
+                                  "canceled"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "status"
+                            ],
+                            "type": "object"
                           },
                           "loop_target": {
                             "nullable": true,
@@ -42385,6 +42435,43 @@
                         },
                         "id": {
                           "type": "string"
+                        },
+                        "last_run": {
+                          "nullable": true,
+                          "properties": {
+                            "ended_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "skip_reason": {
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "canceled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "type": "object"
                         },
                         "loop_target": {
                           "nullable": true,
@@ -43443,6 +43530,43 @@
                         "id": {
                           "type": "string"
                         },
+                        "last_run": {
+                          "nullable": true,
+                          "properties": {
+                            "ended_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "skip_reason": {
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "canceled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "loop_target": {
                           "nullable": true,
                           "properties": {
@@ -44162,6 +44286,43 @@
                         },
                         "id": {
                           "type": "string"
+                        },
+                        "last_run": {
+                          "nullable": true,
+                          "properties": {
+                            "ended_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "skip_reason": {
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "canceled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "type": "object"
                         },
                         "loop_target": {
                           "nullable": true,
@@ -46680,6 +46841,19 @@
             }
           },
           {
+            "description": "Filter by target kind; task matches no trigger",
+            "in": "query",
+            "name": "target",
+            "schema": {
+              "enum": [
+                "agent",
+                "loop",
+                "task"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by enabled state",
             "in": "query",
             "name": "enabled",
@@ -46862,6 +47036,43 @@
                               "scope_kind",
                               "subject_id",
                               "subject_kind"
+                            ],
+                            "type": "object"
+                          },
+                          "last_run": {
+                            "nullable": true,
+                            "properties": {
+                              "ended_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "skip_reason": {
+                                "type": "string"
+                              },
+                              "started_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "scheduled",
+                                  "running",
+                                  "delegated",
+                                  "completed",
+                                  "failed",
+                                  "canceled"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "status"
                             ],
                             "type": "object"
                           },
@@ -47476,6 +47687,43 @@
                             "scope_kind",
                             "subject_id",
                             "subject_kind"
+                          ],
+                          "type": "object"
+                        },
+                        "last_run": {
+                          "nullable": true,
+                          "properties": {
+                            "ended_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "skip_reason": {
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "canceled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -48468,6 +48716,43 @@
                           ],
                           "type": "object"
                         },
+                        "last_run": {
+                          "nullable": true,
+                          "properties": {
+                            "ended_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "skip_reason": {
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "canceled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "loop_target": {
                           "nullable": true,
                           "properties": {
@@ -49066,6 +49351,43 @@
                             "scope_kind",
                             "subject_id",
                             "subject_kind"
+                          ],
+                          "type": "object"
+                        },
+                        "last_run": {
+                          "nullable": true,
+                          "properties": {
+                            "ended_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "skip_reason": {
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "canceled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -220575,6 +220897,43 @@
                               "id": {
                                 "type": "string"
                               },
+                              "last_run": {
+                                "nullable": true,
+                                "properties": {
+                                  "ended_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "skip_reason": {
+                                    "type": "string"
+                                  },
+                                  "started_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "scheduled",
+                                      "running",
+                                      "delegated",
+                                      "completed",
+                                      "failed",
+                                      "canceled"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
                               "loop_target": {
                                 "nullable": true,
                                 "properties": {
@@ -221242,6 +221601,43 @@
                         "id": {
                           "type": "string"
                         },
+                        "last_run": {
+                          "nullable": true,
+                          "properties": {
+                            "ended_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "skip_reason": {
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "canceled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "loop_target": {
                           "nullable": true,
                           "properties": {
@@ -221534,6 +221930,43 @@
                             },
                             "id": {
                               "type": "string"
+                            },
+                            "last_run": {
+                              "nullable": true,
+                              "properties": {
+                                "ended_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "skip_reason": {
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "scheduled",
+                                    "running",
+                                    "delegated",
+                                    "completed",
+                                    "failed",
+                                    "canceled"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "status"
+                              ],
+                              "type": "object"
                             },
                             "loop_target": {
                               "nullable": true,
@@ -222288,6 +222721,43 @@
                             },
                             "id": {
                               "type": "string"
+                            },
+                            "last_run": {
+                              "nullable": true,
+                              "properties": {
+                                "ended_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "skip_reason": {
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "scheduled",
+                                    "running",
+                                    "delegated",
+                                    "completed",
+                                    "failed",
+                                    "canceled"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "status"
+                              ],
+                              "type": "object"
                             },
                             "loop_target": {
                               "nullable": true,

@@ -4,6 +4,14 @@ package contracts
 
 import "time"
 
+type ContextPostCompactPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Reason        *string        `json:"reason,omitempty"`
+	Strategy      *string        `json:"strategy,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
 type ContextPostCompactPayload struct {
 	Event          HookEvent      `json:"event"`
 	Timestamp      time.Time      `json:"timestamp"`
@@ -260,9 +268,4 @@ type DescribeProfile struct {
 type DescribeProfileCredential struct {
 	Provider string `json:"provider"`
 	Slot     string `json:"slot"`
-}
-
-type DescribeProfileDefaults struct {
-	Agent    string `json:"agent,omitempty"`
-	Provider string `json:"provider,omitempty"`
 }
