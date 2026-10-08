@@ -11392,7 +11392,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		},
 	)
 
-	t.Run("Should keep Memory v2 write tools root-only unless lineage grants them", func(t *testing.T) {
+	t.Run("Should retain session grants while ignoring retired agent and lineage references", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -11409,9 +11409,10 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			agent: compozyconfig.AgentDef{
 				Name:        "coder",
 				Provider:    "opencode",
-				Prompt:      "Use memory tools deliberately.",
+				Prompt:      "Use session tools deliberately.",
 				Permissions: string(compozyconfig.PermissionModeApproveAll),
-				Toolsets:    []string{toolspkg.ToolsetIDMemory.String()},
+				Toolsets:    []string{toolspkg.ToolsetIDSessions.String(), "compozy__memory"},
+				Tools:       []string{"compozy__memory_note"},
 			},
 		}
 		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
@@ -11423,19 +11424,18 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
 		}
-		memoryStore := memorypkg.NewStore(filepath.Join(t.TempDir(), "memory"))
 		registry := newDaemonNativeRegistryWithPolicyResolver(t, &daemonNativeToolsDeps{
-			MemoryStore: memoryStore,
+			Sessions: nativeTestSessionManager(""),
 		}, resolver)
 		rootScope := toolspkg.Scope{SessionID: "sess-root"}
 
 		rootViews, err := registry.SessionProjection(ctx, rootScope)
 		if err != nil {
-			t.Fatalf("SessionProjection(root memory) error = %v", err)
+			t.Fatalf("SessionProjection(root session) error = %v", err)
 		}
-		requireNativeViewContains(t, rootViews, toolspkg.ToolIDMemoryShow)
-		requireNativeViewContains(t, rootViews, toolspkg.ToolIDMemoryPropose)
-		requireNativeViewContains(t, rootViews, toolspkg.ToolIDMemoryNote)
+		requireNativeViewContains(t, rootViews, toolspkg.ToolIDSessionStatus)
+		requireNativeViewContains(t, rootViews, toolspkg.ToolIDSessionArchive)
+		requireNativeViewContains(t, rootViews, toolspkg.ToolIDSessionList)
 
 		sessions.info.ID = "sess-child"
 		sessions.info.Type = session.SessionTypeSpawned
@@ -11445,20 +11445,19 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			SpawnDepth:      1,
 			PermissionPolicy: store.SessionPermissionPolicy{
 				Tools: []string{
-					toolspkg.ToolIDMemoryList.String(),
-					toolspkg.ToolIDMemoryShow.String(),
-					toolspkg.ToolIDMemorySearch.String(),
+					toolspkg.ToolIDSessionStatus.String(),
+					"compozy__memory_show",
 				},
 			},
 		}
 		childScope := toolspkg.Scope{SessionID: "sess-child"}
 		childViews, err := registry.SessionProjection(ctx, childScope)
 		if err != nil {
-			t.Fatalf("SessionProjection(child memory) error = %v", err)
+			t.Fatalf("SessionProjection(child session) error = %v", err)
 		}
-		requireNativeViewContains(t, childViews, toolspkg.ToolIDMemoryShow)
-		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDMemoryPropose)
-		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDMemoryNote)
+		requireNativeViewContains(t, childViews, toolspkg.ToolIDSessionStatus)
+		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDSessionArchive)
+		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDSessionList)
 	})
 }
 

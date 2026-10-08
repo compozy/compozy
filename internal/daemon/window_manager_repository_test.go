@@ -599,7 +599,7 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 		for _, app := range []string{"knowledge", "session"} {
 			id := windowmanager.WindowID(app)
 			snapshot.Windows[id] = windowmanager.Window{ID: id, App: app, DesktopID: "desktop-default",
-				Placement: windowmanager.WindowPlacementFloating, Route: windowmanager.RouteIntent{Pathname: "/" + app},
+				Placement: windowmanager.WindowPlacementFloating, Route: windowmanager.RouteIntent{Pathname: "/" + app, Search: windowmanager.RouteSearch{}},
 				FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5}}
 			snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, id)
 		}
