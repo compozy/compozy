@@ -2,6 +2,9 @@
 
 ## Memory removal — 2026-10-07
 
+Usage-stream follow-up (US-019 / BR11): the shared HTTP/UDS session stream emits the existing `session_usage_changed` payload for every persisted `compaction` snapshot and `session.compaction_fired` attribution, so Web invalidates the context reading and markers before prompt completion. Push and polling use the existing per-session cursor; no new DTO, native tool, hook/config, workspace scope, schema, or official-skill instruction is needed. Existing `TestWriteUsageChangedEvents` owns ordered mid-turn notification and replay deduplication; `ET-web-session-context-meter` now explicitly requires the mid-turn update. Browser scenario execution remains with the controller/Web QA owner.
+
+
 Owning decision: `.compozy/tasks/memory-removal/_spec.md` with ADR-001 (hard cut that never blocks
 the user), ADR-002 (CompozyOS-side compaction removed; every replay bounded), ADR-003 (workspace
 knowledge augmenter removed), and ADR-004 (native ACP compaction observed and requested,
