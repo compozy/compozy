@@ -1,6 +1,7 @@
 import type { SessionUsageTurnsResponse } from "../types";
 import { formatContextPercent, formatContextTokens } from "./context-format";
 import {
+  contextClearedBy,
   sessionContextRingState,
   type SessionContextRingState,
   type SessionContextView,
@@ -59,7 +60,7 @@ export const CONTEXT_COMPACTED_SENTENCE =
   "Context compacted. Waiting for the agent's next usage report.";
 
 function unknownReadingSentence(context: SessionContextView): string {
-  return context.clearedByCompaction ? CONTEXT_COMPACTED_SENTENCE : CONTEXT_NEVER_REPORTED_SENTENCE;
+  return contextClearedBy(context) ? CONTEXT_COMPACTED_SENTENCE : CONTEXT_NEVER_REPORTED_SENTENCE;
 }
 
 export type SessionContextTooltipRow =
@@ -164,7 +165,7 @@ function meterEmpty(context: SessionContextView, unavailable: boolean): SessionC
   if (unavailable) return { kind: "empty", title: "Usage unavailable" };
   // Rows without a report, or a compaction that cleared the reading: the agent
   // has not said how full its window is.
-  if (context.clearedByCompaction || (context.injected?.rows.length ?? 0) > 0) {
+  if (contextClearedBy(context) || (context.injected?.rows.length ?? 0) > 0) {
     return { kind: "unknown", sentence: unknownReadingSentence(context) };
   }
   return {
@@ -205,59 +206,6 @@ export function describeSessionContextMeter(context: SessionContextView): Sessio
   };
 }
 
-interface ContextReport {
-  turnId: string;
-  sequence: number;
-  used: number;
-}
-
-/**
- * Turns whose merged usage row carries an occupancy. A row's `usage.sequence` is the
- * last merged usage event, not the event that observed the occupancy, so this proves
- * "this turn reported an occupancy at some point", never when.
- */
-function contextReports(data: SessionUsageTurnsResponse | undefined): ContextReport[] {
-  return (data?.turns ?? [])
-    .flatMap(turn => {
-      const used = turn.usage?.context_used;
-      return used == null
-        ? []
-        : [{ turnId: turn.turn_id, sequence: turn.usage?.sequence ?? turn.sequence, used }];
-    })
-    .sort((a, b) => a.sequence - b.sequence);
-}
-
-/** A compaction that is over; `in_progress` and vendor statuses (for example `…_paused`) are not. */
-const TERMINAL_COMPACTION_STATUSES: ReadonlySet<string> = new Set([
-  "completed",
-  "failed",
-  "cancelled",
-]);
-
-/**
- * True when the latest observed compaction has ended and no other turn has
- * reported an occupancy since. The daemon clears the reading at that boundary
- * (`unknown`) until the next report, so the meter says so instead of claiming
- * the agent never reported. The compacted turn's own row is not counted: its
- * merged `context_used` may be the reading from before the boundary. The caller
- * applies this only to a reading the daemon itself reports as `unknown`, so a
- * report made by the compacted turn after the boundary never shows this wording.
- */
-export function isAwaitingUsageAfterCompaction(
-  data: SessionUsageTurnsResponse | undefined
-): boolean {
-  const latest = (data?.compactions ?? []).reduce<
-    SessionUsageTurnsResponse["compactions"][number] | undefined
-  >(
-    (newest, marker) => (newest && newest.sequence >= marker.sequence ? newest : marker),
-    undefined
-  );
-  if (!latest || !TERMINAL_COMPACTION_STATUSES.has(latest.status)) return false;
-  return !contextReports(data).some(
-    report => report.turnId !== latest.turn_id && report.sequence > latest.sequence
-  );
-}
-
 export interface SessionCompactionMarkerView {
   key: string;
   /** Position in the session's event ledger; markers interleave with turns by it. */
@@ -269,15 +217,15 @@ export interface SessionCompactionMarkerView {
   trigger: string;
   /** Occupancy when the compaction was observed; absent when the agent sent none. */
   before?: number;
+  /**
+   * The first occupancy the agent reported after the compaction ended, as the daemon
+   * established it (`context_after`); absent until one exists. Never read off `turns[]`:
+   * those rows merge counters per turn and cannot say when an occupancy was observed.
+   */
+  after?: number;
 }
 
-/**
- * One row per observed agent compaction. There is deliberately no "after" figure:
- * `/usage/turns` merges each turn's counters into one row and advances
- * `usage.sequence` independently of the occupancy observation, so no figure in
- * `turns[]` can be proven to be the first reading after the compaction's first
- * terminal boundary. The marker needs a daemon-supplied `context_after` for that.
- */
+/** One row per observed agent compaction, in ledger order. */
 export function describeSessionCompactionMarkers(
   data: SessionUsageTurnsResponse | undefined
 ): SessionCompactionMarkerView[] {
@@ -290,5 +238,6 @@ export function describeSessionCompactionMarkers(
     statusLabel: marker.status === "in_progress" ? "in progress" : marker.status,
     trigger: marker.trigger,
     before: marker.context_used ?? undefined,
+    after: marker.context_after?.used,
   }));
 }

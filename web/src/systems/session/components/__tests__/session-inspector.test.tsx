@@ -8,7 +8,6 @@ import { expectFetchRequest } from "@/test/fetch-test-utils";
 import { SessionContextControl } from "../session-context-control";
 import { SessionContextMeterSection } from "../session-context-meter-section";
 import { deriveSessionContext } from "../../lib/session-context";
-import { isAwaitingUsageAfterCompaction } from "../../lib/session-context-view";
 import { useSessionInspectorState } from "../../hooks/use-session-inspector-state";
 import { sessionContextFixture, sessionContextTurnsFixture } from "../../mocks/context-fixtures";
 import type { SessionContextPayload, SessionPayload, SessionUsageTurnsResponse } from "../../types";
@@ -283,8 +282,8 @@ describe("Session context", () => {
         size: null,
         ratio: null,
         injected: sessionContextFixture.injected,
+        cleared_by: { compaction_id: "compaction-20", sequence: 20 },
       } as SessionContextPayload,
-      afterCompaction: true,
       label: "Context usage unknown",
       copy: "Context compacted. Waiting for the agent's next usage report.",
     },
@@ -304,17 +303,12 @@ describe("Session context", () => {
     },
   ])(
     "Should render $label without inventing context or a compaction policy",
-    async ({ context, afterCompaction, label, copy }) => {
+    async ({ context, label, copy }) => {
       const user = userEvent.setup();
       // This case owns tooltip content, not the primitive's hover delay.
       render(
         <TooltipProvider delay={0}>
-          <SessionContextControl
-            context={deriveSessionContext(context, {
-              awaitingUsageAfterCompaction: afterCompaction,
-            })}
-            onOpen={vi.fn()}
-          />
+          <SessionContextControl context={deriveSessionContext(context)} onOpen={vi.fn()} />
         </TooltipProvider>
       );
       await user.hover(screen.getByRole("button", { name: label }));
@@ -511,91 +505,54 @@ describe("Session context", () => {
     expect(marker).toHaveAttribute("data-status", status);
   });
 
-  it("Should show the occupancy a compaction was observed at and never infer a later one", () => {
+  it("Should show tokens before to after only for the figures the daemon recorded", () => {
     render(
       <SessionInspector
         turnsDefaultOpen
         turns={{
+          // Later usage rows are context, never an "after": only `context_after` is.
           turns: [
             contextTurn("turn-1", 10, 180_000),
             contextTurn("turn-2", 30, 42_000),
-            // The compacted turn's own later usage row may carry a merged pre-boundary reading.
-            contextTurn("turn-3", 55, 30_000),
             contextTurn("turn-5", 120, 61_000),
           ],
           compactions: [
-            compactionMarker({ sequence: 20, turn_id: "turn-1", context_used: 180_000 }),
+            compactionMarker({
+              sequence: 20,
+              turn_id: "turn-1",
+              context_used: 180_000,
+              context_after: { used: 42_000, size: 256_000, sequence: 30 },
+            }),
             compactionMarker({ sequence: 50, turn_id: "turn-3", context_used: 150_000 }),
-            compactionMarker({ sequence: 70, turn_id: "turn-4" }),
+            compactionMarker({
+              sequence: 70,
+              turn_id: "turn-4",
+              context_after: { used: 31_000, sequence: 75 },
+            }),
+            // An observed zero is a reading, not an absent figure.
+            compactionMarker({
+              sequence: 100,
+              turn_id: "turn-4",
+              context_used: 90_000,
+              context_after: { used: 0, sequence: 101 },
+            }),
+            compactionMarker({ sequence: 110, turn_id: "turn-4" }),
           ],
         }}
       />
     );
-    // Newest first. Later usage rows never become an "after" figure: only the daemon's own
-    // post-boundary reading could, and the usage payload carries none.
-    const [third, second, first] = screen
+    // Newest first.
+    const [fifth, fourth, third, second, first] = screen
       .getAllByTestId("session-context-compaction-marker")
       .map(marker => marker.textContent);
-    expect(first).toBe("Agent compaction · completed · 180K");
+    expect(first).toBe("Agent compaction · completed · 180K → 42K");
     expect(second).toBe("Agent compaction · completed · 150K");
-    expect(third).toBe("Agent compaction · completed");
+    expect(third).toBe("Agent compaction · completed · → 31K");
+    expect(fourth).toBe("Agent compaction · completed · 90K → 0");
+    expect(fifth).toBe("Agent compaction · completed");
   });
 
-  it.each([
-    {
-      name: "a finished compaction with no report after it",
-      turns: {
-        turns: [contextTurn("turn-1", 10, 180_000)],
-        compactions: [compactionMarker({ sequence: 20 })],
-      },
-      awaiting: true,
-    },
-    {
-      name: "a failed compaction with no report after it",
-      turns: { turns: [], compactions: [compactionMarker({ sequence: 20, status: "failed" })] },
-      awaiting: true,
-    },
-    {
-      name: "only the compacted turn's own later usage row",
-      turns: {
-        turns: [contextTurn("turn-1", 10, 180_000), contextTurn("turn-1", 55, 30_000)],
-        compactions: [compactionMarker({ sequence: 20, turn_id: "turn-1" })],
-      },
-      awaiting: true,
-    },
-    {
-      name: "a report from a later turn",
-      turns: {
-        turns: [contextTurn("turn-1", 10, 180_000), contextTurn("turn-2", 30, 42_000)],
-        compactions: [compactionMarker({ sequence: 20 })],
-      },
-      awaiting: false,
-    },
-    {
-      name: "a compaction still in progress",
-      turns: {
-        turns: [],
-        compactions: [compactionMarker({ sequence: 20, status: "in_progress" })],
-      },
-      awaiting: false,
-    },
-    {
-      name: "a vendor status that is not finished",
-      turns: {
-        turns: [],
-        compactions: [compactionMarker({ sequence: 20, status: "compaction_paused" })],
-      },
-      awaiting: false,
-    },
-    { name: "no compaction at all", turns: { turns: [], compactions: [] }, awaiting: false },
-  ] satisfies { name: string; turns: SessionUsageTurnsResponse; awaiting: boolean }[])(
-    "Should say a compaction cleared the reading only after $name: $awaiting",
-    ({ turns, awaiting }) => {
-      expect(isAwaitingUsageAfterCompaction(turns)).toBe(awaiting);
-    }
-  );
-
-  it("Should explain an empty meter after a compaction instead of claiming the agent never reported", () => {
+  it("Should explain an empty meter by the compaction the daemon names, not by a guess", () => {
     const cleared = {
       state: "unknown",
       used: null,
@@ -603,9 +560,10 @@ describe("Session context", () => {
       ratio: null,
       injected: sessionContextFixture.injected,
     } as SessionContextPayload;
+    const cause = { compaction_id: "compaction-20", sequence: 20 };
     const { rerender } = render(
       <SessionContextMeterSection
-        context={deriveSessionContext(cleared, { awaitingUsageAfterCompaction: true })}
+        context={deriveSessionContext({ ...cleared, cleared_by: cause })}
       />
     );
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
@@ -614,17 +572,25 @@ describe("Session context", () => {
     // No attribution rows to show: the meter still names the compaction, not a first report.
     rerender(
       <SessionContextMeterSection
-        context={deriveSessionContext({ state: "unknown" }, { awaitingUsageAfterCompaction: true })}
+        context={deriveSessionContext({ state: "unknown", cleared_by: cause })}
       />
     );
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
       "Waiting for the agent's next usage report."
     );
-    // The same empty reading without a compaction keeps the plain wording.
+    // Without a cause from the daemon the plain wording stays, whatever the turns look like.
     rerender(<SessionContextMeterSection context={deriveSessionContext(cleared)} />);
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
       "This agent hasn't reported context usage."
     );
+    // A reading the daemon reports is shown as reported; the cause never overrides it.
+    rerender(
+      <SessionContextMeterSection
+        context={deriveSessionContext({ ...sessionContextFixture, cleared_by: cause })}
+      />
+    );
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("35%");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("Context compacted");
   });
 
   it("Should show the newest fifty turns and reveal earlier turns on demand", async () => {

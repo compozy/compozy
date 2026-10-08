@@ -112,13 +112,11 @@ export const CompactionMarkers: Story = {
 /** Right after a terminal compaction the daemon clears the reading until the agent's next report. */
 export const UnknownAfterCompaction: Story = {
   args: {
-    context: deriveSessionContext(
-      {
-        state: "unknown",
-        injected: { ...sessionContextFixture.injected!, stale: true },
-      },
-      { awaitingUsageAfterCompaction: true }
-    ),
+    context: deriveSessionContext({
+      state: "unknown",
+      injected: { ...sessionContextFixture.injected!, stale: true },
+      cleared_by: { compaction_id: "compaction-agent-completed", sequence: 520 },
+    }),
     turnsDefaultOpen: true,
     turns: sessionContextTurnsFixture,
   },
