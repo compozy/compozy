@@ -1,10 +1,9 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Locator } from "@playwright/test";
-
 import type { AutomationJob, AutomationRun, AutomationTrigger } from "@/systems/automation";
 import { appWindow } from "../fixtures/os-navigation";
+import { automationOperatorSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -24,24 +23,6 @@ const testdata = path.resolve(
   "testdata"
 );
 const faultAgentName = "browser-automations-fault";
-
-/** Detail selectors; fold into `fixtures/selectors.ts` with the listing's `automationsShell`. */
-const detail = {
-  panel: "automation-detail-panel",
-  sentence: "automation-detail-sentence",
-  enableLabel: "automation-enable-label",
-  enableSwitch: "automation-enable-switch",
-  runNow: "automation-run-now-btn",
-  overflow: "automation-detail-overflow",
-  delete: "automation-delete-btn",
-  deleteTyping: "automation-delete-confirm-typing",
-  confirmDelete: "confirm-delete-automation-btn",
-  ruleStarts: "automation-rule-starts",
-  ruleOnlyIf: "automation-rule-only-if",
-  run: (id: string) => `automation-run-${id}`,
-  runDrawer: (id: string) => `automation-run-drawer-${id}`,
-  editor: "automation-editor-dialog",
-} as const;
 
 test.use({
   runtimeOptions: {
@@ -120,10 +101,6 @@ async function latestFailedRun(runtime: BrowserRuntime, jobID: string): Promise<
   return failed;
 }
 
-function byTestId(win: Locator, id: string): Locator {
-  return win.getByTestId(id);
-}
-
 test("a schedule's detail runs it now, explains the failure and offers the retries fix", async ({
   appPage,
   runtime,
@@ -133,31 +110,31 @@ test("a schedule's detail runs it now, explains the failure and offers the retri
   await appPage.goto(runtime.url(`/automations/jobs/${encodeURIComponent(job.id)}`), {
     waitUntil: "domcontentloaded",
   });
-  const win = appWindow(appPage, "automations");
-  await expect(byTestId(win, detail.panel)).toBeVisible({ timeout: 20_000 });
-  await expect(byTestId(win, detail.ruleStarts)).toContainText("Every weekday at 09:00");
+  const ui = automationOperatorSelectors(appWindow(appPage, "automations"), appPage);
+  await expect(ui.detailPanel).toBeVisible({ timeout: 20_000 });
+  await expect(ui.ruleStarts).toContainText("Every weekday at 09:00");
 
   await test.step("Run now starts a run that shows up in the list", async () => {
-    await byTestId(win, detail.runNow).click();
+    await ui.detailRunNow.click();
     const failed = await latestFailedRun(runtime, job.id);
-    await expect(byTestId(win, detail.run(failed.id))).toBeVisible({ timeout: 20_000 });
-    await expect(byTestId(win, detail.run(failed.id))).toContainText("Failed");
+    await expect(ui.run(failed.id)).toBeVisible({ timeout: 20_000 });
+    await expect(ui.run(failed.id)).toContainText("Failed");
 
-    await byTestId(win, detail.run(failed.id)).click();
-    const drawer = byTestId(win, detail.runDrawer(failed.id));
-    await expect(drawer.locator(".text-danger").first()).toBeVisible();
+    await ui.run(failed.id).click();
+    const drawer = ui.runDrawer(failed.id);
+    await expect(drawer.locator('[data-tone="danger"]').first()).toBeVisible();
     await drawer.getByRole("button", { name: "Set up retries" }).click();
-    await expect(appPage.getByTestId(detail.editor)).toBeVisible();
+    await expect(ui.editorDialog).toBeVisible();
     await appPage.keyboard.press("Escape");
   });
 
   await test.step("the switch waits for the daemon, then reads Off with the pause line", async () => {
-    await byTestId(win, detail.enableSwitch).click();
-    await expect(byTestId(win, detail.enableLabel)).toHaveText("Off");
+    await ui.enableSwitch.click();
+    await expect(ui.enableLabel).toHaveText("Off");
     await expect(
-      win.getByText("Off. It won't run on its schedule until you turn it on.")
+      ui.detailPanel.getByText("Off. It won't run on its schedule until you turn it on.")
     ).toBeVisible();
-    await expect(byTestId(win, detail.runNow)).toBeEnabled();
+    await expect(ui.detailRunNow).toBeEnabled();
   });
 });
 
@@ -170,16 +147,16 @@ test("an event automation has no Run now and is deleted by typing its name", asy
   await appPage.goto(runtime.url(`/automations/triggers/${encodeURIComponent(trigger.id)}`), {
     waitUntil: "domcontentloaded",
   });
-  const win = appWindow(appPage, "automations");
-  await expect(byTestId(win, detail.panel)).toBeVisible({ timeout: 20_000 });
-  await expect(byTestId(win, detail.ruleStarts)).toContainText("A session stops");
-  await expect(byTestId(win, detail.ruleOnlyIf)).toContainText("Stop reason is");
-  await expect(byTestId(win, detail.runNow)).toHaveCount(0);
+  const ui = automationOperatorSelectors(appWindow(appPage, "automations"), appPage);
+  await expect(ui.detailPanel).toBeVisible({ timeout: 20_000 });
+  await expect(ui.ruleStarts).toContainText("A session stops");
+  await expect(ui.ruleOnlyIf).toContainText("Stop reason is");
+  await expect(ui.detailRunNow).toHaveCount(0);
 
-  await byTestId(win, detail.overflow).click();
-  await appPage.getByTestId(detail.delete).click();
-  await appPage.getByTestId(detail.deleteTyping).fill(trigger.name);
-  await appPage.getByTestId(detail.confirmDelete).click();
+  await ui.detailOverflow.click();
+  await ui.deleteAutomationButton.click();
+  await ui.automationDeleteConfirmTyping.fill(trigger.name);
+  await ui.confirmDeleteAutomationButton.click();
   await expect(appPage.getByText(`Deleted ${trigger.name}.`)).toBeVisible();
   await expect(appPage).toHaveURL(/\/automations$/);
 });

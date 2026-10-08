@@ -162,7 +162,7 @@ describe("useAutomationDetailPage", () => {
 
     state.update.mockRejectedValueOnce(new Error("Automation manager is not configured"));
     await act(async () => result.current.panel.onToggleEnabled(false));
-    expect(toast.error).toHaveBeenCalledWith("Automation manager is not configured");
+    expect(toast.error).toHaveBeenCalledWith("Couldn't turn off morning-digest. Try again.");
   });
 
   it("Should queue a Run now even while Off and insert the run first (UT-074)", async () => {
@@ -234,19 +234,26 @@ describe("useAutomationDetailPage", () => {
     });
   });
 
-  it("Should ask for Options through the route when Set up retries is chosen", () => {
+  it("Should open the editor at Options in place when Set up retries is chosen (no history entry)", () => {
     const { result } = renderHook(() =>
       useAutomationDetailPage("trigger", "rerun-delivery", { q: "delivery" })
     );
 
     act(() => result.current.panel.onSetUpRetries());
 
-    expect(state.navigate).toHaveBeenCalledWith({
-      to: "/automations/triggers/$triggerId",
-      params: { triggerId: "rerun-delivery" },
-      search: { q: "delivery", edit: "options" },
-      replace: false,
-    });
+    expect(state.openEdit).toHaveBeenCalledWith(rerunDeliveryTrigger, { section: "options" });
+    expect(state.navigate).not.toHaveBeenCalled();
+  });
+
+  it("Should keep the list at the run limit when Run now prepends a run (n-9)", async () => {
+    state.runs = Array.from({ length: 10 }, (_, index) => makeDetailRun({ id: `run_${index}` }));
+    state.runNow.mockResolvedValueOnce(makeDetailRun({ id: "run_queued", status: "scheduled" }));
+    const { result } = renderHook(() => useAutomationDetailPage("job", "morning-digest"));
+
+    await act(async () => result.current.panel.onRunNow());
+
+    expect(result.current.panel.runs).toHaveLength(10);
+    expect(result.current.panel.runs[0]?.id).toBe("run_queued");
   });
 });
 

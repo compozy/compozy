@@ -123,15 +123,21 @@ export function useAutomationDetailPage(
     editor.openEdit(entity, { section });
   };
 
-  const navigateDetail = (edit: AutomationDetailRouteSearch["edit"], replace: boolean) => {
-    const next = { ...search, edit };
+  /** Drops the consumed `edit` deep link without adding a history entry. */
+  const clearEditParam = () => {
+    const next = { ...search, edit: undefined };
     void (isJob
-      ? navigate({ to: "/automations/jobs/$jobId", params: { jobId: id }, search: next, replace })
+      ? navigate({
+          to: "/automations/jobs/$jobId",
+          params: { jobId: id },
+          search: next,
+          replace: true,
+        })
       : navigate({
           to: "/automations/triggers/$triggerId",
           params: { triggerId: id },
           search: next,
-          replace,
+          replace: true,
         }));
   };
 
@@ -145,7 +151,7 @@ export function useAutomationDetailPage(
       ready: editReady,
       consume: () => {
         openEdit(search.edit === "options" ? "options" : undefined);
-        navigateDetail(undefined, true);
+        clearEditParam();
       },
     });
   });
@@ -153,7 +159,7 @@ export function useAutomationDetailPage(
   const persistedRuns = entity ? (runsQuery.data ?? []) : [];
   const runs =
     isJob && queuedRun && !persistedRuns.some(run => run.id === queuedRun.id)
-      ? [queuedRun, ...persistedRuns]
+      ? [queuedRun, ...persistedRuns].slice(0, RUN_LIMIT.limit)
       : persistedRuns;
 
   const handleToggleEnabled = async (enabled: boolean) => {
@@ -165,8 +171,8 @@ export function useAutomationDetailPage(
         profile: entity.profile_name,
       });
       toast.success(`${enabled ? "Turned on" : "Turned off"} ${entity.name}.`);
-    } catch (error) {
-      toast.error(errorMessage(error, "Couldn't change whether this automation is on."));
+    } catch {
+      toast.error(`Couldn't turn ${enabled ? "on" : "off"} ${entity.name}. Try again.`);
     }
   };
 
@@ -234,7 +240,8 @@ export function useAutomationDetailPage(
       onEdit: () => openEdit(),
       onRetryRuns: () => void runsQuery.refetch(),
       onRunNow: () => void handleRunNow(),
-      onSetUpRetries: () => navigateDetail("options", false),
+      // Opens in place: the `?edit=options` deep link is for arrivals, not a history entry.
+      onSetUpRetries: () => openEdit("options"),
       onToggleEnabled: (enabled: boolean) => void handleToggleEnabled(enabled),
     },
   };

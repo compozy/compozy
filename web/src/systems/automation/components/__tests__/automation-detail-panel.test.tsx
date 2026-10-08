@@ -52,6 +52,7 @@ import {
   makeDetailTrigger,
   morningDigestJob,
   morningDigestRuns,
+  nightlyDeliveryJob,
   releaseChecklistJob,
   rerunDeliveryRuns,
   rerunDeliveryTrigger,
@@ -234,15 +235,21 @@ describe("AutomationDetailPanel", () => {
       const does = screen.getByTestId("automation-rule-does");
       expect(does).toHaveTextContent("Ask summarizer");
       expect(does).toHaveTextContent("word for word");
-      expect(screen.getByTestId("automation-prompt-preview")).toHaveClass("line-clamp-3");
+      expect(screen.getByTestId("automation-prompt-preview")).toHaveAttribute(
+        "data-expanded",
+        "false"
+      );
       fireEvent.click(screen.getByRole("button", { name: "Show full prompt" }));
-      expect(screen.getByTestId("automation-prompt-preview")).not.toHaveClass("line-clamp-3");
+      expect(screen.getByTestId("automation-prompt-preview")).toHaveAttribute(
+        "data-expanded",
+        "true"
+      );
 
       rerenderPanel(summarizeFailuresTrigger);
       expect(screen.getByTestId("automation-rule-does")).toHaveTextContent(
         "The message is filled in from each event."
       );
-      expect(screen.getByText("{{ .Data.session_id }}")).toHaveClass("text-info");
+      expect(screen.getByText("{{ .Data.session_id }}")).toHaveAttribute("data-tone", "variable");
     });
 
     it("Should list a Loop's inputs as from-the-event and always rows with a linked Loop (UT-067)", () => {
@@ -255,6 +262,24 @@ describe("AutomationDetailPanel", () => {
       const inputs = screen.getByTestId("automation-loop-inputs");
       expect(inputs).toHaveTextContent("slug←data.session_namefrom the event");
       expect(inputs).toHaveTextContent("target_branch=mainalways");
+    });
+
+    it("Should read a schedule that starts a Loop with its linked Loop and fixed inputs (UT-067)", () => {
+      renderPanel(nightlyDeliveryJob);
+
+      expect(screen.getByTestId("automation-detail-sentence")).toHaveTextContent(
+        "Every day at 02:00 UTC, start the Loop software-delivery on main."
+      );
+      expect(screen.getByTestId("automation-loop-link")).toHaveAttribute(
+        "href",
+        "/loops/software-delivery?workspace=ws_checkout_api"
+      );
+      expect(screen.getByTestId("automation-loop-inputs")).toHaveTextContent(
+        "target_branch=mainalways"
+      );
+      expect(screen.getByTestId("automation-rail-details")).toHaveTextContent(
+        "Loopsoftware-deliveryLoop projectcheckout-api"
+      );
     });
 
     it("Should name a task's title and owner, and give a link its endpoint and signed example (UT-068)", async () => {
@@ -312,13 +337,15 @@ describe("AutomationDetailPanel", () => {
       const { onSetUpRetries } = renderPanel(morningDigestJob, { runs: morningDigestRuns });
 
       const row = screen.getByTestId("automation-run-run_failed");
-      expect(within(row).getByText("Agent summarizer was not available")).not.toHaveClass(
-        "text-danger"
+      expect(within(row).getByText("Agent summarizer was not available")).toHaveAttribute(
+        "data-tone",
+        "neutral"
       );
       fireEvent.click(row);
       const drawer = screen.getByTestId("automation-run-drawer-run_failed");
-      expect(within(drawer).getByText("Agent summarizer was not available")).toHaveClass(
-        "text-danger"
+      expect(within(drawer).getByText("Agent summarizer was not available")).toHaveAttribute(
+        "data-tone",
+        "danger"
       );
       expect(drawer).toHaveTextContent("Attempt 2.");
       fireEvent.click(within(drawer).getByRole("button", { name: "Set up retries" }));
@@ -510,7 +537,7 @@ describe("AutomationDetailPanel", () => {
         "StartsOn a scheduleDoesAsk an agentAgentsummarizerLocationProject checkout-apiSourceYou created this"
       );
       const schedule = within(rail).getByTestId("automation-rail-schedule");
-      expect(schedule).toHaveTextContent("RepeatsEvery weekday at 09:00");
+      expect(schedule).toHaveTextContent("RepeatsEvery weekday at 09:00 UTC");
       expect(schedule).toHaveTextContent("Time zoneUTC");
       expect(schedule).toHaveTextContent("Missed runsSkip missed");
       expect(within(rail).getByTestId("automation-rail-reliability")).toHaveTextContent(
@@ -539,7 +566,7 @@ describe("AutomationDetailPanel", () => {
           ingress: { ...deployWebhookTrigger.ingress!, reachability: "broken" },
         })
       );
-      expect(screen.getByText("Broken")).toHaveClass("text-danger");
+      expect(screen.getByText("Broken")).toHaveAttribute("data-tone", "danger");
       expect(screen.getByTestId("automation-rail-security")).toHaveTextContent(
         "Signing secretNot set"
       );

@@ -5,7 +5,7 @@ import type { ComponentProps } from "react";
 import { Time, cn } from "@compozy/ui";
 
 import { automationPauseLine, automationStartWord } from "../../lib/automation-detail";
-import { automationLocationLabel, type AutomationView } from "../../lib/automation-view";
+import { automationLocationSegments, type AutomationView } from "../../lib/automation-view";
 import type { AutomationStart } from "../../lib/automation-sentence";
 import { AutomationEnableSwitch } from "../automation-enable-switch";
 
@@ -92,16 +92,7 @@ export function AutomationDetailHead({
           {automationStartWord(view.start)}
         </span>
         <DotSeparator />
-        <span>
-          {view.scope === "workspace" && (view.workspaceName ?? view.workspaceId) ? (
-            <>
-              Project{" "}
-              <b className="font-medium text-fg">{view.workspaceName ?? view.workspaceId}</b>
-            </>
-          ) : (
-            automationLocationLabel(view)
-          )}
-        </span>
+        <LocationText view={view} />
         <DotSeparator />
         <SubheadTime lastRanAt={lastRanAt} view={view} />
         <DotSeparator />
@@ -110,6 +101,22 @@ export function AutomationDetailHead({
         </span>
       </div>
     </div>
+  );
+}
+
+/** `Project **checkout-api**` or `Global`. */
+function LocationText({ view }: { view: AutomationView }) {
+  const { lead, name } = automationLocationSegments(view);
+  return (
+    <span>
+      {lead}
+      {name ? (
+        <>
+          {" "}
+          <b className="font-medium text-fg">{name}</b>
+        </>
+      ) : null}
+    </span>
   );
 }
 
