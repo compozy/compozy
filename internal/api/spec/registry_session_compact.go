@@ -15,6 +15,7 @@ func compactSessionOperationSpec() OperationSpec {
 		RequestBody: contract.SessionCompactRequest{},
 		Responses: []ResponseSpec{
 			{Status: 202, Description: "Compaction accepted", Body: contract.SessionCompactResponse{}},
+			{Status: 400, Description: "session_not_promptable", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "session_busy or compaction_unsupported", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

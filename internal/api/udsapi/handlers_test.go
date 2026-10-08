@@ -3084,9 +3084,21 @@ func TestCompactSessionHandler(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"Accepted", nil, http.StatusAccepted, ""},
-		{"Busy", session.ErrPromptInProgress, http.StatusConflict, "session_busy"},
-		{"Unsupported", session.ErrCompactionUnsupported, http.StatusConflict, "compaction_unsupported"},
+		{"Should accept native compaction", nil, http.StatusAccepted, ""},
+		{
+			"Should reject a stopped session",
+			errors.Join(session.ErrSessionNotActive, errors.New("session is stopped")),
+			http.StatusBadRequest,
+			"session_not_promptable",
+		},
+		{
+			"Should reject a starting session",
+			errors.Join(session.ErrSessionNotActive, errors.New("session is starting")),
+			http.StatusBadRequest,
+			"session_not_promptable",
+		},
+		{"Should reject a busy session", session.ErrPromptInProgress, http.StatusConflict, "session_busy"},
+		{"Should reject unsupported compaction", session.ErrCompactionUnsupported, http.StatusConflict, "compaction_unsupported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			manager := stubSessionManager{
