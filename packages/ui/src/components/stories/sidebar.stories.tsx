@@ -97,7 +97,7 @@ function HeaderContent() {
 const NAV_ITEMS = [
   { label: "Tasks", icon: SparklesIcon, active: true },
   { label: "Automation", icon: ZapIcon },
-  { label: "Knowledge", icon: BookOpenIcon },
+  { label: "Docs", icon: BookOpenIcon },
   { label: "Skills", icon: WrenchIcon },
 ];
 

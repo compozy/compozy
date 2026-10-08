@@ -25,7 +25,7 @@ type Story = StoryObj<typeof meta>;
 const details = [
   "Spawned claude-code via ACP, exit code 0.",
   "Replayed 142 events from sessiondb.",
-  "Dream consolidation skipped (too recent).",
+  "Retention sweep skipped (too recent).",
 ];
 
 export const Default: Story = {
