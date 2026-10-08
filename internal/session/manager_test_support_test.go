@@ -337,25 +337,6 @@ func (fn promptAssemblerFunc) Assemble(
 	return fn(ctx, agent, workspace)
 }
 
-type resumeContextPromptAssembler struct {
-	checkpoint string
-}
-
-func (a *resumeContextPromptAssembler) Assemble(
-	_ context.Context,
-	agent compozyconfig.AgentDef,
-	_ *workspacepkg.ResolvedWorkspace,
-) (string, error) {
-	return agent.Prompt, nil
-}
-
-func (a *resumeContextPromptAssembler) ResumeContextSection(
-	_ context.Context,
-	_ StartupPromptContext,
-) (string, error) {
-	return a.checkpoint, nil
-}
-
 type startupPromptAssemblerFunc func(
 	context.Context,
 	StartupPromptContext,

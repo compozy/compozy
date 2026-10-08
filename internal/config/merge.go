@@ -74,7 +74,6 @@ type sessionOverlay struct {
 	Limits      sessionLimitsOverlay      `toml:"limits"`
 	Supervision sessionSupervisionOverlay `toml:"supervision"`
 	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
-	Compaction  sessionCompactionOverlay  `toml:"compaction"`
 	Attachments sessionAttachmentsOverlay `toml:"attachments"`
 	Derive      sessionDeriveOverlay      `toml:"derive"`
 }
@@ -103,13 +102,6 @@ type sessionBusyInputOverlay struct {
 	DefaultMode  *string `toml:"default_mode"`
 	QueueCap     *int    `toml:"queue_cap"`
 	MaxTextBytes *int    `toml:"max_text_bytes"`
-}
-
-type sessionCompactionOverlay struct {
-	Enabled            *bool          `toml:"enabled"`
-	PressureThreshold  *float64       `toml:"pressure_threshold"`
-	MaxAttemptsPerTurn *int           `toml:"max_attempts_per_turn"`
-	FailureCooldown    *time.Duration `toml:"failure_cooldown"`
 }
 
 type permissionsOverlay struct {

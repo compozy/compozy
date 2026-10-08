@@ -200,13 +200,6 @@ func WithSessionCreationStore(creationStore store.SessionCreationStore) Option {
 	}
 }
 
-// WithLedgerMaterializer injects the forensic session-ledger materializer.
-func WithLedgerMaterializer(materializer LedgerMaterializer) Option {
-	return func(manager *Manager) {
-		manager.ledgerMaterializer = materializer
-	}
-}
-
 // WithSessionHealthConfig injects Agent Heartbeat bounds used by session health.
 func WithSessionHealthConfig(config compozyconfig.HeartbeatConfig) Option {
 	return func(manager *Manager) {
@@ -381,20 +374,6 @@ func WithSessionStopConfig(config compozyconfig.SessionStopConfig) Option {
 func WithSessionBusyInputConfig(config compozyconfig.SessionBusyInputConfig) Option {
 	return func(manager *Manager) {
 		manager.busyInput = config.Normalize()
-	}
-}
-
-// WithSessionCompactionConfig overrides pressure-triggered context compaction guards.
-func WithSessionCompactionConfig(config compozyconfig.SessionCompactionConfig) Option {
-	return func(manager *Manager) {
-		manager.compaction = config
-	}
-}
-
-// WithCompactionHandler injects the durable summary boundary used before archiving.
-func WithCompactionHandler(handler CompactionHandler) Option {
-	return func(manager *Manager) {
-		manager.compactionHandler = handler
 	}
 }
 

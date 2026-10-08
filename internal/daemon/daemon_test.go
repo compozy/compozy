@@ -4357,10 +4357,10 @@ func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
 	}
 }
 
-func TestShutdownRuntimeWorkersDrainsCheckpointBeforeSessionManager(t *testing.T) {
+func TestShutdownRuntimeWorkersDrainsProvidersBeforeSessionManager(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep session queries open until checkpoint work drains", func(t *testing.T) {
+	t.Run("Should keep session queries open until memory provider work drains", func(t *testing.T) {
 		t.Parallel()
 
 		order := make([]string, 0, 3)
@@ -4369,7 +4369,7 @@ func TestShutdownRuntimeWorkersDrainsCheckpointBeforeSessionManager(t *testing.T
 			shutdownHook:          func() { order = append(order, "session-manager") },
 		}
 		provider := memoryProviderShutdownerFunc(func(context.Context) error {
-			order = append(order, "checkpoint-memory")
+			order = append(order, "memory-provider")
 			return nil
 		})
 		d := &Daemon{}
@@ -4383,7 +4383,7 @@ func TestShutdownRuntimeWorkersDrainsCheckpointBeforeSessionManager(t *testing.T
 		if err := errors.Join(shutdownErrs...); err != nil {
 			t.Fatalf("shutdownRuntimeWorkers() error = %v", err)
 		}
-		want := []string{"session-finalizations", "checkpoint-memory", "session-manager"}
+		want := []string{"session-finalizations", "memory-provider", "session-manager"}
 		if !slices.Equal(order, want) {
 			t.Fatalf("shutdown order = %v, want %v", order, want)
 		}
@@ -4602,33 +4602,11 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 	}
 }
 
-func TestGracefulShutdownTimeoutIncludesCheckpointLifecycle(t *testing.T) {
+func TestGracefulShutdownTimeout(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should reserve checkpoint and cleanup budgets when memory is enabled", func(t *testing.T) {
+	t.Run("Should reserve the base runtime cleanup budget", func(t *testing.T) {
 		t.Parallel()
-
-		d := &Daemon{config: compozyconfig.Config{Memory: compozyconfig.MemoryConfig{
-			Enabled: true,
-			Extractor: compozyconfig.MemoryExtractorConfig{
-				Deadline: 42 * time.Second,
-			},
-		}}}
-		want := 42*time.Second + checkpointSummaryStopTimeout + defaultShutdownTimeout
-		if got := d.gracefulShutdownTimeout(); got != want {
-			t.Fatalf("gracefulShutdownTimeout() = %s, want %s", got, want)
-		}
-	})
-
-	t.Run("Should keep the base cleanup budget when memory is disabled", func(t *testing.T) {
-		t.Parallel()
-
-		d := &Daemon{config: compozyconfig.Config{Memory: compozyconfig.MemoryConfig{
-			Enabled: false,
-			Extractor: compozyconfig.MemoryExtractorConfig{
-				Deadline: time.Minute,
-			},
-		}}}
+		d := &Daemon{}
 		if got := d.gracefulShutdownTimeout(); got != defaultShutdownTimeout {
 			t.Fatalf("gracefulShutdownTimeout() = %s, want %s", got, defaultShutdownTimeout)
 		}
@@ -5258,16 +5236,6 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 		}
 		if capturedDeps.SpawnWakeNotifier == nil || capturedDeps.SpawnWakeNotifier != d.sessionWakeBridge {
 			t.Fatal("boot() did not inject the daemon-owned session wake bridge")
-		}
-		if capturedDeps.SessionCompaction != cfg.Session.Compaction {
-			t.Fatalf(
-				"session compaction config = %#v, want %#v",
-				capturedDeps.SessionCompaction,
-				cfg.Session.Compaction,
-			)
-		}
-		if sessions.compactionHandler == nil {
-			t.Fatal("boot() did not bind the checkpoint compaction runtime")
 		}
 		if capturedUDSDeps.WorkspaceService == nil {
 			t.Fatal("boot() did not inject the uds workspace service")
@@ -6775,7 +6743,6 @@ type fakeSessionManager struct {
 	shutdownCalls            int
 	shutdownErr              error
 	shutdownHook             func()
-	compactionHandler        session.CompactionHandler
 	workspaceAccessPolicy    workspaceaccess.Policy
 	turnEndNotifier          session.TurnEndNotifier
 	agentExtensionCalls      []fakeAgentExtensionCall
@@ -6786,12 +6753,6 @@ var _ memoryExtractorSessionManager = (*fakeSessionManager)(nil)
 var _ autoTitleSessionManager = (*fakeSessionManager)(nil)
 var _ clarifyEventPublisher = (*fakeSessionManager)(nil)
 var _ workspaceAccessPolicyBinder = (*fakeSessionManager)(nil)
-
-func (f *fakeSessionManager) SetCompactionHandler(handler session.CompactionHandler) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.compactionHandler = handler
-}
 
 func (f *fakeSessionManager) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
 	f.mu.Lock()
@@ -6897,13 +6858,6 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 		Type:        opts.Type,
 		State:       session.StateActive,
 	}, nil
-}
-
-func (f *fakeSessionManager) CreateLifecycleContinuation(
-	ctx context.Context,
-	opts session.CreateOpts,
-) (*session.Session, error) {
-	return f.Create(ctx, opts)
 }
 
 func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
@@ -7621,14 +7575,6 @@ func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) 
 	return ch, nil
 }
 
-func (f *fakeSessionManager) PromptLifecycleContinuation(
-	ctx context.Context,
-	id string,
-	msg string,
-) (<-chan acp.AgentEvent, error) {
-	return f.Prompt(ctx, id, msg)
-}
-
 func (f *fakeSessionManager) PromptWithOpts(
 	ctx context.Context,
 	id string,
@@ -7937,42 +7883,6 @@ func (m nonBindableHarnessSessionManager) PublishClarifyEvent(
 	return publisher.PublishClarifyEvent(ctx, event)
 }
 
-func (m nonBindableHarnessSessionManager) CreateLifecycleContinuation(
-	ctx context.Context,
-	opts session.CreateOpts,
-) (*session.Session, error) {
-	checkpointSessions, ok := m.SessionManager.(checkpointSummarySessionManager)
-	if !ok {
-		return nil, errors.New("non-bindable session manager: checkpoint lifecycle is required")
-	}
-	return checkpointSessions.CreateLifecycleContinuation(ctx, opts)
-}
-
-func (m nonBindableHarnessSessionManager) PromptLifecycleContinuation(
-	ctx context.Context,
-	id string,
-	msg string,
-) (<-chan acp.AgentEvent, error) {
-	checkpointSessions, ok := m.SessionManager.(checkpointSummarySessionManager)
-	if !ok {
-		return nil, errors.New("non-bindable session manager: checkpoint lifecycle is required")
-	}
-	return checkpointSessions.PromptLifecycleContinuation(ctx, id, msg)
-}
-
-func (m nonBindableHarnessSessionManager) StopWithCause(
-	ctx context.Context,
-	id string,
-	cause session.StopCause,
-	detail string,
-) error {
-	checkpointSessions, ok := m.SessionManager.(checkpointSummarySessionManager)
-	if !ok {
-		return errors.New("non-bindable session manager: checkpoint lifecycle is required")
-	}
-	return checkpointSessions.StopWithCause(ctx, id, cause, detail)
-}
-
 type sessionManagerWithoutWorkspaceRemoval struct {
 	SessionManager
 	workspaceAccessBinder workspaceAccessPolicyBinder
@@ -7997,42 +7907,6 @@ func (m sessionManagerWithoutWorkspaceRemoval) PublishClarifyEvent(
 		return errors.New("session manager without workspace removal: clarification publisher is required")
 	}
 	return publisher.PublishClarifyEvent(ctx, event)
-}
-
-func (m sessionManagerWithoutWorkspaceRemoval) CreateLifecycleContinuation(
-	ctx context.Context,
-	opts session.CreateOpts,
-) (*session.Session, error) {
-	checkpointSessions, ok := m.SessionManager.(checkpointSummarySessionManager)
-	if !ok {
-		return nil, errors.New("session manager without workspace removal: checkpoint lifecycle is required")
-	}
-	return checkpointSessions.CreateLifecycleContinuation(ctx, opts)
-}
-
-func (m sessionManagerWithoutWorkspaceRemoval) PromptLifecycleContinuation(
-	ctx context.Context,
-	id string,
-	msg string,
-) (<-chan acp.AgentEvent, error) {
-	checkpointSessions, ok := m.SessionManager.(checkpointSummarySessionManager)
-	if !ok {
-		return nil, errors.New("session manager without workspace removal: checkpoint lifecycle is required")
-	}
-	return checkpointSessions.PromptLifecycleContinuation(ctx, id, msg)
-}
-
-func (m sessionManagerWithoutWorkspaceRemoval) StopWithCause(
-	ctx context.Context,
-	id string,
-	cause session.StopCause,
-	detail string,
-) error {
-	checkpointSessions, ok := m.SessionManager.(checkpointSummarySessionManager)
-	if !ok {
-		return errors.New("session manager without workspace removal: checkpoint lifecycle is required")
-	}
-	return checkpointSessions.StopWithCause(ctx, id, cause, detail)
 }
 
 var (

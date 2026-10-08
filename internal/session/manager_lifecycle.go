@@ -27,24 +27,6 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	return m.createSession(ctx, opts)
 }
 
-// CreateLifecycleContinuation starts a Dream session for daemon-owned work that
-// was accepted before public work admission began draining.
-func (m *Manager) CreateLifecycleContinuation(
-	ctx context.Context,
-	opts CreateOpts,
-) (_ *Session, err error) {
-	if ctx == nil {
-		return nil, errors.New("session: lifecycle continuation context is required")
-	}
-	if normalizeSessionType(opts.Type) != SessionTypeDream {
-		return nil, fmt.Errorf(
-			"session: lifecycle continuation requires type %q",
-			SessionTypeDream,
-		)
-	}
-	return m.createSession(ctx, opts)
-}
-
 func (m *Manager) createSession(ctx context.Context, opts CreateOpts) (*Session, error) {
 	spec, err := m.prepareCreateStart(ctx, opts)
 	if err != nil {

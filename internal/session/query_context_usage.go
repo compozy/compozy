@@ -27,6 +27,18 @@ type DeliveryEventEnvelope struct {
 	Manifest acp.DeliveryManifest
 }
 
+type CompactionFiredPayload struct {
+	WorkspaceID  string  `json:"workspace_id"`
+	SessionID    string  `json:"session_id"`
+	TurnID       string  `json:"turn_id"`
+	FromSequence int64   `json:"from_sequence"`
+	ToSequence   int64   `json:"to_sequence"`
+	ContextUsed  int64   `json:"context_used"`
+	ContextSize  int64   `json:"context_size"`
+	Pressure     float64 `json:"pressure"`
+	Strategy     string  `json:"strategy"`
+}
+
 type CompactionEnvelope struct {
 	Sequence     int64
 	At           time.Time

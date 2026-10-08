@@ -39,8 +39,7 @@ type Assembler struct {
 }
 
 var (
-	_ session.PromptProvider        = (*Assembler)(nil)
-	_ session.ResumeContextProvider = (*Assembler)(nil)
+	_ session.PromptProvider = (*Assembler)(nil)
 )
 
 // NewAssembler constructs a prompt assembler for the provided store.

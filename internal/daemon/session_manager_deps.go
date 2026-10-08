@@ -28,7 +28,6 @@ type SessionManagerDeps struct {
 	CommandService          session.CommandService
 	WorkAdmission           admission.Checker
 	MemoryStore             *memory.Store
-	LedgerMaterializer      session.LedgerMaterializer
 	AgentResolver           session.AgentResolver
 	SkillRegistry           session.SkillRegistry
 	MCPResolver             session.MCPResolver
@@ -38,7 +37,6 @@ type SessionManagerDeps struct {
 	SessionSupervision      compozyconfig.SessionSupervisionConfig
 	SessionStop             compozyconfig.SessionStopConfig
 	SessionBusyInput        compozyconfig.SessionBusyInputConfig
-	SessionCompaction       compozyconfig.SessionCompactionConfig
 	SessionDerive           compozyconfig.SessionDeriveConfig
 	SessionInputQueue       store.SessionInputQueueStore
 	SessionPromptAdmission  store.SessionPromptAdmissionStore
@@ -86,7 +84,6 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		CommandService:       state.commandService,
 		WorkAdmission:        &d.admission,
 		MemoryStore:          state.memoryStore,
-		LedgerMaterializer:   state.ledgerMaterializer,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -99,7 +96,6 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionSupervision:      state.cfg.Session.Supervision,
 		SessionStop:             state.cfg.Session.Stop,
 		SessionBusyInput:        state.cfg.Session.BusyInput,
-		SessionCompaction:       state.cfg.Session.Compaction,
 		SessionDerive:           state.cfg.Session.Derive,
 		SessionInputQueue:       sessionInputQueueStoreDependency(state.registry),
 		SessionPromptAdmission:  sessionPromptAdmissionStoreDependency(state.registry),

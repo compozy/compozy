@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -20,9 +24,16 @@ const (
 		"Do not repeat completed tool calls solely because they appear in the log."
 )
 
+type rebuildReplayContext struct {
+	workspace        *workspacepkg.ResolvedWorkspace
+	historyAvailable bool
+	reason           string
+}
+
 func (m *Manager) buildResumeReplay(
 	ctx context.Context,
 	session *Session,
+	rebuild ...rebuildReplayContext,
 ) (string, int, error) {
 	if ctx == nil {
 		return "", 0, errors.New("session: resume replay context is required")
@@ -60,66 +71,115 @@ func (m *Manager) buildResumeReplay(
 	if len(importedMessages) > 0 {
 		messages = append(importedMessages, messages...)
 	}
+	options, err := m.resolveRebuildReplayContext(ctx, session, imported, rebuild)
+	if err != nil {
+		return "", 0, err
+	}
+	messages, stats := boundReplay(messages, m.deriveBudget(options.workspace))
 	payload, err := json.Marshal(messages)
 	if err != nil {
 		return "", 0, fmt.Errorf("session: marshal persisted resume replay: %w", err)
 	}
-	continuity, err := m.resumeContinuitySection(ctx, session)
-	if err != nil {
-		return "", 0, err
+	omittedCount := stats.OmittedCount
+	firstUserPinned := stats.FirstUserPinned
+	if imported != nil && imported.OmittedCount > 0 {
+		omittedCount += imported.OmittedCount
+		firstUserPinned = firstUserPinned ||
+			(len(messages) > 1 && messages[0].Role == transcript.RoleUser && messages[1].ID == deriveOmittedMessageID)
 	}
-	if imported != nil {
-		return renderImportedReplayBlock(*imported, continuity, string(payload)), len(messages), nil
+	if omittedCount > 0 {
+		m.sessionLogger(session).Info("session.replay.bounded", "session_id", session.ID,
+			"reason", options.reason, "message_count", stats.MessageCount,
+			"omitted_count", omittedCount, "first_user_pinned", firstUserPinned, "bytes", stats.Bytes)
 	}
-
-	sections := []string{
-		resumeReplayInstruction,
-	}
-	if continuity != "" {
-		sections = append(sections, continuity)
-	}
-	sections = append(sections, strings.Join([]string{
-		resumeReplayOpenTag,
+	return renderResumeReplay(
+		session.ID,
+		imported,
 		string(payload),
-		resumeReplayCloseTag,
-	}, "\n"))
-	block := strings.Join(sections, "\n\n")
-	return block, len(messages), nil
+		options.historyAvailable,
+		omittedCount > 0,
+	), stats.MessageCount, nil
 }
 
-func (m *Manager) resumeContinuitySection(ctx context.Context, session *Session) (string, error) {
-	if provider, ok := m.assembler.(ResumeContextProvider); ok {
-		info := session.Info()
-		continuity, continuityErr := provider.ResumeContextSection(ctx, StartupPromptContext{
-			SessionID:          info.ID,
-			SessionName:        info.Name,
-			AgentName:          info.AgentName,
-			Provider:           info.Provider,
-			ProviderHomePolicy: info.ProviderHomePolicy,
-			WorkspaceID:        info.WorkspaceID,
-			Workspace:          info.Workspace,
-			SessionType:        info.Type,
-			SpawnRole:          store.NormalizeSessionLineage(info.ID, info.Lineage).SpawnRole,
-			CreatedAt:          info.CreatedAt,
-			UpdatedAt:          info.UpdatedAt,
-		})
-		if continuityErr != nil {
-			return "", fmt.Errorf("session: assemble resume continuity for %q: %w", session.ID, continuityErr)
+func (m *Manager) resolveRebuildReplayContext(
+	ctx context.Context,
+	session *Session,
+	imported *store.SessionImportedContext,
+	rebuild []rebuildReplayContext,
+) (rebuildReplayContext, error) {
+	options := rebuildReplayContext{reason: "resume"}
+	if len(rebuild) > 0 {
+		options = rebuild[0]
+	} else {
+		meta := session.Meta()
+		workspace, resolveErr := resolveStoredSessionWorkspace(ctx, &meta, m.workspace, m.profileNames)
+		if resolveErr != nil {
+			return rebuildReplayContext{}, resolveErr
 		}
-		return strings.TrimSpace(continuity), nil
+		options.workspace = &workspace
+		session.mu.RLock()
+		resolved := session.providerRoute
+		session.mu.RUnlock()
+		tools, toolErr := concreteDelegationTools(resolved, m.toolsetCatalog, m.toolUniverse)
+		if toolErr != nil {
+			return rebuildReplayContext{}, toolErr
+		}
+		options.historyAvailable = resolved.SessionMCP && m.hostedMCP != nil &&
+			slices.Contains(tools, toolspkg.ToolIDSessionHistory.String())
+		policy := store.NormalizeSessionLineage(meta.ID, meta.Lineage).PermissionPolicy
+		if len(policy.Tools) > 0 {
+			options.historyAvailable = options.historyAvailable &&
+				slices.Contains(policy.Tools, toolspkg.ToolIDSessionHistory.String())
+		}
 	}
-	return "", nil
+	if strings.TrimSpace(options.reason) == "" {
+		options.reason = "runtime_rebuild"
+		if imported != nil {
+			options.reason = string(imported.Kind)
+		}
+	}
+	return options, nil
+}
+
+func renderResumeReplay(
+	sessionID string,
+	imported *store.SessionImportedContext,
+	payload string,
+	historyAvailable, omitted bool,
+) string {
+	historyID := sessionID
+	if imported != nil {
+		historyID = imported.SourceSessionID
+	}
+	pointer := ""
+	// Imported context may already contain an omission note from the source bound.
+	if omitted && historyAvailable {
+		pointer = fmt.Sprintf(
+			"Earlier messages were omitted. Read them with the compozy__session_history tool "+
+				"(session_id: %s) when you need them.",
+			historyID,
+		)
+	}
+	if imported != nil {
+		return renderImportedReplayBlock(*imported, pointer, payload)
+	}
+	sections := []string{resumeReplayInstruction + " " + deriveWorkspaceLine}
+	if pointer != "" {
+		sections = append(sections, pointer)
+	}
+	sections = append(sections, resumeReplayOpenTag+"\n"+payload+"\n"+resumeReplayCloseTag)
+	return strings.Join(sections, "\n\n")
 }
 
 func conversationRewindReplayBaseline(
 	ctx context.Context,
 	recorder EventRecorder,
 ) ([]transcript.Message, bool, error) {
-	reader, ok := recorder.(store.ConversationRewindReader)
+	_, ok := recorder.(store.ConversationRewindReader)
 	if !ok {
 		return nil, false, nil
 	}
-	state, found, err := reader.ConversationRewindState(ctx)
+	state, found, err := refreshStaleConversationRewindBaseline(ctx, recorder)
 	if err != nil {
 		return nil, false, fmt.Errorf("session: read conversation rewind replay state: %w", err)
 	}

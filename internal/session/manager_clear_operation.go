@@ -77,9 +77,6 @@ func (m *Manager) clearStoppedConversation(
 		return nil, err
 	}
 	clearDisposition = sessionDBClearPreserveCommittedRecovery
-	if err := m.discardOwnedMaterializedSessionLedger(ctx, owner, dbPath); err != nil {
-		return restarted, err
-	}
 	clearDisposition = sessionDBClearFinalizeCommitted
 	return restarted, nil
 }

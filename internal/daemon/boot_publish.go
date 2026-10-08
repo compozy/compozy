@@ -75,8 +75,5 @@ func (state *bootState) memoryProviderShutdowner() memoryProviderShutdowner {
 	if state.localMemoryProvider == nil {
 		return nil
 	}
-	return checkpointMemoryShutdowner{
-		runtime:  state.checkpointRuntime,
-		provider: state.localMemoryProvider,
-	}
+	return state.localMemoryProvider
 }

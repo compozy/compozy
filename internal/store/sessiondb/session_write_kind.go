@@ -9,6 +9,7 @@ const (
 	sessionWriteUsage
 	sessionWriteHookRun
 	sessionWriteArchive
+	sessionWriteConversationRewindBaselineRefresh
 	sessionWriteConversationRewind
 	sessionWriteClear
 )

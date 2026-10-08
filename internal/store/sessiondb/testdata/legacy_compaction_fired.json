@@ -1,0 +1,24 @@
+{
+    "schema": "compozy.session.event.v1",
+    "type": "session.compaction_fired",
+    "session_id": "acp-1",
+    "turn_id": "fixture-turn",
+    "timestamp": "2026-10-08T04:15:31.444586Z",
+    "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high",
+        "speed": "normal"
+    },
+    "raw": {
+        "workspace_id": "fixture-workspace",
+        "session_id": "fixture-session",
+        "turn_id": "fixture-turn",
+        "from_sequence": 20,
+        "to_sequence": 80,
+        "context_used": 85,
+        "context_size": 100,
+        "pressure": 0.85,
+        "strategy": "summary_archive"
+    }
+}

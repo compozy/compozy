@@ -3,6 +3,7 @@ package session
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -39,14 +40,17 @@ type replayBudget struct {
 	MaxMessageBytes int
 	// KeepRecent is the protected tail, kept while it fits.
 	KeepRecent int
+	// PinFirstUser preserves the original user request before the omission note.
+	PinFirstUser bool
 }
 
 // replayStats reports what bounding kept and dropped.
 type replayStats struct {
-	MessageCount int
-	Bytes        int
-	OmittedCount int
-	Truncated    bool
+	MessageCount    int
+	Bytes           int
+	OmittedCount    int
+	Truncated       bool
+	FirstUserPinned bool
 }
 
 // boundReplay caps every message to MaxMessageBytes, drops non-protected messages
@@ -65,49 +69,96 @@ func boundReplay(messages []transcript.Message, budget replayBudget) ([]transcri
 		truncated = truncated || cut
 		sizes[index] = replayMessageBytes(capped[index])
 	}
-	total := func(start int) int {
-		count := len(capped) - start
-		bytes := 2
-		for _, size := range sizes[start:] {
-			bytes += size
-		}
-		if start > 0 {
-			bytes += replayMessageBytes(omittedReplayNote(start, capped[start-1].Timestamp))
-			count++
-		}
-		if count > 1 {
-			bytes += count - 1
-		}
-		return bytes
+	firstUser := -1
+	if budget.PinFirstUser {
+		firstUser = slices.IndexFunc(capped, func(message transcript.Message) bool {
+			return message.Role == transcript.RoleUser
+		})
+	}
+	tailBytes := 0
+	for _, size := range sizes {
+		tailBytes += size
 	}
 	start := 0
-	protectedStart := max(len(capped)-budget.KeepRecent, 0)
-	for start < protectedStart && total(start) > budget.MaxBytes {
+	for start < len(capped)-1 && replaySuffixBytes(capped, sizes, tailBytes, firstUser, start) > budget.MaxBytes {
+		tailBytes -= sizes[start]
 		start++
 	}
-	for start < len(capped)-1 && total(start) > budget.MaxBytes {
-		start++
-	}
-	if start < len(capped) && total(start) > budget.MaxBytes {
-		overhead := total(start) - sizes[start]
-		capped[start], _ = capReplayMessage(capped[start], budget.MaxBytes-overhead)
-		sizes[start] = replayMessageBytes(capped[start])
-		truncated = true
-		if total(start) > budget.MaxBytes {
-			start = len(capped)
+	kept, omitted, pinned := composeReplaySuffix(capped, firstUser, start)
+	if len(capped) > 0 && replayArrayBytes(kept) > budget.MaxBytes {
+		// Only the original request and newest message remain. Trim those only
+		// after every older tail message has been dropped.
+		trimIndices := []int{start}
+		if pinned && firstUser != start {
+			trimIndices = append(trimIndices, firstUser)
+		}
+		for _, index := range trimIndices {
+			excess := replayArrayBytes(kept) - budget.MaxBytes
+			if excess <= 0 {
+				break
+			}
+			capped[index], _ = capReplayMessage(capped[index], max(sizes[index]-excess, 1))
+			truncated = true
+			kept, omitted, pinned = composeReplaySuffix(capped, firstUser, start)
 		}
 	}
-	kept := append([]transcript.Message(nil), capped[start:]...)
-	if start > 0 {
-		kept = append([]transcript.Message{omittedReplayNote(start, capped[start-1].Timestamp)}, kept...)
-		truncated = true
+	if replayArrayBytes(kept) > budget.MaxBytes && firstUser >= 0 {
+		// If even two minimal message identities cannot fit beside the note,
+		// retain the original request and drop the newest message as well.
+		start = len(capped)
+		kept, omitted, pinned = composeReplaySuffix(capped, firstUser, start)
+		if excess := replayArrayBytes(kept) - budget.MaxBytes; excess > 0 {
+			capped[firstUser], _ = capReplayMessage(
+				capped[firstUser],
+				max(replayMessageBytes(capped[firstUser])-excess, 1),
+			)
+			kept, omitted, pinned = composeReplaySuffix(capped, firstUser, start)
+		}
+	}
+	if replayArrayBytes(kept) > budget.MaxBytes {
+		kept, omitted, pinned = []transcript.Message{}, len(messages), false
 	}
 	return kept, replayStats{
-		MessageCount: len(capped) - start,
-		Bytes:        replayArrayBytes(kept),
-		OmittedCount: start,
-		Truncated:    truncated,
+		MessageCount: len(messages) - omitted,
+		Bytes:        replayArrayBytes(kept), OmittedCount: omitted,
+		Truncated: truncated || omitted > 0, FirstUserPinned: pinned,
 	}
+}
+
+func replaySuffixBytes(capped []transcript.Message, sizes []int, tailBytes, firstUser, start int) int {
+	count, omitted := len(capped)-start, start
+	bytes := 2 + tailBytes
+	if firstUser >= 0 && firstUser < start {
+		bytes += sizes[firstUser]
+		count++
+		omitted--
+	}
+	if omitted > 0 {
+		bytes += replayMessageBytes(omittedReplayNote(omitted, capped[start-1].Timestamp))
+		count++
+	}
+	return bytes + max(count-1, 0)
+}
+
+func composeReplaySuffix(capped []transcript.Message, firstUser, start int) ([]transcript.Message, int, bool) {
+	pinned := firstUser >= 0 && start > 0
+	omitted := start
+	kept := make([]transcript.Message, 0, len(capped)-start+2)
+	if pinned {
+		kept = append(kept, capped[firstUser])
+		if firstUser < start {
+			omitted--
+		}
+	}
+	if omitted > 0 {
+		kept = append(kept, omittedReplayNote(omitted, capped[start-1].Timestamp))
+	}
+	for index := start; index < len(capped); index++ {
+		if !pinned || index != firstUser {
+			kept = append(kept, capped[index])
+		}
+	}
+	return kept, omitted, pinned && omitted > 0
 }
 
 func omittedReplayNote(omitted int, timestamp time.Time) transcript.Message {
@@ -254,11 +305,10 @@ func importedContextHeader(ic store.SessionImportedContext) string {
 	return contextRebuiltMarkerSummary + "\n" + line + resumeReplayInstruction + " " + deriveWorkspaceLine
 }
 
-// renderImportedReplayBlock composes the framing lines, an optional continuity section,
-// and one fenced transcript array.
-func renderImportedReplayBlock(ic store.SessionImportedContext, continuity string, messagesJSON string) string {
+// renderImportedReplayBlock composes the framing lines and one fenced transcript array.
+func renderImportedReplayBlock(ic store.SessionImportedContext, historyPointer string, messagesJSON string) string {
 	parts := []string{importedContextHeader(ic)}
-	if trimmed := strings.TrimSpace(continuity); trimmed != "" {
+	if trimmed := strings.TrimSpace(historyPointer); trimmed != "" {
 		parts = append(parts, trimmed)
 	}
 	parts = append(parts, resumeReplayOpenTag+"\n"+messagesJSON+"\n"+resumeReplayCloseTag)

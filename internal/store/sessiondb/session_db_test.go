@@ -754,8 +754,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 8 || firstStatus.AppliedCount != 8 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 8", firstStatus)
+		if firstStatus.Version != 9 || firstStatus.AppliedCount != 9 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 9", firstStatus)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -903,8 +903,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 8 || status.AppliedCount != 8 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 8", status)
+		if status.Version != 9 || status.AppliedCount != 9 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 9", status)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(

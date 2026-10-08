@@ -64,9 +64,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 		promptDrains:               make(map[chan struct{}]struct{}),
 		managedInputLeases:         make(map[string]managedInputLease),
 		promptAdmissionLocks:       make(map[string]*promptAdmissionLock),
-		compactionLifecycle: sessionCompactionLifecycle{
-			runs: make(map[string]*sessionCompactionState),
-		},
 		startLifecycle: sessionStartLifecycle{
 			runs: make(map[string]*sessionStartRun),
 		},
@@ -90,7 +87,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 		},
 		supervision:                  compozyconfig.DefaultSessionSupervisionConfig(),
 		busyInput:                    compozyconfig.DefaultSessionBusyInputConfig(),
-		compaction:                   compozyconfig.DefaultSessionCompactionConfig(),
 		sessionHealthStaleAfter:      compozyconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
 		sessionHealthHookMinInterval: compozyconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
 		now: func() time.Time {

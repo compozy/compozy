@@ -90,7 +90,7 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 
 func TestHarnessContextResolverScopesInputOnlyContext(t *testing.T) {
 	t.Parallel()
-	for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle, session.SpawnRoleCheckpointSummary, "custom", ""} {
+	for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle, "custom", ""} {
 		t.Run("Should scope startup and live context for role "+role, func(t *testing.T) {
 			t.Parallel()
 			resolver := NewHarnessContextResolver(HarnessRuntimeSignals{

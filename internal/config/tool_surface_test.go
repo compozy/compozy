@@ -59,26 +59,6 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueInt,
 		},
 		{
-			name: "Should allow session compaction enablement mutation",
-			path: "session.compaction.enabled",
-			kind: ConfigValueBool,
-		},
-		{
-			name: "Should allow session compaction pressure mutation",
-			path: "session.compaction.pressure_threshold",
-			kind: ConfigValueFloat,
-		},
-		{
-			name: "Should allow session compaction attempt cap mutation",
-			path: "session.compaction.max_attempts_per_turn",
-			kind: ConfigValueInt,
-		},
-		{
-			name: "Should allow session compaction cooldown mutation",
-			path: "session.compaction.failure_cooldown",
-			kind: ConfigValueDuration,
-		},
-		{
 			name: "Should allow session attachment max file bytes mutation",
 			path: "session.attachments.max_file_bytes",
 			kind: ConfigValueInt64,

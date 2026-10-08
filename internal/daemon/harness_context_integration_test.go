@@ -509,16 +509,7 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				if containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionTools) {
 					t.Fatal("resume lost extractor role")
 				}
-				summarizer := newDaemonCheckpointSummarizer(
-					manager,
-					resolvedRoleResolver(&ResolvedRole{Enabled: true, AgentName: agentName}),
-				)
-				request := checkpointSummaryRequestFixture()
-				request.WorkspaceID, request.WorkspaceRoot, request.SessionID = workspace.ID, workspace.RootDir, parent.ID
-				if _, err := summarizer.Summarize(t.Context(), request); err != nil {
-					t.Fatal(err)
-				}
-				assertLatestPrompt("checkpoint summary", false)
+
 			},
 		)
 	}
@@ -812,9 +803,6 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 				})
 			} else {
 				sessionType := session.SessionTypeUser
-				if role == session.SpawnRoleCheckpointSummary {
-					sessionType = session.SessionTypeDream
-				}
 				created, err = manager.Create(t.Context(), session.CreateOpts{
 					AgentName: workspace.Agents[0].Name, Workspace: workspace.ID, Type: sessionType,
 					Lineage: &store.SessionLineage{SpawnRole: role},
@@ -865,7 +853,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 		if strings.Contains(changed, `<catalog-state unchanged="true">`) {
 			t.Errorf("changed payload must contain the new full catalog")
 		}
-		for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle, session.SpawnRoleCheckpointSummary} {
+		for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle} {
 			prompt := send(create(role), role)
 			for _, section := range []string{"<available-skills>", "<current-available-skills>", "<compozy-situation-context>"} {
 				if strings.Contains(prompt, section) {

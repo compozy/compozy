@@ -14,11 +14,6 @@ func (d *Daemon) bootMemorySessionRuntime(
 	state *bootState,
 	cleanup *bootCleanup,
 ) error {
-	ledgerMaterializer, err := d.newSessionLedgerMaterializer(state)
-	if err != nil {
-		return err
-	}
-	state.ledgerMaterializer = ledgerMaterializer
 	sessionWakeBridge, err := newSessionWakeBridge(ctx, func() sessionWakeSessionManager {
 		if state == nil || state.sessions == nil {
 			return nil
@@ -73,9 +68,6 @@ func (d *Daemon) bootMemorySessionRuntime(
 	}
 	state.memoryExtractor = memoryExtractor
 	if err := d.bootAutoTitleRuntime(ctx, state, sessions, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootCheckpointSummaryRuntime(ctx, state, sessions, cleanup); err != nil {
 		return err
 	}
 	state.deps = d.runtimeDeps(ctx, state, sessions)
@@ -154,10 +146,6 @@ func (d *Daemon) bootAutoTitleRuntime(
 
 type workspaceRemovalPreparer interface {
 	PrepareWorkspaceRemoval(context.Context, string) (workspacepkg.UnregisterPreparation, error)
-}
-
-type sessionCompactionBinder interface {
-	SetCompactionHandler(session.CompactionHandler)
 }
 
 type autoTitleSessionManager interface {

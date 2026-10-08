@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -762,12 +761,6 @@ enabled = false
 [session.limits]
 timeout = "20m"
 
-[session.compaction]
-enabled = true
-pressure_threshold = 0.80
-max_attempts_per_turn = 2
-failure_cooldown = "5m"
-
 [skills]
 enabled = true
 disabled_skills = ["global-skill"]
@@ -798,9 +791,6 @@ enabled = true
 [session.limits]
 timeout = "45m"
 
-[session.compaction]
-pressure_threshold = 0.90
-
 [skills]
 enabled = false
 disabled_skills = ["workspace-skill"]
@@ -826,13 +816,6 @@ base_url = "https://workspace.example.test/api/v1"
 	}
 	if !cfg.Roles.AutoTitle.Enabled {
 		t.Fatal("Load() Roles.AutoTitle.Enabled = false, want workspace override true")
-	}
-	if got, want := cfg.Session.Compaction.PressureThreshold, 0.90; got != want {
-		t.Fatalf("Load() Session.Compaction.PressureThreshold = %v, want %v", got, want)
-	}
-	if !cfg.Session.Compaction.Enabled || cfg.Session.Compaction.MaxAttemptsPerTurn != 2 ||
-		cfg.Session.Compaction.FailureCooldown != 5*time.Minute {
-		t.Fatalf("Load() Session.Compaction = %#v, want inherited global guards", cfg.Session.Compaction)
 	}
 
 	claude, err := cfg.ResolveProvider("claude")
@@ -1271,93 +1254,6 @@ func TestLoadSessionDeriveConfig(t *testing.T) {
 		_, err := load(t, "[session.derive]\nmax_replay_bytes = 4095\n")
 		if err == nil || !strings.Contains(err.Error(), "session.derive.max_replay_bytes must be at least 4096") {
 			t.Fatalf("Load() error = %v, want max_replay_bytes validation", err)
-		}
-	})
-}
-
-func TestSessionCompactionConfigDefaultsAndValidation(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should expose the pressure compaction defaults", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := DefaultSessionCompactionConfig()
-		if !cfg.Enabled || cfg.PressureThreshold != 0.85 || cfg.MaxAttemptsPerTurn != 1 ||
-			cfg.FailureCooldown != 10*time.Minute {
-			t.Fatalf("DefaultSessionCompactionConfig() = %#v", cfg)
-		}
-		if err := cfg.Validate(); err != nil {
-			t.Fatalf("DefaultSessionCompactionConfig().Validate() error = %v", err)
-		}
-	})
-
-	for _, tc := range []struct {
-		name   string
-		mutate func(*SessionCompactionConfig)
-		field  string
-	}{
-		{
-			name: "Should reject pressure above one",
-			mutate: func(cfg *SessionCompactionConfig) {
-				cfg.PressureThreshold = 1.01
-			},
-			field: "pressure_threshold",
-		},
-		{
-			name: "Should reject negative pressure",
-			mutate: func(cfg *SessionCompactionConfig) {
-				cfg.PressureThreshold = -0.01
-			},
-			field: "pressure_threshold",
-		},
-		{
-			name: "Should reject NaN pressure",
-			mutate: func(cfg *SessionCompactionConfig) {
-				cfg.PressureThreshold = math.NaN()
-			},
-			field: "pressure_threshold",
-		},
-		{
-			name: "Should reject infinite pressure",
-			mutate: func(cfg *SessionCompactionConfig) {
-				cfg.PressureThreshold = math.Inf(1)
-			},
-			field: "pressure_threshold",
-		},
-		{
-			name: "Should reject a zero attempt cap",
-			mutate: func(cfg *SessionCompactionConfig) {
-				cfg.MaxAttemptsPerTurn = 0
-			},
-			field: "max_attempts_per_turn",
-		},
-		{
-			name: "Should reject a negative failure cooldown",
-			mutate: func(cfg *SessionCompactionConfig) {
-				cfg.FailureCooldown = -time.Second
-			},
-			field: "failure_cooldown",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := DefaultSessionCompactionConfig()
-			tc.mutate(&cfg)
-			err := cfg.Validate()
-			if err == nil || !strings.Contains(err.Error(), "session.compaction."+tc.field) {
-				t.Fatalf("SessionCompactionConfig.Validate() error = %v, want %s context", err, tc.field)
-			}
-		})
-	}
-
-	t.Run("Should accept zero pressure as an explicit disable switch", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := DefaultSessionCompactionConfig()
-		cfg.PressureThreshold = 0
-		if err := cfg.Validate(); err != nil {
-			t.Fatalf("SessionCompactionConfig.Validate(zero pressure) error = %v", err)
 		}
 	})
 }

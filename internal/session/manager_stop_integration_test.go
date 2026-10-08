@@ -337,13 +337,7 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 	if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown(before manager restart) error = %v", err)
 	}
-	checkpoint := "<compozy_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</compozy_checkpoint_summary>"
-	h.manager = newManagerWithHarness(
-		t,
-		h,
-		WithDriver(newRuntimeDriver()),
-		WithPromptAssembler(&resumeContextPromptAssembler{checkpoint: checkpoint}),
-	)
+	h.manager = newManagerWithHarness(t, h, WithDriver(newRuntimeDriver()))
 
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
@@ -379,10 +373,9 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 	if got, want := len(prompts), 2; got != want {
 		t.Fatalf("resume replay prompt diagnostics = %#v, want %d prompt records", prompts, want)
 	}
-	checkpointIndex := strings.Index(prompts[1].Prompt, "<compozy_checkpoint_summary>")
-	replayIndex := strings.Index(prompts[1].Prompt, resumeReplayOpenTag)
-	if checkpointIndex < 0 || replayIndex < 0 || checkpointIndex >= replayIndex {
-		t.Fatalf("resume replay checkpoint ordering invalid:\n%s", prompts[1].Prompt)
+	if !strings.Contains(prompts[1].Prompt, deriveWorkspaceLine) ||
+		!strings.Contains(prompts[1].Prompt, resumeReplayOpenTag) {
+		t.Fatalf("resumed prompt lacks the workspace authority or replay: %s", prompts[1].Prompt)
 	}
 	assertResumeReplayEqualsPrunedEvents(t, prompts[1].Prompt, eventsBeforeResume)
 	assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 1)

@@ -25,15 +25,16 @@ const (
 )
 
 type sessionWriteRequest struct {
-	ctx     context.Context
-	kind    sessionWriteKind
-	event   store.SessionEvent
-	events  []store.SessionEvent
-	usage   store.TokenUsage
-	hook    hookspkg.HookRunRecord
-	archive store.EventArchiveRequest
-	rewind  *store.ConversationRewindRequest
-	result  chan sessionWriteResult
+	ctx      context.Context
+	kind     sessionWriteKind
+	event    store.SessionEvent
+	events   []store.SessionEvent
+	usage    store.TokenUsage
+	hook     hookspkg.HookRunRecord
+	archive  store.EventArchiveRequest
+	rewind   *store.ConversationRewindRequest
+	baseline *conversationRewindBaselineRefresh
+	result   chan sessionWriteResult
 }
 
 type sessionWriteResult struct {
@@ -70,6 +71,7 @@ type SessionDB struct {
 var _ store.EventRecorder = (*SessionDB)(nil)
 var _ store.EventArchiver = (*SessionDB)(nil)
 var _ store.ConversationRewinder = (*SessionDB)(nil)
+var _ store.ConversationRewindBaselineRefresher = (*SessionDB)(nil)
 var _ store.ConversationRewindReader = (*SessionDB)(nil)
 
 // OpenSessionDB opens or creates the per-session events database at path.

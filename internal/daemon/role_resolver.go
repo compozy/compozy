@@ -136,9 +136,8 @@ func (r *roleResolver) resolveEffective(
 		Model:           strings.TrimSpace(common.Model),
 		ReasoningEffort: strings.TrimSpace(common.ReasoningEffort),
 	}
-	compaction := roleInvocationCorrelationFromContext(ctx, workspaceID).SessionCompaction
 	memoryEnabled := r.config.Memory.Enabled && effectiveConfig.Memory.Enabled
-	resolved.Enabled = effectiveRoleEnabled(role, common.Enabled, memoryEnabled, compaction)
+	resolved.Enabled = effectiveRoleEnabled(role, common.Enabled, memoryEnabled)
 	resolved.setRuntime(speedpkg.Speed(strings.TrimSpace(string(common.Speed))), common.ACPOptions)
 	if !resolved.Enabled {
 		populateDisabledRoleIdentity(role, common, &resolved)
@@ -387,8 +386,7 @@ func firstRoleValue(values ...string) string {
 	return ""
 }
 
-// Compaction denotes configured availability for status and actual applicability for invocation.
-func effectiveRoleEnabled(role compozyconfig.RoleName, enabled, memoryEnabled, compaction bool) bool {
+func effectiveRoleEnabled(role compozyconfig.RoleName, enabled, memoryEnabled bool) bool {
 	if !enabled {
 		return false
 	}
@@ -396,7 +394,7 @@ func effectiveRoleEnabled(role compozyconfig.RoleName, enabled, memoryEnabled, c
 	case compozyconfig.RoleDream, compozyconfig.RoleMemoryExtractor, compozyconfig.RoleMemoryController:
 		return memoryEnabled
 	case compozyconfig.RoleCheckpointSummary:
-		return memoryEnabled || compaction
+		return memoryEnabled
 	default:
 		return true
 	}
