@@ -1967,6 +1967,7 @@ func TestCompactionAdapterFixtures(t *testing.T) {
 	}
 }
 
+//nolint:misspell // ACP fixes the spelling of terminal status values.
 func TestCompactionAssembler(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -2012,7 +2013,8 @@ func TestCompactionAssembler(t *testing.T) {
 				t.Fatalf("events = %#v, want %d snapshots", events, len(tc.want))
 			}
 			for i, want := range tc.want {
-				if events[i].Type != EventTypeCompaction || events[i].Compaction == nil || *events[i].Compaction != want {
+				if events[i].Type != EventTypeCompaction || events[i].Compaction == nil ||
+					*events[i].Compaction != want {
 					t.Fatalf("snapshot %d = %#v, want %#v", i, events[i].Compaction, want)
 				}
 			}
@@ -2030,17 +2032,27 @@ func TestCompactionAssembler(t *testing.T) {
 		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"COMPOZY_CLAIM_sec"}`)
 		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"ret-value"}`)
 		sendCompactionTestUpdate(t, proc, "c1", `{"status":"failed","error":"COMPOZY_CLAIM_secret-value"}`)
-		large := mustMarshalJSON(map[string]any{"status": "completed", "summary": []map[string]any{{"type": "text", "text": strings.Repeat("x", 20*1024)}}})
+		large := mustMarshalJSON(
+			map[string]any{
+				"status":  "completed",
+				"summary": []map[string]any{{"type": "text", "text": strings.Repeat("x", 20*1024)}},
+			},
+		)
 		sendCompactionTestUpdate(t, proc, "c2", string(large))
 		events := drainCompactionTestEvents(t, proc, active)
 		if len(events) != 3 {
 			t.Fatalf("snapshots = %d, want 3", len(events))
 		}
-		if got := events[1].Compaction; got.Summary != "compozy_claim_[REDACTED]" || got.Error != "compozy_claim_[REDACTED]" {
+		if got := events[1].Compaction; got.Summary != "compozy_claim_[REDACTED]" ||
+			got.Error != "compozy_claim_[REDACTED]" {
 			t.Fatalf("scrubbed snapshot = %#v", got)
 		}
 		if got := events[2].Compaction.Summary; len(got) > 16*1024 || !strings.HasSuffix(got, " [summary truncated]") {
-			t.Fatalf("capped summary length = %d, suffix missing = %v", len(got), !strings.HasSuffix(got, " [summary truncated]"))
+			t.Fatalf(
+				"capped summary length = %d, suffix missing = %v",
+				len(got),
+				!strings.HasSuffix(got, " [summary truncated]"),
+			)
 		}
 	})
 }
@@ -2056,7 +2068,9 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 		defer proc.endPrompt(active)
 		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"x"}`)
 		unknown := json.RawMessage(`{"sessionUpdate":"_vendor_thing","content":{"type":"text","text":"y"},"vendor":42}`)
-		if err := proc.handleSessionUpdate(mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: unknown})); err != nil {
+		if err := proc.handleSessionUpdate(
+			mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: unknown}),
+		); err != nil {
 			t.Fatal(err)
 		}
 		events := drainCompactionTestEvents(t, proc, active)
@@ -2086,8 +2100,12 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 		}
 		defer proc.endPrompt(active)
 		for _, kind := range []string{"_vendor_one", "_vendor_one", "_vendor_two"} {
-			update := mustMarshalJSON(map[string]any{"sessionUpdate": kind, "content": map[string]any{"type": "text", "text": "payload"}})
-			if err := proc.handleSessionUpdate(mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: update})); err != nil {
+			update := mustMarshalJSON(
+				map[string]any{"sessionUpdate": kind, "content": map[string]any{"type": "text", "text": "payload"}},
+			)
+			if err := proc.handleSessionUpdate(
+				mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: update}),
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -2116,7 +2134,9 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 		sendCompactionTestUpdate(t, proc, "c1", `{"status":42,"error":{"unexpected":true}}`)
 		sendCompactionTestUpdate(t, proc, "c1", `{"status":"completed","summary":"vendor summary"}`)
 		events := drainCompactionTestEvents(t, proc, active)
-		if len(events) != 2 || events[0].Compaction.Status != "_paused" || events[0].Compaction.Terminal || events[1].Compaction.Summary != "vendor summary" || !events[1].Compaction.Terminal {
+		if len(events) != 2 || events[0].Compaction.Status != "_paused" || events[0].Compaction.Terminal ||
+			events[1].Compaction.Summary != "vendor summary" ||
+			!events[1].Compaction.Terminal {
 			t.Fatalf("tolerant snapshots = %#v", events)
 		}
 	})
@@ -2137,7 +2157,8 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 			t.Fatal(err)
 		}
 		events := drainCompactionTestEvents(t, proc, active)
-		if len(events) != 1 || events[0].Type != EventTypeToolCall || events[0].Title != "Compact conversation" || events[0].Compaction != nil {
+		if len(events) != 1 || events[0].Type != EventTypeToolCall || events[0].Title != "Compact conversation" ||
+			events[0].Compaction != nil {
 			t.Fatalf("legacy event = %#v", events)
 		}
 	})
@@ -2156,7 +2177,9 @@ func sendCompactionTestUpdate(t *testing.T, proc *AgentProcess, id, fields strin
 		update["sessionUpdate"] = "compaction_summary_chunk"
 		update["content"] = map[string]any{"type": "text", "text": chunk}
 	}
-	if err := proc.handleSessionUpdate(mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: mustMarshalJSON(update)})); err != nil {
+	if err := proc.handleSessionUpdate(
+		mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: mustMarshalJSON(update)}),
+	); err != nil {
 		t.Fatal(err)
 	}
 }

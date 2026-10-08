@@ -300,7 +300,10 @@ func TestTranscriptCompactionRedaction(t *testing.T) {
 		}
 		if redacted.Compaction.CompactionID != "c1 compozy_claim_[REDACTED]" ||
 			redacted.Compaction.Status != "_paused compozy_claim_[REDACTED]" || !redacted.Compaction.Terminal {
-			t.Fatalf("redacted compaction = %#v, want retained structural values and terminal state", redacted.Compaction)
+			t.Fatalf(
+				"redacted compaction = %#v, want retained structural values and terminal state",
+				redacted.Compaction,
+			)
 		}
 		payload := canonicalEventPayload{
 			CompactionID: original.CompactionID, Status: original.Status,
@@ -315,12 +318,22 @@ func TestTranscriptCompactionRedaction(t *testing.T) {
 
 	t.Run("Should protect raw unknown updates while retaining their JSON shape", func(t *testing.T) {
 		t.Parallel()
-		raw := json.RawMessage(`{"sessionUpdate":"vendor_update","opaque":"COMPOZY_CLAIM_raw-value","compaction_id":"COMPOZY_CLAIM_raw-id-value","detail":{"summary":"token=summary-secret","apiKey":"raw-key-secret","count":3}}`)
+		raw := json.RawMessage(
+			`{"sessionUpdate":"vendor_update","opaque":"COMPOZY_CLAIM_raw-value","compaction_id":"COMPOZY_CLAIM_raw-id-value","detail":{"summary":"token=summary-secret","apiKey":"raw-key-secret","count":3}}`,
+		)
 		event := RedactAgentEvent(acp.AgentEvent{Type: acp.EventTypeSystem, Raw: raw})
-		assertNoDisplayLeaks(t, event, []string{"COMPOZY_CLAIM_raw-value", "COMPOZY_CLAIM_raw-id-value", "summary-secret", "raw-key-secret"})
+		assertNoDisplayLeaks(
+			t,
+			event,
+			[]string{"COMPOZY_CLAIM_raw-value", "COMPOZY_CLAIM_raw-id-value", "summary-secret", "raw-key-secret"},
+		)
 		payload := canonicalEventPayload{Raw: raw}
 		redactCanonicalPayload(&payload)
-		assertNoDisplayLeaks(t, payload, []string{"COMPOZY_CLAIM_raw-value", "COMPOZY_CLAIM_raw-id-value", "summary-secret", "raw-key-secret"})
+		assertNoDisplayLeaks(
+			t,
+			payload,
+			[]string{"COMPOZY_CLAIM_raw-value", "COMPOZY_CLAIM_raw-id-value", "summary-secret", "raw-key-secret"},
+		)
 		var decoded struct {
 			SessionUpdate string `json:"sessionUpdate"`
 			Detail        struct {
@@ -333,7 +346,9 @@ func TestTranscriptCompactionRedaction(t *testing.T) {
 		if event.Type != acp.EventTypeSystem || decoded.SessionUpdate != "vendor_update" || decoded.Detail.Count != 3 {
 			t.Fatalf("redacted unknown update = %#v, want retained discriminator and count", decoded)
 		}
-		if string(raw) != `{"sessionUpdate":"vendor_update","opaque":"COMPOZY_CLAIM_raw-value","compaction_id":"COMPOZY_CLAIM_raw-id-value","detail":{"summary":"token=summary-secret","apiKey":"raw-key-secret","count":3}}` {
+		if string(
+			raw,
+		) != `{"sessionUpdate":"vendor_update","opaque":"COMPOZY_CLAIM_raw-value","compaction_id":"COMPOZY_CLAIM_raw-id-value","detail":{"summary":"token=summary-secret","apiKey":"raw-key-secret","count":3}}` {
 			t.Fatal("RedactAgentEvent mutated original raw JSON")
 		}
 	})

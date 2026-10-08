@@ -23,7 +23,13 @@ func (p *AgentProcess) emitUnknownSessionUpdate(raw wireSessionNotification, kin
 	p.unknownUpdates[kind] = struct{}{}
 	p.compactionMu.Unlock()
 	if !seen && p.logger != nil {
-		p.logger.Warn("acp.session_update.unknown", "session_id", raw.SessionID, "session_update", redact.ClaimTokens(kind))
+		p.logger.Warn(
+			"acp.session_update.unknown",
+			"session_id",
+			raw.SessionID,
+			"session_update",
+			redact.ClaimTokens(kind),
+		)
 	}
 	p.emitRawSystemUpdate(raw, kind)
 }

@@ -11,6 +11,7 @@ import (
 
 const EventTypeCompaction = "compaction"
 const compactionSummaryLimit = 16 * 1024
+const compactionTextContentType = "text"
 const compactionTruncationMark = " [summary truncated]"
 const compactionStatusCancelled = "cancelled" //nolint:misspell // ACP wire spelling.
 
@@ -54,7 +55,13 @@ func (p *AgentProcess) handleCompactionUpdate(raw wireSessionNotification, kind 
 	if kind == "compaction_summary_chunk" {
 		if isCompactionTerminal(state.snapshot.Status) {
 			if p.logger != nil {
-				p.logger.Warn("acp.compaction.late_chunk", "session_id", raw.SessionID, "compaction_id", redact.ClaimTokens(id))
+				p.logger.Warn(
+					"acp.compaction.late_chunk",
+					"session_id",
+					raw.SessionID,
+					"compaction_id",
+					redact.ClaimTokens(id),
+				)
 			}
 			return nil
 		}
@@ -167,7 +174,7 @@ func compactionText(raw json.RawMessage) string {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	}
-	if json.Unmarshal(raw, &block) == nil && (block.Type == "text" || block.Type == "") {
+	if json.Unmarshal(raw, &block) == nil && (block.Type == compactionTextContentType || block.Type == "") {
 		return block.Text
 	}
 	return ""
