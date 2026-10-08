@@ -26,7 +26,6 @@ import {
 } from "../../../lib/automation-form-schedule";
 import { localInputToDate, SCHEDULE_CONSTANTS, toRfc3339 } from "../../../lib/cron-engine";
 import type { AutomationScheduleMode } from "../../../types";
-import { ChoiceChip } from "../choice-chip";
 import { ScheduleReadout } from "./schedule-readout";
 
 const MODE_ITEMS: PillGroupItem<AutomationScheduleMode>[] = [
@@ -68,14 +67,15 @@ export function ScheduleStart({ draft, form }: ScheduleStartProps) {
         <div className="flex flex-col gap-3">
           <div aria-label="Common intervals" className="flex flex-wrap gap-1.5" role="group">
             {SCHEDULE_EVERY_PICKS.map(pick => (
-              <ChoiceChip
+              <Toggle
                 className="font-mono"
                 key={pick}
-                onClick={() => form.onEveryInterval(pick)}
+                onPressedChange={() => form.onEveryInterval(pick)}
                 pressed={schedule.interval === pick}
+                size="sm"
               >
                 {pick}
-              </ChoiceChip>
+              </Toggle>
             ))}
           </div>
           <Input
@@ -113,7 +113,8 @@ export function ScheduleStart({ draft, form }: ScheduleStartProps) {
 function RepeatsBuilder({ expr, form }: { expr: string; form: AutomationFormModel }) {
   const dayTime = scheduleDayTime(expr);
   const selectedDays = new Set(form.daysCleared ? [] : (dayTime?.days ?? []));
-  // A shape the day picker can't show (every hour, a custom cron) keeps it quiet.
+  // A shape the day picker can't show (every hour, a custom cron) disables it:
+  // a click there would silently rewrite the schedule. Quick picks switch back.
   const builderApplies = dayTime !== null || form.daysCleared;
   const [expressionOpen, setExpressionOpen] = useState(!builderApplies && !isQuickPick(expr));
 
@@ -121,14 +122,15 @@ function RepeatsBuilder({ expr, form }: { expr: string; form: AutomationFormMode
     <div className="flex flex-col gap-3">
       <div aria-label="Quick picks" className="flex flex-wrap gap-1.5" role="group">
         {SCHEDULE_QUICK_PICKS.map(pick => (
-          <ChoiceChip
+          <Toggle
             key={pick.expr}
-            onClick={() => form.onQuickPick(pick.expr)}
+            onPressedChange={() => form.onQuickPick(pick.expr)}
             pressed={!form.daysCleared && pick.expr === expr.trim()}
+            size="sm"
             title={pick.expr}
           >
             {pick.label}
-          </ChoiceChip>
+          </Toggle>
         ))}
       </div>
       <div
@@ -139,11 +141,12 @@ function RepeatsBuilder({ expr, form }: { expr: string; form: AutomationFormMode
         data-testid="automation-schedule-days-row"
       >
         <span>On</span>
-        <fieldset className="flex gap-1">
+        <fieldset className="flex gap-1" disabled={!builderApplies}>
           <legend className="sr-only">Days</legend>
           {SCHEDULE_CONSTANTS.DOW_LONG.map((day, index) => (
             <Toggle
               aria-label={day}
+              disabled={!builderApplies}
               key={day}
               onPressedChange={() => form.onToggleDay(index)}
               pressed={selectedDays.has(index)}
@@ -157,6 +160,7 @@ function RepeatsBuilder({ expr, form }: { expr: string; form: AutomationFormMode
         <Input
           aria-label="Time"
           className="w-auto min-w-28 font-mono tabular-nums"
+          disabled={!builderApplies}
           onChange={event => form.onTime(event.target.value)}
           type="time"
           value={scheduleClock(expr)}

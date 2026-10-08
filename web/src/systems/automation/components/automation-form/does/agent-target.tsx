@@ -1,11 +1,10 @@
 import { useRef } from "react";
 
-import { Field, FieldDescription, FieldError, FieldLabel, Textarea } from "@compozy/ui";
+import { Button, Field, FieldDescription, FieldError, FieldLabel, Textarea } from "@compozy/ui";
 
 import type { AutomationFormModel } from "../../../hooks/use-automation-form";
 import { detailChipsFor } from "../../../lib/automation-form-events";
 import type { AutomationStart } from "../../../lib/automation-sentence";
-import { ChoiceChip } from "../choice-chip";
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 
 interface AgentTargetProps {
@@ -81,14 +80,17 @@ export function AgentTarget({
             <FieldDescription>Add details from the event:</FieldDescription>
             <div aria-label="Event details" className="flex flex-wrap gap-1.5" role="group">
               {chips.map(chip => (
-                <ChoiceChip
+                <Button
                   aria-label={`Insert ${chip.label}`}
-                  className="bg-info-tint font-mono text-mono-id text-fg"
+                  className="bg-info-tint font-mono"
                   key={chip.value}
                   onClick={() => insert(chip.value)}
+                  size="xs"
+                  type="button"
+                  variant="ghost"
                 >
                   {chip.label}
-                </ChoiceChip>
+                </Button>
               ))}
             </div>
           </div>

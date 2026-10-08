@@ -3,6 +3,12 @@ import { X } from "lucide-react";
 import { Button, FieldError, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
 import { conditionFieldLabel } from "../../../lib/automation-form-events";
+import type { ConditionProblem } from "../../../lib/automation-form-readiness";
+
+const PROBLEM_TEXT: Record<ConditionProblem, string> = {
+  empty: "Add a value or remove this condition.",
+  duplicate: "This field already has a condition. Remove one of them.",
+};
 
 interface ConditionRowProps {
   index: number;
@@ -11,7 +17,7 @@ interface ConditionRowProps {
   fieldOptions: readonly string[];
   openPayload: boolean;
   datalistId: string;
-  incomplete: boolean;
+  problem?: ConditionProblem;
   onFieldChange: (next: string) => void;
   onValueChange: (next: string) => void;
   onRemove: () => void;
@@ -27,12 +33,13 @@ export function ConditionRow({
   fieldOptions,
   openPayload,
   datalistId,
-  incomplete,
+  problem,
   onFieldChange,
   onValueChange,
   onRemove,
 }: ConditionRowProps) {
   const errorId = `automation-condition-error-${index}`;
+  const incomplete = problem !== undefined;
   return (
     <div className="flex flex-col gap-1">
       <div className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_auto] items-center gap-2">
@@ -85,9 +92,7 @@ export function ConditionRow({
           <X aria-hidden="true" />
         </Button>
       </div>
-      {incomplete ? (
-        <FieldError id={errorId}>Add a value or remove this condition.</FieldError>
-      ) : null}
+      {problem ? <FieldError id={errorId}>{PROBLEM_TEXT[problem]}</FieldError> : null}
     </div>
   );
 }

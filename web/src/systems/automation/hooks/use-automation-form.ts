@@ -7,7 +7,9 @@ import {
   automationFormEvent,
   automationFormSentenceDraft,
   setAutomationFormDoes,
+  setAutomationFormEvent,
   setAutomationFormStart,
+  type AutomationCondition,
   type AutomationFormDraft,
 } from "../lib/automation-form-draft";
 import {
@@ -33,13 +35,12 @@ import {
 } from "../lib/automation-sentence";
 import { defaultAtLocal, localInputToDate, parseCron, parseDuration } from "../lib/cron-engine";
 import { composeEventId, parseEventSelection } from "../lib/trigger-event-id";
-import { retainValidFilters, type WorkspaceOption } from "../lib/trigger-preview";
+import type { WorkspaceOption } from "../lib/trigger-preview";
 import type {
   AutomationCatchUpPolicy,
   AutomationFireLimit,
   AutomationRetry,
   AutomationScheduleMode,
-  AutomationTriggerFilter,
 } from "../types";
 import {
   type LoopAutomationStartKind,
@@ -105,6 +106,10 @@ export function useAutomationForm({
 }: UseAutomationFormParams) {
   const [daysCleared, setDaysCleared] = useState(false);
   const [agentTouched, setAgentTouched] = useState(false);
+  // An edit may keep a one-shot time that has already passed; only a changed time must be ahead.
+  const [savedAtTime] = useState(() =>
+    mode === "edit" && draft.schedule.mode === "at" ? draft.schedule.time : undefined
+  );
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const delay = scheduleClockDelay(draft, Date.now());
@@ -149,6 +154,7 @@ export function useAutomationForm({
       loopCompatible: loopCatalog.status === "compatible",
       mode,
       now,
+      savedAtTime,
     });
   const readout =
     draft.start === "schedule" ? scheduleReadout(draft.schedule, now, { daysCleared }) : null;
@@ -210,8 +216,7 @@ export function useAutomationForm({
   };
 
   const handleEventCard = (card: EditorEventCardId) => {
-    const event = editorEventIdFor(card, selection);
-    patch({ event, filter: retainValidFilters(draft.filter ?? {}, editorEventDef(event)) });
+    onChange(setAutomationFormEvent(draft, editorEventIdFor(card, selection)));
   };
 
   const handleOwnerKind = (kind: JobOwnerKind | "") => {
@@ -248,7 +253,7 @@ export function useAutomationForm({
     resolvedWorkspaces,
     retry,
     optionsSummary: automationOptionsSummary(draft),
-    incompleteConditions: incompleteConditionRows(draft.filter),
+    conditionProblems: incompleteConditionRows(draft.conditions),
     agentMissing: agentTouched && draft.agent_name.trim() === "",
     optionsDefaultOpen: mode === "edit" || retry.strategy === "backoff" || draft.enabled === false,
 
@@ -272,7 +277,7 @@ export function useAutomationForm({
     onEndpointSlug: (endpoint_slug: string) => patch({ endpoint_slug }),
     onWebhookId: (webhook_id: string) => patch({ webhook_id }),
     onWebhookSecret: (webhook_secret_value: string) => patch({ webhook_secret_value }),
-    onFilterChange: (filter: AutomationTriggerFilter) => patch({ filter }),
+    onConditionsChange: (conditions: AutomationCondition[]) => patch({ conditions }),
 
     onAgentChange: (agent_name: string) => {
       setAgentTouched(true);

@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   runtime: { available: true } as { available: boolean },
   aggregate: false,
   activeWorkspaceId: "ws_launch_hq" as string | null,
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("sonner", () => ({ toast: mocks.toast }));
@@ -313,7 +313,7 @@ describe("useAutomationsPage", () => {
     expect(result.current.editorDialogProps.editor).toBeNull();
   });
 
-  it("Should open a plain create link in Global, but hold a Loop seed until a project is active", async () => {
+  it("Should open a plain create link in Global, and turn a Loop seed there into a notice", async () => {
     mocks.activeWorkspaceId = null;
     const created = renderHook(() => useAutomationsPage({ create: "1", start: "schedule" }), {
       wrapper: wrapper(),
@@ -330,9 +330,16 @@ describe("useAutomationsPage", () => {
       () => useAutomationsPage({ create: "loop", loop: "software-delivery" }),
       { wrapper: wrapper() }
     );
-    await waitFor(() => expect(seeded.result.current.items).toHaveLength(7));
+    await waitFor(() =>
+      expect(mocks.toast.info).toHaveBeenCalledWith("Pick a project to automate a Loop.")
+    );
     expect(seeded.result.current.editorDialogProps.editor).toBeNull();
-    expect(mocks.navigate.mock.calls.some(([call]) => call.replace === true)).toBe(false);
+    const strip = mocks.navigate.mock.calls.find(([call]) => call.replace === true)?.[0];
+    expect(strip.search({ create: "loop", loop: "software-delivery" })).toEqual({
+      create: undefined,
+      loop: undefined,
+      start: undefined,
+    });
   });
 
   it("Should clear search, every facet and the Start view", async () => {
