@@ -1,13 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  CircleDot,
-  CircleStop,
-  Clock3,
-  Filter,
-  Puzzle,
-  Unplug,
-  Webhook,
-} from "lucide-react";
+import { CircleDot, CircleStop, Clock3, Filter, Puzzle, Unplug, Webhook } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { Eyebrow, cn } from "@compozy/ui";

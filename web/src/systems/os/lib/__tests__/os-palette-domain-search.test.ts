@@ -109,6 +109,74 @@ describe("os-palette-domain-search helpers", () => {
     });
   });
 
+  it("Should list both automation kinds with the start glyph and sentence [UT-111]", () => {
+    const base = {
+      does: "agent",
+      enabled: true,
+      source: "dynamic",
+      profileName: "default",
+      canEdit: true,
+    } as const;
+    const views: AutomationView[] = [
+      {
+        ...base,
+        kind: "job",
+        id: "digest/am",
+        name: "morning-digest",
+        start: "schedule",
+        sentence: [
+          { text: "Every weekday at 09:00 UTC", emphasis: true },
+          { text: ", ask ", emphasis: false },
+          { text: "summarizer", emphasis: true },
+          { text: ".", emphasis: false },
+        ],
+        scope: "global",
+        canRunNow: true,
+        detailPath: "/automations/jobs/digest%2Fam",
+      },
+      {
+        ...base,
+        kind: "trigger",
+        id: "trg-1",
+        name: "summarize-failures",
+        start: "event",
+        sentence: [
+          { text: "When ", emphasis: false },
+          { text: "a session stops", emphasis: true },
+          { text: ", ask summarizer.", emphasis: false },
+        ],
+        scope: "workspace",
+        workspaceId: "ws-a",
+        canRunNow: false,
+        detailPath: "/automations/triggers/trg-1",
+      },
+    ];
+
+    const rows = projectAutomationRows(views, "global", new Map([["ws-a", "Alpha"]]));
+
+    expect(rows).toEqual([
+      {
+        key: "job:digest/am",
+        label: "morning-digest",
+        detail: "Every weekday at 09:00 UTC, ask summarizer.",
+        workspaceLabel: "Global",
+        app: "automations",
+        icon: Clock3,
+        route: { pathname: "/automations/jobs/digest%2Fam", search: {} },
+      },
+      {
+        key: "trigger:trg-1",
+        label: "summarize-failures",
+        detail: "When a session stops, ask summarizer.",
+        workspaceLabel: "Alpha",
+        app: "automations",
+        icon: Radio,
+        route: { pathname: "/automations/triggers/trg-1", search: {} },
+        workspaceId: "ws-a",
+      },
+    ]);
+  });
+
   it("Should scope catalog filters to one workspace or every workspace", () => {
     expect(paletteTaskFilters("workspace", "ws-a")).toEqual({
       scope: "workspace",
