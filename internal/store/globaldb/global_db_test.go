@@ -406,6 +406,154 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// Invariant: palette retirement merges counts and pins per workspace/profile exactly once; the reopen suite owns upgrades.
+	t.Run("Should preserve palette personalization across app retirement [IT-012]", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00130_automations_palette.sql"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		otherProfile := "11111111111111111111111111"
+		if _, err := prior.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,created_at) VALUES (?, 'Palette other', 'blue', 'bot', '2026-10-08T00:00:00Z')`,
+			otherProfile,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, workspace := range []string{"", "workspace-other"} {
+			for _, profile := range []string{store.DefaultProfileID, otherProfile} {
+				for _, prefix := range []string{"app.open.", "palette.view."} {
+					for i, app := range []string{"jobs", "triggers", "automations"} {
+						count := []int{3, 2, 4}[i]
+						weight := []float64{1.5, 2, 1}[i]
+						last := []int{10, 20, 15}[i]
+						if _, err := prior.ExecContext(
+							ctx,
+							`INSERT INTO cmd_palette_usage VALUES (?,?,?,?,?,?,?)`,
+							workspace,
+							profile,
+							prefix+app,
+							count,
+							weight,
+							last,
+							last,
+						); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := prior.ExecContext(
+							ctx,
+							`INSERT INTO cmd_palette_query_hits VALUES (?,?,?,?,?,?)`,
+							workspace,
+							profile,
+							"jo",
+							prefix+app,
+							weight,
+							last,
+						); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := prior.ExecContext(
+							ctx,
+							`INSERT INTO cmd_palette_pins VALUES (?,?,?,?)`,
+							workspace,
+							profile,
+							prefix+app,
+							last,
+						); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+				if _, err := prior.ExecContext(
+					ctx,
+					`INSERT INTO cmd_palette_usage VALUES (?,?, 'app.open.tasks',7,3,30,30)`,
+					workspace,
+					profile,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, workspace := range []string{"", "workspace-other"} {
+				for _, profile := range []string{store.DefaultProfileID, otherProfile} {
+					var total int
+					if err := upgraded.db.QueryRowContext(ctx, `SELECT sum(use_count) FROM cmd_palette_usage WHERE workspace_id=? AND profile_lens_id=?`, workspace, profile).
+						Scan(&total); err != nil {
+						t.Fatal(err)
+					}
+					if total != 25 {
+						t.Fatalf("per-lens use_count=%d, want 25", total)
+					}
+					for _, prefix := range []string{"app.open.", "palette.view."} {
+						var count, last, updated, pinned, hitLast int
+						var frequency, weight float64
+						if err := upgraded.db.QueryRowContext(ctx, `SELECT use_count,frecency_weight,last_used_at,updated_at FROM cmd_palette_usage WHERE workspace_id=? AND profile_lens_id=? AND command_id=?`, workspace, profile, prefix+"automations").
+							Scan(&count, &frequency, &last, &updated); err != nil {
+							t.Fatal(err)
+						}
+						if err := upgraded.db.QueryRowContext(ctx, `SELECT pinned_at FROM cmd_palette_pins WHERE workspace_id=? AND profile_lens_id=? AND command_id=?`, workspace, profile, prefix+"automations").
+							Scan(&pinned); err != nil {
+							t.Fatal(err)
+						}
+						if err := upgraded.db.QueryRowContext(ctx, `SELECT weight,last_used_at FROM cmd_palette_query_hits WHERE workspace_id=? AND profile_lens_id=? AND command_id=? AND query='jo'`, workspace, profile, prefix+"automations").
+							Scan(&weight, &hitLast); err != nil {
+							t.Fatal(err)
+						}
+						if count != 9 || frequency != 2 || last != 20 || updated != 20 || pinned != 10 ||
+							weight != 4.5 ||
+							hitLast != 20 {
+							t.Fatalf(
+								"merged signals = %d %g %d %d %d %g %d",
+								count,
+								frequency,
+								last,
+								updated,
+								pinned,
+								weight,
+								hitLast,
+							)
+						}
+					}
+				}
+			}
+			var retired int
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM (SELECT command_id FROM cmd_palette_usage UNION ALL SELECT command_id FROM cmd_palette_query_hits UNION ALL SELECT command_id FROM cmd_palette_pins) WHERE command_id IN ('app.open.jobs','app.open.triggers','palette.view.jobs','palette.view.triggers')`).
+				Scan(&retired); err != nil {
+				t.Fatal(err)
+			}
+			if retired != 0 {
+				t.Fatalf("retired rows=%d", retired)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	// Invariant: reconciliation indexes upgrade existing task history losslessly; the reopen suite owns it.
 	t.Run("Should preserve settled task history while adding reconciliation indexes", func(t *testing.T) {
 		t.Parallel()

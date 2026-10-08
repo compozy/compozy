@@ -27,3 +27,15 @@ func appCommands() []cmdpalette.Descriptor {
 	}
 	return commands
 }
+
+// RetiredCommandID accepts public aliases until removal in v0.5.0.
+func RetiredCommandID(id cmdpalette.CommandID) (cmdpalette.CommandID, bool) {
+	switch id {
+	case "app.open.jobs", "app.open.triggers":
+		return "app.open.automations", true
+	case "palette.view.jobs", "palette.view.triggers":
+		return "palette.view.automations", true
+	default:
+		return id, false
+	}
+}

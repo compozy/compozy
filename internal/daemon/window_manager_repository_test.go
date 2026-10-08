@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"sync"
@@ -16,6 +18,170 @@ import (
 
 func TestWindowManagerRepository(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: v4 migration preserves windows, writes once, and fences stale writers; repository suite owns persistence.
+	t.Run("Should persist deprecated command apps and warn once per id [IT-014]", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		var logs bytes.Buffer
+		observer := windowManagerAppDeprecationLogger(slog.New(slog.NewJSONHandler(&logs, nil)), &sync.Map{})
+		manager, err := windowmanager.NewService(
+			fixture.repository,
+			windowManagerWorkspaceAuthorizer{resolver: fixture.storeResolver},
+			nil,
+			windowmanager.DefaultConfig(),
+			windowmanager.WithAppDeprecationObserver(observer),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for i, app := range []string{"jobs", "triggers", "jobs", "triggers"} {
+			id := windowmanager.WindowID(fmt.Sprintf("retired-%d", i))
+			source := "command"
+			if app == "triggers" {
+				source = "cli"
+			}
+			result, err := manager.Execute(
+				t.Context(),
+				windowmanager.CommandRequest{
+					WorkspaceID:      windowmanager.WorkspaceID(fixture.workspace.ID),
+					ExpectedRevision: windowmanager.Revision(i),
+					Actor:            windowmanager.Actor{Kind: source},
+					Payload: windowmanager.OpenWindowCommand{
+						Window: windowmanager.WindowSpec{
+							ID:  id,
+							App: app,
+							Route: windowmanager.RouteIntent{
+								Pathname: "/" + app + "/example",
+								Search:   windowmanager.RouteSearch{},
+							},
+							FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
+						},
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Snapshot.Windows[id].App != "automations" ||
+				result.Snapshot.Windows[id].Route.Pathname != "/automations/"+app+"/example" {
+				t.Fatalf("window=%+v", result.Snapshot.Windows[id])
+			}
+		}
+		if strings.Count(logs.String(), `"event":"windowmanager.app_id_deprecated"`) != 2 ||
+			!strings.Contains(logs.String(), `"source":"cli"`) ||
+			!strings.Contains(logs.String(), `"source":"command"`) ||
+			!strings.Contains(logs.String(), `"removal":"v0.5.0"`) {
+			t.Fatalf("warnings=%s", logs.String())
+		}
+		loaded, err := fixture.repository.Load(t.Context(), windowmanager.WorkspaceID(fixture.workspace.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(loaded.Windows) != 4 {
+			t.Fatalf("persisted windows=%d", len(loaded.Windows))
+		}
+	})
+
+	t.Run("Should migrate v4 once and reject a stale commit [IT-010 IT-011 UT-125]", func(t *testing.T) {
+		t.Parallel()
+		for _, invalid := range []bool{false, true} {
+			fixture := newDaemonWindowManagerFixture(t)
+			var logs bytes.Buffer
+			fixture.repository.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+			ctx := t.Context()
+			workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
+			snapshot := daemonWindowManagerSnapshot(workspaceID, 5, "Primary")
+			snapshot.Version = windowmanager.PreviousSnapshotVersion
+			for _, app := range []string{"jobs", "triggers"} {
+				id := windowmanager.WindowID(app)
+				snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, id)
+				snapshot.Windows[id] = windowmanager.Window{
+					ID:        id,
+					App:       app,
+					DesktopID: "desktop-default",
+					Placement: windowmanager.WindowPlacementFloating,
+					Route: windowmanager.RouteIntent{
+						Pathname: "/" + app,
+						Search:   windowmanager.RouteSearch{},
+					},
+					FloatingRect: windowmanager.NormalizedRect{Width: 0.5, Height: 0.5},
+				}
+			}
+			if invalid {
+				snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, "missing")
+			}
+			raw, err := json.Marshal(snapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			entries, err := fixture.engine.Apply(
+				ctx,
+				clientstate.WorkspaceID(workspaceID),
+				windowManagerStateDomain,
+				[]clientstate.Op{
+					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: raw},
+				},
+				clientstate.ApplyOptions{},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := fixture.repository.Load(ctx, workspaceID)
+			if invalid {
+				if err == nil {
+					t.Fatal("invalid migration accepted")
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if loaded.Version != 5 || loaded.Revision != 6 || len(loaded.Windows) != 2 ||
+					loaded.Windows["jobs"].App != "automations" ||
+					loaded.Windows["triggers"].App != "automations" {
+					t.Fatalf("migration = %+v", loaded)
+				}
+				if _, err := fixture.repository.Load(ctx, workspaceID); err != nil {
+					t.Fatal(err)
+				}
+				stale := loaded
+				err = fixture.repository.Commit(ctx, daemonWindowManagerCommit(stale, 5))
+				conflict, ok := errors.AsType[*windowmanager.RevisionConflictError](err)
+				if !ok || conflict.Current != 6 {
+					t.Fatalf("stale commit = %v", err)
+				}
+			}
+			stored, err := fixture.engine.Get(
+				ctx,
+				clientstate.WorkspaceID(workspaceID),
+				windowManagerStateDomain,
+				windowManagerSnapshotKey(testWindowManagerProfileID),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if invalid {
+				if stored.Rev != entries[0].Rev || !bytes.Equal(stored.Value, raw) {
+					t.Fatal("invalid snapshot changed")
+				}
+			} else {
+				if stored.Rev != entries[0].Rev+1 {
+					t.Fatalf("migration wrote more than once: %d -> %d", entries[0].Rev, stored.Rev)
+				}
+				if strings.Count(logs.String(), `"event":"windowmanager.snapshot_migrated"`) != 1 ||
+					!strings.Contains(logs.String(), `"from_version":4`) ||
+					!strings.Contains(logs.String(), `"to_version":5`) ||
+					!strings.Contains(logs.String(), `"windows_rewritten":2`) {
+					t.Fatalf("migration logs = %s", logs.String())
+				}
+			}
+		}
+	})
 
 	t.Run("Should reject a nil commit as invalid topology", func(t *testing.T) {
 		t.Parallel()

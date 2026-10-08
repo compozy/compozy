@@ -18,6 +18,38 @@ import (
 )
 
 func TestCommandTransaction(t *testing.T) {
+	// Invariant: retired public app inputs execute as canonical apps; service transaction suite owns command admission.
+	t.Run("Should rewrite retired app commands and report their input source [IT-014]", func(t *testing.T) {
+		t.Parallel()
+		var warnings []string
+		environment := newTestEnvironmentWithOptions(
+			t,
+			DefaultConfig(),
+			[]WorkspaceID{"workspace-a"},
+			WithAppDeprecationObserver(func(_ context.Context, app, replacement, source string) {
+				warnings = append(warnings, app+":"+replacement+":"+source)
+			}),
+		)
+		got := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			OpenWindowCommand{
+				Window: WindowSpec{
+					ID:           "retired",
+					App:          " triggers ",
+					Route:        testRoute("/triggers/rerun-delivery"),
+					FloatingRect: fullRect(),
+				},
+			},
+		)
+		if got.Snapshot.Windows["retired"].App != "automations" ||
+			got.Snapshot.Windows["retired"].Route.Pathname != "/automations/triggers/rerun-delivery" ||
+			!slices.Equal(warnings, []string{"triggers:automations:command"}) {
+			t.Fatalf("result=%+v warnings=%v", got, warnings)
+		}
+	})
 	t.Run("Should generate preview window IDs with the durable window ID shape", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")

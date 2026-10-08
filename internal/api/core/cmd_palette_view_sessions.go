@@ -36,7 +36,7 @@ func (h *BaseHandlers) OpenCmdPaletteViewSession(c *gin.Context) {
 	result, err := service.OpenSession(c.Request.Context(), cmdpalette.ViewSessionOpenRequest{
 		ProfileLens:     profileLens,
 		Workspace:       workspaceID,
-		View:            strings.TrimSpace(c.Param("id")),
+		View:            h.canonicalPaletteViewID(c.Param("id")),
 		Args:            body.Args,
 		AttachmentToken: strings.TrimSpace(c.GetHeader(cmdPaletteClientAttachmentHeader)),
 	})

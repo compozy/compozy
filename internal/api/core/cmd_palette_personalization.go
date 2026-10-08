@@ -2,7 +2,6 @@ package core
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -53,7 +52,7 @@ func (h *BaseHandlers) RecordCmdPaletteUsage(c *gin.Context) {
 	if err := h.CmdPalette.RecordUsage(c.Request.Context(), cmdpalette.Usage{
 		ProfileLens: profileLens,
 		WorkspaceID: workspaceID,
-		CommandID:   cmdpalette.CommandID(strings.TrimSpace(string(body.CommandID))),
+		CommandID:   h.canonicalPaletteCommandID(string(body.CommandID)),
 		Query:       body.Query,
 	}); err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
@@ -83,7 +82,7 @@ func (h *BaseHandlers) changeCmdPalettePin(c *gin.Context, pinned bool) {
 		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
-	commandID := cmdpalette.CommandID(strings.TrimSpace(c.Param("id")))
+	commandID := h.canonicalPaletteCommandID(c.Param("id"))
 	var err error
 	if pinned {
 		err = h.CmdPalette.Pin(c.Request.Context(), profileLens, workspaceID, commandID)

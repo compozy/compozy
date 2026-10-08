@@ -6,6 +6,7 @@ package windowmanager
 // Boundary OUT: resource persistence/reconcile, owned by internal/resources and daemon.
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -14,6 +15,50 @@ import (
 )
 
 func TestLayoutResourceCodec(t *testing.T) {
+	// Invariant: a previous-version public layout preserves all windows while aliasing retired apps; codec suite owns resource admission.
+	t.Run("Should rewrite retired resource apps and navigation [IT-014]", func(t *testing.T) {
+		t.Parallel()
+		var warnings []string
+		codec, err := NewLayoutResourceCodec(func(_ context.Context, app, replacement, source string) {
+			warnings = append(warnings, app+":"+replacement+":"+source)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resource := testLayoutResource("legacy")
+		resource.Document.Version = PreviousSnapshotVersion
+		for id, window := range resource.Document.Windows {
+			window.App = "jobs"
+			window.Route = testRoute("/jobs/morning-digest")
+			resource.Document.Windows[id] = window
+		}
+		raw, err := codec.Encode(resource)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := codec.DecodeAndValidate(
+			t.Context(),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			raw,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Document.Version != SnapshotVersion || len(got.Document.Windows) != len(resource.Document.Windows) ||
+			len(warnings) != len(resource.Document.Windows) {
+			t.Fatalf("resource=%+v warnings=%v", got, warnings)
+		}
+		for _, window := range got.Document.Windows {
+			if window.App != "automations" || window.Route.Pathname != "/automations/jobs/morning-digest" {
+				t.Fatalf("window=%+v", window)
+			}
+		}
+		for _, warning := range warnings {
+			if warning != "jobs:automations:resource" {
+				t.Fatal(warning)
+			}
+		}
+	})
 	t.Parallel()
 	codec, err := NewLayoutResourceCodec()
 	if err != nil {

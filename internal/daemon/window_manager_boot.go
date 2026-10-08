@@ -65,6 +65,9 @@ func (d *Daemon) bootWindowManager(
 		windowManagerDefaults(state.cfg.WindowManager),
 		state.logger,
 		windowmanager.WithLifecycleContext(ctx),
+		windowmanager.WithAppDeprecationObserver(
+			windowManagerAppDeprecationLogger(state.logger, &deprecatedWindowApps),
+		),
 		windowmanager.WithEventObserver(newWindowManagerHookObserver(state)),
 		windowmanager.WithClientUnregisteredObserver(closeCmdPaletteClientViews(state)),
 		windowmanager.WithGlobalShortcutFailureObserver(notifyGlobalHotkeyRegistrationFailure(state)),
