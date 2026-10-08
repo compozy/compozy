@@ -123,6 +123,7 @@ type Observer struct {
 	logger              *slog.Logger
 	versionSource       VersionSource
 	sessions            map[string]observedSession
+	recoverySkipped     map[string]struct{}
 	hookCatalogSource   HookCatalogSource
 	openHookStore       HookStoreOpener
 	taskHealthConfig    TaskHealthConfig

@@ -57,7 +57,12 @@ bytes; stop the daemon cleanly; back up the home.
    warning; a Host API call to `memory/recall` returns JSON-RPC `-32601`.
 4. No memory tables remain and `status` carries no `memory` object (`compozy status -o json | jq 'has("memory")'`
    → `false`, `schema_version` `2026-10-07`, one global entry in `schema_streams`). The `memory.consolidated`
-   trigger is gone while its run history stays; the `dream` and `memory-extractor` sessions are gone.
+   trigger is gone while its run history stays; the `dream` and `memory-extractor` sessions are gone. Their
+   retained session directories, metadata, and databases keep identical hashes after boot and repeated
+   reconciliation, and no catalog row reappears. Each unsupported session emits one WARN
+   `observe.session_recovery_skipped` per observer lifetime with `session_id`, `session_type`, `spawn_role`,
+   and `reason`. A normal `user` session directory with valid metadata and database but no catalog row is
+   recovered into the catalog.
 5. The Markdown memory files, `_inbox/` candidates, `knowledge/` directory, and `ledger.jsonl` are present with
    unchanged hashes; nothing reads them.
 6. The Web desktop opens the saved layout without the Knowledge window, the session window renders with no
@@ -79,3 +84,8 @@ QA impact 2026-10-07 (memory removal): new in this change; no prior verdict. Aut
 upgrade integration suites, the config archive tests, and the layout reconcile tests; this scenario is the real
 run. The shims (config archive, SOUL, tool-ID, and extension ignore filters) are scheduled for removal in v0.6.0
 and this scenario retires with them.
+
+Recovery boundary follow-up: `internal/observe/reconcile_test.go` owns real-database repeated-reconcile,
+file-preservation and normal-orphan recovery coverage; `internal/daemon/daemon_integration_test.go` owns the
+same retained-directory invariant through an actual daemon boot. This automated slice does not replace the
+complete previous-release upgrade lab walk above.

@@ -4,12 +4,33 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ErrRecoveryPersistence prevents admission against an incompletely recovered session inventory.
 var ErrRecoveryPersistence = errors.New("session: recovery persistence failed")
+
+// RecoveryMetadataSkipReason refuses unsupported lifecycle metadata before recovery can normalize or persist it.
+func RecoveryMetadataSkipReason(meta *store.SessionMeta) string {
+	if meta == nil {
+		return ""
+	}
+	sessionType := Type(strings.TrimSpace(meta.SessionType))
+	if sessionType != "" && normalizeSessionType(sessionType) != sessionType {
+		return "unknown_session_type"
+	}
+	if meta.Lineage != nil {
+		role := strings.TrimSpace(meta.Lineage.SpawnRole)
+		if slices.Contains(toolspkg.RetiredInternalSpawnRoles, role) {
+			return "retired_spawn_role"
+		}
+	}
+	return ""
+}
 
 func (m *Manager) persistRecoveryCatalog(ctx context.Context, meta *store.SessionMeta) error {
 	if m.sessionCatalog == nil {
