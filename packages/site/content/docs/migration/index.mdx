@@ -60,7 +60,7 @@ Nothing needs editing by hand. On the first start:
   the daemon removes them and appends them, commented, at the end of the same file under
   `# Archived retired memory and compaction settings; these values are inactive.`. The rewrite is
   atomic and lossless, logged once as `config.retired_keys_archived`, and a second start changes
-  nothing. The archive never blocks a start: if the file changes while it is being rewritten, or the
+  nothing. Archiving these memory and compaction settings never blocks a start: if the file changes while it is being rewritten, or the
   daemon cannot write it (for example a read-only directory), the daemon logs a
   `config.retired_keys_archive_failed` warning with the path and the reason, loads with the retired
   values inactive, leaves the file untouched, and tries again on the next load. Explicitly setting a
