@@ -42,19 +42,24 @@ const compozyEventDataSchema = z.looseObject({
       turn_id: z.string(),
       sent_at: z.string(),
       estimate: z.string(),
-      spans: z.array(
-        z.object({
-          key: z.string(),
-          kind: z.string(),
-          bytes: z.number(),
-          tokens: z.number().nullable().optional(),
-          delivery: z.string().optional(),
-          name: z.string().optional(),
-          unchanged: z.boolean().optional(),
-          startup_dedup: z.boolean().optional(),
-          hook_modified: z.boolean().optional(),
-        })
-      ),
+      // A delivery that sent no sections (a literal maintenance prompt such as `/compact`)
+      // arrives with `spans: null`. It is quiet telemetry: it must never reject the frame
+      // that carries the turn's reply.
+      spans: z
+        .array(
+          z.object({
+            key: z.string(),
+            kind: z.string(),
+            bytes: z.number(),
+            tokens: z.number().nullable().optional(),
+            delivery: z.string().optional(),
+            name: z.string().optional(),
+            unchanged: z.boolean().optional(),
+            startup_dedup: z.boolean().optional(),
+            hook_modified: z.boolean().optional(),
+          })
+        )
+        .nullable(),
     })
     .optional(),
   runtime: z
