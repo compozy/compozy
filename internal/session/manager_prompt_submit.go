@@ -99,7 +99,7 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	} else {
 		session.setCurrentSkillInvocations(req.skillInvocations)
 	}
-	dispatchMessage, err := m.promptDispatchMessage(promptExecutionCtx, session, message)
+	dispatchMessage, err := m.promptDispatchMessage(promptExecutionCtx, session, message, req.delivery)
 	if err != nil {
 		return nil, err
 	}
@@ -155,6 +155,9 @@ func (m *Manager) preparePromptRequestMessage(
 	session *Session,
 	req *promptRequest,
 ) (string, error) {
+	if req.delivery == PromptDeliveryMaintenance {
+		return req.message, nil
+	}
 	message, err := m.dispatchInputPreSubmit(
 		ctx,
 		session,
@@ -183,11 +186,10 @@ func (m *Manager) submitPromptInReservedSlot(
 	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
 	req.message = message
-	if err := m.recordPromptInputEvent(ctx, session, &req); err != nil {
+	dispatchMessage, replayBlock, err := m.prepareReservedPromptInput(ctx, session, &req, dispatchInput.message)
+	if err != nil {
 		return nil, err
 	}
-	replayBlock := m.pendingResumeReplay(session.ID)
-	dispatchMessage := promptWithResumeReplay(replayBlock, dispatchInput.message)
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
 	}
@@ -203,6 +205,7 @@ func (m *Manager) submitPromptInReservedSlot(
 		}
 	}()
 	recoveryRequest := acp.PromptRequest{
+		Maintenance:               req.delivery == PromptDeliveryMaintenance,
 		TurnID:                    req.turnID,
 		RunID:                     req.runID,
 		Generation:                session.Info().RuntimeGeneration,
@@ -236,8 +239,7 @@ func (m *Manager) submitPromptInReservedSlot(
 		delivery.cancel()
 		return nil, err
 	}
-	m.consumeResumeReplay(session.ID, replayBlock)
-	m.recordImportedContextConsumption(session, req, replayBlock)
+	m.consumeReservedPromptContext(session, req, replayBlock)
 
 	lifecycleCtx := m.fallbackLifecycleContext()
 	m.startPromptPersistencePump(
@@ -278,7 +280,7 @@ func (m *Manager) preparePromptDelivery(
 	if req.prepareDelivery == nil {
 		return nil
 	}
-	if err := req.prepareDelivery(ctx, PromptDelivery{SessionID: session.ID, TurnID: req.turnID}); err != nil {
+	if err := req.prepareDelivery(ctx, PromptDeliveryInfo{SessionID: session.ID, TurnID: req.turnID}); err != nil {
 		m.abortPromptBeforePump(cancelPromptExecution, activity, source)
 		return fmt.Errorf("session: prepare prompt delivery for %q: %w", req.target, err)
 	}
@@ -338,7 +340,11 @@ func (m *Manager) promptDispatchMessage(
 	ctx context.Context,
 	session *Session,
 	message string,
+	delivery PromptDelivery,
 ) (preparedPromptInput, error) {
+	if delivery == PromptDeliveryMaintenance {
+		return preparedPromptInput{message: message}, nil
+	}
 	ctx, sections := acp.CollectPromptSections(ctx)
 	augmented, err := m.augmentPromptMessage(ctx, session, message)
 	return preparedPromptInput{message: augmented, sections: sections()}, err
@@ -366,4 +372,33 @@ func drainPromptSource(source <-chan acp.AgentEvent) {
 	for range source {
 		continue
 	}
+}
+
+func (m *Manager) prepareReservedPromptInput(
+	ctx context.Context,
+	session *Session,
+	req *promptRequest,
+	message string,
+) (string, string, error) {
+	if req.delivery == PromptDeliveryMaintenance {
+		if err := m.recordCompactionRequest(ctx, session, *req); err != nil {
+			return "", "", err
+		}
+	}
+	if err := m.recordPromptInputEvent(ctx, session, req); err != nil {
+		return "", "", err
+	}
+	replayBlock := ""
+	if req.delivery != PromptDeliveryMaintenance {
+		replayBlock = m.pendingResumeReplay(session.ID)
+	}
+	return promptWithResumeReplay(replayBlock, message), replayBlock, nil
+}
+
+func (m *Manager) consumeReservedPromptContext(session *Session, req promptRequest, replayBlock string) {
+	if req.delivery == PromptDeliveryMaintenance {
+		return
+	}
+	m.consumeResumeReplay(session.ID, replayBlock)
+	m.recordImportedContextConsumption(session, req, replayBlock)
 }

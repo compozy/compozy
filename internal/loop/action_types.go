@@ -354,8 +354,21 @@ type ActionSessionBinding struct {
 	SpeedResolution    *speedpkg.Resolution
 }
 
+type ActionPromptDelivery string
+
+const (
+	ActionPromptDeliveryNormal      ActionPromptDelivery = ""
+	ActionPromptDeliveryMaintenance ActionPromptDelivery = "maintenance"
+)
+
+type ActionCompactionOutcome struct {
+	CompactionID string
+	Status       string
+}
+
 // ActionPromptRequest is one work-order turn inside a bound run-agent session.
 type ActionPromptRequest struct {
+	Delivery             ActionPromptDelivery
 	PromptID             string
 	Message              string
 	Kind                 string
@@ -369,6 +382,7 @@ type ActionPromptRequest struct {
 
 // ActionPromptResult captures one ACP prompt turn.
 type ActionPromptResult struct {
+	Compaction       *ActionCompactionOutcome
 	PromptID         string
 	Outcome          ActionPromptOutcome
 	Text             string

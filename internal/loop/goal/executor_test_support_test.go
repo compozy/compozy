@@ -232,6 +232,13 @@ func (s *fakeExecutorStore) CompleteCompaction(
 		s.checkpoint.UsagePendingAfterSequence = cloneTestInt64(req.Result.UsageSequence)
 		s.checkpoint.CompactionBaselineUsed = cloneTestInt64(req.Result.UsageBaselineUsed)
 		s.checkpoint.CompactionRecoveryRequired = false
+		if req.Result.PromptResult.Compaction != nil && req.Result.PromptResult.Compaction.Status == "completed" {
+			s.checkpoint.ContextState = contextStateUnknown
+			s.checkpoint.UsageSequence = nil
+			s.checkpoint.CompactionBaselineUsed = nil
+			s.checkpoint.UsagePendingAfterSequence = nil
+			s.checkpoint.RecoveryStreak = 0
+		}
 	}
 	return cloneTestCheckpoint(s.checkpoint), nil
 }
@@ -704,15 +711,14 @@ func (h *fakeContextHealth) Usage(context.Context, loop.ActionSessionBinding) (C
 	return h.usage, h.usageErr
 }
 
-func (h *fakeContextHealth) HasAdvertisedCommand(
+func (h *fakeContextHealth) CompactionCommand(
 	_ context.Context,
 	_ loop.ActionSessionBinding,
-	command string,
-) (bool, error) {
+) (string, bool, error) {
 	h.mu.Lock()
-	h.command = command
+	h.command = "compact"
 	h.mu.Unlock()
-	return h.hasCompact, h.commandErr
+	return "compact", h.hasCompact, h.commandErr
 }
 
 func (h *fakeContextHealth) advertisedCommand() string {

@@ -8,29 +8,8 @@ import (
 func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should prompt and context payloads", func(t *testing.T) {
+	t.Run("Should clone prompt context blocks", func(t *testing.T) {
 		t.Parallel()
-
-		original := ContextCompactPayload{
-			ContextBlocks: []ContextBlock{{
-				Kind: "note",
-				Text: "before",
-				Metadata: map[string]string{
-					"scope": "before",
-				},
-			}},
-		}
-		cloned := cloneAsyncPayload(original)
-
-		original.ContextBlocks[0].Text = "after"
-		original.ContextBlocks[0].Metadata["scope"] = "after"
-
-		if cloned.ContextBlocks[0].Text != "before" {
-			t.Fatalf("cloned context text = %q, want %q", cloned.ContextBlocks[0].Text, "before")
-		}
-		if cloned.ContextBlocks[0].Metadata["scope"] != "before" {
-			t.Fatalf("cloned context metadata = %q, want %q", cloned.ContextBlocks[0].Metadata["scope"], "before")
-		}
 
 		prompt := PromptPayload{
 			ContextBlocks: []ContextBlock{{

@@ -1111,7 +1111,7 @@ func TestExecutorShouldFenceBudgetAroundCompaction(t *testing.T) {
 			if len(requests) != tc.wantPrompts {
 				t.Fatalf("compaction prompts = %d, want %d", len(requests), tc.wantPrompts)
 			}
-			if len(requests) == 1 && requests[0].Kind != promptKindCompact {
+			if len(requests) == 1 && (requests[0].Kind != promptKindCompact || requests[0].Message != "/compact" || requests[0].Delivery != loop.ActionPromptDeliveryMaintenance || requests[0].ContextUsageUsed == nil || *requests[0].ContextUsageUsed != 9 || requests[0].ContextUsageSequence == nil || *requests[0].ContextUsageSequence != 1) {
 				t.Fatalf("prompt kind = %q, want compact", requests[0].Kind)
 			}
 			_, turns, _ := store.snapshot()
@@ -1120,6 +1120,30 @@ func TestExecutorShouldFenceBudgetAroundCompaction(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExecutorShouldRecoverWithoutAnAdvertisedCompactionCommand(t *testing.T) {
+	t.Run("Should enter reseed approval without sending a compaction prompt", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		segment := directSegmentForTest(t, store)
+		segment.binding.Ownership = string(BindingOwnershipOriginBorrowed)
+		segment.checkpoint.ContextNudgeRatio = 0.8
+		store.installCheckpoint(segment.checkpoint)
+		binder := newFakeManagedBinder(store)
+		health := &fakeContextHealth{usage: ContextUsage{Known: true, Used: 9, Size: 10, Sequence: 1}}
+		executor := newTestExecutorWithContext(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{}, health)
+		boundary, recovering, err := executor.maybeCompactBeforeWork(t.Context(), segment)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !recovering || boundary == nil || boundary.control == nil || boundary.control.Cause != loop.ReasonCodeGoalReseedConfirmationRequired {
+			t.Fatalf("boundary=%#v recovering=%v", boundary, recovering)
+		}
+		if len(binder.preparedRequests()) != 0 {
+			t.Fatal("unsupported compaction submitted a prompt")
+		}
+	})
 }
 
 func TestExecutorShouldNeverReplayRecoveredJudgeEffects(t *testing.T) {
@@ -2742,6 +2766,9 @@ func TestExecutorShouldSettleCompactionControlBoundaries(t *testing.T) {
 			wantCompactions: 1,
 			wantPending:     true,
 		},
+		{name: "observed native completion without a baseline wait", result: loop.ActionPromptResult{Outcome: loop.ActionPromptOutcomeCompleted, StopReason: loop.ActionStopEndTurn, Compaction: &loop.ActionCompactionOutcome{CompactionID: "c1", Status: "completed"}}, beforeUsage: &ContextUsage{Known: true, Used: 9, Size: 10, Sequence: 10}, wantOutcome: CompactionSucceeded, wantCompactions: 1},
+		{name: "observed native failure enters recovery", result: loop.ActionPromptResult{Outcome: loop.ActionPromptOutcomeCompleted, StopReason: loop.ActionStopEndTurn, Compaction: &loop.ActionCompactionOutcome{CompactionID: "c1", Status: "failed"}}, wantOutcome: CompactionFailed, wantCompactions: 1},
+
 		{
 			name: "invalid result",
 			result: loop.ActionPromptResult{
@@ -3026,13 +3053,13 @@ func TestExecutorShouldRecoverPreparedErrorsAndTimedOutCompaction(t *testing.T) 
 		segment.checkpoint.CompactionBaselineUsed = &used
 		store.installCheckpoint(segment.checkpoint)
 		binder := newFakeManagedBinder(store, scriptedStop(loop.ActionStopEndTurn))
-		executor := newTestExecutor(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{})
+		executor := newTestExecutorWithContext(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{}, &fakeContextHealth{hasCompact: true})
 
 		if _, err := executor.recoverPendingPrompt(t.Context(), segment); err != nil {
 			t.Fatalf("recoverPendingPrompt(queued compaction baseline) error = %v", err)
 		}
 		requests := binder.preparedRequests()
-		if len(requests) != 1 || requests[0].ContextUsageSequence == nil ||
+		if len(requests) != 1 || requests[0].Message != "/compact" || requests[0].Delivery != loop.ActionPromptDeliveryMaintenance || requests[0].ContextUsageSequence == nil ||
 			*requests[0].ContextUsageSequence != sequence || requests[0].ContextUsageUsed == nil ||
 			*requests[0].ContextUsageUsed != used {
 			t.Fatalf("recovered compaction request = %#v", requests)

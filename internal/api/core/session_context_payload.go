@@ -8,16 +8,15 @@ import (
 
 func contextUsagePayload(value contextusage.ContextUsage) contract.SessionContextPayload {
 	payload := contract.SessionContextPayload{
-		State:             contract.SessionContextState(value.State),
-		Used:              value.Used,
-		Size:              value.Size,
-		Ratio:             value.Ratio,
-		SizeSource:        value.SizeSource,
-		Stale:             value.Stale,
-		Sequence:          value.Sequence,
-		ReportedTurnID:    value.ReportedTurnID,
-		ReportedAt:        value.ReportedAt,
-		PressureThreshold: value.PressureThreshold,
+		State:          contract.SessionContextState(value.State),
+		Used:           value.Used,
+		Size:           value.Size,
+		Ratio:          value.Ratio,
+		SizeSource:     value.SizeSource,
+		Stale:          value.Stale,
+		Sequence:       value.Sequence,
+		ReportedTurnID: value.ReportedTurnID,
+		ReportedAt:     value.ReportedAt,
 	}
 	if value.Injected == nil {
 		return payload
@@ -119,13 +118,11 @@ func sessionUsageTurnsPayload(
 				TurnID:       marker.TurnID,
 				Sequence:     marker.Sequence,
 				At:           marker.At,
-				SpanArchived: marker.SpanArchived,
-				FromSequence: marker.FromSequence,
-				ToSequence:   marker.ToSequence,
+				CompactionID: marker.CompactionID,
+				Trigger:      marker.Trigger,
+				Status:       marker.Status,
 				ContextUsed:  marker.Used,
 				ContextSize:  marker.Size,
-				Pressure:     marker.Pressure,
-				Strategy:     marker.Strategy,
 			},
 		)
 	}

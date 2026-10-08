@@ -1652,7 +1652,7 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 				Event:        HookContextPreCompact,
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{CompactionMatcher: &CompactionMatcher{Reason: "token_limit"}},
+				Matcher:      HookMatcher{CompactionMatcher: &CompactionMatcher{Trigger: "agent"}},
 			},
 		}),
 		WithExecutorResolver(testExecutorResolver(map[string]Executor{
@@ -1680,13 +1680,7 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 			),
 			"context-pre": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, _ ContextPreCompactPayload) (ContextPreCompactPatch, error) {
-					reason := "manual"
-					strategy := "summarize"
-					return ContextPreCompactPatch{
-						Reason:        &reason,
-						Strategy:      &strategy,
-						ContextBlocks: []ContextBlock{{Kind: "summary", Text: "patched"}},
-					}, nil
+					return ContextPreCompactPatch{Labels: map[string]string{"k": "v"}}, nil
 				},
 			),
 		})),
@@ -1732,40 +1726,24 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 		t.Fatal("permission-denied async hook was not called")
 	}
 
-	t.Run("Should patch context compaction when a hook matches", func(t *testing.T) {
+	t.Run("Should annotate matching observed compaction [UT-040]", func(t *testing.T) {
 		t.Parallel()
-
-		contextPayload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{
-			Event:  HookContextPreCompact,
-			Reason: "token_limit",
-		})
+		payload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{Event: HookContextPreCompact, CompactionID: "c1", Trigger: "agent"})
 		if err != nil {
-			t.Fatalf("DispatchContextPreCompact() error = %v, want nil", err)
+			t.Fatal(err)
 		}
-		if contextPayload.Reason != "manual" || contextPayload.Strategy != "summarize" {
-			t.Fatalf("contextPayload = %#v, want patched reason/strategy", contextPayload)
-		}
-		if got := len(contextPayload.ContextBlocks); got != 1 {
-			t.Fatalf("len(contextPayload.ContextBlocks) = %d, want 1", got)
+		if payload.CompactionID != "c1" || payload.Trigger != "agent" {
+			t.Fatalf("payload = %#v", payload)
 		}
 	})
-
-	t.Run("Should leave compaction untouched when no hook matches", func(t *testing.T) {
+	t.Run("Should leave unmatched compaction unchanged", func(t *testing.T) {
 		t.Parallel()
-
-		unmatchedPayload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{
-			Event:    HookContextPreCompact,
-			Reason:   "manual",
-			Strategy: "summarize",
-		})
+		payload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{Event: HookContextPreCompact, CompactionID: "c1", Trigger: "requested"})
 		if err != nil {
-			t.Fatalf("DispatchContextPreCompact(unmatched) error = %v, want nil", err)
+			t.Fatal(err)
 		}
-		if unmatchedPayload.Reason != "manual" || unmatchedPayload.Strategy != "summarize" {
-			t.Fatalf("unmatchedPayload = %#v, want unchanged compaction reason/strategy", unmatchedPayload)
-		}
-		if got := len(unmatchedPayload.ContextBlocks); got != 0 {
-			t.Fatalf("len(unmatchedPayload.ContextBlocks) = %d, want 0 for unmatched hook", got)
+		if payload.Trigger != "requested" {
+			t.Fatalf("payload = %#v", payload)
 		}
 	})
 }
@@ -2048,5 +2026,40 @@ func testSubprocessDecl(name string, event HookEvent) HookDecl {
 		Mode:    HookModeAsync,
 		Command: "/bin/sh",
 		Args:    []string{"-c", "printf '{}'"},
+	}
+}
+
+// Invariant: native compaction observations accept labels and reject behavioral patches in the hook dispatch layer.
+func TestDispatchCompactionObservationPatches(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{`{"deny":true}`, `{"deny_reason":"x"}`, `{"summary":"x"}`, `{"context_blocks":[]}`, `{"labels":{"k":"v"}}`} {
+		t.Run("Should validate observation patch "+raw, func(t *testing.T) {
+			t.Parallel()
+			hooks := newTestHooks(t, WithNativeDeclarations([]HookDecl{{Name: "observation", Event: HookContextPreCompact, Mode: HookModeSync, ExecutorKind: HookExecutorNative}}), WithExecutorResolver(testExecutorResolver(map[string]Executor{"observation": NewNativeExecutor(func(context.Context, RegisteredHook, []byte) ([]byte, error) { return []byte(raw), nil })})))
+			if err := hooks.Rebuild(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			original := ContextPreCompactPayload{Event: HookContextPreCompact, CompactionID: "c1", Trigger: "agent"}
+			writer := &captureHookRunWriter{}
+			payload, err := hooks.DispatchContextPreCompact(WithHookRunWriter(t.Context(), writer), original)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if payload.CompactionID != original.CompactionID || payload.Trigger != original.Trigger {
+				t.Fatalf("payload = %#v", payload)
+			}
+			if strings.Contains(raw, "labels") {
+				record := writer.singleRecord(t)
+				if record.Error != "" || record.Outcome != HookRunOutcomeApplied {
+					t.Fatalf("accepted labels telemetry = %#v", record)
+				}
+			} else {
+				record := writer.singleRecord(t)
+				if !strings.Contains(record.Error, "unknown field") {
+					t.Fatalf("record = %#v", record)
+				}
+
+			}
+		})
 	}
 }

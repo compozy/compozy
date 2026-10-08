@@ -312,6 +312,48 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 func TestPromptRuntimeRecovery(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve maintenance and pending context after runtime recovery", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0}
+		session := createSession(t, h)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		var calls atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			if calls.Add(1) == 1 {
+				proc.crash(errors.New("provider process exited"), "provider disconnected")
+				events <- acp.AgentEvent{Type: acp.EventTypeError, TurnID: req.TurnID, Timestamp: h.manager.now(), Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "peer disconnected"}}
+			} else {
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, Timestamp: h.manager.now()}
+			}
+			close(events)
+			return events, nil
+		}
+		_, events, err := h.manager.RequestCompaction(t.Context(), session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		delivered := collectEvents(t, events)
+		if countAgentEvents(delivered, acp.EventTypeRuntimeRecoverySucceeded) != 1 {
+			t.Fatalf("recovery events=%#v", delivered)
+		}
+		h.driver.mu.Lock()
+		requests := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
+		h.driver.mu.Unlock()
+		if len(requests) != 2 {
+			t.Fatalf("requests=%#v", requests)
+		}
+		for _, req := range requests {
+			if req.Message != "/compact" || !req.Maintenance {
+				t.Fatalf("recovery changed maintenance request=%#v", req)
+			}
+		}
+		if h.manager.pendingResumeReplay(session.ID) == "" {
+			t.Fatal("maintenance recovery consumed rebuild replay")
+		}
+	})
+
 	t.Run("Should discard a recovery candidate when session stop wins the binding race", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

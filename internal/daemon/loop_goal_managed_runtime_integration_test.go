@@ -29,6 +29,82 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	for _, command := range []string{"compact", "compress"} {
+		t.Run("Should execute the managed maintenance command "+command+" and observe native completion", func(t *testing.T) {
+			t.Parallel()
+			driver := newHarnessIntegrationDriver()
+			received := make(chan acp.PromptRequest, 2)
+			driver.promptHook = func(_ context.Context, _ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				received <- req
+				out := make(chan acp.AgentEvent, 4)
+				if !req.Maintenance {
+					out <- (acp.AgentEvent{Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate, TurnID: req.TurnID}).WithAvailableCommands([]store.SessionAdvertisedCommand{{Name: command}})
+					out <- acp.AgentEvent{Type: acp.EventTypeUsage, TurnID: req.TurnID, Usage: &acp.TokenUsage{ContextUsed: new(int64(90)), ContextSize: new(int64(100))}}
+				} else {
+					out <- acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: req.TurnID, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "in_progress"}}
+					out <- acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: req.TurnID, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true}}
+				}
+				out <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, PromptStopReason: acp.PromptStopReasonEndTurn}
+				close(out)
+				return out, nil
+			}
+			fixture := newLoopGoalManagedRuntimeFixture(t, "native-"+command, driver)
+			initial, err := fixture.manager.Prompt(t.Context(), fixture.binding.SessionID, "Observe context")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range initial {
+			}
+			<-received
+			usage, err := fixture.runtime.Usage(t.Context(), fixture.binding)
+			if err != nil || !usage.Known {
+				t.Fatalf("usage=%#v %v", usage, err)
+			}
+			resolved, ok, err := fixture.runtime.CompactionCommand(t.Context(), fixture.binding)
+			if err != nil || !ok || resolved != command {
+				t.Fatalf("command=%q/%v %v", resolved, ok, err)
+			}
+			request := looppkg.ActionPromptRequest{PromptID: "native-compact", Message: "/" + resolved, Kind: "compact", Delivery: looppkg.ActionPromptDeliveryMaintenance, ContextUsageSequence: new(usage.Sequence), ContextUsageUsed: new(usage.Used), Owner: looppkg.ActionPromptOwner{LoopRunID: fixture.run.ID, TaskRunID: fixture.taskRunID, Generation: 1, NodeID: "converge", ControlEpoch: 1, BindingEpoch: fixture.binding.BindingEpoch}}
+			staleBinding := fixture.binding
+			staleBinding.BindingEpoch++
+			staleRequest := request
+			staleRequest.Owner.BindingEpoch++
+			if _, err := fixture.runtime.PrepareActionPrompt(t.Context(), staleBinding, staleRequest); err == nil {
+				t.Fatal("superseded compaction binding accepted")
+			}
+			ticket, err := fixture.runtime.PrepareActionPrompt(t.Context(), fixture.binding, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := fixture.runtime.AwaitActionPrompt(t.Context(), ticket)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := <-received
+			if req.Message != "/"+command || !req.Maintenance {
+				t.Fatalf("maintenance request=%#v", req)
+			}
+			if result.Compaction == nil || result.Compaction.CompactionID != "c1" || result.Compaction.Status != "completed" {
+				t.Fatalf("result=%#v", result)
+			}
+			recovered, _, found, err := reconstructManagedGoalPromptResult(t.Context(), fixture.manager, fixture.binding.SessionID, ticket.PromptID)
+			if err != nil || !found || recovered.PromptID != ticket.PromptID || recovered.Compaction == nil || recovered.Compaction.Status != "completed" {
+				t.Fatalf("reconstructed result=%#v found=%v err=%v", recovered, found, err)
+			}
+			after, err := fixture.runtime.Usage(t.Context(), fixture.binding)
+			if err != nil || after.Known {
+				t.Fatalf("post compact usage=%#v %v", after, err)
+			}
+			checkpoint, err := fixture.goalStore.CompleteCompaction(t.Context(), goalpkg.CompleteCompactionRequest{Key: fixture.key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: fixture.binding.BindingEpoch, TaskRunID: fixture.taskRunID, QueueEntryID: ticket.QueueEntryID, PromptID: ticket.PromptID, Result: goalpkg.CompactionResult{PromptResult: result, Outcome: goalpkg.CompactionSucceeded, UsageSequence: new(usage.Sequence), UsageBaselineUsed: new(usage.Used)}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if checkpoint.ContextState != "unknown" || checkpoint.CompactionBaselineUsed != nil {
+				t.Fatalf("checkpoint=%#v", checkpoint)
+			}
+		})
+	}
+
 	// Invariant: deleting a stopped Goal owner settles unbound work and preserves unrelated sessions and Run history.
 	// Owner: Manager/daemon lifecycle seam; canonical managed runtime integration suite.
 	t.Run("Should delete a stopped session with an unbound Goal checkpoint", func(t *testing.T) {

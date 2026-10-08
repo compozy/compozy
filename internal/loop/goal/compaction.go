@@ -31,9 +31,9 @@ func (e *Executor) recoverFromMaxTokens(
 	if segment.checkpoint.RecoveryStreak >= 2 {
 		return e.reseedApprovalBoundary(ctx, segment, result)
 	}
-	hasCompact, commandErr := e.context.HasAdvertisedCommand(ctx, segment.binding, "compact")
+	command, hasCompact, commandErr := e.context.CompactionCommand(ctx, segment.binding)
 	if usageErr == nil && commandErr == nil && usageCurrent && hasCompact {
-		return e.runCompaction(ctx, segment, &usage)
+		return e.runCompaction(ctx, segment, &usage, command)
 	}
 	if usageErr != nil || commandErr != nil {
 		segment.lastVerdict = "context-telemetry-unavailable"
@@ -67,11 +67,15 @@ func (e *Executor) maybeCompactBeforeWork(
 	if float64(usage.Used)/float64(usage.Size) < segment.checkpoint.ContextNudgeRatio {
 		return nil, false, nil
 	}
-	hasCompact, err := e.context.HasAdvertisedCommand(ctx, segment.binding, "compact")
-	if err != nil || !hasCompact {
+	command, hasCompact, err := e.context.CompactionCommand(ctx, segment.binding)
+	if err != nil {
 		return nil, false, nil
 	}
-	boundary, err := e.runCompaction(ctx, segment, &usage)
+	if !hasCompact {
+		boundary, recoveryErr := e.reseedOrEscalate(ctx, segment, segment.lastResult)
+		return boundary, true, recoveryErr
+	}
+	boundary, err := e.runCompaction(ctx, segment, &usage, command)
 	return boundary, true, err
 }
 
@@ -86,6 +90,7 @@ func (e *Executor) runCompaction(
 	ctx context.Context,
 	segment *segmentState,
 	beforeUsage *ContextUsage,
+	command string,
 ) (*turnBoundary, error) {
 	turn := segment.checkpoint.TurnsUsed
 	promptID, err := deterministicPromptID(
@@ -116,7 +121,8 @@ func (e *Executor) runCompaction(
 	}
 	request := loop.ActionPromptRequest{
 		PromptID:             promptID,
-		Message:              renderCompactionPrompt(segment),
+		Message:              "/" + command,
+		Delivery:             loop.ActionPromptDeliveryMaintenance,
 		Kind:                 promptKindCompact,
 		Owner:                segment.promptOwner(turn),
 		UsageBaseTokens:      operationBase,
@@ -307,6 +313,16 @@ func classifyCompactionResult(
 	case loop.ActionPromptOutcomeCompleted:
 	default:
 		return CompactionFailed, loop.ReasonCodeGoalCompactionCancelled
+	}
+	if result.Compaction != nil {
+		switch result.Compaction.Status {
+		case "completed":
+			return CompactionSucceeded, ""
+		case "failed":
+			return CompactionFailed, ""
+		case "cancelled":
+			return CompactionCancelled, ""
+		}
 	}
 	switch result.StopReason {
 	case loop.ActionStopEndTurn, loop.ActionStopMaxTurnRequests:

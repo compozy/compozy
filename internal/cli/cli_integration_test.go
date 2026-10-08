@@ -3466,11 +3466,12 @@ type integrationNotifierFanout struct {
 }
 
 type integrationDriver struct {
-	mu       sync.Mutex
-	nextPID  int
-	nextSess int
-	states   map[*session.AgentProcess]chan struct{}
-	blocked  map[string]chan struct{}
+	mu            sync.Mutex
+	nextPID       int
+	nextSess      int
+	states        map[*session.AgentProcess]chan struct{}
+	blocked       map[string]chan struct{}
+	compactStatus string
 }
 
 var _ session.AgentExitVerifier = (*integrationDriver)(nil)
@@ -4416,7 +4417,21 @@ func (d *integrationDriver) Prompt(
 	proc *session.AgentProcess,
 	req acp.PromptRequest,
 ) (<-chan acp.AgentEvent, error) {
-	ch := make(chan acp.AgentEvent, 2)
+	ch := make(chan acp.AgentEvent, 4)
+	if strings.Contains(req.Message, "__advertise_compact__") {
+		ch <- acp.AgentEvent{Type: acp.EventTypeAvailableCommands, SessionID: proc.SessionID,
+			TurnID: req.TurnID, Timestamp: time.Now().UTC()}.WithAvailableCommands([]store.SessionAdvertisedCommand{{Name: "compact"}})
+	}
+	if req.Message == "/compact" {
+		d.mu.Lock()
+		status := d.compactStatus
+		d.mu.Unlock()
+		if status != "" {
+			ch <- acp.AgentEvent{Type: acp.EventTypeCompaction, SessionID: proc.SessionID,
+				TurnID: req.TurnID, Timestamp: time.Now().UTC(),
+				Compaction: &acp.CompactionObservation{CompactionID: "cli-c1", Status: status, Terminal: true}}
+		}
+	}
 	ch <- acp.AgentEvent{
 		Type:      "agent_message",
 		SessionID: proc.SessionID,
@@ -4702,3 +4717,66 @@ func stopIntegrationSessionAndRead(t *testing.T, deps commandDeps, id string) st
 }
 
 // Presence does not create a durable conversation channel; seed its explicit owner.
+
+// IT-027: the CLI owns waiting for the requested turn and printing its observed outcome.
+func TestSessionCompactIntegration(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct{ status, outcome string }{
+		{status: "completed", outcome: "completed"},
+		{outcome: "turn_completed"},
+	} {
+		t.Run(test.outcome, func(t *testing.T) {
+			t.Parallel()
+			h := newIntegrationHarness(t)
+			if _, _, err := executeRootCommand(t, h.deps, "daemon", "start", "-o", "json"); err != nil {
+				t.Fatal(err)
+			}
+			createdJSON, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--cwd", h.workspace, "-o", "json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var created SessionRecord
+			if err := json.Unmarshal([]byte(createdJSON), &created); err != nil {
+				t.Fatal(err)
+			}
+			primed, _, err := executeRootCommand(t, h.deps, "session", "prompt", created.ID, "__advertise_compact__", "-o", "jsonl")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var primeTurn string
+			for line := range strings.SplitSeq(strings.TrimSpace(primed), "\n") {
+				var event AgentEventRecord
+				if err := json.Unmarshal([]byte(line), &event); err != nil {
+					t.Fatal(err)
+				}
+				if event.TurnID != "" {
+					primeTurn = event.TurnID
+				}
+			}
+			h.runner.mu.Lock()
+			driver := h.runner.driver
+			manager := h.runner.manager
+			h.runner.mu.Unlock()
+			if primeTurn == "" {
+				t.Fatal("advertising prompt did not return a turn")
+			}
+			if _, err := manager.AwaitTurnQuiesced(t.Context(), created.ID, primeTurn); err != nil {
+				t.Fatal(err)
+			}
+			driver.mu.Lock()
+			driver.compactStatus = test.status
+			driver.mu.Unlock()
+			output, _, err := executeRootCommand(t, h.deps, "session", "compact", created.ID, "-o", "json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got map[string]string
+			if err := json.Unmarshal([]byte(output), &got); err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 4 || got["session_id"] != created.ID || got["prompt_id"] == "" || got["command"] != "compact" || got["outcome"] != test.outcome {
+				t.Fatalf("compact result = %s", output)
+			}
+		})
+	}
+}

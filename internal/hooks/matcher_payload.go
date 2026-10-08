@@ -97,11 +97,10 @@ func (m HookMatcher) MatchesPermissionDenied(payload PermissionDeniedPayload) bo
 }
 
 // MatchesContextCompact matches context-compaction hooks.
-func (m HookMatcher) MatchesContextCompact(payload ContextCompactPayload) bool {
+func (m HookMatcher) MatchesContextCompact(payload ContextCompactionPayload) bool {
 	compaction := m.compaction()
 	return m.matchSessionContext(payload.SessionContext, false) &&
-		matchStringField(compaction.Reason, payload.Reason) &&
-		matchStringField(compaction.Strategy, payload.Strategy)
+		matchStringField(compaction.Trigger, payload.Trigger)
 }
 
 // MatchesCoordinator matches coordinator-family hooks.

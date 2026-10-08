@@ -10,6 +10,10 @@ import (
 
 // UIAgentEventPayload mirrors the prompt-stream data payload shape.
 type UIAgentEventPayload struct {
+	CompactionID     string                       `json:"compaction_id,omitempty"`
+	Status           string                       `json:"status,omitempty"`
+	Summary          string                       `json:"summary,omitempty"`
+	Terminal         bool                         `json:"terminal,omitzero"`
 	Type             string                       `json:"type"`
 	SessionID        string                       `json:"session_id,omitempty"`
 	TurnID           string                       `json:"turn_id,omitempty"`
@@ -49,6 +53,13 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 		Delivery:      event.DeliveryManifest(),
 		Usage:         uiTokenUsagePayloadFromUsage(event.Usage), Runtime: cloneRuntimeActivity(event.Runtime),
 		Raw: payloadJSONBytes(event.Raw),
+	}
+	if event.Compaction != nil {
+		payload.CompactionID = event.Compaction.CompactionID
+		payload.Status = event.Compaction.Status
+		payload.Summary = boundedCompactionSummary(event.Compaction.Summary)
+		payload.Error = event.Compaction.Error
+		payload.Terminal = event.Compaction.Terminal
 	}
 	if !event.Timestamp.IsZero() {
 		payload.Timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)

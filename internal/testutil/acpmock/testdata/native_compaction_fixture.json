@@ -1,0 +1,251 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "compaction-claude",
+            "provider": "acpmock",
+            "load_session": false,
+            "turns": [
+                {
+                    "name": "baseline",
+                    "match": {
+                        "user_text": "baseline"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"available_commands_update\",\"availableCommands\":[{\"name\":\"compact\",\"description\":\"Compact native context\"}]}}}"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "baseline ready"
+                        }
+                    ],
+                    "usage_updates": [
+                        {
+                            "used": 95,
+                            "size": 100
+                        }
+                    ]
+                },
+                {
+                    "name": "compaction",
+                    "match": {
+                        "user_text": "observe compaction"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"in_progress\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"compaction_summary_chunk\",\"compactionId\":\"native-1\",\"content\":{\"type\":\"text\",\"text\":\"Retain the agreed project constraints.\"}}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"completed\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"completed\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Native compaction observed."
+                        }
+                    ]
+                },
+                {
+                    "name": "compact-now",
+                    "match": {
+                        "user_text": "/compact"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"in_progress\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"compaction_summary_chunk\",\"compactionId\":\"native-1\",\"content\":{\"type\":\"text\",\"text\":\"Retain the agreed project constraints.\"}}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"completed\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-claude-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"completed\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Native compaction observed."
+                        }
+                    ]
+                },
+                {
+                    "name": "ordinary",
+                    "match": {
+                        "user_text": "ordinary continuation"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "ordinary ready"
+                        }
+                    ],
+                    "usage_updates": [
+                        {
+                            "used": 30,
+                            "size": 100
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "compaction-codex",
+            "provider": "acpmock",
+            "load_session": false,
+            "turns": [
+                {
+                    "name": "baseline",
+                    "match": {
+                        "user_text": "baseline"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-codex-session-1\",\"update\":{\"sessionUpdate\":\"available_commands_update\",\"availableCommands\":[{\"name\":\"compact\",\"description\":\"Compact native context\"}]}}}"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "baseline ready"
+                        }
+                    ],
+                    "usage_updates": [
+                        {
+                            "used": 95,
+                            "size": 100
+                        }
+                    ]
+                },
+                {
+                    "name": "compaction",
+                    "match": {
+                        "user_text": "observe compaction"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-codex-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"in_progress\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-codex-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"completed\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-codex-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"completed\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Native compaction observed."
+                        }
+                    ]
+                },
+                {
+                    "name": "compact-now",
+                    "match": {
+                        "user_text": "/compact"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-codex-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"in_progress\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-codex-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"completed\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"compaction-codex-session-1\",\"update\":{\"sessionUpdate\":\"compaction_update\",\"compactionId\":\"native-1\",\"status\":\"completed\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Native compaction observed."
+                        }
+                    ]
+                },
+                {
+                    "name": "ordinary",
+                    "match": {
+                        "user_text": "ordinary continuation"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "ordinary ready"
+                        }
+                    ],
+                    "usage_updates": [
+                        {
+                            "used": 30,
+                            "size": 100
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -197,6 +197,7 @@ type HookMatcherConfig struct {
 	DecisionClass      string `toml:"decision_class,omitempty"      json:"decision_class,omitempty"`
 	MessageRole        string `toml:"message_role,omitempty"        json:"message_role,omitempty"`
 	MessageDeltaType   string `toml:"message_delta_type,omitempty"  json:"message_delta_type,omitempty"`
+	CompactionTrigger  string `toml:"compaction_trigger,omitempty" json:"compaction_trigger,omitempty"`
 	CompactionReason   string `toml:"compaction_reason,omitempty"   json:"compaction_reason,omitempty"`
 	CompactionStrategy string `toml:"compaction_strategy,omitempty" json:"compaction_strategy,omitempty"`
 }

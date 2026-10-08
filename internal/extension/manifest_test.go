@@ -853,7 +853,7 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 				ToolReadOnly: &toolReadOnly,
 
 				CompactionMatcher: &hookspkg.CompactionMatcher{
-					Reason: "size",
+					Trigger: "agent",
 				},
 				Autonomy: &hookspkg.AutonomyMatcher{
 					TaskID: "task-1",
@@ -862,12 +862,12 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		}
 
 		cloned := cloneHookDecl(decl)
-		cloned.Matcher.Reason = "time"
+		cloned.Matcher.Trigger = "requested"
 		cloned.Matcher.Autonomy.TaskID = "task-2"
 		*cloned.Matcher.ToolReadOnly = false
 
-		if got, want := decl.Matcher.Reason, "size"; got != want {
-			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
+		if got, want := decl.Matcher.Trigger, "agent"; got != want {
+			t.Fatalf("source CompactionMatcher.Trigger = %q, want %q", got, want)
 		}
 		if got, want := decl.Matcher.Autonomy.TaskID, "task-1"; got != want {
 			t.Fatalf("source Autonomy.TaskID = %q, want %q", got, want)
@@ -2557,6 +2557,46 @@ func TestManifestRetiredMemoryEntries(t *testing.T) {
 			}
 			if len(loaded.Capabilities.Provides) != 0 || !reflect.DeepEqual(loaded.Permissions.Requires, []string{"sessions/list"}) {
 				t.Fatalf("loaded manifest = %#v", loaded)
+			}
+		})
+	}
+}
+
+// Invariant: retired matcher keys preserve hook execution for all native compaction observations.
+func TestManifestCompactionMatcher(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"toml", "json"} {
+		t.Run("Should ignore retired matcher keys in "+format+" [UT-041]", func(t *testing.T) {
+			t.Parallel()
+			manifest := expectedManifest()
+			manifest.Resources.Tools = nil
+			manifest.Resources.Hooks = []HookConfig{{Name: "compaction", Event: "context.pre_compact", Mode: "sync", Command: "echo", Matcher: HookMatcherConfig{CompactionReason: "token_limit", CompactionStrategy: "summary"}}}
+			var content []byte
+			var err error
+			if format == "toml" {
+				content, err = encodeManifestTOML(&manifest)
+			} else {
+				content, err = json.Marshal(manifest)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(loaded.Resources.Hooks) != 1 {
+				t.Fatalf("hooks = %#v", loaded.Resources.Hooks)
+			}
+			matcher := hookConfigMatcher(loaded.Resources.Hooks[0].Matcher)
+			for _, trigger := range []string{"requested", "agent"} {
+				if !matcher.MatchesContextCompact(hookspkg.ContextCompactionPayload{Trigger: trigger}) {
+					t.Fatalf("matcher rejected %s", trigger)
+				}
 			}
 		})
 	}

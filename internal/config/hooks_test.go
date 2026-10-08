@@ -193,7 +193,7 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 			Matcher: hookspkg.HookMatcher{
 				ToolReadOnly: &toolReadOnly,
 				CompactionMatcher: &hookspkg.CompactionMatcher{
-					Reason: "size",
+					Trigger: "agent",
 				},
 				Autonomy: &hookspkg.AutonomyMatcher{
 					TaskID: "task-1",
@@ -202,12 +202,12 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		}
 
 		cloned := cloneHookDecl(decl)
-		cloned.Matcher.Reason = "time"
+		cloned.Matcher.Trigger = "requested"
 		cloned.Matcher.Autonomy.TaskID = "task-2"
 		*cloned.Matcher.ToolReadOnly = false
 
-		if got, want := decl.Matcher.Reason, "size"; got != want {
-			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
+		if got, want := decl.Matcher.Trigger, "agent"; got != want {
+			t.Fatalf("source CompactionMatcher.Trigger = %q, want %q", got, want)
 		}
 		if got, want := decl.Matcher.Autonomy.TaskID, "task-1"; got != want {
 			t.Fatalf("source Autonomy.TaskID = %q, want %q", got, want)

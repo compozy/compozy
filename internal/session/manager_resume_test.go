@@ -666,7 +666,7 @@ func TestResumeReplayFallback(t *testing.T) {
 		prepareErr := errors.New("delivery preparation failed")
 		if _, err := h.manager.PromptWithOpts(testutil.Context(t), resumed.ID, PromptOpts{
 			Message: "delivery attempt",
-			PrepareDelivery: func(context.Context, PromptDelivery) error {
+			PrepareDelivery: func(context.Context, PromptDeliveryInfo) error {
 				return prepareErr
 			},
 		}); !errors.Is(err, prepareErr) {

@@ -4,29 +4,27 @@ import (
 	"strings"
 )
 
-// ContextCompactPayload is shared by context compaction hooks.
-type ContextCompactPayload struct {
+// ContextCompactionPayload is shared by context compaction hooks.
+type ContextCompactionPayload struct {
 	PayloadBase
 	SessionContext
 	TurnContext
-	Reason        string         `json:"reason,omitempty"`
-	Strategy      string         `json:"strategy,omitempty"`
-	Summary       string         `json:"summary,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+	CompactionID string `json:"compaction_id"`
+	Trigger      string `json:"trigger"`
+	Status       string `json:"status,omitempty"`
+	Summary      string `json:"summary,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 // ContextPreCompactPayload is delivered before compaction.
-type ContextPreCompactPayload = ContextCompactPayload
+type ContextPreCompactPayload = ContextCompactionPayload
 
 // ContextPostCompactPayload is delivered after compaction.
-type ContextPostCompactPayload = ContextCompactPayload
+type ContextPostCompactPayload = ContextCompactionPayload
 
-// ContextCompactionPatch mutates or denies compaction behavior.
+// ContextCompactionPatch annotates observed compaction.
 type ContextCompactionPatch struct {
-	ControlPatch
-	Reason        *string        `json:"reason,omitempty"`
-	Strategy      *string        `json:"strategy,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // ContextPreCompactPatch is the pre-compact patch surface.

@@ -5,14 +5,23 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"testing/fstest"
+	"time"
+
+	atlasmigrate "ariga.io/atlas/sql/migrate"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -237,4 +246,72 @@ func mustSessionEvents(
 		t.Fatalf("SessionEvents(%q) error = %v", sessionID, err)
 	}
 	return events
+}
+
+func seedNativeCompactionUpgrade(t *testing.T, ctx context.Context, h *e2etest.RuntimeHarness, id, canonical string) {
+	t.Helper()
+	stream := sessiondb.MigrationStream()
+	entries, err := fs.ReadDir(stream.FS, stream.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := fstest.MapFS{}
+	directory := &atlasmigrate.MemDir{}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".sql") || name >= "00009_unarchive_compaction_spans.sql" {
+			continue
+		}
+		content, err := fs.ReadFile(stream.FS, stream.Dir+"/"+name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := directory.WriteFile(name, content); err != nil {
+			t.Fatal(err)
+		}
+		files[stream.Dir+"/"+name] = &fstest.MapFile{Data: content}
+	}
+	checksum, err := directory.Checksum()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, err := checksum.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	files[stream.Dir+"/"+atlasmigrate.HashFileName] = &fstest.MapFile{Data: hash}
+	stream.FS = files
+	stream.Bootstrap = nil
+	path := store.SessionDBFile(filepath.Join(h.HomePaths.SessionsDir, id))
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	if err := store.Apply(ctx, db, stream); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO session_db_owner (singleton,session_id,workspace_id) VALUES (1,?,?)`,
+		id,
+		h.WorkspaceID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO events (id,turn_id,type,agent_name,content,timestamp,sequence,archived) VALUES ('legacy-fired','legacy-turn','session.compaction_fired','compaction-claude',?, ?,1,0)`,
+		canonical,
+		time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano),
+	); err != nil {
+		t.Fatal(err)
+	}
 }

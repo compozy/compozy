@@ -28,22 +28,18 @@ type DeliveryEventEnvelope struct {
 }
 
 type CompactionFiredPayload struct {
-	WorkspaceID  string  `json:"workspace_id"`
-	SessionID    string  `json:"session_id"`
-	TurnID       string  `json:"turn_id"`
-	FromSequence int64   `json:"from_sequence"`
-	ToSequence   int64   `json:"to_sequence"`
-	ContextUsed  int64   `json:"context_used"`
-	ContextSize  int64   `json:"context_size"`
-	Pressure     float64 `json:"pressure"`
-	Strategy     string  `json:"strategy"`
+	CompactionID string `json:"compaction_id"`
+	Trigger      string `json:"trigger"`
+	ContextUsed  *int64 `json:"context_used"`
+	ContextSize  *int64 `json:"context_size"`
 }
 
 type CompactionEnvelope struct {
-	Sequence     int64
-	At           time.Time
-	Payload      CompactionFiredPayload
-	SpanArchived bool
+	Sequence int64
+	At       time.Time
+	TurnID   string
+	Payload  CompactionFiredPayload
+	Status   string
 }
 
 type SettledTurn struct {
@@ -100,51 +96,66 @@ func (m *Manager) Deliveries(ctx context.Context, id string) ([]DeliveryEventEnv
 }
 
 func (m *Manager) Compactions(ctx context.Context, id string) ([]CompactionEnvelope, error) {
-	rows, err := m.Events(ctx, id, store.EventQuery{Type: events.SessionCompactionFired})
+	rows, err := m.Events(ctx, id, store.EventQuery{})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]CompactionEnvelope, 0, len(rows))
+	attributed := make(map[string]CompactionFiredPayload)
+	latest := make(map[string]CompactionEnvelope)
+	for _, row := range rows {
+		if row.Type != events.SessionCompactionFired && row.Type != acp.EventTypeCompaction {
+			continue
+		}
+		event, err := transcript.UnmarshalAgentEvent(row.Content)
+		if err != nil {
+			return nil, fmt.Errorf("session: decode compaction event %d: %w", row.Sequence, err)
+		}
+		if row.Type == events.SessionCompactionFired {
+			var payload CompactionFiredPayload
+			if err := json.Unmarshal(event.Raw, &payload); err != nil {
+				return nil, fmt.Errorf("session: decode compaction payload %d: %w", row.Sequence, err)
+			}
+			if payload.CompactionID != "" {
+				attributed[payload.CompactionID] = payload
+			}
+		} else if event.Compaction != nil && event.Compaction.CompactionID != "" {
+			latest[event.Compaction.CompactionID] = CompactionEnvelope{
+				Sequence: row.Sequence,
+				At:       row.Timestamp,
+				TurnID:   row.TurnID,
+				Status:   event.Compaction.Status,
+			}
+		}
+	}
+	result := make([]CompactionEnvelope, 0, len(latest))
+	for id, marker := range latest {
+		payload, ok := attributed[id]
+		if !ok {
+			continue
+		}
+		marker.Payload = payload
+		result = append(result, marker)
+	}
+	slices.SortFunc(result, func(a, b CompactionEnvelope) int { return cmp.Compare(a.Sequence, b.Sequence) })
+	return result, nil
+}
+
+func (m *Manager) CompactionBoundary(ctx context.Context, id string) (*int64, error) {
+	rows, err := m.Events(ctx, id, store.EventQuery{Type: acp.EventTypeCompaction})
+	if err != nil {
+		return nil, err
+	}
+	var boundary *int64
 	for _, row := range rows {
 		event, err := transcript.UnmarshalAgentEvent(row.Content)
 		if err != nil {
 			return nil, fmt.Errorf("session: decode compaction event %d: %w", row.Sequence, err)
 		}
-		var payload CompactionFiredPayload
-		if err := json.Unmarshal(event.Raw, &payload); err != nil {
-			return nil, fmt.Errorf("session: decode compaction payload %d: %w", row.Sequence, err)
+		if event.Compaction != nil && event.Compaction.Terminal && (boundary == nil || row.Sequence > *boundary) {
+			boundary = new(row.Sequence)
 		}
-		archived, err := m.compactionSpanArchived(ctx, id, payload)
-		if err != nil {
-			return nil, err
-		}
-		result = append(
-			result,
-			CompactionEnvelope{Sequence: row.Sequence, At: row.Timestamp, Payload: payload, SpanArchived: archived},
-		)
 	}
-	return result, nil
-}
-
-func (m *Manager) compactionSpanArchived(ctx context.Context, id string, payload CompactionFiredPayload) (bool, error) {
-	if payload.FromSequence <= 0 || payload.ToSequence < payload.FromSequence {
-		return false, nil
-	}
-	rows, err := m.Events(ctx, id, store.EventQuery{AfterSequence: payload.FromSequence - 1})
-	if err != nil {
-		return false, err
-	}
-	count := int64(0)
-	for _, row := range rows {
-		if row.Sequence > payload.ToSequence {
-			break
-		}
-		if !row.Archived {
-			return false, nil
-		}
-		count++
-	}
-	return count == payload.ToSequence-payload.FromSequence+1, nil
+	return boundary, nil
 }
 
 func (m *Manager) LatestSettledTurn(ctx context.Context, id string) (SettledTurn, error) {

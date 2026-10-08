@@ -1660,7 +1660,7 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	t.Parallel()
 	t.Run(
-		"Should read complete usage deliveries and compaction spans on active and stopped sessions",
+		"Should read complete usage deliveries and attributed compaction snapshots on active and stopped sessions",
 		func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
@@ -1708,8 +1708,7 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 			}
 			from, to := rows[0].Sequence, rows[len(rows)-1].Sequence
 			raw, err := json.Marshal(CompactionFiredPayload{
-				TurnID: "B", FromSequence: from, ToSequence: to,
-				ContextUsed: 85, ContextSize: 100, Pressure: 0.85, Strategy: "summary_archive",
+				CompactionID: "c1", Trigger: "agent", ContextUsed: new(int64(85)), ContextSize: new(int64(100)),
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -1719,11 +1718,20 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
+			for _, event := range []acp.AgentEvent{
+				{Type: events.SessionCompactionFired, TurnID: "B", Timestamp: at, Raw: []byte(`{"strategy":"summary_archive"}`)},
+				{Type: acp.EventTypeCompaction, TurnID: "B", Timestamp: at, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "in_progress"}},
+				{Type: acp.EventTypeCompaction, TurnID: "B", Timestamp: at, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true}},
+			} {
+				if err := h.manager.recordEvent(ctx, sess, event); err != nil {
+					t.Fatal(err)
+				}
+			}
 			markers, err := h.manager.Compactions(ctx, sess.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(markers) != 1 || markers[0].SpanArchived {
+			if len(markers) != 1 || markers[0].Status != "completed" || markers[0].Payload.CompactionID != "c1" {
 				t.Fatalf("unarchived marker=%#v", markers)
 			}
 			if _, err := sess.recorderHandle().(store.EventArchiver).ArchiveEvents(
@@ -1762,7 +1770,7 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(markers) != 1 || !markers[0].SpanArchived {
+				if len(markers) != 1 || markers[0].Status != "completed" || markers[0].Payload.Trigger != "agent" {
 					t.Fatalf("archived marker=%#v", markers)
 				}
 			}

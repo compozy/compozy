@@ -224,6 +224,7 @@ type Session struct {
 	currentTurnID           string
 	currentTurnSource       TurnSource
 	currentPromptMessage    string
+	currentPromptDelivery   PromptDelivery
 	currentPromptMeta       acp.PromptMeta
 	currentSkillInvocations []commandpkg.Invocation
 	currentPromptCancel     context.CancelFunc

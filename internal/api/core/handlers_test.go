@@ -1777,12 +1777,11 @@ func TestSessionUsageEndpoint(t *testing.T) {
 		}
 		c := payload.Usage.Context
 		if c.State != contract.SessionContextStateEstimatedSize || c.Size == nil || *c.Size != 100 ||
-			c.SizeSource != "catalog" ||
-			c.PressureThreshold != nil {
+			c.SizeSource != "catalog" {
 			t.Fatalf("catalog context=%#v", c)
 		}
 	})
-	t.Run("Should expose usage and delivery turn union with truthful compaction archive facts", func(t *testing.T) {
+	t.Run("Should expose usage and delivery turn union with native compaction lifecycle facts", func(t *testing.T) {
 		t.Parallel()
 		at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
 		manager := testutil.StubSessionManager{
@@ -1846,17 +1845,13 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			CompactionsFn: func(context.Context, string) ([]session.CompactionEnvelope, error) {
 				return []session.CompactionEnvelope{
 					{
-						Sequence:     40,
-						At:           at,
-						SpanArchived: true,
+						Sequence: 40,
+						At:       at,
+						TurnID:   "B",
+						Status:   "completed",
 						Payload: session.CompactionFiredPayload{
-							TurnID:       "B",
-							FromSequence: 1,
-							ToSequence:   8,
-							ContextUsed:  85,
-							ContextSize:  100,
-							Pressure:     0.85,
-							Strategy:     "summary_archive",
+							CompactionID: "compact-B", Trigger: "agent",
+							ContextUsed: new(int64(85)), ContextSize: new(int64(100)),
 						},
 					},
 				}, nil

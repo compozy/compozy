@@ -18,6 +18,7 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -3438,6 +3439,201 @@ func TestPromptBindFallbackChain(t *testing.T) {
 		collectEvents(t, events)
 		if got := session.Info().ACPSessionID; got == "" {
 			t.Fatal("later prompt did not bind the runtime")
+		}
+	})
+}
+
+func TestRequestCompaction(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		commands []store.SessionAdvertisedCommand
+		want     string
+	}{
+		{name: "Should submit compact in maintenance mode", commands: []store.SessionAdvertisedCommand{{Name: "compact"}}, want: "compact"},
+		{name: "Should submit compress when compact is unavailable", commands: []store.SessionAdvertisedCommand{{Name: "compress"}}, want: "compress"},
+		{name: "Should prefer compact over compress", commands: []store.SessionAdvertisedCommand{{Name: "compress"}, {Name: "compact"}}, want: "compact"},
+		{name: "Should reject agents without compaction", commands: []store.SessionAdvertisedCommand{{Name: "review"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t, WithPromptInputAugmenter(func(context.Context, *Session, string) (string, error) {
+				return "", errors.New("maintenance must skip augmentation")
+			}))
+			session := createSession(t, h)
+			session.replaceAdvertisedCommands(tc.commands, h.manager.now())
+			result, events, err := h.manager.RequestCompaction(
+				WithCompactionRequestedBy(t.Context(), "tool"),
+				session.ID,
+			)
+			if tc.want == "" {
+				if !errors.Is(err, ErrCompactionUnsupported) {
+					t.Fatalf("error = %v", err)
+				}
+				h.driver.mu.Lock()
+				calls := len(h.driver.promptCalls)
+				h.driver.mu.Unlock()
+				if calls != 0 {
+					t.Fatalf("unsupported submitted %d prompts", calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if result.Command != tc.want || result.PromptID == "" || result.SessionID != session.ID {
+				t.Fatalf("result = %#v", result)
+			}
+			h.driver.mu.Lock()
+			request := h.driver.promptCalls[0]
+			h.driver.mu.Unlock()
+			if request.Message != "/"+tc.want || !request.Maintenance || len(request.Sections) != 0 {
+				t.Fatalf("request = %#v", request)
+			}
+			ledger, err := session.recorderHandle().
+				Query(t.Context(), store.EventQuery{Type: "session.compaction.requested"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(ledger) != 1 {
+				t.Fatalf("requested events = %d", len(ledger))
+			}
+			var payload struct {
+				Command     string `json:"command"`
+				RequestedBy string `json:"requested_by"`
+			}
+			requestedEvent, err := transcript.UnmarshalAgentEvent(ledger[0].Content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(requestedEvent.Raw, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Command != tc.want || payload.RequestedBy != "tool" {
+				t.Fatalf("requested payload = %#v", payload)
+			}
+		})
+	}
+	t.Run("Should preserve the literal command against mutating input hooks", func(t *testing.T) {
+		t.Parallel()
+		dispatcher := &spyHookDispatcher{
+			dispatchInputPreSubmitFn: func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
+				payload.Message = "hook instructions\n" + payload.Message
+				return payload, nil
+			},
+		}
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		session := createSession(t, h)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		_, events, err := h.manager.RequestCompaction(t.Context(), session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		request := h.driver.promptCalls[0]
+		h.driver.mu.Unlock()
+		if request.Message != "/compact" || !request.Maintenance {
+			t.Fatalf("mutating hook changed maintenance=%#v", request)
+		}
+	})
+
+	t.Run("Should accept one concurrent request and reject an active turn", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		source := make(chan acp.AgentEvent, 1)
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+		type attempt struct {
+			events <-chan acp.AgentEvent
+			err    error
+		}
+		results := make(chan attempt, 2)
+		start := make(chan struct{})
+		var workers sync.WaitGroup
+		for range 2 {
+			workers.Go(func() {
+				<-start
+				_, events, err := h.manager.RequestCompaction(t.Context(), session.ID)
+				results <- attempt{events: events, err: err}
+			})
+		}
+		close(start)
+		workers.Wait()
+		close(results)
+		accepted := 0
+		var events <-chan acp.AgentEvent
+		for result := range results {
+			if result.err == nil {
+				accepted++
+				events = result.events
+			} else if !errors.Is(result.err, ErrPromptInProgress) {
+				t.Fatalf("error=%v", result.err)
+			}
+		}
+		if accepted != 1 {
+			t.Fatalf("accepted=%d", accepted)
+		}
+		if _, _, err := h.manager.RequestCompaction(t.Context(), session.ID); !errors.Is(err, ErrPromptInProgress) {
+			t.Fatalf("active turn error=%v", err)
+		}
+		source <- acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: h.manager.now(), PromptStopReason: acp.PromptStopReasonEndTurn}
+		close(source)
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		calls := len(h.driver.promptCalls)
+		h.driver.mu.Unlock()
+		if calls != 1 {
+			t.Fatalf("driver calls=%d", calls)
+		}
+	})
+	t.Run("Should preserve pending context until the ordinary prompt", func(t *testing.T) {
+		t.Parallel()
+		var augmented atomic.Int32
+		h := newHarness(
+			t,
+			WithPromptInputAugmenter(func(_ context.Context, _ *Session, message string) (string, error) {
+				augmented.Add(1)
+				return message, nil
+			}),
+		)
+		session := createSession(t, h)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		session.mu.Lock()
+		session.importedContext = &store.SessionImportedContext{}
+		session.mu.Unlock()
+		const replay = "pending imported and resumed context"
+		h.manager.stageResumeReplay(session.ID, replay)
+		_, events, err := h.manager.RequestCompaction(t.Context(), session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		if h.manager.pendingResumeReplay(session.ID) != replay || session.importedContextSnapshot().Consumed != nil {
+			t.Fatal("maintenance consumed pending context")
+		}
+		if augmented.Load() != 0 {
+			t.Fatal("maintenance invoked augmenter")
+		}
+		events, err = h.manager.Prompt(t.Context(), session.ID, "ordinary prompt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		requests := slices.Clone(h.driver.promptCalls)
+		h.driver.mu.Unlock()
+		if requests[0].Message != "/compact" || !requests[0].Maintenance {
+			t.Fatalf("maintenance=%#v", requests[0])
+		}
+		if !strings.Contains(requests[1].Message, replay) || requests[1].Maintenance {
+			t.Fatalf("ordinary=%#v", requests[1])
+		}
+		if h.manager.pendingResumeReplay(session.ID) != "" || session.importedContextSnapshot().Consumed == nil ||
+			augmented.Load() != 1 {
+			t.Fatal("ordinary prompt did not consume pending context once")
 		}
 	})
 }

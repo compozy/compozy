@@ -63,8 +63,7 @@ func hookConfigMatcher(cfg HookMatcherConfig) hookspkg.HookMatcher {
 		MessageDeltaType: strings.TrimSpace(cfg.MessageDeltaType),
 
 		CompactionMatcher: &hookspkg.CompactionMatcher{
-			Reason:   strings.TrimSpace(cfg.CompactionReason),
-			Strategy: strings.TrimSpace(cfg.CompactionStrategy),
+			Trigger: strings.TrimSpace(cfg.CompactionTrigger),
 		}}
 	if cfg.ToolReadOnly != nil {
 		matcher.ToolReadOnly = new(*cfg.ToolReadOnly)

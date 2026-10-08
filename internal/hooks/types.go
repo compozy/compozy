@@ -190,8 +190,7 @@ func (o HookRunOutcome) Validate() error {
 
 // CompactionMatcher narrows context-compaction hooks by compaction metadata.
 type CompactionMatcher struct {
-	Reason   string `json:"compaction_reason,omitempty"   yaml:"compaction_reason,omitempty"`
-	Strategy string `json:"compaction_strategy,omitempty" yaml:"compaction_strategy,omitempty"`
+	Trigger string `json:"compaction_trigger,omitempty" yaml:"compaction_trigger,omitempty"`
 }
 
 // HookMatcher narrows when a hook is eligible to run.

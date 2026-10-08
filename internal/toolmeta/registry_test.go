@@ -260,6 +260,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__session_list":                  expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__session_outline":               expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__session_prompt":                expectedNativeEntry("Sending", " ", false, "💬", "auto"),
+		"compozy__session_compact":               expectedNativeEntry("Compacting", " ", false, "💬", "auto"),
 		"compozy__session_prompt_cancel":         expectedNativeEntry("Canceling", " ", false, "💬", "auto"),
 		"compozy__session_rename":                expectedNativeEntry("Renaming", " ", false, "💬", "auto"),
 		"compozy__session_rewind":                expectedNativeEntry("Rewinding", " ", false, "💬", "auto"),

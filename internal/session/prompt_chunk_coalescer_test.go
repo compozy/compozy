@@ -53,10 +53,10 @@ func TestPromptChunkCoalescing(t *testing.T) {
 			}
 		})
 
-		var prepared PromptDelivery
+		var prepared PromptDeliveryInfo
 		eventsCh, err := h.manager.PromptWithOpts(testutil.Context(t), session.ID, PromptOpts{
 			Message: "hello",
-			PrepareDelivery: func(_ context.Context, delivery PromptDelivery) error {
+			PrepareDelivery: func(_ context.Context, delivery PromptDeliveryInfo) error {
 				prepared = delivery
 				got := countAgentEvents(
 					h.notifier.eventsForSession(session.ID),

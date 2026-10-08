@@ -77868,10 +77868,7 @@
                                 },
                                 "type": "object"
                               },
-                              "compaction_reason": {
-                                "type": "string"
-                              },
-                              "compaction_strategy": {
+                              "compaction_trigger": {
                                 "type": "string"
                               },
                               "decision_class": {
@@ -124239,10 +124236,7 @@
                                     },
                                     "type": "object"
                                   },
-                                  "compaction_reason": {
-                                    "type": "string"
-                                  },
-                                  "compaction_strategy": {
+                                  "compaction_trigger": {
                                     "type": "string"
                                   },
                                   "decision_class": {
@@ -124902,10 +124896,7 @@
                                     },
                                     "type": "object"
                                   },
-                                  "compaction_reason": {
-                                    "type": "string"
-                                  },
-                                  "compaction_strategy": {
+                                  "compaction_trigger": {
                                     "type": "string"
                                   },
                                   "decision_class": {
@@ -126727,10 +126718,7 @@
                             },
                             "type": "object"
                           },
-                          "compaction_reason": {
-                            "type": "string"
-                          },
-                          "compaction_strategy": {
+                          "compaction_trigger": {
                             "type": "string"
                           },
                           "decision_class": {
@@ -265662,6 +265650,309 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/compact": {
+      "post": {
+        "operationId": "compactSession",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "command": {
+                      "type": "string"
+                    },
+                    "prompt_id": {
+                      "type": "string"
+                    },
+                    "session_id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command",
+                    "prompt_id",
+                    "session_id",
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Compaction accepted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "session_busy or compaction_unsupported"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Request advertised native agent compaction (experimental)",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/continue": {
       "post": {
         "operationId": "continueSession",
@@ -298214,11 +298505,6 @@
                               ],
                               "type": "object"
                             },
-                            "pressure_threshold": {
-                              "format": "double",
-                              "nullable": true,
-                              "type": "number"
-                            },
                             "ratio": {
                               "format": "double",
                               "nullable": true,
@@ -298531,35 +298817,28 @@
                             "format": "date-time",
                             "type": "string"
                           },
+                          "compaction_id": {
+                            "type": "string"
+                          },
                           "context_size": {
                             "format": "int64",
+                            "nullable": true,
                             "type": "integer"
                           },
                           "context_used": {
                             "format": "int64",
+                            "nullable": true,
                             "type": "integer"
-                          },
-                          "from_sequence": {
-                            "format": "int64",
-                            "type": "integer"
-                          },
-                          "pressure": {
-                            "format": "double",
-                            "type": "number"
                           },
                           "sequence": {
                             "format": "int64",
                             "type": "integer"
                           },
-                          "span_archived": {
-                            "type": "boolean"
-                          },
-                          "strategy": {
+                          "status": {
                             "type": "string"
                           },
-                          "to_sequence": {
-                            "format": "int64",
-                            "type": "integer"
+                          "trigger": {
+                            "type": "string"
                           },
                           "turn_id": {
                             "type": "string"
@@ -298567,14 +298846,10 @@
                         },
                         "required": [
                           "at",
-                          "context_size",
-                          "context_used",
-                          "from_sequence",
-                          "pressure",
+                          "compaction_id",
                           "sequence",
-                          "span_archived",
-                          "strategy",
-                          "to_sequence",
+                          "status",
+                          "trigger",
                           "turn_id"
                         ],
                         "type": "object"
@@ -298910,7 +299185,7 @@
             "description": "Internal server error"
           }
         },
-        "summary": "Get per-turn session usage and replay compaction spans",
+        "summary": "Get per-turn session usage and native compaction markers",
         "tags": [
           "sessions"
         ],

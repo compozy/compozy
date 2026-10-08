@@ -35,6 +35,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.DELETE("/:session_id/attachments/:attachment_id", handlers.DeleteSessionAttachment)
 	workspaceSessions.POST("/:session_id/worktree-fork", handlers.ForkSessionToWorktree)
 	workspaceSessions.POST("/:session_id/repair", handlers.RepairSession)
+	workspaceSessions.POST("/:session_id/compact", handlers.CompactSession)
 	workspaceSessions.POST("/:session_id/clear", handlers.ClearSessionConversation)
 	workspaceSessions.POST("/:session_id/rewind", handlers.RewindSessionConversation)
 	workspaceSessions.POST("/:session_id/continue", handlers.ContinueSession)

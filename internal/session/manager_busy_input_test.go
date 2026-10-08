@@ -2928,6 +2928,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 		ctx := testutil.Context(t)
 		promptID := "goal-prompt-interleaved"
 		events := []acp.AgentEvent{
+			{Type: "session.compaction.requested", TurnID: promptID},
 			{Type: acp.EventTypeSyntheticReentry, TurnID: promptID, Text: "managed objective"},
 			{Type: acp.EventTypeAgentMessage, TurnID: "goal-snapshot:session-1", Text: "unrelated"},
 			{Type: acp.EventTypeAgentMessage, TurnID: promptID, Text: "reply"},
@@ -2938,6 +2939,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 				PromptStopReason: acp.PromptStopReasonEndTurn,
 			},
 			{Type: eventspkg.TranscriptMarkerCreated, TurnID: promptID, Text: "terminal metadata"},
+			{Type: eventspkg.SessionCompactionFired, TurnID: promptID},
 		}
 		for _, event := range events {
 			if err := h.manager.recordEvent(ctx, sess, event); err != nil {

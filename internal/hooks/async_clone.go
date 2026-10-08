@@ -78,8 +78,8 @@ func (payload PermissionDeniedPayload) cloneForAsync() PermissionDeniedPayload {
 	return clonePermissionDeniedPayload(payload)
 }
 
-func (payload ContextCompactPayload) cloneForAsync() ContextCompactPayload {
-	return cloneContextCompactPayload(payload)
+func (payload ContextCompactionPayload) cloneForAsync() ContextCompactionPayload {
+	return cloneContextCompactionPayload(payload)
 }
 
 func (payload AgentHeartbeatWakeBeforePayload) cloneForAsync() AgentHeartbeatWakeBeforePayload {

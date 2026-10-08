@@ -59,10 +59,8 @@ func sessionUsageTurnsToon(value contract.SessionUsageTurnsResponse) (string, er
 	}
 	for _, marker := range value.Compactions {
 		compactions = append(compactions, []string{marker.TurnID, strconv.FormatInt(marker.Sequence, 10),
-			marker.At.Format(time.RFC3339Nano), strconv.FormatBool(marker.SpanArchived),
-			strconv.FormatInt(marker.FromSequence, 10), strconv.FormatInt(marker.ToSequence, 10),
-			strconv.FormatInt(marker.ContextUsed, 10), strconv.FormatInt(marker.ContextSize, 10),
-			strconv.FormatFloat(marker.Pressure, 'g', -1, 64), marker.Strategy})
+			marker.At.Format(time.RFC3339Nano), marker.CompactionID, marker.Trigger, marker.Status,
+			formatInt64Ptr(marker.ContextUsed), formatInt64Ptr(marker.ContextSize)})
 	}
 	return renderHumanBlocks(
 		renderToonArray("session_usage_turns", []string{sessionTurnIDKey, sessionSequenceKey}, turns),
@@ -110,8 +108,8 @@ func sessionUsageTurnsToon(value contract.SessionUsageTurnsResponse) (string, er
 		),
 		renderToonArray(
 			"compactions",
-			[]string{sessionTurnIDKey, sessionSequenceKey, "at", "span_archived", "from_sequence",
-				"to_sequence", sessionContextUsedKey, sessionContextSizeKey, "pressure", "strategy"},
+			[]string{sessionTurnIDKey, sessionSequenceKey, "at", "compaction_id", "trigger",
+				"status", sessionContextUsedKey, sessionContextSizeKey},
 			compactions,
 		),
 	), nil

@@ -66,8 +66,7 @@ func normalizeCompactionMatcher(matcher *CompactionMatcher) *CompactionMatcher {
 		return nil
 	}
 	normalized := CompactionMatcher{
-		Reason:   strings.TrimSpace(matcher.Reason),
-		Strategy: strings.TrimSpace(matcher.Strategy),
+		Trigger: strings.TrimSpace(matcher.Trigger),
 	}
 	if normalized.empty() {
 		return nil
@@ -100,8 +99,7 @@ func normalizeAutonomyMatcher(matcher *AutonomyMatcher) *AutonomyMatcher {
 }
 
 func (m *CompactionMatcher) empty() bool {
-	return m.Reason == "" &&
-		m.Strategy == ""
+	return m.Trigger == ""
 }
 
 func (m *AutonomyMatcher) empty() bool {

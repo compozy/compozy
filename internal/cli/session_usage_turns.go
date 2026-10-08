@@ -44,19 +44,9 @@ func sessionUsageTurnRows(value contract.SessionUsageTurnsResponse) [][]string {
 		ordered = append(ordered, orderedRow{sequence: turn.Sequence, values: row})
 	}
 	for _, marker := range value.Compactions {
-		archived := "not archived"
-		if marker.SpanArchived {
-			archived = "archived"
-		}
-		description := fmt.Sprintf(
-			"CompozyOS compaction · at %.0f%% · %d / %d · sequences %d–%d · replay span %s",
-			marker.Pressure*100,
-			marker.ContextUsed,
-			marker.ContextSize,
-			marker.FromSequence,
-			marker.ToSequence,
-			archived,
-		)
+		description := fmt.Sprintf("Agent compaction · %s · %s · %s · %s / %s",
+			marker.CompactionID, marker.Trigger, marker.Status,
+			formatInt64Ptr(marker.ContextUsed), formatInt64Ptr(marker.ContextSize))
 		ordered = append(
 			ordered,
 			orderedRow{

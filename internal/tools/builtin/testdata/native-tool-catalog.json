@@ -2240,6 +2240,19 @@
     "output_schema_digest": "d3b4ee74a53350b918b881554b209da6950f9fe93c074c2d476309b225fe2214"
   },
   {
+    "tool_id": "compozy__session_compact",
+    "native_name": "session_compact",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3c059c7f1f2f2197cff7a0a3a8e481fceea15ba00eed7e1be8dfe53fcfe84ced",
+    "output_schema_digest": "6cd8adf7b25f52e9c84caf71f2527f4679087878f11dee675adf73498a398bb7"
+  },
+  {
     "tool_id": "compozy__session_continue",
     "native_name": "session_continue",
     "toolsets": [

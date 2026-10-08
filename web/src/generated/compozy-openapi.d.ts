@@ -5091,6 +5091,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/compact": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request advertised native agent compaction (experimental) */
+    post: operations["compactSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/continue": {
     parameters: {
       query?: never;
@@ -5629,7 +5646,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get per-turn session usage and replay compaction spans */
+    /** Get per-turn session usage and native compaction markers */
     get: operations["getSessionUsageTurns"];
     put?: never;
     post?: never;
@@ -33051,8 +33068,7 @@ export interface operations {
                   task_id?: string;
                   workflow_id?: string;
                 } | null;
-                compaction_reason?: string;
-                compaction_strategy?: string;
+                compaction_trigger?: string;
                 decision_class?: string;
                 input_class?: string;
                 message_delta_type?: string;
@@ -50611,8 +50627,7 @@ export interface operations {
                     task_id?: string;
                     workflow_id?: string;
                   } | null;
-                  compaction_reason?: string;
-                  compaction_strategy?: string;
+                  compaction_trigger?: string;
                   decision_class?: string;
                   input_class?: string;
                   message_delta_type?: string;
@@ -50912,8 +50927,7 @@ export interface operations {
                     task_id?: string;
                     workflow_id?: string;
                   } | null;
-                  compaction_reason?: string;
-                  compaction_strategy?: string;
+                  compaction_trigger?: string;
                   decision_class?: string;
                   input_class?: string;
                   message_delta_type?: string;
@@ -51479,8 +51493,7 @@ export interface operations {
                 task_id?: string;
                 workflow_id?: string;
               } | null;
-              compaction_reason?: string;
-              compaction_strategy?: string;
+              compaction_trigger?: string;
               decision_class?: string;
               input_class?: string;
               message_delta_type?: string;
@@ -105771,6 +105784,131 @@ export interface operations {
       };
     };
   };
+  compactSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": unknown;
+      };
+    };
+    responses: {
+      /** @description Compaction accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            command: string;
+            prompt_id: string;
+            session_id: string;
+            status: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description session_busy or compaction_unsupported */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   continueSession: {
     parameters: {
       query?: never;
@@ -118515,8 +118653,6 @@ export interface operations {
                   tokens: number;
                 } | null;
                 /** Format: double */
-                pressure_threshold?: number | null;
-                /** Format: double */
                 ratio?: number | null;
                 /** Format: date-time */
                 reported_at?: string | null;
@@ -118637,20 +118773,15 @@ export interface operations {
             compactions: {
               /** Format: date-time */
               at: string;
+              compaction_id: string;
               /** Format: int64 */
-              context_size: number;
+              context_size?: number | null;
               /** Format: int64 */
-              context_used: number;
-              /** Format: int64 */
-              from_sequence: number;
-              /** Format: double */
-              pressure: number;
+              context_used?: number | null;
               /** Format: int64 */
               sequence: number;
-              span_archived: boolean;
-              strategy: string;
-              /** Format: int64 */
-              to_sequence: number;
+              status: string;
+              trigger: string;
               turn_id: string;
             }[];
             turns: {

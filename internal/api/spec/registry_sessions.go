@@ -10,6 +10,7 @@ func registrySessionOperations() []OperationSpec {
 		getSessionOperationSpec(),
 		renameSessionOperationSpec(),
 		getSessionCommandsOperationSpec(),
+		compactSessionOperationSpec(),
 		deleteSessionOperationSpec(),
 		stopSessionOperationSpec(),
 		archiveSessionOperationSpec(),
@@ -392,7 +393,7 @@ func getSessionUsageTurnsOperationSpec() OperationSpec {
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
 		OperationID: "getSessionUsageTurns",
-		Summary:     "Get per-turn session usage and replay compaction spans",
+		Summary:     "Get per-turn session usage and native compaction markers",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{

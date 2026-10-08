@@ -45,12 +45,6 @@ func sessionContextHuman(value contract.SessionContextPayload) string {
 	if value.Stale != nil && *value.Stale {
 		rows = append(rows, keyValue{Label: "Freshness", Value: "stale · as of " + value.ReportedTurnID})
 	}
-	if value.PressureThreshold != nil {
-		rows = append(
-			rows,
-			keyValue{Label: "Compaction At", Value: fmt.Sprintf("%.0f%%", *value.PressureThreshold*100)},
-		)
-	}
 	if value.Injected != nil {
 		rows = append(
 			rows,
@@ -114,7 +108,6 @@ func sessionUsageToon(record SessionUsageRecord, cost string) string {
 		"context_sequence",
 		"context_reported_turn_id",
 		"context_reported_at",
-		"context_pressure_threshold",
 		"injected_estimate",
 		"injected_tokens",
 		"injected_stale",
@@ -153,7 +146,6 @@ func sessionUsageToon(record SessionUsageRecord, cost string) string {
 		formatInt64Ptr(value.Sequence),
 		value.ReportedTurnID,
 		reportedAt,
-		formatFloat64Ptr(value.PressureThreshold),
 		estimate,
 		injectedTokens,
 		injectedStale,

@@ -141,6 +141,7 @@ const (
 	// #nosec G101 -- diagnostic code label, not credential material.
 	CodeSecretsPermsWrong      = "secrets_perms_wrong"
 	CodeSessionBusy            = "session_busy"
+	CodeCompactionUnsupported  = "compaction_unsupported"
 	CodeSessionLocked          = "session_locked"
 	CodeSessionQueueFull       = "session_queue_full"
 	CodeSessionResumeAmbiguous = "session_resume_ambiguous"
@@ -297,6 +298,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeSchemaAhead, Category: CategoryMigrations},
 	{Code: CodeSecretsPermsWrong, Category: CategorySecrets},
 	{Code: CodeSessionBusy, Category: CategorySession},
+	{Code: CodeCompactionUnsupported, Category: CategorySession},
 	{Code: CodeSessionLocked, Category: CategorySession},
 	{Code: CodeSessionQueueFull, Category: CategorySession},
 	{Code: CodeSessionResumeAmbiguous, Category: CategorySession},

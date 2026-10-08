@@ -81,6 +81,8 @@ const (
 	ToolIDSessionApprove ToolID = "compozy__session_approve"
 	// ToolIDSessionClarifyAnswer resolves one pending clarification request.
 	ToolIDSessionClarifyAnswer ToolID = "compozy__session_clarify_answer"
+	// ToolIDSessionCompact requests native agent compaction.
+	ToolIDSessionCompact ToolID = "compozy__session_compact"
 	// ToolIDSessionPromptCancel cancels one in-flight session prompt.
 	ToolIDSessionPromptCancel ToolID = "compozy__session_prompt_cancel"
 	// ToolIDNotify sends one bounded operator notification from the bound session.

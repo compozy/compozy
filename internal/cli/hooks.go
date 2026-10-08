@@ -456,8 +456,7 @@ func hookMatcherRows(matcher hookspkg.HookMatcher) [][]string {
 	appendRow("message_role", matcher.MessageRole)
 	appendRow("message_delta_type", matcher.MessageDeltaType)
 	if matcher.CompactionMatcher != nil {
-		appendRow("compaction_reason", matcher.Reason)
-		appendRow("compaction_strategy", matcher.Strategy)
+		appendRow("compaction_trigger", matcher.Trigger)
 	}
 	return rows
 }

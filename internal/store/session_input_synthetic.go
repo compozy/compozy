@@ -11,6 +11,7 @@ const SessionInputOwnerSynthetic = "synthetic"
 
 // SessionInputSyntheticPrompt preserves execution identity and opaque ACP metadata.
 type SessionInputSyntheticPrompt struct {
+	Delivery string          `json:"delivery,omitempty"`
 	RunID    string          `json:"run_id"`
 	Metadata json.RawMessage `json:"metadata"`
 }
@@ -21,6 +22,7 @@ func (p *SessionInputSyntheticPrompt) Clone() *SessionInputSyntheticPrompt {
 		return nil
 	}
 	return &SessionInputSyntheticPrompt{
+		Delivery: p.Delivery,
 		RunID:    strings.TrimSpace(p.RunID),
 		Metadata: append(json.RawMessage(nil), p.Metadata...),
 	}

@@ -1154,8 +1154,7 @@ export interface CommandFlag {
 }
 
 export interface CompactionMatcher {
-  compaction_reason?: string;
-  compaction_strategy?: string;
+  compaction_trigger?: string;
 }
 
 export interface ConnectivityAdvertisedEndpoint {
@@ -1204,7 +1203,11 @@ export interface ContextBlock {
   metadata?: Record<string, string>;
 }
 
-export interface ContextCompactPayload {
+export interface ContextCompactionPatch {
+  labels?: Record<string, string>;
+}
+
+export interface ContextCompactionPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   profile_id?: string;
@@ -1222,26 +1225,15 @@ export interface ContextCompactPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
-  reason?: string;
-  strategy?: string;
+  compaction_id: string;
+  trigger: string;
+  status?: string;
   summary?: string;
-  context_blocks?: ContextBlock[];
-}
-
-export interface ContextCompactionPatch {
-  deny?: boolean;
-  deny_reason?: string;
-  reason?: string;
-  strategy?: string;
-  context_blocks?: ContextBlock[];
+  error?: string;
 }
 
 export interface ContextPostCompactPatch {
-  deny?: boolean;
-  deny_reason?: string;
-  reason?: string;
-  strategy?: string;
-  context_blocks?: ContextBlock[];
+  labels?: Record<string, string>;
 }
 
 export interface ContextPostCompactPayload {
@@ -1262,18 +1254,15 @@ export interface ContextPostCompactPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
-  reason?: string;
-  strategy?: string;
+  compaction_id: string;
+  trigger: string;
+  status?: string;
   summary?: string;
-  context_blocks?: ContextBlock[];
+  error?: string;
 }
 
 export interface ContextPreCompactPatch {
-  deny?: boolean;
-  deny_reason?: string;
-  reason?: string;
-  strategy?: string;
-  context_blocks?: ContextBlock[];
+  labels?: Record<string, string>;
 }
 
 export interface ContextPreCompactPayload {
@@ -1294,10 +1283,11 @@ export interface ContextPreCompactPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
-  reason?: string;
-  strategy?: string;
+  compaction_id: string;
+  trigger: string;
+  status?: string;
   summary?: string;
-  context_blocks?: ContextBlock[];
+  error?: string;
 }
 
 export interface ControlPatch {
@@ -2097,8 +2087,7 @@ export interface HookMatcher {
   decision_class?: string;
   message_role?: string;
   message_delta_type?: string;
-  compaction_reason?: string;
-  compaction_strategy?: string;
+  compaction_trigger?: string;
   autonomy?: AutonomyMatcher;
 }
 

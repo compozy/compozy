@@ -36,7 +36,7 @@ const (
 	sdkAutonomyMatcherValue                     = "AutonomyMatcher"
 	sdkAutonomyObservationPatchValue            = "AutonomyObservationPatch"
 	sdkContextBlockValue                        = "ContextBlock"
-	sdkContextCompactPayloadValue               = "ContextCompactPayload"
+	sdkContextCompactionPayloadValue            = "ContextCompactionPayload"
 	sdkContextCompactionPatchValue              = "ContextCompactionPatch"
 	sdkControlPatchValue                        = "ControlPatch"
 	sdkCoordinatorContextValue                  = "CoordinatorContext"
@@ -267,7 +267,7 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkPermissionRequestPayloadValue, Value: hooks.PermissionRequestPayload{}},
 	{Name: sdkPermissionResolutionPayloadValue, Value: hooks.PermissionResolutionPayload{}},
 	{Name: sdkPermissionRequestPatchValue, Value: hooks.PermissionRequestPatch{}},
-	{Name: sdkContextCompactPayloadValue, Value: hooks.ContextCompactPayload{}},
+	{Name: sdkContextCompactionPayloadValue, Value: hooks.ContextCompactionPayload{}},
 	{Name: sdkContextCompactionPatchValue, Value: hooks.ContextCompactionPatch{}},
 	{Name: sdkAutonomyObservationPatchValue, Value: hooks.AutonomyObservationPatch{}},
 	{Name: sdkCoordinatorContextValue, Value: hooks.CoordinatorContext{}},

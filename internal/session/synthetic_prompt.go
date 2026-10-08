@@ -11,6 +11,7 @@ import (
 // SyntheticPromptOpts carries daemon-owned synthetic prompt input plus
 // wake-up metadata required for persistence and later reentry handling.
 type SyntheticPromptOpts struct {
+	Delivery                PromptDelivery
 	Message                 string
 	Metadata                acp.PromptSyntheticMeta
 	TurnID                  string
@@ -89,6 +90,9 @@ func (m *Manager) parseSyntheticPromptRequest(
 	}
 
 	message := strings.TrimSpace(opts.Message)
+	if opts.Delivery == PromptDeliveryMaintenance {
+		message = opts.Message
+	}
 	if message == "" {
 		return promptRequest{}, errors.New("session: prompt message is required")
 	}
@@ -121,6 +125,7 @@ func (m *Manager) parseSyntheticPromptRequest(
 	}
 
 	return promptRequest{
+		delivery:        opts.Delivery,
 		turnID:          turnID,
 		runID:           runID,
 		target:          target,

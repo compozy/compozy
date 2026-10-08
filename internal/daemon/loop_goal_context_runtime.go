@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -31,6 +31,15 @@ func (r *loopGoalContextRuntime) Usage(
 		return goalpkg.ContextUsage{}, err
 	}
 	for _, event := range slices.Backward(events) {
+		if event.Type == acp.EventTypeCompaction {
+			snapshot, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil {
+				return goalpkg.ContextUsage{}, err
+			}
+			if snapshot.Compaction != nil && snapshot.Compaction.Terminal {
+				break
+			}
+		}
 		usage, found, decodeErr := goalContextUsageFromEvent(event)
 		if decodeErr != nil {
 			return goalpkg.ContextUsage{}, decodeErr
@@ -42,7 +51,7 @@ func (r *loopGoalContextRuntime) Usage(
 	return goalpkg.ContextUsage{}, nil
 }
 
-// UsageAtSequence accepts only a usage event at the exact pinned sequence; gaps remain unknown.
+// UsageAtSequence accepts a pinned observation only while it remains newer than the compaction boundary.
 func (r *loopGoalContextRuntime) UsageAtSequence(
 	ctx context.Context,
 	binding looppkg.ActionSessionBinding,
@@ -54,13 +63,21 @@ func (r *loopGoalContextRuntime) UsageAtSequence(
 	if sequence < 1 {
 		return goalpkg.ContextUsage{}, errors.New("daemon: Goal context usage sequence must be positive")
 	}
-	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{
-		AfterSequence: sequence - 1,
-		Forward:       true,
-		Limit:         1,
-	})
+	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{})
 	if err != nil {
 		return goalpkg.ContextUsage{}, err
+	}
+	for _, event := range events {
+		if event.Type != acp.EventTypeCompaction || event.Sequence < sequence {
+			continue
+		}
+		snapshot, err := transcript.UnmarshalAgentEvent(event.Content)
+		if err != nil {
+			return goalpkg.ContextUsage{}, err
+		}
+		if snapshot.Compaction != nil && snapshot.Compaction.Terminal {
+			return goalpkg.ContextUsage{}, nil
+		}
 	}
 	for _, event := range events {
 		if event.Sequence != sequence {
@@ -97,36 +114,24 @@ func goalContextUsageFromEvent(event store.SessionEvent) (goalpkg.ContextUsage, 
 	}, true, nil
 }
 
-func (r *loopGoalContextRuntime) HasAdvertisedCommand(
-	ctx context.Context,
-	binding looppkg.ActionSessionBinding,
-	command string,
-) (bool, error) {
+func (r *loopGoalContextRuntime) CompactionCommand(ctx context.Context, binding looppkg.ActionSessionBinding) (string, bool, error) {
 	if r == nil || r.sessions == nil {
-		return false, errors.New("daemon: Goal command event reader is unavailable")
-	}
-	target := strings.TrimSpace(command)
-	if target == "" {
-		return false, errors.New("daemon: advertised command is required")
+		return "", false, errors.New("daemon: Goal command event reader is unavailable")
 	}
 	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{})
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 	for _, event := range slices.Backward(events) {
-		agentEvent, decodeErr := transcript.UnmarshalAgentEvent(event.Content)
-		if decodeErr != nil {
-			return false, decodeErr
+		agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
+		if err != nil {
+			return "", false, err
 		}
 		if agentEvent.Title != acp.SystemEventTitleAvailableCommandsUpdate {
 			continue
 		}
-		for _, advertised := range agentEvent.AvailableCommandSet().Values() {
-			if strings.TrimSpace(advertised.Name) == target {
-				return true, nil
-			}
-		}
-		return false, nil
+		command, ok := session.ResolveCompactionCommand(agentEvent.AvailableCommandSet().Values())
+		return command, ok, nil
 	}
-	return false, nil
+	return "", false, nil
 }
