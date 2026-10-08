@@ -206,6 +206,7 @@ export function InputsAndSearchSection() {
 const STATE_GLYPH_DEMO: ReadonlyArray<readonly [StateGlyphState, string]> = [
   ["running", "In progress"],
   ["queued", "Queued"],
+  ["delegated", "Awaiting child"],
   ["done", "Done"],
   ["attention", "Needs you"],
   ["failed", "Failed"],

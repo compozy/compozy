@@ -2057,6 +2057,399 @@ describe("LoopRunStepsProgress fold", () => {
   });
 });
 
+// Invariant (#705): a step that started loop runs reads where each child is —
+// the inputs that set it apart, its status, the step it is on, why and for how
+// long, and how far through it is — closed by default in Progress, open in the
+// node panel, compact on the graph card, and a level down for a child's own
+// children. Every reading comes from the child's own detail, briefing and roster.
+// Owner: run-page components composed with useLoopChildRun and MSW I/O.
+describe("Nested child runs", () => {
+  /** Stubs the child-run routes over MSW and returns a provider with a query cache and the page context. */
+  async function childReadHarness(
+    options: {
+      clockLive?: boolean;
+      nowMs?: number;
+      handlers?: import("msw").HttpHandler[];
+      onRequest?: (url: URL) => void;
+    } = {}
+  ) {
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const { createMswFetch } = await import("@/test/msw-fetch");
+    const fixtures = await import("../stories/loop-run-nested-fixtures");
+    const { STORY_NOW } = await import("../stories/loop-run-page-fixture-world");
+    const { LoopRunChildReadContext } = await import("../../hooks/use-loop-run-child-read");
+    const mswFetch = createMswFetch(() => [
+      ...(options.handlers ?? []),
+      ...fixtures.nestedChildRunHandlers,
+    ]);
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      options.onRequest?.(new URL(request.url, window.location.origin));
+      return mswFetch(input, init);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const context = {
+      workspaceId: fixtures.NESTED_STORY_WORKSPACE_ID,
+      nowMs: options.nowMs ?? STORY_NOW,
+      clockLive: options.clockLive ?? true,
+    };
+    /** Query cache plus the page context every child-run read takes. */
+    function Harness({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>
+          <LoopRunChildReadContext value={context}>{children}</LoopRunChildReadContext>
+        </QueryClientProvider>
+      );
+    }
+    /** Drops the cache and the fetch stub so the next case starts clean. */
+    const cleanup = () => {
+      client.clear();
+      vi.unstubAllGlobals();
+    };
+    return { Harness, cleanup, fixtures };
+  }
+
+  /** The child row for one run id inside a scope, failing loudly when it is absent. */
+  function childRow(scope: HTMLElement, runId: string) {
+    const row = within(scope)
+      .getAllByTestId("loop-run-child-run")
+      .find(element => element.getAttribute("data-child-run-id") === runId);
+    if (!row) throw new Error(`no row for ${runId}`);
+    return row;
+  }
+
+  it("Should read each child's inputs, status, step and time once Progress opens them", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      expect(
+        within(within(step).getByTestId("loop-run-step-rollup-fix_batch")).getByTestId(
+          "loop-state-chip-awaiting_child"
+        )
+      ).toBeVisible();
+      const toggle = within(step).getByTestId("loop-run-child-runs-toggle");
+      expect(toggle).toHaveTextContent("4 child runs");
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(within(step).queryAllByTestId("loop-run-child-run")).toHaveLength(0);
+
+      await userEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At run tests")
+      );
+      const working = childRow(step, "r-8f21a0");
+      // Siblings run the same loop; their inputs are what tell them apart.
+      expect(within(working).getByTestId("loop-run-child-run-inputs")).toHaveTextContent(
+        "batch: api · files: 4"
+      );
+      expect(within(working).getByTestId("loop-run-child-run-link")).toHaveTextContent(
+        "fix-one-batch"
+      );
+      expect(within(working).getByTestId("loop-run-child-run-status")).toHaveTextContent("Running");
+      expect(within(working).getByTestId("loop-run-child-run-on-step")).toHaveTextContent(
+        "2m 00s on this step"
+      );
+      expect(within(working).getByTestId("loop-run-child-run-meta")).toHaveTextContent(
+        "1 of 4 steps · 6m 00s"
+      );
+
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-3b9c55")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At finalize round — waiting for your decision")
+      );
+      const stuck = childRow(step, "r-3b9c55");
+      expect(within(stuck).getByTestId("loop-run-child-run-status")).toHaveTextContent(
+        "Needs approval"
+      );
+      // The stuck child's time on its step keeps growing past its frozen run clock.
+      expect(within(stuck).getByTestId("loop-run-child-run-on-step")).toHaveTextContent(
+        "47m 00s on this step"
+      );
+
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-d40e17")).getByTestId("loop-run-child-run-meta")
+        ).toHaveTextContent("4 of 4 steps · 9m 00s")
+      );
+      const done = childRow(step, "r-d40e17");
+      expect(within(done).getByTestId("loop-run-child-run-status")).toHaveTextContent("Done");
+      expect(within(done).getByTestId("loop-run-child-run-step")).toHaveTextContent("");
+
+      // A child waiting on a loop of its own opens it a level down.
+      const parent = await waitFor(() => {
+        const row = childRow(step, "r-5c71e2");
+        within(row).getByTestId("loop-run-child-runs-toggle");
+        return row;
+      });
+      const nestedToggle = within(parent).getByTestId("loop-run-child-runs-toggle");
+      expect(nestedToggle).toHaveTextContent("1 child run");
+      await userEvent.click(nestedToggle);
+      await waitFor(() =>
+        expect(
+          within(childRow(parent, "r-9e04aa")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At judge")
+      );
+      const grandchild = childRow(parent, "r-9e04aa");
+      expect(grandchild).toHaveAttribute("data-depth", "1");
+      expect(within(grandchild).getByTestId("loop-run-child-run-link")).toHaveTextContent(
+        "review-one-file"
+      );
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should tell awaiting child from pending on the graph and read the child on its card", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const scenario = fixtures.nestedWaveScenario();
+    const props = buildScenarioProps(scenario);
+    const dag = buildRunDag({
+      graph: props.graph,
+      nodes: scenario.rosterNodes ?? [],
+      rollups: [],
+      round: 1,
+    });
+    const rendered = render(
+      <Harness>
+        <LoopRunDag dag={dag} onSelect={vi.fn()} selection={null} />
+      </Harness>
+    );
+    try {
+      /** The state glyph drawn on one graph card. */
+      const glyph = (nodeId: string) =>
+        screen.getByTestId(`loop-dag-node-${nodeId}`).querySelector('[data-slot="state-glyph"]');
+      expect(glyph("wave")).toHaveAttribute("data-state", "delegated");
+      expect(glyph("wave_ok")).toHaveAttribute("data-state", "queued");
+
+      const wave = screen.getByTestId("loop-dag-node-wave");
+      const line = await within(wave).findByTestId("loop-dag-child-line");
+      await waitFor(() => expect(line).toHaveTextContent("fix batch9m 00s"));
+      expect(line).toHaveAttribute(
+        "title",
+        "Child run run-one-wave is at fix batch — waiting on a child run, 9m 00s on this step"
+      );
+      // Cards with no child carry no child line.
+      expect(
+        within(screen.getByTestId("loop-dag-node-wave_ok")).queryByTestId("loop-dag-child-line")
+      ).toBeNull();
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should open the child in the node panel without asking", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const { buildNodePanel } = await import("../../lib/loop-node-panel-view");
+    const { LoopNodePanel } = await import("../run-page/inspect/loop-node-panel");
+    const scenario = fixtures.nestedWaveScenario();
+    const wave = (scenario.rosterNodes ?? []).find(node => node.node_id === "wave")!;
+    const panel = buildNodePanel({ node: wave, graph: buildScenarioProps(scenario).graph });
+    const rendered = render(
+      <Harness>
+        <LoopNodePanel panel={panel} />
+      </Harness>
+    );
+    try {
+      const panelEl = screen.getByTestId("loop-node-panel");
+      expect(within(panelEl).getByTestId("loop-run-child-runs-toggle")).toHaveAttribute(
+        "aria-expanded",
+        "true"
+      );
+      await waitFor(() =>
+        expect(
+          within(childRow(panelEl, "r-wave02")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At fix batch — waiting on a child run")
+      );
+      expect(
+        within(childRow(panelEl, "r-wave02")).getByTestId("loop-run-child-run-inputs")
+      ).toHaveTextContent('batches: ["api","billing"] · wave: 2');
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should read only the child's current round, and say so when it is too wide", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const rosterReads: URL[] = [];
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      onRequest: url => {
+        if (url.pathname.endsWith("/nodes")) rosterReads.push(url);
+      },
+      handlers: [
+        // A round wider than the row reads: every page promises another.
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+          ({ params, request }) => {
+            if (params.run_id !== "r-8f21a0") return undefined;
+            const cursor = Number(new URL(request.url).searchParams.get("cursor") ?? "0");
+            return HttpResponse.json({
+              run_id: "r-8f21a0",
+              loop_name: "fix-one-batch",
+              run_status: "running",
+              nodes: [],
+              fanout_rollups: [],
+              next_cursor: String(cursor + 1),
+            });
+          }
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() => {
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("This round has more steps than a row reads");
+      });
+      const wide = rosterReads.filter(url => url.pathname.includes("/r-8f21a0/"));
+      // The round the briefing names, never the oldest-first whole roster,
+      // and no more pages than the cap.
+      expect(wide.every(url => url.searchParams.get("generation") === "1")).toBe(true);
+      expect(wide).toHaveLength(5);
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should stop paging a child's round after a page fails, leaving the retry to the poll", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const rosterReads: URL[] = [];
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      onRequest: url => {
+        if (url.pathname.endsWith("/r-8f21a0/nodes")) rosterReads.push(url);
+      },
+      handlers: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+          ({ params, request }) => {
+            if (params.run_id !== "r-8f21a0") return undefined;
+            // Page one promises more; the next page is the one the daemon fails.
+            return new URL(request.url).searchParams.has("cursor")
+              ? HttpResponse.json({ error: "roster unavailable" }, { status: 500 })
+              : HttpResponse.json({
+                  run_id: "r-8f21a0",
+                  loop_name: "fix-one-batch",
+                  run_status: "running",
+                  nodes: [],
+                  fanout_rollups: [],
+                  next_cursor: "1",
+                });
+          }
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("Couldn't read this child run")
+      );
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // One read for page one, one for the page that failed — and no more.
+      expect(rosterReads).toHaveLength(2);
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should say a child could not be read when its briefing fails, keeping what did arrive", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      handlers: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing",
+          ({ params }) =>
+            params.run_id === "r-8f21a0"
+              ? HttpResponse.json({ error: "briefing unavailable" }, { status: 500 })
+              : undefined
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("Couldn't read this child run")
+      );
+      // The detail did arrive, so the child is still named and its status shown.
+      const row = childRow(step, "r-8f21a0");
+      expect(within(row).getByTestId("loop-run-child-run-status")).toHaveTextContent("Running");
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should keep a running child's clock ticking after the page clock stops", async () => {
+    // A detached child outlives its parent: the parent page's clock is frozen
+    // (here at 0), and the child's elapsed time must not freeze with it.
+    const { Harness, cleanup, fixtures } = await childReadHarness({ clockLive: false, nowMs: 0 });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      // The child started six minutes before the story clock and the page clock
+      // is frozen at 0, so a reading of at least six minutes can only come from
+      // the child's own live clock. How far past six depends on the suite's pace.
+      await waitFor(() => {
+        const meta = within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-meta");
+        const reading = /1 of 4 steps · (\d+)m (\d+)s/.exec(meta.textContent ?? "");
+        expect(reading).not.toBeNull();
+        expect(Number(reading![1]) * 60 + Number(reading![2])).toBeGreaterThanOrEqual(360);
+      });
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+});
+
 // Component-owned dialog and diff behavior formerly exercised through Storybook E2E.
 // Keep these in the canonical run-page suite; real daemon journeys remain in web/e2e.
 describe("Loop run dialogs and diff", () => {

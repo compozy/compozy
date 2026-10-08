@@ -11,6 +11,7 @@ import type { LoopDagColumn, LoopDagNode, LoopRunDagModel } from "../../../lib/l
 import type { LoopNodeSelection } from "../../../lib/loop-run-registers-view";
 import { LOOP_PROGRESS_SEGMENT_CLASS } from "../loop-progress-segment-class";
 import { LoopNodeStateChip } from "../loop-node-state-chip";
+import { LoopDagChildLine } from "./loop-dag-child-line";
 import type { LoopRunRosterRead } from "../loop-run-page-body";
 
 interface LoopRunDagProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
@@ -165,6 +166,7 @@ function LoopDagCard({
           <span className="font-mono text-mono-id text-faint">{node.attemptLabel}</span>
         ) : null}
       </span>
+      {node.childRunId ? <LoopDagChildLine runId={node.childRunId} /> : null}
       {node.note ? (
         <span className="text-form-hint leading-snug text-faint">{node.note}</span>
       ) : null}

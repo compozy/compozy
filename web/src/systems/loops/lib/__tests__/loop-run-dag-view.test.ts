@@ -82,6 +82,16 @@ describe("loopRosterStateChip", () => {
     expect(notTaken.glyph).toBe("idle");
   });
 
+  it("Should give awaiting child its own glyph so it never reads as pending", () => {
+    const awaitingChild = loopRosterStateChip("awaiting_child");
+    const pending = loopRosterStateChip("pending");
+
+    expect(awaitingChild.label).toBe("awaiting child");
+    expect(awaitingChild.glyph).toBe("delegated");
+    expect(awaitingChild.glyph).not.toBe(pending.glyph);
+    expect(awaitingChild.form).not.toBe(pending.form);
+  });
+
   it("Should degrade an unrecognised state without printing it", () => {
     const chip = loopRosterStateChip("some_future_state");
     expect(chip.label).toBe("unknown");

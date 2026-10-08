@@ -6,6 +6,7 @@ import { Link } from "@tanstack/react-router";
 
 import type { LoopNodeLink, LoopNodePanelModel } from "../../../lib/loop-node-panel-view";
 import { LoopNodeStateChip } from "../loop-node-state-chip";
+import { LoopRunChildRuns } from "../loop-run-child-runs";
 
 interface LoopNodePanelProps {
   panel: LoopNodePanelModel;
@@ -64,6 +65,11 @@ function LoopNodeLinkRow({ link }: { link: LoopNodeLink }) {
 }
 
 export function LoopNodePanel({ panel, actions }: LoopNodePanelProps) {
+  // The panel is where one step is read in full, so the child it started is
+  // shown open here rather than behind the disclosure the step list keeps shut.
+  const childRuns = panel.links.flatMap(link =>
+    link.kind === "child-run" ? [{ key: link.id, runId: link.id, slotLabel: null }] : []
+  );
   return (
     <Panel data-node-id={panel.nodeId} data-testid="loop-node-panel" title={panel.nodeId}>
       <div className="flex flex-col gap-3 px-4 py-3.5">
@@ -81,6 +87,8 @@ export function LoopNodePanel({ panel, actions }: LoopNodePanelProps) {
             </span>
           ) : null}
         </div>
+
+        <LoopRunChildRuns childRuns={childRuns} defaultOpen />
 
         {panel.neverMaterialized ? (
           <p className="text-small-body text-muted" data-testid="loop-node-panel-never">

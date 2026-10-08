@@ -7,6 +7,7 @@ import { StateGlyph, type StateGlyphState } from "../state-glyph";
 const STATES: StateGlyphState[] = [
   "running",
   "queued",
+  "delegated",
   "done",
   "attention",
   "failed",
@@ -39,6 +40,7 @@ describe("StateGlyph", () => {
   it.each([
     ["failed", "text-danger"],
     ["stopped", "text-subtle"],
+    ["delegated", "text-info"],
   ] as const)("Should paint the %s state with %s", (state, toneClass) => {
     const { container } = render(<StateGlyph state={state} />);
     expect(container.querySelector('[data-slot="state-glyph"]')).toHaveClass(toneClass);

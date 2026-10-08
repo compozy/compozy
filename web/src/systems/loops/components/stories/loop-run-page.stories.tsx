@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, waitFor, within } from "storybook/test";
 
 import { useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
@@ -46,6 +47,12 @@ import {
 } from "./loop-run-lifecycle-fixtures";
 import { pendingReviewRequest } from "../../mocks";
 import {
+  NESTED_STORY_WORKSPACE_ID,
+  nestedChildRunHandlers,
+  nestedLoopsScenario,
+  nestedWaveScenario,
+} from "./loop-run-nested-fixtures";
+import {
   exhaustedScenario,
   ratchetRestoreScenario,
   scoredBestScenario,
@@ -66,8 +73,11 @@ function ScenarioPage({
   inspectInitiallyOpen = false,
   requestState,
   prunedSessionIds,
+  workspaceId,
 }: {
   scenario: LoopRunStoryScenario;
+  /** Scopes the reads a story serves over MSW (child runs). */
+  workspaceId?: string;
   inspectInitiallyOpen?: boolean;
   requestState?: LoopRunRequestState;
   /** Stages the retention degrade the live page reads from the session store. */
@@ -112,6 +122,7 @@ function ScenarioPage({
         onNodeSelectionChange={setNodeSelection}
         prunedSessionIds={prunedSessionIds}
         requestState={requestState}
+        workspaceId={workspaceId}
       />
     </div>
   );
@@ -394,4 +405,58 @@ export const RegisterRetryingRoster: Story = {
 export const RegisterNoSteps: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={registerNoStepsScenario()} inspectInitiallyOpen />,
+};
+
+/** Issue #705: a fan-out whose branches are child runs, three still owed. */
+export const NestedLoops: Story = {
+  args: {},
+  parameters: { msw: { handlers: nestedChildRunHandlers } },
+  render: () => (
+    <LoopRunPageStory scenario={nestedLoopsScenario()} workspaceId={NESTED_STORY_WORKSPACE_ID} />
+  ),
+};
+
+/** The disclosure opened, and the billing batch's own child opened a level down. */
+export const NestedLoopsExpanded: Story = {
+  args: {},
+  parameters: { msw: { handlers: nestedChildRunHandlers } },
+  render: () => (
+    <LoopRunPageStory scenario={nestedLoopsScenario()} workspaceId={NESTED_STORY_WORKSPACE_ID} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("loop-run-child-runs-toggle"));
+    // The billing batch's own child appears once that row has read its roster.
+    const nested = await waitFor(() => {
+      const closed = canvas
+        .getAllByTestId("loop-run-child-runs-toggle")
+        .find(toggle => toggle.getAttribute("aria-expanded") === "false");
+      if (!closed) throw new Error("nested child runs not read yet");
+      return closed;
+    });
+    await userEvent.click(nested);
+    await canvas.findByText("review-one-file");
+  },
+};
+
+/**
+ * The graph from the issue: `wave` waits on its child beside steps nothing has
+ * reached, and its panel reads the child — and the child's child — in place.
+ */
+export const NestedWaveGraph: Story = {
+  args: {},
+  parameters: { msw: { handlers: nestedChildRunHandlers } },
+  render: () => (
+    <LoopRunPageStory
+      inspectInitiallyOpen
+      scenario={nestedWaveScenario()}
+      workspaceId={NESTED_STORY_WORKSPACE_ID}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByTestId("loop-dag-child-line");
+    await userEvent.click(await canvas.findByTestId("loop-dag-node-wave"));
+    await canvas.findByTestId("loop-node-panel");
+  },
 };

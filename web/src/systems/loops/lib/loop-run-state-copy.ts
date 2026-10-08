@@ -108,7 +108,8 @@ const LOOP_ROSTER_STATE_TONES = {
 
 /**
  * The shell-rail state glyphs: queued and parked-on-another-node work is a
- * dashed ring, the live state spins, a gate holding for a person is the
+ * dashed ring, work parked inside a child run it started is the delegated ring
+ * (so it never reads as `pending`), the live state spins, a gate holding for a person is the
  * attention dot, and the settled-but-not-cleanly states carry the failed mark.
  * Paused and canceled read as stopped; a branch the run declined stays idle.
  */
@@ -119,7 +120,7 @@ const LOOP_ROSTER_STATE_GLYPHS = {
   retrying: "queued",
   waiting: "queued",
   paused: "stopped",
-  awaiting_child: "queued",
+  awaiting_child: "delegated",
   control_pending: "attention",
   awaiting_goal: "queued",
   succeeded: "done",
