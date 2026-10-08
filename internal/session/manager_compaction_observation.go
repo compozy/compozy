@@ -70,46 +70,63 @@ type compactionPersistedState struct {
 	originTurn         string
 }
 
+// readCompactionLifecycle folds the persisted lifecycle of one compaction id. It
+// reads only compaction snapshots, compaction attribution rows, and the request
+// rows of the originating turn through the indexed event type, so its cost
+// follows the number of compactions rather than the transcript size.
 func readCompactionLifecycle(
 	ctx context.Context,
 	recorder EventRecorder,
 	id, turnID string,
 ) (compactionPersistedState, error) {
-	rows, err := recorder.Query(ctx, store.EventQuery{})
 	state := compactionPersistedState{originTurn: turnID}
+	snapshots, err := recorder.Query(ctx, store.EventQuery{Type: acp.EventTypeCompaction})
 	if err != nil {
-		return state, fmt.Errorf("session: read compaction lifecycle: %w", err)
+		return state, fmt.Errorf("session: read compaction snapshots: %w", err)
 	}
-	for _, row := range rows {
-		if row.Type != acp.EventTypeCompaction && row.Type != events.SessionCompactionFired {
-			continue
-		}
+	for _, row := range snapshots {
 		stored, err := transcript.UnmarshalAgentEvent(row.Content)
 		if err != nil {
 			return state, err
 		}
-		if row.Type == events.SessionCompactionFired {
-			var fired CompactionFiredPayload
-			if err := json.Unmarshal(stored.Raw, &fired); err != nil {
-				return state, err
-			}
-			if fired.CompactionID == id {
-				state.payload = fired
-				state.attributed = true
-			}
-		} else if stored.Compaction != nil {
-			if stored.Compaction.CompactionID == id && state.firstSequence == 0 {
-				state.originTurn = row.TurnID
-			}
-			state.observeSnapshot(stored.Compaction, row.Sequence, id)
+		if stored.Compaction == nil {
+			continue
+		}
+		if stored.Compaction.CompactionID == id && state.firstSequence == 0 {
+			state.originTurn = row.TurnID
+		}
+		state.observeSnapshot(stored.Compaction, row.Sequence, id)
+	}
+	fired, err := recorder.Query(ctx, store.EventQuery{Type: events.SessionCompactionFired})
+	if err != nil {
+		return state, fmt.Errorf("session: read compaction attribution: %w", err)
+	}
+	for _, row := range fired {
+		stored, err := transcript.UnmarshalAgentEvent(row.Content)
+		if err != nil {
+			return state, err
+		}
+		var payload CompactionFiredPayload
+		if err := json.Unmarshal(stored.Raw, &payload); err != nil {
+			return state, err
+		}
+		if payload.CompactionID == id {
+			state.payload = payload
+			state.attributed = true
 		}
 	}
-	for _, row := range rows {
-		if row.Type == sessionCompactionRequestedEvent && row.TurnID == state.originTurn {
-			state.requested = true
-			break
-		}
+	if state.originTurn == "" {
+		return state, nil
 	}
+	requests, err := recorder.Query(ctx, store.EventQuery{
+		Type:   sessionCompactionRequestedEvent,
+		TurnID: state.originTurn,
+		Limit:  1,
+	})
+	if err != nil {
+		return state, fmt.Errorf("session: read compaction request: %w", err)
+	}
+	state.requested = len(requests) > 0
 	return state, nil
 }
 
