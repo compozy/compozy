@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -121,6 +123,17 @@ func requiredCmdPaletteID(value string, noun string) (string, error) {
 		return "", withCommandExitCode(2, fmt.Errorf("cli: %s is required", noun))
 	}
 	return trimmed, nil
+}
+
+// canonicalCmdPaletteCommandID resolves a retired palette command ID to its
+// replacement with a stderr warning. Public aliases are removed in v0.5.0.
+func canonicalCmdPaletteCommandID(cmd *cobra.Command, id string) string {
+	replacement, retired := corecmds.RetiredCommandID(cmdpalette.CommandID(id))
+	if !retired {
+		return id
+	}
+	cmd.PrintErrf("warning: command %q is deprecated and will be removed in v0.5.0; use %q\n", id, replacement)
+	return string(replacement)
 }
 
 func requiredCmdPaletteAlias(value string) (string, error) {
