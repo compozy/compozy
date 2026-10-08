@@ -13,9 +13,6 @@ import { LoopRunChildRuns } from "./loop-run-child-runs";
 
 interface LoopRunStepRowProps extends Omit<ComponentProps<"li">, "children"> {
   step: LoopStepRow;
-  /** Scopes the child-run reads a step that started loops opens. */
-  workspaceId: string;
-  nowMs: number;
 }
 
 /**
@@ -83,13 +80,7 @@ function LoopStepFanOutBand({ band, className, ...props }: LoopStepFanOutBandPro
   );
 }
 
-export function LoopRunStepRow({
-  step,
-  workspaceId,
-  nowMs,
-  className,
-  ...props
-}: LoopRunStepRowProps) {
+export function LoopRunStepRow({ step, className, ...props }: LoopRunStepRowProps) {
   return (
     <li
       className={cn(
@@ -117,7 +108,7 @@ export function LoopRunStepRow({
           ) : null}
         </div>
         {step.fanOut ? <LoopStepFanOutBand band={step.fanOut} /> : null}
-        <LoopRunChildRuns childRuns={step.childRuns} nowMs={nowMs} workspaceId={workspaceId} />
+        <LoopRunChildRuns childRuns={step.childRuns} />
       </div>
       <span className="shrink-0">
         {step.fanOut ? (

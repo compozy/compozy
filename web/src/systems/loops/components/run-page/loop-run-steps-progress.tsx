@@ -18,10 +18,6 @@ interface LoopRunStepsProgressProps {
   doneWhen?: string;
   /** How much of the roster the step list below was built from. */
   reach?: LoopRosterReach;
-  /** Scopes the child-run reads a step that started loops opens. */
-  workspaceId: string;
-  /** The page clock a live child's elapsed time measures against. */
-  nowMs: number;
 }
 
 /**
@@ -38,8 +34,6 @@ export function LoopRunStepsProgress({
   goal,
   doneWhen,
   reach,
-  workspaceId,
-  nowMs,
 }: LoopRunStepsProgressProps) {
   // The served counts above stay exact whatever the roster read (SI-12). The step
   // list below is built from the roster itself, so a partial read makes it short —
@@ -103,12 +97,7 @@ export function LoopRunStepsProgress({
           {rows.length > 0 ? (
             <ul className="mt-4 flex flex-col" data-testid="loop-run-step-list" id={listId}>
               {rows.map(step => (
-                <LoopRunStepRow
-                  key={step.key}
-                  nowMs={nowMs}
-                  step={step}
-                  workspaceId={workspaceId}
-                />
+                <LoopRunStepRow key={step.key} step={step} />
               ))}
             </ul>
           ) : null}

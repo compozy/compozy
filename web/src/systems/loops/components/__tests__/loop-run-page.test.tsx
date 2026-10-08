@@ -2014,7 +2014,7 @@ describe("LoopRunStepsProgress fold", () => {
   }
 
   it("Should hide quiet rows behind a counted summary and keep the way ahead visible", () => {
-    render(<LoopRunStepsProgress nowMs={0} progress={routedProgress()} workspaceId="" />);
+    render(<LoopRunStepsProgress progress={routedProgress()} />);
 
     expect(screen.getByTestId("loop-run-step-review")).toBeInTheDocument();
     // Reachable-but-unstarted is where the run is going; it never folds.
@@ -2033,7 +2033,7 @@ describe("LoopRunStepsProgress fold", () => {
   });
 
   it("Should bring the folded rows back in graph order, not as an appendix", async () => {
-    render(<LoopRunStepsProgress nowMs={0} progress={routedProgress()} workspaceId="" />);
+    render(<LoopRunStepsProgress progress={routedProgress()} />);
 
     await userEvent.click(screen.getByTestId("loop-run-step-fold-toggle"));
 
@@ -2057,31 +2057,57 @@ describe("LoopRunStepsProgress fold", () => {
   });
 });
 
-// Invariant (#705): a step that started loop runs keeps them one disclosure away —
-// closed by default, and opening it reads each child's status, current step and
-// elapsed time from the child's own detail and roster routes.
+// Invariant (#705): a step that started loop runs reads where each child is —
+// the inputs that set it apart, its status, the step it is on, why and for how
+// long, and how far through it is — closed by default in Progress, open in the
+// node panel, compact on the graph card, and a level down for a child's own
+// children. Every reading comes from the child's own detail, briefing and roster.
 // Owner: run-page components composed with useLoopChildRun and MSW I/O.
-describe("LoopRunStepsProgress child runs", () => {
-  it("Should read each child run's status, step and elapsed time once opened", async () => {
+describe("Nested child runs", () => {
+  async function childReadHarness() {
     const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
     const { createMswFetch } = await import("@/test/msw-fetch");
-    const { nestedChildRunHandlers, nestedLoopsScenario, NESTED_STORY_WORKSPACE_ID } =
-      await import("../stories/loop-run-nested-fixtures");
+    const fixtures = await import("../stories/loop-run-nested-fixtures");
     const { STORY_NOW } = await import("../stories/loop-run-page-fixture-world");
+    const { LoopRunChildReadContext } = await import("../../hooks/use-loop-run-child-read");
     vi.stubGlobal(
       "fetch",
-      createMswFetch(() => nestedChildRunHandlers)
+      createMswFetch(() => fixtures.nestedChildRunHandlers)
     );
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const progress = buildScenarioProps(nestedLoopsScenario()).registers.progress!;
+    function Harness({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>
+          <LoopRunChildReadContext
+            value={{ workspaceId: fixtures.NESTED_STORY_WORKSPACE_ID, nowMs: STORY_NOW }}
+          >
+            {children}
+          </LoopRunChildReadContext>
+        </QueryClientProvider>
+      );
+    }
+    const cleanup = () => {
+      client.clear();
+      vi.unstubAllGlobals();
+    };
+    return { Harness, cleanup, fixtures };
+  }
+
+  function childRow(scope: HTMLElement, runId: string) {
+    const row = within(scope)
+      .getAllByTestId("loop-run-child-run")
+      .find(element => element.getAttribute("data-child-run-id") === runId);
+    if (!row) throw new Error(`no row for ${runId}`);
+    return row;
+  }
+
+  it("Should read each child's inputs, status, step and time once Progress opens them", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
     const rendered = render(
-      <QueryClientProvider client={client}>
-        <LoopRunStepsProgress
-          nowMs={STORY_NOW}
-          progress={progress}
-          workspaceId={NESTED_STORY_WORKSPACE_ID}
-        />
-      </QueryClientProvider>
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
     );
     try {
       const step = screen.getByTestId("loop-run-step-fix_batch");
@@ -2091,52 +2117,149 @@ describe("LoopRunStepsProgress child runs", () => {
         )
       ).toBeVisible();
       const toggle = within(step).getByTestId("loop-run-child-runs-toggle");
-      expect(toggle).toHaveTextContent("3 child runs");
+      expect(toggle).toHaveTextContent("4 child runs");
       expect(toggle).toHaveAttribute("aria-expanded", "false");
       expect(within(step).queryAllByTestId("loop-run-child-run")).toHaveLength(0);
 
       await userEvent.click(toggle);
       expect(toggle).toHaveAttribute("aria-expanded", "true");
 
-      const row = (runId: string) =>
-        within(step)
-          .getAllByTestId("loop-run-child-run")
-          .find(element => element.getAttribute("data-child-run-id") === runId)!;
       await waitFor(() =>
-        expect(within(row("r-d40e17")).getByTestId("loop-run-child-run-meta")).toHaveTextContent(
-          "4 of 4 steps · 9m 00s"
-        )
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At run tests")
       );
-      await waitFor(() =>
-        expect(within(row("r-8f21a0")).getByTestId("loop-run-child-run-step")).toHaveTextContent(
-          "At run tests"
-        )
-      );
-      const working = row("r-8f21a0");
-      expect(within(working).getByTestId("loop-run-child-run-status")).toHaveTextContent("Running");
-      expect(within(working).getByTestId("loop-run-child-run-meta")).toHaveTextContent(
-        "1 of 4 steps · 6m 00s"
+      const working = childRow(step, "r-8f21a0");
+      // Siblings run the same loop; their inputs are what tell them apart.
+      expect(within(working).getByTestId("loop-run-child-run-inputs")).toHaveTextContent(
+        "batch: api · files: 4"
       );
       expect(within(working).getByTestId("loop-run-child-run-link")).toHaveTextContent(
         "fix-one-batch"
       );
-      await waitFor(() =>
-        expect(within(row("r-3b9c55")).getByTestId("loop-run-child-run-step")).toHaveTextContent(
-          "At finalize round — waiting for your decision"
-        )
+      expect(within(working).getByTestId("loop-run-child-run-status")).toHaveTextContent("Running");
+      expect(within(working).getByTestId("loop-run-child-run-on-step")).toHaveTextContent(
+        "2m 00s on this step"
       );
-      expect(within(row("r-3b9c55")).getByTestId("loop-run-child-run-status")).toHaveTextContent(
+      expect(within(working).getByTestId("loop-run-child-run-meta")).toHaveTextContent(
+        "1 of 4 steps · 6m 00s"
+      );
+
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-3b9c55")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At finalize round — waiting for your decision")
+      );
+      const stuck = childRow(step, "r-3b9c55");
+      expect(within(stuck).getByTestId("loop-run-child-run-status")).toHaveTextContent(
         "Needs approval"
       );
-      // A settled child is not on any step; its status and count say it all.
-      expect(within(row("r-d40e17")).getByTestId("loop-run-child-run-step")).toHaveTextContent("");
-      expect(within(row("r-d40e17")).getByTestId("loop-run-child-run-status")).toHaveTextContent(
-        "Done"
+      // The stuck child's time on its step keeps growing past its frozen run clock.
+      expect(within(stuck).getByTestId("loop-run-child-run-on-step")).toHaveTextContent(
+        "47m 00s on this step"
+      );
+
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-d40e17")).getByTestId("loop-run-child-run-meta")
+        ).toHaveTextContent("4 of 4 steps · 9m 00s")
+      );
+      const done = childRow(step, "r-d40e17");
+      expect(within(done).getByTestId("loop-run-child-run-status")).toHaveTextContent("Done");
+      expect(within(done).getByTestId("loop-run-child-run-step")).toHaveTextContent("");
+
+      // A child waiting on a loop of its own opens it a level down.
+      const parent = await waitFor(() => {
+        const row = childRow(step, "r-5c71e2");
+        within(row).getByTestId("loop-run-child-runs-toggle");
+        return row;
+      });
+      const nestedToggle = within(parent).getByTestId("loop-run-child-runs-toggle");
+      expect(nestedToggle).toHaveTextContent("1 child run");
+      await userEvent.click(nestedToggle);
+      await waitFor(() =>
+        expect(
+          within(childRow(parent, "r-9e04aa")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At judge")
+      );
+      const grandchild = childRow(parent, "r-9e04aa");
+      expect(grandchild).toHaveAttribute("data-depth", "1");
+      expect(within(grandchild).getByTestId("loop-run-child-run-link")).toHaveTextContent(
+        "review-one-file"
       );
     } finally {
       rendered.unmount();
-      client.clear();
-      vi.unstubAllGlobals();
+      cleanup();
+    }
+  });
+
+  it("Should tell awaiting child from pending on the graph and read the child on its card", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const scenario = fixtures.nestedWaveScenario();
+    const props = buildScenarioProps(scenario);
+    const dag = buildRunDag({
+      graph: props.graph,
+      nodes: scenario.rosterNodes ?? [],
+      rollups: [],
+      round: 1,
+    });
+    const rendered = render(
+      <Harness>
+        <LoopRunDag dag={dag} onSelect={vi.fn()} selection={null} />
+      </Harness>
+    );
+    try {
+      const glyph = (nodeId: string) =>
+        screen.getByTestId(`loop-dag-node-${nodeId}`).querySelector('[data-slot="state-glyph"]');
+      expect(glyph("wave")).toHaveAttribute("data-state", "delegated");
+      expect(glyph("wave_ok")).toHaveAttribute("data-state", "queued");
+
+      const wave = screen.getByTestId("loop-dag-node-wave");
+      const line = await within(wave).findByTestId("loop-dag-child-line");
+      await waitFor(() => expect(line).toHaveTextContent("fix batch9m 00s"));
+      expect(line).toHaveAttribute(
+        "title",
+        "Child run run-one-wave is at fix batch — waiting on a child run, 9m 00s on this step"
+      );
+      // Cards with no child carry no child line.
+      expect(
+        within(screen.getByTestId("loop-dag-node-wave_ok")).queryByTestId("loop-dag-child-line")
+      ).toBeNull();
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should open the child in the node panel without asking", async () => {
+    const { Harness, cleanup, fixtures } = await childReadHarness();
+    const { buildNodePanel } = await import("../../lib/loop-node-panel-view");
+    const { LoopNodePanel } = await import("../run-page/inspect/loop-node-panel");
+    const scenario = fixtures.nestedWaveScenario();
+    const wave = (scenario.rosterNodes ?? []).find(node => node.node_id === "wave")!;
+    const panel = buildNodePanel({ node: wave, graph: buildScenarioProps(scenario).graph });
+    const rendered = render(
+      <Harness>
+        <LoopNodePanel panel={panel} />
+      </Harness>
+    );
+    try {
+      const panelEl = screen.getByTestId("loop-node-panel");
+      expect(within(panelEl).getByTestId("loop-run-child-runs-toggle")).toHaveAttribute(
+        "aria-expanded",
+        "true"
+      );
+      await waitFor(() =>
+        expect(
+          within(childRow(panelEl, "r-wave02")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("At fix batch — waiting on a child run")
+      );
+      expect(
+        within(childRow(panelEl, "r-wave02")).getByTestId("loop-run-child-run-inputs")
+      ).toHaveTextContent('batches: ["api","billing"] · wave: 2');
+    } finally {
+      rendered.unmount();
+      cleanup();
     }
   });
 });

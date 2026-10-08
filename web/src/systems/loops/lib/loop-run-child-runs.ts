@@ -1,7 +1,8 @@
-import type { LoopRosterNode, LoopRunRecord, LoopStepProgress } from "../types";
+import type { LoopNodeWait, LoopRosterNode, LoopRunRecord, LoopStepProgress } from "../types";
 import { isTerminalLoopStatus } from "./loop-formatters";
-import { type LoopStateChip, loopRosterStateChip } from "./loop-run-state-copy";
-import { runElapsedSeconds } from "./loop-run-usage";
+import { humanizeLoopNodeId } from "./loop-node-labels";
+import { type LoopStateChip, loopParkReason, loopRosterStateChip } from "./loop-run-state-copy";
+import { formatClockDuration, runElapsedSeconds } from "./loop-run-usage";
 
 /**
  * A child run, as its parent step sees it.
@@ -83,9 +84,19 @@ const CURRENT_STEP_RANK = new Map<string, number>(
 
 export interface LoopChildRunCurrentStep {
   nodeId: string;
+  /** The step as a reader names it: "hold for release". */
+  name: string;
   chip: LoopStateChip;
   /** Other steps live at the same time, counted rather than listed. */
   alsoActive: number;
+  /** " — paused · 1 more active": why it sits there, when it is parked. */
+  detail: string;
+  /**
+   * How long the child has been on this step, from the step's own start. It
+   * keeps counting while the step is parked: a child stuck for an hour must read
+   * an hour, which the run clock cannot say once it freezes at the last progress.
+   */
+  onStepSeconds: number | null;
 }
 
 /** The served round when the briefing has answered; the roster's latest otherwise. */
@@ -94,10 +105,34 @@ function currentRound(progress: LoopStepProgress | null, nodes: readonly LoopRos
   return nodes.reduce((latest, node) => Math.max(latest, node.generation), 0);
 }
 
+function secondsSince(iso: string | null | undefined, nowMs: number): number | null {
+  if (!iso) return null;
+  const started = Date.parse(iso);
+  if (Number.isNaN(started)) return null;
+  return Math.max(0, Math.round((nowMs - started) / 1000));
+}
+
+/** The durable wait cells a step parks in; a wait step has no roster start of its own. */
+export type LoopChildRunWait = Pick<LoopNodeWait, "node_id" | "item_index" | "created_at">;
+
+/**
+ * When the step began: the roster's start, or — for a step parked in a durable
+ * wait, which the roster does not time — when its wait cell was created.
+ */
+function stepStartedAt(node: LoopRosterNode, waits: readonly LoopChildRunWait[]): string | null {
+  if (node.started_at) return node.started_at;
+  const wait = waits.find(
+    cell => cell.node_id === node.node_id && cell.item_index === node.item_index
+  );
+  return wait?.created_at ?? null;
+}
+
 export function childRunCurrentStep(
   status: string,
   progress: LoopStepProgress | null,
-  nodes: readonly LoopRosterNode[]
+  nodes: readonly LoopRosterNode[],
+  nowMs: number,
+  waits: readonly LoopChildRunWait[] = []
 ): LoopChildRunCurrentStep | null {
   if (isTerminalLoopStatus(status)) return null;
   const round = currentRound(progress, nodes);
@@ -119,10 +154,15 @@ export function childRunCurrentStep(
     }
   }
   if (!lead) return null;
+  const alsoActive = live.size - 1;
+  const parkReason = loopParkReason(lead.state);
   return {
     nodeId: lead.node_id,
+    name: humanizeLoopNodeId(lead.node_id),
     chip: loopRosterStateChip(lead.state),
-    alsoActive: live.size - 1,
+    alsoActive,
+    detail: `${parkReason ? ` — ${parkReason}` : ""}${alsoActive > 0 ? ` · ${alsoActive} more active` : ""}`,
+    onStepSeconds: secondsSince(stepStartedAt(lead, waits), nowMs),
   };
 }
 
@@ -135,6 +175,30 @@ export interface LoopChildRunSummary {
   /** "1 of 4 steps" from the child's briefing; empty before it has any. */
   progressLabel: string;
   elapsedSeconds: number;
+  /** "1 of 4 steps · 6m 00s" — the count and the clock, as the row prints them. */
+  metaLabel: string;
+  /** "12m 03s on this step" while the child sits on a step; empty otherwise. */
+  onStepLabel: string;
+  /**
+   * Loop runs the child itself started in its current round — the next level of
+   * a nested loop, opened the same way one level down.
+   */
+  childRuns: LoopStepChildRun[];
+}
+
+/** The runs a child started in the round it is on, named by the step that started them. */
+function grandchildRuns(round: number, nodes: readonly LoopRosterNode[]): LoopStepChildRun[] {
+  const slots: LoopStepChildRunSlot[] = [];
+  for (const node of nodes) {
+    if (node.generation !== round) continue;
+    slots.push({
+      key: `${node.node_id}:${node.item_index}`,
+      childRunId: node.child_loop_run_id ?? null,
+      slotLabel: node.node_id,
+      itemIndex: node.item_index,
+    });
+  }
+  return stepChildRuns(slots);
 }
 
 /**
@@ -151,14 +215,25 @@ export function buildChildRunSummary(
   run: LoopRunRecord,
   progress: LoopStepProgress | null,
   nodes: readonly LoopRosterNode[],
-  nowMs: number
+  nowMs: number,
+  waits: readonly LoopChildRunWait[] = []
 ): LoopChildRunSummary {
+  const label = progressLabel(progress);
+  const elapsedSeconds = runElapsedSeconds(run, nowMs);
+  const clock = formatClockDuration(elapsedSeconds);
+  const currentStep = childRunCurrentStep(run.status, progress, nodes, nowMs, waits);
   return {
     runId: run.id,
     loopName: run.loop_name,
     status: run.status,
-    currentStep: childRunCurrentStep(run.status, progress, nodes),
-    progressLabel: progressLabel(progress),
-    elapsedSeconds: runElapsedSeconds(run, nowMs),
+    currentStep,
+    progressLabel: label,
+    elapsedSeconds,
+    metaLabel: label ? `${label} · ${clock}` : clock,
+    onStepLabel:
+      currentStep?.onStepSeconds == null
+        ? ""
+        : `${formatClockDuration(currentStep.onStepSeconds)} on this step`,
+    childRuns: grandchildRuns(currentRound(progress, nodes), nodes),
   };
 }

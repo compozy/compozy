@@ -1,5 +1,5 @@
 import { useProfileReadScope } from "@/systems/profiles";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 
 import { type LoopChildRunSummary, buildChildRunSummary } from "../lib/loop-run-child-runs";
 import {
@@ -36,8 +36,38 @@ export function useLoopChildRun(
   const run = detail.data?.run ?? null;
   const nodes = roster.data?.pages[0]?.nodes ?? [];
   return {
-    summary: run ? buildChildRunSummary(run, briefing.data?.progress ?? null, nodes, nowMs) : null,
+    summary: run
+      ? buildChildRunSummary(
+          run,
+          briefing.data?.progress ?? null,
+          nodes,
+          nowMs,
+          // A step parked in a durable wait is timed by its wait cell.
+          detail.data?.waits ?? []
+        )
+      : null,
     isLoading: detail.isPending,
     isError: detail.isError,
   };
+}
+
+/**
+ * The inputs each listed child was started with, for telling siblings apart.
+ *
+ * The same detail options the rows read, so the list and its rows share one
+ * cache entry per child rather than reading each child twice.
+ */
+export function useLoopChildRunInputs(
+  workspaceId: string,
+  runIds: readonly string[]
+): { runId: string; inputs: Record<string, unknown> | null }[] {
+  const { params } = useProfileReadScope();
+  return useQueries({
+    queries: runIds.map(runId => loopRunDetailOptions(workspaceId, runId, true, params)),
+    combine: results =>
+      results.map((result, index) => ({
+        runId: runIds[index],
+        inputs: result.data?.run.inputs ?? null,
+      })),
+  });
 }
