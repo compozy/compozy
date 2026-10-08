@@ -4,8 +4,8 @@ area: MS
 title: Create and install surfaces inherit menubar destination
 persona: Dora
 journey: J-31
-expected: Agent, session, task, job, trigger, MCP install, and knowledge create surfaces show a `workspace-scope-statement` footer note derived from the menubar Global switch. There are no destination pills, RadioCards, or `config_scope` search params. Global create omits `workspace` (sessions bind the hidden home id or `workspace_path` without flipping the menubar). Workspace create sends the project id. Knowledge list tabs stay filters; create follows the menubar unless the Agent tab is selected. Settings → Skills Global|Agent is a different axis and stays local.
-entry_points: web New agent; New session; New task; New job/trigger; Marketplace MCP install; Knowledge create
+expected: Agent, session, task, job, trigger, and MCP install create surfaces show a `workspace-scope-statement` footer note derived from the menubar Global switch. There are no destination pills, RadioCards, or `config_scope` search params. Global create omits `workspace` (sessions bind the hidden home id or `workspace_path` without flipping the menubar). Workspace create sends the project id. Settings → Skills Global|Agent is a different axis and stays local.
+entry_points: web New agent; New session; New task; New job/trigger; Marketplace MCP install
 qa_status: skipped
 bug_ids:
 fix_status:
@@ -33,3 +33,5 @@ src: web/src/systems/workspace/components/workspace-scope-statement.tsx; web/src
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-07 (memory removal): the Knowledge create surface was removed with the Knowledge app, so the Knowledge legs of the dated walks above are historical; the other create surfaces are unchanged. The skip above still stands.

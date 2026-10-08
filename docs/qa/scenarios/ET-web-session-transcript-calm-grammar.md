@@ -62,7 +62,7 @@ quiet transcript and long-history navigation walk. Find must search unloaded old
 history, load its context, open the containing fold and preserve query focus while
 new output streams. The full-history message trail must show one operator-message
 tick (compressed beyond its threshold), preview the message and final reply, and
-jump under user scroll ownership. Include no-matches, archive/compaction invalidation,
+jump under user scroll ownership. Include no-matches, rewind-archive invalidation,
 and return-to-bottom states. Backend search/outline parity and workspace denial pass
 in memory/task_08.md of the owning spec; these checks do not verify browser behavior.
 Historical evidence above remains scoped to the earlier grammar. New visual acceptance

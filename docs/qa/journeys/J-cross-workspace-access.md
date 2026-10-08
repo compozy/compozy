@@ -52,7 +52,7 @@ journey:
   value_statement: "An agent can work across workspace boundaries when its operator allows it, is blocked deterministically when they don't, and a healthy event store gives the operator an audit trail of the decisions."
   personas: [Ada, Bruno]
   entry_points:
-    - url: "compozy__workspace_info / compozy__memory_* / compozy__task_run_claim_next with a foreign workspace input"
+    - url: "compozy__workspace_info / compozy__task_list / compozy__task_run_claim_next with a foreign workspace input"
       origin: direct
     - url: "compozy task next --workspace / compozy spawn --workspace"
       origin: direct

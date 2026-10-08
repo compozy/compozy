@@ -19,7 +19,7 @@ charter:
       - "Find text outside the loaded tail in a session with at least 3,000 entries; advance matches and inspect the exact expanded tool or reasoning content."
       - "Keep find focused while new output arrives; try no matches, Unicode and a match beyond a truncated output preview."
       - "Hover message-trail previews, jump to an earlier operator message, inspect compressed ticks and return to live output."
-      - "Reload and repeat after history compaction; compare the destination and message identity with public transcript/search reads."
+      - "Reload and repeat after a conversation rewind archives earlier rows; compare the destination and message identity with public transcript/search reads."
     must_avoid:
       - "Treating a turn-level jump as an exact tool-field match, or using synthetic component data as evidence of persisted history navigation."
 ```

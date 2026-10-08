@@ -27,7 +27,7 @@ flowchart TD
     SPEED --> STABLE
     STATUS --> TTL[After five minutes or periodic tick → refresh in background while stale rows remain usable]
     TTL --> RESTART[Daemon restart → rehydrate persisted live, builtin, and config sources]
-    RESTART --> READBACK[Fresh cross-surface list CLI/HTTP/UDS/native shows persisted curation; compozy status schema_streams reports global+memory Goose heads and digests — true_end_state]
+    RESTART --> READBACK[Fresh cross-surface list CLI/HTTP/UDS/native shows persisted curation; compozy status schema_streams reports the global Goose head and digest — true_end_state]
     REFRESH -.->|refresh failure| STALE[Prior rows kept, marked stale — never emptied]
 ```
 

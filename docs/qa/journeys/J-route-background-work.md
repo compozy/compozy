@@ -46,7 +46,7 @@ journey:
   actions:
     - step: 1
       verb: "Read the effective role routing"
-      expected_observable: "All six roles expose deterministic builtin or inherited defaults and the selected scope provenance."
+      expected_observable: "Both roles (coordinator, auto_title) expose deterministic builtin or inherited defaults and the selected scope provenance."
     - step: 2
       verb: "Change one global or workspace role, including an ordered fallback when needed"
       expected_observable: "A valid write becomes live for new work; an invalid value names the exact path and preserves the last good configuration."

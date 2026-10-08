@@ -18,7 +18,7 @@ charter:
     must_try:
       - "Seed once, seed twice with replace, and compare the reported and independently read counts."
       - "Start the real daemon, inspect Loop history through HTTP, and verify that reconciliation does not promote, cancel, or rewrite imported rows."
-      - "Inspect Goal turns, the linked Git worktree, memory, task outcomes, and workspace isolation through public read surfaces."
+      - "Inspect Goal turns, the linked Git worktree, task outcomes, and workspace isolation through public read surfaces."
       - "Attempt replace against an unowned directory and confirm the command refuses it without deleting content."
     must_avoid:
       - "Do not decide the verdict from direct SQLite inspection alone; use it only as an independent confirmation after public-surface reads."

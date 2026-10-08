@@ -62,3 +62,5 @@ user instruction; the existing SQLite/overview tests and CI own validation for t
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-07 (memory removal): the System zone renders five tiles (daemon, providers, scheduler, hooks, retention); the Memory tile and `status.memory` were removed, and Activity no longer folds `memory.*` events as quiet (historical `memory.*` rows still within retention render as ordinary rows). The skip above still stands; the next cycle that walks this scenario should expect five tiles.

@@ -76,3 +76,7 @@ e2e_backbone:
   integration: ["_tests.md integration 4, 10, 12-13, 18, and 26"]
   scenarios: [GL-017, GL-018, GL-019, GL-020, GL-021, GL-038, GL-040]
 ```
+
+## Memory-removal note (2026-10-07)
+
+The "correlated compact operation" branch sends the command the agent advertises (`/compact`, else `/compress`) as a maintenance prompt; success is the observed terminal `completed` compaction, and an agent advertising neither takes the existing reseed branch. CompozyOS applies no threshold of its own: `[goals] context_nudge_ratio` is the only proactive trigger. See RT-session-compact-real-adapters for the real-adapter walk.
