@@ -278,19 +278,55 @@ describe("useAutomationsPage", () => {
     expect(mocks.updateJob).not.toHaveBeenCalled();
   });
 
-  it("Should open the editor for a create deep link and strip its params", async () => {
-    const { result } = renderHook(() => useAutomationsPage({ create: "1", start: "event" }), {
+  it("Should open the editor for a create deep link and strip its params when it closes", async () => {
+    const { result } = renderHook(() => useAutomationsPage({ create: 1, start: "event" }), {
       wrapper: wrapper(),
     });
     await waitFor(() => expect(result.current.editorDialogProps.editor).not.toBeNull());
     expect(result.current.editorDialogProps.editor?.draft.start).toBe("event");
+    expect(mocks.navigate.mock.calls.some(([call]) => call.replace === true)).toBe(false);
+
+    act(() => result.current.editorDialogProps.editor?.onCancel());
+
+    await waitFor(() =>
+      expect(mocks.navigate.mock.calls.some(([call]) => call.replace === true)).toBe(true)
+    );
     const strip = mocks.navigate.mock.calls.find(([call]) => call.replace === true)?.[0];
-    expect(strip.search({ create: "1", start: "event", q: "x" })).toEqual({
+    expect(strip.search({ create: 1, start: "event", q: "x" })).toEqual({
       create: undefined,
       loop: undefined,
       start: undefined,
       q: "x",
     });
+    expect(result.current.editorDialogProps.editor).toBeNull();
+  });
+
+  // F1 (QA walk): a cold load mounts the page before the lens settles and may
+  // remount it while the window hydrates. The link must survive both.
+  it("F1 keeps a cold-loaded create link open across a lens change and a remount", async () => {
+    const search = { create: "loop", start: "schedule", loop: "software-delivery" } as const;
+    const first = renderHook(() => useAutomationsPage(search), { wrapper: wrapper() });
+    await waitFor(() => expect(first.result.current.editorDialogProps.editor).not.toBeNull());
+
+    // The desktop's project binds after the first resolution: the editor resets, then reopens.
+    mocks.activeWorkspaceId = "ws_other";
+    first.rerender();
+    await waitFor(() =>
+      expect(first.result.current.editorDialogProps.editor?.draft).toMatchObject({
+        workspace_id: "ws_other",
+        loop_target: expect.objectContaining({ loop_name: "software-delivery" }),
+      })
+    );
+
+    // The window remounts its page: the URL still carries the link, so it opens again.
+    first.unmount();
+    const second = renderHook(() => useAutomationsPage(search), { wrapper: wrapper() });
+    await waitFor(() => expect(second.result.current.editorDialogProps.editor).not.toBeNull());
+    expect(second.result.current.editorDialogProps.editor).toMatchObject({
+      lockedLoop: "software-delivery",
+      draft: { start: "schedule" },
+    });
+    expect(mocks.navigate.mock.calls.some(([call]) => call.replace === true)).toBe(false);
   });
 
   it("Should offer suggestions only for an empty unfiltered workspace listing", async () => {
@@ -313,7 +349,7 @@ describe("useAutomationsPage", () => {
     expect(aggregate.result.current.suggestionsWorkspaceId).toBeNull();
   });
 
-  it("UT-106 opens a Loop seed with Does fixed and never reopens once the params are gone", async () => {
+  it("UT-106 opens a Loop seed with Does fixed and strips it when the operator closes", async () => {
     const { result, rerender } = renderHook(
       ({ search }: { search: Parameters<typeof useAutomationsPage>[0] }) =>
         useAutomationsPage(search),
@@ -333,6 +369,12 @@ describe("useAutomationsPage", () => {
         loop_target: expect.objectContaining({ loop_name: "software-delivery" }),
       },
     });
+
+    // The operator closes it: the params leave the URL, and it stays closed.
+    act(() => result.current.editorDialogProps.editor?.onCancel());
+    await waitFor(() =>
+      expect(mocks.navigate.mock.calls.some(([call]) => call.replace === true)).toBe(true)
+    );
     const strip = mocks.navigate.mock.calls.find(([call]) => call.replace === true)?.[0];
     expect(
       strip.search({
@@ -342,17 +384,13 @@ describe("useAutomationsPage", () => {
         scope: "workspace",
       })
     ).toEqual({ create: undefined, loop: undefined, start: undefined, scope: "workspace" });
-
-    // The stripped URL arrives, then the operator closes the dialog: it stays closed.
-    rerender({ search: {} as never });
-    act(() => result.current.editorDialogProps.editor?.onCancel());
     rerender({ search: {} as never });
     expect(result.current.editorDialogProps.editor).toBeNull();
   });
 
   it("Should open a plain create link in Global, and turn a Loop seed there into a notice", async () => {
     mocks.activeWorkspaceId = null;
-    const created = renderHook(() => useAutomationsPage({ create: "1", start: "schedule" }), {
+    const created = renderHook(() => useAutomationsPage({ create: 1, start: "schedule" }), {
       wrapper: wrapper(),
     });
     await waitFor(() => expect(created.result.current.editorDialogProps.editor).not.toBeNull());

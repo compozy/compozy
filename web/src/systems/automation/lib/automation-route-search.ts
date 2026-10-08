@@ -21,8 +21,9 @@ export interface AutomationsRouteSearch {
    * `?create=loop&loop=<name>[&start=…]` also fixes Does to that Loop;
    * `?edit=1|options` on a detail route opens Edit (at Options for "Set up retries").
    */
-  create?: "1" | "loop";
-  edit?: "1" | AutomationEditorSection;
+  /** Numeric so the router keeps `create=1` (a string "1" would serialize as `"1"`). */
+  create?: 1 | "loop";
+  edit?: 1 | AutomationEditorSection;
 }
 
 /** What a `create` deep link asks the editor to open with. */
@@ -36,7 +37,7 @@ export interface AutomationEditorSeed {
 /** The editor request a `create` deep link carries, or `null`. */
 export function automationEditorSeed(search: AutomationsRouteSearch): AutomationEditorSeed | null {
   const start: AutomationStart = search.start ?? "schedule";
-  if (search.create === "1") return { key: `create:${start}`, start };
+  if (search.create === 1) return { key: `create:${start}`, start };
   if (search.create === "loop" && search.loop) {
     return { key: `loop:${search.loop}:${start}`, start, loop: search.loop };
   }
@@ -88,13 +89,13 @@ export function parseAutomationTarget(value: unknown): AutomationDoes | undefine
 
 function parseCreate(value: unknown): AutomationsRouteSearch["create"] {
   if (value === "loop") return "loop";
-  if (value === "1" || value === 1 || value === true) return "1";
+  if (value === "1" || value === 1 || value === true) return 1;
   return undefined;
 }
 
 function parseEdit(value: unknown): AutomationsRouteSearch["edit"] {
   if (value === "options") return "options";
-  if (value === "1" || value === 1 || value === true) return "1";
+  if (value === "1" || value === 1 || value === true) return 1;
   return undefined;
 }
 
@@ -128,7 +129,7 @@ export function validateAutomationsSearch(raw: Record<string, unknown>): Automat
 }
 
 /** One-shot editor deep link on a detail route: `edit=options` opens Edit at Options. */
-export type AutomationDetailEditParam = "1" | "options";
+export type AutomationDetailEditParam = 1 | "options";
 
 /**
  * Detail route search: the listing state Back restores (inherited from the
@@ -143,7 +144,7 @@ export function validateAutomationDetailSearch(
 ): AutomationDetailRouteSearch {
   const { create: _create, ...listing } = validateAutomationsSearch(raw);
   const edit =
-    raw.edit === "options" ? "options" : raw.edit === "1" || raw.edit === 1 ? "1" : undefined;
+    raw.edit === "options" ? "options" : raw.edit === "1" || raw.edit === 1 ? 1 : undefined;
   return edit ? { ...listing, edit } : listing;
 }
 
