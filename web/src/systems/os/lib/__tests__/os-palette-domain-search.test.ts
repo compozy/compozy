@@ -63,8 +63,11 @@ describe("os-palette-domain-search helpers", () => {
       pathname: "/loops/Release%20%2F%20Ops",
       search: { workspace: "ws-a" },
     });
-    expect(jobRoute("job-42")).toEqual({ pathname: "/jobs/job-42", search: {} });
-    expect(triggerRoute("trigger-42")).toEqual({ pathname: "/triggers/trigger-42", search: {} });
+    expect(jobRoute("job-42")).toEqual({ pathname: "/automations/jobs/job-42", search: {} });
+    expect(triggerRoute("trigger-42")).toEqual({
+      pathname: "/automations/triggers/trigger-42",
+      search: {},
+    });
     expect(agentRoute("agent/ops")).toEqual({ pathname: "/agents/agent%2Fops", search: {} });
     expect(terminalRoute("term/4f21")).toEqual({
       pathname: "/terminal/term%2F4f21",

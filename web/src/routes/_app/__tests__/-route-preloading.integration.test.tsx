@@ -229,8 +229,8 @@ import { Route as AgentDetailRoute } from "../agents.$name.index";
 import { Route as AgentSettingsRoute } from "../agents.$name.settings";
 import { Route as AgentsRoute } from "../agents.index";
 import { Route as HomeRoute } from "../index";
-import { Route as JobDetailRoute } from "../jobs.$jobId";
-import { Route as JobsRoute } from "../jobs";
+import { Route as JobDetailRoute } from "../automations.jobs.$jobId";
+import { Route as AutomationsRoute } from "../automations";
 import { Route as KnowledgeRoute } from "../knowledge";
 import { Route as LoopRunDetailRoute } from "../loop-runs.$runId";
 import { Route as LoopRunsRoute } from "../loop-runs";
@@ -239,8 +239,7 @@ import { Route as LoopEditorRoute } from "../loops.$name.editor";
 import { Route as LoopRunFormRoute } from "../loops.$name.run";
 import { Route as LoopDetailRoute } from "../loops.$name";
 import { Route as LoopsRoute } from "../loops";
-import { Route as TriggersRoute } from "../triggers";
-import { Route as TriggerDetailRoute } from "../triggers.$triggerId";
+import { Route as TriggerDetailRoute } from "../automations.triggers.$triggerId";
 import { Route as TasksRoute } from "../tasks";
 import { Route as TaskDetailRoute } from "../tasks.$id";
 import { preloadTaskRunRoute } from "../-tasks-preload";
@@ -515,9 +514,9 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.listVaultSecrets],
   },
   {
-    name: "jobs → exact filtered infinite catalog options",
+    name: "automations scheduled view → exact filtered jobs catalog options",
     load: queryClient =>
-      invokeLoader(JobsRoute, {
+      invokeLoader(AutomationsRoute, {
         ...context(queryClient),
         deps: {
           enabled: false,
@@ -525,7 +524,9 @@ const cases: PreloadCase[] = [
           q: "review",
           scope: "workspace" as const,
           source: "package" as const,
+          start: "schedule" as const,
         },
+        location: { pathname: "/automations" },
       }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
@@ -543,30 +544,32 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.listAutomationJobs],
   },
   {
-    name: "triggers → exact filtered infinite catalog options",
+    name: "automations event view → exact filtered triggers catalog options",
     load: queryClient =>
-      invokeLoader(TriggersRoute, {
+      invokeLoader(AutomationsRoute, {
         ...context(queryClient),
         deps: {
           enabled: true,
-          event: "ext.github.push",
           loop: "delivery",
           q: "review",
           scope: "workspace" as const,
           source: "dynamic" as const,
+          start: "event" as const,
+          target: "loop" as const,
         },
+        location: { pathname: "/automations" },
       }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
         useAutomationTriggers({
           enabled: true,
-          event: "ext.github.push",
           limit: 50,
           loop: "delivery",
           q: "review",
           scope: "workspace",
           source: "dynamic",
+          target: "loop",
           workspace_id: workspace.id,
         });
       }),
@@ -939,12 +942,13 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
-  it("Should skip workspace suggestions when the jobs route is globally scoped", async () => {
+  it("Should skip workspace suggestions when the automations route is globally scoped", async () => {
     const queryClient = createQueryClient();
 
-    await invokeLoader(JobsRoute, {
+    await invokeLoader(AutomationsRoute, {
       ...context(queryClient),
-      deps: { scope: "global" as const },
+      deps: { scope: "global" as const, start: "schedule" as const },
+      location: { pathname: "/automations" },
     });
 
     expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
@@ -977,19 +981,22 @@ describe("route query preloading", () => {
   it("Should preload pending suggestions only for an unfiltered zero-inventory catalog", async () => {
     const queryClient = createQueryClient();
 
-    await invokeLoader(JobsRoute, {
+    await invokeLoader(AutomationsRoute, {
       ...context(queryClient),
       deps: {},
+      location: { pathname: "/automations" },
     });
     await waitFor(() => expect(adapterMocks.listAutomationSuggestions).toHaveBeenCalledTimes(1));
 
     const unmount = mountQueries(queryClient, () => {
       useAutomationJobs({ limit: 50 });
+      useAutomationTriggers({ limit: 50 });
       useAutomationSuggestions(workspace.id, "pending");
     });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
     expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.listAutomationTriggers).toHaveBeenCalledTimes(1);
     expect(adapterMocks.listAutomationSuggestions).toHaveBeenCalledTimes(1);
     unmount();
     queryClient.clear();
@@ -1016,9 +1023,10 @@ describe("route query preloading", () => {
     const queryClient = createQueryClient();
     adapterMocks.listAutomationJobs.mockResolvedValueOnce(jobs);
 
-    await invokeLoader(JobsRoute, {
+    await invokeLoader(AutomationsRoute, {
       ...context(queryClient),
       deps,
+      location: { pathname: "/automations" },
     });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
@@ -1036,9 +1044,10 @@ describe("route query preloading", () => {
     adapterMocks.listAutomationJobs.mockReturnValueOnce(jobsRequest.promise);
 
     await expect(
-      invokeLoader(JobsRoute, {
+      invokeLoader(AutomationsRoute, {
         ...context(queryClient),
-        deps: { scope: "global" as const },
+        deps: { scope: "global" as const, start: "schedule" as const },
+        location: { pathname: "/automations" },
       })
     ).resolves.toBeUndefined();
 
