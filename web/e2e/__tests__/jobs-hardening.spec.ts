@@ -55,6 +55,7 @@ async function enableCronExpressionEditing(
 
 interface AutomationJob {
   id: string;
+  last_run?: { id: string; status: AutomationRun["status"] } | null;
   agent_name: string;
   enabled: boolean;
   name: string;
@@ -463,6 +464,9 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
   expect(
     parity.cliHistory.runs.some(run => run.id === failedRun.id && run.status === "failed")
   ).toBe(true);
+  // E2E-008: the list carries the latest run, equal to the first run of the runs route.
+  const listed = parity.cliList.jobs.find(item => item.id === job.id);
+  expect(listed?.last_run).toMatchObject({ id: parity.httpRuns.runs[0]?.id, status: "failed" });
 
   await assertJobsViewportMatrix(appPage, browserArtifacts, runtime, job.id);
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);
@@ -694,10 +698,12 @@ async function captureJobParity(runtime: BrowserRuntime, jobID: string, runID: s
     "50",
   ]);
   const cliRun = await automationCLI<AutomationRun>(runtime, ["automation", "runs", "get", runID]);
+  const cliList = await automationCLI<JobsResponse>(runtime, ["automation", "jobs"]);
   const health = await getAutomationHealth(runtime);
   return {
     cliGet,
     cliHistory,
+    cliList,
     cliRun,
     health,
     http,

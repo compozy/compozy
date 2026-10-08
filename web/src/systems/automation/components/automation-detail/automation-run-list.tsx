@@ -126,7 +126,9 @@ function RunRow({ view, open, onOpenToggle, onSetUpRetries, className, ...props 
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-small-body text-muted">
           <MetaIcon aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
-          <span className="min-w-0 truncate">{view.meta.text}</span>
+          <span className="min-w-0 truncate" data-tone="neutral">
+            {view.meta.text}
+          </span>
           {view.meta.monoId ? (
             <span className="shrink-0 font-mono text-mono-id text-subtle">{view.meta.monoId}</span>
           ) : null}
@@ -157,6 +159,7 @@ function RunRow({ view, open, onOpenToggle, onSetUpRetries, className, ...props 
               "text-small-body leading-relaxed",
               line.tone === "danger" ? "text-danger" : "text-muted"
             )}
+            data-tone={line.tone}
             key={line.id}
           >
             {line.text}

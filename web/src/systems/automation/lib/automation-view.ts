@@ -178,7 +178,14 @@ export function automationTimeStat(view: AutomationView): { value: string | null
 export function automationLocationLabel(
   view: Pick<AutomationView, "scope" | "workspaceId" | "workspaceName">
 ): string {
-  if (view.scope !== "workspace") return automationScopeLabel(view.scope);
-  const name = view.workspaceName ?? view.workspaceId;
-  return name ? `Project ${name}` : automationScopeLabel(view.scope);
+  const { lead, name } = automationLocationSegments(view);
+  return name ? `${lead} ${name}` : lead;
+}
+
+/** Segment form of the location label, so surfaces can emphasize the project name. */
+export function automationLocationSegments(
+  view: Pick<AutomationView, "scope" | "workspaceId" | "workspaceName">
+): { lead: string; name?: string } {
+  const name = view.scope === "workspace" ? (view.workspaceName ?? view.workspaceId) : undefined;
+  return name ? { lead: "Project", name } : { lead: automationScopeLabel(view.scope) };
 }

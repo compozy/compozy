@@ -40,7 +40,11 @@ function PromptPreview({ prompt, templated }: { prompt: string; templated: boole
   return (
     <>
       <div className="mt-2 rounded-lg border border-line-soft bg-sunken px-3 py-2.5 font-mono text-form-hint leading-relaxed whitespace-pre-wrap text-fg-2">
-        <div className={cn(!open && "line-clamp-3")} data-testid="automation-prompt-preview">
+        <div
+          className={cn(!open && "line-clamp-3")}
+          data-expanded={open}
+          data-testid="automation-prompt-preview"
+        >
           {templated
             ? tokenizeTemplate(prompt).map(token =>
                 token.type === "var" ? (

@@ -66,6 +66,21 @@ export const dependencyReviewJob = makeDetailJob({
   updated_at: "2026-10-01T12:00:00Z",
 });
 
+export const nightlyDeliveryJob = makeDetailJob({
+  id: "nightly-delivery",
+  name: "nightly-delivery",
+  agent_name: "",
+  prompt: "",
+  schedule: { mode: "cron", expr: "0 2 * * *" },
+  scheduler: { job_id: "nightly-delivery", registered: true },
+  target_kind: "loop",
+  loop_target: {
+    workspace_id: WORKSPACE_ID,
+    loop_name: "software-delivery",
+    inputs: { target_branch: "main" },
+  },
+});
+
 export const releaseChecklistJob = makeDetailJob({
   id: "release-checklist",
   name: "release-checklist",

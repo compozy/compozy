@@ -1,9 +1,10 @@
 export type LoopBindingKind = "schedule" | "webhook" | "trigger";
 
+/** Plain kind words (board VC-04, COPY.md Automations aliases): schedule · event · link. */
 const BINDING_KIND_LABEL: Record<LoopBindingKind, string> = {
   schedule: "schedule",
-  webhook: "webhook",
-  trigger: "trigger",
+  webhook: "link",
+  trigger: "event",
 };
 
 /**

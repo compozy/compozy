@@ -8,7 +8,6 @@ import {
   automationCliHint,
   automationDoesWord,
   automationStartWord,
-  describeScheduleStarts,
   isAutomationTrigger,
   type AutomationEntity,
 } from "../../lib/automation-detail";
@@ -18,7 +17,7 @@ import {
   describeRetryPlain,
 } from "../../lib/automation-formatters";
 import { describeTriggerWhen } from "../../lib/automation-rule";
-import type { SentenceContext } from "../../lib/automation-sentence";
+import { describeSchedule, type SentenceContext } from "../../lib/automation-sentence";
 import { projectAutomationTarget } from "../../lib/automation-target";
 import { automationLocationLabel, type AutomationView } from "../../lib/automation-view";
 import type { AutomationJob, AutomationTrigger } from "../../types";
@@ -93,11 +92,10 @@ function ScheduleSection({
   sentenceContext: SentenceContext;
   lastRanAt: string | null;
 }) {
-  const starts = describeScheduleStarts(job, sentenceContext);
   const policy = job.scheduler?.catch_up_policy ?? job.schedule?.catch_up_policy;
   return (
     <RailSection data-testid="automation-rail-schedule" icon={CalendarClock} title="Schedule">
-      <PropertyRow label="Repeats">{starts.headline}</PropertyRow>
+      <PropertyRow label="Repeats">{describeSchedule(job.schedule, sentenceContext)}</PropertyRow>
       <PropertyRow label="Time zone">{sentenceContext.timeZone?.trim() || "UTC"}</PropertyRow>
       <PropertyRow label="Missed runs">{catchUpPolicyLabel(policy)}</PropertyRow>
       <PropertyRow label="Last run">{lastRanAt ? <Time iso={lastRanAt} /> : "—"}</PropertyRow>
@@ -119,7 +117,12 @@ function PublicLinkSections({ trigger }: { trigger: AutomationTrigger }) {
             size="sm"
             tone={broken ? "danger" : reachability === "live" ? "success" : "faint"}
           />
-          <span className={broken ? "text-danger" : undefined}>{copy.label}</span>
+          <span
+            className={broken ? "text-danger" : undefined}
+            data-tone={broken ? "danger" : "neutral"}
+          >
+            {copy.label}
+          </span>
         </PropertyRow>
         <PropertyRow label="Confirmed">
           {ingress?.confirmed_at ? <Time iso={ingress.confirmed_at} /> : "—"}

@@ -158,8 +158,8 @@ function LoopBindingsLoadMore({
       ) : null}
       {triggers?.hasMore ? (
         <LoadMoreButton
-          idleLabel="Load more triggers"
-          loadingLabel="Loading triggers…"
+          idleLabel="Load more event automations"
+          loadingLabel="Loading event automations…"
           pagination={triggers}
           testId="loop-bindings-load-more-triggers"
         />

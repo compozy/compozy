@@ -32,6 +32,7 @@ export function AutomationValueBadge({
         fill && "block w-full truncate",
         className
       )}
+      data-tone={tone}
       {...props}
     >
       {value}
