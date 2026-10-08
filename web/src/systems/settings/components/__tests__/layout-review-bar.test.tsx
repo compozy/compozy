@@ -28,7 +28,7 @@ import { LayoutReviewBar } from "../layouts/layout-review-bar";
 const INITIAL: WindowManagerLayoutState = {
   revision: 7,
   document: {
-    version: 4,
+    version: 5,
     workspaceId: "workspace-a",
     desktops: [
       {

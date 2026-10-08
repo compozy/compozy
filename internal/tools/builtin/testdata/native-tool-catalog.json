@@ -993,7 +993,7 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "2a5c1bf037c660e2bcea0fd067b616cc68e854a9c5ade36a11958f9a7835e958",
+    "input_schema_digest": "015818c92f78135058384894ae52ee8b2e9702483025168789410a5108adea47",
     "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
@@ -1153,7 +1153,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "822b70f4870cd1085de51c58e4769f23daf38c9bfadf2566a51ab22925ec11b0",
+    "input_schema_digest": "110ff6496336fa5789bd3e73039e553a1dadd12d9b81d5025194e48544d60f97",
     "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
     "required_capabilities": [
       "window_manager.read"

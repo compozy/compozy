@@ -59,7 +59,7 @@ function snapshotFrame() {
     workspace_id: "workspace:test",
     revision: 4,
     snapshot: {
-      version: 4,
+      version: 5,
       workspace_id: "workspace:test",
       revision: 4,
       desktops: [

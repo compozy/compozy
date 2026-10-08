@@ -42,7 +42,7 @@ function zoomedWindow(id: string): WindowManagerLayoutWindow {
 describe("LayoutCanvasBoardBar", () => {
   it("Should render the calculated visible zoom count", () => {
     const document: WindowManagerLayoutDocument = {
-      version: 4,
+      version: 5,
       workspaceId: "workspace-a",
       desktops: [DESKTOP],
       windows: {

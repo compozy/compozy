@@ -40,7 +40,7 @@ function windowAt(id: string, desktopId: string) {
 
 function documentWith(desktop: WindowManagerLayoutDesktop): WindowManagerLayoutDocument {
   return {
-    version: 4,
+    version: 5,
     workspaceId: "workspace-a",
     desktops: [desktop],
     windows: {
