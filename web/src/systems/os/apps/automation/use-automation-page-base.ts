@@ -7,29 +7,19 @@ import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 
 import {
+  AutomationApiError,
   automationListLoopFilter,
   automationRouteHasActiveFilters,
-  type AutomationRouteSearch,
+  automationsStartView,
+  type AutomationDoes,
+  type AutomationScope,
+  type AutomationSource,
+  type AutomationsRouteSearch,
 } from "@/systems/automation";
 
 import { automationCreateSeedLogic } from "./automation-create-seed-store";
-import {
-  AutomationApiError,
-  type AutomationScopeFilter,
-  type AutomationSource,
-  type CreateAutomationJobRequest,
-  type CreateAutomationTriggerRequest,
-} from "@/systems/automation";
 import { type SettingsAutomationSection, useSettingsAutomation } from "@/systems/settings";
 import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
-
-export type JobEditorState =
-  | { draft: CreateAutomationJobRequest; mode: "create" }
-  | { draft: CreateAutomationJobRequest; id: string; mode: "edit" };
-
-export type TriggerEditorState =
-  | { draft: CreateAutomationTriggerRequest; mode: "create" }
-  | { draft: CreateAutomationTriggerRequest; id: string; mode: "edit" };
 
 /** Pre-target seed for opening the create sheet aimed at one Loop (§9.14 CTAs). */
 export interface AutomationCreateSeed {
@@ -37,44 +27,30 @@ export interface AutomationCreateSeed {
   loop?: string;
 }
 
+const UNAVAILABLE_OFF =
+  "Automations are turned off. Turn on automations in Settings, then restart CompozyOS.";
+const UNAVAILABLE_TRANSIENT =
+  "CompozyOS couldn't load your automations right now. Try again in a moment.";
+
+/** Runtime-off or daemon 503: the one reason automations can't be read or operated. */
 export function automationUnavailableMessage(
-  kind: "jobs" | "triggers",
   runtime: SettingsAutomationSection["runtime"] | null,
-  error: Error | null
+  ...errors: (Error | null | undefined)[]
 ): string | null {
-  if (runtime && !runtime.available) {
-    const noun = kind === "jobs" ? "Jobs" : "Triggers";
-    return `${noun} are turned off. Turn on automations in Settings, then restart CompozyOS.`;
+  if (runtime && !runtime.available) return UNAVAILABLE_OFF;
+  if (errors.some(error => error instanceof AutomationApiError && error.status === 503)) {
+    return UNAVAILABLE_TRANSIENT;
   }
-
-  if (error instanceof AutomationApiError && error.status === 503) {
-    const noun = kind === "jobs" ? "jobs" : "triggers";
-    return `CompozyOS couldn't load your ${noun} right now. Try again in a moment.`;
-  }
-
   return null;
 }
 
-/** List-level error: runtime-unavailable wins, then the query error — only when no rows loaded. */
-export function automationListError(
-  runtimeUnavailableMessage: string | null,
-  queryError: Error | null,
-  itemCount: number
-): Error | null {
-  if (itemCount > 0) return null;
-  if (runtimeUnavailableMessage) return new Error(runtimeUnavailableMessage);
-  return queryError;
-}
-
 /**
- * Consumes the one-shot `?create=loop&loop=` deep-link shared by the Jobs and
- * Triggers routes. Waits for the active workspace before opening the create
- * editor (the loop-target draft binds workspace scope), then strips the
- * consumed params so a cancel or reload does not re-open the dialog and the
- * list is not silently filtered by `loop`.
+ * Consumes the one-shot `?create=loop&loop=` deep link. Waits for the active
+ * workspace before opening the create editor (the loop-target draft binds
+ * workspace scope), then strips the consumed params so a cancel or reload does
+ * not re-open the dialog and the list is not silently filtered by `loop`.
  */
 export function useAutomationCreateSeed(
-  kind: "jobs" | "triggers",
   seed: AutomationCreateSeed,
   activeWorkspaceId: string | null | undefined,
   openLoopCreate: (loop: string) => void
@@ -90,52 +66,42 @@ export function useAutomationCreateSeed(
         void navigate({
           replace: true,
           search: current => ({
-            ...(current as AutomationRouteSearch),
+            ...(current as AutomationsRouteSearch),
             create: undefined,
             loop: undefined,
+            start: undefined,
           }),
-          to: kind === "jobs" ? "/jobs" : "/triggers",
+          to: "/automations",
         });
       },
     });
-  }, [activeWorkspaceId, kind, navigate, openLoopCreate, seed.loop, store]);
+  }, [activeWorkspaceId, navigate, openLoopCreate, seed.loop, store]);
 }
 
 /**
- * Shared catalog base for the Jobs and Triggers list routes. Owns URL-driven
- * search/filter state, the active workspace context, and the runtime health
- * gate. Detail selection lives in the `$jobId`/`$triggerId` child routes.
+ * URL-driven listing state for `/automations`: Start view, search, facets and
+ * display mode, plus the active workspace and the runtime health gate. The
+ * list filters never carry `start`; a Start view only decides which list loads.
  */
-export function useAutomationPageBase(
-  kind: "jobs" | "triggers",
-  search: AutomationRouteSearch = {}
-) {
+export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
   const navigate = useNavigate();
   const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
   const settingsQuery = useSettingsAutomation();
 
-  const scopeFilter = search.scope ?? "all";
-  const routeSearchQuery = search.q ?? "";
+  const start = automationsStartView(search) ?? null;
   const view: ListingViewMode = search.view ?? "rows";
-  const sourceFilter = search.source ?? null;
-  const enabledFilter = search.enabled ?? null;
-  const eventFilter = search.event ?? null;
 
-  const scopedWorkspaceId =
-    scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
-
-  const updateSearch = (updates: Partial<AutomationRouteSearch>) => {
+  const updateSearch = (updates: Partial<AutomationsRouteSearch>) => {
     void navigate({
-      search: current => ({ ...(current as AutomationRouteSearch), ...updates }),
-      to: kind === "jobs" ? "/jobs" : "/triggers",
+      search: current => ({ ...(current as AutomationsRouteSearch), ...updates }),
+      to: "/automations",
     });
   };
 
   const searchInput = useDebouncedInput({
-    externalValue: routeSearchQuery,
+    externalValue: search.q ?? "",
     onCommit: q => updateSearch({ q: normalizeListingSearchValue(q) }),
   });
-  const searchQuery = searchInput.draftValue;
   const committedSearchQuery = normalizeListingSearchValue(searchInput.committedValue);
 
   const listFilters = {
@@ -143,65 +109,51 @@ export function useAutomationPageBase(
     enabled: search.enabled,
     loop: automationListLoopFilter(search),
     q: committedSearchQuery,
-    scope: scopeFilter === "all" ? undefined : scopeFilter,
+    scope: search.scope,
     source: search.source,
-    workspace_id: scopedWorkspaceId,
+    target: search.target,
+    workspace_id: search.scope === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
   };
 
-  const setSearchQuery = searchInput.setDraftValue;
-  const setScopeFilter = (scope: AutomationScopeFilter | null) =>
-    updateSearch({ scope: scope && scope !== "all" ? scope : undefined });
-  const setSourceFilter = (source: AutomationSource | null) =>
-    updateSearch({ source: source ?? undefined });
-  const setEnabledFilter = (enabled: boolean | null) =>
-    updateSearch({ enabled: enabled ?? undefined });
-  const setEventFilter = (event: string | null) =>
-    updateSearch({ event: event && event.trim() !== "" ? event.trim() : undefined });
-  const setView = (nextView: ListingViewMode) =>
-    updateSearch({ view: nextView === "rows" ? undefined : nextView });
   const clearFilters = () => {
     searchInput.reset("");
     updateSearch({
       enabled: undefined,
-      event: undefined,
+      loop: search.create === "loop" ? search.loop : undefined,
       q: undefined,
       scope: undefined,
       source: undefined,
+      start: undefined,
+      target: undefined,
     });
   };
-
-  const hasActiveFilters = automationRouteHasActiveFilters({
-    create: search.create,
-    enabled: enabledFilter ?? undefined,
-    event: eventFilter ?? undefined,
-    loop: search.loop,
-    q: searchQuery,
-    scope: scopeFilter,
-    source: sourceFilter ?? undefined,
-  });
 
   return {
     activeWorkspace,
     activeWorkspaceId,
     automationRuntime: settingsQuery.data?.runtime ?? null,
     clearFilters,
-    enabledFilter,
-    eventFilter,
-    hasActiveFilters,
+    enabledFilter: search.enabled ?? null,
+    hasActiveFilters: automationRouteHasActiveFilters({ ...search, q: searchInput.draftValue }),
     listFilters,
-    scopeFilter,
-    searchQuery,
-    setEnabledFilter,
-    setEventFilter,
-    setScopeFilter,
-    setSearchQuery,
-    setSourceFilter,
-    setView,
-    sourceFilter,
+    loopFilter: automationListLoopFilter(search) ?? null,
+    scopeFilter: search.scope ?? null,
+    searchQuery: searchInput.draftValue,
+    setEnabledFilter: (enabled: boolean | null) => updateSearch({ enabled: enabled ?? undefined }),
+    setLoopFilter: (loop: string | null) => updateSearch({ loop: loop ?? undefined }),
+    setScopeFilter: (scope: AutomationScope | null) => updateSearch({ scope: scope ?? undefined }),
+    setSearchQuery: searchInput.setDraftValue,
+    setSourceFilter: (source: AutomationSource | null) =>
+      updateSearch({ source: source ?? undefined }),
+    setStart: (next: "schedule" | "event" | null) => updateSearch({ start: next ?? undefined }),
+    setTargetFilter: (target: AutomationDoes | null) =>
+      updateSearch({ target: target ?? undefined }),
+    setView: (nextView: ListingViewMode) =>
+      updateSearch({ view: nextView === "cards" ? "cards" : undefined }),
+    sourceFilter: search.source ?? null,
+    start,
+    targetFilter: search.target ?? null,
     view,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   };
 }
-
-export { automationListLoopFilter };
-export type { AutomationRouteSearch };

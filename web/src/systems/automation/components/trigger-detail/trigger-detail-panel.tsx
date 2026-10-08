@@ -3,7 +3,7 @@ import { Zap } from "lucide-react";
 
 import { Button, PAGE_CONTENT_GUTTER, cn, useTopbarSlot } from "@compozy/ui";
 
-import { triggerEventLabel, triggerTargetName } from "../../lib/trigger-sentence";
+import { triggerEventLabel, triggerTargetName } from "../../lib/automation-rule";
 import type { AutomationRun, AutomationTrigger } from "../../types";
 import { AutomationDeleteAction } from "../automation-delete-action";
 import { TriggerDetailActions, TriggerDetailOverflow } from "./trigger-detail-actions";

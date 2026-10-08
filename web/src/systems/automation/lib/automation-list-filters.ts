@@ -1,32 +1,63 @@
 import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 
-import { automationScopeLabel, automationSourceLabel } from "./automation-formatters";
-import type { AutomationKind, AutomationScopeFilter, AutomationSource } from "../types";
+import { automationSourceLabel } from "./automation-formatters";
+import type { AutomationDoes } from "./automation-sentence";
+import type { AutomationScope, AutomationSource } from "../types";
 
+/** One value per facet, operator "is" (Business Rule 4). */
 export interface AutomationFilterState {
-  scope: AutomationScopeFilter;
-  source: AutomationSource | null;
+  target: AutomationDoes | null;
   enabled: boolean | null;
-  event: string | null;
+  scope: AutomationScope | null;
+  source: AutomationSource | null;
+  loop: string | null;
 }
 
 export interface AutomationFilterHandlers {
-  onScopeChange: (next: AutomationScopeFilter | null) => void;
-  onSourceChange: (next: AutomationSource | null) => void;
+  onTargetChange: (next: AutomationDoes | null) => void;
   onEnabledChange: (next: boolean | null) => void;
-  onEventChange: (next: string | null) => void;
+  onScopeChange: (next: AutomationScope | null) => void;
+  onSourceChange: (next: AutomationSource | null) => void;
+  onLoopChange: (next: string | null) => void;
 }
 
-const SCOPE_OPTIONS: Exclude<AutomationScopeFilter, "all">[] = ["global", "workspace"];
+export const AUTOMATION_DOES_LABELS = {
+  agent: "Ask an agent",
+  loop: "Start a Loop",
+  task: "Create a task",
+} as const satisfies Record<AutomationDoes, string>;
+
 const SOURCE_OPTIONS: AutomationSource[] = ["dynamic", "config", "package"];
 
-export function buildAutomationFilterFields(kind: AutomationKind): FilterFieldsConfig<string> {
-  const fields: FilterFieldsConfig<string> = [
+/** Facets: Does · Status · Location · Source · Loop. Start views replace the old Event filter. */
+export function buildAutomationFilterFields(): FilterFieldsConfig<string> {
+  return [
+    {
+      key: "target",
+      label: "Does",
+      type: "select",
+      options: (Object.keys(AUTOMATION_DOES_LABELS) as AutomationDoes[]).map(value => ({
+        value,
+        label: AUTOMATION_DOES_LABELS[value],
+      })),
+    },
+    {
+      key: "enabled",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "true", label: "On" },
+        { value: "false", label: "Off" },
+      ],
+    },
     {
       key: "scope",
-      label: "Scope",
+      label: "Location",
       type: "select",
-      options: SCOPE_OPTIONS.map(value => ({ value, label: automationScopeLabel(value) })),
+      options: [
+        { value: "workspace", label: "This project" },
+        { value: "global", label: "Global" },
+      ],
     },
     {
       key: "source",
@@ -34,58 +65,21 @@ export function buildAutomationFilterFields(kind: AutomationKind): FilterFieldsC
       type: "select",
       options: SOURCE_OPTIONS.map(value => ({ value, label: automationSourceLabel(value) })),
     },
-    {
-      key: "enabled",
-      label: "Status",
-      type: "select",
-      options: [
-        { value: "true", label: "Enabled" },
-        { value: "false", label: "Disabled" },
-      ],
-    },
+    { key: "loop", label: "Loop", type: "text", placeholder: "software-delivery" },
   ];
+}
 
-  if (kind === "triggers") {
-    fields.push({ key: "event", label: "Event", type: "text", placeholder: "ext.github.push" });
-  }
-
-  return fields;
+function chip(field: keyof AutomationFilterState, value: string): Filter<string> {
+  return { id: `automation-filter-${field}`, field, operator: "is", values: [value] };
 }
 
 export function automationFiltersToChips(state: AutomationFilterState): Filter<string>[] {
   const chips: Filter<string>[] = [];
-  if (state.scope !== "all") {
-    chips.push({
-      id: "automation-filter-scope",
-      field: "scope",
-      operator: "is",
-      values: [state.scope],
-    });
-  }
-  if (state.source) {
-    chips.push({
-      id: "automation-filter-source",
-      field: "source",
-      operator: "is",
-      values: [state.source],
-    });
-  }
-  if (state.enabled !== null) {
-    chips.push({
-      id: "automation-filter-enabled",
-      field: "enabled",
-      operator: "is",
-      values: [state.enabled ? "true" : "false"],
-    });
-  }
-  if (state.event) {
-    chips.push({
-      id: "automation-filter-event",
-      field: "event",
-      operator: "is",
-      values: [state.event],
-    });
-  }
+  if (state.target) chips.push(chip("target", state.target));
+  if (state.enabled !== null) chips.push(chip("enabled", state.enabled ? "true" : "false"));
+  if (state.scope) chips.push(chip("scope", state.scope));
+  if (state.source) chips.push(chip("source", state.source));
+  if (state.loop) chips.push(chip("loop", state.loop));
   return chips;
 }
 
@@ -94,24 +88,29 @@ export function applyAutomationFilterChips(
   handlers: AutomationFilterHandlers
 ): void {
   const lookup = new Map<string, string | undefined>();
-  for (const chip of chips) {
-    lookup.set(chip.field, chip.values[0]);
+  for (const entry of chips) {
+    lookup.set(entry.field, entry.values[0]);
   }
-  handlers.onScopeChange(asAutomationScope(lookup.get("scope")));
-  handlers.onSourceChange(asAutomationSource(lookup.get("source")));
-  handlers.onEnabledChange(asAutomationEnabled(lookup.get("enabled")));
-  handlers.onEventChange(lookup.get("event")?.trim() || null);
+  handlers.onTargetChange(asTarget(lookup.get("target")));
+  handlers.onEnabledChange(asEnabled(lookup.get("enabled")));
+  handlers.onScopeChange(asScope(lookup.get("scope")));
+  handlers.onSourceChange(asSource(lookup.get("source")));
+  handlers.onLoopChange(lookup.get("loop")?.trim() || null);
 }
 
-function asAutomationScope(value: string | undefined): AutomationScopeFilter | null {
+function asTarget(value: string | undefined): AutomationDoes | null {
+  return value === "agent" || value === "loop" || value === "task" ? value : null;
+}
+
+function asScope(value: string | undefined): AutomationScope | null {
   return value === "global" || value === "workspace" ? value : null;
 }
 
-function asAutomationSource(value: string | undefined): AutomationSource | null {
+function asSource(value: string | undefined): AutomationSource | null {
   return value === "config" || value === "package" || value === "dynamic" ? value : null;
 }
 
-function asAutomationEnabled(value: string | undefined): boolean | null {
+function asEnabled(value: string | undefined): boolean | null {
   if (value === "true") return true;
   if (value === "false") return false;
   return null;

@@ -67,9 +67,10 @@ let deckOpenNewTab = vi.fn();
 vi.mock("../../lib/app-registry", () => ({
   OS_APPS: {},
   getOsApp: (app: string) => ({
-    title: app === "jobs" ? "Jobs" : "Tasks",
+    title: app === "automations" ? "Jobs" : "Tasks",
     icon: () => null,
-    Controller: pendingJobsController && app === "jobs" ? PendingController : TasksController,
+    Controller:
+      pendingJobsController && app === "automations" ? PendingController : TasksController,
   }),
   getOsAppMinimum: () => ({ width: 280, height: 180 }),
   resolveAppForPath: () => null,
@@ -293,7 +294,7 @@ describe("OsWindow", () => {
   it("Should mount and unmount the deck exactly as a frame crosses the second-member boundary (UT-070, UT-071)", () => {
     windows = {
       "window:tasks": windowState(),
-      "window:jobs": windowState({ id: "window:jobs", app: "jobs", layer: 3 }),
+      "window:jobs": windowState({ id: "window:jobs", app: "automations", layer: 3 }),
     };
     const group = frameModel({
       id: "stack:main",
@@ -315,7 +316,7 @@ describe("OsWindow", () => {
   it("Should keep both member bodies mounted while only the active surface is exposed (UT-073)", () => {
     windows = {
       "window:tasks": windowState(),
-      "window:jobs": windowState({ id: "window:jobs", app: "jobs", layer: 3 }),
+      "window:jobs": windowState({ id: "window:jobs", app: "automations", layer: 3 }),
     };
     const group = frameModel({
       id: "stack:main",
@@ -347,7 +348,7 @@ describe("OsWindow", () => {
     pendingJobsController = true;
     windows = {
       "window:tasks": windowState(),
-      "window:jobs": windowState({ id: "window:jobs", app: "jobs", layer: 3 }),
+      "window:jobs": windowState({ id: "window:jobs", app: "automations", layer: 3 }),
     };
     const group = frameModel({
       id: "stack:main",

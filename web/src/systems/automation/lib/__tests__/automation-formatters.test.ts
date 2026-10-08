@@ -12,11 +12,9 @@ import {
   catchUpPolicyLabel,
   describeFireLimit,
   describeRetry,
-  describeSchedule,
   describeTrigger,
   describeTriggerFireLimit,
   describeTriggerRetry,
-  formatAutomationListSummary,
   formatDate,
   formatDateTime,
   formatPromptPreview,
@@ -78,24 +76,6 @@ describe("automation formatter helpers", () => {
     expect(formatDateTime("2026-04-11T08:10:00Z")).toContain("Apr 11, 2026");
   });
 
-  it("describes schedules for every supported mode", () => {
-    expect(describeSchedule()).toBe("Manual");
-    expect(describeSchedule({ mode: "cron", expr: "0 9 * * *" })).toBe("Every day at 09:00 UTC");
-    expect(describeSchedule({ mode: "cron", expr: "0 9 * * 1-5" })).toBe(
-      "Every weekday at 09:00 UTC"
-    );
-    expect(describeSchedule({ mode: "cron", expr: "*/15 * * * *" })).toBe("Every 15 minutes");
-    expect(describeSchedule({ mode: "cron", expr: "0 9 1-7 * 1" })).toBe("Custom schedule");
-    expect(describeSchedule({ mode: "cron" })).toBe("Custom schedule");
-    expect(describeSchedule({ mode: "every", interval: "30m" })).toBe("Every 30 minutes");
-    expect(describeSchedule({ mode: "every", interval: "1h" })).toBe("Every hour");
-    expect(describeSchedule({ mode: "every" })).toBe("Repeats on an interval");
-    expect(describeSchedule({ mode: "at", time: "2026-04-11T12:00:00Z" })).toContain(
-      "Once on Apr 11"
-    );
-    expect(describeSchedule({ mode: "at" })).toBe("Runs once");
-  });
-
   it("describes webhook and non-webhook triggers", () => {
     expect(
       describeTrigger({
@@ -139,7 +119,7 @@ describe("automation formatter helpers", () => {
     ).toBe("Review the session...");
     expect(automationRunStateGlyph("scheduled")).toBe("queued");
     expect(automationRunStateGlyph("running")).toBe("running");
-    expect(automationRunStateGlyph("delegated")).toBe("running");
+    expect(automationRunStateGlyph("delegated")).toBe("delegated");
     expect(automationRunStateGlyph("completed")).toBe("done");
     expect(automationRunStateGlyph("failed")).toBe("failed");
     expect(automationRunStateGlyph("canceled")).toBe("stopped");
@@ -169,46 +149,6 @@ describe("automation formatter helpers", () => {
         { max: 4, window: "1h" }
       )
     ).toBe("Backoff · 4 / hour");
-  });
-
-  it("formats exact totals while disclosing partially loaded pages", () => {
-    expect(
-      formatAutomationListSummary({
-        activeWorkspaceName: "alpha",
-        kind: "jobs",
-        scopeFilter: "workspace",
-        searchQuery: "",
-        totalCount: 4,
-        visibleCount: 1,
-      })
-    ).toBe("Showing 1 of 4 jobs in alpha");
-    expect(
-      formatAutomationListSummary({
-        kind: "jobs",
-        scopeFilter: "global",
-        searchQuery: "",
-        totalCount: 4,
-        visibleCount: 2,
-      })
-    ).toBe("Showing 2 of 4 global jobs");
-    expect(
-      formatAutomationListSummary({
-        kind: "jobs",
-        scopeFilter: "all",
-        searchQuery: "nightly",
-        totalCount: 4,
-        visibleCount: 2,
-      })
-    ).toBe("Showing 2 of 4 jobs matching current search");
-    expect(
-      formatAutomationListSummary({
-        kind: "triggers",
-        scopeFilter: "all",
-        searchQuery: "",
-        totalCount: 0,
-        visibleCount: 0,
-      })
-    ).toBe("0 triggers found");
   });
 
   it("labels catch-up policies and never surfaces the removed skip value", () => {
@@ -256,7 +196,7 @@ describe("automation formatter helpers", () => {
     expect(automationSkipReasonLabel("self_overlap")).toBe("Skipped");
     expect(automationSkipReasonLabel("misfire_grace_exceeded")).toBe("Missed");
     expect(automationSkipReasonTone("self_overlap")).toBe("neutral");
-    expect(automationSkipReasonTone("misfire_grace_exceeded")).toBe("warning");
+    expect(automationSkipReasonTone("misfire_grace_exceeded")).toBe("neutral");
     expect(automationSkipReasonDetail("self_overlap")).toContain("previous run");
     expect(automationSkipReasonDetail("misfire_grace_exceeded")).toContain("start window");
   });

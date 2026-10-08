@@ -8,7 +8,7 @@ import {
   describeTriggerIf,
   describeTriggerWhen,
   triggerWebhookPath,
-} from "../../lib/trigger-sentence";
+} from "../../lib/automation-rule";
 import type { EventIconKey } from "../../lib/trigger-catalog";
 import type { AutomationTrigger } from "../../types";
 import { TriggerRuleThen } from "./trigger-rule-then";

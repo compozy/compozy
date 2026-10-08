@@ -42,8 +42,7 @@ export function useOsPaletteEntitySections(
     useAgentSection(context, catalogs),
     useTaskSection(context),
     useLoopSection(context, catalogs),
-    useJobSection(context),
-    useTriggerSection(context),
+    useAutomationSection(context),
   ];
 }
 
@@ -187,60 +186,48 @@ function useLoopSection(context: OsPaletteDomainContext, catalogs: OsPaletteWork
   );
 }
 
-function useJobSection(context: OsPaletteDomainContext) {
-  const enabled = paletteDomainEnabled(context, "Jobs");
-  const jobs = useAutomationJobs(
-    paletteWorkspaceCatalogFilters(context.scope, context.workspaceId),
-    { enabled }
-  );
+function useAutomationSection(context: OsPaletteDomainContext) {
+  const enabled = paletteDomainEnabled(context, "Automations");
+  const filters = paletteWorkspaceCatalogFilters(context.scope, context.workspaceId);
+  const jobs = useAutomationJobs(filters, { enabled });
+  const triggers = useAutomationTriggers(filters, { enabled });
   usePaletteInfiniteCatalog(jobs, enabled);
-  if (context.signals === null) return EMPTY_SECTION("Jobs");
-  return section(
-    "Jobs",
-    jobs.jobs.map(job =>
-      rowSeed("Jobs", {
-        key: `job:${job.id}`,
-        label: job.name,
-        detail: job.agent_name,
-        workspaceLabel: workspaceLabel(context.scope, job.workspace_id, context.workspaceNames),
-        app: "jobs",
-        route: jobRoute(job.id),
-        ...(job.workspace_id ? { workspaceId: job.workspace_id } : {}),
-      })
-    ),
-    jobs,
-    enabled,
-    context.query,
-    context.signals,
-    { limit: context.domainLimit, catalogTotal: jobs.total }
-  );
-}
-
-function useTriggerSection(context: OsPaletteDomainContext) {
-  const enabled = paletteDomainEnabled(context, "Triggers");
-  const triggers = useAutomationTriggers(
-    paletteWorkspaceCatalogFilters(context.scope, context.workspaceId),
-    { enabled }
-  );
   usePaletteInfiniteCatalog(triggers, enabled);
-  if (context.signals === null) return EMPTY_SECTION("Triggers");
+  if (context.signals === null) return EMPTY_SECTION("Automations");
+  const jobRows = jobs.jobs.map(job =>
+    rowSeed("Automations", {
+      key: `job:${job.id}`,
+      label: job.name,
+      detail: job.agent_name,
+      workspaceLabel: workspaceLabel(context.scope, job.workspace_id, context.workspaceNames),
+      app: "automations",
+      route: jobRoute(job.id),
+      ...(job.workspace_id ? { workspaceId: job.workspace_id } : {}),
+    })
+  );
+  const triggerRows = triggers.triggers.map(trigger =>
+    rowSeed("Automations", {
+      key: `trigger:${trigger.id}`,
+      label: trigger.name,
+      detail: trigger.event,
+      workspaceLabel: workspaceLabel(context.scope, trigger.workspace_id, context.workspaceNames),
+      app: "automations",
+      route: triggerRoute(trigger.id),
+      ...(trigger.workspace_id ? { workspaceId: trigger.workspace_id } : {}),
+    })
+  );
+  const failed = jobs.isError ? jobs : triggers;
   return section(
-    "Triggers",
-    triggers.triggers.map(trigger =>
-      rowSeed("Triggers", {
-        key: `trigger:${trigger.id}`,
-        label: trigger.name,
-        detail: trigger.event,
-        workspaceLabel: workspaceLabel(context.scope, trigger.workspace_id, context.workspaceNames),
-        app: "triggers",
-        route: triggerRoute(trigger.id),
-        ...(trigger.workspace_id ? { workspaceId: trigger.workspace_id } : {}),
-      })
-    ),
-    triggers,
+    "Automations",
+    [...jobRows, ...triggerRows],
+    {
+      isError: jobs.isError || triggers.isError,
+      isLoading: jobs.isLoading || triggers.isLoading,
+      error: failed.error,
+    },
     enabled,
     context.query,
     context.signals,
-    { limit: context.domainLimit, catalogTotal: triggers.total }
+    { limit: context.domainLimit, catalogTotal: jobs.total + triggers.total }
   );
 }

@@ -67,13 +67,13 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
     if (!trigger) throw new Error("This trigger is no longer available.");
     await deleteMutation.mutateAsync({ id: trigger.id, profile: trigger.profile_name });
     toast.success(`Deleted ${trigger.name}.`);
-    void navigate({ to: "/triggers", replace: true });
+    void navigate({ to: "/automations", replace: true });
   };
 
   return {
     editorDialogProps: editor.editorDialogProps,
     error,
-    handleBack: () => void navigate({ to: "/triggers" }),
+    handleBack: () => void navigate({ to: "/automations" }),
     handleDelete,
     handleEdit: () => {
       if (trigger) editor.openEdit(trigger);

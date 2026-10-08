@@ -100,11 +100,11 @@ export function loopRoute(name: string, workspaceId?: string | null): OsWindowRo
 }
 
 export function jobRoute(id: string): OsWindowRoute {
-  return { pathname: `/jobs/${encodedSegment(id)}`, search: {} };
+  return { pathname: `/automations/jobs/${encodedSegment(id)}`, search: {} };
 }
 
 export function triggerRoute(id: string): OsWindowRoute {
-  return { pathname: `/triggers/${encodedSegment(id)}`, search: {} };
+  return { pathname: `/automations/triggers/${encodedSegment(id)}`, search: {} };
 }
 
 export function agentRoute(name: string): OsWindowRoute {

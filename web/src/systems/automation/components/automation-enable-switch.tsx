@@ -60,3 +60,41 @@ export function AutomationEnableSwitch({
     </div>
   );
 }
+
+interface AutomationRowSwitchProps extends Omit<
+  ComponentProps<typeof Switch>,
+  "checked" | "onCheckedChange"
+> {
+  name: string;
+  enabled: boolean;
+  pending: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+}
+
+/**
+ * Unlabeled row variant: dimmed and inert while the PATCH is in flight, keeping
+ * the state the daemon last confirmed until it answers.
+ */
+export function AutomationRowSwitch({
+  name,
+  enabled,
+  pending,
+  disabled,
+  onEnabledChange,
+  className,
+  ...props
+}: AutomationRowSwitchProps) {
+  return (
+    <Switch
+      aria-busy={pending || undefined}
+      aria-label={`Turn ${name} on or off`}
+      checked={enabled}
+      className={cn(pending && "opacity-55", className)}
+      disabled={disabled || pending}
+      onCheckedChange={next => {
+        if (!pending) onEnabledChange(next);
+      }}
+      {...props}
+    />
+  );
+}

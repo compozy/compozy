@@ -101,12 +101,12 @@ export {
   automationScopeLabel,
   automationScopeTone,
   automationSourceTone,
+  automationLastRunLabel,
+  automationLastRunMeta,
   automationRunStateGlyph,
   describeFireLimit,
   describeRetry,
-  describeSchedule,
   describeTrigger,
-  formatAutomationListSummary,
   formatDate,
   formatDateTime,
   formatPromptPreview,
@@ -125,10 +125,33 @@ export {
   parseAutomationEnabled,
   parseAutomationScope,
   parseAutomationSource,
-  validateJobsSearch,
-  validateTriggersSearch,
-  type AutomationRouteSearch,
+  automationsStartView,
+  parseAutomationTarget,
+  validateAutomationsSearch,
+  type AutomationsRouteSearch,
 } from "./lib/automation-route-search";
+export { redirectLegacyAutomationURL } from "./lib/automation-redirects";
+export {
+  automationLocationLabel,
+  automationTimeStat,
+  compareAutomationViews,
+  toAutomationView,
+  type AutomationDoes,
+  type AutomationLastRun,
+  type AutomationStart,
+  type AutomationView,
+  type AutomationViewContext,
+} from "./lib/automation-view";
+export {
+  automationSentenceIsIncomplete,
+  automationSentenceText,
+  describeAutomation,
+  describeSchedule,
+  type AutomationDraft,
+  type AutomationSentence,
+  type AutomationSentenceSegment,
+  type SentenceContext,
+} from "./lib/automation-sentence";
 export {
   automationEditorWorkspaceId,
   automationMatchesActiveWorkspace,
@@ -171,8 +194,10 @@ export type { TriggerDetailPanelProps } from "./components/trigger-detail/trigge
 export { AutomationEditorDialog } from "./components/automation-editor-dialog";
 export { AutomationJobForm } from "./components/automation-job-form";
 export { AutomationListFilters } from "./components/automation-list-filters";
-export { AutomationJobsCatalog } from "./components/automation-jobs-catalog";
-export { AutomationTriggersCatalog } from "./components/automation-triggers-catalog";
+export { AutomationCatalogShell } from "./components/automation-catalog-shell";
+export { AutomationRow, type AutomationItemControls } from "./components/automation-row";
+export { AutomationCard } from "./components/automation-card";
+export { AutomationStartViews } from "./components/automation-start-views";
 export { AutomationRunHistory } from "./components/automation-run-history";
 export {
   AutomationSuggestionsCard,

@@ -40,7 +40,6 @@ export function useAutomationJobDetailPage(jobId: string) {
   );
   const settingsQuery = useSettingsAutomation();
   const runtimeUnavailableMessage = automationUnavailableMessage(
-    "jobs",
     settingsQuery.data?.runtime ?? null,
     jobDetailQuery.error
   );
@@ -89,13 +88,13 @@ export function useAutomationJobDetailPage(jobId: string) {
     if (!job) throw new Error("This job is no longer available.");
     await deleteMutation.mutateAsync({ id: job.id, profile: job.profile_name });
     toast.success(`Deleted ${job.name}.`);
-    void navigate({ to: "/jobs", replace: true });
+    void navigate({ to: "/automations", replace: true });
   };
 
   return {
     editorDialogProps: editor.editorDialogProps,
     error,
-    handleBack: () => void navigate({ to: "/jobs" }),
+    handleBack: () => void navigate({ to: "/automations" }),
     handleDelete,
     handleEdit: () => {
       if (job) editor.openEdit(job);

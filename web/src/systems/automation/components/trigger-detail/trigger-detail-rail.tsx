@@ -19,7 +19,7 @@ import {
   summarizeTriggerReliability,
 } from "../../lib/automation-formatters";
 import { projectAutomationTarget } from "../../lib/automation-target";
-import { triggerEventLabel } from "../../lib/trigger-sentence";
+import { triggerEventLabel } from "../../lib/automation-rule";
 import type { AutomationTrigger } from "../../types";
 import { GatewayIngressStatus, ingressReachabilityCopy } from "@/systems/gateway";
 

@@ -2,7 +2,8 @@ import type { ComponentProps } from "react";
 
 import { Pill, Time, cn } from "@compozy/ui";
 
-import { buildTriggerLede, triggerEventLabel, triggerPauseLine } from "../../lib/trigger-sentence";
+import { triggerEventLabel, triggerPauseLine } from "../../lib/automation-rule";
+import { describeAutomation } from "../../lib/automation-sentence";
 import type { AutomationTrigger } from "../../types";
 import { AutomationEnableSwitch } from "../automation-enable-switch";
 
@@ -32,7 +33,9 @@ export function TriggerDetailHead({
   className,
   ...props
 }: TriggerDetailHeadProps) {
-  const segments = buildTriggerLede(trigger, workspaceName);
+  const segments = describeAutomation(trigger, {
+    workspaceName: id => (id === trigger.workspace_id ? workspaceName : null),
+  });
   return (
     <div
       className={cn("mb-5.5 border-b border-line pb-4.5", className)}
@@ -46,7 +49,7 @@ export function TriggerDetailHead({
             data-testid="trigger-detail-sentence"
           >
             {segments.map((segment, index) =>
-              segment.em ? (
+              segment.emphasis ? (
                 <em className="text-fg not-italic" key={`${index}-${segment.text}`}>
                   {segment.text}
                 </em>

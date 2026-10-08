@@ -64,7 +64,8 @@ import {
   buildTriggerDiagnosticsNote,
   buildTriggerEnvelopeSample,
 } from "../../lib/trigger-inspect-model";
-import { buildTriggerLede, describeTriggerWhen } from "../../lib/trigger-sentence";
+import { describeTriggerWhen } from "../../lib/automation-rule";
+import { automationSentenceText, describeAutomation } from "../../lib/automation-sentence";
 
 const triggerDefaults: AutomationTrigger = {
   profile_id: "00000000000000000000000000",
@@ -211,7 +212,7 @@ describe("TriggerDetailPanel", () => {
     renderPanel();
 
     expect(screen.getByTestId("trigger-detail-sentence")).toHaveTextContent(
-      "When a session stops in checkout-api, if the stop reason is error, run summarizer."
+      "When a session stops in checkout-api with an error, ask summarizer."
     );
     expect(screen.getByTestId("trigger-rule-card")).toHaveTextContent("A session stops");
     expect(screen.getByTestId("trigger-rule-card")).toHaveTextContent("Exact match on");
@@ -226,7 +227,7 @@ describe("TriggerDetailPanel", () => {
     renderPanel({ runs: [], trigger: loopTrigger });
 
     expect(screen.getByTestId("trigger-detail-sentence")).toHaveTextContent(
-      "start software-delivery."
+      "start the Loop software-delivery."
     );
     const mapping = screen.getByTestId("trigger-loop-mapping");
     expect(mapping).toHaveTextContent("slug");
@@ -650,9 +651,7 @@ describe("TriggerDetailPanel", () => {
     const trigger = makeTrigger({ event });
 
     expect(
-      buildTriggerLede(trigger, "checkout-api")
-        .map(segment => segment.text)
-        .join("")
+      automationSentenceText(describeAutomation(trigger, { workspaceName: () => "checkout-api" }))
     ).toContain(phrase);
     expect(describeTriggerWhen(trigger, "checkout-api").headline).toBe(headline);
   });

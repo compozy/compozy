@@ -1133,10 +1133,10 @@ describe("useOsPaletteRoot", () => {
 
     act(() => {
       rendered.result.current.openDomainRow({
-        app: "jobs",
+        app: "automations",
         key: "job:job-beta",
         label: "Beta job",
-        route: { pathname: "/jobs/job-beta", search: {} },
+        route: { pathname: "/automations/jobs/job-beta", search: {} },
         workspaceId: "workspace:beta",
       });
     });
@@ -1153,8 +1153,8 @@ describe("useOsPaletteRoot", () => {
 
     await waitFor(() =>
       expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "jobs",
-        route: { pathname: "/jobs/job-beta", search: {} },
+        app: "automations",
+        route: { pathname: "/automations/jobs/job-beta", search: {} },
       })
     );
   });
@@ -1171,10 +1171,10 @@ describe("useOsPaletteRoot", () => {
 
     act(() => {
       rendered.result.current.openDomainRow({
-        app: "jobs",
+        app: "automations",
         key: "job:job-beta",
         label: "Beta job",
-        route: { pathname: "/jobs/job-beta", search: {} },
+        route: { pathname: "/automations/jobs/job-beta", search: {} },
         workspaceId: "workspace:beta",
       });
     });
@@ -1192,8 +1192,8 @@ describe("useOsPaletteRoot", () => {
 
     await waitFor(() =>
       expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "jobs",
-        route: { pathname: "/jobs/job-beta", search: {} },
+        app: "automations",
+        route: { pathname: "/automations/jobs/job-beta", search: {} },
       })
     );
   });

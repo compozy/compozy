@@ -1,9 +1,6 @@
 // The automation page view-models live in dedicated files (each under the
-// production-source line cap); this barrel preserves the original import path.
-export { useAutomationJobsPage } from "./use-automation-jobs-page";
-export { useAutomationTriggersPage } from "./use-automation-triggers-page";
+// production-source line cap); this barrel is their one import path.
+export { useAutomationsPage } from "./use-automations-page";
 export { useAutomationJobDetailPage } from "./use-automation-job-detail-page";
 export { useAutomationTriggerDetailPage } from "./use-automation-trigger-detail-page";
-export { automationListLoopFilter } from "./use-automation-page-base";
-export type { AutomationCreateSeed, AutomationRouteSearch } from "./use-automation-page-base";
-export { validateJobsSearch, validateTriggersSearch } from "@/systems/automation";
+export type { AutomationCreateSeed } from "./use-automation-page-base";

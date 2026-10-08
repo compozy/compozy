@@ -4,11 +4,8 @@ import type { ComponentProps, ReactNode } from "react";
 import { CatalogEmptyPanel } from "@/components/catalog-empty-state";
 import { Button, CatalogEmptyDisclosureRow, Pill, Skeleton, Spinner } from "@compozy/ui";
 
-import {
-  describeFireLimit,
-  describeSchedule,
-  formatPromptPreview,
-} from "../lib/automation-formatters";
+import { describeFireLimit, formatPromptPreview } from "../lib/automation-formatters";
+import { describeSchedule } from "../lib/automation-sentence";
 import { projectAutomationTarget } from "../lib/automation-target";
 import type { AutomationSuggestion } from "../types";
 

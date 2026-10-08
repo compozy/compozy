@@ -15,11 +15,11 @@ import {
 
 import {
   automationScopeLabel,
-  describeSchedule,
   formatDate,
   formatDateTime,
   formatRelativeTime,
 } from "../lib/automation-formatters";
+import { describeSchedule } from "../lib/automation-sentence";
 import { automationTargetLabel, projectAutomationTarget } from "../lib/automation-target";
 import { buildJobRunDigest } from "../lib/job-preview";
 import type { AutomationJob, AutomationRun, AutomationRunStatus } from "../types";

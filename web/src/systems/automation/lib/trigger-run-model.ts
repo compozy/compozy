@@ -12,7 +12,7 @@ import type { StateGlyphState } from "@compozy/ui";
 import { automationRunStateGlyph, formatRunDuration } from "./automation-formatters";
 import { automationRunDestination } from "./automation-run-destination";
 import { projectAutomationTarget } from "./automation-target";
-import { triggerTargetName } from "./trigger-sentence";
+import { triggerTargetName } from "./automation-rule";
 import type { AutomationRun, AutomationTrigger } from "../types";
 
 export type TriggerRunIcon = "agent" | "agent-off" | "loop" | "clock" | "ban";

@@ -1,88 +1,66 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import type { AutomationRouteSearch } from "@/systems/automation";
+import type { AutomationsRouteSearch } from "@/systems/automation";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import {
   automationJobDetailOptions,
   automationJobRunsOptions,
   automationJobsListOptions,
+  automationListLoopFilter,
   automationRouteHasActiveFilters,
-  type AutomationJobStableFilter,
+  automationsStartView,
   automationMatchesActiveWorkspace,
   automationSuggestionsListOptions,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
   automationTriggersListOptions,
-  type AutomationTriggerStableFilter,
 } from "@/systems/automation";
 import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
-async function resolveListScope(
+/** Both lists with the shared filters minus `start`; a Start view skips the other kind. */
+export async function preloadAutomationsRoute(
   queryClient: QueryClient,
-  search: AutomationRouteSearch
-): Promise<Pick<AutomationJobStableFilter, "scope" | "workspace_id">> {
-  const scope = search.scope === "all" ? undefined : search.scope;
-  if (scope !== "workspace") return { scope };
-  return { scope, workspace_id: (await resolveActiveWorkspaceId(queryClient)) ?? undefined };
-}
-
-export async function preloadAutomationJobsRoute(
-  queryClient: QueryClient,
-  search: AutomationRouteSearch
+  search: AutomationsRouteSearch
 ): Promise<void> {
   const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const activeWorkspaceID =
     search.scope === "global" ? null : await resolveActiveWorkspaceId(queryClient);
-  const scope =
-    search.scope === "workspace"
-      ? { scope: "workspace" as const, workspace_id: activeWorkspaceID ?? undefined }
-      : { scope: search.scope === "all" ? undefined : search.scope };
-  const filters: AutomationJobStableFilter = {
-    ...scope,
+  if (search.scope === "workspace" && !activeWorkspaceID) return;
+  const filters = {
+    scope: search.scope,
+    workspace_id: search.scope === "workspace" ? (activeWorkspaceID ?? undefined) : undefined,
     enabled: search.enabled,
     limit: 50,
-    loop: search.loop,
+    loop: automationListLoopFilter(search),
     q: search.q,
     source: search.source,
+    target: search.target,
+    ...profileScope,
   };
-  if (scope.scope === "workspace" && !scope.workspace_id) return;
-  const jobsQuery = queryClient.ensureInfiniteQueryData(
-    automationJobsListOptions({ ...filters, ...profileScope })
-  );
+  const start = automationsStartView(search);
+  const loadJobs = start !== "event";
+  const loadTriggers = start !== "schedule" && search.target !== "task";
+  const jobsQuery = loadJobs
+    ? queryClient.ensureInfiniteQueryData(automationJobsListOptions(filters))
+    : undefined;
+  const triggersQuery = loadTriggers
+    ? queryClient.ensureInfiniteQueryData(automationTriggersListOptions(filters))
+    : undefined;
   const suggestionsQuery =
-    activeWorkspaceID && !automationRouteHasActiveFilters(search)
-      ? jobsQuery.then(result => {
-          if (result.pages[0]?.page.total !== 0) return undefined;
+    activeWorkspaceID && !automationRouteHasActiveFilters(search) && jobsQuery && triggersQuery
+      ? Promise.all([jobsQuery, triggersQuery]).then(([jobs, triggers]) => {
+          if (jobs.pages[0]?.page.total !== 0 || triggers.pages[0]?.page.total !== 0) {
+            return undefined;
+          }
           return queryClient.ensureQueryData(
             automationSuggestionsListOptions(activeWorkspaceID, "pending")
           );
         })
       : undefined;
-  await settleRouteQueries([jobsQuery, ...(suggestionsQuery ? [suggestionsQuery] : [])]);
-}
-
-export async function preloadAutomationTriggersRoute(
-  queryClient: QueryClient,
-  search: AutomationRouteSearch
-): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
-  const scope = await resolveListScope(queryClient, search);
-  const filters: AutomationTriggerStableFilter = {
-    ...scope,
-    enabled: search.enabled,
-    event: search.event,
-    limit: 50,
-    loop: search.loop,
-    q: search.q,
-    source: search.source,
-  };
-  if (scope.scope === "workspace" && !scope.workspace_id) return;
-  await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(
-      automationTriggersListOptions({ ...filters, ...profileScope })
-    ),
-  ]);
+  await settleRouteQueries(
+    [jobsQuery, triggersQuery, suggestionsQuery].filter(query => query !== undefined)
+  );
 }
 
 export async function preloadAutomationJobDetailRoute(

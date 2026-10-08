@@ -1,18 +1,13 @@
 import type { PillTone, StateGlyphState } from "@compozy/ui";
 
-import { humanCron } from "./cron-engine-presentation";
-
 import type {
   AutomationCatchUpPolicy,
-  AutomationKind,
   AutomationFireLimit,
   AutomationJob,
   AutomationRetry,
   AutomationRun,
   AutomationRunStatus,
-  AutomationSchedule,
   AutomationScope,
-  AutomationScopeFilter,
   AutomationTrigger,
 } from "../types";
 
@@ -81,34 +76,6 @@ export function formatDate(dateStr?: string | null): string {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/** Plain-language cadence: `Every weekday at 09:00 UTC`, `Every 30 minutes`, `Once on …`. */
-export function describeSchedule(schedule?: AutomationSchedule | null): string {
-  if (!schedule) {
-    return "Manual";
-  }
-
-  switch (schedule.mode) {
-    case "cron": {
-      const human = schedule.expr ? humanCron(schedule.expr) : null;
-      if (!human) return "Custom schedule";
-      const hasClock = /\d{2}:\d{2}|midnight/.test(human);
-      return `${capitalize(human)}${hasClock ? " UTC" : ""}`;
-    }
-    case "every":
-      return schedule.interval
-        ? `Every ${humanizeFireWindow(schedule.interval)}`
-        : "Repeats on an interval";
-    case "at":
-      return schedule.time ? `Once on ${formatDateTime(schedule.time)}` : "Runs once";
-    default:
-      return "Manual";
-  }
 }
 
 export function describeTrigger(trigger: AutomationTrigger): string {
@@ -234,13 +201,14 @@ export function formatPromptPreview(prompt: string, maxLength = 72): string {
 
 /**
  * Run status → canonical `StateGlyph` state: scheduled runs wait their turn,
- * running and delegated runs are in flight, completed runs are done, failures
- * fail and canceled runs (including durable skips) read as stopped.
+ * running runs are in flight, handed-off runs are parked with their owner,
+ * completed runs are done, failures fail and canceled runs (including durable
+ * skips) read as stopped.
  */
 const AUTOMATION_RUN_GLYPH = {
   scheduled: "queued",
   running: "running",
-  delegated: "running",
+  delegated: "delegated",
   completed: "done",
   failed: "failed",
   canceled: "stopped",
@@ -281,7 +249,7 @@ const AUTOMATION_SKIP_REASONS = {
   },
   misfire_grace_exceeded: {
     label: "Missed",
-    tone: "warning",
+    tone: "neutral",
     detail: "Skipped because it missed its start window.",
   },
 } as const satisfies Record<string, AutomationSkipReasonInfo>;
@@ -334,51 +302,60 @@ export function automationScopeTone(_scope: AutomationScope): PillTone {
   return "neutral";
 }
 
-export function formatAutomationListSummary({
-  activeWorkspaceName,
-  kind,
-  scopeFilter,
-  searchQuery,
-  totalCount,
-  visibleCount,
-}: {
-  activeWorkspaceName?: string;
-  kind: AutomationKind;
-  scopeFilter: AutomationScopeFilter;
-  searchQuery: string;
-  totalCount: number;
-  visibleCount: number;
+/** Run label that names a durable skip: `Skipped` / `Missed`, else the status label. */
+export function automationLastRunLabel(run: {
+  status: AutomationRunStatus;
+  skipReason?: AutomationSkipReason;
 }): string {
-  const totalNoun =
-    kind === "jobs"
-      ? totalCount === 1
-        ? "job"
-        : "jobs"
-      : totalCount === 1
-        ? "trigger"
-        : "triggers";
-  const trimmedQuery = searchQuery.trim();
-  const count = visibleCount < totalCount ? `Showing ${visibleCount} of ${totalCount}` : totalCount;
-
-  if (trimmedQuery !== "") {
-    return `${count} ${totalNoun} matching current search`;
+  if (run.status === "canceled" && run.skipReason) {
+    return automationSkipReasonLabel(run.skipReason);
   }
+  return automationRunStatusLabel(run.status);
+}
 
-  if (totalCount === 0) {
-    return `0 ${kind} found`;
+export interface AutomationLastRunMeta {
+  tone: "danger" | "neutral";
+  /** `fail` = alert glyph (danger); `skip` = skip glyph (subtle). */
+  glyph: "fail" | "skip" | null;
+  text: string;
+  /** Relative-time anchor rendered after `text`; absent for skips and running runs. */
+  at?: string;
+}
+
+const LAST_RUN_SKIP_TEXT = {
+  self_overlap: "Last run skipped — the one before was still going",
+  misfire_grace_exceeded: "Last run missed — CompozyOS was off at the start time",
+} as const satisfies Record<AutomationSkipReason, string>;
+
+const LAST_RUN_TEXT = {
+  scheduled: "Last run scheduled",
+  running: "Running now",
+  delegated: "Last run handed off",
+  completed: "Last run completed",
+  failed: "Last run failed",
+  canceled: "Last run canceled",
+} as const satisfies Record<AutomationRunStatus, string>;
+
+/** Row meta for an automation's last run (Business Rule 7); null when it never ran. */
+export function automationLastRunMeta(
+  run:
+    | {
+        status: AutomationRunStatus;
+        startedAt?: string;
+        endedAt?: string;
+        skipReason?: AutomationSkipReason;
+      }
+    | undefined
+): AutomationLastRunMeta | null {
+  if (!run) return null;
+  if (run.status === "canceled" && run.skipReason) {
+    return { tone: "neutral", glyph: "skip", text: LAST_RUN_SKIP_TEXT[run.skipReason] };
   }
-
-  if (scopeFilter === "all") {
-    return `${totalCount} ${totalNoun} across all projects`;
-  }
-
-  if (scopeFilter === "global") {
-    return `${count} global ${totalNoun}`;
-  }
-
-  if (activeWorkspaceName) {
-    return `${count} ${totalNoun} in ${activeWorkspaceName}`;
-  }
-
-  return `${count} ${totalNoun} in this project`;
+  const at = run.startedAt ?? run.endedAt;
+  return {
+    tone: run.status === "failed" ? "danger" : "neutral",
+    glyph: run.status === "failed" ? "fail" : null,
+    text: LAST_RUN_TEXT[run.status],
+    ...(run.status !== "running" && at ? { at } : {}),
+  };
 }

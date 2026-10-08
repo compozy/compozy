@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 
 import { CodeBlock, CopyIconButton, Eyebrow, cn } from "@compozy/ui";
 
-import { triggerWebhookCurl } from "../../lib/trigger-sentence";
+import { triggerWebhookCurl } from "../../lib/automation-rule";
 
 /**
  * Local delivery path for a webhook trigger — the POST that always answers on

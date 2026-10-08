@@ -1,7 +1,6 @@
 import {
   BookOpen,
   Bot,
-  Clock3,
   Home,
   KeyRound,
   ListChecks,
@@ -105,18 +104,11 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     paths: ["/loops", "/loop-runs"],
     dock: { group: 2 },
   },
-  jobs: {
-    id: "jobs",
-    title: "Jobs",
-    icon: Clock3,
-    paths: ["/jobs"],
-    dock: { group: 2 },
-  },
-  triggers: {
-    id: "triggers",
-    title: "Triggers",
+  automations: {
+    id: "automations",
+    title: "Automations",
     icon: Zap,
-    paths: ["/triggers"],
+    paths: ["/automations"],
     dock: { group: 2 },
   },
   marketplace: {

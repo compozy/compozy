@@ -77,13 +77,7 @@ const DOCK_ICON_GLYPHS = {
       />
     </DockGlyph>
   ),
-  jobs: (props: GlyphProps) => (
-    <DockGlyph {...props}>
-      <circle cx="10" cy="10" r="6.8" />
-      <path d="M10 6.2V10l3 1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </DockGlyph>
-  ),
-  triggers: (props: GlyphProps) => (
+  automations: (props: GlyphProps) => (
     <DockGlyph {...props}>
       <path d="M11 2.5 4.5 11h4l-.9 6.5L14.5 9h-4z" strokeLinejoin="round" />
     </DockGlyph>
