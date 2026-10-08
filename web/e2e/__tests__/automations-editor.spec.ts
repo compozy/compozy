@@ -4,13 +4,14 @@ import path from "node:path";
 import type { Locator, Page } from "@playwright/test";
 
 import type { AutomationJob, AutomationTrigger } from "@/systems/automation";
+import type { LoopDefinition } from "@/systems/loops";
 import { openAppWindow } from "../fixtures/os-navigation";
 import { automationOperatorSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
 // Suite: Automations editor (S3) — the one dialog creates a job or a trigger.
-// Journeys: E2E-001 create steps (schedule) and E2E-004 create steps (event).
+// Journeys: E2E-001 create steps (schedule), E2E-004 create steps (event) and E2E-005 (Loop entry).
 
 const automationTaskFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -155,4 +156,104 @@ test("operator creates an event automation with a condition from the one editor"
     scope: "workspace",
   });
   await expect(appPage).toHaveURL(new RegExp(`/automations/triggers/${trigger?.id ?? "missing"}`));
+});
+
+const eventLoopName = "automate-on-event-e2e";
+
+/** A one-node Loop whose start allowlist permits event automations. */
+const eventLoopDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: eventLoopName,
+    description: "A Loop an event automation can start.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Record that an event started the Loop.",
+    definition_of_done: "The transform completes.",
+    stop_when: "nodes.finish.status == 'succeeded'",
+    iteration_cap: 1,
+    no_progress: { window: 2 },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "finish",
+        class: "action",
+        kind: "transform",
+        params: { map: { done: { value: true } } },
+      },
+    ],
+    edges: [],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }, { kind: "trigger" }],
+};
+
+test("E2E-005 operator automates a Loop from its page and finds it through the Start panel", async ({
+  appPage,
+  runtime,
+}) => {
+  test.setTimeout(120_000);
+  await ensureProjectWorkspace(appPage, runtime);
+  await completeOnboardingIfPrompted(automationOperatorSelectors(appPage));
+  const workspaces = await runtime.requestJSON<{ workspaces: Array<{ id: string }> }>(
+    "/api/workspaces"
+  );
+  const workspaceID = workspaces.workspaces[0]?.id;
+  if (!workspaceID) throw new Error("Expected an active workspace for the Loop entry journey.");
+  await runtime.requestJSON(`/api/workspaces/${encodeURIComponent(workspaceID)}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: eventLoopDefinition }),
+  });
+
+  const loopPath = `/loops/${encodeURIComponent(eventLoopName)}`;
+  await appPage.goto(runtime.url(loopPath), { waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("loop-start-bindings")).toContainText("Manual only");
+
+  await appPage.getByTestId("loop-automate-action").click();
+  await appPage.getByTestId("loop-automate-event").click();
+
+  const dialog = editor(appPage);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("automation-start-event")).toHaveAttribute(
+    "aria-checked",
+    "true"
+  );
+  await expect(dialog.getByTestId("automation-does-loop")).toHaveAttribute("aria-checked", "true");
+  await expect(dialog.getByTestId("automation-does-agent")).toBeDisabled();
+  await expect(dialog.getByTestId("loop-target-select")).toContainText(eventLoopName);
+
+  await dialog.getByTestId("automation-name-input").fill("loop-on-stop");
+  await expect(dialog.getByTestId("automation-editor-sentence")).toContainText(
+    `start the Loop ${eventLoopName}`
+  );
+  await expect(dialog.getByTestId("automation-editor-status")).toHaveText("Ready");
+  await dialog.getByTestId("automation-form-submit").click();
+
+  await expect(appPage.getByText("Created loop-on-stop.")).toBeVisible();
+  await expect(dialog).toBeHidden();
+  const triggers = await runtime.requestJSON<{ triggers: AutomationTrigger[] }>(
+    "/api/automation/triggers"
+  );
+  const trigger = triggers.triggers.find(item => item.name === "loop-on-stop");
+  expect(trigger).toMatchObject({
+    target_kind: "loop",
+    loop_target: expect.objectContaining({ loop_name: eventLoopName }),
+  });
+
+  await appPage.goto(runtime.url(loopPath), { waitUntil: "domcontentloaded" });
+  const bindings = appPage.getByTestId("loop-start-bindings");
+  await expect(bindings).toContainText("1 automation");
+  await bindings.getByTestId("loop-bindings-open-automations").click();
+
+  await expect(appPage).toHaveURL(new RegExp(`/automations\\?loop=${eventLoopName}`));
+  const rows = appPage.locator('[data-testid^="automation-row-"]');
+  await expect(rows).toHaveCount(1);
+  await expect(
+    appPage.getByTestId(`automation-row-trigger-${trigger?.id ?? "missing"}`)
+  ).toBeVisible();
 });

@@ -1,19 +1,18 @@
-import { Text } from "lucide-react";
+import { Clock, Text } from "lucide-react";
 
 import { FieldDescription } from "@compozy/ui";
 
-import { buildJobPreview } from "../../../lib/job-preview";
 import {
-  automationFormJobDraft,
   automationFormTriggerDraft,
   projectAutomationFormRequest,
   type AutomationFormDraft,
 } from "../../../lib/automation-form-draft";
 import { conditionFieldName } from "../../../lib/automation-form-events";
+import { scheduleNextRuns } from "../../../lib/automation-form-schedule";
 import type { AutomationSentence } from "../../../lib/automation-sentence";
 import { buildTriggerPreview } from "../../../lib/trigger-preview";
 import { AutomationSentenceText } from "../../automation-row-parts";
-import { NextRunsCard } from "../../job-form/preview/next-runs-card";
+import { AutomationNextRuns } from "../../automation-detail/automation-next-runs";
 import { AutomationRequestPayload } from "./automation-request-payload";
 import { PreviewCard } from "./preview-card";
 import { RenderedPrompt } from "./rendered-prompt";
@@ -43,7 +42,7 @@ export function AutomationPreview({ draft, mode, now, sentence }: AutomationPrev
         </p>
       </PreviewCard>
       {draft.start === "schedule" ? (
-        <SchedulePreview draft={draft} mode={mode} now={now} />
+        <SchedulePreview draft={draft} now={now} />
       ) : (
         <EventPreview draft={draft} mode={mode} />
       )}
@@ -52,13 +51,25 @@ export function AutomationPreview({ draft, mode, now, sentence }: AutomationPrev
   );
 }
 
-function SchedulePreview({ draft, mode, now }: Omit<AutomationPreviewProps, "sentence">) {
-  const preview = buildJobPreview(automationFormJobDraft(draft), now, mode);
+const NEXT_RUNS_EMPTY_CLASS =
+  "rounded-md border border-dashed border-line-soft bg-sunken px-3 py-2.5 text-form-hint leading-snug text-subtle";
+
+function SchedulePreview({ draft, now }: Pick<AutomationPreviewProps, "draft" | "now">) {
+  const { runs, emptyReason } = scheduleNextRuns(draft.schedule, now, NEXT_RUNS_SHOWN);
   return (
-    <NextRunsCard
-      emptyReason={preview.nextRunsEmptyReason}
-      nextRuns={preview.nextRuns?.slice(0, NEXT_RUNS_SHOWN) ?? null}
-    />
+    <PreviewCard
+      icon={Clock}
+      label="Next runs"
+      right={<span className="font-mono text-form-hint text-subtle">UTC</span>}
+    >
+      {runs === null ? (
+        <div className={NEXT_RUNS_EMPTY_CLASS}>Choose Back to form to fix the schedule.</div>
+      ) : runs.length === 0 ? (
+        <div className={NEXT_RUNS_EMPTY_CLASS}>{emptyReason}</div>
+      ) : (
+        <AutomationNextRuns runs={runs} />
+      )}
+    </PreviewCard>
   );
 }
 

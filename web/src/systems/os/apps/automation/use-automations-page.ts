@@ -158,8 +158,10 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
             params: { triggerId: saved.automation.id },
           })),
   });
-  useAutomationCreateSeed(automationEditorSeed(search), page.activeWorkspaceId, seed =>
-    editor.openCreate({ loop: seed.loop, start: seed.start })
+  useAutomationCreateSeed(
+    automationEditorSeed(search),
+    { activeWorkspaceId: page.activeWorkspaceId, resolved: page.workspaceResolved },
+    seed => editor.openCreate({ loop: seed.loop, start: seed.start })
   );
 
   const updateJob = useUpdateAutomationJob();

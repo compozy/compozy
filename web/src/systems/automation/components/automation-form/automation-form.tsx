@@ -14,7 +14,11 @@ import {
 } from "@compozy/ui";
 
 import { useAutomationForm } from "../../hooks/use-automation-form";
-import type { AutomationEditorSection, AutomationFormDraft } from "../../lib/automation-form-draft";
+import {
+  automationFormEntity,
+  type AutomationEditorSection,
+  type AutomationFormDraft,
+} from "../../lib/automation-form-draft";
 import type { WorkspaceOption } from "../../lib/trigger-preview";
 import { AutomationEditorSentenceBar } from "./automation-editor-sentence-bar";
 import { AutomationFormSection } from "./automation-form-section";
@@ -93,6 +97,7 @@ export function AutomationForm({
   return (
     <form
       className="flex min-h-0 flex-col"
+      data-entity={automationFormEntity(draft)}
       data-testid="automation-form"
       onSubmit={form.handleSubmit}
     >
