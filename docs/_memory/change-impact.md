@@ -67,6 +67,8 @@ leftovers in user-owned files are retired without blocking the user.
   final updated sequence and completed text across repeated opens. Review round 3 preserves routing
   context predating interleaved entries and completion boundaries after intervening foreign events;
   restored entries retain their original identities without disturbing surviving or reused-tool routes.
+  Review round 4 includes updates after failed historical compaction attempts, preserving the final
+  identity and public transcript sequence through the eventual archival and repeated opens.
   Config retirement follows trigger array-element
   ownership across noncontiguous descendant tables, preserving retained filters. Installed extension
   automation resources ignore `memory.consolidated` before validation with
