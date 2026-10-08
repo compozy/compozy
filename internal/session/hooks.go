@@ -207,13 +207,6 @@ func (h HookSet) tools() ToolHooks {
 	return noopToolHooks{}
 }
 
-func (h HookSet) compaction() CompactionHooks {
-	if h.Compaction != nil {
-		return h.Compaction
-	}
-	return noopCompactionHooks{}
-}
-
 func (h HookSet) spawn() SpawnHooks {
 	if h.Spawn != nil {
 		return h.Spawn

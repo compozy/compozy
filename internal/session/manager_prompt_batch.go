@@ -53,7 +53,6 @@ func (m *Manager) handlePromptPumpChunkBatch(
 		loop.fileMutations.Observe(event)
 		m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, event)
 		m.notifyManagedPromptEvent(ctx, session, turnState, event)
-		m.scheduleCompactionFromUsage(session, event)
 		if kind, summary, evidence, ok := promptTranscriptMarker(event); ok {
 			m.emitTranscriptMarker(ctx, session, turnState.turnID, kind, summary, evidence)
 		}

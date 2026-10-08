@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
@@ -171,6 +172,67 @@ func (h *deriveHarness) childMeta(t *testing.T, childID string) store.SessionMet
 
 func TestContinueSession(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should continue a large transcript into another agent with its source history pointer", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		h.manager.hostedMCP = &recordingHostedMCPLauncher{server: compozyconfig.MCPServer{
+			Name: "hosted", Transport: compozyconfig.MCPServerTransportStdio, Command: "/bin/compozy",
+		}}
+		h.manager.toolUniverse = []toolspkg.ToolID{toolspkg.ToolIDSessionHistory}
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range workspace.Agents {
+			if workspace.Agents[index].Name == "b" {
+				workspace.Agents[index].Tools = []string{toolspkg.ToolIDSessionHistory.String()}
+			}
+		}
+		h.resolver.upsert(&workspace)
+		source := h.newDeriveSource(t)
+		for index := range 300 {
+			turnID := fmt.Sprintf("large-%d", index/2)
+			eventType := acp.EventTypeUserMessage
+			if index%2 == 1 {
+				eventType = acp.EventTypeAgentMessage
+			}
+			if err := h.manager.recordEvent(t.Context(), source, acp.AgentEvent{
+				Type: eventType, TurnID: turnID, Text: fmt.Sprintf("large-%d ", index) + strings.Repeat("x", 2048),
+				Timestamp: time.Now().UTC().Add(time.Duration(index) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if index%2 == 1 {
+				if err := h.manager.recordEvent(
+					t.Context(),
+					source,
+					acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turnID, Timestamp: time.Now().UTC()},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		result, err := h.manager.ContinueSession(t.Context(), h.continueOpts(source, "large-continue"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sendDeriveChildPrompt(t, h, result.Child.ID, "continue", "large-child", "large-child-admission")
+		prompts := h.promptMessages()
+		block := prompts[len(prompts)-1]
+		messages := resumeReplayMessagesFromPrompt(t, block)
+		if !strings.Contains(messages[0].Content, "Start the migration") || messages[1].ID != deriveOmittedMessageID ||
+			replayArrayBytes(messages) > compozyconfig.DefaultSessionDeriveMaxReplayBytes {
+			t.Fatalf(
+				"large continue replay lost pin, note, or bound: bytes=%d count=%d",
+				replayArrayBytes(messages),
+				len(messages),
+			)
+		}
+		if !strings.Contains(block, "session_id: "+source.ID) || !strings.Contains(block, deriveWorkspaceLine) {
+			t.Fatalf("child replay lacks source history pointer or workspace authority: %s", block)
+		}
+	})
 
 	t.Run("Should commit the child, carry the context in its first prompt, and leave the source untouched",
 		func(t *testing.T) {

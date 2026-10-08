@@ -66,9 +66,7 @@ type bootState struct {
 	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	memoryExtractor        *daemonMemoryExtractor
 	runtimeWorkers         daemonRuntimeWorkers
-	checkpointRuntime      *checkpointSummaryRuntime
 	memoryCatalogStore     *memory.Store
-	ledgerMaterializer     session.LedgerMaterializer
 	skillsRegistry         *skills.Registry
 	mcpResolver            *skills.MCPResolver
 	dreamSvc               consolidation.Service

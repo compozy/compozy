@@ -48,10 +48,6 @@ func (m *Manager) resumeCommittedConversationRewind(
 	if err != nil {
 		return ConversationRewindResult{}, err
 	}
-	owner := store.SessionDBOwner{SessionID: sessionID, WorkspaceID: resumed.Info().WorkspaceID}
-	if err := m.discardOwnedMaterializedSessionLedger(ctx, owner, resumed.DBPath()); err != nil {
-		return ConversationRewindResult{}, err
-	}
 	if err := m.recordConversationRewindEvent(ctx, resumed, stored, epoch); err != nil {
 		return ConversationRewindResult{}, err
 	}

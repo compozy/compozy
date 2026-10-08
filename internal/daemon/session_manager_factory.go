@@ -47,7 +47,6 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionSupervision(deps.SessionSupervision),
 			session.WithSessionStopConfig(deps.SessionStop),
 			session.WithSessionBusyInputConfig(deps.SessionBusyInput),
-			session.WithSessionCompactionConfig(deps.SessionCompaction),
 			session.WithSessionDeriveConfig(deps.SessionDerive),
 			session.WithSessionInputQueueStore(deps.SessionInputQueue),
 			session.WithSessionPromptAdmissionStore(deps.SessionPromptAdmission),
@@ -64,7 +63,6 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithModelCatalog(deps.ModelCatalog),
 			session.WithSoulSnapshotStore(deps.SoulStore),
 			session.WithSoulRunActivityChecker(deps.SoulRunChecker),
-			session.WithLedgerMaterializer(deps.LedgerMaterializer),
 			session.WithDriver(session.NewACPDriverAdapter(acp.New(
 				acp.WithLogger(deps.Logger),
 				acp.WithProcessRegistry(deps.ProcessRegistry),

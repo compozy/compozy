@@ -27,6 +27,7 @@ type ConversationRewindState struct {
 	TargetMessageID        string `json:"target_message_id"`
 	CoveredThroughSequence int64  `json:"covered_through_sequence"`
 	MessagesJson           string `json:"messages_json"`
+	BaselineStale          int64  `json:"baseline_stale"`
 	UpdatedAt              string `json:"updated_at"`
 }
 

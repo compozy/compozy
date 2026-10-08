@@ -12,7 +12,6 @@ func (o sessionOverlay) Apply(dst *SessionConfig) {
 	o.Limits.Apply(&dst.Limits)
 	o.Supervision.Apply(&dst.Supervision)
 	o.BusyInput.Apply(&dst.BusyInput)
-	o.Compaction.Apply(&dst.Compaction)
 	o.Attachments.Apply(&dst.Attachments)
 	o.Derive.Apply(&dst.Derive)
 }
@@ -42,21 +41,6 @@ func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
 	}
 	if o.TimeoutCancelGrace != nil {
 		dst.TimeoutCancelGrace = *o.TimeoutCancelGrace
-	}
-}
-
-func (o sessionCompactionOverlay) Apply(dst *SessionCompactionConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = *o.Enabled
-	}
-	if o.PressureThreshold != nil {
-		dst.PressureThreshold = *o.PressureThreshold
-	}
-	if o.MaxAttemptsPerTurn != nil {
-		dst.MaxAttemptsPerTurn = *o.MaxAttemptsPerTurn
-	}
-	if o.FailureCooldown != nil {
-		dst.FailureCooldown = *o.FailureCooldown
 	}
 }
 

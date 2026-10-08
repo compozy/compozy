@@ -60,7 +60,6 @@ func TestDaemonE2EKnowledgeWithoutMemoryAutomation(t *testing.T) {
 				Workspace: e2etest.WorkspaceSeedOptions{Files: tc.files},
 				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 					cfg.Memory.Enabled = false
-					cfg.Session.Compaction.Enabled = false
 				}},
 			})
 			identity, err := workspacepkg.EnsureIdentity(t.Context(), harness.WorkspaceRoot)

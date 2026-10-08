@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"math"
-
 	"strings"
 	"time"
 )
@@ -160,9 +158,6 @@ func (c SessionConfig) Validate() error {
 	if err := c.BusyInput.Validate(); err != nil {
 		return err
 	}
-	if err := c.Compaction.Validate(); err != nil {
-		return err
-	}
 	if err := c.Derive.Validate(); err != nil {
 		return err
 	}
@@ -195,30 +190,6 @@ func DefaultSessionBusyInputConfig() SessionBusyInputConfig {
 		DefaultMode:  "steer",
 		QueueCap:     10,
 		MaxTextBytes: 64 << 10,
-	}
-}
-
-// Validate ensures compaction pressure and retry guards are internally consistent.
-func (c SessionCompactionConfig) Validate() error {
-	switch {
-	case math.IsNaN(c.PressureThreshold) || math.IsInf(c.PressureThreshold, 0) ||
-		c.PressureThreshold < 0 || c.PressureThreshold > 1:
-		return fmt.Errorf(
-			"session.compaction.pressure_threshold must be between 0 and 1: %v",
-			c.PressureThreshold,
-		)
-	case c.MaxAttemptsPerTurn <= 0:
-		return fmt.Errorf(
-			"session.compaction.max_attempts_per_turn must be positive: %d",
-			c.MaxAttemptsPerTurn,
-		)
-	case c.FailureCooldown < 0:
-		return fmt.Errorf(
-			"session.compaction.failure_cooldown must be zero or positive: %s",
-			c.FailureCooldown,
-		)
-	default:
-		return nil
 	}
 }
 

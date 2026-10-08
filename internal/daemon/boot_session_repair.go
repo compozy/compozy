@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/memory/consolidation"
 
 	"github.com/compozy/compozy/internal/session"
-	sessionledger "github.com/compozy/compozy/internal/sessions/ledger"
 
 	"github.com/compozy/compozy/internal/skills"
 
@@ -279,26 +278,6 @@ func sessionPromptAdmissionStoreDependency(registry Registry) store.SessionPromp
 		return nil
 	}
 	return admissionStore
-}
-
-func (d *Daemon) newSessionLedgerMaterializer(
-	state *bootState,
-) (session.LedgerMaterializer, error) {
-	if state == nil || !state.cfg.Memory.Enabled {
-		return nil, nil
-	}
-	root := strings.TrimSpace(state.cfg.Memory.Session.LedgerRoot)
-	if root == "" {
-		root = d.homePaths.SessionsDir
-	}
-	materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
-		RootDir:          root,
-		UnboundPartition: state.cfg.Memory.Session.UnboundPartition,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("daemon: create session ledger materializer: %w", err)
-	}
-	return materializer, nil
 }
 
 func (d *Daemon) buildProviderVault(state *bootState) (*vault.Service, error) {

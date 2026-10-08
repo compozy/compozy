@@ -113,7 +113,6 @@ func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session
 		return errors.Join(session.stopFinalizationErr, err)
 	}
 	errs := appendLifecycleErr(nil, session.stopFinalizationErr)
-	errs = appendLifecycleErr(errs, m.materializeSessionLedger(ctx, session))
 	m.clearResumeReplay(session.ID)
 
 	m.removeActive(session.ID)
@@ -138,7 +137,6 @@ func (m *Manager) finalizeStoppedRuntimeResources(ctx context.Context, session *
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 	m.dispatchAgentStopped(cleanupCtx, session, session.processHandle(), waitErr)
-	m.cancelSessionCompaction(session.ID)
 	if notifier, ok := m.notifier.(FinalizationNotifier); ok {
 		notifier.OnSessionFinalizing(cleanupCtx, session)
 	}

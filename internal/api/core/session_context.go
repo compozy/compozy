@@ -37,9 +37,6 @@ func (h *BaseHandlers) sessionContextInput(
 	if settled.Sequence > 0 {
 		input.Settled = &contextusage.SettledTurn{TurnID: settled.TurnID, Sequence: settled.Sequence}
 	}
-	if h.Config.Session.Compaction.Enabled && h.Config.Session.Compaction.PressureThreshold > 0 {
-		input.Threshold = new(h.Config.Session.Compaction.PressureThreshold)
-	}
 	if h.ContextWindowResolver != nil && info != nil {
 		window, err := h.ContextWindowResolver.ContextWindow(ctx, info.Provider, info.Model)
 		if err != nil {

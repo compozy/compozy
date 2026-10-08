@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	sessionledger "github.com/compozy/compozy/internal/sessions/ledger"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -187,18 +186,12 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 	})
 }
 
-func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
+func TestClearConversationAfterResume(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should remove stale materialized ledger before replacing the event store", func(t *testing.T) {
+	t.Run("Should clear resumed history before replacing the event store", func(t *testing.T) {
+		t.Parallel()
 		h := newHarness(t)
-		materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
-			RootDir: h.homePaths.SessionsDir,
-		})
-		if err != nil {
-			t.Fatalf("NewMaterializer() error = %v", err)
-		}
-		h.manager = newManagerWithHarness(t, h, WithLedgerMaterializer(materializer))
 
 		session := createSession(t, h)
 		firstEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "before clear")
@@ -210,15 +203,6 @@ func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
 			t.Fatalf("Stop(before clear) error = %v", err)
 		}
 
-		ledgerPath := filepath.Join(h.homePaths.SessionsDir, h.workspaceID, session.ID, "ledger.jsonl")
-		ledgerBefore, err := os.ReadFile(ledgerPath)
-		if err != nil {
-			t.Fatalf("ReadFile(ledger before clear) error = %v", err)
-		}
-		if !strings.Contains(string(ledgerBefore), "before clear") {
-			t.Fatalf("ledger before clear = %s, want original prompt content", ledgerBefore)
-		}
-
 		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 		if err != nil {
 			t.Fatalf("Resume() error = %v", err)
@@ -228,9 +212,6 @@ func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
 			t.Fatalf("ClearConversation() error = %v", err)
 		}
 
-		if _, statErr := os.Stat(ledgerPath); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("Stat(discarded ledger) error = %v, want os.ErrNotExist", statErr)
-		}
 		events, err := h.manager.Events(testutil.Context(t), cleared.ID, store.EventQuery{})
 		if err != nil {
 			t.Fatalf("Events(after clear) error = %v", err)
@@ -249,199 +230,81 @@ func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
 		if err := h.manager.Stop(testutil.Context(t), cleared.ID); err != nil {
 			t.Fatalf("Stop(after clear) error = %v", err)
 		}
-		ledgerAfter, err := os.ReadFile(ledgerPath)
-		if err != nil {
-			t.Fatalf("ReadFile(ledger after clear stop) error = %v", err)
+		stored := readStoredEvents(t, cleared)
+		if countEventType(stored, EventTypeSessionStopped) != 1 {
+			t.Fatalf("stored events after clear stop = %#v, want durable stop", stored)
 		}
-		if strings.Contains(string(ledgerAfter), "before clear") {
-			t.Fatalf("ledger after clear stop still contains cleared prompt: %s", ledgerAfter)
-		}
-	})
-
-	t.Run("Should preserve committed recovery state when ledger discard fails", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
-			RootDir: h.homePaths.SessionsDir,
-		})
-		if err != nil {
-			t.Fatalf("NewMaterializer() error = %v", err)
-		}
-		discardErr := errors.New("ledger storage unavailable")
-		var failNextDiscard atomic.Bool
-		ledgerMaterializer := &testLedgerMaterializer{
-			delegate: materializer,
-			discard: func(ctx context.Context, record store.SessionLedgerRecord) error {
-				if failNextDiscard.CompareAndSwap(true, false) {
-					return discardErr
-				}
-				return materializer.DiscardSessionLedger(ctx, record)
-			},
-		}
-		h.manager = newManagerWithHarness(t, h, WithLedgerMaterializer(ledgerMaterializer))
-
-		session := createSession(t, h)
-		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "before failed discard")
-		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
-		}
-		collectEvents(t, eventsCh)
-		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-			t.Fatalf("Stop() error = %v", err)
-		}
-		ledgerPath := filepath.Join(h.homePaths.SessionsDir, h.workspaceID, session.ID, "ledger.jsonl")
-		if _, err := os.ReadFile(ledgerPath); err != nil {
-			t.Fatalf("ReadFile(ledger before clear) error = %v", err)
-		}
-		if _, err := h.manager.Resume(testutil.Context(t), session.ID); err != nil {
-			t.Fatalf("Resume() error = %v", err)
-		}
-		failNextDiscard.Store(true)
-
-		cleared, err := h.manager.ClearConversation(testutil.Context(t), session.ID)
-		if cleared == nil {
-			t.Fatal("ClearConversation() session = nil, want committed replacement")
-		}
-		t.Cleanup(func() {
-			if stopErr := h.manager.Stop(testutil.Context(t), cleared.ID); stopErr != nil {
-				t.Errorf("Stop(replacement cleanup) error = %v", stopErr)
-			}
-		})
-		if !errors.Is(err, discardErr) {
-			t.Fatalf("ClearConversation() error = %v, want %v", err, discardErr)
-		}
-		if _, statErr := os.Stat(ledgerPath); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("Stat(ledger after failed discard) error = %v, want os.ErrNotExist", statErr)
-		}
-
-		dbPath := session.DBPath()
-		manifest, present, err := readSessionDBClearManifest(dbPath)
-		if err != nil {
-			t.Fatalf("readSessionDBClearManifest() error = %v", err)
-		}
-		if !present {
-			t.Fatal("readSessionDBClearManifest() present = false, want recovery manifest")
-		}
-		for _, path := range []string{
-			dbPath + ".clear-backup",
-			sessionDBClearManifestPath(dbPath),
-			sessionDBClearCommitPath(dbPath),
-		} {
-			if _, statErr := os.Stat(path); statErr != nil {
-				t.Fatalf("Stat(%q) error = %v, want committed recovery artifact", path, statErr)
-			}
-		}
-
-		owner := testSessionDBOwner(session.ID, session.WorkspaceID)
-		if err := h.manager.finalizeCommittedSessionDBClear(
-			testutil.Context(t),
-			owner,
-			dbPath,
-			manifest,
-		); err != nil {
-			t.Fatalf("finalizeCommittedSessionDBClear() error = %v", err)
-		}
-		for _, path := range []string{
-			ledgerPath,
-			dbPath + ".clear-backup",
-			sessionDBClearManifestPath(dbPath),
-			sessionDBClearCommitPath(dbPath),
-		} {
-			if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
-				t.Fatalf("Stat(%q) error = %v, want os.ErrNotExist", path, statErr)
+		for _, event := range stored {
+			if strings.Contains(event.Content, "before clear") {
+				t.Fatalf("stored events retained cleared history: %#v", stored)
 			}
 		}
 	})
+}
 
-	t.Run("Should serialize a replacement stop after committed ledger discard", func(t *testing.T) {
+// Invariant: clear owns replacement finalization until its transcript epoch is
+// durable; concurrent stop cannot finalize the replacement before that commit.
+func TestClearConversationSerializesReplacementStop(t *testing.T) {
+	t.Parallel()
+	t.Run("Should serialize a replacement stop after committed clear epoch persistence", func(t *testing.T) {
 		t.Parallel()
-
 		h := newHarness(t)
-		materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
-			RootDir: h.homePaths.SessionsDir,
-		})
+		epochStore := newFakeTranscriptEpochStore()
+		h.manager = newManagerWithHarness(t, h, WithTranscriptEpochStore(epochStore))
+		active := createSession(t, h)
+		events, err := h.manager.Prompt(testutil.Context(t), active.ID, "before serialized clear")
 		if err != nil {
-			t.Fatalf("NewMaterializer() error = %v", err)
+			t.Fatal(err)
 		}
-		discardEntered := make(chan struct{})
-		releaseDiscard := make(chan struct{})
-		var discardOnce sync.Once
-		var clearDiscarding atomic.Bool
-		prematureMaterializeErr := errors.New("replacement ledger materialized before clear discard completed")
-		ledgerMaterializer := &testLedgerMaterializer{
-			delegate: materializer,
-			materialize: func(ctx context.Context, record store.SessionLedgerRecord) error {
-				if clearDiscarding.Load() {
-					return prematureMaterializeErr
-				}
-				return materializer.MaterializeSessionLedger(ctx, record)
-			},
-			discard: func(ctx context.Context, record store.SessionLedgerRecord) error {
-				clearDiscarding.Store(true)
-				discardOnce.Do(func() { close(discardEntered) })
-				select {
-				case <-releaseDiscard:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-				err := materializer.DiscardSessionLedger(ctx, record)
-				clearDiscarding.Store(false)
-				return err
-			},
+		collectEvents(t, events)
+		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		epochStore.beforeEnsure = func(ctx context.Context) error {
+			close(entered)
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
-		h.manager = newManagerWithHarness(t, h, WithLedgerMaterializer(ledgerMaterializer))
-
-		session := createSession(t, h)
-		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "before serialized clear")
-		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
-		}
-		collectEvents(t, eventsCh)
-
 		type clearResult struct {
 			session *Session
 			err     error
 		}
 		clearDone := make(chan clearResult, 1)
 		go func() {
-			cleared, clearErr := h.manager.ClearConversation(testutil.Context(t), session.ID)
+			cleared, clearErr := h.manager.ClearConversation(testutil.Context(t), active.ID)
 			clearDone <- clearResult{session: cleared, err: clearErr}
 		}()
 		select {
-		case <-discardEntered:
+		case <-entered:
 		case <-testutil.Context(t).Done():
-			t.Fatalf("ClearConversation() did not reach ledger discard: %v", testutil.Context(t).Err())
+			t.Fatal("clear did not reach epoch persistence")
 		}
-
 		stopCtx, cancelStop := context.WithTimeout(testutil.Context(t), 100*time.Millisecond)
-		stopErr := h.manager.Stop(stopCtx, session.ID)
+		stopErr := h.manager.Stop(stopCtx, active.ID)
 		cancelStop()
 		if !errors.Is(stopErr, context.DeadlineExceeded) {
 			t.Fatalf("Stop(during clear) error = %v, want deadline while clear owns finalization", stopErr)
 		}
-		if errors.Is(stopErr, prematureMaterializeErr) {
-			t.Fatalf("Stop(during clear) materialized the replacement ledger: %v", stopErr)
-		}
-
-		close(releaseDiscard)
+		unblock()
 		result := <-clearDone
-		if result.err != nil {
-			t.Fatalf("ClearConversation() error = %v", result.err)
-		}
-		if result.session == nil {
-			t.Fatal("ClearConversation() session = nil")
+		if result.err != nil || result.session == nil {
+			t.Fatalf("ClearConversation() = %#v, %v", result.session, result.err)
 		}
 		if err := h.manager.Stop(testutil.Context(t), result.session.ID); err != nil {
-			t.Fatalf("Stop(after clear) error = %v", err)
+			t.Fatal(err)
 		}
-		ledgerPath := filepath.Join(h.homePaths.SessionsDir, h.workspaceID, session.ID, "ledger.jsonl")
-		ledger, err := os.ReadFile(ledgerPath)
-		if err != nil {
-			t.Fatalf("ReadFile(replacement ledger) error = %v", err)
+		stored := readStoredEvents(t, result.session)
+		if countEventType(stored, EventTypeSessionStopped) != 1 {
+			t.Fatalf("replacement stop events = %#v, want exactly one durable stop", stored)
 		}
-		if strings.Contains(string(ledger), "before serialized clear") {
-			t.Fatalf("replacement ledger retained cleared content: %s", ledger)
+		for _, event := range stored {
+			if strings.Contains(event.Content, "before serialized clear") {
+				t.Fatalf("replacement retained cleared history: %#v", stored)
+			}
 		}
 	})
 }
@@ -535,19 +398,13 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		t *testing.T,
 	) {
 		h := newHarness(t)
-		materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
-			RootDir: h.homePaths.SessionsDir,
-		})
-		if err != nil {
-			t.Fatalf("NewMaterializer() error = %v", err)
-		}
+
 		epochStore := newFakeTranscriptEpochStore()
 		epochStore.ensureErr = errors.New("epoch store unavailable")
 		h.manager = newManagerWithHarness(
 			t,
 			h,
 			WithTranscriptEpochStore(epochStore),
-			WithLedgerMaterializer(materializer),
 		)
 		session := createSession(t, h)
 		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "before clear")
@@ -558,14 +415,7 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("Stop(before failed clear) error = %v", err)
 		}
-		ledgerPath := filepath.Join(h.homePaths.SessionsDir, h.workspaceID, session.ID, "ledger.jsonl")
-		ledgerBefore, err := os.ReadFile(ledgerPath)
-		if err != nil {
-			t.Fatalf("ReadFile(ledger before failed clear) error = %v", err)
-		}
-		if !strings.Contains(string(ledgerBefore), "before clear") {
-			t.Fatalf("ledger before failed clear does not contain original prompt: %s", ledgerBefore)
-		}
+
 		if _, err := h.manager.Resume(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("Resume(before failed clear) error = %v", err)
 		}
@@ -577,7 +427,6 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		if !strings.Contains(err.Error(), "ensure transcript epoch") {
 			t.Fatalf("ClearConversation() error = %v, want transcript epoch failure", err)
 		}
-		clearErr := err
 		if got := h.driver.stopCalls; got < 2 {
 			t.Fatalf("driver stop calls = %d, want original stop plus replacement rollback", got)
 		}
@@ -602,13 +451,8 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		if !foundOriginalPrompt {
 			t.Fatalf("stored events after failed clear = %#v, want original prompt content", stored)
 		}
-		ledgerAfter, readErr := os.ReadFile(ledgerPath)
-		if readErr != nil {
-			t.Fatalf("ReadFile(ledger after failed clear) error = %v; clear error = %v", readErr, clearErr)
-		}
-		if !strings.Contains(string(ledgerAfter), "before clear") ||
-			!strings.Contains(string(ledgerAfter), EventTypeSessionStopped) {
-			t.Fatalf("ledger after failed clear does not reflect restored stopped history: %s", ledgerAfter)
+		if countEventType(stored, EventTypeSessionStopped) == 0 {
+			t.Fatalf("restored stopped history lost terminal event: %#v", stored)
 		}
 	})
 
@@ -819,32 +663,6 @@ type managerSessionDBFamilyDigest struct {
 
 type managerSessionDBClearStateDigest [10]managerSessionDBFileDigest
 
-type testLedgerMaterializer struct {
-	delegate    LedgerMaterializer
-	materialize func(context.Context, store.SessionLedgerRecord) error
-	discard     func(context.Context, store.SessionLedgerRecord) error
-}
-
-func (m *testLedgerMaterializer) MaterializeSessionLedger(
-	ctx context.Context,
-	record store.SessionLedgerRecord,
-) error {
-	if m.materialize != nil {
-		return m.materialize(ctx, record)
-	}
-	return m.delegate.MaterializeSessionLedger(ctx, record)
-}
-
-func (m *testLedgerMaterializer) DiscardSessionLedger(
-	ctx context.Context,
-	record store.SessionLedgerRecord,
-) error {
-	if m.discard != nil {
-		return m.discard(ctx, record)
-	}
-	return m.delegate.DiscardSessionLedger(ctx, record)
-}
-
 func substituteManagerSessionDBFamily(t *testing.T, targetPath string, foreignPath string) {
 	t.Helper()
 	for _, suffix := range sessionDBClearArtifactSuffixes {
@@ -924,10 +742,11 @@ func assertManagerSessionDBFamilyUnchanged(
 }
 
 type fakeTranscriptEpochStore struct {
-	mu        sync.Mutex
-	epochs    map[string]int64
-	minimums  map[string]int64
-	ensureErr error
+	mu           sync.Mutex
+	epochs       map[string]int64
+	minimums     map[string]int64
+	ensureErr    error
+	beforeEnsure func(context.Context) error
 }
 
 func newFakeTranscriptEpochStore() *fakeTranscriptEpochStore {
@@ -947,9 +766,14 @@ func (s *fakeTranscriptEpochStore) SessionTranscriptEpoch(
 }
 
 func (s *fakeTranscriptEpochStore) EnsureSessionTranscriptEpoch(
-	_ context.Context,
+	ctx context.Context,
 	update store.SessionTranscriptEpochUpdate,
 ) (int64, error) {
+	if s.beforeEnsure != nil {
+		if err := s.beforeEnsure(ctx); err != nil {
+			return 0, err
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	target := strings.TrimSpace(update.SessionID)
@@ -1170,25 +994,7 @@ func TestBackupSessionDB(t *testing.T) {
 		if err := oldDB.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(old) error = %v", err)
 		}
-		materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
-			RootDir: filepath.Join(dir, "ledgers"),
-		})
-		if err != nil {
-			t.Fatalf("NewMaterializer() error = %v", err)
-		}
-		ledgerRecord := store.SessionLedgerRecord{
-			SessionID:    owner.SessionID,
-			WorkspaceID:  owner.WorkspaceID,
-			AgentName:    "coder",
-			EventsDBPath: dbPath,
-		}
-		if err := materializer.MaterializeSessionLedger(testutil.Context(t), ledgerRecord); err != nil {
-			t.Fatalf("MaterializeSessionLedger() error = %v", err)
-		}
-		ledgerPath, err := materializer.Path(ledgerRecord)
-		if err != nil {
-			t.Fatalf("Materializer.Path() error = %v", err)
-		}
+
 		manifest := backupOwnedSessionDBForTest(t, owner, dbPath)
 		freshDB, err := sessiondb.OpenSessionDB(testutil.Context(t), owner, dbPath)
 		if err != nil {
@@ -1201,44 +1007,23 @@ func TestBackupSessionDB(t *testing.T) {
 		if err := commitSessionDBClear(dbPath, manifest.Generation, 1); err != nil {
 			t.Fatalf("commitSessionDBClear() error = %v", err)
 		}
-		var discardObserved atomic.Bool
-		ledgerMaterializer := &testLedgerMaterializer{
-			delegate: materializer,
-			discard: func(ctx context.Context, record store.SessionLedgerRecord) error {
-				for _, path := range []string{
-					dbPath + ".clear-backup",
-					sessionDBClearManifestPath(dbPath),
-					sessionDBClearCommitPath(dbPath),
-				} {
-					if _, statErr := os.Stat(path); statErr != nil {
-						return statErr
-					}
-				}
-				discardObserved.Store(true)
-				return materializer.DiscardSessionLedger(ctx, record)
-			},
-		}
 
 		ctx := testutil.Context(t)
 		lease, err := acquireVerifiedSessionDBFamilyLease(ctx, owner, dbPath, dbPath, backupPath)
 		if err != nil {
 			t.Fatalf("acquireVerifiedSessionDBFamilyLease() error = %v", err)
 		}
-		manager := &Manager{ledgerMaterializer: ledgerMaterializer}
+		manager := &Manager{}
 		if err := manager.recoverSessionDBClear(ctx, lease, owner, dbPath); err != nil {
 			lease.Release()
 			t.Fatalf("recoverSessionDBClear(committed) error = %v", err)
 		}
 		lease.Release()
-		if !discardObserved.Load() {
-			t.Fatal("recoverSessionDBClear() did not discard the materialized ledger")
-		}
+
 		if got := readManagerSessionDBFileDigest(t, dbPath); got != freshDigest {
 			t.Fatalf("fresh database digest = %#v, want %#v", got, freshDigest)
 		}
-		if _, statErr := os.Stat(ledgerPath); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("Stat(discarded ledger) error = %v, want os.ErrNotExist", statErr)
-		}
+
 		if _, statErr := os.Stat(backupPath); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("Stat(committed backup) error = %v, want os.ErrNotExist", statErr)
 		}

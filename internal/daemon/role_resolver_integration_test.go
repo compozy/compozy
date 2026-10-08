@@ -243,8 +243,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
-				cfg.Memory.Enabled = false
-				cfg.Session.Compaction.Enabled = true
+				cfg.Memory.Enabled = true
 				cfg.Roles.CheckpointSummary.Enabled = true
 				cfg.Roles.CheckpointSummary.Provider = "claude"
 				cfg.Roles.CheckpointSummary.Model = "checkpoint-model"
@@ -253,8 +252,6 @@ func TestRoleResolverIntegration(t *testing.T) {
 				".compozy/config.toml": `[roles.dream]
 agent = "missing-curator"
 
-[session.compaction]
-enabled = false
 `,
 			}},
 		})
@@ -345,7 +342,7 @@ enabled = false
 		if !checkpoint.Enabled || checkpoint.Provider == nil || *checkpoint.Provider != "claude" ||
 			checkpoint.Model == nil || *checkpoint.Model != "checkpoint-model" || len(checkpoint.Diagnostics) != 0 ||
 			checkpoint.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceGlobal {
-			t.Fatalf("checkpoint role=%#v, want configured compaction availability", checkpoint)
+			t.Fatalf("checkpoint role=%#v, want configured memory availability", checkpoint)
 		}
 		checkpointIndex := slices.IndexFunc(cliRoles, func(role compozycontract.RoleStatus) bool {
 			return role.Role == checkpoint.Role

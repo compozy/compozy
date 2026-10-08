@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"runtime"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -1733,13 +1732,19 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		entered, release := make(chan struct{}), make(chan struct{})
 		unblock := sync.OnceFunc(func() { close(release) })
 		t.Cleanup(unblock)
-		cleanupErr := errors.New("recovered ledger persistence failed")
-		h.manager.ledgerMaterializer = &testLedgerMaterializer{
-			materialize: func(context.Context, store.SessionLedgerRecord) error {
-				close(entered)
-				<-release
-				return cleanupErr
-			},
+		cleanupErr := errors.New("recovered recorder close failed")
+		var fail atomic.Bool
+		fail.Store(true)
+		opener := h.manager.openStore
+		h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+			recorder, err := opener(ctx, owner, path)
+			if err != nil {
+				return nil, err
+			}
+			return &terminalCloseFailingRecorder{
+				EventRecorder: recorder, fail: &fail, closeErr: cleanupErr,
+				beforeClose: func() { close(entered); <-release },
+			}, nil
 		}
 		if err := h.manager.RequestStop(ctx, active.ID, CauseUserRequested); err != nil {
 			t.Fatal(err)
@@ -1765,9 +1770,8 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		if !errors.Is(err, cleanupErr) || !outcome.Verified || outcome.FinalState != StateStopped {
 			t.Fatalf("recovered cleanup outcome = %#v, %v", outcome, err)
 		}
-		warning := storedEventByType(t, readStoredEvents(t, active), acp.EventTypeRuntimeWarning)
-		if !strings.Contains(warning.Content, "ledger cleanup") {
-			t.Fatalf("recovered cleanup warning = %s", warning.Content)
+		if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 2 {
+			t.Fatal("recovered recorder cleanup lost or duplicated the durable terminal event")
 		}
 		if err := h.manager.Stop(ctx, active.ID); err != nil {
 			t.Fatalf("already completed recovered stop: %v", err)
@@ -2267,9 +2271,10 @@ func TestSharedSessionStopOperation(t *testing.T) {
 
 type terminalCloseFailingRecorder struct {
 	EventRecorder
-	fail     *atomic.Bool
-	closeErr error
-	terminal bool
+	fail        *atomic.Bool
+	closeErr    error
+	terminal    bool
+	beforeClose func()
 }
 
 type terminalWriteFailingRecorder struct {
@@ -2307,6 +2312,9 @@ func (r *terminalCloseFailingRecorder) AppendEventIfAbsent(
 }
 
 func (r *terminalCloseFailingRecorder) Close(ctx context.Context) error {
+	if r.terminal && r.fail.Load() && r.beforeClose != nil {
+		r.beforeClose()
+	}
 	err := r.EventRecorder.Close(ctx)
 	if r.terminal && r.fail.CompareAndSwap(true, false) {
 		return errors.Join(err, r.closeErr)

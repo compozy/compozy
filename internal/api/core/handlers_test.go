@@ -1712,8 +1712,6 @@ func TestSessionUsageEndpoint(t *testing.T) {
 						},
 					}
 					fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
-					fixture.Handlers.Config.Session.Compaction.Enabled = true
-					fixture.Handlers.Config.Session.Compaction.PressureThreshold = 0.85
 					response := performRequest(
 						t,
 						fixture.Engine,
@@ -1763,8 +1761,6 @@ func TestSessionUsageEndpoint(t *testing.T) {
 				return new(int64(100)), nil
 			},
 		)
-		fixture.Handlers.Config.Session.Compaction.Enabled = true
-		fixture.Handlers.Config.Session.Compaction.PressureThreshold = 0.85
 		response := performRequest(
 			t,
 			fixture.Engine,

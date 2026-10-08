@@ -4,8 +4,10 @@ package sessiondb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -2667,4 +2669,145 @@ func (r *readOnlyPoolTestReader) Close(ctx context.Context) error {
 		return r.onClose(ctx)
 	}
 	return nil
+}
+
+// Invariant: legacy compaction restores only its own spans and invalidates covered rewind baselines.
+// Owner: session SQLite migrations; canonical suite: session_db_integration_test.go.
+func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		fired      bool
+		archived   bool
+		rewind     bool
+		rewindFrom int
+	}{
+		{"Should restore compaction spans while retaining rewind archives across reopen", true, true, true, 150},
+		{"Should retain rewind archives overlapping a legacy compaction", true, true, true, 60},
+		{"Should leave failed compaction spans unchanged", true, false, false, 150},
+		{"Should leave unrelated archives unchanged without compaction", false, true, false, 150},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			prefix, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerTestSQLDBCleanup(t, "compaction prefix", prefix)
+			if err := store.Apply(
+				ctx,
+				prefix,
+				sessionMigrationPrefixBefore(t, "00009_unarchive_compaction_spans.sql"),
+			); err != nil {
+				t.Fatal(err)
+			}
+			owner := testSessionDBOwner("sess-compaction-upgrade")
+			if _, err := prefix.ExecContext(
+				ctx,
+				`INSERT INTO session_db_owner (singleton,session_id,workspace_id) VALUES (1,?,?)`,
+				owner.SessionID,
+				owner.WorkspaceID,
+			); err != nil {
+				t.Fatal(err)
+			}
+			at := "2026-09-01T00:00:00Z"
+			for seq := 1; seq <= 200; seq++ {
+				archived := 0
+				if tc.archived && seq >= 20 && seq <= 80 || tc.rewind && seq >= tc.rewindFrom {
+					archived = 1
+				}
+				content := fmt.Sprintf(`{"type":"user_message","text":"message-%03d","turn_id":"turn-%03d"}`, seq, seq)
+				if _, err := prefix.ExecContext(
+					ctx,
+					`INSERT INTO events (sequence,id,turn_id,type,agent_name,content,timestamp,archived) VALUES (?,?,?,?,?,?,?,?)`,
+					seq,
+					fmt.Sprintf("event-%d", seq),
+					fmt.Sprintf("turn-%d", seq),
+					"user_message",
+					"coder",
+					content,
+					at,
+					archived,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.fired {
+				fixture, err := os.ReadFile("testdata/legacy_compaction_fired.json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := prefix.ExecContext(
+					ctx,
+					`INSERT INTO events (sequence,id,turn_id,type,agent_name,content,timestamp) VALUES (201,'legacy-fired','fixture-turn','session.compaction_fired','coder',?,?)`,
+					string(fixture),
+					at,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.rewind {
+				if _, err := prefix.ExecContext(
+					ctx,
+					`INSERT INTO conversation_rewind_state (singleton,target_message_id,covered_through_sequence,messages_json,updated_at) VALUES (1,'message-150',?,'[]',?)`,
+					tc.rewindFrom-1,
+					at,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := prefix.ExecContext(
+					ctx,
+					`INSERT INTO conversation_rewind_receipts (idempotency_key,request_hash,target_message_id,archived_from_sequence,archived_to_sequence,archived_event_count,generation,max_sequence,transcript_epoch,draft_text,created_at) VALUES ('rewind','hash','message-150',?,200,?,1,?,1,'draft',?)`,
+					tc.rewindFrom,
+					201-tc.rewindFrom,
+					tc.rewindFrom-1,
+					at,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := prefix.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for attempt := range 2 {
+				db, err := OpenSessionDB(ctx, owner, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows, err := db.Query(ctx, store.EventQuery{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantCount := 200
+				if tc.fired {
+					wantCount++
+				}
+				if len(rows) != wantCount {
+					t.Fatalf("events=%d want=%d", len(rows), wantCount)
+				}
+				for _, row := range rows {
+					wantArchived := tc.archived && !tc.fired && row.Sequence >= 20 && row.Sequence <= 80 ||
+						tc.rewind && row.Sequence >= int64(tc.rewindFrom) && row.Sequence <= 200
+					if row.Archived != wantArchived {
+						t.Fatalf(
+							"open %d sequence %d archived=%v want=%v",
+							attempt,
+							row.Sequence,
+							row.Archived,
+							wantArchived,
+						)
+					}
+				}
+				state, found, err := db.ConversationRewindState(ctx)
+				if err != nil || found != tc.rewind || tc.rewind && !state.BaselineStale {
+					t.Fatalf("rewind state=%+v found=%v err=%v", state, found, err)
+				}
+				if err := db.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
 }

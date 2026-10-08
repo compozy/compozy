@@ -15,7 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
-	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	skillbundled "github.com/compozy/compozy/skills"
 )
@@ -247,52 +246,6 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
 		if got != "Base prompt." {
 			t.Fatalf("Assemble() = %q, want %q", got, "Base prompt.")
-		}
-	})
-}
-
-func TestComposedAssemblerResumeContext(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should delegate selected resume sections in descriptor order", func(t *testing.T) {
-		t.Parallel()
-
-		first := &resumeContextPromptProvider{section: "<checkpoint>first</checkpoint>"}
-		second := &resumeContextPromptProvider{section: "<recovery>second</recovery>"}
-		assembler := NewComposedAssembler(WithPromptSectionDescriptors(
-			PromptSectionDescriptor{
-				Name:     "second",
-				Position: PromptSectionPositionAppend,
-				Order:    20,
-				Provider: second,
-			},
-			PromptSectionDescriptor{
-				Name:     "first",
-				Position: PromptSectionPositionPrepend,
-				Order:    10,
-				Provider: first,
-			},
-		))
-		startup := session.StartupPromptContext{
-			SessionID:   "sess-alpha",
-			WorkspaceID: "ws-alpha",
-			Workspace:   "/workspace/alpha",
-		}
-		got, err := assembler.ResumeContextSection(testutil.Context(t), startup)
-		if err != nil {
-			t.Fatalf("ResumeContextSection() error = %v", err)
-		}
-		want := "<checkpoint>first</checkpoint>\n\n<recovery>second</recovery>"
-		if got != want {
-			t.Fatalf("ResumeContextSection() = %q, want %q", got, want)
-		}
-		if first.startup != startup || second.startup != startup {
-			t.Fatalf(
-				"ResumeContextSection() contexts = (%#v, %#v), want %#v",
-				first.startup,
-				second.startup,
-				startup,
-			)
 		}
 	})
 }
@@ -624,7 +577,6 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 		{name: "Should retain discovery for coordinators", sessionType: session.SessionTypeCoordinator, wantRouter: true},
 		{name: "Should retain discovery for spawned workers", sessionType: session.SessionTypeSpawned, role: session.DefaultSpawnRole, wantRouter: true},
 		{name: "Should omit discovery for extractor children", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleMemoryExtractor},
-		{name: "Should omit discovery for checkpoint summaries", sessionType: session.SessionTypeDream, role: session.SpawnRoleCheckpointSummary},
 		{name: "Should omit discovery for title generator children", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleAutoTitle},
 		{name: "Should normalize internal role metadata", sessionType: session.SessionTypeSpawned, role: " MEMORY-EXTRACTOR "},
 		{name: "Should preserve guidance for unknown roles", sessionType: session.SessionTypeSystem, role: "custom-role", wantRouter: true},
@@ -632,7 +584,6 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 		{name: "Should preserve complete manuals when skills are disabled", sessionType: session.SessionTypeUser, skillsDisabled: true, wantManuals: true},
 		{name: "Should omit extractor guidance when skills are disabled", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleMemoryExtractor, skillsDisabled: true},
 		{name: "Should omit title guidance when skills are disabled", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleAutoTitle, skillsDisabled: true},
-		{name: "Should omit summary guidance when skills are disabled", sessionType: session.SessionTypeDream, role: session.SpawnRoleCheckpointSummary, skillsDisabled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -708,26 +659,6 @@ type staticPromptProvider string
 
 func (p staticPromptProvider) PromptSection(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
 	return string(p), nil
-}
-
-type resumeContextPromptProvider struct {
-	section string
-	startup session.StartupPromptContext
-}
-
-func (p *resumeContextPromptProvider) PromptSection(
-	context.Context,
-	*workspacepkg.ResolvedWorkspace,
-) (string, error) {
-	return "", nil
-}
-
-func (p *resumeContextPromptProvider) ResumeContextSection(
-	_ context.Context,
-	startup session.StartupPromptContext,
-) (string, error) {
-	p.startup = startup
-	return p.section, nil
 }
 
 type composedAssemblerMemoryEnv struct {

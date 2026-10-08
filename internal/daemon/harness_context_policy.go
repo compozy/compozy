@@ -74,7 +74,7 @@ func (r *HarnessContextResolver) resolveDetachedRunMode(
 
 func inputOnlyHarnessRole(role string) bool {
 	switch role {
-	case session.SpawnRoleMemoryExtractor, session.SpawnRoleCheckpointSummary, session.SpawnRoleAutoTitle:
+	case session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle:
 		return true
 	default:
 		return false

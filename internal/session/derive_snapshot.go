@@ -250,6 +250,10 @@ func deriveRewindBaseline(ctx context.Context, recorder EventReadCloser) ([]tran
 	if !found {
 		return nil, 0, nil
 	}
+	if state.BaselineStale {
+		messages, err := assembleConversationRewindPrefix(ctx, recorder, state.CoveredThroughSequence)
+		return messages, state.CoveredThroughSequence, err
+	}
 	var messages []transcript.Message
 	if err := json.Unmarshal([]byte(state.MessagesJSON), &messages); err != nil {
 		return nil, 0, fmt.Errorf("session: decode derive source rewind baseline: %w", err)

@@ -44,7 +44,6 @@ type SessionConfig struct {
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
-	Compaction  SessionCompactionConfig  `toml:"compaction"`
 	Attachments SessionAttachmentsConfig `toml:"attachments"`
 	Derive      SessionDeriveConfig      `toml:"derive"`
 }
@@ -90,14 +89,6 @@ type SessionBusyInputConfig struct {
 	DefaultMode  string `toml:"default_mode,omitempty"`
 	QueueCap     int    `toml:"queue_cap,omitempty"`
 	MaxTextBytes int    `toml:"max_text_bytes,omitempty"`
-}
-
-// SessionCompactionConfig controls pressure-triggered persisted-context compaction.
-type SessionCompactionConfig struct {
-	Enabled            bool          `toml:"enabled"`
-	PressureThreshold  float64       `toml:"pressure_threshold"`
-	MaxAttemptsPerTurn int           `toml:"max_attempts_per_turn"`
-	FailureCooldown    time.Duration `toml:"failure_cooldown"`
 }
 
 const (

@@ -82,12 +82,6 @@ type CommandService interface {
 	) (string, error)
 }
 
-// LedgerMaterializer is the thin session-end seam for forensic ledger projection.
-type LedgerMaterializer interface {
-	MaterializeSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error
-	DiscardSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error
-}
-
 // AgentArtifacts returns an agent definition and resource ownership.
 type AgentArtifacts struct {
 	Agent               compozyconfig.AgentDef

@@ -268,7 +268,8 @@ func (m *Manager) deriveBudget(workspace *workspacepkg.ResolvedWorkspace) replay
 		cfg.MaxMessageBytes = compozyconfig.DefaultSessionDeriveMaxMessageBytes
 	}
 	return replayBudget{
-		MaxBytes: cfg.MaxReplayBytes, MaxMessageBytes: cfg.MaxMessageBytes, KeepRecent: deriveProtectedTail,
+		MaxBytes: cfg.MaxReplayBytes, MaxMessageBytes: cfg.MaxMessageBytes,
+		KeepRecent: deriveProtectedTail, PinFirstUser: true,
 	}
 }
 

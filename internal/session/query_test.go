@@ -1707,19 +1707,16 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 				t.Fatal(err)
 			}
 			from, to := rows[0].Sequence, rows[len(rows)-1].Sequence
-			if err := h.manager.recordCompactionFired(
-				ctx,
-				sess,
-				CompactionFiredPayload{
-					TurnID:       "B",
-					FromSequence: from,
-					ToSequence:   to,
-					ContextUsed:  85,
-					ContextSize:  100,
-					Pressure:     0.85,
-					Strategy:     "summary_archive",
-				},
-			); err != nil {
+			raw, err := json.Marshal(CompactionFiredPayload{
+				TurnID: "B", FromSequence: from, ToSequence: to,
+				ContextUsed: 85, ContextSize: 100, Pressure: 0.85, Strategy: "summary_archive",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.recordEvent(ctx, sess, acp.AgentEvent{
+				Type: events.SessionCompactionFired, TurnID: "B", Raw: raw, Timestamp: at,
+			}); err != nil {
 				t.Fatal(err)
 			}
 			markers, err := h.manager.Compactions(ctx, sess.ID)
@@ -1729,7 +1726,10 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 			if len(markers) != 1 || markers[0].SpanArchived {
 				t.Fatalf("unarchived marker=%#v", markers)
 			}
-			if err := archiveCompactionSpan(ctx, sess, from, to, len(rows)); err != nil {
+			if _, err := sess.recorderHandle().(store.EventArchiver).ArchiveEvents(
+				ctx,
+				store.EventArchiveRequest{FromSequence: from, ToSequence: to},
+			); err != nil {
 				t.Fatal(err)
 			}
 			assertRead := func() {
