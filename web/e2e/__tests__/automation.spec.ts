@@ -221,6 +221,10 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await editJob.click();
     await expect(jobsUI.form).toBeVisible();
     await expect(jobsUI.nameInput).toHaveValue(seeded.job.name);
+    // The seeded cron fits the schedule builder, which keeps the expression behind
+    // "Edit expression".
+    await expect(jobsUI.scheduleExpr).toBeHidden();
+    await jobsUI.scheduleExpressionToggle.click();
     await expect(jobsUI.scheduleExpr).toHaveValue(
       browserAutomationOperatorFlowScenario.job.scheduleExpr
     );

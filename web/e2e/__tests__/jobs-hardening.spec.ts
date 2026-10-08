@@ -765,7 +765,8 @@ async function assertJobsLifecycleViewportMatrix(
     await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
     await expect(ui.form).toBeVisible();
-    await expect(ui.scheduleExpr).toBeVisible();
+    // A builder-compatible cron opens in the schedule builder; the expression is one level deeper.
+    await enableCronExpressionEditing(ui);
     await expect(ui.formSubmit).toBeEnabled();
     await browserArtifacts.captureScreenshot(`jobs-lifecycle-editor-viewport-${width}`, appPage);
     await appPage.keyboard.press("Escape");
