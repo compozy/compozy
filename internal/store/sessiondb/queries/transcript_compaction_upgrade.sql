@@ -18,3 +18,11 @@ WHERE e.sequence > (SELECT MAX(a.sequence) FROM events AS a WHERE a.transcript_e
   AND e.transcript_entry_key <> ''
 ORDER BY e.sequence ASC
 LIMIT 1;
+
+-- name: ListTranscriptEntryContextForUpgrade :many
+SELECT e.id, e.sequence, e.turn_id, e.type, e.agent_name, e.content, e.archived, e.timestamp, e.transcript_entry_key
+FROM events AS e
+WHERE e.sequence BETWEEN (SELECT MIN(a.sequence) FROM events AS a WHERE a.transcript_entry_key = sqlc.arg(entry_key))
+                     AND (SELECT MAX(a.sequence) FROM events AS a WHERE a.transcript_entry_key = sqlc.arg(entry_key))
+  AND e.transcript_entry_key <> ''
+ORDER BY e.sequence ASC;

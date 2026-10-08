@@ -56,7 +56,9 @@ leftovers in user-owned files are retired without blocking the user.
   without catalog rows.
 - **Review round 1 boundary repairs:** session upgrade restores physically archived transcript entries
   and tool routes using persisted identities, preserves rewind exclusions and live projection state,
-  and advances the projection generation once. Config retirement follows trigger array-element
+  and advances the projection generation once. Review round 2 restores completion from the original
+  ordered event context, including boundaries before late routed tool results, while preserving the
+  final updated sequence and completed text across repeated opens. Config retirement follows trigger array-element
   ownership across noncontiguous descendant tables, preserving retained filters. Installed extension
   automation resources ignore `memory.consolidated` before validation with
   `extension.retired_entries_ignored`; explicit API/CLI trigger creation remains rejected. Nested

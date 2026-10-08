@@ -89,7 +89,9 @@ bytes; stop the daemon cleanly; back up the home.
    transcript pages (`GET …/transcript`), search, outline, and fork/rewind anchors resolve the restored entries
    with their original identities and tool routes, not only `history` and `events` (session migration `00009`
    restores the transcript projection with the events). Rewind-excluded messages remain excluded; reopening does not advance the
-   projection generation again. Its old `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
+   projection generation again. An assistant completed by a system continuation remains completed even
+   when its tool result arrived after that boundary; its final updated sequence stays unchanged across
+   repeated opens. Its old `session.compaction_fired` rows remain visible in `compozy session events` as opaque history and
    produce no usage marker.
 8. `compozy agent soul validate` reports the SOUL valid with no diagnostic for `memory_policy`, the file is not
    rewritten, and the persona applies in a new session.
@@ -124,3 +126,8 @@ publication failures plus retry; daemon boot exercises a real read-only config d
 loaders retain supported hook matchers while ignoring retired keys; migration coverage includes historical
 `checkpoint-summary` rows; replay coverage exercises the exact fitting eight-message tail boundary.
 The complete previous-release lab walk is still untested.
+
+Review round 2 automated coverage: `TestSessionDBUnarchiveCompactionSpans` projects the exact seven-event
+late-tool ordering on schema 8, uses the actual archive path, and checks completed text, original identities,
+tool routing, final sequence, and one-time generation advancement after two opens. This check does not
+replace the complete previous-release upgrade lab walk.

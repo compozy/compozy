@@ -2676,6 +2676,126 @@ func (r *readOnlyPoolTestReader) Close(ctx context.Context) error {
 // Owner: session SQLite migrations; canonical suite: session_db_integration_test.go.
 func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 	t.Parallel()
+	// Invariant: late tool results preserve the original completion boundary and final update sequence.
+	t.Run(
+		"Should restore completed text across a late tool result after an intervening system boundary",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			prefix, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerTestSQLDBCleanup(t, "late tool compaction prefix", prefix)
+			if err := store.Apply(
+				ctx,
+				prefix,
+				sessionMigrationPrefixBefore(t, "00009_unarchive_compaction_spans.sql"),
+			); err != nil {
+				t.Fatal(err)
+			}
+			owner := testSessionDBOwner("sess-late-tool-compaction-upgrade")
+			if _, err := prefix.ExecContext(
+				ctx,
+				`INSERT INTO session_db_owner (singleton,session_id,workspace_id) VALUES (1,?,?)`,
+				owner.SessionID,
+				owner.WorkspaceID,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := initializeTranscriptProjectionState(ctx, prefix); err != nil {
+				t.Fatal(err)
+			}
+			at := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+			previous := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+			var input []SessionEvent
+			for _, event := range []acp.AgentEvent{
+				{Type: acp.EventTypeUserMessage, TurnID: "original", Text: "Original question"},
+				{Type: acp.EventTypeAgentMessage, TurnID: "original", Text: "Original answer"},
+				{Type: acp.EventTypeToolCall, TurnID: "original", ToolCallID: "late-tool", Title: "Read"},
+				{Type: acp.EventTypeSyntheticReentry, TurnID: "continuation", Text: "System continuation"},
+				{Type: acp.EventTypeAgentMessage, TurnID: "continuation", Text: "Continued answer"},
+				{Type: acp.EventTypeToolResult, TurnID: "original", ToolCallID: "late-tool", Text: "Late output"},
+				{Type: acp.EventTypeDone, TurnID: "continuation"},
+			} {
+				input = append(input, canonicalStoreEvent(t, event, "coder"))
+			}
+			persisted, err := previous.writeEventBatch(ctx, input)
+			if err != nil || len(persisted) != 7 {
+				t.Fatalf("previous ledger=%#v/%v", persisted, err)
+			}
+			before, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+			if err != nil || len(before.Entries) != 4 {
+				t.Fatalf("previous page=%#v/%v", before, err)
+			}
+			original, found, err := (projectionSQLResolver{db: prefix}).ToolEntryIdentity(ctx, "late-tool")
+			if err != nil || !found || original.Key != "g0:s2" || !original.Complete || original.UpdatedSequence != 6 {
+				t.Fatalf("original identity=%#v/%v/%v", original, found, err)
+			}
+			if _, err := previous.writeArchiveEvents(
+				ctx,
+				store.EventArchiveRequest{FromSequence: 1, ToSequence: 7},
+			); err != nil {
+				t.Fatal(err)
+			}
+			archived, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+			if err != nil || len(archived.Entries) != 0 || archived.Generation != 1 {
+				t.Fatalf("actual archive page=%#v/%v", archived, err)
+			}
+			if _, err := prefix.ExecContext(
+				ctx,
+				`INSERT INTO events (sequence,id,turn_id,type,agent_name,content,timestamp) VALUES (8,'legacy-fired','original','session.compaction_fired','coder',?,?)`,
+				`{"raw":{"from_sequence":1,"to_sequence":7}}`,
+				store.FormatTimestamp(at),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := prefix.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for attempt := range 2 {
+				reopened, err := OpenSessionDB(ctx, owner, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				page, err := reopened.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+				if err != nil || len(page.Entries) != 4 || page.Generation != 2 {
+					t.Fatalf("open %d page=%#v/%v", attempt, page, err)
+				}
+				for i, entry := range page.Entries {
+					if entry.Message.ID != before.Entries[i].Message.ID ||
+						entry.StartSequence != before.Entries[i].StartSequence ||
+						entry.Sequence != before.Entries[i].Sequence {
+						t.Fatalf("changed identity open %d entry=%#v original=%#v", attempt, entry, before.Entries[i])
+					}
+				}
+				if got := transcript.UIMessageText(page.Entries[1].Message); got != "Original answer" {
+					t.Fatalf("restored text=%q", got)
+				}
+				var textFound bool
+				for _, part := range page.Entries[1].Message.Parts {
+					if part.Type == "text" {
+						textFound = true
+						if part.State != "done" {
+							t.Fatalf("open %d restored text state=%q", attempt, part.State)
+						}
+					}
+				}
+				if !textFound {
+					t.Fatal("restored assistant lost its text")
+				}
+				identity, found, err := (projectionSQLResolver{db: reopened.db}).ToolEntryIdentity(ctx, "late-tool")
+				if err != nil || !found || identity != original {
+					t.Fatalf("open %d restored identity=%#v/%v/%v want=%#v", attempt, identity, found, err, original)
+				}
+				if err := reopened.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+	)
+
 	// Invariant: previously projected and physically cut entries regain navigation and routes without changing live identities.
 	t.Run("Should restore real archived projections and tool routes with stable rewind exclusions", func(t *testing.T) {
 		t.Parallel()
