@@ -686,9 +686,9 @@ that has usage or a delivery. Each `compactions[]` marker is an observed agent c
 compaction item itself. Legacy `session.compaction_fired` rows without a `compaction_id` never produce a
 marker; usage carries no CompozyOS compaction threshold. A
 failed turns read returns an error. Listen for `session_usage_changed` on the transcript stream to
-refresh these queries; the signal never advances the transcript cursor. The meter and markers catch up
-with a compaction on the next usage update (the Web also re-reads them when its Compact now request
-settles). Its replay watermark is
+refresh these queries; the signal never advances the transcript cursor. Compaction snapshots and
+`session.compaction_fired` also emit the signal, so the meter and markers catch up with a compaction
+while the turn is still running. Its replay watermark is
 independent of transcript projection reads, so concurrent usage commits remain eligible for the next
 refresh.
 

@@ -443,8 +443,8 @@ What the Web shows while and after the agent compacts:
 
 The "before" figure of a marker is its `context_used`; the "after" figure is the first usage report of
 a later turn before the next compaction. Both are shown only when known. The meter and the turns list
-re-read usage when the Compact now request settles and on the next usage update, so the numbers
-catch up once the agent reports again.
+re-read usage whenever a compaction snapshot is recorded, when the Compact now request settles, and on
+every usage update, so a compaction shows up while the turn is still running.
 
 ### Goal
 
