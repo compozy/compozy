@@ -8,7 +8,7 @@ Canonical vocabulary for CompozyOS. When the corpus is ambiguous (older RFC draf
 
 ### CompozyOS and `compozy`
 
-**CompozyOS** is the public product name used in ordinary prose, UI, package descriptions, calls to action, and formal category language. It names the complete agent operating system: the daemon-owned runtime, sessions and work model, memory, permissions, automation, OS shell, extensibility, and coordination.
+**CompozyOS** is the public product name used in ordinary prose, UI, package descriptions, calls to action, and formal category language. It names the complete agent operating system: the daemon-owned runtime, sessions and work model, permissions, automation, OS shell, extensibility, and coordination.
 
 **`compozy`** is the command identifier. The binary, `COMPOZY_*` environment variables, Go module path, `@compozy/*` packages, Homebrew formula, socket names, config paths, and `compozy__*` native tool IDs keep this spelling. CompozyOS is the product; `compozy` is its command. Do not use `CompozyOS Runtime` as a separate product name; `CompozyOS runtime` is descriptive prose when the runtime specifically matters.
 
@@ -40,6 +40,16 @@ A durable managed agent run: saved history, resumable state, and the same view f
 - **fork** — a conversation fork: a second session with the same agent and the conversation up to a point. UI: "Fork session…", "Fork from here", "Forked from …". Unqualified `fork` means this; worktree and Loop forks are always qualified.
 - **recovery** — an empty restart of a session whose runtime cannot be resumed. UI: "Restart in a new session" — never "fork".
 - `handoff` stays the Network term; it never labels continue or fork in UI copy (the `provider_error.next_action` value `handoff` is a wire value, not a label).
+
+---
+
+### Compaction
+
+The agent's own compaction of its live context window. CompozyOS never compacts a session itself: it observes agent compaction when the agent supports the ACP compaction capability (a `compaction` item in session history, `session.compaction_fired`, usage markers, and the observation-only `context.pre_compact` / `context.post_compact` hooks) and requests it only through the command the agent advertises (`compact`, else `compress`). The surfaces are experimental while the upstream ACP contract is unstable.
+
+A rebuild of a session into a new agent session is a **bounded replay** (`[session.derive]` budget, pinned first user message, pointer to `compozy__session_history`), not a compaction.
+
+**UI label:** "Compact now" for the operator action; the timeline row reads "Context compacted". **Say:** "agent compaction", "request compaction". **Do not say:** "CompozyOS compacts the session" or "summarizes older messages".
 
 ---
 
@@ -81,9 +91,9 @@ runtime interfaces; extension permissions name Host API access. Those are separa
 
 The closed set of **runtime interfaces an extension implements**, declared as `capabilities.provides` in the extension manifest and generated from the SDK declaration by `compozy extension build`.
 
-Public set: `tool.provider`, `memory.backend`, `model.source`, `loop.watch_source`, `view.provider`, `connectivity.provider`, `forge.provider`. `view.provider` is the TypeScript-only programmable command-palette interface (`view/open`, `view/event`, `view/close`).
+Public set: `tool.provider`, `model.source`, `loop.watch_source`, `view.provider`, `connectivity.provider`, `forge.provider`. `view.provider` is the TypeScript-only programmable command-palette interface (`view/open`, `view/event`, `view/close`).
 
-Each provide binds the extension to the CompozyOS → extension service methods the daemon will call (for example `memory.backend` → `memory/store`, `memory/recall`, `memory/forget`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
+Each provide binds the extension to the CompozyOS → extension service methods the daemon will call (for example `view.provider` → `view/open`, `view/event`, `view/close`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
 
 **Say:** "provide surface", "the extension provides `tool.provider`". **Do not say:** "the extension's capabilities" when you mean this — see the [Capability](#capability) disambiguation.
 
@@ -93,7 +103,7 @@ Each provide binds the extension to the CompozyOS → extension service methods 
 
 The single authored list of **Host API methods an extension may call**, declared as `permissions.requires` in the extension manifest.
 
-The list is validated against the closed Host API method set at build, validate, install, and daemon load. CompozyOS **derives** the operator-facing consent areas from it (`sessions:read`, `memory:write`, …) — consent areas are a display and policy projection, never an authored field.
+The list is validated against the closed Host API method set at build, validate, install, and daemon load. CompozyOS **derives** the operator-facing consent areas from it (`sessions:read`, `sessions:write`, …) — consent areas are a display and policy projection, never an authored field.
 
 Enforcement is per call against the effective grant, which is the declared list narrowed by the install source tier. Published sources (`curated`, `github`, `git`) run under the marketplace ceiling; local-path installs and dev links carry no ceiling.
 
@@ -119,7 +129,7 @@ Explicit consent from an operator or authorized agent to the exact digest of an 
 
 The **deterministic runtime program the daemon owns and executes**, defined by the contract **goal → act → verify → stop** plus a fixed set of named terminal outcomes (ADR-001). A Loop's body is a static DAG of typed nodes; iteration is simply what happens when verification says "not done." A single-pass linear pipeline is still a Loop — one that finished on its first pass — and it still carries the contract (definition-of-done, verification gate, terminal states, budget), which is the value no plain DAG engine delivers.
 
-Loops ride CompozyOS's existing durable foundations (work queue, sessions, automation, memory) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
+Loops ride CompozyOS's existing durable foundations (work queue, sessions, automation) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
 
 **Loop vs Capability:** a Loop is deterministic and runtime-owned; a capability describes an agent outcome.
 
@@ -170,7 +180,7 @@ Self-contained agent definition: YAML frontmatter (provider/model/tools/permissi
 
 **Status:** Partially shipped from RFC 001. The runtime now parses `AGENT.md` frontmatter,
 including agent-local `skills/` overlays and `skills.disabled`. Draft fields such as
-`skills.inherit`, `skills.extra_sources`, and `memory.*` remain out of scope today.
+`skills.inherit` and `skills.extra_sources` remain out of scope today.
 
 **vs AGENTS.md (project file)**:
 
@@ -189,45 +199,16 @@ Inside CompozyOS, agent-facing CLI commands resolve identity from `COMPOZY_SESSI
 
 ---
 
-## Memory
-
-### Memory Types (taxonomy)
-
-Per RFC 002 / Claude Code AutoDream / CompozyOS `internal/memory/consolidation/`:
-
-- `user` — persona, role, preferences, knowledge.
-- `feedback` — rules and corrections from past interactions.
-- `project` — context about ongoing work, who/why/by-when.
-- `reference` — pointers to where info lives in external systems.
-
-### Memory Scopes
-
-- `agent` — local to a specific agent definition; only this scope accepts `agent_tier = workspace | global`.
-- `workspace` — shared across agents and across profiles within a workspace; repository-committed.
-- `profile` — shared across workspaces, owned by one [Profile](#profile). Stored under `$COMPOZY_HOME/profiles/<name>/memory/`.
-
-The scope value `global` was hard-cut to `profile`; no dual value is accepted. `global` survives only as an **agent tier**, which is a different axis (how far one agent's memory reaches, not who owns it).
-
-Default write scope is declared per agent in `memory.scope`.
-
-### Consolidation Gates (cascade by cost)
-
-**Time Gate** (default 24h since last consolidation) → **Session Gate** (default 3 sessions touched) → **Lock Gate** (`tryAcquireConsolidationLock` to prevent multi-instance races). All must pass. Never replace with naive heuristics.
-
----
-
 ## Autonomy
 
 ### Background role
 
-A named daemon-owned responsibility routed through the closed `[roles]` roster: `coordinator`,
-`dream`, `checkpoint_summary`, `memory_extractor`, `auto_title`, or `memory_controller`. Empty
-session-role agents resolve either to a virtual builtin (`coordinator` or `dreaming-curator`) or to
-the invoking context (`memory_extractor` and `auto_title`); the memory controller is an in-process
-model call and has no agent identity.
+A named daemon-owned responsibility routed through the closed `[roles]` roster: `coordinator` or
+`auto_title`. Empty session-role agents resolve either to the virtual builtin `coordinator` or to the
+invoking context (`auto_title`).
 
 `[roles]` owns routing — enabled state, agent/provider/model/reasoning selection, ordered fallbacks,
-and the small amount of policy inseparable from coordinator sessions or controller calls. The
+and the small amount of policy inseparable from coordinator sessions. The
 owning subsystem keeps its operational policy, gates, scoring, cadence, and prompts. Background
 roles do not replace or govern Loop DSL model defaults, `TaskExecutionProfile`, or automation
 resources.
@@ -296,13 +277,13 @@ The web UI presents as a desktop environment: a menubar, persistent virtual desk
 
 ### Workspace
 
-The runtime object: project root and scoped runtime context (sessions, memory, tasks, vault, config). A workspace owns window-manager topology, but remains the unit of runtime scope. The Workspaces surface switches this runtime context.
+The runtime object: project root and scoped runtime context (sessions, tasks, vault, config). A workspace owns window-manager topology, but remains the unit of runtime scope. The Workspaces surface switches this runtime context.
 
 **UI label:** "project". The alias may NOT be `environment` — that word is reserved for process-level context. `workspace` stays canonical in code, `workspace_id`, CLI, API, and docs.
 
 ### Desktop
 
-One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions, memory, or tasks of its own.
+One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions or tasks of its own.
 
 ### Tiled group
 
@@ -343,8 +324,6 @@ A window arrangement (`main_stack` in `compozy layout arrange --arrangement`; **
 ### Window manager
 
 The daemon-authoritative, workspace-scoped topology and semantic command surface for desktops, tiled groups, and windows. Durable mutations use revision checks and atomic commits. Browser geometry projection, active desktop, focus, and gesture previews remain client-specific where defined by the contract.
-
-**Window manager vs memory:** window-manager data is *presentation topology* interpreted by the daemon. `memory` is *agent* knowledge (see Memory above). Window-manager documents hold no agent knowledge, and memory holds no window geometry.
 
 ### Terminal
 
@@ -439,7 +418,6 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | Loop `generation` | "round" | One iteration of a Loop run. Wire, CLI, and payloads keep `generation`. |
 | Loop step `quarantined` | "set aside" | A step removed from scheduling after repeated failures; the UI verb is "Retry" (wire: requeue). |
 | fork (built-in Loop) | "Copy and edit" | UI verb for forking a built-in Loop into the project. |
-| memory `dream` | "tidy up" | Memory consolidation. `dream` stays in API, CLI, and config keys. |
 | extension dev overlay | "local development copy" | Menu verb "Unlink local copy". |
 | session status tokens (`waiting-for-input`, `hung`, `unhealthy`, …) | "Needs your answer", "Stuck", "Having trouble", … | Display words only; the token stays on `data-badge`/aria. Color only states that need the user. |
 
@@ -449,7 +427,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 
 ## Style
 
-- File names: kebab-case for code/config, snake_case for memory files.
+- File names: kebab-case for code/config.
 - Identifiers in code: Go conventions (`PascalCase` exported, `camelCase` unexported).
 - Capability/skill IDs: kebab-case.
 - Commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:` only.

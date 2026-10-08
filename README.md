@@ -23,7 +23,7 @@
 </div>
 
 Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops,
-triggers, cron, memory, permissions, approvals, observability, and the glue scripts that hold them
+triggers, cron, permissions, approvals, observability, and the glue scripts that hold them
 together. CompozyOS turns that entire agent stack into one product, a complete environment to
 create, automate, and supervise agent work with the agent CLIs you already use (Claude Code,
 OpenClaw, and Hermes). Built first for developers and technical operators.
@@ -48,7 +48,7 @@ OpenClaw, and Hermes). Built first for developers and technical operators.
   does not erase the work.
 - **Runs the agents you already use.** ACP-compatible CLIs (Claude Code, OpenClaw, and Hermes)
   operate the same daemon-owned state.
-- **Batteries included.** One runtime, one state model: loops, approvals, and memory are core
+- **Batteries included.** One runtime, one state model: loops and approvals are core
   objects, not plugins, reachable from web, CLI, HTTP/SSE, UDS, MCP, and native tools.
 - **Local-first by default.** One Go binary and SQLite-backed stores keep runtime state on the
   operator's machine unless a configured provider or extension owns an external boundary.
@@ -112,7 +112,7 @@ parallel model.
 ### Daemon Runtime Model
 
 `compozy daemon start`, `compozy status`, and `compozy daemon stop` manage the local daemon.
-Sessions, tasks, Loop runs, memory,
+Sessions, tasks, Loop runs,
 automation and tools keep explicit owners and workspace boundaries. Use
 structured CLI output (`-o json`), HTTP/SSE, UDS, MCP, or native tools when another agent or program
 needs to manage the same resources.
@@ -221,9 +221,9 @@ compozy marketplace search --kind skill --query <term> -o json
 
 ### 🧠 Workflow Memory
 
-Durable memory is scoped and daemon-owned. Agents can inspect, propose, and consolidate memory through
-the same public contracts as people. The v0.2 workflow-memory files remain ordinary repository
-artifacts; they are not imported as hidden runtime state.
+Workflow memory is ordinary repository files under `.compozy/tasks/<name>/memory/`, written and read by
+the spec-cycle skills. The v0.2 workflow-memory files remain repository artifacts; they are not
+imported as hidden runtime state.
 
 ### 🤖 Supported Agents
 
