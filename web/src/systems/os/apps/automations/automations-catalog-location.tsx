@@ -31,7 +31,7 @@ import {
 
 export function AutomationsCatalogLocation({ search }: { search: AutomationsRouteSearch }) {
   const page = useAutomationsPage(search);
-  const firstRun = !page.isLoading && page.items.length === 0 && !page.hasActiveFilters;
+  const firstRun = page.firstRun;
   const unavailable = page.unavailableMessage !== null;
 
   useTopbarSlot({
@@ -102,12 +102,6 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
     onCopyLink: page.copyLink,
   };
 
-  const showSuggestions =
-    firstRun &&
-    search.scope !== "global" &&
-    !page.profileScope.aggregate &&
-    Boolean(page.activeWorkspaceId);
-
   return (
     <>
       <ListingPage
@@ -176,10 +170,10 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
           }}
           profileScope={page.profileScope}
           unfilteredEmptyPanel={
-            showSuggestions && page.activeWorkspaceId ? (
+            page.suggestionsWorkspaceId ? (
               <AutomationSuggestionsPanel
-                key={page.activeWorkspaceId}
-                workspaceID={page.activeWorkspaceId}
+                key={page.suggestionsWorkspaceId}
+                workspaceID={page.suggestionsWorkspaceId}
               />
             ) : null
           }
