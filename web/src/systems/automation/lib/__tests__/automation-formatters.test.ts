@@ -4,47 +4,17 @@ import {
   automationLastRunLabel,
   automationLastRunMeta,
   automationRunSkipReason,
-  automationScopeTone,
   automationSkipReasonLabel,
   automationSourceLabel,
-  automationSourceTone,
   automationRunStateGlyph,
   catchUpPolicyLabel,
   describeFireLimit,
-  describeRetry,
-  describeTrigger,
   describeRetryPlain,
-  formatDate,
-  formatDateTime,
   formatPromptPreview,
   formatRelativeTime,
   formatRunDuration,
-  formatRunTitle,
   humanizeFireWindow,
 } from "../automation-formatters";
-
-const triggerFixture = {
-  profile_id: "00000000000000000000000000",
-  profile_name: "default",
-  id: "trg_push_review",
-  name: "push-review",
-  agent_name: "reviewer",
-  prompt: "Review push event {{ .Data.branch }}.",
-  event: "webhook",
-  filter: { "data.branch": "main" },
-  scope: "workspace" as const,
-  workspace_id: "ws_alpha",
-  source: "dynamic" as const,
-  target_kind: "agent",
-  enabled: true,
-  retry: { strategy: "backoff" as const, max_retries: 4, base_delay: "5s" },
-  fire_limit: { max: 12, window: "1h" },
-  endpoint_slug: "push-review",
-  webhook_id: "wbh_push_review",
-  webhook_secret_present: true,
-  created_at: "2026-04-11T08:00:00Z",
-  updated_at: "2026-04-11T08:10:00Z",
-};
 
 describe("automation formatter helpers", () => {
   beforeEach(() => {
@@ -65,48 +35,9 @@ describe("automation formatter helpers", () => {
     expect(formatRelativeTime("2026-04-14T10:00:00Z")).toBe("In 3d");
   });
 
-  it("formats calendar times and falls back when dates are missing or invalid", () => {
-    expect(formatDate()).toBe("Unavailable");
-    expect(formatDate("not-a-date")).toBe("not-a-date");
-    expect(formatDate("2026-04-11T08:10:00Z")).toContain("Apr 11, 2026");
-    expect(formatDateTime()).toBe("Unavailable");
-    expect(formatDateTime("not-a-date")).toBe("not-a-date");
-    expect(formatDateTime("2026-04-11T08:10:00Z")).toContain("Apr 11, 2026");
-  });
-
-  it("describes webhook and non-webhook triggers", () => {
-    expect(
-      describeTrigger({
-        ...triggerFixture,
-        event: "ext.github.push",
-      })
-    ).toBe("ext.github.push");
-    expect(describeTrigger(triggerFixture)).toBe("webhook:push-review");
-    expect(
-      describeTrigger({
-        ...triggerFixture,
-        endpoint_slug: undefined,
-      })
-    ).toBe("webhook:wbh_push_review");
-    expect(
-      describeTrigger({
-        ...triggerFixture,
-        endpoint_slug: undefined,
-        webhook_id: undefined,
-      })
-    ).toBe("webhook");
-  });
-
-  it("formats retry, fire-limit, run-title, status, and source labels", () => {
-    expect(describeRetry({ strategy: "none", max_retries: 3, base_delay: "2s" })).toBe(
-      "No retries"
-    );
-    expect(describeRetry({ strategy: "backoff", max_retries: 4, base_delay: "5s" })).toBe(
-      "Up to 4 retries, first after 5s"
-    );
+  it("formats fire-limit, status, and source labels", () => {
     expect(describeFireLimit({ max: 12, window: "1h" })).toBe("Up to 12 runs per hour");
     expect(describeFireLimit({ max: 1, window: "1h" })).toBe("Up to 1 run per hour");
-    expect(formatRunTitle({ status: "running", attempt: 2 } as never)).toBe("Running · attempt 2");
     expect(
       formatRunDuration({
         started_at: "2026-04-11T10:00:00Z",
@@ -122,10 +53,6 @@ describe("automation formatter helpers", () => {
     expect(automationRunStateGlyph("completed")).toBe("done");
     expect(automationRunStateGlyph("failed")).toBe("failed");
     expect(automationRunStateGlyph("canceled")).toBe("stopped");
-    expect(automationScopeTone("workspace")).toBe("neutral");
-    expect(automationScopeTone("global")).toBe("neutral");
-    expect(automationSourceTone("dynamic")).toBe("neutral");
-    expect(automationSourceTone("config")).toBe("neutral");
     expect(automationSourceLabel("config")).toBe("From config");
     expect(automationSourceLabel("package")).toBe("From package");
     expect(automationSourceLabel("dynamic")).toBe("Created here");

@@ -30,6 +30,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
 vi.mock("@/systems/automation", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/automation")>()),
   useAutomationJobs: mocks.useAutomationJobs,
+  useAutomationTimeZone: () => undefined,
   useAutomationTriggers: mocks.useAutomationTriggers,
 }));
 

@@ -4,18 +4,19 @@
  * consequence, and the plain words the head and rail use. Pure derivation.
  */
 
-import { automationDoesOf, automationStartOf, formatOnceAt } from "./automation-sentence";
+import {
+  automationDoesOf,
+  automationStartOf,
+  capitalize,
+  formatOnceAt,
+  zoneLabel,
+} from "./automation-sentence";
+import { isAutomationTrigger, type AutomationEntity } from "./automation-entity";
 import type { AutomationDoes, AutomationStart, SentenceContext } from "./automation-sentence";
 import { projectAutomationTarget } from "./automation-target";
 import { cronNext, formatAbsoluteUtc, formatRelative, humanCron } from "./cron-engine";
 import { humanizeFireWindow } from "./automation-formatters";
-import type { AutomationJob, AutomationRun, AutomationTrigger } from "../types";
-
-export type AutomationEntity = AutomationJob | AutomationTrigger;
-
-export function isAutomationTrigger(entity: AutomationEntity): entity is AutomationTrigger {
-  return "event" in entity;
-}
+import type { AutomationJob, AutomationRun } from "../types";
 
 export interface AutomationNextRun {
   index: number;
@@ -36,14 +37,6 @@ export interface ScheduleStarts {
 }
 
 const DETAIL_NEXT_RUNS = 3;
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function zoneOf(ctx: SentenceContext): string {
-  return ctx.timeZone?.trim() || "UTC";
-}
 
 function mapNextRuns(dates: Date[], now: number, oneTime: boolean): AutomationNextRun[] {
   return dates.map((date, index) => ({
@@ -74,7 +67,7 @@ export function describeScheduleStarts(
   now: number = Date.now()
 ): ScheduleStarts {
   const schedule = job.schedule;
-  const zone = zoneOf(ctx);
+  const zone = zoneLabel(ctx);
   const daemonNext = job.scheduler?.next_run_at ?? job.next_run ?? null;
   const fallbackNext =
     job.enabled && daemonNext ? mapNextRuns([new Date(daemonNext)], now, false) : [];

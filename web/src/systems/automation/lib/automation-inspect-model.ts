@@ -12,7 +12,7 @@ import { parseEventSelection } from "./trigger-event-id";
 import { triggerFilterEntries } from "./trigger-filter";
 import { projectAutomationTarget } from "./automation-target";
 import { automationDoesOf } from "./automation-sentence";
-import { isAutomationTrigger, type AutomationEntity } from "./automation-detail";
+import { isAutomationTrigger, type AutomationEntity } from "./automation-entity";
 import type { AutomationJob, AutomationRetry, AutomationTrigger } from "../types";
 
 export interface AutomationDiagnosticTile {

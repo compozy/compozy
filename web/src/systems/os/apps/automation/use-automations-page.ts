@@ -86,34 +86,42 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   const pendingIds = useSelector(pendingStore, snapshot => snapshot.context.pendingIds);
   const [deleteTarget, setDeleteTarget] = useState<AutomationView | null>(null);
 
-  const loadJobs = page.start !== "event";
-  // Task targets exist only on jobs, so `target=task` never asks for triggers.
-  const loadTriggers = page.start !== "schedule" && page.targetFilter !== "task";
-  const jobsQuery = useAutomationJobs(page.listFilters, { enabled: loadJobs });
-  const triggersQuery = useAutomationTriggers(page.listFilters, { enabled: loadTriggers });
+  // Both lists load in every Start view so the view counts and the window total stay
+  // honest on a cold load; a Start view only decides which kind renders. Task targets
+  // exist only on jobs, so `target=task` never asks for triggers.
+  const fetchTriggers = page.targetFilter !== "task";
+  const showJobs = page.start !== "event";
+  const showTriggers = page.start !== "schedule" && fetchTriggers;
+  const jobsQuery = useAutomationJobs(page.listFilters);
+  const triggersQuery = useAutomationTriggers(page.listFilters, { enabled: fetchTriggers });
 
   const workspaceNames = new Map(page.workspaces.map(option => [option.id, option.name]));
   const toView = (entity: AutomationJob | AutomationTrigger) =>
     toAutomationView(entity, {
+      timeZone: page.timeZone,
       workspaceName: id => workspaceNames.get(id),
       ...(profile.aggregate ? { ownerOf: profile.ownerOf } : {}),
     });
-  const jobs = loadJobs ? jobsQuery.jobs : [];
-  const triggers = loadTriggers ? triggersQuery.triggers : [];
-  const items = mergeAutomationViews(jobs, triggers, toView);
+  const loadedTriggers = fetchTriggers ? triggersQuery.triggers : [];
+  // Footer truth ("M on · next run in X") spans both loaded lists, whatever the view.
+  const loaded = mergeAutomationViews(jobsQuery.jobs, loadedTriggers, toView);
+  const items = loaded.filter(view => (view.kind === "job" ? showJobs : showTriggers));
+  const jobs = showJobs ? jobsQuery.jobs : [];
+  const triggers = showTriggers ? loadedTriggers : [];
 
-  const jobsError = loadJobs ? jobsQuery.error : null;
-  const triggersError = loadTriggers ? triggersQuery.error : null;
+  const triggersQueryError = fetchTriggers ? triggersQuery.error : null;
   const unavailableMessage = automationUnavailableMessage(
     page.automationRuntime,
-    jobsError,
-    triggersError
+    jobsQuery.error,
+    triggersQueryError
   );
-  const bothFailed = jobsError !== null && triggersError !== null;
-  const onlyKindRequested = !loadJobs || !loadTriggers;
+  // Only a rendered kind can fail the listing; the other kind's failure reads "—" in its count.
+  const jobsError = showJobs ? jobsQuery.error : null;
+  const triggersError = showTriggers ? triggersQuery.error : null;
+  const shownKinds = Number(showJobs) + Number(showTriggers);
+  const failedKinds = Number(jobsError !== null) + Number(triggersError !== null);
   const loadError =
-    unavailableMessage === null &&
-    (bothFailed || (onlyKindRequested && (jobsError ?? triggersError) !== null))
+    unavailableMessage === null && shownKinds > 0 && failedKinds === shownKinds
       ? (jobsError ?? triggersError)
       : null;
   const partialFailure: AutomationPartialFailure =
@@ -125,24 +133,30 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
           ? "event"
           : null;
 
-  const jobsTotal = jobsQuery.data ? jobsQuery.total : null;
-  const triggersTotal = triggersQuery.data ? triggersQuery.total : null;
   const counts: AutomationStartCounts = {
-    schedule: jobsQuery.error ? null : jobsTotal,
-    event: page.targetFilter === "task" ? 0 : triggersQuery.error ? null : triggersTotal,
+    schedule: jobsQuery.error || !jobsQuery.data ? null : jobsQuery.total,
+    event: !fetchTriggers
+      ? 0
+      : triggersQuery.error || !triggersQuery.data
+        ? null
+        : triggersQuery.total,
     all: null,
   };
   counts.all =
-    counts.schedule === null && counts.event === null
-      ? null
-      : (counts.schedule ?? 0) + (counts.event ?? 0);
-  const total = (loadJobs ? (jobsTotal ?? 0) : 0) + (loadTriggers ? (triggersTotal ?? 0) : 0);
+    counts.schedule === null || counts.event === null ? null : counts.schedule + counts.event;
+  /** Window count = both totals for the current filters; unknown until both answer. */
+  const total = counts.all;
 
   const isLoading =
     items.length === 0 &&
-    ((loadJobs && jobsQuery.isLoading) || (loadTriggers && triggersQuery.isLoading));
+    ((showJobs && jobsQuery.isLoading) || (showTriggers && triggersQuery.isLoading));
 
-  const firstRun = !isLoading && items.length === 0 && !page.hasActiveFilters;
+  const firstRun =
+    !isLoading &&
+    items.length === 0 &&
+    !page.hasActiveFilters &&
+    partialFailure === null &&
+    loadError === null;
   // Suggestions are workspace-scoped: never in Global scope or the all-profiles aggregate.
   const suggestionsWorkspaceId =
     firstRun && search.scope !== "global" && !profile.aggregate && page.activeWorkspaceId
@@ -224,13 +238,13 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     editor.openCreate({ start: start ?? "schedule" });
 
   const loadMore = () => {
-    if (loadJobs && jobsQuery.hasNextPage) void jobsQuery.fetchNextPage();
-    if (loadTriggers && triggersQuery.hasNextPage) void triggersQuery.fetchNextPage();
+    if (showJobs && jobsQuery.hasNextPage) void jobsQuery.fetchNextPage();
+    if (showTriggers && triggersQuery.hasNextPage) void triggersQuery.fetchNextPage();
   };
 
   return {
     ...page,
-    canLoadMore: (loadJobs && jobsQuery.hasNextPage) || (loadTriggers && triggersQuery.hasNextPage),
+    canLoadMore: (showJobs && jobsQuery.hasNextPage) || (showTriggers && triggersQuery.hasNextPage),
     confirmDelete,
     copyLink: copyAutomationLink,
     counts,
@@ -241,7 +255,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     editorDialogProps: editor.editorDialogProps,
     firstRun,
     suggestionsWorkspaceId,
-    enabledCount: items.filter(item => item.enabled).length,
+    enabledCount: loaded.filter(item => item.enabled).length,
     isFetchingMore: jobsQuery.isFetchingNextPage || triggersQuery.isFetchingNextPage,
     isLoading,
     isPaused: jobsQuery.isPaused || triggersQuery.isPaused,
@@ -250,12 +264,12 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     items,
     loadError,
     loadMore,
-    nextRunAt: soonestNextRun(items),
+    nextRunAt: soonestNextRun(loaded),
     partialFailure,
     profileScope: profile,
     retry: () => {
-      if (loadJobs) void jobsQuery.refetch();
-      if (loadTriggers) void triggersQuery.refetch();
+      void jobsQuery.refetch();
+      if (fetchTriggers) void triggersQuery.refetch();
     },
     runNow,
     setDeleteTarget,

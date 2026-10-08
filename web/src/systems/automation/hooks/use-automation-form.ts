@@ -2,6 +2,7 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
 import { loopTargetWorkspaceId, retryDraftForStrategy } from "../lib/automation-drafts";
+import { useAutomationTimeZone } from "./use-automation-time-zone";
 import {
   automationFormDoes,
   automationFormEvent,
@@ -126,6 +127,7 @@ export function useAutomationForm({
         : [];
   const workspaceName = (id: string) => resolvedWorkspaces.find(item => item.id === id)?.name;
 
+  const timeZone = useAutomationTimeZone();
   const does = automationFormDoes(draft);
   const isWebhook = draft.start === "webhook";
   const effectiveScope = isWebhook ? "global" : draft.scope;
@@ -145,6 +147,7 @@ export function useAutomationForm({
   );
 
   const sentence = describeAutomation(automationFormSentenceDraft(draft, { daysCleared }), {
+    timeZone,
     workspaceName,
   });
   const ready =
@@ -157,7 +160,9 @@ export function useAutomationForm({
       savedAtTime,
     });
   const readout =
-    draft.start === "schedule" ? scheduleReadout(draft.schedule, now, { daysCleared }) : null;
+    draft.start === "schedule"
+      ? scheduleReadout(draft.schedule, now, { daysCleared, timeZone })
+      : null;
   const eventDef = editorEventDef(automationFormEvent(draft));
   const selection = parseEventSelection(draft.event);
 
@@ -233,6 +238,8 @@ export function useAutomationForm({
 
   return {
     now,
+    /** The global automation time zone every phrase in the editor reads in. */
+    timeZone,
     does,
     isWebhook,
     effectiveScope,

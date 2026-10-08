@@ -13,6 +13,8 @@
 import { humanCron } from "./cron-engine-presentation";
 import { parseEventSelection } from "./trigger-event-id";
 import { LOOP_TARGET_KIND } from "./automation-drafts";
+import { isAutomationTrigger } from "./automation-entity";
+import { humanizeFilterKey } from "./trigger-filter";
 import { humanizeFireWindow } from "./automation-formatters";
 import type { AutomationJob, AutomationSchedule, AutomationTrigger } from "../types";
 
@@ -78,11 +80,12 @@ function missing(text: string): AutomationSentenceSegment {
   return { text, emphasis: true, missing: true };
 }
 
-function capitalize(text: string): string {
+export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function zoneLabel(ctx: SentenceContext): string {
+/** The automation time zone label; the daemon default is UTC. */
+export function zoneLabel(ctx: SentenceContext): string {
   return ctx.timeZone?.trim() || "UTC";
 }
 
@@ -105,20 +108,31 @@ function onceAtFormatter(timeZone: string): Intl.DateTimeFormat {
   return formatter;
 }
 
+function zonedParts(date: Date, timeZone: string): Record<string, string> | null {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = onceAtFormatter(timeZone).formatToParts(date);
+  } catch {
+    return null;
+  }
+  return Object.fromEntries(parts.map(part => [part.type, part.value]));
+}
+
+/** `Thu Oct 8, 09:00` in the automation time zone (zone label not included). */
+export function formatAbsoluteInZone(date: Date, ctx: SentenceContext = {}): string {
+  const part = zonedParts(date, zoneLabel(ctx));
+  if (!part) return date.toISOString();
+  return `${part.weekday} ${part.month} ${part.day}, ${part.hour}:${part.minute}`;
+}
+
 /** `Thu Oct 8 at 09:00 UTC` in the automation time zone. */
 export function formatOnceAt(iso: string, ctx: SentenceContext = {}): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   const timeZone = zoneLabel(ctx);
-  let parts: Intl.DateTimeFormatPart[];
-  try {
-    parts = onceAtFormatter(timeZone).formatToParts(date);
-  } catch {
-    return iso;
-  }
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find(candidate => candidate.type === type)?.value ?? "";
-  return `${part("weekday")} ${part("month")} ${part("day")} at ${part("hour")}:${part("minute")} ${timeZone}`;
+  const part = zonedParts(date, timeZone);
+  if (!part) return iso;
+  return `${part.weekday} ${part.month} ${part.day} at ${part.hour}:${part.minute} ${timeZone}`;
 }
 
 /** Splits a schedule phrase so its clock or interval carries the emphasis. */
@@ -222,10 +236,6 @@ function doesSegments(target: AutomationDraft["target"]): AutomationSentenceSegm
   }
 }
 
-function humanizeFilterKey(key: string): string {
-  return key.replace(/^data\./, "").replaceAll(/[._]/g, " ");
-}
-
 /** `with an error`, `with action deploy on main`, `with stop reason timeout and kind x`. */
 function conditionSegments(
   filter: Readonly<Record<string, string>> | null | undefined
@@ -314,12 +324,8 @@ function isDraft(
   return "target" in input && "start" in input;
 }
 
-function isTrigger(input: AutomationJob | AutomationTrigger): input is AutomationTrigger {
-  return "event" in input;
-}
-
 function entityTarget(input: AutomationJob | AutomationTrigger): AutomationDraft["target"] {
-  const job = isTrigger(input) ? null : input;
+  const job = isAutomationTrigger(input) ? null : input;
   if (job?.task) {
     return {
       kind: "task",
@@ -339,7 +345,7 @@ function entityTarget(input: AutomationJob | AutomationTrigger): AutomationDraft
 
 /** Start kind of a persisted job or trigger. */
 export function automationStartOf(input: AutomationJob | AutomationTrigger): AutomationStart {
-  if (!isTrigger(input)) return "schedule";
+  if (!isAutomationTrigger(input)) return "schedule";
   return input.event.trim() === "webhook" ? "webhook" : "event";
 }
 
@@ -362,7 +368,7 @@ function toSource(input: AutomationJob | AutomationTrigger | AutomationDraft): S
       target: input.target,
     };
   }
-  if (isTrigger(input)) {
+  if (isAutomationTrigger(input)) {
     return {
       start: automationStartOf(input),
       event: input.event,

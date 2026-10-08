@@ -1,4 +1,4 @@
-import type { PillTone, StateGlyphState } from "@compozy/ui";
+import type { StateGlyphState } from "@compozy/ui";
 
 import type {
   AutomationCatchUpPolicy,
@@ -8,7 +8,6 @@ import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationScope,
-  AutomationTrigger,
 } from "../types";
 
 export function formatRelativeTime(dateStr?: string | null): string {
@@ -42,66 +41,6 @@ export function formatRelativeTime(dateStr?: string | null): string {
   return diffMinutes >= 0 ? `In ${absDays}d` : `${absDays}d ago`;
 }
 
-export function formatDateTime(dateStr?: string | null): string {
-  if (!dateStr) {
-    return "Unavailable";
-  }
-
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) {
-    return dateStr;
-  }
-
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-export function formatDate(dateStr?: string | null): string {
-  if (!dateStr) {
-    return "Unavailable";
-  }
-
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) {
-    return dateStr;
-  }
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-export function describeTrigger(trigger: AutomationTrigger): string {
-  if (trigger.event !== "webhook") {
-    return trigger.event;
-  }
-
-  if (trigger.endpoint_slug) {
-    return `webhook:${trigger.endpoint_slug}`;
-  }
-
-  if (trigger.webhook_id) {
-    return `webhook:${trigger.webhook_id}`;
-  }
-
-  return "webhook";
-}
-
-export function describeRetry(retry: AutomationRetry): string {
-  if (retry.strategy === "none") {
-    return "No retries";
-  }
-
-  return `Up to ${retry.max_retries} retries, first after ${retry.base_delay}`;
-}
-
 export function describeFireLimit(limit: AutomationFireLimit): string {
   return `Up to ${limit.max} ${limit.max === 1 ? "run" : "runs"} per ${humanizeFireWindow(limit.window)}`;
 }
@@ -133,10 +72,6 @@ const AUTOMATION_RUN_STATUS_LABELS = {
 /** Sentence-case label for a job/trigger run status. */
 export function automationRunStatusLabel(status: AutomationRunStatus): string {
   return AUTOMATION_RUN_STATUS_LABELS[status] ?? status;
-}
-
-export function formatRunTitle(run: AutomationRun): string {
-  return `${automationRunStatusLabel(run.status)} · attempt ${run.attempt}`;
 }
 
 export function formatRunDuration(run: AutomationRun): string {
@@ -252,14 +187,6 @@ export function automationSourceLabel(source: AutomationJob["source"]): string {
 /** Scope label: `workspace` reads as "Project" per the COPY.md surface aliases. */
 export function automationScopeLabel(scope: AutomationScope): string {
   return scope === "workspace" ? "Project" : "Global";
-}
-
-export function automationSourceTone(_source: AutomationJob["source"]): PillTone {
-  return "neutral";
-}
-
-export function automationScopeTone(_scope: AutomationScope): PillTone {
-  return "neutral";
 }
 
 /** Run label that names a durable skip: `Skipped` / `Missed`, else the status label. */

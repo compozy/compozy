@@ -37,3 +37,22 @@ export function redirectLegacyAutomationURL(
     search: validateAutomationsSearch({ ...rest, q: query, start }),
   };
 }
+
+const AUTOMATION_DETAIL_PATH = /^\/automations\/(jobs|triggers)\/([^/]+)$/;
+
+function decodePathSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/** `/automations/{jobs|triggers}/:id` → the daemon entity route and its decoded id. */
+export function parseAutomationDetailPath(
+  pathname: string
+): { kind: "jobs" | "triggers"; id: string } | null {
+  const match = AUTOMATION_DETAIL_PATH.exec(pathname);
+  if (!match) return null;
+  return { kind: match[1] as "jobs" | "triggers", id: decodePathSegment(match[2]) };
+}

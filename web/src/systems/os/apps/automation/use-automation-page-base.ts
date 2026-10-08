@@ -134,6 +134,8 @@ export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
     /** The project or Global lens is known (no longer loading). */
     workspaceResolved: !pending,
     automationRuntime: settingsQuery.data?.runtime ?? null,
+    /** The global automation time zone every listing sentence reads in. */
+    timeZone: settingsQuery.data?.config?.timezone?.trim() || undefined,
     clearFilters,
     enabledFilter: search.enabled ?? null,
     hasActiveFilters: automationRouteHasActiveFilters({ ...search, q: searchInput.draftValue }),

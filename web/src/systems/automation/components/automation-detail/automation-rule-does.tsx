@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
 
-import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-detail";
+import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-entity";
 import { formatAutomationInputValue, projectAutomationTarget } from "../../lib/automation-target";
 import type { LoopTargetProjection } from "../../lib/automation-target";
 import { tokenizeTemplate } from "../../lib/trigger-template";

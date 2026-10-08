@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   updateTrigger: vi.fn(),
   triggerJob: vi.fn(),
   runtime: { available: true } as { available: boolean },
+  timeZone: undefined as string | undefined,
   aggregate: false,
   activeWorkspaceId: "ws_launch_hq" as string | null,
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -51,7 +52,9 @@ vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
 }));
 
 vi.mock("@/systems/settings/hooks/use-settings-sections", () => ({
-  useSettingsAutomation: () => ({ data: { runtime: mocks.runtime } }),
+  useSettingsAutomation: () => ({
+    data: { runtime: mocks.runtime, config: { timezone: mocks.timeZone } },
+  }),
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
@@ -95,6 +98,7 @@ describe("useAutomationsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.runtime = { available: true };
+    mocks.timeZone = undefined;
     mocks.aggregate = false;
     mocks.activeWorkspaceId = "ws_launch_hq";
     mocks.listJobs.mockResolvedValue(page("jobs", automationStoryJobs));
@@ -129,17 +133,39 @@ describe("useAutomationsPage", () => {
     expect(result.current.counts.event).toBe(0);
   });
 
-  it("Should skip the other list for a Start view", async () => {
+  it("Should render only the viewed kind in a Start view", async () => {
     const { result, rerender } = renderHook(
       ({ start }: { start: "schedule" | "event" }) => useAutomationsPage({ start }),
       { initialProps: { start: "schedule" }, wrapper: wrapper() }
     );
     await waitFor(() => expect(result.current.items).toHaveLength(4));
-    expect(mocks.listTriggers).not.toHaveBeenCalled();
+    expect(result.current.items.every(item => item.kind === "job")).toBe(true);
 
     rerender({ start: "event" });
     await waitFor(() => expect(result.current.items).toHaveLength(3));
+    expect(result.current.items.every(item => item.kind === "trigger")).toBe(true);
     expect(mocks.listJobs).toHaveBeenCalledTimes(1);
+    expect(mocks.listTriggers).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should count both kinds on a direct Start-view load", async () => {
+    const { result } = renderHook(() => useAutomationsPage({ start: "schedule" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.counts).toEqual({ all: 7, schedule: 4, event: 3 }));
+    expect(result.current.total).toBe(7);
+    expect(result.current.items).toHaveLength(4);
+    expect(result.current.enabledCount).toBe(6);
+  });
+
+  it("Should read every row sentence in the global automation time zone", async () => {
+    mocks.timeZone = "America/Sao_Paulo";
+    const { result } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.items).toHaveLength(7));
+    const digest = result.current.items.find(item => item.id === "morning-digest");
+    expect(digest?.sentence.map(segment => segment.text).join("")).toBe(
+      "Every weekday at 09:00 America/Sao_Paulo, ask summarizer to summarize yesterday's sessions."
+    );
   });
 
   it("Should send facets to both lists and never ask triggers for task targets", async () => {
@@ -154,10 +180,11 @@ describe("useAutomationsPage", () => {
     const tasks = renderHook(() => useAutomationsPage({ target: "task", start: "event" }), {
       wrapper: wrapper(),
     });
-    await act(async () => {});
-    expect(mocks.listJobs).not.toHaveBeenCalled();
+    await waitFor(() => expect(tasks.result.current.counts.schedule).toBe(4));
+    expect(mocks.listJobs.mock.calls[0]?.[0]).toMatchObject({ target: "task" });
     expect(mocks.listTriggers).not.toHaveBeenCalled();
     expect(tasks.result.current.items).toEqual([]);
+    expect(tasks.result.current.counts.event).toBe(0);
   });
 
   it("Should load more only from the list that has more", async () => {
@@ -179,6 +206,16 @@ describe("useAutomationsPage", () => {
     expect(result.current.items).toHaveLength(4);
     expect(result.current.loadError).toBeNull();
     expect(result.current.counts.event).toBeNull();
+    expect(result.current.counts.all).toBeNull();
+  });
+
+  it("Should not read as first run when one list failed and the other is empty", async () => {
+    mocks.listJobs.mockRejectedValue(new AutomationApiError("boom", 500));
+    mocks.listTriggers.mockResolvedValue(page("triggers", []));
+    const { result } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.partialFailure).toBe("schedule"));
+    expect(result.current.firstRun).toBe(false);
+    expect(result.current.suggestionsWorkspaceId).toBeNull();
   });
 
   it("Should fail the listing when both lists fail and name unavailability first", async () => {

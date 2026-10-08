@@ -7,7 +7,7 @@
 import type { CreateAutomationJobRequest } from "../types";
 import { humanizeFireWindow } from "./automation-formatters";
 import type { AutomationNextRun } from "./automation-detail";
-import { describeSchedule } from "./automation-sentence";
+import { describeSchedule, formatAbsoluteInZone, zoneLabel } from "./automation-sentence";
 import {
   compileCron,
   cronNext,
@@ -115,7 +115,7 @@ export interface ScheduleReadout {
   text: string;
 }
 
-function cronReadout(expr: string, now: number): ScheduleReadout {
+function cronReadout(expr: string, now: number, timeZone?: string): ScheduleReadout {
   const parts = expr.trim().split(/\s+/).filter(Boolean);
   if (parts.length !== 5) {
     return { valid: false, text: `Needs 5 parts: ${CRON_PARTS_HINT}.` };
@@ -123,7 +123,7 @@ function cronReadout(expr: string, now: number): ScheduleReadout {
   if (!parseCron(expr)) {
     return { valid: false, text: `One of the parts is out of range: ${CRON_PARTS_HINT}.` };
   }
-  const phrase = describeSchedule({ mode: "cron", expr });
+  const phrase = describeSchedule({ mode: "cron", expr }, { timeZone });
   const next = cronNext(expr, 1, now)?.[0];
   return {
     valid: true,
@@ -135,11 +135,11 @@ function cronReadout(expr: string, now: number): ScheduleReadout {
 export function scheduleReadout(
   schedule: JobSchedule,
   now: number,
-  { daysCleared = false }: { daysCleared?: boolean } = {}
+  { daysCleared = false, timeZone }: { daysCleared?: boolean; timeZone?: string } = {}
 ): ScheduleReadout {
   if (schedule.mode === "cron") {
     if (daysCleared) return { valid: false, text: "Pick at least one day." };
-    return cronReadout(schedule.expr ?? "", now);
+    return cronReadout(schedule.expr ?? "", now, timeZone);
   }
   if (schedule.mode === "every") {
     const interval = schedule.interval?.trim() ?? "";
@@ -157,7 +157,7 @@ export function scheduleReadout(
   }
   return {
     valid: true,
-    text: `Runs once, ${formatRelative(date, now)} (${formatAbsoluteUtc(date)} UTC), then stops.`,
+    text: `Runs once, ${formatRelative(date, now)} (${formatAbsoluteInZone(date, { timeZone })} ${zoneLabel({ timeZone })}), then stops.`,
   };
 }
 

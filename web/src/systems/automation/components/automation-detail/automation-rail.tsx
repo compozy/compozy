@@ -8,9 +8,8 @@ import {
   automationCliHint,
   automationDoesWord,
   automationStartWord,
-  isAutomationTrigger,
-  type AutomationEntity,
 } from "../../lib/automation-detail";
+import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-entity";
 import {
   catchUpPolicyLabel,
   describeFireLimit,

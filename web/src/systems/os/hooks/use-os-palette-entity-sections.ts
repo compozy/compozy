@@ -3,6 +3,7 @@ import {
   compareAutomationViews,
   toAutomationView,
   useAutomationJobs,
+  useAutomationTimeZone,
   useAutomationTriggers,
 } from "@/systems/automation";
 import { useLoops } from "@/systems/loops";
@@ -195,10 +196,11 @@ function useAutomationSection(context: OsPaletteDomainContext) {
   const filters = paletteWorkspaceCatalogFilters(context.scope, context.workspaceId);
   const jobs = useAutomationJobs(filters, { enabled });
   const triggers = useAutomationTriggers(filters, { enabled });
+  const timeZone = useAutomationTimeZone();
   usePaletteInfiniteCatalog(jobs, enabled);
   usePaletteInfiniteCatalog(triggers, enabled);
   if (context.signals === null) return EMPTY_SECTION("Automations");
-  const sentence = { workspaceName: (id: string) => context.workspaceNames.get(id) };
+  const sentence = { timeZone, workspaceName: (id: string) => context.workspaceNames.get(id) };
   const views = [
     ...jobs.jobs.map(job => toAutomationView(job, sentence)),
     ...triggers.triggers.map(trigger => toAutomationView(trigger, sentence)),

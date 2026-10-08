@@ -18,7 +18,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Button, Empty, SkeletonRows, StateGlyph, Time, cn } from "@compozy/ui";
 
-import type { AutomationEntity } from "../../lib/automation-detail";
+import type { AutomationEntity } from "../../lib/automation-entity";
 import { buildAutomationRunView } from "../../lib/automation-run-model";
 import type { AutomationRunIcon, AutomationRunView } from "../../lib/automation-run-model";
 import type { AutomationRun } from "../../types";

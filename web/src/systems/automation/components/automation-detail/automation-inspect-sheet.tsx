@@ -16,7 +16,7 @@ import {
   TabsContent,
 } from "@compozy/ui";
 
-import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-detail";
+import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-entity";
 import {
   automationInspectDescription,
   buildAutomationDiagnostics,

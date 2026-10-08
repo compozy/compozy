@@ -42,5 +42,4 @@ export type AutomationRetry = AutomationJob["retry"];
 export type AutomationFireLimit = AutomationJob["fire_limit"];
 export type AutomationTriggerFilter = NonNullable<AutomationTrigger["filter"]>;
 
-export type AutomationKind = "jobs" | "triggers";
 export type AutomationScopeFilter = "all" | AutomationScope;

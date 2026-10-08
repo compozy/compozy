@@ -1,6 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 
-import { redirectLegacyAutomationURL } from "@/systems/automation";
+import { parseAutomationDetailPath, redirectLegacyAutomationURL } from "@/systems/automation";
 
 /**
  * Replace-navigates a legacy `/jobs*` or `/triggers*` URL to `/automations*`.
@@ -11,18 +11,18 @@ export function redirectLegacyAutomationRoute(location: {
   search: Record<string, unknown>;
 }): never {
   const target = redirectLegacyAutomationURL(location.pathname, location.search);
-  const detail = target ? /^\/automations\/(jobs|triggers)\/([^/]+)$/.exec(target.pathname) : null;
-  if (detail?.[1] === "jobs") {
+  const detail = target ? parseAutomationDetailPath(target.pathname) : null;
+  if (detail?.kind === "jobs") {
     throw redirect({
       to: "/automations/jobs/$jobId",
-      params: { jobId: decodeURIComponent(detail[2]) },
+      params: { jobId: detail.id },
       replace: true,
     });
   }
-  if (detail?.[1] === "triggers") {
+  if (detail?.kind === "triggers") {
     throw redirect({
       to: "/automations/triggers/$triggerId",
-      params: { triggerId: decodeURIComponent(detail[2]) },
+      params: { triggerId: detail.id },
       replace: true,
     });
   }

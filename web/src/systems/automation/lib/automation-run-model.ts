@@ -18,7 +18,7 @@ import {
   formatRunDuration,
   type AutomationSkipReason,
 } from "./automation-formatters";
-import { isAutomationTrigger, type AutomationEntity } from "./automation-detail";
+import { isAutomationTrigger, type AutomationEntity } from "./automation-entity";
 import { automationDoesOf } from "./automation-sentence";
 import { projectAutomationTarget } from "./automation-target";
 import type { AutomationRun } from "../types";

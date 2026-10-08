@@ -13,11 +13,8 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { Eyebrow, cn } from "@compozy/ui";
 
-import {
-  describeScheduleStarts,
-  isAutomationTrigger,
-  type AutomationEntity,
-} from "../../lib/automation-detail";
+import { describeScheduleStarts } from "../../lib/automation-detail";
+import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-entity";
 import {
   describeTriggerIf,
   describeTriggerWhen,

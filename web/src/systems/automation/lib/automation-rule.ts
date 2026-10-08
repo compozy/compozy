@@ -6,7 +6,7 @@
 
 import { getEventDef, type EventIconKey } from "./trigger-catalog";
 import { parseEventSelection } from "./trigger-event-id";
-import { triggerFilterEntries } from "./trigger-filter";
+import { humanizeFilterKey, triggerFilterEntries } from "./trigger-filter";
 import type { AutomationTrigger } from "../types";
 
 export interface TriggerWhenDescriptor {
@@ -34,10 +34,6 @@ export interface TriggerIfDescriptor {
   /** Empty when the trigger has no filter ("Any event of this kind"). */
   clauses: TriggerIfClause[];
   note: TriggerIfPathNote | null;
-}
-
-function humanizeFilterKey(key: string): string {
-  return key.replace(/^data\./, "").replaceAll(/[._]/g, " ");
 }
 
 /** Event display label for the subhead pill and the rail Event row. */
