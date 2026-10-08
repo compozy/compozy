@@ -44,7 +44,7 @@ func (m *Manager) resolveSessionStartRuntime(
 	}
 	if err := spec.applyResolvedRuntimeDefaults(
 		resolved,
-		m.startPermissions(spec.sessionType, startSpecPermissions(spec, resolved.Permissions)),
+		m.startPermissions(startSpecPermissions(spec, resolved.Permissions)),
 		agentDef.ACPOptionsValue(),
 		dropInheritedUnrestricted,
 	); err != nil {

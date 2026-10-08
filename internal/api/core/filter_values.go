@@ -1,7 +1,6 @@
 package core
 
 const (
-	memoryDailyLogDefaultSelector = "all"
-	queryFilterActiveValue        = "active"
-	queryFilterAllValue           = "all"
+	queryFilterActiveValue = "active"
+	queryFilterAllValue    = "all"
 )

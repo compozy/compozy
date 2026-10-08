@@ -145,7 +145,10 @@ func (p *AgentProcess) cancelCurrentPrompt() bool {
 	return true
 }
 
-func (p *AgentProcess) nextPromptText(message string) (string, bool, SystemPromptDeliveryMode) {
+func (p *AgentProcess) nextPromptText(message string, maintenance bool) (string, bool, SystemPromptDeliveryMode) {
+	if maintenance {
+		return message, false, ""
+	}
 	userMessage := strings.TrimSpace(message)
 
 	p.systemPromptMu.Lock()
@@ -341,6 +344,17 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	case a.activity <- struct{}{}:
 	default:
 	}
+}
+
+func (p *AgentProcess) invalidatePromptOccupancy() {
+	active := p.currentPrompt()
+	if active == nil {
+		return
+	}
+	active.usageMu.Lock()
+	defer active.usageMu.Unlock()
+	active.usage.ContextUsed = nil
+	active.usage.ContextSize = nil
 }
 
 func (p *AgentProcess) mergePromptUsage(update TokenUsage) TokenUsage {

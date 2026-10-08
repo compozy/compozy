@@ -34,11 +34,29 @@ func (h *BaseHandlers) sessionContextInput(
 		return input, err
 	}
 	populateContextEvents(&input, usage, deliveries, compactions)
+	switch reader := h.Sessions.(type) {
+	case interface {
+		CompactionClearBoundary(context.Context, string) (*contextusage.ClearedBy, error)
+	}:
+		boundary, err := reader.CompactionClearBoundary(ctx, id)
+		if err != nil {
+			return input, err
+		}
+		input.ClearedBy = boundary
+		if boundary != nil {
+			input.CompactionBoundary = new(boundary.Sequence)
+		}
+	case interface {
+		CompactionBoundary(context.Context, string) (*int64, error)
+	}:
+		boundary, err := reader.CompactionBoundary(ctx, id)
+		if err != nil {
+			return input, err
+		}
+		input.CompactionBoundary = boundary
+	}
 	if settled.Sequence > 0 {
 		input.Settled = &contextusage.SettledTurn{TurnID: settled.TurnID, Sequence: settled.Sequence}
-	}
-	if h.Config.Session.Compaction.Enabled && h.Config.Session.Compaction.PressureThreshold > 0 {
-		input.Threshold = new(h.Config.Session.Compaction.PressureThreshold)
 	}
 	if h.ContextWindowResolver != nil && info != nil {
 		window, err := h.ContextWindowResolver.ContextWindow(ctx, info.Provider, info.Model)
@@ -123,16 +141,15 @@ func populateContextEvents(
 		input.Compactions = append(
 			input.Compactions,
 			contextusage.Compaction{
+				ContextAfter: event.ContextAfter,
 				Sequence:     event.Sequence,
 				At:           event.At,
-				TurnID:       p.TurnID,
-				FromSequence: p.FromSequence,
-				ToSequence:   p.ToSequence,
+				TurnID:       event.TurnID,
+				CompactionID: p.CompactionID,
+				Trigger:      p.Trigger,
+				Status:       event.Status,
 				Used:         p.ContextUsed,
 				Size:         p.ContextSize,
-				Pressure:     p.Pressure,
-				Strategy:     p.Strategy,
-				SpanArchived: event.SpanArchived,
 			},
 		)
 	}

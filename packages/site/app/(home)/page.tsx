@@ -7,7 +7,6 @@ import {
   FinalCta,
   Hero,
   InstallSection,
-  MemoryDreamSection,
   SupportedAgents,
 } from "@/components/landing";
 import { WebSiteJsonLd } from "@/components/seo/structured-data";
@@ -36,7 +35,6 @@ export default async function HomePage() {
       <WebSiteJsonLd />
       <Hero />
       <BentoSection />
-      <MemoryDreamSection />
       <AutonomyKernelSection />
       <FeaturesSection />
       <ExtensibilitySection />

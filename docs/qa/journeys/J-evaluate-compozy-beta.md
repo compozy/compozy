@@ -30,7 +30,7 @@ journey:
   actions:
     - step: 1
       verb: Read the hero claim and adjacent definition
-      expected_observable: The page defines an OS through work, memory, permissions, coordination, and extensibility before asking for trust
+      expected_observable: The page defines an OS through work, permissions, coordination, and extensibility before asking for trust
     - step: 2
       verb: Inspect how the product proves the claim
       expected_observable: A static OS-shell capture, integrated feature wall, sourced market table, and runtime proof tell one consistent story

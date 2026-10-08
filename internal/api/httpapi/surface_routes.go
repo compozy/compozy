@@ -84,7 +84,6 @@ func registerOperatorRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnl
 	registerTaskRoutes(api, handlers, includeLocalOnlyTaskLifecycle)
 	registerMarketplaceRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
-	registerMemoryRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers, includeLocalOnlyTaskLifecycle)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)

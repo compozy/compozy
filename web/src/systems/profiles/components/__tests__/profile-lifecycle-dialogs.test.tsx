@@ -20,7 +20,6 @@ const EMPTY_REMOVAL = {
   event_summaries: 0,
   loops: 0,
   mcp_servers: 0,
-  memory_entries: 0,
   palette_pins: 0,
   palette_query_hits: 0,
   palette_usage: 0,

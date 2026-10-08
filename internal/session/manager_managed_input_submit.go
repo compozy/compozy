@@ -100,19 +100,12 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		m.failManagedInputPrompt(setup, err)
 		return
 	}
-	message, err := m.dispatchInputPreSubmit(
-		promptExecutionCtx,
-		session,
-		setup.request.turnID,
-		setup.request.turnSource,
-		setup.request.message,
-		setup.request.attachments,
-	)
+	message, err := m.preparePromptRequestMessage(promptExecutionCtx, session, &setup.request)
 	if err != nil {
 		m.failManagedInputPrompt(setup, err)
 		return
 	}
-	dispatchMessage, err := m.promptDispatchMessage(promptExecutionCtx, session, message)
+	dispatchMessage, err := m.promptDispatchMessage(promptExecutionCtx, session, message, setup.request.delivery)
 	if err != nil {
 		m.failManagedInputPrompt(setup, err)
 		return
@@ -280,6 +273,7 @@ func (m *Manager) failManagedInputPrompt(setup *managedInputPromptSetup, err err
 }
 
 func setManagedInputPromptState(session *Session, request promptRequest) {
+	session.setCurrentPromptDelivery(request.delivery)
 	session.setCurrentTurnID(request.turnID)
 	session.setCurrentTurnSource(request.turnSource)
 	session.setCurrentPromptMessage(request.authoredMessage)
@@ -335,6 +329,7 @@ func managedInputPromptRequest(
 		return promptRequest{}, err
 	}
 	return promptRequest{
+		delivery:        submission.Delivery,
 		turnID:          submission.PromptMeta.PromptID,
 		runID:           entry.taskRunID,
 		target:          entry.sessionID,

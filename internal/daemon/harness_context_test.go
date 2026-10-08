@@ -90,7 +90,7 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 
 func TestHarnessContextResolverScopesInputOnlyContext(t *testing.T) {
 	t.Parallel()
-	for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle, session.SpawnRoleCheckpointSummary, "custom", ""} {
+	for _, role := range []string{session.SpawnRoleAutoTitle, "custom", ""} {
 		t.Run("Should scope startup and live context for role "+role, func(t *testing.T) {
 			t.Parallel()
 			resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
@@ -273,13 +273,10 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled:  true,
-		SkillsPromptSectionEnabled:  true,
-		WorkspaceKnowledgeAugmenter: true,
-		SkillsAugmenter:             true,
-		DurableMemoryAugmenter:      true,
-		SyntheticTurnsEnabled:       true,
-		DetachedTaskRuntimeEnabled:  true,
+		SkillsPromptSectionEnabled: true,
+		SkillsAugmenter:            true,
+		SyntheticTurnsEnabled:      true,
+		DetachedTaskRuntimeEnabled: true,
 	})
 
 	testCases := []struct {
@@ -303,11 +300,9 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 					Source: session.TurnSourceUser,
 				},
 			},
-			wantSections: []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
+			wantSections: []HarnessPromptSection{HarnessPromptSectionSkills},
 			wantAugmenters: []HarnessAugmenter{
-				HarnessAugmenterWorkspaceKnowledge,
 				HarnessAugmenterSkills,
-				HarnessAugmenterDurableMemory,
 			},
 			wantReentry:  ReentryModeNone,
 			wantDetached: DetachedRunModeNone,
@@ -332,7 +327,6 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				},
 			},
 			wantSections: []HarnessPromptSection{
-				HarnessPromptSectionMemory,
 				HarnessPromptSectionSkills,
 			},
 			wantAugmenters: nil,
@@ -365,9 +359,8 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 					},
 				},
 			},
-			wantSections: []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
+			wantSections: []HarnessPromptSection{HarnessPromptSectionSkills},
 			wantAugmenters: []HarnessAugmenter{
-				HarnessAugmenterWorkspaceKnowledge,
 				HarnessAugmenterSkills,
 			},
 			wantReentry:  ReentryModeSynthetic,
@@ -424,7 +417,6 @@ func TestHarnessContextResolverIncludesToolsSectionWhenEnabled(t *testing.T) {
 		t.Parallel()
 
 		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-			MemoryPromptSectionEnabled: true,
 			SkillsPromptSectionEnabled: true,
 			ToolsPromptSectionEnabled:  true,
 		})
@@ -443,7 +435,6 @@ func TestHarnessContextResolverIncludesToolsSectionWhenEnabled(t *testing.T) {
 		}
 
 		wantSections := []HarnessPromptSection{
-			HarnessPromptSectionMemory,
 			HarnessPromptSectionSkills,
 			HarnessPromptSectionTools,
 		}
@@ -457,7 +448,6 @@ func TestHarnessContextResolverIncludesToolsSectionWhenEnabled(t *testing.T) {
 
 		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
 			RuntimeIdentityPromptSectionEnabled: true,
-			MemoryPromptSectionEnabled:          true,
 			SkillsPromptSectionEnabled:          true,
 		})
 
@@ -476,7 +466,7 @@ func TestHarnessContextResolverIncludesToolsSectionWhenEnabled(t *testing.T) {
 
 		wantSections := []HarnessPromptSection{
 			HarnessPromptSectionRuntimeIdentity,
-			HarnessPromptSectionMemory,
+
 			HarnessPromptSectionSkills,
 		}
 		if !slices.Equal(got.Policy.IncludeSections, wantSections) {
@@ -489,10 +479,8 @@ func TestHarnessContextResolverValidation(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
 		SkillsAugmenter:            true,
-		DurableMemoryAugmenter:     true,
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
 	})
@@ -582,10 +570,8 @@ func testHarnessContextResolverDiagnosticLabelsAreStable(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
 		SkillsAugmenter:            true,
-		DurableMemoryAugmenter:     true,
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
 	})
@@ -629,20 +615,16 @@ func testSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testi
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
 	})
 	selector := NewSectionSelector(resolver, nil)
 	descriptors := defaultStartupPromptSectionDescriptors(
 		promptSectionProviderFunc(
-			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "memory", nil },
-		),
-		promptSectionProviderFunc(
 			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
 		),
 		nil,
 	)
-	descriptors = append(descriptors, descriptors[1])
+	descriptors = append(descriptors, descriptors[0])
 
 	selected, _, err := selector.Select(session.StartupPromptContext{
 		SessionType: session.SessionTypeUser,
@@ -652,7 +634,6 @@ func testSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testi
 	}
 
 	wantNames := []string{
-		string(HarnessPromptSectionMemory),
 		string(HarnessPromptSectionSkills),
 	}
 	gotNames := make([]string, 0, len(selected))
@@ -671,14 +652,10 @@ func TestSectionSelectorAcceptsCoordinatorStartupSession(t *testing.T) {
 		t.Parallel()
 
 		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-			MemoryPromptSectionEnabled: true,
 			SkillsPromptSectionEnabled: true,
 		})
 		selector := NewSectionSelector(resolver, nil)
 		descriptors := defaultStartupPromptSectionDescriptors(
-			promptSectionProviderFunc(
-				func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "memory", nil },
-			),
 			promptSectionProviderFunc(
 				func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
 			),
@@ -696,7 +673,6 @@ func TestSectionSelectorAcceptsCoordinatorStartupSession(t *testing.T) {
 			t.Fatalf("SessionClass = %q, want %q", resolved.Session.SessionClass, SessionClassCoordinator)
 		}
 		wantNames := []string{
-			string(HarnessPromptSectionMemory),
 			string(HarnessPromptSectionSkills),
 		}
 		gotNames := make([]string, 0, len(selected))
@@ -720,9 +696,7 @@ func testHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
-		SkillsAugmenter:            true,
-		DurableMemoryAugmenter:     true,
+		SkillsAugmenter: true,
 	})
 
 	resolved, err := resolver.ResolvePrompt(&session.Info{
@@ -746,9 +720,9 @@ func testHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 	}
 	if !slices.Equal(
 		resolved.Policy.EnableAugmenters,
-		[]HarnessAugmenter{HarnessAugmenterSkills, HarnessAugmenterDurableMemory},
+		[]HarnessAugmenter{HarnessAugmenterSkills},
 	) {
-		t.Fatalf("EnableAugmenters = %#v, want skills and durable memory", resolved.Policy.EnableAugmenters)
+		t.Fatalf("EnableAugmenters = %#v, want skills", resolved.Policy.EnableAugmenters)
 	}
 }
 
@@ -757,9 +731,8 @@ func TestHarnessContextResolverResolvePromptMapsSyntheticMetadata(t *testing.T) 
 		t.Parallel()
 
 		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-			WorkspaceKnowledgeAugmenter: true,
-			SkillsAugmenter:             true,
-			SyntheticTurnsEnabled:       true,
+			SkillsAugmenter:       true,
+			SyntheticTurnsEnabled: true,
 		})
 		resolved, err := resolver.ResolvePrompt(
 			&session.Info{Type: session.SessionTypeUser},
@@ -781,10 +754,9 @@ func TestHarnessContextResolverResolvePromptMapsSyntheticMetadata(t *testing.T) 
 			t.Fatalf("TurnOrigin = %q, want %q", resolved.Policy.TurnOrigin, TurnOriginSynthetic)
 		}
 		if !slices.Equal(resolved.Policy.EnableAugmenters, []HarnessAugmenter{
-			HarnessAugmenterWorkspaceKnowledge,
 			HarnessAugmenterSkills,
 		}) {
-			t.Fatalf("EnableAugmenters = %#v, want workspace knowledge and skills", resolved.Policy.EnableAugmenters)
+			t.Fatalf("EnableAugmenters = %#v, want skills", resolved.Policy.EnableAugmenters)
 		}
 		if resolved.Policy.ReentryMode != ReentryModeSynthetic {
 			t.Fatalf("ReentryMode = %q, want %q", resolved.Policy.ReentryMode, ReentryModeSynthetic)
@@ -815,27 +787,26 @@ func testHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		SkillsAugmenter:        true,
-		DurableMemoryAugmenter: true,
+		SkillsAugmenter:    true,
+		SituationAugmenter: true,
 	})
 
-	memoryCalls := 0
+	situationCalls := 0
 	skillsCalls := 0
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
 		nil,
 		defaultPromptInputAugmenterDescriptors(
-			nil,
-			func(_ context.Context, _ *session.Session, message string) (string, error) {
-				memoryCalls++
-				return message + "\n\nmemory block", nil
-			},
 			func(_ context.Context, _ *session.Session, message string) (string, error) {
 				skillsCalls++
 				return "<current-available-skills>\n" +
 					"  <skill name=\"qa-marker-skill\">Marker.</skill>\n" +
 					"</current-available-skills>\n\n" + message, nil
+			},
+			func(_ context.Context, _ *session.Session, message string) (string, error) {
+				situationCalls++
+				return message + "\n\n<current-situation>Situation block.</current-situation>", nil
 			},
 		)...,
 	)
@@ -851,14 +822,14 @@ func testHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Augment() error = %v", err)
 	}
-	if memoryCalls != 1 {
-		t.Fatalf("durable memory calls = %d, want 1", memoryCalls)
+	if situationCalls != 1 {
+		t.Fatalf("situation calls = %d, want 1", situationCalls)
 	}
 	if skillsCalls != 1 {
 		t.Fatalf("skills augmenter calls = %d, want 1", skillsCalls)
 	}
-	if !strings.Contains(got, "memory block") {
-		t.Fatalf("Augment() = %q, want durable memory content", got)
+	if !strings.Contains(got, "<current-situation>Situation block.</current-situation>") {
+		t.Fatalf("Augment() = %q, want situation content", got)
 	}
 	if !strings.Contains(got, "<current-available-skills>") {
 		t.Fatalf("Augment() = %q, want current skills content", got)

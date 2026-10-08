@@ -30,8 +30,6 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			{path: "/api/settings/update", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/general", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/persona", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/settings/memory", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/settings/memory", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/roles", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/roles", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/skills", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
@@ -280,11 +278,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			t,
 			rolesConfig,
 			"coordinator",
-			"dream",
-			"checkpoint_summary",
-			"memory_extractor",
 			"auto_title",
-			"memory_controller",
 		)
 
 		mutationSchema := jsonResponseSchema(t, updateGeneral, 200)

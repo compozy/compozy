@@ -236,12 +236,6 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     "web/e2e/__tests__/triggers-hardening.spec.ts"
   ),
   webScenario(
-    "TC-KNOWLEDGE-001",
-    "knowledge",
-    "operator creates edits reverts searches recalls and deletes workspace knowledge with parity evidence",
-    "web/e2e/__tests__/knowledge.spec.ts"
-  ),
-  webScenario(
     "TC-SKILLS-001",
     "skills",
     "operator manages Skills against a real daemon and proves next-session prompt impact",
@@ -250,7 +244,7 @@ export const e2eScenarioContracts: ScenarioContract[] = [
   webScenario(
     "TC-SETTINGS-001",
     "settings",
-    "operator applies Memory, Automation, and Observability settings with config parity",
+    "operator applies Automation, Observability, and Providers settings with config parity",
     "web/e2e/__tests__/settings-hardening.spec.ts"
   ),
   {
@@ -341,8 +335,6 @@ export const defaultModuleCoverageRequirements: ModuleCoverageRequirement[] = [
   "dashboard",
   "sessions",
   "tasks",
-  "automations",
-  "knowledge",
   "skills",
   "settings",
   "extensibility-tools-resources",

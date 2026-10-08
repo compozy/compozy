@@ -252,7 +252,7 @@ func renderProfileDeletePreview(name string, removed contract.ProfileRemovalSumm
 	return fmt.Sprintf(
 		"%s owns no work. This removes permanently:\n"+
 			"  agents: %d   skills: %d   loops: %d   mcp servers: %d\n"+
-			"  config overrides: %d keys   credential overrides: %d   memory: %d entries"+
+			"  config overrides: %d keys   credential overrides: %d"+
 			"   desktops: %d saved arrangements",
 		name,
 		removed.Agents,
@@ -261,7 +261,6 @@ func renderProfileDeletePreview(name string, removed contract.ProfileRemovalSumm
 		removed.MCPServers,
 		removed.ConfigKeys,
 		removed.CredentialOverrides,
-		removed.MemoryEntries,
 		removed.DesktopPartitions,
 	)
 }

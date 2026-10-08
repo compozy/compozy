@@ -177,6 +177,9 @@ func (d *Daemon) bootResourceReconcile(
 	}
 	bindToolProjectionCatalogInvalidation(state)
 
+	if err := reconcileStoredWindowLayouts(ctx, state); err != nil {
+		return fmt.Errorf("daemon: reconcile stored window layouts: %w", err)
+	}
 	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
 		Config:              state.cfg,
 		Logger:              state.logger,

@@ -196,7 +196,7 @@ const activityEvents: HomeActivityEvent[] = [
   ),
   activityEvent("evt-6", "tool_call", "writer", "used Write twice on the brief draft", 300),
   activityEvent("evt-7", "config.read", "ops", "read workspace config", 360),
-  activityEvent("evt-8", "memory.compaction_completed", "", "Memory compaction finished", 420),
+  activityEvent("evt-8", "hook.dispatch.complete", "", "ran 2 hooks on session start", 420),
 ];
 
 const systemModel: HomeSystemModel = {
@@ -222,12 +222,6 @@ const systemModel: HomeSystemModel = {
       label: "Automations",
       value: "On",
       detail: "Next run 09:57",
-      tone: "success",
-    },
-    {
-      key: "memory",
-      label: "Memory",
-      value: "Enabled",
       tone: "success",
     },
     {

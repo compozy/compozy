@@ -329,7 +329,7 @@ describe("OsDock", () => {
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard" },
           { id: "tasks", name: "Tasks", icon: "tasks", running: true, active: true },
-          { id: "knowledge", name: "Knowledge", icon: "knowledge" },
+          { id: "marketplace", name: "Marketplace", icon: "marketplace" },
         ]}
         onSelect={vi.fn()}
       />
@@ -338,14 +338,14 @@ describe("OsDock", () => {
     await user.tab();
     expect(screen.getByRole("button", { name: "Tasks" })).toHaveFocus();
     await user.keyboard("{ArrowDown}");
-    expect(screen.getByRole("button", { name: "Knowledge" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Marketplace" })).toHaveFocus();
     await waitFor(() => {
-      expect(screen.getByText("Knowledge")).toBeInTheDocument();
+      expect(screen.getByText("Marketplace")).toBeInTheDocument();
     });
     await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
     await user.keyboard("{ArrowUp}");
-    expect(screen.getByRole("button", { name: "Knowledge" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Marketplace" })).toHaveFocus();
     await user.keyboard("{Home}");
     expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
 
@@ -436,7 +436,6 @@ describe("OsDock", () => {
       "loops",
       "automations",
       "marketplace",
-      "knowledge",
       "vault",
     ]);
     expect(result.current.entries.find(entry => entry.id === "automations")).toMatchObject({
@@ -732,7 +731,7 @@ describe("OsDock", () => {
 
     const tabBar = document.querySelector('[data-slot="os-dock-tabbar"]');
     if (!(tabBar instanceof HTMLElement)) throw new Error("Expected the compact tab bar");
-    expect(tabBar.querySelectorAll('[data-slot="os-dock-item"]')).toHaveLength(10);
+    expect(tabBar.querySelectorAll('[data-slot="os-dock-item"]')).toHaveLength(9);
     expect(screen.getByRole("button", { name: "Tasks — 2 need you" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();

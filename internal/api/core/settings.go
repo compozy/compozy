@@ -47,25 +47,6 @@ func (h *BaseHandlers) UpdateSettingsGeneral(c *gin.Context) {
 	h.updateSettingsSection(c, req)
 }
 
-// GetSettingsMemory returns the memory settings section.
-func (h *BaseHandlers) GetSettingsMemory(c *gin.Context) {
-	h.getSettingsSection(c, settingspkg.SectionMemory)
-}
-
-// UpdateSettingsMemory persists the memory settings section.
-func (h *BaseHandlers) UpdateSettingsMemory(c *gin.Context) {
-	req, err := parseUpdateSettingsMemoryRequest(c)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	if err := h.validateSettingsMemoryProvider(c.Request.Context(), req); err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	h.updateSettingsSection(c, req)
-}
-
 // GetSettingsRoles returns the background-role routing settings section.
 func (h *BaseHandlers) GetSettingsRoles(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionRoles)

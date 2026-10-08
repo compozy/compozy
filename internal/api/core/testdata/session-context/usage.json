@@ -15,8 +15,7 @@
             "stale": false,
             "sequence": 10,
             "reported_turn_id": "turn-A",
-            "reported_at": "2026-09-11T10:00:00Z",
-            "pressure_threshold": 0.85
+            "reported_at": "2026-09-11T10:00:00Z"
         }
     }
 }

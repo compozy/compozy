@@ -1,5 +1,116 @@
 # Compozy Change Impact
 
+## Memory removal — 2026-10-07
+
+CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the
+clientstate store while its isolated daemon is stopped, and inspects the reread raw snapshot before
+boot. The existing scenario then verifies registered Session visibility, Knowledge removal and stable
+geometry after reload with no console errors. This repairs only the test boundary; production
+reconciliation, public contracts, hooks/config, isolation and official skill behavior are unchanged.
+
+CI runtime parity follow-up: the existing HTTP/UDS fixture now opens the registered `session` app
+rather than the `sessions` palette view ID, and expects durable harness events for retained skills
+and situation augmenters. Removed workspace-knowledge and memory augmenters cannot emit those events.
+BR14 registered-app reconciliation and the existing no-op persistence/revision guards remain unchanged;
+the exact race-enabled UDS transport CI selector passes. No production, wire, config/hook, isolation,
+official skill or Web behavior changes are introduced by this fixture correction.
+
+Review round 3: automatic prompt recovery retains the original prepared ordinary payload independently of the constructed wire request. Each replacement runtime receives one freshly bounded historical replay plus that payload; maintenance recovery retains its literal command and deferred context. The experimental compactSession operation now declares its existing 400 ErrorPayload refusal for inactive sessions (`session_not_promptable`), co-shipping generated OpenAPI/Web contracts. Existing prompt-lifetime, compact-handler and schema suites own coverage. Native tools, hooks/extensions/config, workspace isolation, SQL and official skill instructions are unchanged; existing automatic-recovery and Compact now QA scenarios record the checks. No handwritten Web changes or browser/live-provider walkthrough is claimed.
+
+S14 / UT-W08 marker fields: experimental `compactions[].context_after` supplies the first event-level occupancy report after that ID's first terminal boundary and before the next ID's first terminal boundary; same-turn reports count, counter-only rows and later corrections do not. Experimental `context.cleared_by` identifies the compaction and first terminal sequence only while occupancy is unknown. Existing Go queries/contextusage/API conversions, CLI human/JSON/TOON and generated OpenAPI/Web types co-ship. Per-session ledger ownership, hooks/config and SQL are unchanged; the official runtime-operations skill and existing CLI usage scenario document the additive fields. The Web owner consumes the generated fields; browser scenario walks remain with that owner.
+
+Review round 2: accepted ordinary replay delivery clears effective pending state even when its metadata acknowledgment fails; later lifecycle persistence retries the cleared snapshot without making history deliverable again. Cached replay is re-bounded from its original pre-maintenance message cut under the current workspace derive budget and effective history-tool framing. Native Compact domain codes are co-shipped through shared safe HTTP/UDS/hosted-MCP 409 mapping and the generated public ErrorCode enum. Existing replay/maintenance, tool-route parity and hosted-MCP suites own the regressions; session isolation, hooks/config shape and SQL are unchanged. Existing runtime and native-tools skill instructions remain accurate; affected QA cases are updated, with browser/live-provider walks owned by the controller.
+
+Usage-stream follow-up (US-019 / BR11): the shared HTTP/UDS session stream emits the existing `session_usage_changed` payload for every persisted `compaction` snapshot and `session.compaction_fired` attribution, so Web invalidates the context reading and markers before prompt completion. Push and polling use the existing per-session cursor; no new DTO, native tool, hook/config, workspace scope, schema, or official-skill instruction is needed. Existing `TestWriteUsageChangedEvents` owns ordered mid-turn notification and replay deduplication; `ET-web-session-context-meter` now explicitly requires the mid-turn update. Browser scenario execution remains with the controller/Web QA owner.
+
+
+Owning decision: `.compozy/tasks/memory-removal/_spec.md` with ADR-001 (hard cut that never blocks
+the user), ADR-002 (CompozyOS-side compaction removed; every replay bounded), ADR-003 (workspace
+knowledge augmenter removed), and ADR-004 (native ACP compaction observed and requested,
+experimental). Release: the release after v0.3.0 (assumed v0.4.0); guide anchor `#memory-removal`.
+This is the user's recorded exception to the SD-013 public-surface window for the memory family;
+leftovers in user-owned files are retired without blocking the user.
+
+- **Native tools / CLI / HTTP / UDS / MCP / SDK:** the `compozy memory` tree, 40 `/api/memory*`,
+  settings, and workspace-ledger operations, the 35 `compozy__memory_*` tools with the
+  `compozy__memory` and `compozy__memory_admin` toolsets, MCP `compozy_host__memory__*`, the Host API
+  `memory/*`, `memory.backend`, consent `memory:read|write`, the `memory-backend-ts` scaffold, and the
+  SDK members are deleted; tool IDs are retired permanently. Added, all `experimental`:
+  `compozy session compact`, `compactSession`, and `compozy__session_compact` (toolset
+  `compozy__sessions`, risk `mutating`; refusals carry the structural `session_busy` and
+  `compaction_unsupported` codes on every surface, and the request is attributed `requested_by`
+  `cli`, `http`, `tool`, `goal`, or `web`). Changed: `session.compaction_fired`, usage `compactions[]`
+  markers (no `pressure_threshold`; `context_used`/`context_size` are omitted when unknown), the
+  session `type` enum (no `dream`), the roles roster (`coordinator`, `auto_title`), and
+  `StatusSchemaVersion` `2026-10-07` without `memory`. `GET …/history` and `compozy session history`
+  keep returning raw grouped ledger rows (`compaction` snapshot rows plus `session.compaction_fired`);
+  only the transcript projection folds one Compaction item per `compaction_id`. After a native terminal
+  compaction, the session usage API reports occupancy `unknown` until a later usage update carries
+  `used`; the Goal context readers stay unknown until an update carries both `used` and a positive
+  `size`.
+- **Extensibility / hooks / config:** `context.pre_compact` / `context.post_compact` become
+  observation-only (`labels` patch only) with a `compaction_trigger` matcher replacing
+  `compaction_reason` / `compaction_strategy`. `[memory]`, `[session.compaction]`, four roles, and the
+  `memory.consolidated` trigger event are removed; `[session.derive]` bounds every replay.
+  **v0.6.0 shim deletion list** (one shim generation, regime: public surface / user state):
+  the `archiveRetiredMemorySettings` config archive (global, profile, workspace overlays), the SOUL
+  `memory_policy` ignore rule, the retired tool-ID filter (`RetiredMemoryToolIDs`,
+  `RetiredMemoryToolsetIDs`, `DropRetiredToolReferences`), and the extension manifest retired-entry
+  filter (`dropRetiredMemoryManifestEntries`), plus AGENT.md and SKILL.md retired hook-matcher
+  filters (`ignoreRetiredAgentHookMatchers`, `ignoreRetiredSkillHookMatchers`) for
+  `compaction_reason` / `compaction_strategy`, warning once per owner. All of those boundary
+  filters expire in v0.6.0. Session migration `00009` and global migration
+  `00130` stay as migrations. Alongside the retired-ID tombstones, the session recovery list `retiredInternalSpawnRoles` records exactly
+  `memory-extractor` and `checkpoint-summary`. Its recovery boundary is permanent and does not expire in
+  v0.6.0 because retained session directories are never deleted.
+- **Workspace data isolation:** no workspace or profile boundary changes. Migration `00130` drops the
+  memory stream tables, `memory.consolidated` triggers and their dependents, and legacy `dream` /
+  `memory-extractor` sessions; session migration `00009` restores events archived by the removed
+  compaction (never inside a rewind receipt range). No file is deleted or rewritten: Markdown
+  memory, `knowledge/` directories, and `ledger.jsonl` files stay on disk, unread. `<workspace>/knowledge/`
+  is no longer injected into prompts. Disk recovery refuses non-empty unsupported session types or
+  explicitly retired internal spawn roles before durable-owner verification or metadata normalization. It logs
+  `observe.session_recovery_skipped` once per session per observer lifetime, and leaves those session directories unchanged. This is a permanent
+  recovery boundary; ordinary user sessions and custom advisory roles such as `reviewer` remain recoverable
+  without catalog rows.
+- **Review round 1 boundary repairs:** session upgrade restores physically archived transcript entries
+  and tool routes using persisted identities, preserves rewind exclusions and live projection state,
+  and advances the projection generation once. Review round 2 restores completion from the original
+  ordered event context, including boundaries before late routed tool results, while preserving the
+  final updated sequence and completed text across repeated opens. Review round 3 preserves routing
+  context predating interleaved entries and completion boundaries after intervening foreign events;
+  restored entries retain their original identities without disturbing surviving or reused-tool routes.
+  Review round 4 includes updates after failed historical compaction attempts, preserving the final
+  identity and public transcript sequence through the eventual archival and repeated opens.
+  Config retirement follows trigger array-element
+  ownership across noncontiguous descendant tables, preserving retained filters. Installed extension
+  automation resources ignore `memory.consolidated` before validation with
+  `extension.retired_entries_ignored`; explicit API/CLI trigger creation remains rejected. Nested
+  derive carries inherited omission evidence so the available history tool points to the immediate
+  source session. Archive publication guards and permission failures warn with path/reason and leave
+  retired settings inactive in the validated in-memory overlay; the next load retries publication.
+  Existing explicit retired-key config writes remain refused. Migration `00130` also removes persisted
+  `checkpoint-summary` roles while preserving advisory roles. The oldest-first suffix policy protects
+  the last eight replay messages while framing and the first-user pin fit; its unused `KeepRecent` field
+  is removed without changing the drop order. Layout reconciliation logs the profile, dropped app IDs and rewritten route count
+  after persistence. These repairs add no native tools, hooks, config keys, or workspace/profile
+  boundary changes; Web transcript reads/search/anchors retain restored history through the existing
+  contracts, and the migration guide's full-history promise remains unchanged.
+- **Official skill / Web / docs:** `skills/compozy/references/memory.md` is deleted and every memory
+  or CompozyOS-compaction mention is removed; `compozy__session_compact` and Compact now are
+  documented. Web drops the Knowledge app, Settings → Memory, the Home Memory tile, memory role
+  panels, and the context-meter threshold warning, and gains the Compact now button (context rail meter
+  section, no popover), the Compaction timeline item, agent/requested compaction markers, and the
+  post-compaction meter sentence. Site: memory docs, the `cli/memory` subtree, landing Memory/Dream
+  content, and the `defining-agent-sessions-compozyos` memory section are removed; new
+  `sessions/compaction.mdx`; migration guide (root and site) and a breaking release note ship.
+  COPY, README, PRODUCT, and the glossary drop memory vocabulary and gain a Compaction entry. Dated
+  history (release notes, QA reports, `_done` boards, lessons) stays untouched.
+- **QA / verification:** memory-only scenarios, journeys, and charters are deleted; compaction
+  scenarios are rewritten; the retirement canary `ET-retired-product-surfaces-absent` covers memory,
+  Dream, Knowledge, and CompozyOS-side compaction, including an upgrade leg. The upgraded-home lab
+  walk, Compact now, and the real-adapter Goal compaction walk own the user-visible journeys.
+
 ## Automations — Jobs and Triggers merged in the Web UI — 2026-10-08
 
 Owner: spec `.compozy/tasks/automations/` (ADR-001..004); one PR from branch `automations`.

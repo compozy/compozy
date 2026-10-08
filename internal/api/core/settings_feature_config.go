@@ -109,3 +109,11 @@ func parseOptionalDuration(raw string, path string) (time.Duration, error) {
 	}
 	return duration, nil
 }
+
+func parseSettingsDurationOrDefault(raw string, defaultValue time.Duration) (time.Duration, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return defaultValue, nil
+	}
+	return time.ParseDuration(trimmed)
+}

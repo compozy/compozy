@@ -59,26 +59,6 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueInt,
 		},
 		{
-			name: "Should allow session compaction enablement mutation",
-			path: "session.compaction.enabled",
-			kind: ConfigValueBool,
-		},
-		{
-			name: "Should allow session compaction pressure mutation",
-			path: "session.compaction.pressure_threshold",
-			kind: ConfigValueFloat,
-		},
-		{
-			name: "Should allow session compaction attempt cap mutation",
-			path: "session.compaction.max_attempts_per_turn",
-			kind: ConfigValueInt,
-		},
-		{
-			name: "Should allow session compaction cooldown mutation",
-			path: "session.compaction.failure_cooldown",
-			kind: ConfigValueDuration,
-		},
-		{
 			name: "Should allow session attachment max file bytes mutation",
 			path: "session.attachments.max_file_bytes",
 			kind: ConfigValueInt64,
@@ -338,46 +318,18 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			path: "task.orchestration.review.failure_policy",
 			kind: ConfigValueString,
 		},
-		{
-			name: "Should allow memory controller policy origins mutation",
-			path: "memory.controller.policy.allow_origins",
-			kind: ConfigValueStringSlice,
-		},
-		{
-			name: "Should allow memory recall scoring mutation",
-			path: "memory.recall.weights.bm25_unicode",
-			kind: ConfigValueFloat,
-		},
-		{
-			name: "Should allow memory extractor queue mutation",
-			path: "memory.extractor.queue.coalesce_max",
-			kind: ConfigValueInt,
-		},
-		{
-			name: "Should allow memory dream gate mutation",
-			path: "memory.dream.gates.min_score",
-			kind: ConfigValueFloat,
-		},
-		{
-			name: "Should allow memory provider timeout mutation",
-			path: "memory.provider.timeout",
-			kind: ConfigValueDuration,
-		},
+
 		{
 			name: "Should allow full roles section mutation",
 			path: "roles",
 			kind: ConfigValueTable,
 		},
 		{
-			name: "Should allow dream role model mutation",
-			path: "roles.dream.model",
+			name: "Should allow auto-title role model mutation",
+			path: "roles.auto_title.model",
 			kind: ConfigValueString,
 		},
-		{
-			name: "Should allow memory controller role timeout mutation",
-			path: "roles.memory_controller.timeout",
-			kind: ConfigValueDuration,
-		},
+
 		{
 			name: "Should allow Marketplace catalog TTL mutation",
 			path: "marketplace.catalog.ttl",
@@ -459,56 +411,7 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			path:   "permissions.provider_full_access",
 			denial: ConfigPathTrustForbidden,
 		},
-		{
-			name:   "Should reject memory global dir trust root",
-			path:   "memory.global_dir",
-			denial: ConfigPathTrustForbidden,
-		},
-		{
-			name:   "Should reject memory extractor inbox trust root",
-			path:   "memory.extractor.inbox_path",
-			denial: ConfigPathTrustForbidden,
-		},
-		{
-			name:   "Should reject memory session ledger trust root",
-			path:   "memory.session.ledger_root",
-			denial: ConfigPathTrustForbidden,
-		},
-		{
-			name:   "Should reject informational workspace TOML path",
-			path:   "memory.workspace.toml_path",
-			denial: ConfigPathTrustForbidden,
-		},
-		{
-			name:   "Should reject removed dream agent path",
-			path:   "memory.dream.agent",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed dream enabled path",
-			path:   "memory.dream.enabled",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed extractor model path",
-			path:   "memory.extractor.model",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed extractor enabled path",
-			path:   "memory.extractor.enabled",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed controller LLM model path",
-			path:   "memory.controller.llm.model",
-			denial: ConfigPathForbidden,
-		},
-		{
-			name:   "Should reject removed recall signal metrics path",
-			path:   "memory.recall.signals.metrics_enabled",
-			denial: ConfigPathForbidden,
-		},
+
 		{
 			name:   "Should reject removed automatic title path",
 			path:   "session.auto_title_enabled",

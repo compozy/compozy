@@ -50,18 +50,6 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 		return d.shutdownAfterRunTrigger(ctx)
 	}
-	if d.dreamRuntime != nil {
-		d.dreamRuntime.Start(runCtx)
-	}
-	if d.memoryExtractor != nil {
-		if err := d.memoryExtractor.Start(runCtx); err != nil {
-			shutdownErr := d.shutdownAfterRunTrigger(ctx)
-			return errors.Join(
-				fmt.Errorf("daemon: start memory extractor: %w", err),
-				shutdownErr,
-			)
-		}
-	}
 	if err := d.startObserverRetention(runCtx); err != nil {
 		shutdownErr := d.shutdownAfterRunTrigger(ctx)
 		return errors.Join(
@@ -132,17 +120,8 @@ func (d *Daemon) gracefulShutdownTimeoutLocked() time.Duration {
 }
 
 // GracefulShutdownTimeout returns the daemon's complete shutdown budget for a config.
-func GracefulShutdownTimeout(config *compozyconfig.Config) time.Duration {
-	timeout := defaultShutdownTimeout
-	if config == nil {
-		return timeout
-	}
-	memoryEnabled := config.Memory.Enabled
-	checkpointDeadline := config.Memory.Extractor.Deadline
-	if memoryEnabled && checkpointDeadline > 0 {
-		timeout += checkpointDeadline + checkpointSummaryStopTimeout
-	}
-	return timeout
+func GracefulShutdownTimeout(_ *compozyconfig.Config) time.Duration {
+	return defaultShutdownTimeout
 }
 
 func (d *Daemon) shutdownDetached(ctx context.Context, targets *shutdownTargets) error {

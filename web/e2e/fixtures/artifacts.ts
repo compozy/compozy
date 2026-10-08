@@ -93,17 +93,6 @@ export interface BrowserRouteState {
   home_usage_value?: string;
   home_view_visible?: boolean;
   home_working_now_value?: string;
-  knowledge_create_dialog_open?: boolean;
-  knowledge_decisions_count?: number;
-  knowledge_delete_dialog_open?: boolean;
-  knowledge_detail_visible?: boolean;
-  knowledge_edit_dialog_open?: boolean;
-  knowledge_item_count?: number;
-  knowledge_revert_button_count?: number;
-  knowledge_scope?: "profile" | "workspace" | "agent";
-  knowledge_search_active?: boolean;
-  knowledge_selected_item?: string;
-  knowledge_view_visible?: boolean;
   skills_content_visible?: boolean;
   skills_detail_visible?: boolean;
   skills_enabled_state?: "enabled" | "disabled";

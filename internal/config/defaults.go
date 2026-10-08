@@ -16,7 +16,6 @@ func defaultSessionConfig() SessionConfig {
 		Limits:      SessionLimitsConfig{},
 		Supervision: DefaultSessionSupervisionConfig(),
 		BusyInput:   DefaultSessionBusyInputConfig(),
-		Compaction:  DefaultSessionCompactionConfig(),
 		Derive:      DefaultSessionDeriveConfig(),
 		Attachments: DefaultSessionAttachmentsConfig(),
 	}
@@ -54,7 +53,6 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Observability: defaultObservabilityConfig(),
 		Log:           defaultLogConfig(),
 		Redact:        RedactConfig{Enabled: true},
-		Memory:        DefaultMemoryConfig(homePaths),
 		Shell:         DefaultShellConfig(),
 		Attention:     DefaultAttentionConfig(),
 		Roles:         DefaultRolesConfig(),

@@ -17,8 +17,6 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 		return settingsGeneralSectionResponse(envelope)
 	case settingspkg.SectionPersona:
 		return settingsPersonaSectionResponse(envelope)
-	case settingspkg.SectionMemory:
-		return settingsMemorySectionResponse(envelope)
 	case settingspkg.SectionRoles:
 		return settingsRolesSectionResponse(envelope)
 	case settingspkg.SectionSkills:
@@ -75,20 +73,6 @@ func settingsGeneralSectionResponse(envelope settingspkg.SectionEnvelope) (any, 
 		Runtime:                                settingsDaemonRuntimePayload(envelope.General.Runtime),
 		Actions: contract.SettingsGeneralActionsPayload{
 			Restart: settingsActionMetadataPayload(envelope.General.Actions.Restart),
-		},
-	}, nil
-}
-
-func settingsMemorySectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
-	if envelope.Memory == nil {
-		return nil, errors.New("settings memory section is required")
-	}
-	return contract.SettingsMemoryResponse{
-		SettingsUserSectionResponseMetaPayload: settingsUserSectionMetaPayload(envelope),
-		Config:                                 settingsMemoryConfigPayload(&envelope.Memory.Config),
-		Health:                                 settingsMemoryHealthPayload(envelope.Memory.Health),
-		Actions: contract.SettingsMemoryActionsPayload{
-			Consolidate: settingsActionMetadataPayload(envelope.Memory.Actions.Consolidate),
 		},
 	}, nil
 }
@@ -184,7 +168,6 @@ func SettingsCollectionResponseFromEnvelope(envelope settingspkg.CollectionEnvel
 func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationResult) (any, error) {
 	switch result.Section {
 	case settingspkg.SectionGeneral,
-		settingspkg.SectionMemory,
 		settingspkg.SectionAutomation,
 		settingspkg.SectionShell,
 		settingspkg.SectionObservability,

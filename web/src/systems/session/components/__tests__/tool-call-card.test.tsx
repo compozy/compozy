@@ -31,7 +31,7 @@ function requestURL(input: RequestInfo | URL): URL {
 
 function truncatedMessage(uri = ARTIFACT_URI_A, preview = "bounded preview"): UIMessage {
   return makeToolMessage({
-    toolName: "compozy__memory_recall",
+    toolName: "compozy__session_search",
     toolResult: {
       preview,
       truncated: true,

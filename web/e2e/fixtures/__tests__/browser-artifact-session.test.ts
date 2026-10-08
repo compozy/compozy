@@ -140,51 +140,6 @@ describe("captureRouteState", () => {
     });
   });
 
-  it("captures knowledge route scope, dialogs, decisions, and selected item", async () => {
-    window.history.replaceState({}, "", "/knowledge");
-    document.title = "CompozyOS";
-    document.body.innerHTML = `
-      <main data-testid="knowledge-shell">
-        <button data-testid="tab-profile" aria-pressed="false"></button>
-        <button data-testid="tab-workspace" aria-pressed="true"></button>
-        <button data-testid="tab-agent" aria-pressed="false"></button>
-        <aside data-testid="knowledge-list-panel">
-          <p data-testid="knowledge-search-info">1 match</p>
-          <button data-testid="memory-item-workspace:launch-memory.md" data-state="selected">
-            Launch Memory
-          </button>
-          <button data-testid="memory-item-workspace:other-memory.md">Other Memory</button>
-        </aside>
-        <section data-testid="knowledge-detail-panel">
-          <article data-testid="knowledge-decision-dec_write"></article>
-          <button data-testid="revert-memory-decision-dec_write"></button>
-        </section>
-        <form data-testid="knowledge-create-dialog"></form>
-        <form data-testid="knowledge-edit-dialog"></form>
-        <form data-testid="knowledge-delete-dialog"></form>
-      </main>
-    `;
-
-    const routeState = await captureRouteState({
-      evaluate: async (callback: () => unknown) => callback(),
-    });
-
-    expect(routeState).toMatchObject({
-      pathname: "/knowledge",
-      knowledge_create_dialog_open: true,
-      knowledge_decisions_count: 1,
-      knowledge_delete_dialog_open: true,
-      knowledge_detail_visible: true,
-      knowledge_edit_dialog_open: true,
-      knowledge_item_count: 2,
-      knowledge_revert_button_count: 1,
-      knowledge_scope: "workspace",
-      knowledge_search_active: true,
-      knowledge_selected_item: "Launch Memory",
-      knowledge_view_visible: true,
-    });
-  });
-
   it("captures the installed Skills catalog and unified detail state", async () => {
     window.history.replaceState({}, "", "/marketplace");
     document.title = "CompozyOS";

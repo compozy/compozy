@@ -10,7 +10,7 @@
 - Workspace boundary
 - Window management tools
 - Terminal tools
-- Skills and memory tools
+- Command and skill tools
 - Task and autonomy tools
 - Loop tools
 - Config, hooks, automation, marketplace, extensions, resources, and MCP tools
@@ -85,8 +85,8 @@ Observe cross-client changes through `cmd_palette.pin.changed`,
 
 Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__session_prompt`,
 `compozy__session_rewind`, `compozy__session_continue`, `compozy__session_fork`,
-`compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
-`compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
+`compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
+`compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
 `compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
@@ -148,7 +148,7 @@ post-restart interactions and can return `already-resolved`, `resolved-after-res
 `message_id`, an idempotency key, and the transcript epoch, generation, and maximum sequence returned
 by the read API. The tool cuts before that message, restarts a fresh ACP context under the same
 CompozyOS session ID, and returns the selected text as `draft_text`. It never rolls back files, tool or
-network effects, memory, or external provider actions. Resolve its descriptor and obtain approval
+network effects, or external provider actions. Resolve its descriptor and obtain approval
 before calling it.
 
 `compozy__session_continue` (risk `mutating`, same permission as `compozy__session_create`) starts a
@@ -170,6 +170,22 @@ fences together. An unsettled cut turn fails with `session_turn_in_progress`; an
 `message_not_found`. `derived.seed` is `native_fork` (with `native_state: pending` and the clone's
 `acp_session_id`) when the agent cloned its own session, otherwise `replay`; a failed clone request is
 reported in `derived.native_fork_error`.
+
+`compozy__session_compact` (toolset `compozy__sessions`, risk `mutating`, **experimental**) requests the
+agent's advertised native compaction on one idle session in the caller's workspace. Pass `session_id`
+(required; no other input); the result is `{session_id, prompt_id, command, status: "accepted"}`, where
+`command` is `compact` or `compress`, the command the agent advertises. The compaction turn is sent as
+`/<command>` in maintenance delivery mode, so it carries no skill expansion, augmenters, or startup
+instructions. The tool returns the receipt only and never waits. A running turn (the caller's own session
+is always mid-turn) or another in-flight request fails with the structural tool error code `session_busy`,
+and an agent advertising neither command fails with `compaction_unsupported`; each error carries that
+`code`, the tool ID, and the daemon message, the same codes the CLI, HTTP, and UDS error payloads use, and
+neither is the generic `tool_conflict`; over `POST /api/tools/{id}/invoke` both are `409` responses carrying
+those codes. A session that is not active fails as invalid input. Its
+`session.compaction.requested` event records `requested_by: "tool"`. Observe the outcome through the
+session's transcript Compaction item and `compactions[]` usage markers (`compozy session history` returns
+the raw ledger rows instead); the CLI form, `compozy session compact <session-id>`, waits and prints the
+outcome.
 
 `compozy__session_runtime_set` persists complete next-prompt intent without starting or
 reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept optional
@@ -199,7 +215,7 @@ zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session c
 session `type`, exact agent, exact `parent` (direct children) or `root` (whole tree, root included),
 search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
 archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
-daemon-managed dream, system, coordinator, or spawned sessions. Archive only stopped sessions;
+daemon-managed system, coordinator, or spawned sessions. Archive only stopped sessions;
 unarchive before prompting or resuming one. Archive and conversation clear preserve attachments;
 conversation clear preserves attachments. `compozy session remove` and `compozy workspace remove`
 remove their scoped attachment trees.
@@ -338,7 +354,7 @@ Toolset `compozy__terminal` contains `compozy__terminal_exec`, `compozy__termina
 and `compozy__terminal_request_input`. Resolve each descriptor before calling it. Read `terminal.md`
 for activation, approval, shared-input, generation, capability, error, and CLI-fallback rules.
 
-## Skills And Memory Tools
+## Command And Skill Tools
 
 Command catalog tool: `compozy__command_list`. Pass `session_id`; optional `workspace` defaults to the
 bound session workspace. The result is the daemon-owned command projection for that session.
@@ -349,10 +365,6 @@ the operator selected a slash skill; `command_id` requires a session-bound calle
 to another skill source.
 
 Resolve canonical `compozy__skill_view`, then use its returned tool reference with a file/resource argument when reading `skills/compozy/references/*.md` from inside CompozyOS.
-
-Memory tools: `compozy__memory_list`, `compozy__memory_show`, `compozy__memory_search`, `compozy__memory_propose`, `compozy__memory_note`.
-
-Memory admin tools include health, scope, reindex, promote, reset, reload, decisions, recall traces, dreams, daily logs, extractor, provider, and session-ledger operations under the `compozy__memory_*` namespace. Inspect descriptors before using admin tools because they are broader than normal memory reads.
 
 ## Task And Autonomy Tools
 
@@ -384,8 +396,8 @@ native calls record hook runs and lifecycle events in the owning session.
 
 Background-role inspection has no `compozy__roles_*` native tool. Use `compozy roles list|show -o json` or
 the HTTP/UDS `GET /api/roles` reads. Scalar `roles.<role>.*` routing and role-policy keys are exposed
-through the live `compozy__config_set`/`compozy__config_unset` descriptors, including coordinator limits and
-memory-controller call bounds. Fallback chains are structured arrays and must be changed through
+through the live `compozy__config_set`/`compozy__config_unset` descriptors, including coordinator limits.
+Fallback chains are structured arrays and must be changed through
 `config.toml` or the Settings Roles API/UI, not guessed into a scalar config-tool call. Inspect the
 live descriptor before any mutation; successful role writes report the `live` lifecycle and affect
 later invocations.

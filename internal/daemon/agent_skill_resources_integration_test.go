@@ -346,20 +346,19 @@ Keep this installed skill body.
 			t.Fatalf("ResolveHeartbeatPolicy(ext-agent) = %#v, %v", policy, ok)
 		}
 		resolved.Config.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude-acp"}
-		resolved.Config.Roles.Dream.Agent = "ext-agent"
-		resolved.Config.Roles.Dream.Enabled = true
-		resolved.Config.Memory.Enabled = true
+		resolved.Config.Roles.AutoTitle.Agent = "ext-agent"
+		resolved.Config.Roles.AutoTitle.Enabled = true
 		roleResolver := newRoleResolver(
 			&resolved.Config,
 			roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{workspace.ID: resolved.Config}},
 			agentCatalog,
 		)
-		resolvedRole, err := roleResolver.Resolve(testutil.Context(t), workspace.ID, compozyconfig.RoleDream)
+		resolvedRole, err := roleResolver.Resolve(testutil.Context(t), workspace.ID, compozyconfig.RoleAutoTitle)
 		if err != nil {
-			t.Fatalf("roleResolver.Resolve(dream) error = %v", err)
+			t.Fatalf("roleResolver.Resolve(auto_title) error = %v", err)
 		}
 		if resolvedRole.AgentName != "ext-agent" || !agentHasMCP(resolvedRole.AgentDef, "ext-agent-mcp") {
-			t.Fatalf("roleResolver.Resolve(dream) = %#v, want projected ext-agent resource", resolvedRole)
+			t.Fatalf("roleResolver.Resolve(auto_title) = %#v, want projected ext-agent resource", resolvedRole)
 		}
 
 		projectedSkills, err := rebuiltSkillRegistry.ForWorkspace(testutil.Context(t), &resolved)

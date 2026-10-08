@@ -12,7 +12,15 @@ func Derive(in Input) ContextUsage {
 	result := ContextUsage{State: StateUnknown}
 	observations := contextObservations(in.UsageEvents)
 	result.Injected = deriveInjected(in.Deliveries, observations)
+	if in.CompactionBoundary != nil {
+		observations = slices.DeleteFunc(observations, func(event UsageEvent) bool {
+			return event.Sequence <= *in.CompactionBoundary
+		})
+	}
 	if len(observations) == 0 {
+		if in.CompactionBoundary != nil {
+			result.ClearedBy = in.ClearedBy
+		}
 		return result
 	}
 	latest := observations[len(observations)-1]
@@ -25,9 +33,6 @@ func Derive(in Input) ContextUsage {
 	if latest.Usage.ContextSize != nil && *latest.Usage.ContextSize > 0 {
 		result.Size = latest.Usage.ContextSize
 		result.SizeSource = "agent"
-		if in.Threshold != nil && *in.Threshold > 0 {
-			result.PressureThreshold = in.Threshold
-		}
 	} else if in.CatalogWindow != nil && *in.CatalogWindow > 0 {
 		result.State = StateEstimatedSize
 		result.Size = in.CatalogWindow

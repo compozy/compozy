@@ -168,7 +168,7 @@ describe("Topbar", () => {
     function Setup() {
       useTopbarSlot({
         crumbs: [
-          { id: "knowledge", label: "Knowledge", onSelect: vi.fn() },
+          { id: "docs", label: "Docs", onSelect: vi.fn() },
           { id: "projects", label: "Projects", onSelect: selectProjects },
           { id: "web", label: "Web", onSelect: selectWeb },
           { id: "tasks", label: "Tasks", onSelect: selectTasks },
@@ -181,7 +181,7 @@ describe("Topbar", () => {
     render(
       <TopbarSlotProvider>
         <Setup />
-        <Topbar title="Knowledge" />
+        <Topbar title="Docs" />
       </TopbarSlotProvider>
     );
 

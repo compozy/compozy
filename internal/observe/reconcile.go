@@ -131,6 +131,10 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 	}
 
 	sessionID := strings.TrimSpace(meta.ID)
+	if reason := session.RecoveryMetadataSkipReason(&meta); reason != "" {
+		o.warnSkippedSessionRecovery(&meta, reason)
+		return recoveredSession{}, false
+	}
 	if strings.TrimSpace(meta.Provider) == "" {
 		o.logger.Warn(
 			"observe: skipping invalid session metadata",
@@ -152,6 +156,30 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 	}
 	normalized := o.normalizeRecoveredMeta(metaPath, &meta, ownerAuthoritative)
 	return recoveredSessionFromMeta(&normalized), true
+}
+
+func (o *Observer) warnSkippedSessionRecovery(meta *store.SessionMeta, reason string) {
+	sessionID := strings.TrimSpace(meta.ID)
+	o.mu.Lock()
+	if o.recoverySkipped == nil {
+		o.recoverySkipped = make(map[string]struct{})
+	}
+	_, logged := o.recoverySkipped[sessionID]
+	o.recoverySkipped[sessionID] = struct{}{}
+	o.mu.Unlock()
+	if logged {
+		return
+	}
+	spawnRole := ""
+	if meta.Lineage != nil {
+		spawnRole = meta.Lineage.SpawnRole
+	}
+	o.logger.Warn("observe.session_recovery_skipped",
+		"session_id", sessionID,
+		"session_type", meta.SessionType,
+		"spawn_role", spawnRole,
+		"reason", reason,
+	)
 }
 
 func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {

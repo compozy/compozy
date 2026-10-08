@@ -68,13 +68,11 @@
             "turn_id": "B",
             "sequence": 40,
             "at": "2026-09-11T10:00:00Z",
-            "span_archived": true,
-            "from_sequence": 1,
-            "to_sequence": 8,
+            "compaction_id": "compact-B",
+            "trigger": "agent",
+            "status": "completed",
             "context_used": 85,
-            "context_size": 100,
-            "pressure": 0.85,
-            "strategy": "summary_archive"
+            "context_size": 100
         }
     ]
 }

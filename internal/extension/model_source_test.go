@@ -214,7 +214,7 @@ func TestNewExtensionModelSourcesShouldFilterRegistryModelSourceCapabilities(t *
 		memoryFixture := createManagerTestExtension(
 			t,
 			managerTestManifest("ext-registry-memory", managerManifestOptions{
-				capabilities: []string{"memory.backend"},
+				capabilities: []string{"tool.provider"},
 			}),
 			nil,
 		)

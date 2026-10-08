@@ -14,8 +14,8 @@ export function FinalCta() {
             Install CompozyOS. Put agents to work continuously.
           </h2>
           <p className="mt-5 max-w-[52ch] text-sm leading-7 text-muted">
-            One complete environment, batteries included: loops, triggers, memory, permissions,
-            approvals, and history. No scripts or orchestration frameworks to maintain.
+            One complete environment, batteries included: loops, triggers, permissions, approvals,
+            and history. No scripts or orchestration frameworks to maintain.
           </p>
         </div>
 

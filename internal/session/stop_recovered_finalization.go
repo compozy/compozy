@@ -7,7 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/events"
 )
 
-func (m *Manager) finishRecoveredStop(ctx context.Context, id string, cause StopCause) error {
+func (m *Manager) finishRecoveredStop(ctx context.Context, id string) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 	meta, err := m.readMetaWithContext(cleanupCtx, id)
@@ -15,23 +15,15 @@ func (m *Manager) finishRecoveredStop(ctx context.Context, id string, cause Stop
 		return err
 	}
 	snapshot := NotificationSessionFromInfo(m.sessionInfoFromMeta(cleanupCtx, &meta))
-	m.cancelSessionCompaction(id)
 	m.clearResumeReplay(id)
 	if m.hostedMCP != nil {
 		m.hostedMCP.ReleaseSession(id)
-	}
-	var ledgerErr error
-	if cause != CauseClearConversation && cause != CauseConversationRewind {
-		ledgerErr = m.rematerializeStoppedSessionLedger(cleanupCtx, id)
-		if ledgerErr != nil {
-			ledgerErr = errors.Join(ledgerErr, m.recordStoppedCleanupFailure(ctx, snapshot, "ledger", ledgerErr))
-		}
 	}
 	m.dispatchSessionPostStop(cleanupCtx, snapshot)
 	if m.notifier != nil {
 		m.notifier.OnSessionStopped(cleanupCtx, snapshot)
 	}
-	return ledgerErr
+	return nil
 }
 
 // settleRecoveredStop replays persistence, Goal cancellation and task recovery
@@ -80,5 +72,5 @@ func (m *Manager) settleRecoveredStop(
 	m.mu.Lock()
 	run.recoveredSettlement = nil
 	m.mu.Unlock()
-	return m.finishRecoveredStop(ctx, run.recoveredID, outcome.Cause)
+	return m.finishRecoveredStop(ctx, run.recoveredID)
 }

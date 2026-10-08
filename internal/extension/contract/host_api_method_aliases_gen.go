@@ -22,9 +22,6 @@ const (
 	HostAPIMethodSessionsSoulRefresh      = extensionprotocol.HostAPIMethodSessionsSoulRefresh
 	HostAPIMethodSessionsHealthGet        = extensionprotocol.HostAPIMethodSessionsHealthGet
 	HostAPIMethodSessionsStatusGet        = extensionprotocol.HostAPIMethodSessionsStatusGet
-	HostAPIMethodMemoryRecall             = extensionprotocol.HostAPIMethodMemoryRecall
-	HostAPIMethodMemoryStore              = extensionprotocol.HostAPIMethodMemoryStore
-	HostAPIMethodMemoryForget             = extensionprotocol.HostAPIMethodMemoryForget
 	HostAPIMethodObserveHealth            = extensionprotocol.HostAPIMethodObserveHealth
 	HostAPIMethodListLogs                 = extensionprotocol.HostAPIMethodListLogs
 	HostAPIMethodSkillsList               = extensionprotocol.HostAPIMethodSkillsList

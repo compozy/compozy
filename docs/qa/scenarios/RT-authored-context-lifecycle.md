@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-09-27-pkgs-cleanup-real-runtime; /Users/pedronauck/dev/qa-labs/compozy-pkgs-cleanup-hardcut-20260927-223700-515958-lab/qa-artifacts/qa/journey-log.jsonl
 last_report: docs/qa/reports/2026-09-27-pkgs-cleanup-real-runtime.md
-overlaps: RT-031; ET-044; TA-agent-knowledge-refresh-on-wake
+overlaps: RT-031; ET-044; RT-upgrade-memory-removal-home
 ---
 
 In an isolated lab, create an agent in each of two workspaces and profiles. Read, validate, write,
@@ -47,3 +47,5 @@ The two local charters passed through a real isolated daemon, production Web, CL
 The full scenario remains skipped in this provider-free cycle; the linked report lists exact observed
 steps, retained receipts, and excluded upgrade/provider/runtime legs. This is partial scenario coverage,
 not a full-scenario pass.
+
+QA impact 2026-10-07 (memory removal): a `SOUL.md` carrying the retired `memory_policy` frontmatter key stays valid — `compozy agent soul validate` reports it valid with no diagnostic, the key is not rendered, and the file is not rewritten (the Web editor drops it on the next save). The retired workspace-knowledge refresh-on-wake behavior no longer exists. The upgrade leg is walked by RT-upgrade-memory-removal-home; this scenario's verdict is unchanged.

@@ -103,9 +103,18 @@ type AgentEventPayload struct {
 	Goal              *GoalPromptMeta              `json:"goal,omitzero"`
 	Delivery          *acp.DeliveryManifest        `json:"delivery,omitzero"`
 	Usage             *TokenUsagePayload           `json:"usage,omitzero"`
+	Compaction        *CompactionSnapshotPayload   `json:"compaction,omitzero"`
 	Runtime           *RuntimeActivityPayload      `json:"runtime,omitzero"`
 	PromptRuntime     *RuntimeSelectionPayload     `json:"prompt_runtime,omitzero"`
 	Raw               json.RawMessage              `json:"raw,omitempty"`
+}
+
+// CompactionSnapshotPayload is the current redacted native compaction observation.
+type CompactionSnapshotPayload struct {
+	CompactionID string `json:"compaction_id"`
+	Status       string `json:"status"`
+	Summary      string `json:"summary,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 // TokenUsagePayload is the shared token-usage response payload.
@@ -201,7 +210,7 @@ type AgentProbeHealthPayload struct {
 }
 
 // ObservePersistenceHealthPayload captures store health fields shared by
-// lifecycle, memory, and operator diagnostics.
+// lifecycle and operator diagnostics.
 type ObservePersistenceHealthPayload struct {
 	Status             string `json:"status"`
 	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`

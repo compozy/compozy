@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-crash-resume-compaction
-  mission: "As Théo, drive a long session through compaction pressure, kill the daemon before a clean session end, and prove degraded resume reconstructs every archived fact from the checkpoint summary — no silent loss, no re-inflation, no cross-workspace bleed."
+  mission: "As Théo, drive a long session past the replay budget and to 0.95 of the context window, kill the daemon before a clean session end, and prove degraded resume rebuilds one bounded replay (pinned first message, omission note, workspace-authority line, history pointer) while CompozyOS itself never compacts, archives, or starts a child session — and an observed agent compaction is recorded exactly once, with no cross-workspace bleed."
   mode: charter-with-tour
   persona:
     name: Théo
@@ -16,13 +16,18 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Kill mid-conversation with a load-unsupported provider fixture; on resume, ask for a unique pre-restart fact and require the 'Context rebuilt from log.' marker plus the answer (timestamped kill/resume commands)."
-      - "Push usage past the compaction threshold after complete turns; verify summary-before-archive ordering, archived rows still queryable, and an interrupt between coverage and archive retried idempotently."
-      - "Run the same content in a second workspace throughout — no checkpoint fact or replay row may cross workspaces."
-      - "Control runs: successful session/load performs no replay and adds no marker; pressure_threshold=0 dispatches no hooks."
+      - "Kill mid-conversation with a load-unsupported provider fixture; on resume, ask for the pinned first-message fact and for a fact inside the protected last 8 messages, and require the 'Context rebuilt from log.' marker plus both answers (timestamped kill/resume commands)."
+      - "Push usage to 0.95 of the window after complete turns: no child session, no archived row, no session.compaction_fired, no hook dispatch. Then replay the recorded Claude compaction frames and kill the daemon between the terminal frame and the next usage report: after restart there is still exactly one folded Compaction item in the transcript projection (history keeps the raw snapshot rows), one `session.compaction_fired` event, and the context reading is unknown."
+      - "Replace the session's runtime so a bounded replay is deferred, run only a Compact now maintenance turn (`compozy session compact`), and kill the daemon before the next ordinary prompt. After restart, with a session/load-capable agent and with one that is not, the next ordinary prompt carries the bounded replay and startup instructions exactly once and the one after carries neither; a `session clear` while the replay is still pending discards it for good (the durable `pending_resume_replay` obligation, walked in MS-workspace-checkpoint-continuity)."
+      - "Run the same content in a second workspace throughout — no replay row or fact may cross workspaces, and no project_checkpoint_summary.md may appear in either."
+      - "Control runs: successful session/load performs no replay and adds no marker; an agent that does not advertise the compaction capability produces no Compaction item, snapshot row, event, marker, or hook call."
     must_avoid:
       - "Editing event stores by hand; every proof rides public surfaces plus DB dumps."
-      - "Sampling one crash window only — the coverage-vs-archive gap window is mandatory."
+      - "Sampling one crash window only — the gap between the terminal compaction frame and the next usage report, and the gap between a maintenance turn and the next ordinary prompt, are both mandatory."
 ```
 
 <!-- The charter is durable and immutable: re-run it in later cycles; each run's debrief goes in that run's report (Session Debriefs), never here. -->
+
+<!-- 2026-10-07 (memory removal): mission and guidance rewritten for bounded rebuilds and observed agent compaction; the scenario list is unchanged. -->
+
+<!-- 2026-10-08 (memory removal, review round 1): added the deferred-replay kill window; the scenario list is unchanged. -->

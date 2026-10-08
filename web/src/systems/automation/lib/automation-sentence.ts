@@ -273,8 +273,6 @@ function eventSegments(event: string | undefined): AutomationSentenceSegment[] {
       return [plain("a session starts")];
     case "session.stopped":
       return [plain("a session stops")];
-    case "memory.consolidated":
-      return [plain("memory is consolidated")];
     case "hook.completed":
       return selection.hookName
         ? [plain("the "), strong(selection.hookName), plain(" hook completes")]

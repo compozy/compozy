@@ -111,24 +111,179 @@ func TestLoopGoalContextRuntimeShouldUseLatestTypedSessionEvidence(t *testing.T)
 		if !usage.Known || usage.Used != used || usage.Size != size || usage.Sequence != 2 {
 			t.Fatalf("Usage() = %#v", usage)
 		}
-		hasCompact, err := runtime.HasAdvertisedCommand(testutil.Context(t), binding, "compact")
+		command, ok, err := runtime.CompactionCommand(testutil.Context(t), binding)
 		if err != nil {
-			t.Fatalf("HasAdvertisedCommand(compact) error = %v", err)
+			t.Fatal(err)
 		}
-		if hasCompact {
-			t.Fatal("HasAdvertisedCommand(compact) = true, want latest-set replacement")
-		}
-		hasReview, err := runtime.HasAdvertisedCommand(testutil.Context(t), binding, "review")
-		if err != nil {
-			t.Fatalf("HasAdvertisedCommand(review) error = %v", err)
-		}
-		if !hasReview {
-			t.Fatal("HasAdvertisedCommand(review) = false")
+		if ok || command != "" {
+			t.Fatalf("command=%q/%v", command, ok)
 		}
 	})
+	t.Run("Should invalidate occupancy until newer usage after the terminal boundary", func(t *testing.T) {
+		t.Parallel()
+		reader := staticLoopSessionEventReader{events: []store.SessionEvent{
+			managedGoalContextEvent(
+				t,
+				10,
+				acp.AgentEvent{
+					Type:  acp.EventTypeUsage,
+					Usage: &acp.TokenUsage{ContextUsed: new(int64(190000)), ContextSize: new(int64(200000))},
+				},
+			),
+			managedGoalContextEvent(
+				t,
+				12,
+				acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true},
+				},
+			),
+			managedGoalContextEvent(
+				t,
+				13,
+				acp.AgentEvent{Type: acp.EventTypeDone, Usage: &acp.TokenUsage{InputTokens: new(int64(100))}},
+			),
+		}}
+		runtime := loopGoalContextRuntime{sessions: reader}
+		binding := looppkg.ActionSessionBinding{SessionID: "session-context"}
+		usage, err := runtime.Usage(t.Context(), binding)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if usage.Known {
+			t.Fatalf("stale usage=%#v", usage)
+		}
+		pinned, err := runtime.UsageAtSequence(t.Context(), binding, 10)
+		if err != nil || pinned.Known {
+			t.Fatalf("stale pinned=%#v %v", pinned, err)
+		}
+		service := daemonLoopAPIService{goalContext: &runtime}
+		snapshot, err := service.goalContextSnapshot(
+			t.Context(),
+			"workspace",
+			goalpkg.SessionProjection{
+				Checkpoint: &goalpkg.Checkpoint{
+					SessionID:         binding.SessionID,
+					ContextState:      "known",
+					UsageSequence:     new(int64(10)),
+					ContextNudgeRatio: 0.8,
+				},
+			},
+		)
+		if err != nil || snapshot.State != "unknown" || snapshot.Used != nil || snapshot.Size != nil ||
+			snapshot.Ratio != nil {
+			t.Fatalf("stale Goal snapshot=%#v %v", snapshot, err)
+		}
+
+		reader.events = append(
+			reader.events,
+			managedGoalContextEvent(
+				t,
+				14,
+				acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: new(int64(40000))}},
+			),
+		)
+		runtime.sessions = reader
+		usage, err = runtime.Usage(t.Context(), binding)
+		if err != nil || usage.Known {
+			t.Fatalf("used-only occupancy=%#v err=%v", usage, err)
+		}
+		pinned, err = runtime.UsageAtSequence(t.Context(), binding, 14)
+		if err != nil || pinned.Known {
+			t.Fatalf("used-only pinned occupancy=%#v err=%v", pinned, err)
+		}
+		reader.events = append(
+			reader.events,
+			managedGoalContextEvent(
+				t,
+				15,
+				acp.AgentEvent{
+					Type:  acp.EventTypeUsage,
+					Usage: &acp.TokenUsage{ContextUsed: new(int64(40000)), ContextSize: new(int64(200000))},
+				},
+			),
+		)
+		runtime.sessions = reader
+		usage, err = runtime.Usage(t.Context(), binding)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !usage.Known || usage.Used != 40000 || usage.Sequence != 15 {
+			t.Fatalf("usage=%#v", usage)
+		}
+		pinned, err = runtime.UsageAtSequence(t.Context(), binding, 15)
+		if err != nil || !pinned.Known || pinned.Used != 40000 {
+			t.Fatalf("fresh pinned=%#v %v", pinned, err)
+		}
+	})
+	for _, commands := range [][]store.SessionAdvertisedCommand{{{Name: "compress"}}, {{Name: "compress"}, {Name: "compact"}}, {{Name: "Compact"}}, {{Name: "review"}}} {
+		t.Run("Should share compaction command resolution for "+commands[0].Name, func(t *testing.T) {
+			t.Parallel()
+			runtime := loopGoalContextRuntime{
+				sessions: staticLoopSessionEventReader{
+					events: []store.SessionEvent{
+						managedGoalContextEvent(
+							t,
+							1,
+							(acp.AgentEvent{Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate}).WithAvailableCommands(
+								commands,
+							),
+						),
+					},
+				},
+			}
+			got, ok, err := runtime.CompactionCommand(t.Context(), looppkg.ActionSessionBinding{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, wantOK := session.ResolveCompactionCommand(commands)
+			if got != want || ok != wantOK {
+				t.Fatalf("command=%q/%v want=%q/%v", got, ok, want, wantOK)
+			}
+		})
+	}
 }
 
 func TestReconstructManagedGoalPromptResultShouldRequireExactOrderedTerminalWindow(t *testing.T) {
+	for _, test := range []struct{ first, current string }{
+		{"completed", "failed"},
+		{"failed", "completed"},
+	} {
+		t.Run("Should use corrected "+test.current+" status for live and recovered compaction", func(t *testing.T) {
+			t.Parallel()
+			promptID := "corrected-compaction"
+			rows := []store.SessionEvent{
+				managedGoalRecoveryEvent(t, 1, promptID, acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: test.first, Terminal: true},
+				}),
+				managedGoalRecoveryEvent(t, 2, promptID, acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: test.current},
+				}),
+				managedGoalRecoveryEvent(t, 3, promptID, acp.AgentEvent{
+					Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn,
+				}),
+			}
+			reader := staticLoopSessionEventReader{events: rows}
+			result := looppkg.ActionPromptResult{PromptID: promptID, EventStartSeq: 1, EventEndSeq: 3}
+			live, err := readManagedGoalCompaction(t.Context(), reader,
+				&store.SessionInputQueueEntry{SessionID: "session-corrected", PromptID: promptID}, result)
+			if err != nil || live == nil || live.CompactionID != "c1" || live.Status != test.current {
+				t.Fatalf("live compaction=%#v err=%v", live, err)
+			}
+			recovered, _, found, err := reconstructManagedGoalPromptResult(
+				t.Context(),
+				reader,
+				"session-corrected",
+				promptID,
+			)
+			if err != nil || !found || recovered.Compaction == nil || recovered.Compaction.CompactionID != "c1" ||
+				recovered.Compaction.Status != test.current {
+				t.Fatalf("recovered result=%#v found=%v err=%v", recovered, found, err)
+			}
+		})
+	}
 	t.Run(
 		"Should recover ordered text structured output and reported zero usage across unrelated sequence gaps",
 		func(t *testing.T) {

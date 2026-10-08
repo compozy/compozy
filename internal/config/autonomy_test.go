@@ -130,13 +130,6 @@ timeout = "5s"
 [hooks.declarations.executor]
 command = "/bin/global"
 
-[memory]
-enabled = true
-[memory.dream]
-min_hours = 36
-min_sessions = 4
-check_interval = "20m"
-
 [skills]
 enabled = true
 disabled_skills = ["global-skill"]
@@ -167,8 +160,6 @@ mode = "sync"
 [hooks.declarations.executor]
 command = "/bin/workspace"
 
-[memory.dream]
-min_sessions = 6
 [skills]
 poll_interval = "9s"
 [roles.coordinator]
@@ -197,9 +188,6 @@ max_children = 2
 	}
 	if len(decls) != 2 {
 		t.Fatalf("HookDeclarations() count = %d, want 2", len(decls))
-	}
-	if cfg.Memory.Dream.MinHours != 36 || cfg.Memory.Dream.MinSessions != 6 {
-		t.Fatalf("Load() Memory.Dream = %#v, want layered dream policy", cfg.Memory.Dream)
 	}
 	if got, want := cfg.Skills.DisabledSkills, []string{"global-skill"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)

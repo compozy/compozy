@@ -173,21 +173,6 @@ describe("manual site CLI examples", () => {
     expect(manualCompozyCommandViolations()).toEqual([]);
   });
 
-  it("does not execute the replaced compozy memory verbs in any documented shell block", () => {
-    const violations = listManualDocs(contentRoot).flatMap(doc =>
-      extractBashBlocks(doc).flatMap(block =>
-        block
-          .replaceAll("\\\n", " ")
-          .split("\n")
-          .map(line => line.replace(/^[\s$>]+/, ""))
-          .filter(line => /^compozy memory (read|consolidate)\b/.test(line))
-          .map(line => `${doc.path}: ${line.trim()}`)
-      )
-    );
-
-    expect(violations).toEqual([]);
-  });
-
   // Invariant: copyable current-product examples never invoke a retired capability.
   // Owner: public documentation contract. Canonical suite: runtime-manual-cli-examples.
   it("does not publish retired product commands in active documentation", () => {
@@ -197,7 +182,7 @@ describe("manual site CLI examples", () => {
         extractCodeBlocks(doc).flatMap(block =>
           [
             ...block.body.matchAll(
-              /\bcompozy(?:__|\s+)(?:network|bridge|sandbox|notification[-_]preset)(?:\b|_)/g
+              /\bcompozy(?:__|\s+)(?:network|bridge|sandbox|memory|dream|notification[-_]preset)(?:\b|_)/g
             ),
           ].map(match => `${doc.path}: ${match[0]}`)
         )

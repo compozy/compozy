@@ -14,7 +14,8 @@
 - Goals
 - Profile selection environment
 - Automation schedules
-- Session compaction
+- Session rebuild bounds
+- Retired memory and compaction settings
 - Session attachments
 - Auto-title role
 - Window manager
@@ -27,7 +28,7 @@
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
-- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, and `hooks`.
+- `SettingsApplyTargetName`: `general`, `skills`, `automation`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, and `hooks`.
 - `SettingsMutationBehavior`: `applied_now`, `restart_required`, or `action_trigger`.
 - `SettingsApplyLifecycle`: `live`, `live-add`, `live-remove-if-unused`, `restart-required`, or `session-rebind`.
 - `ConfigApplyStatus`: `pending_apply`, `applied`, `blocked`, or `failed`.
@@ -242,15 +243,47 @@ Automation schedule catch-up policy is part of the public schedule contract. Rec
 
 CLI automation creation supports the Agent-or-Loop target union. Use `automation jobs create --loop` with repeatable `--loop-input` values for scheduled Loop starts; triggers also accept repeatable `--loop-input-mapping` templates. Global definitions require `--loop-workspace`. CLI updates change common fields without replacing the target; use native tools or HTTP/UDS for target replacement.
 
-Trigger events are `session.created`, `session.stopped`, `memory.consolidated`, `hook.<hook_name>.completed`, `webhook`, or `ext.*`. Unknown names and surrounding whitespace are rejected; `ext.*` suffixes stay free-form.
+Trigger events are `session.created`, `session.stopped`, `hook.<hook_name>.completed`, `webhook`, or `ext.*`. Unknown names and surrounding whitespace are rejected; `ext.*` suffixes stay free-form.
 
-## Session Compaction
+## Session Rebuild Bounds
 
-`[session.compaction]` controls pressure-triggered checkpoint coverage and replay archiving. Defaults
-are `enabled = true`, `pressure_threshold = 0.85`, `max_attempts_per_turn = 1`, and
-`failure_cooldown = "10m"`; threshold zero disables admission. All paths are available through
-`compozy config set` and the native config tools, are restart-required under the canonical `session.*`
-lifecycle rule, and do not mutate the policy bound to the running daemon.
+`[session.derive]` sets `max_replay_bytes` (default `131072`, at least `4096`) and `max_message_bytes`
+(default `16384`, between `1024` and `max_replay_bytes`). They bound every transcript replay into a new
+agent session: resume without native load, runtime or model replacement, account fallback, prompt
+recovery, and `session continue|fork`. The replay never exceeds `max_replay_bytes`; one message over
+`max_message_bytes` is truncated. Validation rejects `max_message_bytes` outside 1024 through
+`max_replay_bytes`, so lowering `max_replay_bytes` below the default `max_message_bytes` (16384) requires
+lowering `max_message_bytes` too. Edit these keys in `config.toml`; `compozy config set` does not accept
+them. CompozyOS has no compaction settings: the agent owns its context window,
+and compaction is observed or requested through the experimental surfaces in
+`references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
+the policy bound to the running daemon.
+
+## Retired Memory And Compaction Settings
+
+A `config.toml` (global, profile, or workspace) that still carries settings of the removed memory and
+CompozyOS-side compaction features loads without failing. On load, CompozyOS archives these settings
+in place: the `memory` table and its sub-tables, `roles.dream`, `roles.checkpoint_summary`,
+`roles.memory_extractor`, `roles.memory_controller`, `session.compaction`, every
+`[[automation.triggers]]` entry whose `event` is `memory.consolidated`, and the hook matcher keys
+`compaction_reason` and `compaction_strategy`. The values move, commented and inactive, under
+`# Archived retired memory and compaction settings; these values are inactive.` at the end of the same
+file, every other setting is kept, the daemon logs `config.retired_keys_archived` once, and the next load
+finds nothing to archive. The archive is a v0.6.0 removal shim. It is non-fatal: if the rewrite is refused
+because the file changed concurrently, or fails because the file or its directory is not writable, the
+loader logs the warning `config.retired_keys_archive_failed` (`path`, `reason`), loads with the retired
+values inactive, leaves the file untouched, and retries on the next load. Treat that warning as work to
+do: fix the permission or finish the edit. (A file whose only retired settings are the older
+`skills.marketplace` values still fails the load when its rewrite cannot publish.) `compozy config set` on
+a retired key is still refused.
+
+The same retirement is ignored, not rejected, in other places: `compaction_reason` and
+`compaction_strategy` in an `AGENT.md` or `SKILL.md` hook matcher are dropped with one
+`agent.retired_entries_ignored` (`agent`, `entries`) or `skills.retired_entries_ignored` warning per
+owner and the file is not rewritten (other invalid fields still fail); an extension manifest entry for
+the removed memory surface, or an extension automation resource whose trigger `event` is
+`memory.consolidated`, is dropped or skipped with `extension.retired_entries_ignored` while the rest of
+the extension loads. Replace the matcher keys with `compaction_trigger` before v0.6.0.
 
 ## Auto-Title Role
 
@@ -258,7 +291,8 @@ lifecycle rule, and do not mutate the policy bound to the running daemon.
 sessions after their first persisted assistant response. The remaining `roles.auto_title.*` fields
 select its agent, provider, model, reasoning effort, and ordered fallback routes. Role changes are
 Live desired state for later invocations at global or workspace scope. Explicit names win; disabled
-or failed generation leaves the session unnamed.
+or failed generation leaves the session unnamed. Generation has a fixed 60-second deadline with no
+configuration key.
 
 Other `[roles]` routing keys and the fallback-chain rules live in `references/runtime-operations.md` (Background roles).
 

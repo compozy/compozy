@@ -66,6 +66,10 @@ const (
 	ErrorCodeReasoningEffortUnsupported ErrorCode = "reasoning_effort_unsupported"
 	// ErrorCodeAgentNameReserved reports an authored agent identity reserved for daemon roles.
 	ErrorCodeAgentNameReserved ErrorCode = "agent_name_reserved"
+	// ErrorCodeSessionBusy reports exclusive prompt admission contention.
+	ErrorCodeSessionBusy ErrorCode = "session_busy"
+	// ErrorCodeCompactionUnsupported reports a missing native compaction capability.
+	ErrorCodeCompactionUnsupported ErrorCode = "compaction_unsupported"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.

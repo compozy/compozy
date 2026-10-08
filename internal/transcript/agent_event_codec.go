@@ -25,7 +25,15 @@ func MarshalPromptInputEvent(event acp.AgentEvent, authoredText string) (string,
 
 func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error) {
 	typedToolPayload := event.HasToolPayload()
+	event = RedactAgentEvent(event)
 	payload := canonicalPayloadFromAgentEvent(event, authoredText)
+	if event.Compaction != nil {
+		payload.CompactionID = event.Compaction.CompactionID
+		payload.Status = event.Compaction.Status
+		payload.Summary = event.Compaction.Summary
+		payload.Error = event.Compaction.Error
+		payload.CompactionTerminal = event.Compaction.Terminal
+	}
 
 	if len(event.Raw) > 0 {
 		var rawPayload map[string]any
@@ -78,7 +86,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Failure:           store.CloneSessionFailure(event.Failure),
 		ProviderError:     acp.CloneProviderErrorDiagnostic(event.ProviderError),
 		Synthetic:         clonePromptSyntheticMeta(event.Synthetic),
-		Goal:              acp.CloneGoalPromptMeta(event.Goal),
+		Goal:              event.GoalPromptMeta(),
 		AvailableCommands: event.AvailableCommandSet().Values(),
 		SkillInvocations:  event.SkillInvocations(),
 		Attachments:       event.Attachments(),
@@ -95,10 +103,13 @@ func applyLegacyRawPayload(
 	rawPayload map[string]any,
 	typedToolPayload bool,
 ) {
-	if event.Type == acp.EventTypeUsage ||
+	if event.Type == acp.EventTypeSystem ||
+		event.Type == acp.EventTypeCompaction ||
+		event.Type == acp.EventTypeUsage ||
 		event.Type == acp.EventTypePermission ||
 		event.Type == acp.EventTypeClarify ||
 		event.Type == events.SessionCompactionFired ||
+		event.Type == "session.compaction.requested" ||
 		event.Type == events.SessionSupervisionWarning ||
 		event.Type == events.SessionSupervisionStopped ||
 		event.Type == events.SessionSupervisionSourceError ||
@@ -163,11 +174,22 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Failure:          store.CloneSessionFailure(decoded.Failure),
 		ProviderError:    acp.CloneProviderErrorDiagnostic(decoded.ProviderError),
 		Synthetic:        clonePromptSyntheticMeta(decoded.Synthetic),
-		Goal:             acp.CloneGoalPromptMeta(decoded.Goal),
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
-	}.WithRequestID(decoded.RequestID).WithResolvedBy(decoded.ResolvedBy).WithDelivery(decoded.Delivery)
+	}.WithGoalPromptMeta(decoded.Goal).
+		WithRequestID(decoded.RequestID).
+		WithResolvedBy(decoded.ResolvedBy).
+		WithDelivery(decoded.Delivery)
+	if event.Type == acp.EventTypeCompaction {
+		event.Compaction = &acp.CompactionObservation{
+			CompactionID: decoded.CompactionID,
+			Status:       decoded.Status,
+			Summary:      decoded.Summary,
+			Error:        decoded.Error,
+			Terminal:     decoded.CompactionTerminal,
+		}
+	}
 	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)

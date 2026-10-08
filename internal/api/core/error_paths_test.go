@@ -5,18 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
-
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -78,7 +73,7 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixture(t, manager, observer, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, manager, observer, workspaces)
 
 	requests := []struct {
 		name             string
@@ -209,8 +204,6 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 		manager,
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	for _, path := range []string{
@@ -244,8 +237,6 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 		manager,
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	badStream := performRequest(
@@ -276,8 +267,6 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	observeBadHeader := testutil.PerformRequestWithHeaders(
 		t,
@@ -316,8 +305,6 @@ func TestStreamSessionInitialEventsErrorWithoutLiveSubscription(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(
@@ -344,8 +331,6 @@ func TestListAgentsHandlesMissingDirectory(t *testing.T) {
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	if err := os.RemoveAll(fixture.HomePaths.AgentsDir); err != nil {
 		t.Fatalf("RemoveAll(AgentsDir) error = %v", err)
@@ -370,8 +355,6 @@ func TestListAgentsWorkspaceResolverUnavailable(t *testing.T) {
 				testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
-				nil,
-				nil,
 			)
 			fixture.Handlers.Workspaces = nil
 
@@ -407,8 +390,6 @@ func TestListAgentsSkipsUnreadableDefinitions(t *testing.T) {
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
 	testutil.WriteAgentDef(t, fixture.HomePaths, "broken")
@@ -425,101 +406,6 @@ func TestListAgentsSkipsUnreadableDefinitions(t *testing.T) {
 	}
 }
 
-func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
-	t.Parallel()
-
-	store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
-	if err := store.EnsureDirs(); err != nil {
-		t.Fatalf("EnsureDirs() error = %v", err)
-	}
-	workspace := t.TempDir()
-	profileDoc := []byte(memoryDocument(t, "Shared", memcontract.TypeUser, "profile"))
-	workspaceDoc := []byte(memoryDocument(t, "Shared", memcontract.TypeProject, "workspace"))
-	if err := store.Write(t.Context(), memcontract.ScopeProfile, "shared.md", profileDoc); err != nil {
-		t.Fatalf("Write(profile) error = %v", err)
-	}
-	if err := store.ForWorkspace(workspace).Write(
-		t.Context(), memcontract.ScopeWorkspace, "shared.md", workspaceDoc,
-	); err != nil {
-		t.Fatalf("Write(workspace) error = %v", err)
-	}
-	if err := store.ForWorkspace(workspace).Write(t.Context(),
-		memcontract.ScopeWorkspace, "workspace-only.md", workspaceDoc); err != nil {
-		t.Fatalf("Write(workspace-only) error = %v", err)
-	}
-
-	fixture := newHandlerFixture(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		testutil.StubWorkspaceService{},
-		store,
-		nil,
-	)
-	if _, err := fixture.Handlers.ResolveMemoryLocation("workspace-only.md", "", workspace); err != nil {
-		t.Fatalf("ResolveMemoryLocation(workspace-only) error = %v", err)
-	}
-	if _, err := fixture.Handlers.ResolveMemoryLocation(
-		"shared.md",
-		"",
-		workspace,
-	); !errors.Is(
-		err,
-		memory.ErrValidation,
-	) {
-		t.Fatalf("ResolveMemoryLocation(shared) error = %v, want validation", err)
-	}
-	if _, _, err := core.ResolveMemoryWriteScope(contract.MemoryWriteRequest{}); !errors.Is(
-		err,
-		memory.ErrValidation,
-	) {
-		t.Fatalf("ResolveMemoryWriteScope(empty) error = %v, want validation", err)
-	}
-
-	noStoreFixture := newHandlerFixture(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		testutil.StubWorkspaceService{},
-		nil,
-		nil,
-	)
-	requests := []struct {
-		method string
-		path   string
-		body   []byte
-	}{
-		{method: http.MethodGet, path: "/memory"},
-		{method: http.MethodGet, path: "/memory/valid.md?scope=profile"},
-		{
-			method: http.MethodPost,
-			path:   "/memory",
-			body:   []byte(`{"scope":"profile","type":"user","name":"Valid","content":"hello"}`),
-		},
-		{method: http.MethodDelete, path: "/memory/valid.md?scope=profile"},
-	}
-	for _, request := range requests {
-		t.Run(request.method+" "+request.path, func(t *testing.T) {
-			resp := performRequest(
-				t,
-				noStoreFixture.Engine,
-				request.method,
-				request.path,
-				request.body,
-			)
-			if resp.Code != http.StatusInternalServerError {
-				t.Fatalf(
-					"%s %s status = %d, want %d",
-					request.method,
-					request.path,
-					resp.Code,
-					http.StatusInternalServerError,
-				)
-			}
-		})
-	}
-}
-
 func TestWorkspaceUpdateValidationAndDeleteErrors(t *testing.T) {
 	t.Parallel()
 
@@ -530,8 +416,6 @@ func TestWorkspaceUpdateValidationAndDeleteErrors(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			workspaces,
-			nil,
-			nil,
 		)
 	}
 
@@ -611,8 +495,6 @@ func TestWorkspaceValidationBranches(t *testing.T) {
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		workspaces,
-		nil,
-		nil,
 	)
 
 	createResp := performRequest(
@@ -657,82 +539,6 @@ func TestWorkspaceValidationBranches(t *testing.T) {
 			"resolve invalid path status = %d, want %d",
 			resolveResp.Code,
 			http.StatusBadRequest,
-		)
-	}
-}
-
-func TestMemoryErrorAndDisabledBranches(t *testing.T) {
-	t.Parallel()
-
-	store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
-	if err := store.EnsureDirs(); err != nil {
-		t.Fatalf("EnsureDirs() error = %v", err)
-	}
-	fixture := newHandlerFixture(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		testutil.StubWorkspaceService{},
-		store,
-		nil,
-	)
-
-	readMissing := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodGet,
-		"/memory/missing.md?scope=profile",
-		nil,
-	)
-	if readMissing.Code != http.StatusNotFound {
-		t.Fatalf("read missing status = %d, want %d", readMissing.Code, http.StatusNotFound)
-	}
-
-	deleteMissing := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodDelete,
-		"/memory/missing.md?scope=profile",
-		nil,
-	)
-	if deleteMissing.Code != http.StatusNotFound {
-		t.Fatalf("delete missing status = %d, want %d", deleteMissing.Code, http.StatusNotFound)
-	}
-
-	badWrite := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/memory",
-		[]byte(`{"scope":"profile","type":"user","name":"Bad"}`),
-	)
-	if badWrite.Code != http.StatusBadRequest {
-		t.Fatalf("bad write status = %d, want %d", badWrite.Code, http.StatusBadRequest)
-	}
-
-	badConsolidate := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/memory/dreams/trigger",
-		[]byte(`{`),
-	)
-	if badConsolidate.Code != http.StatusBadRequest {
-		t.Fatalf("bad consolidate status = %d, want %d", badConsolidate.Code, http.StatusBadRequest)
-	}
-
-	disabledConsolidate := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/memory/dreams/trigger",
-		nil,
-	)
-	if disabledConsolidate.Code != http.StatusOK {
-		t.Fatalf(
-			"disabled consolidate status = %d, want %d",
-			disabledConsolidate.Code,
-			http.StatusOK,
 		)
 	}
 }

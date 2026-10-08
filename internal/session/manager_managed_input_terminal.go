@@ -145,7 +145,8 @@ func (a *managedInputTerminalAccumulator) addEvent(event store.SessionEvent) err
 }
 
 func isManagedInputProofAuxiliaryEvent(eventType string) bool {
-	return eventType == eventspkg.TranscriptMarkerCreated || eventType == eventspkg.TranscriptMarkerRedacted
+	return eventType == eventspkg.TranscriptMarkerCreated || eventType == eventspkg.TranscriptMarkerRedacted ||
+		eventType == sessionCompactionRequestedEvent || eventType == eventspkg.SessionCompactionFired
 }
 
 func (a *managedInputTerminalAccumulator) appendText(event acp.AgentEvent) {

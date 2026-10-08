@@ -1557,570 +1557,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/memory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List Memory v2 curated entries */
-    get: operations["listMemory"];
-    put?: never;
-    /** Create or propose one Memory v2 curated entry */
-    post: operations["writeMemory"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/ad-hoc": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Create a Memory v2 ad-hoc note for dreaming reconciliation */
-    post: operations["createMemoryAdhocNote"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/config": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Memory v2 config metadata and provider registry state */
-    get: operations["getMemoryConfigMetadata"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/daily": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List Memory v2 daily operation logs */
-    get: operations["listMemoryDailyLogs"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/decisions": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List Memory v2 controller decisions */
-    get: operations["listMemoryDecisions"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/decisions/{decision_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one Memory v2 controller decision */
-    get: operations["getMemoryDecision"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/decisions/{decision_id}/revert": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Revert one applied Memory v2 controller decision */
-    post: operations["revertMemoryDecision"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/dreams": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List Memory v2 dreaming runs */
-    get: operations["listMemoryDreams"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/dreams/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Memory v2 dreaming status */
-    get: operations["getMemoryDreamStatus"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/dreams/trigger": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Trigger Memory v2 dreaming immediately */
-    post: operations["triggerMemoryDream"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/dreams/{dream_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one Memory v2 dreaming run */
-    get: operations["getMemoryDream"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/dreams/{dream_id}/retry": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Retry a failed Memory v2 dreaming run */
-    post: operations["retryMemoryDream"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/extractor/drain": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Drain Memory v2 extractor queue */
-    post: operations["drainMemoryExtractor"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/extractor/failures": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List Memory v2 extractor DLQ records */
-    get: operations["listMemoryExtractorFailures"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/extractor/retry": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Retry Memory v2 extractor DLQ records */
-    post: operations["retryMemoryExtractor"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/extractor/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Memory v2 extractor queue status */
-    get: operations["getMemoryExtractorStatus"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/health": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get memory health */
-    get: operations["getMemoryHealth"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/history": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List redacted memory operation history */
-    get: operations["listMemoryHistory"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/promote": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Promote a Memory v2 entry between scopes or agent tiers */
-    post: operations["promoteMemory"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/providers": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List registered Memory v2 providers */
-    get: operations["listMemoryProviders"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/providers/select": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Select the active Memory v2 provider */
-    post: operations["selectMemoryProvider"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/providers/{provider_name}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one Memory v2 provider */
-    get: operations["getMemoryProvider"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/providers/{provider_name}/disable": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Disable a Memory v2 provider */
-    post: operations["disableMemoryProvider"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/providers/{provider_name}/enable": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Enable a Memory v2 provider */
-    post: operations["enableMemoryProvider"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/recall-traces/{session_id}/{turn_seq}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one Memory v2 recall trace */
-    get: operations["getMemoryRecallTrace"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/reindex": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Rebuild Memory v2 derived catalog indexes */
-    post: operations["reindexMemory"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/reload": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Invalidate Memory v2 frozen snapshots for the next session boot */
-    post: operations["reloadMemory"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/reset": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Reset Memory v2 derived state or curated storage */
-    post: operations["resetMemory"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/scope-show": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Resolve the effective Memory v2 scope/tier and precedence chain */
-    get: operations["showMemoryScope"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/search": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Run deterministic Memory v2 recall/search */
-    post: operations["searchMemory"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/sessions/prune": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Prune materialized Memory v2 session ledger state */
-    post: operations["pruneMemorySessions"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/sessions/repair": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Repair materialized Memory v2 session ledgers */
-    post: operations["repairMemorySessions"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/memory/{filename}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Read one memory document */
-    get: operations["readMemory"];
-    put?: never;
-    post?: never;
-    /** Delete one memory document */
-    delete: operations["deleteMemory"];
-    options?: never;
-    head?: never;
-    /** Edit one Memory v2 curated entry through the controller */
-    patch: operations["editMemory"];
-    trace?: never;
-  };
   "/api/model-catalog/models": {
     parameters: {
       query?: never;
@@ -3428,24 +2864,6 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
-    trace?: never;
-  };
-  "/api/settings/memory": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Read the memory settings section */
-    get: operations["getSettingsMemory"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update the memory settings section */
-    patch: operations["updateSettingsMemory"];
     trace?: never;
   };
   "/api/settings/observability": {
@@ -5484,40 +4902,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one materialized Memory v2 session ledger */
-    get: operations["getMemorySessionLedger"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/replay": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Replay one materialized Memory v2 session ledger */
-    post: operations["replayMemorySession"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}": {
     parameters: {
       query?: never;
@@ -5701,6 +5085,23 @@ export interface paths {
     get: operations["getSessionCommands"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/compact": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request advertised native agent compaction (experimental) */
+    post: operations["compactSession"];
     delete?: never;
     options?: never;
     head?: never;
@@ -6245,7 +5646,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get per-turn session usage and replay compaction spans */
+    /** Get per-turn session usage and native compaction markers */
     get: operations["getSessionUsageTurns"];
     put?: never;
     post?: never;
@@ -9946,7 +9347,7 @@ export interface operations {
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 /** @enum {string} */
-                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+                type?: "user" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
               };
@@ -10837,7 +10238,7 @@ export interface operations {
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 /** @enum {string} */
-                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+                type?: "user" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
               };
@@ -11241,7 +10642,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -11480,7 +10880,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -11634,7 +11033,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -12076,7 +11474,7 @@ export interface operations {
                 /** Format: int64 */
                 transcript_epoch?: number;
                 /** @enum {string} */
-                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+                type?: "user" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
                 verified?: boolean | null;
@@ -19007,7 +18405,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -19280,7 +18677,6 @@ export interface operations {
               frontmatter: {
                 collaboration?: string[];
                 constraints?: string[];
-                memory_policy?: string[];
                 principles?: string[];
                 role?: string;
                 tags?: string[];
@@ -19465,7 +18861,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -19616,7 +19011,6 @@ export interface operations {
               frontmatter: {
                 collaboration?: string[];
                 constraints?: string[];
-                memory_policy?: string[];
                 principles?: string[];
                 role?: string;
                 tags?: string[];
@@ -20135,7 +19529,6 @@ export interface operations {
               frontmatter: {
                 collaboration?: string[];
                 constraints?: string[];
-                memory_policy?: string[];
                 principles?: string[];
                 role?: string;
                 tags?: string[];
@@ -20320,7 +19713,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -20439,7 +19831,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -20593,7 +19984,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -33762,8 +33152,7 @@ export interface operations {
                   task_id?: string;
                   workflow_id?: string;
                 } | null;
-                compaction_reason?: string;
-                compaction_strategy?: string;
+                compaction_trigger?: string;
                 decision_class?: string;
                 input_class?: string;
                 message_delta_type?: string;
@@ -35929,3681 +35318,6 @@ export interface operations {
       };
     };
   };
-  listMemory: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Filter by memory type */
-        type?: "user" | "feedback" | "project" | "reference";
-        /** @description Order memory headers by recent modification or normalized name */
-        sort?: "recent" | "name";
-        /** @description Continue after this query-bound memory cursor */
-        cursor?: string;
-        /** @description Maximum number of memories to return; defaults to 50 and is capped at 200 */
-        limit?: number;
-        /** @description Include system-managed memory entries */
-        include_system?: boolean;
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            memories: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              content_hash?: string;
-              /** Format: date-time */
-              created_at?: string | null;
-              description?: string;
-              filename: string;
-              injection: boolean;
-              /** Format: date-time */
-              last_recalled_at?: string | null;
-              /** Format: date-time */
-              mod_time: string;
-              name: string;
-              recall_count: number;
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              staleness_banner?: string;
-              superseded_by?: string;
-              system_managed: boolean;
-              /** @enum {string} */
-              type: "user" | "feedback" | "project" | "reference";
-              /** Format: date-time */
-              updated_at?: string | null;
-              workspace_id?: string;
-            }[];
-            page: {
-              has_more: boolean;
-              limit: number;
-              next_cursor?: string;
-              total: number;
-            };
-          };
-        };
-      };
-      /** @description Invalid memory filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Workspace or memory not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  writeMemory: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_name?: string;
-          /** @enum {string} */
-          agent_tier?: "workspace" | "global";
-          attribute?: string;
-          content: string;
-          description?: string;
-          dry_run?: boolean;
-          entity?: string;
-          idempotency_key?: string;
-          metadata?: {
-            [key: string]: string;
-          };
-          name: string;
-          /** @enum {string} */
-          origin?: "cli" | "http" | "uds" | "tool" | "extractor" | "dreaming" | "file" | "provider";
-          /** @enum {string} */
-          scope: "profile" | "workspace" | "agent";
-          /** @enum {string} */
-          type: "user" | "feedback" | "project" | "reference";
-          workspace_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            applied: boolean;
-            decision: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** Format: date-time */
-              applied_at?: string | null;
-              candidate_hash: string;
-              /** Format: float */
-              confidence: number;
-              /** Format: date-time */
-              decided_at: string;
-              frontmatter: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                description?: string;
-                filename: string;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                provenance?: {
-                  confidence?: string;
-                  /** Format: date-time */
-                  created_at: string;
-                  /** @enum {string} */
-                  source_actor:
-                    | "cli"
-                    | "http"
-                    | "uds"
-                    | "tool"
-                    | "extractor"
-                    | "dreaming"
-                    | "file"
-                    | "provider";
-                  source_session_ids?: string[];
-                  superseded_by?: string;
-                  /** Format: date-time */
-                  updated_at: string;
-                } | null;
-                /** @enum {string} */
-                scope?: "profile" | "workspace" | "agent";
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                workspace_id?: string;
-              };
-              id: string;
-              idempotency_key?: string;
-              llm_trace?: {
-                error?: string;
-                /** Format: int64 */
-                latency_ms: number;
-                model: string;
-                prompt_version: string;
-              } | null;
-              /** @enum {string} */
-              op: "noop" | "add" | "update" | "delete" | "reject";
-              post_content_hash?: string;
-              prompt_version?: string;
-              reason?: string;
-              rule_trace?: {
-                details?: string;
-                name: string;
-                passed: boolean;
-                reason?: string;
-                target?: string;
-              }[];
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** @enum {string} */
-              source: "rule" | "llm";
-              target_filename?: string;
-              targets?: string[];
-              workspace_id?: string;
-            };
-            dry_run?: boolean;
-          };
-        };
-      };
-      /** @description Invalid memory write request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory decision conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory write rejected by policy */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  createMemoryAdhocNote: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_name?: string;
-          /** @enum {string} */
-          agent_tier?: "workspace" | "global";
-          content: string;
-          /** @enum {string} */
-          scope: "profile" | "workspace" | "agent";
-          slug?: string;
-          workspace_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            accepted: boolean;
-            /** Format: date-time */
-            created_at: string;
-            path: string;
-          };
-        };
-      };
-      /** @description Invalid memory ad-hoc note request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory ad-hoc note rejected by policy */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  getMemoryConfigMetadata: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            config: {
-              controller: {
-                default_op_on_fail: string;
-                max_latency: string;
-                mode: string;
-                policy: {
-                  allow_origins: string[];
-                  max_content_chars: number;
-                  max_writes_per_min: number;
-                };
-              };
-              daily: {
-                archive_path: string;
-                cold_archive_days: number;
-                dreaming_window: number;
-                hard_delete_days: number;
-                /** Format: int64 */
-                max_archive_bytes: number;
-                /** Format: int64 */
-                max_bytes: number;
-                max_lines: number;
-                rotate_format: string;
-                sweep_hour: number;
-              };
-              decisions: {
-                keep_audit_summary: boolean;
-                /** Format: int64 */
-                max_post_content_bytes: number;
-                prune_after_applied_days: number;
-              };
-              dream: {
-                check_interval: string;
-                debounce: string;
-                gates: {
-                  min_recall_count: number;
-                  /** Format: double */
-                  min_score: number;
-                  min_unpromoted: number;
-                };
-                /** Format: double */
-                min_hours: number;
-                min_sessions: number;
-                prompt_version: string;
-                scoring: {
-                  recency_half_life_days: number;
-                  weights: {
-                    /** Format: double */
-                    frequency: number;
-                    /** Format: double */
-                    freshness: number;
-                    /** Format: double */
-                    recency: number;
-                    /** Format: double */
-                    relevance: number;
-                  };
-                };
-              };
-              enabled: boolean;
-              extractor: {
-                deadline: string;
-                dlq_path: string;
-                inbox_path: string;
-                mode: string;
-                queue: {
-                  capacity: number;
-                  coalesce_max: number;
-                };
-                sandbox_inbox_only: boolean;
-                throttle_turns: number;
-              };
-              file: {
-                /** Format: int64 */
-                max_bytes: number;
-                max_lines: number;
-              };
-              global_dir?: string;
-              provider: {
-                cooldown: string;
-                failure_threshold: number;
-                name: string;
-                timeout: string;
-              };
-              recall: {
-                freshness: {
-                  banner_after_days: number;
-                };
-                fusion: string;
-                include_already_surfaced: boolean;
-                include_system: boolean;
-                raw_candidates: number;
-                signals: {
-                  queue_capacity: number;
-                  worker_retry_max: number;
-                };
-                top_k: number;
-                weights: {
-                  /** Format: double */
-                  bm25_trigram: number;
-                  /** Format: double */
-                  bm25_unicode: number;
-                  /** Format: double */
-                  recall_signal: number;
-                  /** Format: double */
-                  recency: number;
-                };
-              };
-              session: {
-                cold_archive_days: number;
-                events_purge_grace: string;
-                hard_delete_days: number;
-                ledger_format: string;
-                ledger_root: string;
-                /** Format: int64 */
-                max_archive_bytes: number;
-                unbound_partition: string;
-              };
-              workspace: {
-                auto_create: boolean;
-                toml_path: string;
-              };
-            };
-            locked_paths: string[];
-            mutable_paths: string[];
-            providers: {
-              active: boolean;
-              builtin: boolean;
-              /** Format: date-time */
-              cooldown_until?: string | null;
-              failure_count: number;
-              last_error_code?: string;
-              name: string;
-              /** @enum {string} */
-              status: "active" | "standby" | "cooling_down" | "failed";
-              tools?: string[];
-            }[];
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  listMemoryDailyLogs: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Daily log date in YYYY-MM-DD format */
-        date?: string;
-        /** @description Maximum number of daily logs to return */
-        limit?: number;
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            logs: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              date: string;
-              operation_count: number;
-              path: string;
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              workspace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid memory daily log filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  listMemoryDecisions: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Controller decision op */
-        op?: string;
-        /** @description Target memory filename */
-        filename?: string;
-        /** @description Only decisions since this timestamp */
-        since?: string;
-        /** @description Maximum number of decisions to return */
-        limit?: number;
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            decisions: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** Format: date-time */
-              applied_at?: string | null;
-              candidate_hash: string;
-              /** Format: float */
-              confidence: number;
-              /** Format: date-time */
-              decided_at: string;
-              frontmatter: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                description?: string;
-                filename: string;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                provenance?: {
-                  confidence?: string;
-                  /** Format: date-time */
-                  created_at: string;
-                  /** @enum {string} */
-                  source_actor:
-                    | "cli"
-                    | "http"
-                    | "uds"
-                    | "tool"
-                    | "extractor"
-                    | "dreaming"
-                    | "file"
-                    | "provider";
-                  source_session_ids?: string[];
-                  superseded_by?: string;
-                  /** Format: date-time */
-                  updated_at: string;
-                } | null;
-                /** @enum {string} */
-                scope?: "profile" | "workspace" | "agent";
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                workspace_id?: string;
-              };
-              id: string;
-              idempotency_key?: string;
-              llm_trace?: {
-                error?: string;
-                /** Format: int64 */
-                latency_ms: number;
-                model: string;
-                prompt_version: string;
-              } | null;
-              /** @enum {string} */
-              op: "noop" | "add" | "update" | "delete" | "reject";
-              post_content_hash?: string;
-              prompt_version?: string;
-              reason?: string;
-              rule_trace?: {
-                details?: string;
-                name: string;
-                passed: boolean;
-                reason?: string;
-                target?: string;
-              }[];
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** @enum {string} */
-              source: "rule" | "llm";
-              target_filename?: string;
-              targets?: string[];
-              workspace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid memory decision filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  getMemoryDecision: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Controller decision id */
-        decision_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            decision: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** Format: date-time */
-              applied_at?: string | null;
-              candidate_hash: string;
-              /** Format: float */
-              confidence: number;
-              /** Format: date-time */
-              decided_at: string;
-              frontmatter: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                description?: string;
-                filename: string;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                provenance?: {
-                  confidence?: string;
-                  /** Format: date-time */
-                  created_at: string;
-                  /** @enum {string} */
-                  source_actor:
-                    | "cli"
-                    | "http"
-                    | "uds"
-                    | "tool"
-                    | "extractor"
-                    | "dreaming"
-                    | "file"
-                    | "provider";
-                  source_session_ids?: string[];
-                  superseded_by?: string;
-                  /** Format: date-time */
-                  updated_at: string;
-                } | null;
-                /** @enum {string} */
-                scope?: "profile" | "workspace" | "agent";
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                workspace_id?: string;
-              };
-              id: string;
-              idempotency_key?: string;
-              llm_trace?: {
-                error?: string;
-                /** Format: int64 */
-                latency_ms: number;
-                model: string;
-                prompt_version: string;
-              } | null;
-              /** @enum {string} */
-              op: "noop" | "add" | "update" | "delete" | "reject";
-              post_content_hash?: string;
-              prompt_version?: string;
-              reason?: string;
-              rule_trace?: {
-                details?: string;
-                name: string;
-                passed: boolean;
-                reason?: string;
-                target?: string;
-              }[];
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** @enum {string} */
-              source: "rule" | "llm";
-              target_filename?: string;
-              targets?: string[];
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Memory decision not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  revertMemoryDecision: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Controller decision id */
-        decision_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          dry_run?: boolean;
-          reason?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            decision: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** Format: date-time */
-              applied_at?: string | null;
-              candidate_hash: string;
-              /** Format: float */
-              confidence: number;
-              /** Format: date-time */
-              decided_at: string;
-              frontmatter: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                description?: string;
-                filename: string;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                provenance?: {
-                  confidence?: string;
-                  /** Format: date-time */
-                  created_at: string;
-                  /** @enum {string} */
-                  source_actor:
-                    | "cli"
-                    | "http"
-                    | "uds"
-                    | "tool"
-                    | "extractor"
-                    | "dreaming"
-                    | "file"
-                    | "provider";
-                  source_session_ids?: string[];
-                  superseded_by?: string;
-                  /** Format: date-time */
-                  updated_at: string;
-                } | null;
-                /** @enum {string} */
-                scope?: "profile" | "workspace" | "agent";
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                workspace_id?: string;
-              };
-              id: string;
-              idempotency_key?: string;
-              llm_trace?: {
-                error?: string;
-                /** Format: int64 */
-                latency_ms: number;
-                model: string;
-                prompt_version: string;
-              } | null;
-              /** @enum {string} */
-              op: "noop" | "add" | "update" | "delete" | "reject";
-              post_content_hash?: string;
-              prompt_version?: string;
-              reason?: string;
-              rule_trace?: {
-                details?: string;
-                name: string;
-                passed: boolean;
-                reason?: string;
-                target?: string;
-              }[];
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** @enum {string} */
-              source: "rule" | "llm";
-              target_filename?: string;
-              targets?: string[];
-              workspace_id?: string;
-            };
-            dry_run?: boolean;
-            reverted: boolean;
-          };
-        };
-      };
-      /** @description Invalid memory decision revert request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory decision not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory decision cannot be reverted */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  listMemoryDreams: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Dream status */
-        status?: string;
-        /** @description Maximum number of dreaming runs to return */
-        limit?: number;
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            dreams: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              artifact_paths?: string[];
-              candidate_count: number;
-              /** Format: date-time */
-              completed_at?: string | null;
-              failure_path?: string;
-              failure_reason?: string;
-              id: string;
-              /** Format: date-time */
-              lock_until?: string | null;
-              promoted_count: number;
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** Format: date-time */
-              started_at: string;
-              /** @enum {string} */
-              status: "idle" | "running" | "promoted" | "skipped" | "failed";
-              workspace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid memory dream filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  getMemoryDreamStatus: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            dreams: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              artifact_paths?: string[];
-              candidate_count: number;
-              /** Format: date-time */
-              completed_at?: string | null;
-              failure_path?: string;
-              failure_reason?: string;
-              id: string;
-              /** Format: date-time */
-              lock_until?: string | null;
-              promoted_count: number;
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** Format: date-time */
-              started_at: string;
-              /** @enum {string} */
-              status: "idle" | "running" | "promoted" | "skipped" | "failed";
-              workspace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  triggerMemoryDream: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_name?: string;
-          /** @enum {string} */
-          agent_tier?: "workspace" | "global";
-          force?: boolean;
-          /** @enum {string} */
-          scope?: "profile" | "workspace" | "agent";
-          workspace_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            dream: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              artifact_paths?: string[];
-              candidate_count: number;
-              /** Format: date-time */
-              completed_at?: string | null;
-              failure_path?: string;
-              failure_reason?: string;
-              id: string;
-              /** Format: date-time */
-              lock_until?: string | null;
-              promoted_count: number;
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** Format: date-time */
-              started_at: string;
-              /** @enum {string} */
-              status: "idle" | "running" | "promoted" | "skipped" | "failed";
-              workspace_id?: string;
-            };
-            reason?: string;
-            triggered: boolean;
-          };
-        };
-      };
-      /** @description Invalid memory dream trigger request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory dream gate not satisfied */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  getMemoryDream: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Dreaming run id */
-        dream_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            dream: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              artifact_paths?: string[];
-              candidate_count: number;
-              /** Format: date-time */
-              completed_at?: string | null;
-              failure_path?: string;
-              failure_reason?: string;
-              id: string;
-              /** Format: date-time */
-              lock_until?: string | null;
-              promoted_count: number;
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** Format: date-time */
-              started_at: string;
-              /** @enum {string} */
-              status: "idle" | "running" | "promoted" | "skipped" | "failed";
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Memory dream not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  retryMemoryDream: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Dreaming run id */
-        dream_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          failure_id?: string;
-          force?: boolean;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            dream: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              artifact_paths?: string[];
-              candidate_count: number;
-              /** Format: date-time */
-              completed_at?: string | null;
-              failure_path?: string;
-              failure_reason?: string;
-              id: string;
-              /** Format: date-time */
-              lock_until?: string | null;
-              promoted_count: number;
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** Format: date-time */
-              started_at: string;
-              /** @enum {string} */
-              status: "idle" | "running" | "promoted" | "skipped" | "failed";
-              workspace_id?: string;
-            };
-            retried: boolean;
-          };
-        };
-      };
-      /** @description Invalid memory dream retry request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory dream not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  drainMemoryExtractor: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** Format: date-time */
-            drained_at: string;
-            remaining: number;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  listMemoryExtractorFailures: {
-    parameters: {
-      query?: {
-        /** @description Filter by session id */
-        session_id?: string;
-        /** @description Maximum number of failures to return */
-        limit?: number;
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            failures: {
-              agent_name?: string;
-              /** Format: date-time */
-              created_at: string;
-              id: string;
-              path: string;
-              reason: string;
-              session_id: string;
-              workspace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid extractor failure filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  retryMemoryExtractor: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          failure_id?: string;
-          session_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            failed: number;
-            retried: number;
-          };
-        };
-      };
-      /** @description Invalid extractor retry request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  getMemoryExtractorStatus: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            extractor: {
-              active_provider_sessions: number;
-              backpressured_sessions: number;
-              coalesced_turns: number;
-              dropped_turns: number;
-              failure_count: number;
-              in_flight_sessions: number;
-              queued_sessions: number;
-              skipped_turns: number;
-              /** @enum {string} */
-              status: "idle" | "running" | "draining" | "stopped";
-            };
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  getMemoryHealth: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            configured: boolean;
-            dream_agent?: string;
-            dream_check_interval?: string;
-            dream_enabled: boolean;
-            /** Format: double */
-            dream_min_hours?: number;
-            dream_min_sessions?: number;
-            enabled: boolean;
-            global_dir?: string;
-            global_files: number;
-            indexed_files: number;
-            /** Format: date-time */
-            last_consolidation: string | null;
-            /** Format: date-time */
-            last_operation_at: string | null;
-            /** Format: date-time */
-            last_reindex: string | null;
-            operation_count: number;
-            orphaned_files: number;
-            reason?: string;
-            status: string;
-            workspace_count: number;
-            workspace_files: number;
-          };
-        };
-      };
-      /** @description Invalid memory health filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  listMemoryHistory: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Memory operation type */
-        operation?: string;
-        /** @description Only operations since this timestamp */
-        since?: string;
-        /** @description Maximum number of operations to return */
-        limit?: number;
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            operations: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              filename?: string;
-              id: string;
-              /** @enum {string} */
-              operation: "memory.write" | "memory.delete" | "memory.search" | "memory.reindex";
-              /** @enum {string} */
-              scope?: "profile" | "workspace" | "agent";
-              summary?: string;
-              /** Format: date-time */
-              timestamp: string;
-              workspace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid memory history filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  promoteMemory: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          dry_run?: boolean;
-          filename: string;
-          from: {
-            agent_name?: string;
-            /** @enum {string} */
-            agent_tier?: "workspace" | "global";
-            /** @enum {string} */
-            scope: "profile" | "workspace" | "agent";
-            workspace_id?: string;
-          };
-          idempotency_key?: string;
-          to: {
-            agent_name?: string;
-            /** @enum {string} */
-            agent_tier?: "workspace" | "global";
-            /** @enum {string} */
-            scope: "profile" | "workspace" | "agent";
-            workspace_id?: string;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            applied: boolean;
-            decision: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** Format: date-time */
-              applied_at?: string | null;
-              candidate_hash: string;
-              /** Format: float */
-              confidence: number;
-              /** Format: date-time */
-              decided_at: string;
-              frontmatter: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                description?: string;
-                filename: string;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                provenance?: {
-                  confidence?: string;
-                  /** Format: date-time */
-                  created_at: string;
-                  /** @enum {string} */
-                  source_actor:
-                    | "cli"
-                    | "http"
-                    | "uds"
-                    | "tool"
-                    | "extractor"
-                    | "dreaming"
-                    | "file"
-                    | "provider";
-                  source_session_ids?: string[];
-                  superseded_by?: string;
-                  /** Format: date-time */
-                  updated_at: string;
-                } | null;
-                /** @enum {string} */
-                scope?: "profile" | "workspace" | "agent";
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                workspace_id?: string;
-              };
-              id: string;
-              idempotency_key?: string;
-              llm_trace?: {
-                error?: string;
-                /** Format: int64 */
-                latency_ms: number;
-                model: string;
-                prompt_version: string;
-              } | null;
-              /** @enum {string} */
-              op: "noop" | "add" | "update" | "delete" | "reject";
-              post_content_hash?: string;
-              prompt_version?: string;
-              reason?: string;
-              rule_trace?: {
-                details?: string;
-                name: string;
-                passed: boolean;
-                reason?: string;
-                target?: string;
-              }[];
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** @enum {string} */
-              source: "rule" | "llm";
-              target_filename?: string;
-              targets?: string[];
-              workspace_id?: string;
-            };
-            dry_run?: boolean;
-          };
-        };
-      };
-      /** @description Invalid memory promote request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory promotion conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  listMemoryProviders: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            providers: {
-              active: boolean;
-              builtin: boolean;
-              /** Format: date-time */
-              cooldown_until?: string | null;
-              failure_count: number;
-              last_error_code?: string;
-              name: string;
-              /** @enum {string} */
-              status: "active" | "standby" | "cooling_down" | "failed";
-              tools?: string[];
-            }[];
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  selectMemoryProvider: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          name: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            provider: {
-              active: boolean;
-              builtin: boolean;
-              /** Format: date-time */
-              cooldown_until?: string | null;
-              failure_count: number;
-              last_error_code?: string;
-              name: string;
-              /** @enum {string} */
-              status: "active" | "standby" | "cooling_down" | "failed";
-              tools?: string[];
-            };
-          };
-        };
-      };
-      /** @description Invalid memory provider selection */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory provider not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory provider collision */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  getMemoryProvider: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Memory provider name */
-        provider_name: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            provider: {
-              active: boolean;
-              builtin: boolean;
-              /** Format: date-time */
-              cooldown_until?: string | null;
-              failure_count: number;
-              last_error_code?: string;
-              name: string;
-              /** @enum {string} */
-              status: "active" | "standby" | "cooling_down" | "failed";
-              tools?: string[];
-            };
-          };
-        };
-      };
-      /** @description Memory provider not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  disableMemoryProvider: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Memory provider name */
-        provider_name: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          reason?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            changed: boolean;
-            provider: {
-              active: boolean;
-              builtin: boolean;
-              /** Format: date-time */
-              cooldown_until?: string | null;
-              failure_count: number;
-              last_error_code?: string;
-              name: string;
-              /** @enum {string} */
-              status: "active" | "standby" | "cooling_down" | "failed";
-              tools?: string[];
-            };
-          };
-        };
-      };
-      /** @description Invalid memory provider disable request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory provider not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  enableMemoryProvider: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Memory provider name */
-        provider_name: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          reason?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            changed: boolean;
-            provider: {
-              active: boolean;
-              builtin: boolean;
-              /** Format: date-time */
-              cooldown_until?: string | null;
-              failure_count: number;
-              last_error_code?: string;
-              name: string;
-              /** @enum {string} */
-              status: "active" | "standby" | "cooling_down" | "failed";
-              tools?: string[];
-            };
-          };
-        };
-      };
-      /** @description Invalid memory provider enable request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory provider not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory provider collision */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  getMemoryRecallTrace: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Session id */
-        session_id: string;
-        /** @description Turn sequence */
-        turn_seq: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            trace: {
-              /** Format: date-time */
-              executed_at: string;
-              options: {
-                allow_trivial_query?: boolean;
-                already_surfaced?: string[];
-                include_already_surfaced?: boolean;
-                include_system?: boolean;
-                raw_candidates?: number;
-                top_k?: number;
-              };
-              query: {
-                agent_name?: string;
-                context_hint?: string;
-                query_text: string;
-                workspace_id?: string;
-              };
-              recall: {
-                blocks: {
-                  /** @enum {string} */
-                  agent_tier?: "workspace" | "global";
-                  entries: {
-                    age_days: number;
-                    body: string;
-                    filename?: string;
-                    id: string;
-                    /** Format: date-time */
-                    mod_time: string;
-                    staleness_banner?: string;
-                    title: string;
-                    /** @enum {string} */
-                    type?: "user" | "feedback" | "project" | "reference";
-                    why_recalled?: string[];
-                    workspace_id?: string;
-                  }[];
-                  /** @enum {string} */
-                  scope: "profile" | "workspace" | "agent";
-                }[];
-                header: {
-                  content_hash: string;
-                  text: string;
-                };
-              };
-              session_id: string;
-              skipped_reason?: string;
-              /** Format: int64 */
-              turn_seq: number;
-            };
-          };
-        };
-      };
-      /** @description Memory recall trace not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  reindexMemory: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_name?: string;
-          /** @enum {string} */
-          agent_tier?: "workspace" | "global";
-          include_system?: boolean;
-          /** @enum {string} */
-          scope?: "profile" | "workspace" | "agent";
-          workspace_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            agent_name?: string;
-            /** @enum {string} */
-            agent_tier?: "workspace" | "global";
-            /** Format: date-time */
-            completed_at: string;
-            indexed_files: number;
-            /** @enum {string} */
-            scope?: "profile" | "workspace" | "agent";
-            workspace_id?: string;
-          };
-        };
-      };
-      /** @description Invalid memory reindex request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  reloadMemory: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** Format: int64 */
-            generation: number;
-            /** Format: date-time */
-            reloaded_at: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  resetMemory: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_name?: string;
-          /** @enum {string} */
-          agent_tier?: "workspace" | "global";
-          confirm: boolean;
-          derived_only: boolean;
-          /** @enum {string} */
-          scope?: "profile" | "workspace" | "agent";
-          workspace_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            deleted_files: number;
-            deleted_rows: number;
-            derived_only: boolean;
-            /** Format: date-time */
-            reset_at: string;
-          };
-        };
-      };
-      /** @description Invalid memory reset request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory reset confirmation required */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory reset rejected because curated storage reset is unsupported */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  showMemoryScope: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            precedence: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              workspace_id?: string;
-            }[];
-            roots: {
-              [key: string]: string;
-            };
-            selector: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid memory scope selector */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Workspace or agent not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  searchMemory: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_name?: string;
-          /** @enum {string} */
-          agent_tier?: "workspace" | "global";
-          already_surfaced?: string[];
-          context_hint?: string;
-          explain?: boolean;
-          include_already_surfaced?: boolean;
-          include_system?: boolean;
-          query_text: string;
-          raw_candidates?: number;
-          /** @enum {string} */
-          scope?: "profile" | "workspace" | "agent";
-          top_k?: number;
-          workspace_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            recall: {
-              blocks: {
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                entries: {
-                  age_days: number;
-                  body: string;
-                  filename?: string;
-                  id: string;
-                  /** Format: date-time */
-                  mod_time: string;
-                  staleness_banner?: string;
-                  title: string;
-                  /** @enum {string} */
-                  type?: "user" | "feedback" | "project" | "reference";
-                  why_recalled?: string[];
-                  workspace_id?: string;
-                }[];
-                /** @enum {string} */
-                scope: "profile" | "workspace" | "agent";
-              }[];
-              header: {
-                content_hash: string;
-                text: string;
-              };
-            };
-            results: {
-              already_shown?: boolean;
-              memory: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                content_hash?: string;
-                /** Format: date-time */
-                created_at?: string | null;
-                description?: string;
-                filename: string;
-                injection: boolean;
-                /** Format: date-time */
-                last_recalled_at?: string | null;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                recall_count: number;
-                /** @enum {string} */
-                scope: "profile" | "workspace" | "agent";
-                staleness_banner?: string;
-                superseded_by?: string;
-                system_managed: boolean;
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                /** Format: date-time */
-                updated_at?: string | null;
-                workspace_id?: string;
-              };
-              /** Format: double */
-              score: number;
-              shadowed_by?: string;
-              snippet?: string;
-              why_recalled?: string[];
-            }[];
-          };
-        };
-      };
-      /** @description Invalid memory search request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  pruneMemorySessions: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          dry_run?: boolean;
-          older_than_hours: number;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            dry_run?: boolean;
-            pruned_events: number;
-            pruned_sessions: number;
-          };
-        };
-      };
-      /** @description Invalid session prune request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  repairMemorySessions: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** Format: date-time */
-            completed_at: string;
-            repaired_ledgers: number;
-            skipped_ledgers: number;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  readMemory: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Memory filename */
-        filename: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            memory: {
-              content: string;
-              summary: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                content_hash?: string;
-                /** Format: date-time */
-                created_at?: string | null;
-                description?: string;
-                filename: string;
-                injection: boolean;
-                /** Format: date-time */
-                last_recalled_at?: string | null;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                recall_count: number;
-                /** @enum {string} */
-                scope: "profile" | "workspace" | "agent";
-                staleness_banner?: string;
-                superseded_by?: string;
-                system_managed: boolean;
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                /** Format: date-time */
-                updated_at?: string | null;
-                workspace_id?: string;
-              };
-            };
-          };
-        };
-      };
-      /** @description Invalid memory reference */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  deleteMemory: {
-    parameters: {
-      query?: {
-        /** @description Memory scope */
-        scope?: "profile" | "workspace" | "agent";
-        /** @description Durable workspace id */
-        workspace_id?: string;
-        /** @description Agent name for agent-scoped memory */
-        agent_name?: string;
-        /** @description Agent memory tier */
-        agent_tier?: "workspace" | "global";
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Memory filename */
-        filename: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            applied: boolean;
-            decision: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** Format: date-time */
-              applied_at?: string | null;
-              candidate_hash: string;
-              /** Format: float */
-              confidence: number;
-              /** Format: date-time */
-              decided_at: string;
-              frontmatter: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                description?: string;
-                filename: string;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                provenance?: {
-                  confidence?: string;
-                  /** Format: date-time */
-                  created_at: string;
-                  /** @enum {string} */
-                  source_actor:
-                    | "cli"
-                    | "http"
-                    | "uds"
-                    | "tool"
-                    | "extractor"
-                    | "dreaming"
-                    | "file"
-                    | "provider";
-                  source_session_ids?: string[];
-                  superseded_by?: string;
-                  /** Format: date-time */
-                  updated_at: string;
-                } | null;
-                /** @enum {string} */
-                scope?: "profile" | "workspace" | "agent";
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                workspace_id?: string;
-              };
-              id: string;
-              idempotency_key?: string;
-              llm_trace?: {
-                error?: string;
-                /** Format: int64 */
-                latency_ms: number;
-                model: string;
-                prompt_version: string;
-              } | null;
-              /** @enum {string} */
-              op: "noop" | "add" | "update" | "delete" | "reject";
-              post_content_hash?: string;
-              prompt_version?: string;
-              reason?: string;
-              rule_trace?: {
-                details?: string;
-                name: string;
-                passed: boolean;
-                reason?: string;
-                target?: string;
-              }[];
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** @enum {string} */
-              source: "rule" | "llm";
-              target_filename?: string;
-              targets?: string[];
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Invalid memory reference */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory decision conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  editMemory: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Memory filename */
-        filename: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          agent_name?: string;
-          /** @enum {string} */
-          agent_tier?: "workspace" | "global";
-          content: string;
-          description?: string;
-          dry_run?: boolean;
-          idempotency_key?: string;
-          metadata?: {
-            [key: string]: string;
-          };
-          name?: string;
-          /** @enum {string} */
-          scope?: "profile" | "workspace" | "agent";
-          /** @enum {string} */
-          type?: "user" | "feedback" | "project" | "reference";
-          workspace_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            applied: boolean;
-            decision: {
-              agent_name?: string;
-              /** @enum {string} */
-              agent_tier?: "workspace" | "global";
-              /** Format: date-time */
-              applied_at?: string | null;
-              candidate_hash: string;
-              /** Format: float */
-              confidence: number;
-              /** Format: date-time */
-              decided_at: string;
-              frontmatter: {
-                agent_name?: string;
-                /** @enum {string} */
-                agent_tier?: "workspace" | "global";
-                description?: string;
-                filename: string;
-                /** Format: date-time */
-                mod_time: string;
-                name: string;
-                provenance?: {
-                  confidence?: string;
-                  /** Format: date-time */
-                  created_at: string;
-                  /** @enum {string} */
-                  source_actor:
-                    | "cli"
-                    | "http"
-                    | "uds"
-                    | "tool"
-                    | "extractor"
-                    | "dreaming"
-                    | "file"
-                    | "provider";
-                  source_session_ids?: string[];
-                  superseded_by?: string;
-                  /** Format: date-time */
-                  updated_at: string;
-                } | null;
-                /** @enum {string} */
-                scope?: "profile" | "workspace" | "agent";
-                /** @enum {string} */
-                type: "user" | "feedback" | "project" | "reference";
-                workspace_id?: string;
-              };
-              id: string;
-              idempotency_key?: string;
-              llm_trace?: {
-                error?: string;
-                /** Format: int64 */
-                latency_ms: number;
-                model: string;
-                prompt_version: string;
-              } | null;
-              /** @enum {string} */
-              op: "noop" | "add" | "update" | "delete" | "reject";
-              post_content_hash?: string;
-              prompt_version?: string;
-              reason?: string;
-              rule_trace?: {
-                details?: string;
-                name: string;
-                passed: boolean;
-                reason?: string;
-                target?: string;
-              }[];
-              /** @enum {string} */
-              scope: "profile" | "workspace" | "agent";
-              /** @enum {string} */
-              source: "rule" | "llm";
-              target_filename?: string;
-              targets?: string[];
-              workspace_id?: string;
-            };
-            dry_run?: boolean;
-          };
-        };
-      };
-      /** @description Invalid memory edit request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory decision conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Memory edit rejected by policy */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
   listProviderModels: {
     parameters: {
       query?: {
@@ -40281,7 +35995,6 @@ export interface operations {
               section?:
                 | "general"
                 | "persona"
-                | "memory"
                 | "roles"
                 | "skills"
                 | "automation"
@@ -43418,7 +39131,6 @@ export interface operations {
               event_summaries: number;
               loops: number;
               mcp_servers: number;
-              memory_entries: number;
               palette_pins: number;
               palette_query_hits: number;
               palette_usage: number;
@@ -43858,7 +39570,6 @@ export interface operations {
               event_summaries: number;
               loops: number;
               mcp_servers: number;
-              memory_entries: number;
               palette_pins: number;
               palette_query_hits: number;
               palette_usage: number;
@@ -49818,7 +45529,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -50313,7 +46024,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -51262,7 +46973,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -53386,7 +49097,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -53597,7 +49307,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -53829,7 +49538,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -53947,7 +49655,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -54136,7 +49843,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -54290,7 +49996,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -54551,7 +50256,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -54700,7 +50404,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -55008,8 +50711,7 @@ export interface operations {
                     task_id?: string;
                     workflow_id?: string;
                   } | null;
-                  compaction_reason?: string;
-                  compaction_strategy?: string;
+                  compaction_trigger?: string;
                   decision_class?: string;
                   input_class?: string;
                   message_delta_type?: string;
@@ -55309,8 +51011,7 @@ export interface operations {
                     task_id?: string;
                     workflow_id?: string;
                   } | null;
-                  compaction_reason?: string;
-                  compaction_strategy?: string;
+                  compaction_trigger?: string;
                   decision_class?: string;
                   input_class?: string;
                   message_delta_type?: string;
@@ -55428,7 +51129,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -55576,7 +51276,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -55878,8 +51577,7 @@ export interface operations {
                 task_id?: string;
                 workflow_id?: string;
               } | null;
-              compaction_reason?: string;
-              compaction_strategy?: string;
+              compaction_trigger?: string;
               decision_class?: string;
               input_class?: string;
               message_delta_type?: string;
@@ -55958,7 +51656,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -56178,7 +51875,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -56329,7 +52025,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -56443,7 +52138,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -57189,7 +52883,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -57473,7 +53166,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -58465,548 +54157,6 @@ export interface operations {
       };
     };
   };
-  getSettingsMemory: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            actions: {
-              consolidate: {
-                available: boolean;
-                /** @enum {string} */
-                behavior: "applied_now" | "restart_required" | "action_trigger";
-                name: string;
-              };
-            };
-            available_scopes: "user"[];
-            config: {
-              controller: {
-                default_op_on_fail: string;
-                max_latency: string;
-                mode: string;
-                policy: {
-                  allow_origins: string[];
-                  max_content_chars: number;
-                  max_writes_per_min: number;
-                };
-              };
-              daily: {
-                archive_path: string;
-                cold_archive_days: number;
-                dreaming_window: number;
-                hard_delete_days: number;
-                /** Format: int64 */
-                max_archive_bytes: number;
-                /** Format: int64 */
-                max_bytes: number;
-                max_lines: number;
-                rotate_format: string;
-                sweep_hour: number;
-              };
-              decisions: {
-                keep_audit_summary: boolean;
-                /** Format: int64 */
-                max_post_content_bytes: number;
-                prune_after_applied_days: number;
-              };
-              dream: {
-                check_interval: string;
-                debounce: string;
-                gates: {
-                  min_recall_count: number;
-                  /** Format: double */
-                  min_score: number;
-                  min_unpromoted: number;
-                };
-                /** Format: double */
-                min_hours: number;
-                min_sessions: number;
-                prompt_version: string;
-                scoring: {
-                  recency_half_life_days: number;
-                  weights: {
-                    /** Format: double */
-                    frequency: number;
-                    /** Format: double */
-                    freshness: number;
-                    /** Format: double */
-                    recency: number;
-                    /** Format: double */
-                    relevance: number;
-                  };
-                };
-              };
-              enabled: boolean;
-              extractor: {
-                deadline: string;
-                dlq_path: string;
-                inbox_path: string;
-                mode: string;
-                queue: {
-                  capacity: number;
-                  coalesce_max: number;
-                };
-                sandbox_inbox_only: boolean;
-                throttle_turns: number;
-              };
-              file: {
-                /** Format: int64 */
-                max_bytes: number;
-                max_lines: number;
-              };
-              global_dir?: string;
-              provider: {
-                cooldown: string;
-                failure_threshold: number;
-                name: string;
-                timeout: string;
-              };
-              recall: {
-                freshness: {
-                  banner_after_days: number;
-                };
-                fusion: string;
-                include_already_surfaced: boolean;
-                include_system: boolean;
-                raw_candidates: number;
-                signals: {
-                  queue_capacity: number;
-                  worker_retry_max: number;
-                };
-                top_k: number;
-                weights: {
-                  /** Format: double */
-                  bm25_trigram: number;
-                  /** Format: double */
-                  bm25_unicode: number;
-                  /** Format: double */
-                  recall_signal: number;
-                  /** Format: double */
-                  recency: number;
-                };
-              };
-              session: {
-                cold_archive_days: number;
-                events_purge_grace: string;
-                hard_delete_days: number;
-                ledger_format: string;
-                ledger_root: string;
-                /** Format: int64 */
-                max_archive_bytes: number;
-                unbound_partition: string;
-              };
-              workspace: {
-                auto_create: boolean;
-                toml_path: string;
-              };
-            };
-            health: {
-              available: boolean;
-              dream_enabled: boolean;
-              file_count: number;
-              /** Format: date-time */
-              last_consolidated_at?: string | null;
-            };
-            /** @enum {string} */
-            scope: "user";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "persona"
-              | "memory"
-              | "roles"
-              | "skills"
-              | "automation"
-              | "window-manager"
-              | "cmd-palette"
-              | "attention"
-              | "shell"
-              | "observability"
-              | "hooks-extensions"
-              | "marketplace";
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
-  updateSettingsMemory: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          config: {
-            controller: {
-              default_op_on_fail: string;
-              max_latency: string;
-              mode: string;
-              policy: {
-                allow_origins: string[];
-                max_content_chars: number;
-                max_writes_per_min: number;
-              };
-            };
-            daily: {
-              archive_path: string;
-              cold_archive_days: number;
-              dreaming_window: number;
-              hard_delete_days: number;
-              /** Format: int64 */
-              max_archive_bytes: number;
-              /** Format: int64 */
-              max_bytes: number;
-              max_lines: number;
-              rotate_format: string;
-              sweep_hour: number;
-            };
-            decisions: {
-              keep_audit_summary: boolean;
-              /** Format: int64 */
-              max_post_content_bytes: number;
-              prune_after_applied_days: number;
-            };
-            dream: {
-              check_interval: string;
-              debounce: string;
-              gates: {
-                min_recall_count: number;
-                /** Format: double */
-                min_score: number;
-                min_unpromoted: number;
-              };
-              /** Format: double */
-              min_hours: number;
-              min_sessions: number;
-              prompt_version: string;
-              scoring: {
-                recency_half_life_days: number;
-                weights: {
-                  /** Format: double */
-                  frequency: number;
-                  /** Format: double */
-                  freshness: number;
-                  /** Format: double */
-                  recency: number;
-                  /** Format: double */
-                  relevance: number;
-                };
-              };
-            };
-            enabled: boolean;
-            extractor: {
-              deadline: string;
-              dlq_path: string;
-              inbox_path: string;
-              mode: string;
-              queue: {
-                capacity: number;
-                coalesce_max: number;
-              };
-              sandbox_inbox_only: boolean;
-              throttle_turns: number;
-            };
-            file: {
-              /** Format: int64 */
-              max_bytes: number;
-              max_lines: number;
-            };
-            global_dir?: string;
-            provider: {
-              cooldown: string;
-              failure_threshold: number;
-              name: string;
-              timeout: string;
-            };
-            recall: {
-              freshness: {
-                banner_after_days: number;
-              };
-              fusion: string;
-              include_already_surfaced: boolean;
-              include_system: boolean;
-              raw_candidates: number;
-              signals: {
-                queue_capacity: number;
-                worker_retry_max: number;
-              };
-              top_k: number;
-              weights: {
-                /** Format: double */
-                bm25_trigram: number;
-                /** Format: double */
-                bm25_unicode: number;
-                /** Format: double */
-                recall_signal: number;
-                /** Format: double */
-                recency: number;
-              };
-            };
-            session: {
-              cold_archive_days: number;
-              events_purge_grace: string;
-              hard_delete_days: number;
-              ledger_format: string;
-              ledger_root: string;
-              /** Format: int64 */
-              max_archive_bytes: number;
-              unbound_partition: string;
-            };
-            workspace: {
-              auto_create: boolean;
-              toml_path: string;
-            };
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            active_config_hash: string;
-            /** Format: int64 */
-            active_generation: number;
-            agent_name?: string;
-            applied: boolean;
-            apply_record_id: string;
-            /** @enum {string} */
-            lifecycle:
-              | "live"
-              | "live-add"
-              | "live-remove-if-unused"
-              | "restart-required"
-              | "session-rebind";
-            /** @enum {string} */
-            next_action: "none" | "restart-daemon" | "new-session" | "retry";
-            partial_failures?: {
-              diagnostic: {
-                category: string;
-                code: string;
-                data_freshness: string;
-                doc_url?: string;
-                evidence?: {
-                  [key: string]: unknown;
-                };
-                id: string;
-                message: string;
-                severity: string;
-                suggested_command?: string;
-                title: string;
-              };
-              subsystem: string;
-            }[];
-            profile?: string;
-            restart_required?: boolean;
-            restart_scope?: string;
-            /** @enum {string} */
-            scope?: "user" | "profile" | "workspace" | "agent";
-            /** @enum {string} */
-            section?:
-              | "general"
-              | "persona"
-              | "memory"
-              | "roles"
-              | "skills"
-              | "automation"
-              | "window-manager"
-              | "cmd-palette"
-              | "attention"
-              | "shell"
-              | "observability"
-              | "hooks-extensions"
-              | "marketplace"
-              | "providers"
-              | "mcp-servers"
-              | "hooks";
-            skipped?: boolean;
-            skipped_reason?: string;
-            warnings?: string[];
-            workspace_id?: string;
-            /** @enum {string} */
-            write_target?:
-              | "global-config"
-              | "profile-config"
-              | "workspace-config"
-              | "global-mcp-sidecar"
-              | "profile-mcp-sidecar"
-              | "workspace-mcp-sidecar"
-              | "global-agent-file"
-              | "workspace-agent-file";
-          };
-        };
-      };
-      /** @description Invalid settings payload */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Conflicting settings change */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
   getSettingsObservability: {
     parameters: {
       query?: never;
@@ -59060,7 +54210,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -59181,7 +54330,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -59417,7 +54565,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -59598,7 +54745,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -60554,7 +55700,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -60767,7 +55912,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -60947,7 +56091,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -61115,33 +56258,6 @@ export interface operations {
                 /** @enum {string|null} */
                 speed?: "normal" | "fast" | null;
               };
-              checkpoint_summary: {
-                acp_options: {
-                  bool_value?: boolean | null;
-                  id: string;
-                  value_id?: string;
-                }[];
-                agent: string;
-                enabled: boolean;
-                fallback_chain: {
-                  acp_options: {
-                    bool_value?: boolean | null;
-                    id: string;
-                    value_id?: string;
-                  }[];
-                  command: string;
-                  model: string;
-                  provider: string;
-                  reasoning_effort: string;
-                  /** @enum {string|null} */
-                  speed?: "normal" | "fast" | null;
-                }[];
-                model: string;
-                provider: string;
-                reasoning_effort: string;
-                /** @enum {string|null} */
-                speed?: "normal" | "fast" | null;
-              };
               coordinator: {
                 acp_options: {
                   bool_value?: boolean | null;
@@ -61172,90 +56288,6 @@ export interface operations {
                 speed?: "normal" | "fast" | null;
                 ttl: string;
               };
-              dream: {
-                acp_options: {
-                  bool_value?: boolean | null;
-                  id: string;
-                  value_id?: string;
-                }[];
-                agent: string;
-                enabled: boolean;
-                fallback_chain: {
-                  acp_options: {
-                    bool_value?: boolean | null;
-                    id: string;
-                    value_id?: string;
-                  }[];
-                  command: string;
-                  model: string;
-                  provider: string;
-                  reasoning_effort: string;
-                  /** @enum {string|null} */
-                  speed?: "normal" | "fast" | null;
-                }[];
-                model: string;
-                provider: string;
-                reasoning_effort: string;
-                /** @enum {string|null} */
-                speed?: "normal" | "fast" | null;
-              };
-              memory_controller: {
-                acp_options: {
-                  bool_value?: boolean | null;
-                  id: string;
-                  value_id?: string;
-                }[];
-                enabled: boolean;
-                fallback_chain: {
-                  acp_options: {
-                    bool_value?: boolean | null;
-                    id: string;
-                    value_id?: string;
-                  }[];
-                  command: string;
-                  model: string;
-                  provider: string;
-                  reasoning_effort: string;
-                  /** @enum {string|null} */
-                  speed?: "normal" | "fast" | null;
-                }[];
-                max_tokens_out: number;
-                model: string;
-                prompt_version: string;
-                provider: string;
-                reasoning_effort: string;
-                /** @enum {string|null} */
-                speed?: "normal" | "fast" | null;
-                timeout: string;
-                top_k: number;
-              };
-              memory_extractor: {
-                acp_options: {
-                  bool_value?: boolean | null;
-                  id: string;
-                  value_id?: string;
-                }[];
-                agent: string;
-                enabled: boolean;
-                fallback_chain: {
-                  acp_options: {
-                    bool_value?: boolean | null;
-                    id: string;
-                    value_id?: string;
-                  }[];
-                  command: string;
-                  model: string;
-                  provider: string;
-                  reasoning_effort: string;
-                  /** @enum {string|null} */
-                  speed?: "normal" | "fast" | null;
-                }[];
-                model: string;
-                provider: string;
-                reasoning_effort: string;
-                /** @enum {string|null} */
-                speed?: "normal" | "fast" | null;
-              };
             };
             /** @enum {string} */
             scope: "user" | "workspace";
@@ -61263,7 +56295,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -61349,33 +56380,6 @@ export interface operations {
               /** @enum {string|null} */
               speed?: "normal" | "fast" | null;
             };
-            checkpoint_summary: {
-              acp_options: {
-                bool_value?: boolean | null;
-                id: string;
-                value_id?: string;
-              }[];
-              agent: string;
-              enabled: boolean;
-              fallback_chain: {
-                acp_options: {
-                  bool_value?: boolean | null;
-                  id: string;
-                  value_id?: string;
-                }[];
-                command: string;
-                model: string;
-                provider: string;
-                reasoning_effort: string;
-                /** @enum {string|null} */
-                speed?: "normal" | "fast" | null;
-              }[];
-              model: string;
-              provider: string;
-              reasoning_effort: string;
-              /** @enum {string|null} */
-              speed?: "normal" | "fast" | null;
-            };
             coordinator: {
               acp_options: {
                 bool_value?: boolean | null;
@@ -61405,90 +56409,6 @@ export interface operations {
               /** @enum {string|null} */
               speed?: "normal" | "fast" | null;
               ttl: string;
-            };
-            dream: {
-              acp_options: {
-                bool_value?: boolean | null;
-                id: string;
-                value_id?: string;
-              }[];
-              agent: string;
-              enabled: boolean;
-              fallback_chain: {
-                acp_options: {
-                  bool_value?: boolean | null;
-                  id: string;
-                  value_id?: string;
-                }[];
-                command: string;
-                model: string;
-                provider: string;
-                reasoning_effort: string;
-                /** @enum {string|null} */
-                speed?: "normal" | "fast" | null;
-              }[];
-              model: string;
-              provider: string;
-              reasoning_effort: string;
-              /** @enum {string|null} */
-              speed?: "normal" | "fast" | null;
-            };
-            memory_controller: {
-              acp_options: {
-                bool_value?: boolean | null;
-                id: string;
-                value_id?: string;
-              }[];
-              enabled: boolean;
-              fallback_chain: {
-                acp_options: {
-                  bool_value?: boolean | null;
-                  id: string;
-                  value_id?: string;
-                }[];
-                command: string;
-                model: string;
-                provider: string;
-                reasoning_effort: string;
-                /** @enum {string|null} */
-                speed?: "normal" | "fast" | null;
-              }[];
-              max_tokens_out: number;
-              model: string;
-              prompt_version: string;
-              provider: string;
-              reasoning_effort: string;
-              /** @enum {string|null} */
-              speed?: "normal" | "fast" | null;
-              timeout: string;
-              top_k: number;
-            };
-            memory_extractor: {
-              acp_options: {
-                bool_value?: boolean | null;
-                id: string;
-                value_id?: string;
-              }[];
-              agent: string;
-              enabled: boolean;
-              fallback_chain: {
-                acp_options: {
-                  bool_value?: boolean | null;
-                  id: string;
-                  value_id?: string;
-                }[];
-                command: string;
-                model: string;
-                provider: string;
-                reasoning_effort: string;
-                /** @enum {string|null} */
-                speed?: "normal" | "fast" | null;
-              }[];
-              model: string;
-              provider: string;
-              reasoning_effort: string;
-              /** @enum {string|null} */
-              speed?: "normal" | "fast" | null;
             };
           };
         };
@@ -61543,7 +56463,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -61727,7 +56646,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -61844,7 +56762,6 @@ export interface operations {
             section?:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -62086,7 +57003,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -62397,7 +57313,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -63250,7 +58165,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -63487,7 +58401,6 @@ export interface operations {
               section?:
                 | "general"
                 | "persona"
-                | "memory"
                 | "roles"
                 | "skills"
                 | "automation"
@@ -63600,7 +58513,6 @@ export interface operations {
             section:
               | "general"
               | "persona"
-              | "memory"
               | "roles"
               | "skills"
               | "automation"
@@ -65515,31 +60427,6 @@ export interface operations {
               transport?: string;
               workspace_id?: string;
             }[];
-            memory: {
-              configured: boolean;
-              dream_agent?: string;
-              dream_check_interval?: string;
-              dream_enabled: boolean;
-              /** Format: double */
-              dream_min_hours?: number;
-              dream_min_sessions?: number;
-              enabled: boolean;
-              global_dir?: string;
-              global_files: number;
-              indexed_files: number;
-              /** Format: date-time */
-              last_consolidation: string | null;
-              /** Format: date-time */
-              last_operation_at: string | null;
-              /** Format: date-time */
-              last_reindex: string | null;
-              operation_count: number;
-              orphaned_files: number;
-              reason?: string;
-              status: string;
-              workspace_count: number;
-              workspace_files: number;
-            };
             providers?: {
               code?: string;
               default: boolean;
@@ -80582,6 +75469,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -80599,6 +75487,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -81438,6 +76327,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -81455,6 +76345,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -81728,6 +76619,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -81745,6 +76637,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -82294,6 +77187,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -82311,6 +77205,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -82562,6 +77457,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -82579,6 +77475,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -82837,6 +77734,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -82854,6 +77752,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -83180,6 +78079,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -83197,6 +78097,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -83440,6 +78341,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -83457,6 +78359,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -83708,6 +78611,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -83725,6 +78629,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -83983,6 +78888,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -84000,6 +78906,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -84315,6 +79222,7 @@ export interface operations {
               /** @enum {string} */
               error_code?:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -84332,6 +79240,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -84596,6 +79505,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -84613,6 +79523,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -84864,6 +79775,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -84881,6 +79793,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -85124,6 +80037,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -85141,6 +80055,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -85392,6 +80307,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -85409,6 +80325,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -85660,6 +80577,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -85677,6 +80595,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -85920,6 +80839,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -85937,6 +80857,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -86180,6 +81101,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -86197,6 +81119,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -86440,6 +81363,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -86457,6 +81381,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -86730,6 +81655,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -86747,6 +81673,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -87156,6 +82083,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -87173,6 +82101,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -87578,6 +82507,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -87595,6 +82525,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -87846,6 +82777,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -87863,6 +82795,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -88121,6 +83054,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -88138,6 +83072,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -90537,7 +85472,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -107658,182 +102593,6 @@ export interface operations {
       };
     };
   };
-  getMemorySessionLedger: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-        /** @description Session id */
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            events: {
-              /** Format: date-time */
-              emitted_at: string;
-              event_type: string;
-              payload?: {
-                [key: string]: unknown;
-              };
-              /** Format: int64 */
-              sequence: number;
-            }[];
-            meta: {
-              checksum: string;
-              /** Format: date-time */
-              created_at: string;
-              parent_session_id?: string;
-              path: string;
-              root_session_id?: string;
-              session_id: string;
-              spawn_depth: number;
-              /** Format: date-time */
-              stopped_at?: string | null;
-              version: number;
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Session ledger not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
-  replayMemorySession: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-        /** @description Session id */
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          include_memory?: boolean;
-          include_tool_events?: boolean;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            events: {
-              /** Format: date-time */
-              emitted_at: string;
-              event_type: string;
-              payload?: {
-                [key: string]: unknown;
-              };
-              /** Format: int64 */
-              sequence: number;
-            }[];
-            session_id: string;
-          };
-        };
-      };
-      /** @description Invalid session replay request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Session ledger not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code: string;
-            details?: {
-              [key: string]: unknown;
-            };
-            message: string;
-          };
-        };
-      };
-    };
-  };
   getSession: {
     parameters: {
       query?: {
@@ -108159,7 +102918,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -108643,7 +103402,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -109224,7 +103983,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -109691,7 +104450,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -110947,7 +105706,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -111185,6 +105944,161 @@ export interface operations {
       };
       /** @description Command catalog unavailable */
       503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  compactSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": unknown;
+      };
+    };
+    responses: {
+      /** @description Compaction accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            command: string;
+            prompt_id: string;
+            session_id: string;
+            status: string;
+          };
+        };
+      };
+      /** @description session_not_promptable */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description session_busy or compaction_unsupported */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -111582,7 +106496,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -111917,7 +106831,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -112845,7 +107759,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -113180,7 +108094,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -118461,7 +113375,7 @@ export interface operations {
                 /** Format: int64 */
                 transcript_epoch?: number;
                 /** @enum {string} */
-                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+                type?: "user" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
                 verified?: boolean | null;
@@ -119065,7 +113979,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -119566,7 +114480,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -120020,7 +114934,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -120213,7 +115127,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -120367,7 +115280,6 @@ export interface operations {
             frontmatter: {
               collaboration?: string[];
               constraints?: string[];
-              memory_policy?: string[];
               principles?: string[];
               role?: string;
               tags?: string[];
@@ -121878,6 +116790,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -121895,6 +116808,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -122438,6 +117352,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -122455,6 +117370,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -122698,6 +117614,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -122715,6 +117632,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -123803,7 +118721,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -123933,6 +118851,12 @@ export interface operations {
               /** Format: int64 */
               cache_write_tokens?: number | null;
               context: {
+                /** @description Experimental: compaction id and first terminal snapshot sequence that cleared occupancy. Present only while context is unknown awaiting a later occupancy observation. */
+                cleared_by?: {
+                  compaction_id: string;
+                  /** Format: int64 */
+                  sequence: number;
+                } | null;
                 injected?: {
                   estimate: string;
                   rows: {
@@ -123960,8 +118884,6 @@ export interface operations {
                   /** Format: int64 */
                   tokens: number;
                 } | null;
-                /** Format: double */
-                pressure_threshold?: number | null;
                 /** Format: double */
                 ratio?: number | null;
                 /** Format: date-time */
@@ -124083,20 +119005,24 @@ export interface operations {
             compactions: {
               /** Format: date-time */
               at: string;
+              compaction_id: string;
+              /** @description Experimental: first occupancy observation after this compaction's first terminal snapshot and before the next compaction's first terminal boundary; counter-only events and later corrections do not change it. Omitted until observed. */
+              context_after?: {
+                /** Format: int64 */
+                sequence: number;
+                /** Format: int64 */
+                size?: number | null;
+                /** Format: int64 */
+                used: number;
+              } | null;
               /** Format: int64 */
-              context_size: number;
+              context_size?: number | null;
               /** Format: int64 */
-              context_used: number;
-              /** Format: int64 */
-              from_sequence: number;
-              /** Format: double */
-              pressure: number;
+              context_used?: number | null;
               /** Format: int64 */
               sequence: number;
-              span_archived: boolean;
-              strategy: string;
-              /** Format: int64 */
-              to_sequence: number;
+              status: string;
+              trigger: string;
               turn_id: string;
             }[];
             turns: {
@@ -124806,7 +119732,7 @@ export interface operations {
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              type?: "user" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               verified?: boolean | null;
@@ -129056,6 +123982,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -129073,6 +124000,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -129316,6 +124244,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -129333,6 +124262,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -129576,6 +124506,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -129593,6 +124524,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"

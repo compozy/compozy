@@ -78,8 +78,6 @@ export const sessionKeys = {
     [...sessionKeys.detail(workspace, id), "input-queue"] as const,
   recap: (workspace: string, id: string, limit?: number) =>
     [...sessionKeys.detail(workspace, id), "recap", limit ?? "default"] as const,
-  ledger: (workspace: string, id: string) =>
-    [...sessionKeys.detail(workspace, id), "ledger"] as const,
   usage: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "usage"] as const,
   usageTurns: (workspace: string, id: string) =>

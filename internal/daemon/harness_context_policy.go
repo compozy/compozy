@@ -10,9 +10,6 @@ func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContex
 	if r.runtime.SituationPromptSectionEnabled && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		sections = append(sections, HarnessPromptSectionSituation)
 	}
-	if r.runtime.MemoryPromptSectionEnabled {
-		sections = append(sections, HarnessPromptSectionMemory)
-	}
 	if r.runtime.SkillsPromptSectionEnabled && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		sections = append(sections, HarnessPromptSectionSkills)
 	}
@@ -31,9 +28,6 @@ func (r *HarnessContextResolver) resolveAugmenters(
 		return nil
 	}
 	augmenters := make([]HarnessAugmenter, 0, 4)
-	if r.runtime.WorkspaceKnowledgeAugmenter {
-		augmenters = append(augmenters, HarnessAugmenterWorkspaceKnowledge)
-	}
 	if r.runtime.SkillsAugmenter && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		augmenters = append(augmenters, HarnessAugmenterSkills)
 	}
@@ -42,9 +36,6 @@ func (r *HarnessContextResolver) resolveAugmenters(
 	}
 	if r.runtime.SituationAugmenter && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		augmenters = append(augmenters, HarnessAugmenterSituation)
-	}
-	if r.runtime.DurableMemoryAugmenter {
-		augmenters = append(augmenters, HarnessAugmenterDurableMemory)
 	}
 	return augmenters
 }
@@ -74,7 +65,7 @@ func (r *HarnessContextResolver) resolveDetachedRunMode(
 
 func inputOnlyHarnessRole(role string) bool {
 	switch role {
-	case session.SpawnRoleMemoryExtractor, session.SpawnRoleCheckpointSummary, session.SpawnRoleAutoTitle:
+	case session.SpawnRoleAutoTitle:
 		return true
 	default:
 		return false

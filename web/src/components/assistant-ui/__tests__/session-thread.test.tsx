@@ -38,6 +38,7 @@ import {
   resetSessionDebugTelemetry,
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
+import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionFailurePayload, SessionMessage, SessionState } from "@/systems/session/types";
 import { SESSION_TRANSPORT_LIVE } from "@/systems/session/lib/session-transport";
@@ -649,6 +650,168 @@ describe("SessionThread transcript states", () => {
     for (const message of transcript) {
       expect(document.querySelector(`[data-message-id="${message.id}"]`)).toBeInTheDocument();
     }
+  });
+
+  // Invariant (S18): an observed compaction is a `system` message the thread renders
+  // as one visible row per compaction id, and a later projection of the same id
+  // updates that row in place — never a second row, never a dropped one.
+  // Owner: thread rendering, canonical SessionThread transcript-state suite.
+  it("Should render a compaction message as one row and update it in place by id", async () => {
+    const compaction = (data: Record<string, unknown>): SessionMessage =>
+      ({
+        id: "compaction:c1",
+        role: "system",
+        parts: [
+          {
+            type: "data-compozy-compaction",
+            id: "c1",
+            data: {
+              kind: "compaction",
+              compaction_id: "c1",
+              started_at: "2026-10-08T14:02:11Z",
+              ...data,
+            },
+          },
+        ],
+      }) as SessionMessage;
+    const surrounding = (item: SessionMessage) =>
+      toReadonlyThreadMessages([
+        { id: "ask", role: "user", parts: [{ type: "text", text: "Wrap up." }] } as SessionMessage,
+        item,
+        {
+          id: "after",
+          role: "assistant",
+          parts: [{ type: "text", text: "Ready for more." }],
+        } as SessionMessage,
+      ]);
+
+    const { rerenderWith } = renderThreadState({
+      status: "success",
+      messages: surrounding(compaction({ status: "in_progress" })),
+    });
+    const row = await screen.findByTestId("session-compaction-item");
+    expect(row).toHaveAttribute("data-status", "in_progress");
+    expect(row).toHaveTextContent("Compacting context…");
+    expect(screen.getByText("Ready for more.")).toBeInTheDocument();
+
+    rerenderWith({
+      messages: surrounding(
+        compaction({
+          status: "completed",
+          summary: "Moved invoices to the ledger API.",
+          ended_at: "2026-10-08T14:02:39Z",
+        })
+      ),
+    });
+
+    const updated = await screen.findAllByTestId("session-compaction-item");
+    expect(updated).toHaveLength(1);
+    expect(updated[0]).toHaveAttribute("data-status", "completed");
+    expect(updated[0]).toHaveTextContent("Context compacted");
+    expect(updated[0]).not.toHaveTextContent("Compacting context…");
+    expect(within(updated[0]!).getByRole("button", { name: "Summary" })).toBeInTheDocument();
+    expect(
+      document.querySelectorAll(
+        '[data-testid="thread-message-row"][data-message-id="compaction:c1"]'
+      )
+    ).toHaveLength(1);
+  });
+
+  // Invariant (S18): a requested compaction is followed, in the same turn, by the agent's own
+  // reply. The thread shows the compaction row AND that reply; neither hides the other.
+  // Owner: thread rendering over the daemon's real projection (user /compact, the system
+  // compaction message, the quiet fired event, then the assistant text with its maintenance
+  // `prompt_delivery`, whose `spans` is null because `/compact` carries no sections). The
+  // transcript is normalized exactly as the live tail does; a rejected frame hides the reply.
+  it("Should render the assistant text that follows a compaction item in the same turn", async () => {
+    const turn = "turn-955a640065514905";
+    const transcript = [
+      {
+        id: "ask",
+        role: "user",
+        metadata: { turn_id: "turn-afe4f209a549163f" },
+        parts: [{ type: "text", text: "baseline", state: "done" }],
+      },
+      {
+        id: "turn-afe4f209a549163f",
+        role: "assistant",
+        parts: [{ type: "text", text: "baseline ready", state: "done" }],
+      },
+      {
+        id: "ev-compact",
+        role: "user",
+        metadata: { turn_id: turn },
+        parts: [{ type: "text", text: "/compact", state: "done" }],
+      },
+      {
+        id: "compaction:native-1",
+        role: "system",
+        parts: [
+          {
+            type: "data-compozy-compaction",
+            id: "native-1",
+            data: {
+              kind: "compaction",
+              compaction_id: "native-1",
+              status: "completed",
+              summary: "Retain the agreed project constraints.",
+              started_at: "2026-10-08T11:50:54.762Z",
+              ended_at: "2026-10-08T11:50:57.765Z",
+            },
+          },
+        ],
+      },
+      {
+        id: `${turn}-2`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "session.compaction_fired",
+              session_id: "s",
+              turn_id: turn,
+              timestamp: "2026-10-08T11:50:54.762Z",
+              raw: { compaction_id: "native-1", trigger: "requested" },
+            },
+          },
+        ],
+      },
+      {
+        id: `${turn}-3`,
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            id: `${turn}-3-text-1`,
+            text: "Native compaction observed.",
+            state: "done",
+          },
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "prompt_delivery",
+              session_id: "s",
+              turn_id: turn,
+              timestamp: "2026-10-08T11:50:57.821Z",
+              delivery: {
+                turn_id: turn,
+                sent_at: "2026-10-08T11:50:54.762Z",
+                estimate: "bytes_div_4",
+                spans: null,
+              },
+            },
+          },
+        ],
+      },
+    ] as unknown as SessionMessage[];
+    const normalized = await normalizeTranscriptMessages(transcript);
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+    expect(await screen.findByTestId("session-compaction-item")).toHaveTextContent(
+      "Context compacted"
+    );
+    expect(screen.getByText("Native compaction observed.")).toBeInTheDocument();
   });
 
   it("Should render a retryable transcript error pane and call retry", async () => {
@@ -2659,7 +2822,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-native-artifact",
             state: "output-available",
             turn_id: "turn-native-artifact",
@@ -2693,7 +2856,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-acp-artifact",
             state: "output-available",
             turn_id: "turn-acp-artifact",
@@ -2701,7 +2864,7 @@ describe("SessionThread transcript states", () => {
             input: { query: "release evidence" },
             output: {
               type: "tool_result",
-              title: "Recall memory",
+              title: "Search sessions",
               raw: {
                 preview: "ACP bounded preview",
                 truncated: true,
@@ -2731,7 +2894,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-persisted-artifact",
             state: "output-available",
             turn_id: "turn-persisted-artifact",
@@ -2739,7 +2902,7 @@ describe("SessionThread transcript states", () => {
             input: { query: "release evidence" },
             output: {
               type: "tool_result",
-              title: "Recall memory",
+              title: "Search sessions",
               raw: {
                 content: "persisted bounded preview",
                 raw_output: {

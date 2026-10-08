@@ -170,6 +170,34 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 }
 
 func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *testing.T) {
+	t.Run("Should preserve redacted Goal metadata across canonical and UI payloads", func(t *testing.T) {
+		t.Parallel()
+
+		original := acp.AgentEvent{Type: acp.EventTypeUserMessage}.WithGoalPromptMeta(&acp.GoalPromptMeta{
+			Kind:  acp.GoalPromptKindWork,
+			RunID: "run-goal", NodeID: "node-goal", PromptID: "COMPOZY_CLAIM_goal-secret",
+			Generation: 2, ItemIndex: 3, PromptAttempt: 1, Turn: new(4),
+		})
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+		assertNoDisplayLeaks(t, content, []string{"COMPOZY_CLAIM_goal-secret"})
+		decoded, err := UnmarshalAgentEvent(content)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		want := original.GoalPromptMeta()
+		want.PromptID = "compozy_claim_[REDACTED]"
+		if got := decoded.GoalPromptMeta(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("decoded Goal metadata = %#v, want %#v", got, want)
+		}
+		ui := UIAgentEventPayloadFromEvent(original)
+		if !reflect.DeepEqual(ui.Goal, want) || original.GoalPromptMeta().PromptID != "COMPOZY_CLAIM_goal-secret" {
+			t.Fatalf("UI Goal metadata = %#v, want preserved redacted metadata and unchanged source", ui.Goal)
+		}
+	})
+
 	t.Run("Should round-trip a delivery receipt and redact display names without mutating input", func(t *testing.T) {
 		t.Parallel()
 		original := acp.AgentEvent{
@@ -210,6 +238,32 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		if !reflect.DeepEqual(ui.Delivery, expected.DeliveryManifest()) ||
 			original.DeliveryManifest().Spans[1].Name != "compozy_claim_secret" {
 			t.Fatal("UI lost receipt or redaction mutated source")
+		}
+	})
+	t.Run("Should keep an empty delivery span list as an array", func(t *testing.T) {
+		t.Parallel()
+		original := acp.AgentEvent{
+			Type:   acp.EventTypePromptDelivery,
+			TurnID: "turn-maintenance",
+		}.WithDelivery(&acp.DeliveryManifest{
+			TurnID:   "turn-maintenance",
+			SentAt:   time.Date(2026, 10, 8, 1, 2, 3, 0, time.UTC),
+			Estimate: acp.TextEstimateMethod,
+			Spans:    []acp.DeliveredSpan{},
+		})
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(content, `"spans":[]`) {
+			t.Fatalf("canonical delivery = %s, want an empty spans array", content)
+		}
+		ui, err := json.Marshal(UIAgentEventPayloadFromEvent(original))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(ui), `"spans":[]`) {
+			t.Fatalf("UI delivery = %s, want an empty spans array", ui)
 		}
 	})
 	t.Run("Should sanitize and round-trip usage metadata with the carrying ledger sequence", func(t *testing.T) {

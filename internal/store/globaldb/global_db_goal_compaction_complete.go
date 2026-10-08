@@ -150,6 +150,13 @@ func goalCompactionCheckpointProjection(
 		projection.pendingAfter = nullableGoalInt64Value(checkpoint.UsageSequence)
 		projection.baselineUsed = nullableGoalInt64Value(checkpoint.CompactionBaselineUsed)
 		projection.recoveryRequired = false
+		if result.PromptResult.Compaction != nil && result.PromptResult.Compaction.Status == "completed" {
+			projection.contextState = goalContextStateUnknown
+			projection.usageSequence = nil
+			projection.pendingAfter = nil
+			projection.baselineUsed = nil
+			projection.recoveryStreak = 0
+		}
 	} else {
 		projection.baselineUsed = nil
 	}

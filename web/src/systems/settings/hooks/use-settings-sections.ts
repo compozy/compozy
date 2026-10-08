@@ -10,7 +10,6 @@ import {
   settingsGeneralOptions,
   settingsPersonaOptions,
   settingsHooksExtensionsOptions,
-  settingsMemoryOptions,
   settingsObservabilityOptions,
   settingsRolesOptions,
   settingsRolesStatusOptions,
@@ -39,10 +38,6 @@ export function useSettingsUpdate() {
 
 export function useSettingsApplyRecords(filter: SettingsApplyRecordsFilter = {}) {
   return useQuery(settingsApplyRecordsOptions(filter));
-}
-
-export function useSettingsMemory() {
-  return useQuery(settingsMemoryOptions());
 }
 
 export function useRolesStatus() {

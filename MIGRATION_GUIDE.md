@@ -1,6 +1,6 @@
 # CompozyOS Migration Guide
 
-For an existing v0.3 installation, follow [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal). The numbered sections below describe the separate v0.2.15-to-v0.3 clean-state transition.
+For an existing v0.3 installation, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal) if you are upgrading from a release that predates it. The numbered sections below describe the separate v0.2.15-to-v0.3 clean-state transition.
 
 CompozyOS v0.3 is a hard cut, not an in-place compatibility release. It keeps the `compozy` binary
 and the `.compozy/tasks/` task format, but replaces the workflow runner with a daemon-owned
@@ -9,6 +9,150 @@ extension contracts, and review behavior do not carry forward automatically.
 
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
+
+<a id="memory-removal"></a>
+
+## Memory removal
+
+The memory removal release removes the memory feature family from CompozyOS: agent memory, Dream
+consolidation, the Knowledge app, and the workspace `knowledge/` prompt injector. It also removes
+CompozyOS's own session compaction, which relied on the memory checkpoint service. The removal
+covers the daemon, CLI, HTTP/UDS, native tools, MCP, the extension Host API and SDKs, configuration,
+Web UI, and documentation. This is an intentional breaking change with no compatibility aliases or
+deprecation window. It does not block the upgrade: the daemon starts on an upgraded home without any
+manual step, and leftovers in your own files are archived or ignored instead of rejected.
+
+No replacement memory or knowledge feature is provided. Authored context remains `AGENT.md`,
+`SOUL.md`, `HEARTBEAT.md`, and skills. Sessions, agents, Loops, Tasks, and Goals keep working.
+
+### Before upgrading
+
+Stop the daemon and back up `compozy.db` together with the global state directory, workspace
+`.compozy/` directories, and `config.toml`. Memory database state is dropped permanently and the new
+release has no reader or export command for it: the index, decision log, recall signals, Dream run
+history, and extractor state. Export anything you need to retain with the previous release first.
+The Markdown memory files are not database state and stay on disk. Do not run an older binary against
+the upgraded databases; restore the complete pre-upgrade backup to roll back.
+
+### What the first start changes
+
+Nothing needs editing by hand. On the first start:
+
+- **Global database migration 00130.** `00130_retire_memory.sql` drops the memory tables, their
+  full-text indexes, and `goose_db_version_memory`; deletes `memory.consolidated` automation triggers
+  together with their overlays, catalog rows, gateway ingress bindings, and owned secret refs (run
+  history stays); and deletes legacy `dream` sessions and the `memory-extractor` and
+  `checkpoint-summary` child sessions with their dependent rows. Session directories on disk are not
+  removed.
+- **Session database migration 00009.** `00009_unarchive_compaction_spans.sql` restores the events
+  that the removed CompozyOS compaction had archived, together with their transcript entries and tool
+  routes, so old compacted sessions show their full history again in the transcript, search, outline,
+  and fork and rewind anchors. Events archived by a conversation rewind stay archived.
+- **Config archive.** When the global, profile, or workspace `config.toml` contains `[memory]` (every
+  sub-table), `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`,
+  `[roles.memory_controller]`, `[session.compaction]`, an `[[automation.triggers]]` entry with
+  `event = "memory.consolidated"`, or hook-matcher keys `compaction_reason` / `compaction_strategy`,
+  the daemon removes them and appends them, commented, at the end of the same file under
+  `# Archived retired memory and compaction settings; these values are inactive.`. The rewrite is
+  atomic and lossless, logged once as `config.retired_keys_archived`, and a second start changes
+  nothing. Archiving these memory and compaction settings never blocks a start: if the file changes while it is being rewritten, or the
+  daemon cannot write it (for example a read-only directory), the daemon logs a
+  `config.retired_keys_archive_failed` warning with the path and the reason, loads with the retired
+  values inactive, leaves the file untouched, and tries again on the next load. Explicitly setting a
+  retired key (`compozy config set memory.enabled true`) is still refused.
+- **Ignored leftovers.** `memory_policy` in a `SOUL.md` is ignored: it is not rendered, never raises a
+  diagnostic, and the file is not rewritten (the Web editor drops it on the next save). Retired
+  `compozy__memory*` tool and toolset IDs in an agent, profile, or session tool policy are dropped
+  with a `tools.retired_ids_ignored` warning. An extension manifest that declares `memory.backend`,
+  `memory/recall|store|forget`, or the `memory.read|write` consent still loads with those entries
+  dropped and one `extension.retired_entries_ignored` warning; an extension automation resource whose
+  trigger event is `memory.consolidated` is skipped with the same warning and the rest of the
+  extension loads. The hook-matcher keys `compaction_reason` and `compaction_strategy` in `AGENT.md`
+  and `SKILL.md` hook declarations are ignored with one `agent.retired_entries_ignored` or
+  `skills.retired_entries_ignored` warning per file, and the file is left untouched.
+- **Saved desktop layouts.** The Knowledge window is dropped from saved layouts, including persisted
+  layout resources, a Settings window on `/settings/memory` moves to `/settings`, and the reconciled
+  layout is saved once.
+- **Files stay.** No file is deleted or rewritten: Markdown memory under
+  `~/.compozy/profiles/<name>/memory/`, `<workspace>/.compozy/memory/`, and agent `memory/`
+  directories (including `_inbox/` candidates the extractor never consumed), `<workspace>/knowledge/`
+  directories, and `ledger.jsonl` session files. Nothing reads them any more. Copy what you want to
+  keep and delete the rest whenever you like. The session directories of the deleted legacy sessions
+  also stay in place; the daemon never recatalogs them and logs `observe.session_recovery_skipped`
+  once per session.
+
+### Removed surfaces
+
+- **CLI:** the whole `compozy memory` tree (`list`, `show`, `write`, `edit`, `delete`, `search`,
+  `reindex`, `history`, `health`, `promote`, `reset`, `reload`, `scope-show`, `decisions`, `recall`,
+  `dream`, `daily`, `extractor`, `provider`, `adhoc`). `compozy status -o json` no longer has a
+  `memory` object and its `schema_version` is `2026-10-07`. `compozy roles list` shows `coordinator`
+  and `auto_title` only; `compozy profile delete --dry-run` has no `memory_entries`;
+  `compozy extension init --template memory-backend-ts` is gone.
+- **HTTP/UDS:** the 40 `/api/memory*`, `/api/settings/memory`, and
+  `/api/workspaces/{id}/memory/**` operations answer `404` like any unknown path. `dream` leaves the
+  session `type` enum, the four memory roles leave the settings and roles payloads, and
+  `component=memory` is an invalid event filter.
+- **Native tools and MCP:** the 35 `compozy__memory_*` tools, the `compozy__memory` and
+  `compozy__memory_admin` toolsets, and `compozy_host__memory__recall|store|forget`. These IDs are
+  retired permanently.
+- **Extensions and SDKs:** the Host API `memory/recall|store|forget` (JSON-RPC `-32601`), the
+  `memory.backend` capability, consent atoms `memory:read|write`, the marketplace ceiling
+  `memory.read`, the `memory-backend-ts` scaffold, and the TypeScript and Go SDK memory members and
+  types. Rebuild extensions against the current SDK.
+- **Configuration and automation:** `[memory]`, `[session.compaction]`, the four memory roles, and
+  the `memory.consolidated` trigger event (creating a trigger on it fails validation). The
+  auto-title role keeps working; its deadline is a fixed 60 seconds.
+- **Web:** the Knowledge app and `/knowledge`, Settings → Memory, the Home Memory tile, and the memory
+  role panels. Settings now has 18 sections.
+- **Prompts:** agents no longer receive memory startup content, per-turn recall, or the
+  `<workspace-knowledge-snapshot>` block.
+
+### Compaction changes
+
+CompozyOS no longer compacts a session itself: no threshold, timer, or usage reading makes it
+summarize, archive, or start a child session. The agent owns its context window.
+
+- **Bounded rebuilds.** Every replay of a transcript into a new agent session (resume without native
+  load, runtime or model replacement, account fallback, prompt recovery, continue/fork) is bounded by
+  `[session.derive] max_replay_bytes` and `max_message_bytes`, keeps the newest messages, pins the
+  earliest user message, states that the workspace is authoritative, and points to
+  `compozy__session_history` for the omitted history.
+- **Observed agent compaction (experimental).** When the agent supports the ACP compaction
+  capability, each compaction appears as one `compaction` item in the session transcript and Web
+  timeline, as `compaction` snapshot rows plus one `session.compaction_fired` event with the new
+  payload (`compaction_id`, `trigger`, `context_used`, `context_size`) in `compozy session events`
+  and `compozy session history`, and as one usage marker. `pressure_threshold` and the marker fields
+  `from_sequence`, `to_sequence`, `pressure`, `strategy`, and `span_archived` are removed. Events
+  recorded before the upgrade stay in the ledger as opaque history and never produce a marker.
+- **Compact now (experimental).** `compozy session compact <session-id>`,
+  `POST /api/workspaces/{workspace_id}/sessions/{session_id}/compact`, the native tool
+  `compozy__session_compact`, and the Compact now button in the Web context rail ask the agent to
+  compact through the command it advertises (`/compact` or `/compress`). The Goal executor uses the same command. See
+  [Context compaction](https://compozy.com/docs/sessions/compaction).
+- **Hooks.** `context.pre_compact` and `context.post_compact` are observation-only: only `labels`
+  can be patched, and the `deny`, `summary`, and `context_blocks` patches are removed. The matcher
+  keys `compaction_reason` and `compaction_strategy` become `compaction_trigger`
+  (`requested` or `agent`).
+
+### Update scripts, extensions, and automation
+
+Stop calling the removed commands, routes, tools, and SDK members; there are no aliases. Remove memory
+tool entries from `AGENT.md` `toolsets`/`tools` and from profile and session tool policies when
+convenient, delete `memory_policy` from `SOUL.md`, remove `memory.backend` and `memory/*` entries from
+extension manifests, and replace `compaction_reason` / `compaction_strategy` hook matchers with
+`compaction_trigger`; `AGENT.md` and `SKILL.md` hook matchers are ignored with a warning for now, but
+an `AGENT.md` hook cannot target the context events at all, so declare those hooks in `config.toml`, an
+extension manifest, or a skill. Tool-policy wildcards such as `compozy__memory*` are not rewritten;
+they simply match nothing. The leftovers are tolerated for now but not forever.
+
+### Temporary compatibility
+
+The config archive, the `memory_policy` ignore rule, the retired tool-ID filter, the extension
+manifest and automation-resource filters, and the `AGENT.md` and `SKILL.md` hook-matcher filters are
+one shim generation. They are removed in v0.6.0. Run at least one release that
+contains them before upgrading to v0.6.0, and clean the leftovers listed above so nothing depends on
+them.
 
 <a id="networks-bridges-and-sandbox-removal"></a>
 
@@ -282,7 +426,7 @@ loader, or hidden fallback ships in v0.3.
 | `runs watch` / `runs purge`                                                                    | Removed                       | Use Loop/session-specific lifecycle surfaces; legacy run history restarts cleanly.                       |
 | `exec` ad-hoc runner                                                                           | Replaced by explicit sessions | Use `session new` plus `session prompt` and lifecycle commands.                                          |
 | `/` legacy workflow dashboard                                                                  | Replaced                      | The v0.3 root is the operating-system home.                                                              |
-| `/memory` and `/memory/:slug`                                                                  | Replaced incompatibly         | Use `/knowledge` and `/settings/memory`; old page URLs do not redirect.                                  |
+| `/memory` and `/memory/:slug`                                                                  | Removed                       | The memory removal release deleted the memory pages; old page URLs do not redirect.                      |
 | `/reviews`, `/reviews/:slug/:round`, `/reviews/:slug/:round/:issueId`                          | Removed                       | Use `/loops/review-and-fix`, `/loop-runs/:runId`, and on-disk review artifacts.                          |
 | `/runs` and `/runs/:runId`                                                                     | Replaced incompatibly         | Use `/loop-runs`, `/loop-runs/:runId`, `/session/:id`, or task-run routes according to owner.            |
 | `/workflows`                                                                                   | Replaced                      | `/loops`.                                                                                                |
@@ -334,7 +478,7 @@ pipeline-era sections have no empty heading stub; their disposition is explicit 
 | 8. Fix review issues          | `#8-fix-review-issues`        | **No successor.** Use the bundled `review-and-fix` Loop.                                   |
 | 9. Iterate and ship           | `#9-iterate-and-ship`         | **No successor.** Shipping policy belongs to each repository.                              |
 | Skills                        | `#-skills`                    | Preserved at README **Skills**.                                                            |
-| Workflow Memory               | `#-workflow-memory`           | Preserved at the current scoped-memory explanation.                                        |
+| Workflow Memory               | `#-workflow-memory`           | Preserved at README **Workflow Memory**, which describes plain repository files.           |
 | Supported Agents              | `#-supported-agents`          | Preserved at the runtime/provider explanation.                                             |
 | CLI Reference                 | `#-cli-reference`             | Preserved at the generated CLI reference link.                                             |
 | Development                   | `#-development`               | Preserved at README **Development**.                                                       |

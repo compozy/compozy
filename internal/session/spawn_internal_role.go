@@ -4,14 +4,9 @@ import (
 	"strings"
 )
 
-func isMemoryExtractorSpawnRole(role string) bool {
-	return strings.EqualFold(strings.TrimSpace(role), SpawnRoleMemoryExtractor)
-}
-
 // IsInternalSpawnRole reports whether a child is daemon-owned and must stay
 // out of operator catalogs and metrics.
 func IsInternalSpawnRole(role string) bool {
 	trimmed := strings.TrimSpace(role)
-	return strings.EqualFold(trimmed, SpawnRoleMemoryExtractor) ||
-		strings.EqualFold(trimmed, SpawnRoleAutoTitle)
+	return strings.EqualFold(trimmed, SpawnRoleAutoTitle)
 }

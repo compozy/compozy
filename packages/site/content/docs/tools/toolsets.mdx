@@ -58,10 +58,9 @@ granted through agent definitions or inspected through `compozy toolsets info`.
 
 | Toolset                    | Includes                                                                                               |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `compozy__sessions`        | Session lifecycle, prompt, history, wait, and control tools, including `compozy__session_compact`.     |
 | `compozy__tasks`           | Task CRUD, task runs, reviews, execution profiles, and notifications.                                  |
 | `compozy__provider_models` | Provider model catalog list, curation, refresh, and source-status tools.                               |
-| `compozy__memory`          | Memory list, show, search, proposal, and ad-hoc note tools.                                            |
-| `compozy__memory_admin`    | Memory health, history, reindex, dream, provider, extractor, and ledger tools.                         |
 | `compozy__automation`      | Automation job, trigger, and run management.                                                           |
 | `compozy__extensions`      | Extension marketplace, install, update, enable, disable, and remove tools.                             |
 | `compozy__resources`       | Desired-state resource list, info, and snapshot inspection tools.                                      |
@@ -69,8 +68,12 @@ granted through agent definitions or inspected through `compozy toolsets info`.
 | `compozy__mcp_auth`        | Redacted MCP OAuth status for configured servers.                                                      |
 | `compozy__clarify`         | One operator question through the read-only `compozy__clarify` tool; the wait is unbounded by default. |
 
-Toolsets expose current canonical tool IDs only. For Memory administration, `compozy__memory_admin`
-includes `compozy__memory_admin_history` for operation-history inspection.
+Toolsets expose current canonical tool IDs only. `compozy__session_compact` (risk `mutating`, input
+`{session_id}`, **experimental**) asks the agent of an idle session in the caller's workspace to
+compact its own context through the command that agent advertises. It follows an unstable upstream
+agent contract. When the session is busy or the agent advertises no compaction command, the tool
+fails with the structural error code `session_busy` or `compaction_unsupported`. See
+[Session compaction](/docs/sessions/compaction#native-tool).
 
 ## How toolsets help operators
 

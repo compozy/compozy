@@ -395,9 +395,6 @@ func (m *Manager) recoverSessionDBClear(
 		if err := m.reconcileSessionDBClearEpoch(ctx, owner.SessionID, commit.TranscriptEpoch); err != nil {
 			return err
 		}
-		if err := m.discardOwnedMaterializedSessionLedger(ctx, owner, dbPath); err != nil {
-			return err
-		}
 		if err := discardSessionDBManifestBackups(ctx, lease, owner, dbPath, manifest, true); err != nil {
 			return fmt.Errorf("session: discard committed clear backups: %w", err)
 		}

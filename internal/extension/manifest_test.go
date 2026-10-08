@@ -501,7 +501,7 @@ provides = ["prompt.provider"]
 			wantFragments: []string{
 				"prompt.provider",
 				"loop.watch_source",
-				"memory.backend",
+				"view.provider",
 				"model.source",
 				"tool.provider",
 			},
@@ -641,7 +641,7 @@ path = "agents/"
 path = "\t"
 
 [capabilities]
-provides = ["memory.backend", "   "]
+provides = ["view.provider", "   "]
 
 [permissions]
 requires = ["sessions/list", ""]
@@ -662,8 +662,8 @@ args = ["--config", " ", "\t", "config.toml"]
 	if !reflect.DeepEqual(manifestResourcePaths(manifest.Resources.Agents), []string{"agents/"}) {
 		t.Fatalf("Resources.Agents = %#v, want %#v", manifest.Resources.Agents, []string{"agents/"})
 	}
-	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"memory.backend"}) {
-		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"memory.backend"})
+	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"view.provider"}) {
+		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"view.provider"})
 	}
 	if !reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) {
 		t.Fatalf("Actions.Requires = %#v, want %#v", manifest.Permissions.Requires, []string{"sessions/list"})
@@ -759,7 +759,7 @@ version = "1.0.0"
 min_compozy_version = "0.5.0"
 
 [capabilities]
-provides = ["memory.backend"]
+provides = ["view.provider"]
 
 [permissions]
 requires = ["sessions/list"]
@@ -853,7 +853,7 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 				ToolReadOnly: &toolReadOnly,
 
 				CompactionMatcher: &hookspkg.CompactionMatcher{
-					Reason: "size",
+					Trigger: "agent",
 				},
 				Autonomy: &hookspkg.AutonomyMatcher{
 					TaskID: "task-1",
@@ -862,12 +862,12 @@ func TestCloneHookDeclDeepCopiesMatcherPointers(t *testing.T) {
 		}
 
 		cloned := cloneHookDecl(decl)
-		cloned.Matcher.Reason = "time"
+		cloned.Matcher.Trigger = "requested"
 		cloned.Matcher.Autonomy.TaskID = "task-2"
 		*cloned.Matcher.ToolReadOnly = false
 
-		if got, want := decl.Matcher.Reason, "size"; got != want {
-			t.Fatalf("source CompactionMatcher.Reason = %q, want %q", got, want)
+		if got, want := decl.Matcher.Trigger, "agent"; got != want {
+			t.Fatalf("source CompactionMatcher.Trigger = %q, want %q", got, want)
 		}
 		if got, want := decl.Matcher.Autonomy.TaskID, "task-1"; got != want {
 			t.Fatalf("source Autonomy.TaskID = %q, want %q", got, want)
@@ -1210,7 +1210,7 @@ min_compozy_version = "0.5.0"
 			daemonVersion: "0.6.0",
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 min_compozy_version = "0.5.0"
 `,
 			wantErr:   ErrManifestInvalid,
@@ -1221,7 +1221,7 @@ min_compozy_version = "0.5.0"
 			daemonVersion: "0.6.0",
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 version = "0.2.1"
 min_other_version = "0.5.0"
 `,
@@ -1234,7 +1234,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_other_version": "0.5.0"
   }
@@ -1249,7 +1249,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "latest",
     "min_compozy_version": "0.5.0"
   }
@@ -1264,7 +1264,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_compozy_version": "0.5.0"
   },
@@ -1282,7 +1282,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_compozy_version": "0.5.0"
   },
@@ -1774,9 +1774,9 @@ func duration(value time.Duration) Duration {
 func expectedManifest() Manifest {
 	return Manifest{
 		Format:            FormatCompozy,
-		Name:              "pgvector-memory",
+		Name:              "sample-view",
 		Version:           "0.2.1",
-		Description:       "PostgreSQL pgvector memory backend for Compozy",
+		Description:       "Sample view provider for Compozy",
 		MinCompozyVersion: "0.5.0",
 		Resources: ResourcesConfig{
 			Skills: []ManifestResourcePath{{Path: "skills/"}},
@@ -1823,7 +1823,7 @@ func expectedManifest() Manifest {
 			},
 		},
 		Capabilities: CapabilitiesConfig{
-			Provides: []string{"memory.backend"},
+			Provides: []string{"view.provider"},
 		},
 		Permissions: PermissionsConfig{
 			Requires: []string{"sessions/list", "sessions/events"},
@@ -1841,9 +1841,9 @@ func expectedManifest() Manifest {
 }
 
 const validManifestTOML = `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 version = "0.2.1"
-description = "PostgreSQL pgvector memory backend for Compozy"
+description = "Sample view provider for Compozy"
 min_compozy_version = "0.5.0"
 
 [[resources.skills]]
@@ -1881,7 +1881,7 @@ args = ["--context", "production"]
 env = { KUBECONFIG = "{{env:KUBECONFIG}}" }
 
 [capabilities]
-provides = ["memory.backend"]
+provides = ["view.provider"]
 
 [permissions]
 requires = ["sessions/list", "sessions/events"]
@@ -1901,9 +1901,9 @@ mode = "enabled"
 
 const validManifestJSON = `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
-    "description": "PostgreSQL pgvector memory backend for Compozy",
+    "description": "Sample view provider for Compozy",
     "min_compozy_version": "0.5.0"
   },
   "resources": {
@@ -1951,7 +1951,7 @@ const validManifestJSON = `{
     }
   },
   "capabilities": {
-    "provides": ["memory.backend"]
+    "provides": ["view.provider"]
   },
   "permissions": {
     "requires": ["sessions/list", "sessions/events"]
@@ -2500,4 +2500,124 @@ func TestClientPluginManifestPackages(t *testing.T) {
 			t.Fatalf("schema error = %v", err)
 		}
 	})
+}
+
+// Invariant: retired manifest entries cannot block a kept extension or relax unknown-entry validation.
+// Owner: extension manifest ingestion. Canonical suite: manifest_test.go.
+func TestManifestRetiredMemoryEntries(t *testing.T) {
+	t.Parallel()
+	t.Run("Should filter retired provides methods and consent [UT-021]", func(t *testing.T) {
+		t.Parallel()
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{"memory.backend", "tool.provider"}
+		manifest.Permissions.Requires = []string{
+			"memory/recall",
+			"sessions/list",
+			"memory.read",
+			"memory/store",
+			"memory/forget",
+			"memory.write",
+		}
+		dropped := dropRetiredMemoryManifestEntries(&manifest)
+		if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"tool.provider"}) ||
+			!reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) ||
+			len(dropped) != 6 {
+			t.Fatalf("filtered manifest = %#v, dropped = %#v", manifest, dropped)
+		}
+		if !slices.Contains(dropped, "capabilities.provides=memory.backend") ||
+			!slices.Contains(dropped, "permissions.requires=memory/recall") ||
+			!slices.Contains(dropped, "permissions.requires=memory.read") {
+			t.Fatalf("dropped = %#v", dropped)
+		}
+		if err := manifest.Validate(); err != nil {
+			t.Fatalf("Validate() = %v", err)
+		}
+		if again := dropRetiredMemoryManifestEntries(&manifest); len(again) != 0 {
+			t.Fatalf("second filter = %#v", again)
+		}
+		manifest.Capabilities.Provides = append(manifest.Capabilities.Provides, "unknown.backend")
+		dropRetiredMemoryManifestEntries(&manifest)
+		if _, ok := errors.AsType[*ManifestValidationError](manifest.Validate()); !ok {
+			t.Fatal("Validate() should retain unknown capability error")
+		}
+	})
+	for _, format := range []string{"toml", "json"} {
+		t.Run("Should load retired entries through "+format+" install ingestion [UT-021]", func(t *testing.T) {
+			t.Parallel()
+			manifest := expectedManifest()
+			manifest.Resources.Tools = nil
+			manifest.Capabilities.Provides = []string{"memory.backend"}
+			manifest.Permissions.Requires = []string{"memory/store", "memory.write", "sessions/list"}
+			var content []byte
+			var err error
+			if format == "toml" {
+				content, err = encodeManifestTOML(&manifest)
+			} else {
+				content, err = json.Marshal(manifest)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatalf("LoadManifest() = %v", err)
+			}
+			if len(loaded.Capabilities.Provides) != 0 ||
+				!reflect.DeepEqual(loaded.Permissions.Requires, []string{"sessions/list"}) {
+				t.Fatalf("loaded manifest = %#v", loaded)
+			}
+		})
+	}
+}
+
+// Invariant: retired matcher keys preserve hook execution for all native compaction observations.
+func TestManifestCompactionMatcher(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"toml", "json"} {
+		t.Run("Should ignore retired matcher keys in "+format+" [UT-041]", func(t *testing.T) {
+			t.Parallel()
+			manifest := expectedManifest()
+			manifest.Resources.Tools = nil
+			manifest.Resources.Hooks = []HookConfig{
+				{
+					Name:    "compaction",
+					Event:   "context.pre_compact",
+					Mode:    "sync",
+					Command: "echo",
+					Matcher: HookMatcherConfig{CompactionReason: "token_limit", CompactionStrategy: "summary"},
+				},
+			}
+			var content []byte
+			var err error
+			if format == "toml" {
+				content, err = encodeManifestTOML(&manifest)
+			} else {
+				content, err = json.Marshal(manifest)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(loaded.Resources.Hooks) != 1 {
+				t.Fatalf("hooks = %#v", loaded.Resources.Hooks)
+			}
+			matcher := hookConfigMatcher(loaded.Resources.Hooks[0].Matcher)
+			for _, trigger := range []string{"requested", "agent"} {
+				if !matcher.MatchesContextCompact(hookspkg.ContextCompactionPayload{Trigger: trigger}) {
+					t.Fatalf("matcher rejected %s", trigger)
+				}
+			}
+		})
+	}
 }

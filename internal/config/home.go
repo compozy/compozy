@@ -20,8 +20,6 @@ const (
 	SkillsDirName = "skills"
 	// LoopsDirName is the directory used for persisted user loop definitions.
 	LoopsDirName = LoopsConfigKey
-	// MemoryDirName is the directory used for persistent memory files.
-	MemoryDirName = "memory"
 	// ProfilesDirName is the directory used for profile-owned state.
 	ProfilesDirName = "profiles"
 	// DefaultProfileDirName is the permanent default profile directory.
@@ -79,7 +77,6 @@ type HomePaths struct {
 	LoopsDir              string
 	ProfilesDir           string
 	DefaultProfileDir     string
-	MemoryDir             string
 	SessionsDir           string
 	ToolArtifactsDir      string
 	SessionAttachmentsDir string
@@ -250,7 +247,6 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		LoopsDir:              filepath.Join(root, LoopsDirName),
 		ProfilesDir:           filepath.Join(root, ProfilesDirName),
 		DefaultProfileDir:     filepath.Join(root, ProfilesDirName, DefaultProfileDirName),
-		MemoryDir:             filepath.Join(root, ProfilesDirName, DefaultProfileDirName, MemoryDirName),
 		SessionsDir:           filepath.Join(root, SessionsDirName),
 		ToolArtifactsDir:      filepath.Join(root, ToolArtifactsDirName),
 		SessionAttachmentsDir: filepath.Join(root, SessionAttachmentsDirName),
@@ -282,7 +278,6 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.LoopsDir,
 		paths.ProfilesDir,
 		paths.DefaultProfileDir,
-		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.ToolArtifactsDir,
 		paths.SessionAttachmentsDir,

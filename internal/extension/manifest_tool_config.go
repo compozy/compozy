@@ -107,6 +107,7 @@ func normalizeHooks(src []HookConfig) []HookConfig {
 				DecisionClass:      strings.TrimSpace(hook.Matcher.DecisionClass),
 				MessageRole:        strings.TrimSpace(hook.Matcher.MessageRole),
 				MessageDeltaType:   strings.TrimSpace(hook.Matcher.MessageDeltaType),
+				CompactionTrigger:  strings.TrimSpace(hook.Matcher.CompactionTrigger),
 				CompactionReason:   strings.TrimSpace(hook.Matcher.CompactionReason),
 				CompactionStrategy: strings.TrimSpace(hook.Matcher.CompactionStrategy),
 			},

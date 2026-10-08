@@ -42,10 +42,6 @@ import type {
   SessionSummary,
   SkillSummary,
   SkillsListParams,
-  MemoryRecallEntry,
-  MemoryStoreParams,
-  MemoryRecallParams,
-  MemoryForgetParams,
   SessionsCreateParams,
   SessionsListParams,
   SessionsPromptParams,
@@ -113,12 +109,6 @@ export class HostAPI {
     wake: (params: AgentHeartbeatWakeParams) => Promise<HeartbeatWakeResponse>;
   };
 
-  public readonly memory: {
-    recall: (params: MemoryRecallParams) => Promise<MemoryRecallEntry[]>;
-    store: (params: MemoryStoreParams) => Promise<Record<string, never>>;
-    forget: (params: MemoryForgetParams) => Promise<Record<string, never>>;
-  };
-
   public readonly observe: {
     health: () => Promise<ObserveHealth>;
   };
@@ -175,12 +165,6 @@ export class HostAPI {
       rollback: async params => await this.request("agents/heartbeat/rollback", params),
       status: async params => await this.request("agents/heartbeat/status", params),
       wake: async params => await this.request("agents/heartbeat/wake", params),
-    };
-
-    this.memory = {
-      recall: async params => await this.request("memory/recall", params),
-      store: async params => await this.request("memory/store", params),
-      forget: async params => await this.request("memory/forget", params),
     };
 
     this.observe = {

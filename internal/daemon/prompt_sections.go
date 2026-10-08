@@ -23,13 +23,11 @@ const (
 
 	startupRuntimeIdentitySectionOrder = 10
 	startupSituationSectionOrder       = 50
-	startupMemorySectionOrder          = 100
 	startupSoulSectionOrder            = 50
 	startupSkillsSectionOrder          = 100
 	startupToolsSectionOrder           = 150
 
 	startupSituationSectionBudget = 20_000
-	startupMemorySectionBudget    = 24_000
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
 	// Keep the router intact; reference manuals are loaded on demand.
@@ -81,7 +79,6 @@ type PromptSectionDescriptor struct {
 }
 
 func defaultStartupPromptSectionDescriptors(
-	memoryProvider session.PromptProvider,
 	skillsProvider session.PromptProvider,
 	situationProvider startupPromptSectionProvider,
 ) []PromptSectionDescriptor {
@@ -107,15 +104,15 @@ func defaultStartupPromptSectionDescriptors(
 		})
 	}
 
-	if memoryProvider != nil {
+	if skillsProvider != nil {
 		descriptors = append(descriptors, PromptSectionDescriptor{
-			Name:           string(HarnessPromptSectionMemory),
-			Position:       PromptSectionPositionPrepend,
-			Order:          startupMemorySectionOrder,
-			Budget:         startupMemorySectionBudget,
+			Name:           string(HarnessPromptSectionSkills),
+			Position:       PromptSectionPositionAppend,
+			Order:          startupSkillsSectionOrder,
+			Budget:         startupSkillsSectionBudget,
 			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-			Provider:       memoryProvider,
-			Predicate:      policyIncludesSection(HarnessPromptSectionMemory),
+			Provider:       skillsProvider,
+			Predicate:      policyIncludesSection(HarnessPromptSectionSkills),
 		})
 	}
 
@@ -128,18 +125,6 @@ func defaultStartupPromptSectionDescriptors(
 		Provider:         soulPromptSectionProvider{},
 		StartupPredicate: startupHasSoulSnapshot,
 	})
-
-	if skillsProvider != nil {
-		descriptors = append(descriptors, PromptSectionDescriptor{
-			Name:           string(HarnessPromptSectionSkills),
-			Position:       PromptSectionPositionAppend,
-			Order:          startupSkillsSectionOrder,
-			Budget:         startupSkillsSectionBudget,
-			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-			Provider:       skillsProvider,
-			Predicate:      policyIncludesSection(HarnessPromptSectionSkills),
-		})
-	}
 
 	descriptors = append(
 		descriptors,
@@ -181,18 +166,9 @@ func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
 }
 
 func defaultStartupPromptSectionDescriptorsFromProviders(
-	prependProviders []session.PromptProvider,
 	appendProviders []session.PromptProvider,
 	situationProvider startupPromptSectionProvider,
 ) []PromptSectionDescriptor {
-	var memoryProvider session.PromptProvider
-	for _, provider := range prependProviders {
-		if provider != nil {
-			memoryProvider = provider
-			break
-		}
-	}
-
 	var skillsProvider session.PromptProvider
 	for _, provider := range appendProviders {
 		if provider != nil {
@@ -202,7 +178,6 @@ func defaultStartupPromptSectionDescriptorsFromProviders(
 	}
 
 	return defaultStartupPromptSectionDescriptors(
-		memoryProvider,
 		skillsProvider,
 		situationProvider,
 	)

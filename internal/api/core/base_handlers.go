@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
-	"github.com/compozy/compozy/internal/memory"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -89,11 +88,6 @@ type BaseHandlerConfig struct {
 	SkillExposures              store.SkillExposureRepository
 	SkillExposureEvents         store.EventSummaryStore
 	TaskActorContextResolver    TaskActorContextResolver
-	MemoryStore                 *memory.Store
-	DreamTrigger                DreamTrigger
-	MemoryExtractor             MemoryExtractorService
-	MemoryProviders             MemoryProviderService
-	MemorySessionLedger         MemorySessionLedgerService
 	RuntimeMemory               doctor.RuntimeMemorySnapshotSource
 	DeadEntities                doctor.DeadEntitySource
 	Gateway                     GatewayService
@@ -173,11 +167,6 @@ type BaseHandlers struct {
 	SkillExposures               store.SkillExposureRepository
 	SkillExposureEvents          store.EventSummaryStore
 	TaskActorContextResolver     TaskActorContextResolver
-	MemoryStore                  *memory.Store
-	DreamTrigger                 DreamTrigger
-	MemoryExtractor              MemoryExtractorService
-	MemoryProviders              MemoryProviderService
-	MemorySessionLedger          MemorySessionLedgerService
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
 	Gateway                      GatewayService
@@ -278,11 +267,6 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		SkillExposures:               cfg.SkillExposures,
 		SkillExposureEvents:          cfg.SkillExposureEvents,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
-		MemoryStore:                  cfg.MemoryStore,
-		DreamTrigger:                 cfg.DreamTrigger,
-		MemoryExtractor:              cfg.MemoryExtractor,
-		MemoryProviders:              cfg.MemoryProviders,
-		MemorySessionLedger:          cfg.MemorySessionLedger,
 		RuntimeMemory:                cfg.RuntimeMemory,
 		DeadEntities:                 cfg.DeadEntities,
 		Gateway:                      cfg.Gateway,

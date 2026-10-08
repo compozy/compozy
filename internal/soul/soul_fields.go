@@ -41,8 +41,6 @@ func forbiddenOwner(key string) string {
 		return "session spawn overlays"
 	case "env", soulConfigKey, "defaults", "providers", "sandboxes", "settings":
 		return soulConfigKey
-	case "memory", "memory_store", "memory_scope", "memory_type", "memories":
-		return "memory runtime"
 	default:
 		return ""
 	}

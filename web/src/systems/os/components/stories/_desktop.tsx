@@ -19,7 +19,6 @@ const DOCK_DEFS = [
   { id: "loops", name: "Loops", icon: "loops" },
   { id: "automations", name: "Automations", icon: "automations" },
   { id: "marketplace", name: "Marketplace", icon: "marketplace" },
-  { id: "knowledge", name: "Knowledge", icon: "knowledge" },
   { id: "vault", name: "Vault", icon: "vault" },
 ] as const;
 

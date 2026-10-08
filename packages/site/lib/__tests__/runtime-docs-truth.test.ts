@@ -16,42 +16,6 @@ function readRepoFile(...parts: string[]): string {
   return readFileSync(resolve(repoRoot, ...parts), "utf8");
 }
 
-function readRepoGoPackage(...parts: string[]): string {
-  const packageRoot = resolve(repoRoot, ...parts);
-  return readdirSync(packageRoot)
-    .filter(file => file.endsWith(".go") && !file.endsWith("_test.go"))
-    .sort()
-    .map(file => readFileSync(resolve(packageRoot, file), "utf8"))
-    .join("\n");
-}
-
-function tomlSectionBody(document: string, section: string): string {
-  const lines = document.split("\n");
-  const referenceHeading = `## \`[${section}]\``;
-  const headingIndex = lines.findIndex(line => line.trim() === referenceHeading);
-  if (headingIndex >= 0) {
-    const nextHeading = lines.findIndex(
-      (line, index) => index > headingIndex && line.trim().startsWith("## ")
-    );
-    return lines.slice(headingIndex + 1, nextHeading < 0 ? undefined : nextHeading).join("\n");
-  }
-
-  const body: string[] = [];
-  let inSection = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === `[${section}]`) {
-      inSection = true;
-      continue;
-    }
-    if (inSection && /^\[[^\]]+\]$/.test(trimmed)) {
-      inSection = false;
-    }
-    if (inSection) body.push(line);
-  }
-  return body.join("\n");
-}
-
 function listManualDocs(dir: string): ManualDoc[] {
   const docs: ManualDoc[] = [];
   for (const entry of readdirSync(dir)) {
@@ -103,9 +67,14 @@ function manualContent(): string {
     .join("\n");
 }
 
+function activeRuntimeDocs(): ManualDoc[] {
+  return listAllDocs(resolve(contentRoot, "docs")).filter(
+    doc => !doc.path.startsWith("docs/migration/")
+  );
+}
+
 function activeRuntimeContent(): string {
-  return listAllDocs(resolve(contentRoot, "docs"))
-    .filter(doc => !doc.path.startsWith("docs/migration/"))
+  return activeRuntimeDocs()
     .map(doc => `\n--- ${doc.path} ---\n${doc.content}`)
     .join("\n");
 }
@@ -218,11 +187,6 @@ describe("runtime docs truth", () => {
     const builtinToolIDs = extractGoStringConstants(toolSource, "ToolID");
     const docs = [
       {
-        path: "packages/site/content/docs/memory/system.mdx",
-        headers: ["Capability", "Native tool"],
-        nativeCell: 3,
-      },
-      {
         path: "packages/site/content/docs/agents/model-catalog.mdx",
         headers: ["Native tool", "Purpose"],
         nativeCell: 0,
@@ -247,213 +211,12 @@ describe("runtime docs truth", () => {
     }
   });
 
-  it("teaches the Slice 1 Memory v2 surfaces and not their replaced predecessors", () => {
-    const memoryDocs = [
-      "packages/site/content/docs/memory/index.mdx",
-      "packages/site/content/docs/memory/system.mdx",
-      "packages/site/content/docs/memory/scopes.mdx",
-      "packages/site/content/docs/memory/dream.mdx",
-    ]
-      .map(path => readRepoFile(path))
-      .join("\n");
-
-    expect(memoryDocs).toContain("compozy memory show");
-    expect(memoryDocs).toContain("compozy memory dream trigger");
-    expect(memoryDocs).toContain("POST /api/memory/search");
-    expect(memoryDocs).toContain("POST /api/memory/dreams/trigger");
-    expect(memoryDocs).toContain("compozy__memory_show");
-    expect(memoryDocs).toContain("compozy__memory_propose");
-    expect(memoryDocs).toContain("compozy__memory_note");
-    expect(memoryDocs).toContain("workspace.toml");
-    expect(memoryDocs).toContain("workspace_id");
-    expect(memoryDocs).toContain("agent-workspace");
-    expect(memoryDocs).toContain("agent-global");
-    expect(memoryDocs).toContain("dreaming-curator");
-    expect(memoryDocs).toContain("memory_decisions");
-    expect(memoryDocs).toContain("memory_events");
-    expect(memoryDocs).toContain("_inbox/");
-    expect(memoryDocs).toContain("_system/");
-
-    expect(memoryDocs).not.toMatch(/^[^`]*two scopes:\s*global and workspace[^`]*$/m);
-    // [memory.v2] must never appear as a current-tense TOML config header.
-    expect(memoryDocs).not.toMatch(/^\s*\[memory\.v2\]/m);
-    expect(memoryDocs).not.toMatch(/^\s*-\s+`memory_read`/m);
-    expect(memoryDocs).not.toMatch(/^\s*-\s+`memory_history`/m);
-    // Forbid every backtick-wrapped `PUT /api/memory*` mention except the literal
-    // `PUT /api/memory/{filename}` placeholder, which is reserved for explicit
-    // hard-cut/negative documentation of the removed route.
-    const putMemoryMentions = memoryDocs.match(/`PUT \/api\/memory[^`]*`/g) ?? [];
-    expect(putMemoryMentions.filter(snippet => snippet !== "`PUT /api/memory/{filename}`")).toEqual(
-      []
-    );
-    expect(memoryDocs).not.toMatch(/`GET \/api\/memory\/search`/);
-  });
-
-  it("documents the Memory policy and background-role keys that the runtime validates", () => {
-    const configDoc = readRepoFile("packages/site/content/docs/configuration/config-toml.mdx");
-    const configSource = readRepoGoPackage("internal/config");
-
-    expect(configSource).toContain("MemoryWorkspaceConfig");
-    expect(configSource).toContain("MemoryDreamScoringWeightsConfig");
-    expect(configSource).toContain("DefaultRolesConfig");
-
-    expect(configDoc).toContain("[memory.controller]");
-    expect(configDoc).toContain("[memory.controller.policy]");
-    expect(configDoc).toContain("[memory.recall]");
-    expect(configDoc).toContain("[memory.recall.weights]");
-    expect(configDoc).toContain("[memory.recall.signals]");
-    expect(configDoc).toContain("[memory.decisions]");
-    expect(configDoc).toContain("[memory.extractor]");
-    expect(configDoc).toContain("[memory.extractor.queue]");
-    expect(configDoc).toContain("[memory.dream]");
-    expect(configDoc).toContain("[memory.dream.gates]");
-    expect(configDoc).toContain("[memory.dream.scoring]");
-    expect(configDoc).toContain("[memory.dream.scoring.weights]");
-    expect(configDoc).toContain("[memory.session]");
-    expect(configDoc).toContain("[memory.daily]");
-    expect(configDoc).toContain("[memory.file]");
-    expect(configDoc).toContain("[memory.provider]");
-    expect(configDoc).toContain("[memory.workspace]");
-    expect(configDoc).toContain("[roles.dream]");
-    expect(configDoc).toContain("[roles.memory_extractor]");
-    expect(configDoc).toContain("[roles.memory_controller]");
-    expect(configDoc).toContain("`dreaming-curator`");
-    expect(configDoc).not.toContain("[memory.controller.llm]");
-    const memoryDreamReference = tomlSectionBody(configDoc, "memory.dream");
-    const memoryExtractorReference = tomlSectionBody(configDoc, "memory.extractor");
-    expect(memoryDreamReference).toContain("| Field");
-    expect(memoryExtractorReference).toContain("| Field");
-    expect(memoryDreamReference).not.toMatch(/^\s*(agent|enabled)\s*=/m);
-    expect(memoryExtractorReference).not.toMatch(/^\s*(model|enabled)\s*=/m);
-    // [memory.v2] must never appear as a current-tense TOML config header.
-    expect(configDoc).not.toMatch(/^\s*\[memory\.v2\]/m);
-  });
-
-  it("keeps file locations aligned with workspace_id-partitioned forensic ledgers", () => {
+  it("keeps file locations aligned with the workspace manifest path", () => {
     const fileLocations = readRepoFile(
       "packages/site/content/docs/configuration/file-locations.mdx"
     );
 
-    expect(fileLocations).toContain(
-      "$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl"
-    );
-    expect(fileLocations).toContain("$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl");
     expect(fileLocations).toContain("<workspace>/.compozy/workspace.toml");
-    expect(fileLocations).toContain("<workspace>/.compozy/agents/<name>/memory/");
-    expect(fileLocations).toContain("$COMPOZY_HOME/agents/<name>/memory/");
-    expect(fileLocations).toContain("$COMPOZY_HOME/profiles/<name>/memory/_inbox/");
-    expect(fileLocations).toContain("$COMPOZY_HOME/profiles/<name>/memory/_system/");
-  });
-
-  it("keeps the generated memory CLI reference aligned with the Slice 1 verbs", () => {
-    const memoryIndex = readRepoFile("packages/site/content/docs/cli/memory/index.mdx");
-    const memoryShow = readRepoFile("packages/site/content/docs/cli/memory/show.mdx");
-    const dreamIndex = readRepoFile("packages/site/content/docs/cli/memory/dream/index.mdx");
-    const dreamTrigger = readRepoFile("packages/site/content/docs/cli/memory/dream/trigger.mdx");
-
-    expect(memoryIndex).toContain("[compozy memory show](/docs/cli/memory/show)");
-    expect(memoryIndex).toContain("[compozy memory dream](/docs/cli/memory/dream)");
-    expect(memoryIndex).not.toContain("[compozy memory read](");
-    expect(memoryIndex).not.toContain("[compozy memory consolidate](");
-
-    expect(memoryShow).toMatch(/^## compozy memory show$/m);
-    expect(memoryShow).toContain("Show one Memory v2 entry");
-
-    expect(dreamIndex).toContain("[compozy memory dream trigger](/docs/cli/memory/dream/trigger)");
-    expect(dreamIndex).not.toContain("consolidate");
-    expect(dreamTrigger).toMatch(/^## compozy memory dream trigger$/m);
-    expect(dreamTrigger).toContain("Trigger Memory v2 dreaming");
-
-    const memoryRoot = resolve(siteRoot, "content/docs/cli/memory");
-    for (const removed of ["read.mdx", "consolidate.mdx", "consolidate"]) {
-      expect(readdirSync(memoryRoot)).not.toContain(removed);
-    }
-    const dreamRoot = resolve(siteRoot, "content/docs/cli/memory/dream");
-    expect(readdirSync(dreamRoot)).toContain("trigger.mdx");
-    expect(readdirSync(dreamRoot)).not.toContain("consolidate.mdx");
-  });
-
-  it("keeps the generated memory API reference aligned with the Slice 1 routes", () => {
-    const apiMemory = readRepoFile("packages/site/content/docs/api/memory.mdx");
-
-    expect(apiMemory).toContain('{"path":"/api/memory/search","method":"post"}');
-    expect(apiMemory).toContain('{"path":"/api/memory/dreams/trigger","method":"post"}');
-    expect(apiMemory).toContain('{"path":"/api/memory","method":"post"}');
-    expect(apiMemory).toContain('{"path":"/api/memory/{filename}","method":"patch"}');
-    expect(apiMemory).toContain('{"path":"/api/memory/ad-hoc","method":"post"}');
-    expect(apiMemory).toContain(
-      '{"path":"/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger","method":"get"}'
-    );
-
-    expect(apiMemory).not.toContain('"/api/memory/search","method":"get"');
-    expect(apiMemory).not.toContain('"/api/memory/{filename}","method":"put"');
-    expect(apiMemory).not.toContain("/api/memory/consolidate");
-    expect(apiMemory).not.toContain("/api/memory/dreams/consolidate");
-  });
-
-  it("keeps the API reference orientation page pointed at Slice 1 memory verbs", () => {
-    const apiIndex = readRepoFile("packages/site/content/docs/api/index.mdx");
-
-    expect(apiIndex).toMatch(
-      /show, write, search, and (run )?(?:trigger|dream).*for persistent context/i
-    );
-    expect(apiIndex).not.toMatch(/\bconsolidate\b/i);
-    expect(apiIndex).not.toMatch(/`GET \/api\/memory\/search`/);
-    expect(apiIndex).not.toMatch(/`PUT \/api\/memory[^`]*`/);
-  });
-
-  it("keeps the runtime native memory tool registry aligned with the Slice 1 IDs", () => {
-    const builtinIDs = readRepoFile("internal/tools/builtin_ids.go");
-    const ids = extractGoStringConstants(builtinIDs, "ToolID");
-
-    for (const required of [
-      "compozy__memory_list",
-      "compozy__memory_show",
-      "compozy__memory_search",
-      "compozy__memory_propose",
-      "compozy__memory_note",
-      "compozy__memory_health",
-      "compozy__memory_scope_show",
-      "compozy__memory_admin_history",
-      "compozy__memory_reindex",
-      "compozy__memory_promote",
-      "compozy__memory_reset",
-      "compozy__memory_reload",
-      "compozy__memory_decisions_list",
-      "compozy__memory_decisions_show",
-      "compozy__memory_decisions_revert",
-      "compozy__memory_recall_trace",
-      "compozy__memory_dream_status",
-      "compozy__memory_dream_list",
-      "compozy__memory_dream_show",
-      "compozy__memory_dream_trigger",
-      "compozy__memory_dream_retry",
-      "compozy__memory_daily_list",
-      "compozy__memory_extractor_status",
-      "compozy__memory_extractor_failures",
-      "compozy__memory_extractor_retry",
-      "compozy__memory_extractor_drain",
-      "compozy__memory_provider_list",
-      "compozy__memory_provider_get",
-      "compozy__memory_provider_select",
-      "compozy__memory_provider_enable",
-      "compozy__memory_provider_disable",
-      "compozy__memory_session_ledger",
-      "compozy__memory_session_replay",
-      "compozy__memory_sessions_prune",
-      "compozy__memory_sessions_repair",
-    ]) {
-      expect(ids.has(required)).toBe(true);
-    }
-    for (const removed of [
-      "compozy__memory_read",
-      "compozy__memory_history",
-      "compozy__memory_write",
-      "compozy__memory_edit",
-      "compozy__memory_delete",
-    ]) {
-      expect(ids.has(removed)).toBe(false);
-    }
   });
 
   it("ships the exact loop.yaml files inside the Loop example pages", () => {
@@ -498,9 +261,38 @@ describe("runtime docs truth", () => {
       "[notifications.presets",
     ];
 
+    // Retired memory, Dream, Knowledge, and CompozyOS-side compaction surfaces. Each pattern is
+    // bounded so daemon.memory_report_interval, the runtime.memory doctor probe and its "[memory]"
+    // log prefix, "in-memory" stores, spec-cycle workflow memory, and the kept
+    // session.compaction_fired and session.compaction.requested events stay legal. "[memory]" only counts as a TOML table header.
+    const retiredMemorySurfaces = [
+      /\bcompozy memory\b/,
+      /\/api\/memory\b/,
+      /\bcompozy(?:_host)?__memory/,
+      /(?:^|\|)[ \t]*(?:#{1,6}[ \t]+)?`?\[memory(?:\.[a-z_]+)*\]`?[ \t]*(?:$|\||#)/m,
+      /\[memory(?:\.[a-z_]+)+\]/,
+      /\[roles\.(?:dream|memory_extractor|memory_controller)\]/,
+      /\bmemory\.consolidated\b/,
+      /\bdreaming-curator\b/,
+      /checkpoint_summary/,
+      /\[session\.compaction\]|\bsession\.compaction\.(?!requested\b)[a-z_]/,
+      /\bpressure_threshold\b/,
+      /\/knowledge(?![\w-])/,
+      /\bworkspace-knowledge\b/,
+      /\bmemory_policy\b/,
+      /\bmemory\.backend\b/,
+      /\bmemory-backend\b/,
+    ];
+
     for (const snippet of forbiddenSnippets) {
       expect(content).not.toContain(snippet);
     }
+    const retiredMemoryViolations = activeRuntimeDocs().flatMap(doc =>
+      retiredMemorySurfaces
+        .filter(surface => surface.test(doc.content))
+        .map(surface => `${doc.path}: ${surface}`)
+    );
+    expect(retiredMemoryViolations).toEqual([]);
     expect(content).not.toMatch(/\/api\/support\/bundle(?!s)/);
     expect(content).not.toMatch(/\/api\/providers\/(?:\{provider_id\}|[a-z0-9_-]+)\/models/);
   });

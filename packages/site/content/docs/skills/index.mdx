@@ -303,7 +303,7 @@ The prompt catalog has this shape:
 
 ```xml
 <available-skills>
-  <skill name="compozy">Agent guide for operating CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, tasks, Loops...</skill>
+  <skill name="compozy">Agent guide for operating CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, tasks, Loops...</skill>
 </available-skills>
 
 Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool
@@ -329,14 +329,14 @@ instructions.
 
 Important details:
 
-| Behavior            | Current implementation                                                                                     |
-| ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Full body in prompt | Not injected by the catalog. The body is read on demand.                                                   |
-| Description length  | Descriptions are truncated to 200 runes in the prompt catalog.                                             |
-| Disabled skills     | Omitted from the catalog.                                                                                  |
-| Inactive skills     | Retained by management surfaces with reasons, but omitted from startup and current-turn catalogs.          |
-| Catalog order       | Sorted by skill name after resolution.                                                                     |
-| Prompt position     | Memory context is prepended, the `AGENT.md` prompt stays in the middle, and the skill catalog is appended. |
+| Behavior            | Current implementation                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| Full body in prompt | Not injected by the catalog. The body is read on demand.                                          |
+| Description length  | Descriptions are truncated to 200 runes in the prompt catalog.                                    |
+| Disabled skills     | Omitted from the catalog.                                                                         |
+| Inactive skills     | Retained by management surfaces with reasons, but omitted from startup and current-turn catalogs. |
+| Catalog order       | Sorted by skill name after resolution.                                                            |
+| Prompt position     | The skill catalog is appended after the `AGENT.md` prompt.                                        |
 
 Disabled and activation-gated skills are hidden from the prompt catalog. Activation is an
 offer-time filter: explicit skill reads still work, and management surfaces retain inactive skills

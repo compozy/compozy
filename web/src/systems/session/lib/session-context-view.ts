@@ -1,5 +1,7 @@
+import type { SessionUsageTurnsResponse } from "../types";
 import { formatContextPercent, formatContextTokens } from "./context-format";
 import {
+  contextClearedBy,
   sessionContextRingState,
   type SessionContextRingState,
   type SessionContextView,
@@ -20,8 +22,7 @@ export interface SessionContextRingGeometry {
 
 export function describeSessionContextRing(
   state: SessionContextRingState,
-  fraction: number,
-  warning: boolean
+  fraction: number
 ): SessionContextRingGeometry {
   const dashed = state === "unknown" || state === "loading";
   const track = dashed
@@ -29,11 +30,7 @@ export function describeSessionContextRing(
     : { stroke: "var(--color-line-strong)" };
   if (dashed || state === "used-only") return { track, dot: state === "used-only" };
   const dotted = state === "stale";
-  const stroke = warning
-    ? "var(--color-warning)"
-    : dotted
-      ? "var(--color-subtle)"
-      : "var(--color-fg)";
+  const stroke = dotted ? "var(--color-subtle)" : "var(--color-fg)";
   return { track, arc: { stroke, linecap: fraction > 0 ? "round" : "butt", dotted }, dot: false };
 }
 
@@ -43,7 +40,7 @@ export interface SessionContextChipView {
   form: "tint" | "hollow";
 }
 
-/** Meter chip: loading · unavailable (hollow) · stale · near compaction · estimated size; a plain report has none. */
+/** Meter chip: loading · unavailable (hollow) · stale · estimated size; a plain report has none. */
 export function describeSessionContextChip(
   context: SessionContextView
 ): SessionContextChipView | undefined {
@@ -52,25 +49,31 @@ export function describeSessionContextChip(
   if (context.state === "unavailable")
     return { label: "unavailable", tone: "neutral", form: "hollow" };
   if (context.stale) return { label: "stale", tone: "warning", form: "tint" };
-  if (context.warning) return { label: "almost full", tone: "warning", form: "tint" };
   if (context.state === "estimated_size")
     return { label: "estimated size", tone: "neutral", form: "tint" };
   return undefined;
 }
 
+/** Why a context reading is empty, in the sentence the tooltip and the meter share. */
+export const CONTEXT_NEVER_REPORTED_SENTENCE = "This agent hasn't reported context usage.";
+export const CONTEXT_COMPACTED_SENTENCE =
+  "Context compacted. Waiting for the agent's next usage report.";
+
+function unknownReadingSentence(context: SessionContextView): string {
+  return contextClearedBy(context) ? CONTEXT_COMPACTED_SENTENCE : CONTEXT_NEVER_REPORTED_SENTENCE;
+}
+
 export type SessionContextTooltipRow =
-  | { kind: "numbers"; percent?: string; amount: string; warning: boolean }
+  | { kind: "numbers"; percent?: string; amount: string }
   | { kind: "headline"; text: string }
   | { kind: "stale" }
-  | { kind: "sentence"; text: string }
-  | { kind: "policy"; text: string };
+  | { kind: "sentence"; text: string };
 
 export interface SessionContextControlView {
   state: SessionContextRingState;
   /** Accessible name; ", stale" is appended by the caller's freshness. */
   label: string;
   fraction: number;
-  warning: boolean;
   rows: SessionContextTooltipRow[];
 }
 
@@ -89,19 +92,6 @@ function amountLabel(used: number, size: number | null | undefined): string {
   return `${formatContextTokens(used)}${size != null ? ` / ${formatContextTokens(size)}` : " used"}`;
 }
 
-function compactionPolicy(context: SessionContextView): string | undefined {
-  const threshold = agentThreshold(context);
-  return threshold == null
-    ? undefined
-    : `CompozyOS summarizes older messages at ${formatContextPercent(threshold)} full`;
-}
-
-/** The threshold only means something against an agent-reported window. */
-function agentThreshold(context: SessionContextView): number | undefined {
-  if (context.size_source !== "agent" || context.pressure_threshold == null) return undefined;
-  return context.pressure_threshold;
-}
-
 function tooltipRows(
   context: SessionContextView,
   state: SessionContextRingState,
@@ -118,7 +108,7 @@ function tooltipRows(
           : "Context usage unknown";
     rows.push({ kind: "headline", text });
     if (state === "unknown" && !unavailable) {
-      rows.push({ kind: "sentence", text: "This agent hasn't reported context usage." });
+      rows.push({ kind: "sentence", text: unknownReadingSentence(context) });
     }
     return rows;
   }
@@ -126,15 +116,12 @@ function tooltipRows(
     kind: "numbers",
     percent: ratio != null ? formatContextPercent(ratio) : undefined,
     amount: amountLabel(used, context.size),
-    warning: context.warning,
   });
   if (!unavailable && context.stale) rows.push({ kind: "stale" });
   if (unavailable) rows.push({ kind: "sentence", text: "Usage unavailable" });
   if (context.size_source === "catalog") {
     rows.push({ kind: "sentence", text: "Size from the model's specs." });
   }
-  const policy = compactionPolicy(context);
-  if (context.warning && policy) rows.push({ kind: "policy", text: policy });
   return rows;
 }
 
@@ -147,7 +134,6 @@ export function describeSessionContextControl(
     state,
     label: controlLabel(context, state, unavailable),
     fraction: context.ratio == null ? 0 : Math.max(0, Math.min(1, context.ratio)),
-    warning: context.warning,
     rows: tooltipRows(context, state, unavailable),
   };
 }
@@ -157,8 +143,6 @@ export interface SessionContextTiersView {
   used: number;
   /** The agent's `used` dropped since these rows were sent: the CompozyOS tier dims. */
   stale: boolean;
-  /** Threshold share of the window, only with an agent-reported window. */
-  tick?: number;
   /** Absent when the daemon reported no attribution. */
   compozy?: { value: number; raw: number; exceeds: boolean };
   agent: number;
@@ -167,12 +151,11 @@ export interface SessionContextTiersView {
 
 export type SessionContextMeterView =
   | { kind: "empty"; title: string; description?: string }
-  | { kind: "unknown" }
+  | { kind: "unknown"; sentence: string }
   | {
       kind: "reported";
       value: string;
       amount: string;
-      warning: boolean;
       chip?: SessionContextChipView;
       tiers?: SessionContextTiersView;
     };
@@ -180,8 +163,11 @@ export type SessionContextMeterView =
 function meterEmpty(context: SessionContextView, unavailable: boolean): SessionContextMeterView {
   if (context.loading) return { kind: "empty", title: "Loading context" };
   if (unavailable) return { kind: "empty", title: "Usage unavailable" };
-  // Rows without a report: the agent never says how full its window is.
-  if ((context.injected?.rows.length ?? 0) > 0) return { kind: "unknown" };
+  // Rows without a report, or a compaction that cleared the reading: the agent
+  // has not said how full its window is.
+  if (contextClearedBy(context) || (context.injected?.rows.length ?? 0) > 0) {
+    return { kind: "unknown", sentence: unknownReadingSentence(context) };
+  }
   return {
     kind: "empty",
     title: "No context report yet",
@@ -195,12 +181,10 @@ function meterTiers(
 ): SessionContextTiersView | undefined {
   const { display, injected } = context;
   if (!display) return undefined;
-  const threshold = agentThreshold(context);
   return {
     total: display.total,
     used,
     stale: injected?.stale === true,
-    tick: threshold == null ? undefined : Math.min(1, Math.max(0, threshold)),
     compozy: injected
       ? { value: display.compozy, raw: injected.tokens, exceeds: context.estimateExceedsReported }
       : undefined,
@@ -217,8 +201,43 @@ export function describeSessionContextMeter(context: SessionContextView): Sessio
     kind: "reported",
     value: ratio != null ? formatContextPercent(ratio) : formatContextTokens(used),
     amount: `${ratio != null ? formatContextTokens(used) : "used"}${size != null ? ` / ${formatContextTokens(size)}` : ""}`,
-    warning: context.warning,
     chip: describeSessionContextChip(context),
     tiers: meterTiers(context, used),
   };
+}
+
+export interface SessionCompactionMarkerView {
+  key: string;
+  /** Position in the session's event ledger; markers interleave with turns by it. */
+  sequence: number;
+  label: "Agent compaction" | "Requested compaction";
+  /** The daemon's status, vendor values included, verbatim. */
+  status: string;
+  statusLabel: string;
+  trigger: string;
+  /** Occupancy when the compaction was observed; absent when the agent sent none. */
+  before?: number;
+  /**
+   * The first occupancy the agent reported after the compaction ended, as the daemon
+   * established it (`context_after`); absent until one exists. Never read off `turns[]`:
+   * those rows merge counters per turn and cannot say when an occupancy was observed.
+   */
+  after?: number;
+}
+
+/** One row per observed agent compaction, in ledger order. */
+export function describeSessionCompactionMarkers(
+  data: SessionUsageTurnsResponse | undefined
+): SessionCompactionMarkerView[] {
+  const markers = [...(data?.compactions ?? [])].sort((a, b) => a.sequence - b.sequence);
+  return markers.map(marker => ({
+    key: marker.compaction_id,
+    sequence: marker.sequence,
+    label: marker.trigger === "requested" ? "Requested compaction" : "Agent compaction",
+    status: marker.status,
+    statusLabel: marker.status === "in_progress" ? "in progress" : marker.status,
+    trigger: marker.trigger,
+    before: marker.context_used ?? undefined,
+    after: marker.context_after?.used,
+  }));
 }

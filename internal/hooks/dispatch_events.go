@@ -105,7 +105,7 @@ func TurnIDFromPayload(payload any) string {
 		return strings.TrimSpace(typed.TurnID)
 	case PermissionResolutionPayload:
 		return strings.TrimSpace(typed.TurnID)
-	case ContextCompactPayload:
+	case ContextCompactionPayload:
 		return strings.TrimSpace(typed.TurnID)
 	default:
 		return ""

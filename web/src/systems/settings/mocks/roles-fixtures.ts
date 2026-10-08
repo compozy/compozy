@@ -14,33 +14,6 @@ export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
     reasoning_effort: "",
     ttl: "2h",
   },
-  dream: {
-    acp_options: [],
-    agent: "",
-    enabled: true,
-    fallback_chain: [],
-    model: "",
-    provider: "",
-    reasoning_effort: "",
-  },
-  checkpoint_summary: {
-    acp_options: [],
-    agent: "",
-    enabled: true,
-    fallback_chain: [],
-    model: "",
-    provider: "",
-    reasoning_effort: "",
-  },
-  memory_extractor: {
-    acp_options: [],
-    agent: "",
-    enabled: true,
-    fallback_chain: [],
-    model: "",
-    provider: "",
-    reasoning_effort: "",
-  },
   auto_title: {
     acp_options: [],
     agent: "",
@@ -49,18 +22,6 @@ export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
     model: "",
     provider: "",
     reasoning_effort: "",
-  },
-  memory_controller: {
-    acp_options: [],
-    enabled: true,
-    fallback_chain: [],
-    max_tokens_out: 256,
-    model: "anthropic/claude-haiku-4",
-    prompt_version: "v1",
-    provider: "pi",
-    reasoning_effort: "",
-    timeout: "250ms",
-    top_k: 5,
   },
 };
 
@@ -74,7 +35,7 @@ export const settingsRolesSectionFixture: SettingsRolesSection = {
 /**
  * Effective projection returned by `GET /api/roles`, in the daemon's lexical
  * order (the panel reorders to product order). Coordinator is disabled by
- * default; auto_title/memory_extractor/memory_controller resolve at invocation.
+ * default; auto_title resolves at invocation.
  */
 export const rolesStatusFixture: RolesStatusResponse = {
   roles: [
@@ -93,20 +54,6 @@ export const rolesStatusFixture: RolesStatusResponse = {
       diagnostics: [],
     },
     {
-      role: "checkpoint_summary",
-      enabled: true,
-      resolution_mode: "builtin",
-      agent: "dreaming-curator",
-      provider: null,
-      model: null,
-      reasoning_effort: null,
-      speed: null,
-      acp_options: [],
-      fallback_chain: [],
-      provenance: { enabled: "default", fallback_chain: "default", agent: "default" },
-      diagnostics: [],
-    },
-    {
       role: "coordinator",
       enabled: false,
       resolution_mode: "builtin",
@@ -120,62 +67,13 @@ export const rolesStatusFixture: RolesStatusResponse = {
       provenance: { enabled: "default", fallback_chain: "default", agent: "default" },
       diagnostics: [],
     },
-    {
-      role: "dream",
-      enabled: true,
-      resolution_mode: "builtin",
-      agent: "dreaming-curator",
-      provider: null,
-      model: null,
-      reasoning_effort: null,
-      speed: null,
-      acp_options: [],
-      fallback_chain: [],
-      provenance: { enabled: "default", fallback_chain: "default", agent: "default" },
-      diagnostics: [],
-    },
-    {
-      role: "memory_controller",
-      enabled: true,
-      resolution_mode: "inherit",
-      agent: null,
-      provider: "pi",
-      model: "anthropic/claude-haiku-4",
-      reasoning_effort: null,
-      speed: null,
-      acp_options: [],
-      timeout: "250ms",
-      fallback_chain: [],
-      provenance: {
-        enabled: "default",
-        fallback_chain: "default",
-        model: "default",
-        provider: "default",
-        timeout: "default",
-      },
-      diagnostics: [],
-    },
-    {
-      role: "memory_extractor",
-      enabled: true,
-      resolution_mode: "inherit",
-      agent: null,
-      provider: null,
-      model: null,
-      reasoning_effort: null,
-      speed: null,
-      acp_options: [],
-      fallback_chain: [],
-      provenance: { enabled: "default", fallback_chain: "default" },
-      diagnostics: [],
-    },
   ],
 };
 
-/** Dream routed to a missing catalog agent — surfaces `role_agent_not_found`. */
+/** Auto title routed to a missing catalog agent — surfaces `role_agent_not_found`. */
 export const rolesStatusWithDiagnosticFixture: RolesStatusResponse = {
   roles: rolesStatusFixture.roles.map(role =>
-    role.role === "dream"
+    role.role === "auto_title"
       ? {
           ...role,
           resolution_mode: "catalog",
@@ -193,11 +91,11 @@ export const rolesStatusWithDiagnosticFixture: RolesStatusResponse = {
   ),
 };
 
-/** Section variant with a populated dream fallback chain (fold-open evidence). */
+/** Section variant with a populated auto_title fallback chain (fold-open evidence). */
 export const settingsRolesConfigWithFallbackFixture: SettingsRolesSection["config"] = {
   ...settingsRolesConfigFixture,
-  dream: {
-    ...settingsRolesConfigFixture.dream,
+  auto_title: {
+    ...settingsRolesConfigFixture.auto_title,
     fallback_chain: [
       {
         provider: "anthropic",

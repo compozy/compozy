@@ -9,8 +9,8 @@ tools, and `config.toml` is a **trigger**, and this page uses that name. To crea
 step by step, follow [React when a session fails](/docs/automation/react-when-a-session-fails).
 
 Triggers start an Agent or Loop in response to events. They are useful when the next run should
-depend on something that happened inside CompozyOS, such as a session stopping, a memory consolidation
-completing, or a webhook delivery arriving.
+depend on something that happened inside CompozyOS, such as a session stopping or a webhook delivery
+arriving.
 
 Triggers do not bind to jobs by ID. A trigger is its own automation definition with an event,
 filters, target, retry policy, and fire limit. When a matching event arrives, CompozyOS uses the same
@@ -114,14 +114,13 @@ native tool, HTTP, or UDS when an existing trigger must switch between Agent and
 
 CompozyOS stores trigger events as strings. The current runtime emits these built-in event names:
 
-| Event                        | Source                       | Typical use                                                                |
-| ---------------------------- | ---------------------------- | -------------------------------------------------------------------------- |
-| `session.created`            | Session lifecycle observer   | Start a helper agent when a workspace session begins.                      |
-| `session.stopped`            | Session lifecycle observer   | Summarize work, collect failures, or schedule follow-up review.            |
-| `memory.consolidated`        | Memory consolidation runtime | Review durable memory changes after consolidation.                         |
-| `hook.<hook_name>.completed` | Hook runtime                 | Continue work after a named hook completes.                                |
-| `webhook`                    | Signed HTTP webhook ingress  | React to CI, deploy, incident, or repository events from external systems. |
-| `ext.*`                      | Extension trigger API        | Let an extension publish its own automation event family.                  |
+| Event                        | Source                      | Typical use                                                                |
+| ---------------------------- | --------------------------- | -------------------------------------------------------------------------- |
+| `session.created`            | Session lifecycle observer  | Start a helper agent when a workspace session begins.                      |
+| `session.stopped`            | Session lifecycle observer  | Summarize work, collect failures, or schedule follow-up review.            |
+| `hook.<hook_name>.completed` | Hook runtime                | Continue work after a named hook completes.                                |
+| `webhook`                    | Signed HTTP webhook ingress | React to CI, deploy, incident, or repository events from external systems. |
+| `ext.*`                      | Extension trigger API       | Let an extension publish its own automation event family.                  |
 
 The event name must match one of these families. CompozyOS rejects any other name at creation,
 because no activation producer would ever fire it — a trigger for an unknown event would sit
@@ -216,14 +215,14 @@ Create a dynamic trigger over HTTP:
 curl -sS -X POST http://localhost:2123/api/automation/triggers \
   -H "Content-Type: application/json" \
   --data '{
-    "name": "memory-review",
+    "name": "review-failed-sessions",
     "scope": "workspace",
     "workspace_id": "ws_123",
-    "event": "memory.consolidated",
+    "event": "session.stopped",
     "agent_name": "reviewer",
-    "prompt": "Review memory consolidation {{ index .Data \"consolidation_id\" }}.",
+    "prompt": "Review session {{ index .Data \"session_id\" }}. Stop reason: {{ index .Data \"stop_reason\" }}.",
     "filter": {
-      "data.scope": "workspace"
+      "data.stop_reason": "error"
     },
     "retry": {
       "strategy": "none"
@@ -242,8 +241,8 @@ The response is wrapped as:
 {
   "trigger": {
     "id": "trg_...",
-    "name": "memory-review",
-    "event": "memory.consolidated",
+    "name": "review-failed-sessions",
+    "event": "session.stopped",
     "enabled": true
   }
 }

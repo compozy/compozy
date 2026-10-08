@@ -46,7 +46,6 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	reason := "blocked"
 	toolID := "compozy__grep"
 	toolName := "grep"
-	strategy := "summarize"
 	text := "patched"
 	role := "assistant"
 	deltaType := "text"
@@ -595,33 +594,32 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Labels: map[string]string{"source": "test"},
 	})
 
-	assertJSONRoundTrip(t, "ContextPreCompactPayload", ContextPreCompactPayload{
-		PayloadBase:    samplePayloadBase(HookContextPreCompact),
-		SessionContext: sampleSession,
-		TurnContext:    sampleTurn,
-		Reason:         "token_limit",
-		Strategy:       "summarize",
-		Summary:        "before",
-		ContextBlocks:  sampleContextBlocks,
-	})
-	assertJSONRoundTrip(t, "ContextPostCompactPayload", ContextPostCompactPayload{
-		PayloadBase:    samplePayloadBase(HookContextPostCompact),
-		SessionContext: sampleSession,
-		TurnContext:    sampleTurn,
-		Reason:         "token_limit",
-		Strategy:       "summarize",
-		Summary:        "after",
-		ContextBlocks:  sampleContextBlocks,
-	})
-	assertJSONRoundTrip(t, "ContextPreCompactPatch", ContextPreCompactPatch{
-		DenyReason:    "compact",
-		Reason:        &reason,
-		Strategy:      &strategy,
-		ContextBlocks: sampleContextBlocks,
-	})
-	assertJSONRoundTrip(t, "ContextPostCompactPatch", ContextPostCompactPatch{
-		Strategy: &strategy,
-	})
+	assertJSONRoundTrip(
+		t,
+		"ContextPreCompactPayload",
+		ContextPreCompactPayload{
+			PayloadBase:    samplePayloadBase(HookContextPreCompact),
+			SessionContext: sampleSession,
+			TurnContext:    sampleTurn,
+			CompactionID:   "c1",
+			Trigger:        "agent",
+		},
+	)
+	assertJSONRoundTrip(
+		t,
+		"ContextPostCompactPayload",
+		ContextPostCompactPayload{
+			PayloadBase:    samplePayloadBase(HookContextPostCompact),
+			SessionContext: sampleSession,
+			TurnContext:    sampleTurn,
+			CompactionID:   "c1",
+			Trigger:        "agent",
+			Status:         "completed",
+			Summary:        "after",
+		},
+	)
+	assertJSONRoundTrip(t, "ContextPreCompactPatch", ContextPreCompactPatch{Labels: map[string]string{"k": "v"}})
+	assertJSONRoundTrip(t, "ContextPostCompactPatch", ContextPostCompactPatch{Labels: map[string]string{"k": "v"}})
 	assertJSONRoundTrip(
 		t,
 		"WindowManagerPayload",

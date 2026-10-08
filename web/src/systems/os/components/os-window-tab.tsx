@@ -14,7 +14,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 import { useWindowMemberSlot } from "../hooks/use-window-member-slot";
-import { getOsAppDescriptor } from "../lib/app-catalog";
+import { getOsAppDescriptor, osAppId, type OsAppDescriptor } from "../lib/app-catalog";
 import type { OsWindow } from "../lib/os-types";
 import { sessionTabState, type OsWindowTabState } from "./os-window-tab-state";
 import {
@@ -73,8 +73,10 @@ export function OsWindowTab({
   onCloseOthers,
   onTabPointerDown,
 }: OsWindowTabProps) {
-  const app = getOsAppDescriptor(win.app);
   const slot = useWindowMemberSlot(slotStore);
+  const appId = osAppId(win.app);
+  if (appId === null) return null;
+  const app = getOsAppDescriptor(appId);
   const isSession = win.app === "session";
   const isNewTab = win.app === "new-tab";
   const sessionTitle = isSession && session ? getSessionDisplayTitle(session) : null;
@@ -192,7 +194,7 @@ function OsWindowTabGlyph({
   isSession,
   session,
 }: {
-  app: ReturnType<typeof getOsAppDescriptor>;
+  app: OsAppDescriptor;
   isNewTab: boolean;
   isSession: boolean;
   session: SessionPayload | undefined;

@@ -44,7 +44,7 @@ func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	turnID := strings.TrimSpace(event.TurnID)
 	messageID := event.MessageIDValue()
-	goal := acp.CloneGoalPromptMeta(event.Goal)
+	goal := event.GoalPromptMeta()
 	invocations := inputUISkillInvocations(event.SkillInvocations())
 	attachments := event.Attachments()
 	if turnID == "" && messageID == "" && goal == nil && len(invocations) == 0 && len(attachments) == 0 {

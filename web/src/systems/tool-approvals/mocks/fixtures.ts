@@ -39,7 +39,7 @@ export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
     id: "c9d8e7f6-a5b4-4c3d-9e2f-1a0b9c8d7e6f",
     workspace_id: "ws_default",
     agent_name: "openclaw",
-    tool_id: "compozy__memory_note",
+    tool_id: "compozy__session_search",
     input_digest: "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
     decision: "allow",
     created_at: "2026-07-12T11:00:00Z",

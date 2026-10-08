@@ -14,12 +14,7 @@ const (
 )
 
 const (
-	sectionsConsolidateKey            = "consolidate"
-	sectionsControllerKey             = "controller"
-	sectionsDailyKey                  = "daily"
-	sectionsDecisionsKey              = "decisions"
 	sectionsDefaultsKey               = "defaults"
-	sectionsDreamKey                  = "dream"
 	sectionsEnabledKey                = "enabled"
 	sectionsExtensionsKey             = "extensions"
 	sectionsTrustKey                  = "trust"
@@ -27,8 +22,6 @@ const (
 	sectionsGitHubKey                 = "github"
 	sectionsGitKey                    = "git"
 	sectionsDevKey                    = "dev"
-	sectionsExtractorKey              = "extractor"
-	sectionsGatesKey                  = "gates"
 	sectionsHTTPKey                   = "http"
 	sectionsMarketplaceKey            = "marketplace"
 	sectionsMaxKey                    = "max"
@@ -36,22 +29,17 @@ const (
 	sectionsModeKey                   = "mode"
 	sectionsNoChangesValue            = "no changes"
 	sectionsOperatorWriteRateLimitKey = "operator_write_rate_limit"
-	sectionsPolicyKey                 = "policy"
 	sectionsProviderKey               = "provider"
 	sectionsReasoningEffortKey        = "reasoning_effort"
 	sectionsSpeedKey                  = "speed"
 	sectionsACPOptionsKey             = "acp_options"
 	sectionsFallbackChainKey          = "fallback_chain"
 	sectionsQueueKey                  = "queue"
-	sectionsRecallKey                 = "recall"
 	sectionsResourcesKey              = "resources"
 	sectionsRestartKey                = "restart"
-	sectionsScoringKey                = "scoring"
 	sectionsSessionKey                = "session"
-	sectionsSignalsKey                = "signals"
 	sectionsSnapshotRateLimitKey      = "snapshot_rate_limit"
 	sectionsTranscriptsKey            = "transcripts"
-	sectionsWeightsKey                = "weights"
 	sectionsWindowKey                 = "window"
 )
 
@@ -168,13 +156,6 @@ func (s *service) populateSectionEnvelope(
 			return err
 		}
 		envelope.General = &section
-	case SectionMemory:
-		envelope.Scope = ScopeUser
-		section, err := s.buildMemorySection(ctx, cfg)
-		if err != nil {
-			return err
-		}
-		envelope.Memory = &section
 	case SectionSkills:
 		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace, ScopeAgent}
 		section, err := s.buildSkillsSection(

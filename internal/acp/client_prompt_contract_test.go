@@ -22,6 +22,28 @@ import (
 
 func TestTokenUsageParsing(t *testing.T) {
 	t.Parallel()
+	t.Run("Should invalidate occupancy without clearing accumulated token counters or costs", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-usage", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		before := TokenUsage{
+			InputTokens: new(int64(10)), OutputTokens: new(int64(20)), TotalTokens: new(int64(30)),
+			ThoughtTokens: new(int64(4)), CacheReadTokens: new(int64(5)), CacheWriteTokens: new(int64(6)),
+			ContextUsed: new(int64(190000)), ContextSize: new(int64(200000)),
+			CostAmount: new(1.5), CostCurrency: new("USD"),
+		}
+		proc.mergePromptUsage(before)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"completed"}`)
+		before.ContextUsed = nil
+		before.ContextSize = nil
+		if got := proc.mergePromptUsage(TokenUsage{}); !reflect.DeepEqual(got, before) {
+			t.Fatalf("post-compaction usage = %#v, want %#v", got, before)
+		}
+	})
 
 	t.Run("Should decode canonical adapter cache counters and prefer them over legacy aliases", func(t *testing.T) {
 		t.Parallel()
@@ -317,6 +339,109 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	if secondEvents[0].Text != "second request" {
 		t.Fatalf("second prompt text = %q, want plain user request", secondEvents[0].Text)
 	}
+}
+
+func TestPromptMaintenancePreservesStartupDelivery(t *testing.T) {
+	t.Parallel()
+	for _, delivery := range []SystemPromptDeliveryMode{
+		SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative,
+	} {
+		t.Run("Should preserve startup delivery after maintenance with "+string(delivery), func(t *testing.T) {
+			t.Parallel()
+			const systemPrompt = "Compozy runtime envelope."
+			driver := New()
+			proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+				SystemPrompt: systemPrompt, SystemPromptDelivery: delivery,
+			})
+			defer stopProcess(t, driver, proc)
+			const maintenanceMessage = " \n/compact\t "
+			pending := PromptSection{Key: "pending", Content: "/compact", UnchangedContent: "pending unchanged"}
+			retained := PromptSection{
+				Key:              "retained",
+				Content:          "delivered catalog",
+				UnchangedContent: "catalog unchanged",
+			}
+			proc.markPromptSectionsDelivered(
+				PromptRequest{Message: retained.Content, Sections: []PromptSection{retained}},
+			)
+			requests := []PromptRequest{
+				{
+					TurnID:      "maintenance",
+					Message:     maintenanceMessage,
+					Maintenance: true,
+					Sections:    []PromptSection{pending, retained},
+				},
+				{TurnID: "ordinary-first", Message: "first request"},
+				{TurnID: "ordinary-second", Message: "second request"},
+			}
+			for index, req := range requests {
+				stream, err := driver.Prompt(t.Context(), proc, req)
+				if err != nil {
+					t.Fatalf("Prompt(%s) error = %v", req.TurnID, err)
+				}
+				events := collectEvents(t, stream)
+				if len(events) == 0 {
+					t.Fatalf("Prompt(%s) returned no events", req.TurnID)
+				}
+				want := req.Message
+				if index == 1 && delivery == SystemPromptDeliveryFirstTurnPrefix {
+					want = "Session instructions (treat as system guidance for this conversation):\n\n" +
+						systemPrompt + "\n\nUser request:\n\n" + req.Message
+				}
+				if got := events[0].Text; got != want {
+					t.Fatalf("Prompt(%s) text = %q, want %q", req.TurnID, got, want)
+				}
+				proc.systemPromptMu.Lock()
+				sent := proc.systemPromptSent
+				proc.systemPromptMu.Unlock()
+				if sent != (index > 0) {
+					t.Fatalf("Prompt(%s) startup delivered = %t, want %t", req.TurnID, sent, index > 0)
+				}
+				if index == 0 {
+					if got, _ := proc.compactPromptSections(
+						pending.Content,
+						[]PromptSection{pending},
+					); got != pending.Content {
+						t.Fatalf("maintenance consumed pending section: %q", got)
+					}
+					if got, _ := proc.compactPromptSections(
+						retained.Content,
+						[]PromptSection{retained},
+					); got != retained.UnchangedContent {
+						t.Fatalf("maintenance cleared delivered section: %q", got)
+					}
+				}
+			}
+		})
+	}
+	t.Run("Should retain delivered sections after failed maintenance", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "prompt_request_error_with_reason", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		section := PromptSection{Key: "skills", Content: "/compact", UnchangedContent: "unchanged"}
+		req := PromptRequest{
+			TurnID:      "maintenance-failed",
+			Message:     section.Content,
+			Maintenance: true,
+			Sections:    []PromptSection{section},
+		}
+		proc.markPromptSectionsDelivered(req)
+		stream, err := driver.Prompt(t.Context(), proc, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		failed := false
+		for _, event := range collectEvents(t, stream) {
+			failed = failed || event.Type == EventTypeError
+		}
+		if !failed {
+			t.Fatal("maintenance request did not fail")
+		}
+		if got, _ := proc.compactPromptSections(section.Content, req.Sections); got != section.UnchangedContent {
+			t.Fatalf("failed maintenance cleared delivered section: %q", got)
+		}
+	})
 }
 
 func TestPromptCompactsDeliveredSections(t *testing.T) {
@@ -1062,6 +1187,67 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 
 func TestPromptStreamsSessionUpdates(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		variant  string
+		wantUsed *int64
+		wantSize *int64
+		wantCost float64
+	}{
+		{"Should discard same-turn occupancy on completion without new usage", "", nil, nil, 1.5},
+		{"Should keep occupancy unknown after cost-only telemetry", "cost", nil, nil, 2.5},
+		{"Should not combine fresh used-only telemetry with pre-compaction size", "used", new(int64(8000)), nil, 1.5},
+		{"Should preserve fresh occupancy across a terminal correction", "fresh", new(int64(8000)), new(int64(200000)), 1.5},
+		{"Should retain token totals without restoring occupancy", "totals", nil, nil, 1.5},
+		{"Should discard occupancy when the terminal compaction arrives after the response", "late", nil, nil, 1.5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New(WithPromptDrainWait(500 * time.Millisecond))
+			proc := startHelperProcess(t, driver, "compaction_usage", tc.variant, StartOpts{})
+			defer stopProcess(t, driver, proc)
+			stream, err := driver.Prompt(t.Context(), proc, PromptRequest{TurnID: "turn-compact", Message: "/compact"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := collectEvents(t, stream)
+			terminalSeen := false
+			doneSeen := false
+			for _, event := range events {
+				if event.Compaction != nil && event.Compaction.Terminal {
+					terminalSeen = true
+				}
+				if !terminalSeen || event.Usage == nil {
+					continue
+				}
+				got := event.Usage
+				if !reflect.DeepEqual(got.ContextUsed, tc.wantUsed) ||
+					!reflect.DeepEqual(got.ContextSize, tc.wantSize) {
+					t.Fatalf(
+						"post-compaction %s occupancy = %#v, want used=%v size=%v",
+						event.Type,
+						got,
+						tc.wantUsed,
+						tc.wantSize,
+					)
+				}
+				if got.CostAmount == nil || *got.CostAmount != tc.wantCost || got.CostCurrency == nil ||
+					*got.CostCurrency != "USD" {
+					t.Fatalf("post-compaction cost = %#v", got)
+				}
+				if event.Type == EventTypeDone {
+					doneSeen = true
+					if tc.variant == "totals" && (got.InputTokens == nil || *got.InputTokens != 190000 ||
+						got.OutputTokens == nil || *got.OutputTokens != 1000 || got.TotalTokens == nil || *got.TotalTokens != 191000) {
+						t.Fatalf("prompt totals = %#v", got)
+					}
+				}
+			}
+			if !terminalSeen || !doneSeen {
+				t.Fatalf("missing compaction or done event: %#v", events)
+			}
+		})
+	}
 
 	t.Run("Should stream session updates and refresh session metadata from prompt events", func(t *testing.T) {
 		t.Parallel()

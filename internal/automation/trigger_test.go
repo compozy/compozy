@@ -287,7 +287,7 @@ func TestTriggerEngineFireHookCompletionRejectsNilContextBeforeResolvingSession(
 	}
 }
 
-func TestTriggerEngineSessionAndMemoryObserversDispatchThroughSharedPath(t *testing.T) {
+func TestTriggerEngineSessionAndExtensionEventsDispatchThroughSharedPath(t *testing.T) {
 	t.Parallel()
 
 	store := newMemoryRunStore()
@@ -299,10 +299,10 @@ func TestTriggerEngineSessionAndMemoryObserversDispatchThroughSharedPath(t *test
 	createdTrigger.Prompt = `Created {{ .Data.session_id }}`
 	stoppedTrigger := testEventTrigger(AutomationScopeGlobal, "session-stopped", "", "session.stopped")
 	stoppedTrigger.Prompt = `Stopped {{ .Data.session_id }}`
-	memoryTrigger := testEventTrigger(AutomationScopeGlobal, "memory-observer", "", "memory.consolidated")
-	memoryTrigger.Prompt = `Memory {{ .Data.summary }}`
+	extensionTrigger := testEventTrigger(AutomationScopeGlobal, "extension-event", "", "ext.test.completed")
+	extensionTrigger.Prompt = `Extension {{ .Data.summary }}`
 
-	for _, trigger := range []Trigger{createdTrigger, stoppedTrigger, memoryTrigger} {
+	for _, trigger := range []Trigger{createdTrigger, stoppedTrigger, extensionTrigger} {
 		if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 			t.Fatalf("Register(%s) error = %v", trigger.Event, err)
 		}
@@ -320,13 +320,13 @@ func TestTriggerEngineSessionAndMemoryObserversDispatchThroughSharedPath(t *test
 
 	engine.SessionObserver().OnSessionCreated(testutil.Context(t), sess)
 	engine.SessionObserver().OnSessionStopped(testutil.Context(t), sess)
-	if err := engine.MemoryObserver().OnMemoryConsolidated(testutil.Context(t), MemoryConsolidatedEvent{
-		Timestamp: time.Date(2026, 4, 11, 5, 10, 0, 0, time.UTC),
+	if _, err := engine.Fire(testutil.Context(t), ActivationEnvelope{
+		Kind: "ext.test.completed", Scope: AutomationScopeGlobal, Source: ActivationSourceObserver,
 		Data: map[string]any{
 			"summary": "fresh context",
 		},
 	}); err != nil {
-		t.Fatalf("OnMemoryConsolidated() error = %v", err)
+		t.Fatalf("Fire(extension) error = %v", err)
 	}
 
 	if got, want := len(creator.createCalls()), 3; got != want {
@@ -939,20 +939,19 @@ func TestStringifyEnvelopeValueHandlesScalarKindsAndFallbacks(t *testing.T) {
 func TestTriggerObserversHandleNilReceiversAndAgentEvents(t *testing.T) {
 	t.Parallel()
 
-	var sessionObserver *triggerSessionObserver
-	sessionObserver.OnSessionCreated(testutil.Context(t), nil)
-	sessionObserver.OnSessionStopped(testutil.Context(t), nil)
-	sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
+	t.Run("Should tolerate nil session and hook observers", func(t *testing.T) {
+		t.Parallel()
 
-	var hookSink *triggerHookTelemetrySink
-	if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
-		t.Fatalf("WriteHookRecord(nil engine) error = %v", err)
-	}
+		var sessionObserver *triggerSessionObserver
+		sessionObserver.OnSessionCreated(testutil.Context(t), nil)
+		sessionObserver.OnSessionStopped(testutil.Context(t), nil)
+		sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
 
-	var memoryObserver *triggerMemoryObserver
-	if err := memoryObserver.OnMemoryConsolidated(testutil.Context(t), MemoryConsolidatedEvent{}); err != nil {
-		t.Fatalf("OnMemoryConsolidated(nil engine) error = %v", err)
-	}
+		var hookSink *triggerHookTelemetrySink
+		if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
+			t.Fatalf("WriteHookRecord(nil engine) error = %v", err)
+		}
+	})
 }
 
 func TestTriggerEngineRejectsWebhookScopeMismatchAndDuplicateWebhookID(t *testing.T) {

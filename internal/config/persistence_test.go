@@ -109,11 +109,11 @@ func TestEditConfigOverlayRejectsSymlinkWithoutReadingTarget(t *testing.T) {
 func TestEditConfigOverlayUpdatesExistingBooleanValue(t *testing.T) {
 	t.Parallel()
 
-	editor, err := newOverlayEditor(ConfigName, []byte("[memory]\nenabled = true\nglobal_dir = \"/tmp/memory\"\n"))
+	editor, err := newOverlayEditor(ConfigName, []byte("[observability]\nenabled = true\nretention_days = 21\n"))
 	if err != nil {
 		t.Fatalf("newOverlayEditor() error = %v", err)
 	}
-	if err := editor.SetValue([]string{"memory", "enabled"}, false); err != nil {
+	if err := editor.SetValue([]string{"observability", "enabled"}, false); err != nil {
 		t.Fatalf("editor.SetValue() error = %v", err)
 	}
 	rendered, err := editor.Bytes()
@@ -122,9 +122,9 @@ func TestEditConfigOverlayUpdatesExistingBooleanValue(t *testing.T) {
 	}
 	text := string(rendered)
 	for _, want := range []string{
-		"[memory]",
+		"[observability]",
 		"enabled = false",
-		`global_dir = "/tmp/memory"`,
+		`retention_days = 21`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("rendered config missing %q\n%s", want, text)
@@ -144,19 +144,19 @@ func TestEditConfigOverlayUpdatesExistingBooleanValue(t *testing.T) {
 	}
 
 	writeFile(t, homePaths.ConfigFile, `
-[memory]
+[observability]
 enabled = true
-global_dir = "/tmp/memory"
+retention_days = 21
 `)
 
 	cfg, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-		return editor.SetValue([]string{"memory", "enabled"}, false)
+		return editor.SetValue([]string{"observability", "enabled"}, false)
 	})
 	if err != nil {
 		t.Fatalf("EditConfigOverlay() error = %v", err)
 	}
-	if got, want := cfg.Memory.Enabled, false; got != want {
-		t.Fatalf("EditConfigOverlay() Memory.Enabled = %v, want %v", got, want)
+	if got, want := cfg.Observability.Enabled, false; got != want {
+		t.Fatalf("EditConfigOverlay() Observability.Enabled = %v, want %v", got, want)
 	}
 
 	contents, err := os.ReadFile(homePaths.ConfigFile)
@@ -165,15 +165,15 @@ global_dir = "/tmp/memory"
 	}
 	text = string(contents)
 	for _, want := range []string{
-		"[memory]",
+		"[observability]",
 		"enabled = false",
-		`global_dir = "/tmp/memory"`,
+		`retention_days = 21`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config contents missing %q\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, "false[memory]") {
+	if strings.Contains(text, "false[observability]") {
 		t.Fatalf("config contents corrupted by boolean update\n%s", text)
 	}
 }
@@ -1519,4 +1519,500 @@ func assertPrivatePathMode(t *testing.T, path string, want os.FileMode) {
 	if got := info.Mode().Perm(); got != want {
 		t.Fatalf("permissions for %q = %o, want %o", path, got, want)
 	}
+}
+
+func TestArchiveRetiredMemorySettings(t *testing.T) {
+	t.Parallel()
+	t.Run("Should archive memory tables losslessly and preserve live settings", func(t *testing.T) {
+		t.Parallel()
+		live := "[roles.auto_title]\nenabled = true\n"
+		contents := []byte("[memory]\nenabled = false\n[memory.dream]\nmin_hours = 2\n" + live)
+		rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		active, archivedText, found := strings.Cut(string(rendered), retiredMemoryArchiveHeader)
+		if !found || !strings.Contains(active, live) {
+			t.Fatalf("live settings or archive missing: %s", rendered)
+		}
+		if !reflect.DeepEqual(archived, []string{"memory", "memory.dream"}) {
+			t.Fatalf("archived = %v", archived)
+		}
+		var original, removed map[string]any
+		if _, err := burnttoml.Decode(string(contents), &original); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := burnttoml.Decode(uncommentMemoryArchive(t, archivedText), &removed); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(original["memory"], removed["memory"]) {
+			t.Fatalf("archive lost values: %#v", removed)
+		}
+		var remaining map[string]any
+		if _, err := burnttoml.Decode(active, &remaining); err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := remaining["memory"]; exists {
+			t.Fatal("memory table remains active")
+		}
+		if _, err := loadConfigOverlayBytes([]byte(active), "config.toml"); err != nil {
+			t.Fatal(err)
+		}
+		again, names, err := archiveRetiredMemorySettings(rendered, "config.toml")
+		if err != nil || len(names) != 0 || !bytes.Equal(rendered, again) {
+			t.Fatalf("second archive changed contents: %v %v", names, err)
+		}
+	})
+	cases := []struct {
+		name, retired, live string
+		names               []string
+	}{
+		{
+			"Should archive dream role",
+			"[roles.dream]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"roles.dream"},
+		},
+		{
+			"Should archive checkpoint role",
+			"[roles.checkpoint_summary]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"roles.checkpoint_summary"},
+		},
+		{
+			"Should archive extractor role",
+			"[roles.memory_extractor]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"roles.memory_extractor"},
+		},
+		{
+			"Should archive controller role",
+			"[roles.memory_controller]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"roles.memory_controller"},
+		},
+		{
+			"Should archive compaction",
+			"[session.compaction]\nenabled = true\nthreshold = 0.85\n",
+			"[session.derive]\nmax_replay_bytes = 8192\n",
+			[]string{"session.compaction"},
+		},
+		{
+			"Should archive consolidated triggers",
+			"[[automation.triggers]]\nname = 'retired'\nevent = 'memory.consolidated'\nworkspace = 'workspace'\n[automation.triggers.matcher]\nlabels = ['old']\n",
+			"[[automation.triggers]]\nname = 'kept'\nevent = 'session.stopped'\nworkspace = 'workspace'\n",
+			[]string{"automation.triggers"},
+		},
+		{
+			"Should retain hooks after archiving matcher keys",
+			"[[hooks.declarations]]\nname = 'audit'\nevent = 'session.compaction'\n[hooks.declarations.matcher]\ncompaction_reason = 'pressure'\ncompaction_strategy = 'summary'\n[hooks.declarations.executor]\ncommand = '/bin/echo'\n",
+			"[roles.auto_title]\nenabled = true\n",
+			[]string{"hooks.declarations.matcher.compaction_reason", "hooks.declarations.matcher.compaction_strategy"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			contents := []byte(tc.retired + "\n# keep this section\n" + tc.live)
+			rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			active, archive, found := strings.Cut(string(rendered), retiredMemoryArchiveHeader)
+			if !found || !strings.Contains(active, tc.live) || !strings.Contains(active, "# keep this section") {
+				t.Fatalf("live settings changed: %s", rendered)
+			}
+			if !reflect.DeepEqual(archived, tc.names) {
+				t.Fatalf("archived = %v, want %v", archived, tc.names)
+			}
+			if _, err := loadConfigOverlayBytes([]byte(active), "config.toml"); err != nil {
+				t.Fatal(err)
+			}
+			var original, removed map[string]any
+			if _, err := burnttoml.Decode(string(contents), &original); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := burnttoml.Decode(uncommentMemoryArchive(t, archive), &removed); err != nil {
+				t.Fatal(err)
+			}
+			_, expected, _ := splitRetiredMemoryValues(original, nil)
+			expected = canonicalMemoryArchiveValues(t, expected)
+			if !reflect.DeepEqual(expected, removed) {
+				t.Fatalf("removed values differ: got %#v want %#v", removed, expected)
+			}
+			again, names, err := archiveRetiredMemorySettings(rendered, "config.toml")
+			if err != nil || len(names) != 0 || !bytes.Equal(rendered, again) {
+				t.Fatalf("not idempotent: %v %v", names, err)
+			}
+		})
+	}
+	t.Run("Should leave live files byte identical", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("# untouched\n[roles.auto_title]\nenabled = true\n")
+		rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil || len(archived) != 0 || !bytes.Equal(contents, rendered) {
+			t.Fatalf("unexpected migration: %v %v %s", archived, err, rendered)
+		}
+	})
+	t.Run("Should retain the TOML decoder error for invalid input", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("[memory\nenabled = false\n")
+		var values map[string]any
+		_, want := burnttoml.Decode(string(contents), &values)
+		_, _, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err == nil || err.Error() != want.Error() {
+			t.Fatalf("error = %v, want %v", err, want)
+		}
+	})
+}
+
+func TestArchiveRetiredMemorySettingsTOMLForms(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, contents, preserved string }{
+		{
+			"Should archive dotted memory leaves",
+			"memory.enabled = false\nmemory.dream.min_hours = 2\nroles.auto_title.enabled = true\n",
+			"roles.auto_title.enabled = true",
+		},
+		{
+			"Should archive noncontiguous memory tables",
+			"[memory]\nenabled = false\n[roles.auto_title]\nenabled = true\n[memory.dream]\nmin_hours = 2\n",
+			"[roles.auto_title]\nenabled = true",
+		},
+		{
+			"Should archive an implicit memory parent",
+			"[memory.dream]\nmin_hours = 2\n[roles.auto_title]\nenabled = true\n",
+			"[roles.auto_title]\nenabled = true",
+		},
+		{
+			"Should preserve adjacent inline roles",
+			"roles = { dream = { enabled = true }, auto_title = { enabled = true } }\n",
+			"auto_title = { enabled = true }",
+		},
+		{
+			"Should preserve inline role before retired role",
+			"roles = { auto_title = { enabled = true }, dream = { enabled = true } }\n",
+			"auto_title = { enabled = true }",
+		},
+		{
+			"Should archive consecutive inline roles",
+			"roles = { dream = { enabled = true }, memory_extractor = { enabled = true }, auto_title = { enabled = true } }\n",
+			"auto_title = { enabled = true }",
+		},
+		{
+			"Should archive nested inline memory",
+			"memory = { enabled = false, dream = { min_hours = 2 } }\nroles.auto_title.enabled = true\n",
+			"roles.auto_title.enabled = true",
+		},
+		{
+			"Should preserve inline compaction siblings",
+			"session = { compaction = { enabled = true }, derive = { max_replay_bytes = 8192 } }\n",
+			"derive = { max_replay_bytes = 8192 }",
+		},
+		{
+			"Should preserve inline trigger siblings",
+			"automation.triggers = [{name='old',event='memory.consolidated',workspace='workspace'}, {name='kept',event='session.stopped',workspace='workspace'}]\n",
+			"{name='kept',event='session.stopped',workspace='workspace'}",
+		},
+		{
+			"Should preserve trigger before retired inline entry",
+			"automation.triggers = [{name='kept',event='session.stopped',workspace='workspace'}, {name='old',event='memory.consolidated',workspace='workspace'}]\n",
+			"{name='kept',event='session.stopped',workspace='workspace'}",
+		},
+		{
+			"Should preserve live hook matcher",
+			"[[hooks.declarations]]\nname='audit'\nevent='session.compaction'\nmatcher = { compaction_reason = 'pressure', compaction_strategy = 'summary', session_id = 'keep' }\nexecutor = { command = '/bin/echo' }\n",
+			"session_id = 'keep'",
+		},
+		{
+			"Should archive nested inline hooks",
+			"hooks = { declarations = [{ name='audit', event='session.compaction', matcher={compaction_reason='pressure', session_id='keep'}, executor={command='/bin/echo'} }] }\n",
+			"session_id='keep'",
+		},
+		{
+			"Should archive every retired inline matcher key",
+			"[[hooks.declarations]]\nname='audit'\nevent='session.compaction'\nmatcher = { compaction_reason = 'pressure', compaction_strategy = 'summary' }\nexecutor = { command = '/bin/echo' }\n",
+			"executor = { command = '/bin/echo' }",
+		},
+		{
+			"Should archive consecutive retired trigger entries",
+			"automation.triggers = [{name='old',event='memory.consolidated'}, {name='also-old',event='memory.consolidated'}, {name='kept',event='session.stopped',workspace='workspace'}]\n",
+			"{name='kept',event='session.stopped',workspace='workspace'}",
+		},
+		{
+			"Should archive all inline triggers with a trailing comma",
+			"automation.triggers = [{name='old',event='memory.consolidated'},]\n",
+			"automation.triggers = [",
+		},
+		{
+			"Should archive spec hook shape",
+			"[[hooks]]\nname='audit'\nmatcher = { compaction_reason = 'pressure', session_id = 'keep' }\n",
+			"session_id = 'keep'",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			contents := []byte(tc.contents + "\n# untouched trailing section\n[defaults]\nagent = 'general'\n")
+			rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+			if err != nil || len(archived) == 0 {
+				t.Fatalf("archive error: %v %v", archived, err)
+			}
+			active, archive, found := strings.Cut(string(rendered), retiredMemoryArchiveHeader)
+			if !found || !strings.Contains(active, tc.preserved) ||
+				!strings.Contains(active, "# untouched trailing section\n[defaults]\nagent = 'general'\n") {
+				t.Fatalf("changed live bytes: %s", rendered)
+			}
+			var original, kept, removed map[string]any
+			if _, err := burnttoml.Decode(string(contents), &original); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := burnttoml.Decode(active, &kept); err != nil {
+				t.Fatalf("invalid active TOML: %v\n%s", err, active)
+			}
+			if _, err := burnttoml.Decode(uncommentMemoryArchive(t, archive), &removed); err != nil {
+				t.Fatal(err)
+			}
+			_, expectedRemoved, _ := splitRetiredMemoryValues(original, nil)
+			expectedRemoved = canonicalMemoryArchiveValues(t, expectedRemoved)
+			if !reflect.DeepEqual(expectedRemoved, removed) {
+				t.Fatalf("archive changed values: got %#v want %#v", removed, expectedRemoved)
+			}
+			_, _, remaining := splitRetiredMemoryValues(kept, nil)
+			if len(remaining) != 0 {
+				t.Fatalf("retired active values = %v", remaining)
+			}
+			again, names, err := archiveRetiredMemorySettings(rendered, "config.toml")
+			if err != nil || len(names) != 0 || !bytes.Equal(rendered, again) {
+				t.Fatalf("not idempotent: %v %v", names, err)
+			}
+		})
+	}
+}
+
+func uncommentMemoryArchive(t *testing.T, text string) string {
+	t.Helper()
+	var result strings.Builder
+	for line := range strings.SplitSeq(strings.TrimSuffix(text, "\n"), "\n") {
+		value, ok := strings.CutPrefix(line, "# ")
+		if !ok {
+			t.Fatalf("archive line is not commented: %q", line)
+		}
+		result.WriteString(value + "\n")
+	}
+	return result.String()
+}
+
+func canonicalMemoryArchiveValues(t *testing.T, values any) map[string]any {
+	t.Helper()
+	var encoded bytes.Buffer
+	if err := burnttoml.NewEncoder(&encoded).Encode(values); err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if _, err := burnttoml.Decode(encoded.String(), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	return decoded
+}
+
+// Invariant: every persisted overlay archives retired keys once, preserves concurrent edits,
+// and applies the retained role and replay configuration. Owner: config persistence (UT-004/UT-007).
+func TestLoadPersistedConfigArchivesRetiredMemory(t *testing.T) {
+	t.Parallel()
+	for _, retained := range []bool{false, true} {
+		name := "Should archive separated retired trigger descendants without blocking load"
+		if retained {
+			name = "Should archive separated retired trigger descendants without contaminating a retained trigger"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), ConfigName)
+			content := ""
+			if retained {
+				content = "[[automation.triggers]]\nname = 'kept'\nevent = 'session.stopped'\n[automation.triggers.filter]\nsource = 'kept-source'\n"
+			}
+			content += "[[automation.triggers]]\nname = 'old'\nevent = 'memory.consolidated'\n[roles.auto_title]\nmodel = 'title-model'\n[automation.triggers.filter]\nsource = 'audit'\n"
+			writeFile(t, path, content)
+			overlay, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if retained {
+				if len(overlay.Automation.Triggers) != 1 || overlay.Automation.Triggers[0].Name != "kept" ||
+					!reflect.DeepEqual(
+						overlay.Automation.Triggers[0].Filter,
+						map[string]string{"source": "kept-source"},
+					) {
+					t.Fatalf("retained trigger changed: %#v", overlay.Automation.Triggers)
+				}
+			} else if len(overlay.Automation.Triggers) != 0 {
+				t.Fatalf("retired trigger survived: %#v", overlay.Automation.Triggers)
+			}
+			first, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			active, archive, found := strings.Cut(string(first), retiredMemoryArchiveHeader)
+			if !found || !strings.Contains(active, "[roles.auto_title]\nmodel = 'title-model'\n") {
+				t.Fatalf("retained role or archive missing: %s", first)
+			}
+			var original, removed map[string]any
+			if _, err := burnttoml.Decode(content, &original); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := burnttoml.Decode(uncommentMemoryArchive(t, archive), &removed); err != nil {
+				t.Fatal(err)
+			}
+			_, expected, _ := splitRetiredMemoryValues(original, nil)
+			if !reflect.DeepEqual(canonicalMemoryArchiveValues(t, expected), removed) {
+				t.Fatalf("retired descendant lost from archive: %#v", removed)
+			}
+			if _, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes); err != nil {
+				t.Fatal(err)
+			}
+			second, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(first, second) {
+				t.Fatalf("reload changed archived config: %v", err)
+			}
+		})
+	}
+	for _, layer := range []string{"global", "profile", "workspace"} {
+		t.Run("Should archive and reload the "+layer+" overlay", func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), layer, ConfigName)
+			writeFile(
+				t,
+				path,
+				"[memory]\nenabled = true\n[roles.auto_title]\nmodel = 'title-model'\n[roles.coordinator]\nmax_children = 3\n",
+			)
+			_, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			homePaths, err := ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			homePaths.ConfigFile = path
+			cfg, err := LoadForHome(homePaths, withoutDotEnv())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Roles.AutoTitle.Model != "title-model" || cfg.Roles.Coordinator.MaxChildren != 3 {
+				t.Fatalf("retained config was not applied: %#v", cfg)
+			}
+			first, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(first), retiredMemoryArchiveHeader) {
+				t.Fatal("retired config was not archived")
+			}
+			if _, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes); err != nil {
+				t.Fatal(err)
+			}
+			second, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(first, second) {
+				t.Fatal("second load rewrote archived config")
+			}
+		})
+		t.Run("Should preserve a concurrent edit to the "+layer+" overlay", func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), layer, ConfigName)
+			writeFile(t, path, "[memory]\nenabled = true\n[roles.auto_title]\nmodel = 'original-model'\n")
+			const edited = "[memory]\nenabled = false\n[roles.auto_title]\nmodel = 'edited-model'\n"
+			overlay, err := loadPersistedConfigOverlay(
+				path,
+				func(content []byte, source string) (configOverlay, error) {
+					overlay, err := loadConfigOverlayBytes(content, source)
+					if err != nil {
+						return overlay, err
+					}
+					writeFile(t, path, edited)
+					return overlay, nil
+				},
+			)
+			if err != nil {
+				t.Fatalf("retirement publication blocked loading: %v", err)
+			}
+			if overlay.Roles.AutoTitle.Model == nil || *overlay.Roles.AutoTitle.Model != "original-model" {
+				t.Fatalf("in-memory retained config changed: %#v", overlay.Roles.AutoTitle)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || string(got) != edited {
+				t.Fatalf("concurrent edit overwritten: %q, %v", got, err)
+			}
+			overlay, err = loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+			if err != nil || overlay.Roles.AutoTitle.Model == nil || *overlay.Roles.AutoTitle.Model != "edited-model" {
+				t.Fatalf("retry did not load concurrent config: %#v, %v", overlay.Roles.AutoTitle, err)
+			}
+			got, err = os.ReadFile(path)
+			if err != nil || !bytes.Contains(got, []byte(retiredMemoryArchiveHeader)) {
+				t.Fatalf("retry did not publish retirement archive: %q, %v", got, err)
+			}
+		})
+	}
+	t.Run("Should load inactive retired settings from a read-only directory and retry publication", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+			t.Skip("requires Unix directory write permissions enforced for the current user")
+		}
+		root := t.TempDir()
+		path := filepath.Join(root, ConfigName)
+		const content = "[memory]\nenabled = true\n[roles.auto_title]\nmodel = 'retained-model'\n"
+		writeFile(t, path, content)
+		if err := os.Chmod(root, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(root, 0o700); err != nil {
+				t.Errorf("restore config directory permissions: %v", err)
+			}
+		})
+		for range 2 {
+			overlay, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes)
+			if err != nil || overlay.Roles.AutoTitle.Model == nil ||
+				*overlay.Roles.AutoTitle.Model != "retained-model" {
+				t.Fatalf("read-only archive blocked retained config: %#v, %v", overlay.Roles.AutoTitle, err)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || string(got) != content {
+				t.Fatalf("read-only config changed: %q, %v", got, err)
+			}
+		}
+		if err := os.Chmod(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loadPersistedConfigOverlay(path, loadConfigOverlayBytes); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil || !bytes.Contains(got, []byte(retiredMemoryArchiveHeader)) {
+			t.Fatalf("writable retry did not publish archive: %q, %v", got, err)
+		}
+	})
+	t.Run("Should load retained role and replay settings", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(
+			t,
+			homePaths.ConfigFile,
+			"[roles.auto_title]\nmodel = 'title-model'\n[roles.coordinator]\nmax_children = 3\n[session.derive]\nmax_replay_bytes = 8192\nmax_message_bytes = 4096\n",
+		)
+		cfg, err := LoadForHome(homePaths, withoutDotEnv())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Roles.AutoTitle.Model != "title-model" || cfg.Roles.Coordinator.MaxChildren != 3 ||
+			cfg.Session.Derive.MaxReplayBytes != 8192 || cfg.Session.Derive.MaxMessageBytes != 4096 {
+			t.Fatalf("retained config was not applied: %#v", cfg)
+		}
+	})
 }

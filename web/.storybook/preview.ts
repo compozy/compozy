@@ -163,11 +163,6 @@ function createStubStorybookRouter(
     path: "network",
     component: Story,
   });
-  const knowledgeRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "knowledge",
-    component: Story,
-  });
   const skillsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "skills",
@@ -231,7 +226,6 @@ function createStubStorybookRouter(
       automationsRoute.addChildren([automationJobRoute, automationTriggerRoute]),
       bridgesRoute,
       networkRoute,
-      knowledgeRoute,
       skillsRoute,
       loopsRoute.addChildren([loopDetailRoute.addChildren([loopEditorRoute])]),
       loopRunDetailRoute,

@@ -5,8 +5,6 @@ import (
 
 	"time"
 
-	"github.com/compozy/compozy/internal/memory"
-
 	"github.com/compozy/compozy/internal/resources"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -136,20 +134,6 @@ func WithHostAPIHeartbeatWakeEvents(reader hostAPIHeartbeatWakeEventReader) Host
 	}
 }
 
-// WithHostAPIMemoryProviderRegistry injects MemoryProvider registration state.
-func WithHostAPIMemoryProviderRegistry(registry *MemoryProviderRegistry) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.memoryProviders = registry
-	}
-}
-
-// WithHostAPIMemoryStoreResolver injects profile-owned memory-store resolution.
-func WithHostAPIMemoryStoreResolver(resolver memory.RecallStoreResolver) HostAPIOption {
-	return func(handler *HostAPIHandler) {
-		handler.memoryForProfile = resolver
-	}
-}
-
 // WithHostAPIRateLimit overrides the per-extension Host API token bucket settings.
 func WithHostAPIRateLimit(limit int, burst int) HostAPIOption {
 	return func(handler *HostAPIHandler) {
@@ -168,12 +152,11 @@ func WithHostAPINow(now func() time.Time) HostAPIOption {
 // NewHostAPIHandler constructs a Host API handler with sensible defaults.
 func NewHostAPIHandler(
 	sessions hostAPISessionManager,
-	memoryStore *memory.Store,
 	observer hostAPIObserver,
 	skillsRegistry hostAPISkillsRegistry,
 	opts ...HostAPIOption,
 ) *HostAPIHandler {
-	handler := newHostAPIHandlerDefaults(sessions, memoryStore, observer, skillsRegistry)
+	handler := newHostAPIHandlerDefaults(sessions, observer, skillsRegistry)
 
 	for _, opt := range opts {
 		if opt != nil {
@@ -195,13 +178,11 @@ func NewHostAPIHandler(
 
 func newHostAPIHandlerDefaults(
 	sessions hostAPISessionManager,
-	memoryStore *memory.Store,
 	observer hostAPIObserver,
 	skillsRegistry hostAPISkillsRegistry,
 ) *HostAPIHandler {
 	return &HostAPIHandler{
 		sessions:   sessions,
-		memory:     memoryStore,
 		observer:   observer,
 		skills:     skillsRegistry,
 		capChecker: &CapabilityChecker{},

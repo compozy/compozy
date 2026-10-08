@@ -6,7 +6,7 @@ persona: Théo
 journey: J-rewind-conversation
 expected: The same session keeps the retained prefix, restores the selected prompt as a draft, continues with fresh provider context, and exposes the discarded suffix only through archived reads; a child created with --parent (lineage kind provenance) rewinds the same way while a spawned child is still refused as daemon-managed
 entry_points: Web session thread; compozy session rewind; POST /api/workspaces/:workspace_id/sessions/:session_id/rewind
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260805-rewind-reader-unavailable; BUG-20260929-rewind-draft-lost-on-row-unmount; BUG-20260929-rewind-offered-after-rewind
 fix_status: fixed
 retest_status: pass
@@ -16,7 +16,12 @@ last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
 overlaps: ET-web-session-fork-from-here; RT-session-lineage-upgrade
 ---
 
-Conversation rewind does not restore files, tool effects, network calls, or memory. The confirmation and structured output must preserve that boundary.
+Conversation rewind does not restore files, tool effects, or network calls. The confirmation and structured output must preserve that boundary.
+
+Rewind starts fresh provider context, so it also discards a resume replay that is still pending: after a runtime
+replacement followed only by a maintenance turn, a rewind must not let the pre-rewind replay block reappear on
+the next ordinary prompt (only the rewind's own replay of the retained prefix reaches the agent). On a home upgraded from the release that archived compacted spans, events archived by a rewind
+stay archived while the span the removed compaction had archived is visible again (RT-upgrade-memory-removal-home).
 
 Provenance child case: create a session with `compozy session new --parent <root-id>`, prompt it, confirm
 `compozy session status <child-id> -o json` reports `lineage.kind: "provenance"`, then rewind the child
@@ -51,3 +56,5 @@ Théo, lab `…-r1-rewalk-…`, acpmock `lab-runner`, 1440×900.
 - Fork leaves the source untouched (ET-web-session-fork-from-here re-walk: `max_sequence` unchanged).
 - Found, pre-existing, open: BUG-20260929-rewind-offered-after-rewind. After a rewind followed by new turns, "Rewind to here" stays enabled but the daemon refuses it (`400 conversation rewind target is invalid`, documented refusal), and the web shows a generic "Refresh the conversation" toast.
 The web leg is closed here; B1/C own the CLI and provenance legs, and the archived-read boundary was last walked in `2026-08-04-session-rewind.md` (unchanged by this branch). Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-busy-gate-running.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-busy-gate-idle.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-rewind-confirm.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-rewind-after.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-rewind-retest-after.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/rewind-retest.txt`.
+
+QA impact 2026-10-07 (memory removal): the Web confirmation (`session-rewind-message-action.tsx`) dropped its memory fragment and now reads the title "Rewind this session?" with the description "Messages from this point onward will be removed from the active conversation. Files and tool effects will not be undone."; the quote in the 2026-09-29 walk above records the earlier text. Stale verdict reset to untested; historical evidence preserved; no QA session ran.

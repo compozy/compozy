@@ -20,7 +20,7 @@ The unit of this catalog is deliberately atomic:
 
 ## Current Compozy fit
 
-The current implementation supports installable, versioned extensions with provenance, trust state, enablement, and lifecycle management. A manifest can package skills, Loops, agents, automation, layouts, typed hooks, manifest tools, and command-launched MCP servers. A subprocess extension can provide runtime contracts such as tool.provider, loop.watch_source, memory.backend, and model.source, subject to declared Host API method and security capability grants.
+The current implementation supports installable, versioned extensions with provenance, trust state, enablement, and lifecycle management. A manifest can package skills, Loops, agents, automation, layouts, typed hooks, manifest tools, and command-launched MCP servers. A subprocess extension can provide runtime contracts such as tool.provider, loop.watch_source, and model.source, subject to declared Host API method and security capability grants.
 
 An extension kit can publish agents with Soul and Heartbeat sidecars, automation jobs and triggers, layouts, skills, Loops, and MCP sidecars when the extension is enabled. It does not install arbitrary extension dependencies. Therefore, every row below is an independently owned extension or MCP candidate; multi-package recommendations remain editorial collections.
 

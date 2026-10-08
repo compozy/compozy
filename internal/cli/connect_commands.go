@@ -102,7 +102,7 @@ func newConnectUseCommand(deps commandDeps) *cobra.Command {
 						Scheme: "unix",
 						Active: true,
 					},
-					Status: memoryActiveKey,
+					Status: cliActiveKey,
 				}))
 			}
 			profile, exists := findGatewayProfile(gatewayConfig.Connections, name)
@@ -122,7 +122,7 @@ func newConnectUseCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			return writeCommandOutput(cmd, gatewayProfileOutput(gatewayProfileMutationRecord{
-				Profile: gatewayProfileFromConfig(profile, name), Status: memoryActiveKey,
+				Profile: gatewayProfileFromConfig(profile, name), Status: cliActiveKey,
 			}))
 		},
 	}

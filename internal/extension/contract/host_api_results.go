@@ -98,12 +98,5 @@ type SessionInputResult struct {
 	Input SessionInput `json:"input"`
 }
 
-// MemoryRecallEntry is one scored memory lookup hit.
-type MemoryRecallEntry struct {
-	Key     string  `json:"key"`
-	Content string  `json:"content"`
-	Score   float64 `json:"score"`
-}
-
 // ObserveHealth is the host-visible daemon health payload.
 type ObserveHealth = observepkg.Health

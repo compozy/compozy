@@ -36,9 +36,6 @@ func (d *Daemon) applyObserverFactoryDefault() {
 				activeConfig.Observability.AgentProbeTimeoutOrDefault(),
 			),
 		}
-		if deps.MemoryStore != nil {
-			opts = append(opts, observe.WithMemoryEventSource(deps.MemoryStore))
-		}
 		return observe.New(ctx, opts...)
 	}
 }

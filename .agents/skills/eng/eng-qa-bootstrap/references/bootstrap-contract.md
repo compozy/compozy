@@ -79,9 +79,6 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 - `.compozy/disruption-seeds.json` — playbook disruption_probe_seeds for downstream consumers.
 - `project/` — the only root registered with Compozy for agents under test; it excludes `qa-artifacts/`, manifests, audit contracts, and provider evidence.
 - `project/workspaces/<workspace-name>/README.md` — per-workspace stub README.
-- `knowledge/<...>` — canonical copy of every knowledge file declared by the playbook.
-- `project/workspaces/<workspace-name>/knowledge/global/<...>` — every global knowledge file projected into each readable agent workspace.
-- `project/workspaces/<workspace-name>/knowledge/<...>` — only the scoped knowledge files declared by that workspace.
 
 `PLAYBOOK_REF` and `KICKOFF_POSTED=false` are written to the manifest env. `eng-real-scenario-qa` Step 4 flips `KICKOFF_POSTED=true` and sets `KICKOFF_TIMESTAMP` after posting the single in-persona kickoff.
 

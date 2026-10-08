@@ -62,12 +62,9 @@ func (r *roleResolver) projectRoleStatus(
 	if err != nil {
 		return contract.RoleStatus{}, err
 	}
-	memoryEnabled := r.config.Memory.Enabled && effective.Memory.Enabled
-	// Pressure compaction is owned by the daemon-wide session manager.
-	compactionEnabled := r.config.Session.Compaction.Enabled
 	status := contract.RoleStatus{
 		Role:            string(role),
-		Enabled:         effectiveRoleEnabled(role, common.Enabled, memoryEnabled, compactionEnabled),
+		Enabled:         common.Enabled,
 		ResolutionMode:  mode,
 		Agent:           agent,
 		Provider:        roleStatusString(common.Provider),
@@ -77,10 +74,6 @@ func (r *roleResolver) projectRoleStatus(
 		ACPOptions:      roleStatusACPOptions(common.ACPOptions),
 		FallbackChain:   roleStatusFallbacks(common.FallbackChain),
 		Diagnostics:     diagnostics,
-	}
-	if role == compozyconfig.RoleMemoryController {
-		timeout := effective.Roles.MemoryController.Timeout.String()
-		status.Timeout = &timeout
 	}
 	status.Provenance = roleStatusProvenance(
 		roleProvenance(role, effective),
@@ -193,9 +186,6 @@ func roleStatusProvenance(all map[string]string, status contract.RoleStatus) map
 	}
 	if len(status.ACPOptions) > 0 {
 		fields = append(fields, compozyconfig.RoleFieldACPOptions)
-	}
-	if status.Timeout != nil {
-		fields = append(fields, roleFieldTimeout)
 	}
 	provenance := make(map[string]string, len(fields))
 	for _, field := range fields {

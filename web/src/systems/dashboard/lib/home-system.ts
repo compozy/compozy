@@ -93,18 +93,6 @@ function automationSection(status: StatusPayload): HomeSystemSection {
   };
 }
 
-function memorySection(status: StatusPayload): HomeSystemSection {
-  const { enabled } = status.memory;
-  return {
-    tile: {
-      key: "memory",
-      label: "Memory",
-      value: enabled ? "Enabled" : "Off",
-      tone: enabled ? "success" : undefined,
-    },
-  };
-}
-
 function hooksSection(hookRunsToday: number, hookFailuresToday = 0): HomeSystemSection {
   const failed = hookFailuresToday > 0;
   return {
@@ -132,12 +120,7 @@ function retentionSection(retentionDays: number): HomeSystemSection {
 
 function statusSections(status: StatusPayload | undefined): (HomeSystemSection | null)[] {
   if (!status) return [];
-  return [
-    daemonSection(status),
-    providersSection(status),
-    automationSection(status),
-    memorySection(status),
-  ];
+  return [daemonSection(status), providersSection(status), automationSection(status)];
 }
 
 /** Projects daemon status and today's hook/retention facts into the Home system panel model. */

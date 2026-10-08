@@ -42,19 +42,24 @@ const compozyEventDataSchema = z.looseObject({
       turn_id: z.string(),
       sent_at: z.string(),
       estimate: z.string(),
-      spans: z.array(
-        z.object({
-          key: z.string(),
-          kind: z.string(),
-          bytes: z.number(),
-          tokens: z.number().nullable().optional(),
-          delivery: z.string().optional(),
-          name: z.string().optional(),
-          unchanged: z.boolean().optional(),
-          startup_dedup: z.boolean().optional(),
-          hook_modified: z.boolean().optional(),
-        })
-      ),
+      // A delivery that sent no sections (a literal maintenance prompt such as `/compact`)
+      // arrives with `spans: null`. It is quiet telemetry: it must never reject the frame
+      // that carries the turn's reply.
+      spans: z
+        .array(
+          z.object({
+            key: z.string(),
+            kind: z.string(),
+            bytes: z.number(),
+            tokens: z.number().nullable().optional(),
+            delivery: z.string().optional(),
+            name: z.string().optional(),
+            unchanged: z.boolean().optional(),
+            startup_dedup: z.boolean().optional(),
+            hook_modified: z.boolean().optional(),
+          })
+        )
+        .nullable(),
     })
     .optional(),
   runtime: z
@@ -96,11 +101,24 @@ const compozyPermissionDataSchema = compozyEventDataSchema.extend({
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
+// `status` is a free string: the four known values or a vendor value passed through
+// verbatim, so an agent's own status never fails the whole transcript.
+const compozyCompactionDataSchema = z.looseObject({
+  kind: z.string(),
+  compaction_id: z.string(),
+  status: z.string(),
+  summary: z.string().optional(),
+  error: z.string().optional(),
+  started_at: z.string(),
+  ended_at: z.string().optional(),
+});
+
 const unknownDataSchema = z.unknown();
 
 const knownDataSchemas: Record<string, z.ZodType<unknown>> = {
   "compozy-event": compozyEventDataSchema,
   "compozy-permission": compozyPermissionDataSchema,
+  "compozy-compaction": compozyCompactionDataSchema,
 };
 
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];

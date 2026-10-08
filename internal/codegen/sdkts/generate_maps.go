@@ -8,7 +8,6 @@ import (
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/hooks"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -158,23 +157,6 @@ func hookExecutorKindValues() []string {
 
 func hookSourceValues() []string {
 	return []string{"native", "config", "extension", "agent_definition", "skill"}
-}
-
-func memoryTypeValues() []string {
-	return []string{
-		string(memcontract.TypeUser),
-		string(memcontract.TypeFeedback),
-		string(memcontract.TypeProject),
-		string(memcontract.TypeReference),
-	}
-}
-
-func memoryScopeValues() []string {
-	return []string{
-		string(memcontract.ScopeProfile),
-		string(memcontract.ScopeWorkspace),
-		string(memcontract.ScopeAgent),
-	}
 }
 
 func sessionStateValues() []string {

@@ -37,7 +37,7 @@ checks trust, secret bindings, and Gateway consent before replacing the active v
 | Lifecycle | Search, install, inspect, enable, disable, update, remove |
 | Provenance | Source, trust tier, checksums, Marketplace metadata |
 | Static kit | Skills, Loops, agents and sidecars, automation, layouts, MCP sidecars |
-| Runtime services | Tool, memory, model, and Loop watch-source provide surfaces |
+| Runtime services | Tool, model, and Loop watch-source provide surfaces |
 | Dynamic resources | Host API publication through declared permissions |
 | Secrets | Instance-scoped bindings from declared environment keys to Vault references |
 | Operability | Inventory, preview, structured status, logs, and deterministic errors |
@@ -53,7 +53,7 @@ to install or coordinate separately owned extensions.
 ### Atomic extension
 
 One versioned integration or runtime provider, such as Google Workspace, HubSpot, document
-extraction, browser automation, a memory backend, or a webhook source.
+extraction, browser automation, a model source, or a webhook source.
 
 ### Extension family
 

@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/situation"
@@ -49,10 +48,6 @@ type RuntimeDeps struct {
 	Loops               core.LoopService
 	Registry            Registry
 	Profiles            *profile.Manager
-	MemoryStore         *memory.Store
-	MemoryExtractor     core.MemoryExtractorService
-	MemoryProviders     core.MemoryProviderService
-	MemorySessionLedger core.MemorySessionLedgerService
 	RuntimeMemory       doctor.RuntimeMemorySnapshotSource
 	DeadEntities        doctor.DeadEntitySource
 	WorkspaceResolver   workspacepkg.RuntimeResolver
@@ -78,7 +73,6 @@ type RuntimeDeps struct {
 	Roles               core.RolesStatusProvider
 	SkillsRegistry      core.SkillsRegistry
 	SkillResources      core.SkillResourceSyncer
-	DreamTrigger        DreamTrigger
 	Settings            core.SettingsService
 	SettingsRestart     core.SettingsRestartController
 	SettingsUpdate      core.SettingsUpdateController

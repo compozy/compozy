@@ -21,17 +21,6 @@ func (m *Manager) fireHookRecord(ctx context.Context, sessionID string, record h
 	return err
 }
 
-func (m *Manager) fireMemoryConsolidated(ctx context.Context, event MemoryConsolidatedEvent) error {
-	engine, runtimeCtx, ok := m.triggerRuntime()
-	if !ok {
-		return nil
-	}
-	mergedCtx, cancel := mergedRuntimeContext(ctx, runtimeCtx)
-	defer cancel()
-	_, err := engine.FireMemoryConsolidated(mergedCtx, event)
-	return err
-}
-
 func mergedRuntimeContext(parent context.Context, runtimeCtx context.Context) (context.Context, context.CancelFunc) {
 	if parent == nil {
 		if runtimeCtx == nil {
@@ -113,15 +102,4 @@ func (s managerHookTelemetrySink) WriteHookRecord(
 		return nil
 	}
 	return s.manager.fireHookRecord(ctx, sessionID, record)
-}
-
-type managerMemoryObserver struct {
-	manager *Manager
-}
-
-func (o managerMemoryObserver) OnMemoryConsolidated(ctx context.Context, event MemoryConsolidatedEvent) error {
-	if o.manager == nil {
-		return nil
-	}
-	return o.manager.fireMemoryConsolidated(ctx, event)
 }

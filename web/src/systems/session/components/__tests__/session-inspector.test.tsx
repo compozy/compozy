@@ -1,13 +1,16 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@compozy/ui";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 import { userEvent } from "@testing-library/user-event";
+import { expectFetchRequest } from "@/test/fetch-test-utils";
 import { SessionContextControl } from "../session-context-control";
+import { SessionContextMeterSection } from "../session-context-meter-section";
 import { deriveSessionContext } from "../../lib/session-context";
 import { useSessionInspectorState } from "../../hooks/use-session-inspector-state";
 import { sessionContextFixture, sessionContextTurnsFixture } from "../../mocks/context-fixtures";
-import type { SessionContextPayload } from "../../types";
+import type { SessionContextPayload, SessionPayload, SessionUsageTurnsResponse } from "../../types";
 import {
   continuedSessionFixture,
   deriveSourceSessionFixture,
@@ -205,6 +208,29 @@ function ContextJourney() {
   );
 }
 
+type UsageTurn = SessionUsageTurnsResponse["turns"][number];
+type CompactionMarker = SessionUsageTurnsResponse["compactions"][number];
+
+function contextTurn(turnId: string, sequence: number, used: number): UsageTurn {
+  return {
+    turn_id: turnId,
+    sequence,
+    usage: { sequence, timestamp: "2026-09-12T09:00:00Z", context_used: used },
+  };
+}
+
+function compactionMarker(overrides: Partial<CompactionMarker>): CompactionMarker {
+  return {
+    compaction_id: `compaction-${overrides.sequence ?? 0}`,
+    trigger: "agent",
+    status: "completed",
+    turn_id: "turn-1",
+    sequence: 0,
+    at: "2026-09-12T09:20:00Z",
+    ...overrides,
+  };
+}
+
 describe("Session context", () => {
   it("Should open the tab-less sidebar from the keyboard and share its preference", async () => {
     window.localStorage.clear();
@@ -249,6 +275,19 @@ describe("Session context", () => {
       copy: "This agent hasn't reported context usage.",
     },
     {
+      // The wire shape right after a terminal compaction: the reading is cleared, not zero.
+      context: {
+        state: "unknown",
+        used: null,
+        size: null,
+        ratio: null,
+        injected: sessionContextFixture.injected,
+        cleared_by: { compaction_id: "compaction-20", sequence: 20 },
+      } as SessionContextPayload,
+      label: "Context usage unknown",
+      copy: "Context compacted. Waiting for the agent's next usage report.",
+    },
+    {
       context: { state: "reported", used: 89_700 } as SessionContextPayload,
       label: "Context 89.7K used",
       copy: "89.7K used",
@@ -258,7 +297,6 @@ describe("Session context", () => {
         ...sessionContextFixture,
         state: "estimated_size",
         size_source: "catalog",
-        pressure_threshold: undefined,
       } as SessionContextPayload,
       label: "Context 35% used",
       copy: "Size from the model's specs.",
@@ -280,7 +318,7 @@ describe("Session context", () => {
     }
   );
 
-  it("Should retain raw over-capacity values, mark stale, and expose the eligible threshold", async () => {
+  it("Should retain raw over-capacity values and mark stale", async () => {
     const user = userEvent.setup();
     const context = deriveSessionContext({
       ...sessionContextFixture,
@@ -296,14 +334,12 @@ describe("Session context", () => {
     await user.hover(screen.getByRole("button"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent("110% · 281.6K / 256K");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Updated a while ago");
-    expect(screen.getByRole("tooltip")).toHaveTextContent(
-      "CompozyOS summarizes older messages at 85% full"
-    );
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent("summarizes older messages");
     expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
       "stroke-dasharray",
       "1 1"
     );
-    // Freshness is shape (dotted mask), pressure is hue: both survive on one arc.
+    // Freshness is shape: the dotted mask rides the arc and its fill stays the truth.
     expect(screen.getByRole("button")).toHaveAttribute("data-state", "stale");
     expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
       "mask",
@@ -311,7 +347,7 @@ describe("Session context", () => {
     );
     expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
       "stroke",
-      "var(--color-warning)"
+      "var(--color-subtle)"
     );
   });
 
@@ -426,13 +462,135 @@ describe("Session context", () => {
     expect(rows[1]).toHaveTextContent("≈ 4K injected");
     expect(rows[2]).toHaveTextContent("20K / 256K");
     expect(rows[3]).toHaveTextContent("10K / 256K");
-    expect(screen.getAllByTestId("session-context-compaction")[0]).toHaveTextContent(
-      "CompozyOS compaction · at 88% · 225.3K · replay span not archived"
-    );
-    expect(screen.getAllByTestId("session-context-compaction")[1]).toHaveTextContent(
-      "CompozyOS compaction · at 85% · 217.6K · replay span archived"
-    );
+    const markers = screen.getAllByTestId("session-context-compaction-marker");
+    expect(markers[0]).toHaveTextContent("Requested compaction · completed · 225.3K");
+    expect(markers[1]).toHaveTextContent("Agent compaction · completed · 217.6K");
+    expect(
+      Array.from(rows[0]!.parentElement!.children).map(row => row.getAttribute("data-testid"))
+    ).toEqual([
+      "session-context-compaction-marker",
+      "session-context-turn-row",
+      "session-context-turn-row",
+      "session-context-compaction-marker",
+      "session-context-turn-row",
+      "session-context-turn-row",
+    ]);
     expect(screen.getByTestId("session-context-activity")).toHaveTextContent("Working for 49m 20s");
+  });
+
+  it.each([
+    { trigger: "agent", status: "completed", text: "Agent compaction · completed" },
+    { trigger: "requested", status: "completed", text: "Requested compaction · completed" },
+    { trigger: "agent", status: "in_progress", text: "Agent compaction · in progress" },
+    { trigger: "requested", status: "failed", text: "Requested compaction · failed" },
+    { trigger: "agent", status: "cancelled", text: "Agent compaction · cancelled" },
+    {
+      trigger: "requested",
+      status: "compaction_paused",
+      text: "Requested compaction · compaction_paused",
+    },
+  ])("Should render a $trigger compaction marker as $text", ({ trigger, status, text }) => {
+    render(
+      <SessionInspector
+        turnsDefaultOpen
+        turns={{
+          turns: [],
+          compactions: [compactionMarker({ trigger, status, sequence: 1 })],
+        }}
+      />
+    );
+    const marker = screen.getByTestId("session-context-compaction-marker");
+    expect(marker.textContent).toBe(text);
+    expect(marker).toHaveAttribute("data-trigger", trigger);
+    expect(marker).toHaveAttribute("data-status", status);
+  });
+
+  it("Should show tokens before to after only for the figures the daemon recorded", () => {
+    render(
+      <SessionInspector
+        turnsDefaultOpen
+        turns={{
+          // Later usage rows are context, never an "after": only `context_after` is.
+          turns: [
+            contextTurn("turn-1", 10, 180_000),
+            contextTurn("turn-2", 30, 42_000),
+            contextTurn("turn-5", 120, 61_000),
+          ],
+          compactions: [
+            compactionMarker({
+              sequence: 20,
+              turn_id: "turn-1",
+              context_used: 180_000,
+              context_after: { used: 42_000, size: 256_000, sequence: 30 },
+            }),
+            compactionMarker({ sequence: 50, turn_id: "turn-3", context_used: 150_000 }),
+            compactionMarker({
+              sequence: 70,
+              turn_id: "turn-4",
+              context_after: { used: 31_000, sequence: 75 },
+            }),
+            // An observed zero is a reading, not an absent figure.
+            compactionMarker({
+              sequence: 100,
+              turn_id: "turn-4",
+              context_used: 90_000,
+              context_after: { used: 0, sequence: 101 },
+            }),
+            compactionMarker({ sequence: 110, turn_id: "turn-4" }),
+          ],
+        }}
+      />
+    );
+    // Newest first.
+    const [fifth, fourth, third, second, first] = screen
+      .getAllByTestId("session-context-compaction-marker")
+      .map(marker => marker.textContent);
+    expect(first).toBe("Agent compaction · completed · 180K → 42K");
+    expect(second).toBe("Agent compaction · completed · 150K");
+    expect(third).toBe("Agent compaction · completed · → 31K");
+    expect(fourth).toBe("Agent compaction · completed · 90K → 0");
+    expect(fifth).toBe("Agent compaction · completed");
+  });
+
+  it("Should explain an empty meter by the compaction the daemon names, not by a guess", () => {
+    const cleared = {
+      state: "unknown",
+      used: null,
+      size: null,
+      ratio: null,
+      injected: sessionContextFixture.injected,
+    } as SessionContextPayload;
+    const cause = { compaction_id: "compaction-20", sequence: 20 };
+    const { rerender } = render(
+      <SessionContextMeterSection
+        context={deriveSessionContext({ ...cleared, cleared_by: cause })}
+      />
+    );
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
+      "Context compacted. Waiting for the agent's next usage report."
+    );
+    // No attribution rows to show: the meter still names the compaction, not a first report.
+    rerender(
+      <SessionContextMeterSection
+        context={deriveSessionContext({ state: "unknown", cleared_by: cause })}
+      />
+    );
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
+      "Waiting for the agent's next usage report."
+    );
+    // Without a cause from the daemon the plain wording stays, whatever the turns look like.
+    rerender(<SessionContextMeterSection context={deriveSessionContext(cleared)} />);
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
+      "This agent hasn't reported context usage."
+    );
+    // A reading the daemon reports is shown as reported; the cause never overrides it.
+    rerender(
+      <SessionContextMeterSection
+        context={deriveSessionContext({ ...sessionContextFixture, cleared_by: cause })}
+      />
+    );
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("35%");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("Context compacted");
   });
 
   it("Should show the newest fifty turns and reveal earlier turns on demand", async () => {
@@ -463,7 +621,7 @@ describe("Session context", () => {
   });
 });
 
-// Invariant: loading is not a report, eligible pressure is visible, and per-turn costs preserve absence/currency.
+// Invariant: loading is not a report, a nearly full window shows its fill without a warning state, and per-turn costs preserve absence/currency.
 // Owner: session domain surfaces; canonical suite: SessionInspector.
 describe("Fable context surface corrections", () => {
   it("Should reserve the loading control without asserting that the agent has not reported", async () => {
@@ -482,7 +640,7 @@ describe("Fable context surface corrections", () => {
     expect(button).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
   });
 
-  it("Should use the meter empty copy and show almost full only with eligible pressure", () => {
+  it("Should use the meter empty copy and keep a nearly full window free of warning copy", () => {
     const { rerender } = render(<SessionInspector />);
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent("No context report yet");
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
@@ -493,22 +651,11 @@ describe("Fable context surface corrections", () => {
         context={deriveSessionContext({ ...sessionContextFixture, ratio: 0.88, used: 225_280 })}
       />
     );
-    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("almost full");
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("88%");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("almost full");
     expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent(
       "summarizes older messages"
     );
-    rerender(
-      <SessionInspector
-        context={deriveSessionContext({
-          ...sessionContextFixture,
-          state: "estimated_size",
-          ratio: 0.88,
-          size_source: "catalog",
-          pressure_threshold: undefined,
-        })}
-      />
-    );
-    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("almost full");
   });
 
   it("Should show reported per-turn cost and currency while preserving the empty cost cell", () => {
@@ -626,5 +773,174 @@ describe("SessionInspector — origin", () => {
     render(<SessionInspector session={deriveSourceSessionFixture} />);
 
     expect(screen.queryByTestId("session-inspector-origin")).not.toBeInTheDocument();
+  });
+});
+
+// Invariant (UT-W09): Compact now asks the agent to compact through the command it advertises: it is
+// offered only for `compact`/`compress`, inert while a turn runs, sends exactly one request per click,
+// and states a refusal in the daemon's words. Owning layer: the rail's meter section. Canonical suite: this file.
+describe("SessionInspector — Compact now", () => {
+  const compactPath = (session: SessionPayload) =>
+    `/api/workspaces/${session.workspace_id}/sessions/${session.id}/compact`;
+  const advertising = (...names: string[]): SessionPayload => ({
+    ...deriveSourceSessionFixture,
+    available_commands: names.map(name => ({ name, description: `${name} the conversation` })),
+  });
+  const respond = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), {
+      headers: { "Content-Type": "application/json" },
+      status,
+    });
+  const receipt = (session: SessionPayload) => ({
+    command: "compact",
+    prompt_id: "prompt-compact-1",
+    session_id: session.id,
+    status: "accepted",
+  });
+  function renderRail(session: SessionPayload) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (current: SessionPayload) => (
+      <QueryClientProvider client={queryClient}>
+        <SessionInspector session={current} />
+      </QueryClientProvider>
+    );
+    const view = render(tree(session));
+    return { rerenderSession: (next: SessionPayload) => view.rerender(tree(next)) };
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([[["compact"]], [["compress"]], [["review", "compress", "compact"]]])(
+    "Should offer the action when the agent advertises %j",
+    commands => {
+      renderRail(advertising(...commands));
+
+      expect(screen.getByRole("button", { name: "Compact now" })).toBeEnabled();
+    }
+  );
+
+  it.each([[["review", "init"]], [[]]])(
+    "Should not offer the action when the agent advertises %j",
+    commands => {
+      renderRail(advertising(...commands));
+
+      expect(screen.queryByRole("button", { name: "Compact now" })).not.toBeInTheDocument();
+    }
+  );
+
+  // A stalled prompt keeps its turn while the badge turns hung/unhealthy; the daemon still
+  // answers session_busy, so the control reads the turn, not the display badge.
+  const activeTurn = { turn_id: "turn_1" } as SessionPayload["activity"];
+  const stalled = (badge: "hung" | "unhealthy") => ({ badge, activity: activeTurn });
+
+  it.each([
+    { reason: "a turn is running", patch: { badge: "running" as const } },
+    { reason: "a prompt is running with its turn open", patch: { activity: activeTurn } },
+    { reason: "a prompt is stalled (hung)", patch: stalled("hung") },
+    { reason: "a prompt is stalled (unhealthy)", patch: stalled("unhealthy") },
+    { reason: "the session is stopped", patch: { state: "stopped" as const } },
+  ])("Should keep the action inert when $reason", async ({ patch }) => {
+    renderRail({ ...advertising("compact"), ...patch });
+
+    const button = screen.getByRole("button", { name: "Compact now" });
+    expect(button).toBeDisabled();
+    await userEvent.setup().click(button);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("Should send one request per click and hold the button until the request settles", async () => {
+    const session = advertising("compact");
+    let accept: (response: Response) => void = () => undefined;
+    vi.mocked(globalThis.fetch).mockReturnValueOnce(
+      new Promise<Response>(resolve => {
+        accept = resolve;
+      })
+    );
+    renderRail(session);
+
+    const button = screen.getByRole("button", { name: "Compact now" });
+    await userEvent.setup().click(button);
+
+    await expectFetchRequest({ body: {}, method: "POST", path: compactPath(session) });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(button);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+    accept(respond(202, receipt(session)));
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.queryByTestId("session-context-compact-error")).not.toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { code: "session_busy", message: "session: a prompt is already in progress" },
+    { code: "compaction_unsupported", message: "session: agent does not advertise compaction" },
+  ])(
+    "Should state a $code refusal in the daemon's words and clear it on the next attempt",
+    async ({ code, message }) => {
+      const session = advertising("compact");
+      vi.mocked(globalThis.fetch)
+        .mockResolvedValueOnce(respond(409, { code, error: message }))
+        .mockResolvedValueOnce(respond(202, receipt(session)));
+      renderRail(session);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Compact now" }));
+      expect(await screen.findByTestId("session-context-compact-error")).toHaveTextContent(message);
+      expect(screen.getByRole("button", { name: "Compact now" })).toBeEnabled();
+
+      await user.click(screen.getByRole("button", { name: "Compact now" }));
+      await waitFor(() =>
+        expect(screen.queryByTestId("session-context-compact-error")).not.toBeInTheDocument()
+      );
+    }
+  );
+
+  it.each([
+    { reason: "running", patch: { badge: "running" as const } },
+    { reason: "hung", patch: stalled("hung") },
+    { reason: "unhealthy", patch: stalled("unhealthy") },
+  ])(
+    "Should keep a busy refusal while the turn is $reason and drop it once it ends",
+    async ({ patch }) => {
+      const session = advertising("compact");
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+        respond(409, { code: "session_busy", error: "session: a prompt is already in progress" })
+      );
+      const { rerenderSession } = renderRail(session);
+
+      await userEvent.setup().click(screen.getByRole("button", { name: "Compact now" }));
+      expect(await screen.findByTestId("session-context-compact-error")).toBeInTheDocument();
+
+      rerenderSession({ ...session, ...patch });
+      expect(screen.getByTestId("session-context-compact-error")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Compact now" })).toBeDisabled();
+
+      rerenderSession(session);
+      await waitFor(() =>
+        expect(screen.queryByTestId("session-context-compact-error")).not.toBeInTheDocument()
+      );
+    }
+  );
+
+  it("Should use a generic line for a failure the daemon did not classify", async () => {
+    const session = advertising("compact");
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      respond(500, { error: "internal detail the rail must not echo" })
+    );
+    renderRail(session);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Compact now" }));
+
+    const error = await screen.findByTestId("session-context-compact-error");
+    expect(error).toHaveTextContent("Couldn't request compaction. Try again.");
+    expect(error).not.toHaveTextContent("internal detail");
   });
 });

@@ -638,8 +638,6 @@ func TestSchedulerControlHandlersDelegateToTaskService(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		pauseResp := performRequest(
@@ -1082,7 +1080,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces, nil, nil)
+	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces)
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
@@ -1408,8 +1406,6 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 			},
 		},
 		workspaces,
-		nil,
-		nil,
 	)
 
 	t.Run("Should reject invalid include_loop with the stable payload", func(t *testing.T) {
@@ -1565,7 +1561,7 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 		)
 	}
 
-	taskless := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
+	taskless := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces)
 	taskless.Handlers.Tasks = nil
 	if resp := performRequest(
 		t,

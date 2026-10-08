@@ -217,6 +217,7 @@ func isPromptOutputEventType(eventType string) bool {
 		acp.EventTypePermission,
 		acp.EventTypeClarify,
 		acp.EventTypeUsage,
+		acp.EventTypeCompaction,
 		acp.EventTypePromptDelivery,
 		acp.EventTypeSystem,
 		acp.EventTypeRuntimeProgress,

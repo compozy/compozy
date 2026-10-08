@@ -70,7 +70,7 @@ func TestRoleStatusJSONContract(t *testing.T) {
 
 		timeout := "250ms"
 		encoded, err := json.Marshal(RoleStatus{
-			Role:           "memory_controller",
+			Role:           "coordinator",
 			Enabled:        true,
 			ResolutionMode: RoleResolutionModeInherit,
 			Timeout:        &timeout,

@@ -184,7 +184,6 @@ func startAutoTitleRoleHarness(
 	acpmock.RequireDriver(t)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
-			cfg.Roles.MemoryExtractor.Enabled = false
 			if mutate != nil {
 				mutate(cfg)
 			}
@@ -710,4 +709,97 @@ func runAutoTitleRoleAcceptedStartFailureIntegration(t *testing.T) {
 	if current.Name != "" {
 		t.Fatalf("root title = %q, want unchanged after the accepted failure", current.Name)
 	}
+}
+
+func TestAutoTitleRoleLiveApplyModelIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should record the HTTP apply and route the next auto-title through the applied model", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Roles.AutoTitle.Provider = acpmock.ProviderName
+				cfg.Roles.AutoTitle.Model = "primary-title-model"
+			}},
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "auto_title_fixture.json"),
+				FixtureAgent: "auto-title-agent",
+				AgentName:    "auto-title-live-apply",
+			}},
+		})
+		registration, ok := harness.MockAgentRegistration("auto-title-live-apply")
+		if !ok {
+			t.Fatal("MockAgentRegistration(auto-title-live-apply) = missing, want present")
+		}
+
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+
+		var roles compozycontract.SettingsRolesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/roles", nil, &roles); err != nil {
+			t.Fatalf("HTTP GET settings roles error = %v", err)
+		}
+		roles.Config.AutoTitle.Model = "fallback-title-model"
+		var apply compozycontract.SettingsApplyResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPatch,
+			"/api/settings/roles",
+			compozycontract.UpdateSettingsRolesRequest{Config: roles.Config},
+			&apply,
+		); err != nil {
+			t.Fatalf("HTTP PATCH settings roles error = %v", err)
+		}
+		if !apply.Applied || apply.Lifecycle != compozycontract.SettingsApplyLifecycleLive ||
+			apply.ApplyRecordID == "" {
+			t.Fatalf("roles live apply = %#v, want applied live record", apply)
+		}
+
+		var history compozycontract.ConfigApplyRecordsResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/apply", nil, &history); err != nil {
+			t.Fatalf("HTTP GET settings apply history error = %v", err)
+		}
+		foundApply := false
+		for _, entry := range history.Entries {
+			if entry.ID == apply.ApplyRecordID && entry.Actor == "httpapi" &&
+				entry.Lifecycle == compozycontract.SettingsApplyLifecycleLive &&
+				entry.Status == compozycontract.ConfigApplyStatusApplied {
+				foundApply = true
+				break
+			}
+		}
+		if !foundApply {
+			t.Fatalf("settings apply history = %#v, want live HTTP record %q", history.Entries, apply.ApplyRecordID)
+		}
+
+		root := createFixtureBackedSession(t, ctx, harness, "auto-title-live-apply", "")
+		if _, err := harness.PromptSession(ctx, root.ID, "Implement checkout retry fencing"); err != nil {
+			t.Fatalf("PromptSession(auto-title live apply) error = %v", err)
+		}
+
+		var childID string
+		waitForRuntimeCondition(t, "auto-title uses live-applied model", 10*time.Second, func() bool {
+			for _, candidate := range readWorkspaceRoleSessions(t, ctx, harness) {
+				if candidate.Lineage != nil && candidate.Lineage.SpawnRole == sessionpkg.SpawnRoleAutoTitle {
+					childID = candidate.ID
+				}
+			}
+			if childID == "" {
+				return false
+			}
+			records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+			if err != nil {
+				return false
+			}
+			for _, record := range acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForCompozySession(records, childID)) {
+				if record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption &&
+					record.ConfigOptionID == "model" && record.ConfigOptionValue == "fallback-title-model" {
+					return true
+				}
+			}
+			return false
+		})
+	})
 }

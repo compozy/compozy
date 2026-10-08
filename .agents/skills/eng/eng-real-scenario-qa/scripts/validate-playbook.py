@@ -50,7 +50,6 @@ def main() -> int:
                 {
                     "playbook_ref": ref,
                     "agents": len(playbook.get("agents", [])),
-                    "knowledge_files": len(playbook.get("knowledge_files", [])),
                     "open_tasks": len(playbook.get("open_tasks", [])),
                     "required_deliverables": playbook.get("required_deliverables", {}),
                     "required_collaboration": playbook.get("required_collaboration", {}),

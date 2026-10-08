@@ -131,10 +131,11 @@ ON CONFLICT(singleton) DO UPDATE SET
     target_message_id = excluded.target_message_id,
     covered_through_sequence = excluded.covered_through_sequence,
     messages_json = excluded.messages_json,
+    baseline_stale = 0,
     updated_at = excluded.updated_at;
 
 -- name: GetConversationRewindState :one
-SELECT target_message_id, covered_through_sequence, messages_json, updated_at
+SELECT target_message_id, covered_through_sequence, messages_json, updated_at, baseline_stale
 FROM conversation_rewind_state
 WHERE singleton = 1;
 
@@ -185,3 +186,8 @@ WHERE start_sequence BETWEEN sqlc.arg(from_sequence) AND sqlc.arg(to_sequence);
 
 -- name: MinActiveEventSequence :one
 SELECT CAST(COALESCE(MIN(sequence), 0) AS INTEGER) FROM events WHERE archived = 0;
+
+-- name: RefreshConversationRewindBaseline :execrows
+UPDATE conversation_rewind_state
+SET messages_json = sqlc.arg(messages_json), baseline_stale = 0, updated_at = sqlc.arg(updated_at)
+WHERE singleton = 1 AND covered_through_sequence = sqlc.arg(covered_through_sequence);

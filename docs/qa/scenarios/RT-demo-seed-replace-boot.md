@@ -19,3 +19,5 @@ overlaps:
 This scenario owns the cross-surface seed contract. It covers repeatable fixture creation, safe ownership boundaries, live-daemon reconciliation, and truthful read-only presentation of imported Loop runs.
 
 The 2026-08-22 targeted walk confirmed stable IDs and counts across replace, zero live Loop aggregates after daemon boot, read-only historical controls, preserved unowned files, and the populated Goal, worktree, memory, notification, automation, task, and transcript surfaces.
+
+QA impact 2026-10-07 (memory removal): the demo seed no longer seeds memory, so the "memory" surface in the 2026-08-22 walk above is historical; every other seeded surface is unchanged. No verdict change.

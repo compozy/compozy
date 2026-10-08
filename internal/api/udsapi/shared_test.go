@@ -15,16 +15,7 @@ type turnHistoryPayload = contract.TurnHistoryPayload
 type agentPayload = contract.AgentPayload
 type logEventPayload = contract.LogEventPayload
 type logsCursor = core.LogsCursor
-type memoryListResponse = contract.MemoryListResponse
-type memoryEntryResponse = contract.MemoryEntryResponse
-type memorySearchResponse = contract.MemorySearchResponse
-type memoryReindexResponse = contract.MemoryReindexResponse
-type memoryDreamTriggerResponse = contract.MemoryDreamTriggerResponse
 type workspacePayload = contract.WorkspacePayload
-
-func newMemoryValidationError(err error) error {
-	return core.NewMemoryValidationError(err)
-}
 
 func payloadJSON(raw string) json.RawMessage {
 	return core.PayloadJSON(raw)

@@ -212,8 +212,7 @@ func hookMatcherOverlayValues(matcher hookspkg.HookMatcher) map[string]any {
 	addString("message_role", matcher.MessageRole)
 	addString("message_delta_type", matcher.MessageDeltaType)
 	if matcher.CompactionMatcher != nil {
-		addString("compaction_reason", matcher.Reason)
-		addString("compaction_strategy", matcher.Strategy)
+		addString("compaction_trigger", matcher.Trigger)
 	}
 	if matcher.ToolReadOnly != nil {
 		values["tool_read_only"] = *matcher.ToolReadOnly

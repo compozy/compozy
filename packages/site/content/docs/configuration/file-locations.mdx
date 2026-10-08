@@ -1,6 +1,6 @@
 ---
 title: File Locations
-description: All CompozyOS global, workspace, agent, skill, database, log, socket, memory, and extension paths.
+description: All CompozyOS global, workspace, agent, skill, database, log, socket, and extension paths.
 ---
 
 CompozyOS uses one user home directory plus optional personal-profile and workspace-local `.compozy/`
@@ -8,56 +8,48 @@ directories. The user home defaults to `~/.compozy` and can be changed with `COM
 
 ## Quick Reference
 
-| Path                                                                               | Scope                   | Purpose                                                                                            |
-| ---------------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME`                                                                    | Global                  | CompozyOS home root. Defaults to `~/.compozy`.                                                     |
-| `$COMPOZY_HOME/config.toml`                                                        | Global                  | Global runtime config.                                                                             |
-| `$COMPOZY_HOME/mcp.json`                                                           | Global                  | Global top-level MCP sidecar.                                                                      |
-| `$COMPOZY_HOME/profiles/<name>/config.toml`                                        | Personal profile        | Profile config overlay, loaded after the user config.                                              |
-| `$COMPOZY_HOME/profiles/<name>/mcp.json`                                           | Personal profile MCP    | Profile MCP sidecar, loaded in the personal-profile slot.                                          |
-| `$COMPOZY_HOME/profiles/<name>/agents/<agent>/AGENT.md`                            | Personal profile agent  | Profile-owned agent definition.                                                                    |
-| `$COMPOZY_HOME/profiles/<name>/skills/<group>/.../<skill>/SKILL.md`                | Personal profile skill  | Profile-owned skill definition; group directories are optional.                                    |
-| `$COMPOZY_HOME/profiles/<name>/.agents/skills/<group>/.../<skill>/SKILL.md`        | Profile (`agents`)      | Profile-owned Agents convention root; group directories are optional.                              |
-| `$COMPOZY_HOME/profiles/<name>/.claude/skills/<group>/.../<skill>/SKILL.md`        | Profile (`claude`)      | Profile-owned Claude convention root; group directories are optional.                              |
-| `$COMPOZY_HOME/compozy.db`                                                         | Global                  | Global SQLite catalog.                                                                             |
-| `$COMPOZY_HOME/daemon.sock`                                                        | Global                  | Default Unix domain socket.                                                                        |
-| `$COMPOZY_HOME/daemon.lock`                                                        | Global                  | Daemon lock file.                                                                                  |
-| `$COMPOZY_HOME/daemon.json`                                                        | Global                  | Daemon discovery metadata.                                                                         |
-| `$COMPOZY_HOME/logs/compozy.log`                                                   | Global                  | Structured daemon log file.                                                                        |
-| `$COMPOZY_HOME/gateway/credentials/`                                               | Client-local gateway    | Private credential files for named remote connection profiles.                                     |
-| `$COMPOZY_HOME/support-bundles/`                                                   | Global                  | Daemon-created support bundle archives and operation downloads.                                    |
-| `$COMPOZY_HOME/providers/<provider>/`                                              | Provider                | Isolated provider home when `home_policy` is set.                                                  |
-| `$COMPOZY_HOME/sessions/<session-id>/events.db`                                    | Session (live)          | Per-session event database during the live session.                                                |
-| `$COMPOZY_HOME/sessions/<session-id>/meta.json`                                    | Session (live)          | Per-session metadata.                                                                              |
-| `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl`                  | Session (forensic)      | Read-only forensic JSONL ledger materialized after session stop.                                   |
-| `$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl`                        | Session (forensic)      | Forensic ledger for sessions without a resolved workspace_id.                                      |
-| `$COMPOZY_HOME/agents/<name>/AGENT.md`                                             | Global agent            | User-wide agent definition.                                                                        |
-| `$COMPOZY_HOME/agents/<name>/skills/<group>/.../<skill>/SKILL.md`                  | Global agent skill      | Agent-local skill overlay for the global agent; group directories are optional.                    |
-| `$COMPOZY_HOME/skills/<group>/.../<name>/SKILL.md`                                 | Global skill            | User or marketplace skill definition; group directories are optional.                              |
-| `~/.agents/skills/<group>/.../<name>/SKILL.md`                                     | User skill (`agents`)   | Universal convention, scanned by default. Read natively by OpenClaw.                               |
-| `~/.claude/skills/<group>/.../<name>/SKILL.md`                                     | User skill (`claude`)   | Claude Code convention, scanned when `skills.sources` includes `claude`.                           |
-| `<custom-source>/<group>/.../<name>/SKILL.md`                                      | Configured skill root   | Any directory listed in `skills.custom_sources`; group directories are optional.                   |
-| `<workspace>/.env`                                                                 | Workspace               | Optional dotenv file loaded before workspace config.                                               |
-| `<workspace>/.compozy/config.toml`                                                 | Workspace               | Workspace config overlay.                                                                          |
-| `<workspace>/.compozy/mcp.json`                                                    | Workspace               | Workspace top-level MCP sidecar.                                                                   |
-| `<workspace>/.compozy/profiles/<name>/config.toml`                                 | Workspace profile       | Read-only named config layer that binds to the active profile name.                                |
-| `<workspace>/.compozy/profiles/<name>/mcp.json`                                    | Workspace profile MCP   | Read-only named MCP layer that binds to the active profile name.                                   |
-| `<workspace>/.compozy/profiles/<name>/agents/<agent>/AGENT.md`                     | Workspace profile agent | Named-profile agent definition.                                                                    |
-| `<workspace>/.compozy/profiles/<name>/skills/<group>/.../<skill>/SKILL.md`         | Workspace profile skill | Named-profile skill definition; group directories are optional.                                    |
-| `<workspace>/.compozy/profiles/<name>/.agents/skills/<group>/.../<skill>/SKILL.md` | Profile (`agents`)      | Named workspace-profile Agents convention root; group directories are optional.                    |
-| `<workspace>/.compozy/profiles/<name>/.claude/skills/<group>/.../<skill>/SKILL.md` | Profile (`claude`)      | Named workspace-profile Claude convention root; group directories are optional.                    |
-| `<workspace>/.compozy/workspace.toml`                                              | Workspace identity      | Stable workspace ULID. Created on first daemon touch when `[memory.workspace] auto_create = true`. |
-| `<workspace>/.compozy/agents/<name>/AGENT.md`                                      | Workspace agent         | Workspace-local agent definition.                                                                  |
-| `<workspace>/.compozy/agents/<name>/memory/`                                       | Agent (workspace)       | Agent-workspace memory tier (deepest read precedence).                                             |
-| `<workspace>/.compozy/agents/<name>/skills/<group>/.../<skill>/SKILL.md`           | Workspace agent skill   | Agent-local skill overlay for that workspace agent; group directories are optional.                |
-| `<workspace>/.compozy/skills/<group>/.../<name>/SKILL.md`                          | Workspace skill         | Workspace-local skill definition; group directories are optional.                                  |
-| `<workspace>/.agents/skills/<group>/.../<name>/SKILL.md`                           | Workspace (`agents`)    | Universal convention inside the project. Read natively by OpenClaw and Hermes.                     |
-| `<workspace>/.claude/skills/<group>/.../<name>/SKILL.md`                           | Workspace (`claude`)    | Claude Code convention inside the project, scanned when `claude` is enabled.                       |
-| `<workspace>/.compozy/memory/`                                                     | Workspace memory        | Workspace-scoped memory files.                                                                     |
-| `$COMPOZY_HOME/agents/<name>/memory/`                                              | Agent (global)          | Agent-global memory tier (cross-workspace baseline).                                               |
-| `$COMPOZY_HOME/profiles/<name>/memory/`                                            | Profile memory          | Profile-scoped memory files, replacing the pre-Profiles `$COMPOZY_HOME/memory/`.                   |
-| `$COMPOZY_HOME/profiles/<name>/memory/_inbox/`                                     | Memory extractor        | Extractor staging directory consumed by the controller.                                            |
-| `$COMPOZY_HOME/profiles/<name>/memory/_system/`                                    | Memory machine-managed  | Reserved namespace; never injected into prompts.                                                   |
+| Path                                                                               | Scope                   | Purpose                                                                             |
+| ---------------------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME`                                                                    | Global                  | CompozyOS home root. Defaults to `~/.compozy`.                                      |
+| `$COMPOZY_HOME/config.toml`                                                        | Global                  | Global runtime config.                                                              |
+| `$COMPOZY_HOME/mcp.json`                                                           | Global                  | Global top-level MCP sidecar.                                                       |
+| `$COMPOZY_HOME/profiles/<name>/config.toml`                                        | Personal profile        | Profile config overlay, loaded after the user config.                               |
+| `$COMPOZY_HOME/profiles/<name>/mcp.json`                                           | Personal profile MCP    | Profile MCP sidecar, loaded in the personal-profile slot.                           |
+| `$COMPOZY_HOME/profiles/<name>/agents/<agent>/AGENT.md`                            | Personal profile agent  | Profile-owned agent definition.                                                     |
+| `$COMPOZY_HOME/profiles/<name>/skills/<group>/.../<skill>/SKILL.md`                | Personal profile skill  | Profile-owned skill definition; group directories are optional.                     |
+| `$COMPOZY_HOME/profiles/<name>/.agents/skills/<group>/.../<skill>/SKILL.md`        | Profile (`agents`)      | Profile-owned Agents convention root; group directories are optional.               |
+| `$COMPOZY_HOME/profiles/<name>/.claude/skills/<group>/.../<skill>/SKILL.md`        | Profile (`claude`)      | Profile-owned Claude convention root; group directories are optional.               |
+| `$COMPOZY_HOME/compozy.db`                                                         | Global                  | Global SQLite catalog.                                                              |
+| `$COMPOZY_HOME/daemon.sock`                                                        | Global                  | Default Unix domain socket.                                                         |
+| `$COMPOZY_HOME/daemon.lock`                                                        | Global                  | Daemon lock file.                                                                   |
+| `$COMPOZY_HOME/daemon.json`                                                        | Global                  | Daemon discovery metadata.                                                          |
+| `$COMPOZY_HOME/logs/compozy.log`                                                   | Global                  | Structured daemon log file.                                                         |
+| `$COMPOZY_HOME/gateway/credentials/`                                               | Client-local gateway    | Private credential files for named remote connection profiles.                      |
+| `$COMPOZY_HOME/support-bundles/`                                                   | Global                  | Daemon-created support bundle archives and operation downloads.                     |
+| `$COMPOZY_HOME/providers/<provider>/`                                              | Provider                | Isolated provider home when `home_policy` is set.                                   |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db`                                    | Session                 | Per-session event database during the live session.                                 |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json`                                    | Session                 | Per-session metadata.                                                               |
+| `$COMPOZY_HOME/agents/<name>/AGENT.md`                                             | Global agent            | User-wide agent definition.                                                         |
+| `$COMPOZY_HOME/agents/<name>/skills/<group>/.../<skill>/SKILL.md`                  | Global agent skill      | Agent-local skill overlay for the global agent; group directories are optional.     |
+| `$COMPOZY_HOME/skills/<group>/.../<name>/SKILL.md`                                 | Global skill            | User or marketplace skill definition; group directories are optional.               |
+| `~/.agents/skills/<group>/.../<name>/SKILL.md`                                     | User skill (`agents`)   | Universal convention, scanned by default. Read natively by OpenClaw.                |
+| `~/.claude/skills/<group>/.../<name>/SKILL.md`                                     | User skill (`claude`)   | Claude Code convention, scanned when `skills.sources` includes `claude`.            |
+| `<custom-source>/<group>/.../<name>/SKILL.md`                                      | Configured skill root   | Any directory listed in `skills.custom_sources`; group directories are optional.    |
+| `<workspace>/.env`                                                                 | Workspace               | Optional dotenv file loaded before workspace config.                                |
+| `<workspace>/.compozy/config.toml`                                                 | Workspace               | Workspace config overlay.                                                           |
+| `<workspace>/.compozy/mcp.json`                                                    | Workspace               | Workspace top-level MCP sidecar.                                                    |
+| `<workspace>/.compozy/profiles/<name>/config.toml`                                 | Workspace profile       | Read-only named config layer that binds to the active profile name.                 |
+| `<workspace>/.compozy/profiles/<name>/mcp.json`                                    | Workspace profile MCP   | Read-only named MCP layer that binds to the active profile name.                    |
+| `<workspace>/.compozy/profiles/<name>/agents/<agent>/AGENT.md`                     | Workspace profile agent | Named-profile agent definition.                                                     |
+| `<workspace>/.compozy/profiles/<name>/skills/<group>/.../<skill>/SKILL.md`         | Workspace profile skill | Named-profile skill definition; group directories are optional.                     |
+| `<workspace>/.compozy/profiles/<name>/.agents/skills/<group>/.../<skill>/SKILL.md` | Profile (`agents`)      | Named workspace-profile Agents convention root; group directories are optional.     |
+| `<workspace>/.compozy/profiles/<name>/.claude/skills/<group>/.../<skill>/SKILL.md` | Profile (`claude`)      | Named workspace-profile Claude convention root; group directories are optional.     |
+| `<workspace>/.compozy/workspace.toml`                                              | Workspace identity      | Stable workspace ULID.                                                              |
+| `<workspace>/.compozy/agents/<name>/AGENT.md`                                      | Workspace agent         | Workspace-local agent definition.                                                   |
+| `<workspace>/.compozy/agents/<name>/skills/<group>/.../<skill>/SKILL.md`           | Workspace agent skill   | Agent-local skill overlay for that workspace agent; group directories are optional. |
+| `<workspace>/.compozy/skills/<group>/.../<name>/SKILL.md`                          | Workspace skill         | Workspace-local skill definition; group directories are optional.                   |
+| `<workspace>/.agents/skills/<group>/.../<name>/SKILL.md`                           | Workspace (`agents`)    | Universal convention inside the project. Read natively by OpenClaw and Hermes.      |
+| `<workspace>/.claude/skills/<group>/.../<name>/SKILL.md`                           | Workspace (`claude`)    | Claude Code convention inside the project, scanned when `claude` is enabled.        |
 
 Profile resource discovery is most-specific first: workspace named profile, workspace base,
 personal profile, then user. A workspace named profile activates only when its directory name
@@ -65,26 +57,25 @@ matches the active profile; unmatched directories stay dormant.
 
 ## Global Home
 
-| Path                                    | Created by home layout | Description                                                                   |
-| --------------------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
-| `$COMPOZY_HOME`                         | yes                    | Home root. Defaults to `~/.compozy`; `COMPOZY_HOME` overrides it.             |
-| `$COMPOZY_HOME/config.toml`             | no                     | Global TOML config file.                                                      |
-| `$COMPOZY_HOME/mcp.json`                | no                     | Global MCP sidecar loaded after global TOML by the general config loader.     |
-| `$COMPOZY_HOME/agents/`                 | yes                    | Global agent definitions.                                                     |
-| `$COMPOZY_HOME/skills/`                 | yes                    | Global user and marketplace skills.                                           |
-| `$COMPOZY_HOME/profiles/`               | yes                    | Parent for per-profile config, MCP, agent, skill, and memory files.           |
-| `$COMPOZY_HOME/profiles/default/`       | yes                    | The permanent `default` profile's directory.                                  |
-| `$COMPOZY_HOME/profiles/<name>/memory/` | yes for `default`      | Profile memory directory. Can be overridden by `[memory].global_dir`.         |
-| `$COMPOZY_HOME/providers/`              | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
-| `$COMPOZY_HOME/sessions/`               | yes                    | Parent directory for per-session state.                                       |
-| `$COMPOZY_HOME/logs/`                   | yes                    | Parent directory for daemon logs.                                             |
-| `$COMPOZY_HOME/gateway/`                | yes                    | Client-local gateway state.                                                   |
-| `$COMPOZY_HOME/gateway/credentials/`    | yes                    | Private remote connection credential files.                                   |
-| `$COMPOZY_HOME/extensions/`             | no                     | Managed installed extension root. Created when installing managed extensions. |
-| `$COMPOZY_HOME/support-bundles/`        | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
+| Path                                 | Created by home layout | Description                                                                   |
+| ------------------------------------ | ---------------------- | ----------------------------------------------------------------------------- |
+| `$COMPOZY_HOME`                      | yes                    | Home root. Defaults to `~/.compozy`; `COMPOZY_HOME` overrides it.             |
+| `$COMPOZY_HOME/config.toml`          | no                     | Global TOML config file.                                                      |
+| `$COMPOZY_HOME/mcp.json`             | no                     | Global MCP sidecar loaded after global TOML by the general config loader.     |
+| `$COMPOZY_HOME/agents/`              | yes                    | Global agent definitions.                                                     |
+| `$COMPOZY_HOME/skills/`              | yes                    | Global user and marketplace skills.                                           |
+| `$COMPOZY_HOME/profiles/`            | yes                    | Parent for per-profile config, MCP, agent, and skill files.                   |
+| `$COMPOZY_HOME/profiles/default/`    | yes                    | The permanent `default` profile's directory.                                  |
+| `$COMPOZY_HOME/providers/`           | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
+| `$COMPOZY_HOME/sessions/`            | yes                    | Parent directory for per-session state.                                       |
+| `$COMPOZY_HOME/logs/`                | yes                    | Parent directory for daemon logs.                                             |
+| `$COMPOZY_HOME/gateway/`             | yes                    | Client-local gateway state.                                                   |
+| `$COMPOZY_HOME/gateway/credentials/` | yes                    | Private remote connection credential files.                                   |
+| `$COMPOZY_HOME/extensions/`          | no                     | Managed installed extension root. Created when installing managed extensions. |
+| `$COMPOZY_HOME/support-bundles/`     | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
 
 `EnsureHomeLayout` creates the root, `agents`, `skills`, `loops`, `profiles`, the `default` profile
-directory and its `memory` directory, `sessions`, `logs`, and gateway directories. Individual files
+directory, `sessions`, `logs`, and gateway directories. Individual files
 are created by the features that own them.
 
 ## Profile Files
@@ -95,7 +86,6 @@ are created by the features that own them.
 | `$COMPOZY_HOME/profiles/<name>/mcp.json`                            | Personal profile MCP    | Writable personal MCP sidecar.               |
 | `$COMPOZY_HOME/profiles/<name>/agents/<agent>/AGENT.md`             | Personal profile agent  | Profile-owned agent definition.              |
 | `$COMPOZY_HOME/profiles/<name>/skills/<group>/.../<skill>/SKILL.md` | Personal profile skill  | Profile-owned skill definition.              |
-| `$COMPOZY_HOME/profiles/<name>/memory/`                             | Personal profile memory | Profile-scoped memory files.                 |
 | `<workspace>/.compozy/profiles/<name>/config.toml`                  | Workspace named profile | Repository-authored, read-only config layer. |
 | `<workspace>/.compozy/profiles/<name>/mcp.json`                     | Workspace profile MCP   | Repository-authored, read-only MCP layer.    |
 | `<workspace>/.compozy/profiles/<name>/agents/<agent>/AGENT.md`      | Workspace profile agent | Repository-authored profile agent.           |
@@ -131,38 +121,21 @@ their existing login/session state.
 
 ## Session Files
 
-Live sessions own a directory under `$COMPOZY_HOME/sessions/<session-id>/`. After session stop, CompozyOS
-materializes a read-only forensic JSONL ledger under
-`$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl`. Unbound sessions (no resolved
-workspace) materialize under `$COMPOZY_HOME/sessions/_unbound/<session_id>/`.
+Each session owns a directory under `$COMPOZY_HOME/sessions/<session-id>/`.
 
 ```text
 ~/.compozy/sessions/<session-id>/
   events.db
   meta.json
-
-~/.compozy/sessions/<workspace_id>/<session_id>/
-  ledger.jsonl
-
-~/.compozy/sessions/_unbound/<session_id>/
-  ledger.jsonl
 ```
 
-| Path                                                              | Format | Description                                                                                                     |
-| ----------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME/sessions/<session-id>/events.db`                   | SQLite | Per-session event store for ACP events, turns, token usage, permission decisions, and hook run history.         |
-| `$COMPOZY_HOME/sessions/<session-id>/meta.json`                   | JSON   | Quick metadata used by session listing and reconciliation paths.                                                |
-| `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` | JSONL  | Read-only forensic projection materialized after session stop and replaced after a resumed session stops again. |
-| `$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl`       | JSONL  | Forensic ledger for sessions without a resolved workspace_id.                                                   |
+| Path                                            | Format | Description                                                                                             |
+| ----------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db` | SQLite | Per-session event store for ACP events, turns, token usage, permission decisions, and hook run history. |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | JSON   | Quick metadata used by session listing and reconciliation paths.                                        |
 
-The forensic ledger is never a memory scope, never queried by recall, and never accepted as a
-controller write target — it is operator-readable history only. After materialization, live
-`events.db` rows for the same session are purged once `[memory.session] events_purge_grace`
-elapses.
-
-When a stopped session resumes, CompozyOS removes its materialized ledger before accepting new
-events. The append-only `events.db` remains the source of truth, and the next stop writes a new
-ledger with the complete history. A failed provider resume restores the stopped projection.
+The append-only `events.db` is the source of truth for the session record. Read it through
+`compozy session events` and `compozy session history` rather than opening the file directly.
 
 ## Agent Files
 
@@ -238,74 +211,21 @@ my-project/
     mcp.json
     agents/
     skills/
-    memory/
-      MEMORY.md
-      _system/
 ```
 
 | Path                                  | Description                                                                                          |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `<workspace>/.env`                    | Optional dotenv file loaded before home path resolution when config is loaded with a workspace root. |
-| `<workspace>/.compozy/workspace.toml` | Stable workspace identity (ULID). Memory and session ledgers key on this ULID, not on the path.      |
+| `<workspace>/.compozy/workspace.toml` | Stable workspace identity (ULID).                                                                    |
 | `<workspace>/.compozy/config.toml`    | Workspace TOML overlay. Loaded after global config.                                                  |
 | `<workspace>/.compozy/mcp.json`       | Workspace MCP sidecar. Loaded after workspace TOML.                                                  |
-| `<workspace>/.compozy/agents/`        | Workspace agent definitions and per-agent workspace-tier memory.                                     |
+| `<workspace>/.compozy/agents/`        | Workspace agent definitions.                                                                         |
 | `<workspace>/.compozy/skills/`        | Workspace skill definitions.                                                                         |
 | `<workspace>/.agents/`                | Universal agent-tool convention, scanned when `skills.sources` enables `agents`.                     |
 | `<workspace>/.claude/`                | Claude Code convention, scanned when `skills.sources` enables `claude`.                              |
-| `<workspace>/.compozy/memory/`        | Workspace-scoped memory files plus `_system/` for machine-managed artifacts.                         |
 
 CompozyOS only loads the `.compozy/config.toml` for the resolved primary workspace root. Additional roots are
 resource discovery roots for agents and skills; they do not contribute config overlays.
-
-## Memory Files
-
-Memory v2 lives in three scopes: `profile`, `workspace`, and `agent` (with `agent_tier =
-{workspace, global}` — the agent tier is a separate axis and keeps the word `global`). Curated
-entries are Markdown-authoritative on disk; SQLite catalogs, FTS5 indexes, decision WAL rows, and
-`memory_events` are derived from controller activity. The `_system/` directory in every scope hosts
-machine-managed artifacts (dreaming, extractor failures, ad-hoc notes) and is **never** injected
-into prompts.
-
-```text
-~/.compozy/profiles/<name>/memory/
-  MEMORY.md
-  user_review-style.md
-  feedback_test-integrity.md
-  _inbox/
-  _system/
-    dreaming/
-    extractor/
-    extractor/failures/
-    ad_hoc/
-
-~/.compozy/agents/<agent>/memory/
-  MEMORY.md
-  user_pedro-style.md
-  _system/
-
-<workspace>/.compozy/memory/
-  MEMORY.md
-  project_runtime-docs.md
-  reference_session-events.md
-  _system/
-
-<workspace>/.compozy/agents/<agent>/memory/
-  MEMORY.md
-  project_repo-rules.md
-  _system/
-```
-
-| Path                                            | Memory tier               | Description                                                                                                        |
-| ----------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `$COMPOZY_HOME/profiles/<name>/memory/`         | Profile                   | Memory for one profile, accessible from any workspace while that profile is active.                                |
-| `$COMPOZY_HOME/profiles/<name>/memory/_inbox/`  | Extractor staging         | Daemon-owned inbox where the extractor stages candidates before controller acceptance.                             |
-| `$COMPOZY_HOME/profiles/<name>/memory/_system/` | Reserved (per-scope)      | Hosts dreaming output, extractor failures, ad-hoc notes; never injected into prompts.                              |
-| `$COMPOZY_HOME/agents/<agent>/memory/`          | Agent-global              | Cross-workspace agent baseline; deepest scope after agent-workspace.                                               |
-| `<workspace>/.compozy/memory/`                  | Workspace                 | Workspace-private memory keyed by `workspace_id`.                                                                  |
-| `<workspace>/.compozy/agents/<agent>/memory/`   | Agent-workspace (default) | Workspace-private agent memory; the default tier for `--scope agent` writes.                                       |
-| `<workspace>/.compozy/compozy.db`               | Per-workspace DB          | Workspace catalog DB plus the per-workspace `memory_events`, `memory_decisions`, and `memory_recall_signals` rows. |
-| `$COMPOZY_HOME/compozy.db`                      | Global DB                 | Global catalog DB plus profile-scope memory tables and the workspace registration table.                           |
 
 ## Extension Files
 
@@ -319,23 +239,23 @@ config file.
 
 ## Path Overrides
 
-| Setting                         | Affects                                                                            | Notes                                                                                            |
-| ------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `COMPOZY_HOME`                  | All global home paths.                                                             | Resolved before global config is loaded. Workspace `.env` can set it for workspace config loads. |
-| `[daemon].socket`               | Daemon socket path.                                                                | `~` is expanded. Daemon boot resolves the final socket path to an absolute path.                 |
-| `[memory].global_dir`           | The `default` profile's memory directory, `$COMPOZY_HOME/profiles/default/memory`. | `~` is expanded. Empty overlay values are ignored and keep the previous directory.               |
-| `[http].host` and `[http].port` | HTTP/SSE bind address.                                                             | These are not file paths but affect browser/API endpoint locations.                              |
+| Setting                         | Affects                | Notes                                                                                            |
+| ------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `COMPOZY_HOME`                  | All global home paths. | Resolved before global config is loaded. Workspace `.env` can set it for workspace config loads. |
+| `[daemon].socket`               | Daemon socket path.    | `~` is expanded. Daemon boot resolves the final socket path to an absolute path.                 |
+| `[http].host` and `[http].port` | HTTP/SSE bind address. | These are not file paths but affect browser/API endpoint locations.                              |
 
 ## Special Cases
 
-| Case                             | Behavior                                                                                                                              |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Missing `config.toml`            | Treated as absent. Built-in defaults remain active.                                                                                   |
-| Missing `mcp.json`               | Treated as absent.                                                                                                                    |
-| Unknown TOML key                 | Config load fails.                                                                                                                    |
-| Unknown JSON field in `mcp.json` | Sidecar parse fails.                                                                                                                  |
-| Daemon boot config               | Daemon startup uses the home config for boot settings. The general config loader applies MCP sidecars for session/runtime resolution. |
-| `~` expansion                    | Implemented for `daemon.socket` and `memory.global_dir`; home paths are resolved from `COMPOZY_HOME` or OS user home.                 |
+| Case                                 | Behavior                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Missing `config.toml`                | Treated as absent. Built-in defaults remain active.                                                                                                                                                                                                                                                                                                                                              |
+| Missing `mcp.json`                   | Treated as absent.                                                                                                                                                                                                                                                                                                                                                                               |
+| Unknown TOML key                     | Config load fails.                                                                                                                                                                                                                                                                                                                                                                               |
+| Retired memory or compaction setting | Archived on load as a commented block at the end of the same file; the load continues. If the file changes during the rewrite, or cannot be replaced, nothing is written, the load logs a `config.retired_keys_archive_failed` warning, the retired values stay inactive, and the next load retries. See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings). |
+| Unknown JSON field in `mcp.json`     | Sidecar parse fails.                                                                                                                                                                                                                                                                                                                                                                             |
+| Daemon boot config                   | Daemon startup uses the home config for boot settings. The general config loader applies MCP sidecars for session/runtime resolution.                                                                                                                                                                                                                                                            |
+| `~` expansion                        | Implemented for `daemon.socket`; home paths are resolved from `COMPOZY_HOME` or OS user home.                                                                                                                                                                                                                                                                                                    |
 
 ## Related Pages
 

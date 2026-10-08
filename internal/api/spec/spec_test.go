@@ -239,12 +239,12 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 		)
 
 		updateRoles := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/roles", http.MethodPatch))
-		dreamRole := propertySchema(t, propertySchema(t, updateRoles, "config"), "dream")
-		assertRequired(t, dreamRole, "agent")
+		autoTitleRole := propertySchema(t, propertySchema(t, updateRoles, "config"), "auto_title")
+		assertRequired(t, autoTitleRole, "agent")
 		assertAgentNameRequestSchema(
 			t,
 			"settings role agent",
-			propertySchema(t, dreamRole, "agent"),
+			propertySchema(t, autoTitleRole, "agent"),
 			compozyconfig.OptionalAgentNamePattern,
 		)
 	})
@@ -352,6 +352,74 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		name  string
 		check func(t *testing.T, doc *openapi3.T)
 	}{
+
+		{
+			name: "Should describe the inactive-session native compaction refusal",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+				compact := operationFor(
+					t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/compact", http.MethodPost,
+				)
+				refusal := jsonResponseSchema(t, compact, http.StatusBadRequest)
+				description := compact.Responses.Status(http.StatusBadRequest).Value.Description
+				if description == nil || !strings.Contains(*description, "session_not_promptable") {
+					t.Fatalf("inactive-session response description = %v", description)
+				}
+				assertRequired(t, refusal, "error")
+				code := propertySchema(t, refusal, "code")
+				if code.Type == nil || !code.Type.Is("string") {
+					t.Fatalf("refusal code schema = %#v, want string", code)
+				}
+			},
+		},
+
+		{
+			name: "Should describe optional experimental compaction occupancy fields",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+				usage := jsonResponseSchema(
+					t,
+					operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/usage", http.MethodGet),
+					http.StatusOK,
+				)
+				context := propertySchema(t, propertySchema(t, usage, "usage"), "context")
+				cleared := propertySchema(t, context, "cleared_by")
+				turns := jsonResponseSchema(
+					t,
+					operationFor(
+						t,
+						doc,
+						"/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
+						http.MethodGet,
+					),
+					http.StatusOK,
+				)
+				marker := propertySchema(t, turns, "compactions").Items.Value
+				after := propertySchema(t, marker, "context_after")
+				for _, schema := range []*openapi3.Schema{cleared, after} {
+					if schema.Extensions["x-stability"] != "experimental" ||
+						!strings.Contains(schema.Description, "first terminal") {
+						t.Fatalf("experimental chronology missing: %#v", schema)
+					}
+				}
+				assertRequired(t, cleared, "compaction_id", "sequence")
+				assertRequired(t, after, "used", "sequence")
+				if slices.Contains(context.Required, "cleared_by") ||
+					slices.Contains(marker.Required, "context_after") ||
+					slices.Contains(after.Required, "size") {
+					t.Fatal("unknown occupancy fields must remain optional")
+				}
+				for _, target := range []struct {
+					schema *openapi3.Schema
+					field  string
+				}{{after, "used"}, {after, "size"}, {after, "sequence"}, {cleared, "sequence"}} {
+					value := propertySchema(t, target.schema, target.field)
+					if !value.Type.Is("integer") || value.Format != "int64" {
+						t.Fatalf("%s must be int64: %#v", target.field, value)
+					}
+				}
+			},
+		},
 		{
 			name: "ShouldDescribeDaemonDrainAndAdmissionContracts",
 			check: func(t *testing.T, doc *openapi3.T) {
@@ -676,7 +744,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					t,
 					propertySchema(t, sessionSchema, "type"),
 					"user",
-					"dream",
 					"system",
 					"coordinator",
 					"spawned",
@@ -1146,110 +1213,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeMemoryV2PublicContractAndHardCuts",
-			check: func(t *testing.T, doc *openapi3.T) {
-				t.Helper()
-
-				memoryOperations := append(
-					registryMemoryOperations(),
-					registryMemoryLifecycleOperations()...,
-				)
-				for _, operationSpec := range memoryOperations {
-					operation := operationFor(t, doc, operationSpec.Path, operationSpec.Method)
-					assertParameter(t, operation, specProfileKey, openapi3.ParameterInQuery, false)
-					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
-				}
-
-				writeMemory := operationFor(t, doc, "/api/memory", "POST")
-				writeMemorySchema := jsonRequestSchema(t, writeMemory)
-				assertRequired(t, writeMemorySchema, "scope", "type", "name", "content")
-				assertNotRequired(
-					t,
-					writeMemorySchema,
-					"workspace_id",
-					"agent_name",
-					"agent_tier",
-					"origin",
-					"idempotency_key",
-					"dry_run",
-				)
-				assertEnumValues(t, propertySchema(t, writeMemorySchema, "scope"), "profile", "workspace", "agent")
-				assertEnumValues(t, propertySchema(t, writeMemorySchema, "agent_tier"), "workspace", "global")
-				assertEnumValues(
-					t,
-					propertySchema(t, writeMemorySchema, "type"),
-					"user",
-					"feedback",
-					"project",
-					"reference",
-				)
-				assertEnumValues(t, propertySchema(t, writeMemorySchema, "origin"),
-					"cli",
-					"http",
-					"uds",
-					"tool",
-					"extractor",
-					"dreaming",
-					"file",
-					"provider",
-				)
-
-				editMemory := operationFor(t, doc, "/api/memory/{filename}", "PATCH")
-				editMemorySchema := jsonRequestSchema(t, editMemory)
-				assertRequired(t, editMemorySchema, "content")
-				assertNotRequired(t, editMemorySchema, "workspace_id", "agent_name", "agent_tier")
-
-				readMemory := operationFor(t, doc, "/api/memory/{filename}", "GET")
-				readMemorySchema := jsonResponseSchema(t, readMemory, 200)
-				assertRequired(t, readMemorySchema, "memory")
-				memorySchema := propertySchema(t, readMemorySchema, "memory")
-				assertRequired(t, memorySchema, "summary", "content")
-				summarySchema := propertySchema(t, memorySchema, "summary")
-				assertEnumValues(t, propertySchema(t, summarySchema, "scope"), "profile", "workspace", "agent")
-				assertEnumValues(t, propertySchema(t, summarySchema, "agent_tier"), "workspace", "global")
-
-				searchMemory := operationFor(t, doc, "/api/memory/search", "POST")
-				searchSchema := jsonRequestSchema(t, searchMemory)
-				assertRequired(t, searchSchema, "query_text")
-				assertNotRequired(t, searchSchema, "include_system", "include_already_surfaced", "agent_tier")
-
-				decision := operationFor(t, doc, "/api/memory/decisions/{decision_id}", "GET")
-				decisionSchema := propertySchema(t, jsonResponseSchema(t, decision, 200), "decision")
-				assertRequired(
-					t,
-					decisionSchema,
-					"id",
-					"candidate_hash",
-					"op",
-					"scope",
-					"frontmatter",
-					"confidence",
-					"source",
-					"decided_at",
-				)
-				assertEnumValues(
-					t,
-					propertySchema(t, decisionSchema, "op"),
-					"noop",
-					"add",
-					"update",
-					"delete",
-					"reject",
-				)
-				assertPropertyAbsent(t, decisionSchema, "post_content")
-				assertPropertyAbsent(t, decisionSchema, "prior_content")
-
-				errorSchema := jsonResponseSchema(t, writeMemory, 422)
-				assertRequired(t, errorSchema, "code", "message")
-				assertNotRequired(t, errorSchema, "details")
-				assertPropertyAbsent(t, errorSchema, "error")
-
-				assertOperationAbsent(t, doc, "/api/memory/{filename}", "PUT")
-				assertOperationAbsent(t, doc, "/api/memory/search", "GET")
-				assertOperationAbsent(t, doc, "/api/memory/consolidate", "POST")
-			},
-		},
-		{
 			name: "ShouldDescribeAutomationJobSchemasAndEnums",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
@@ -1312,7 +1275,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				healthOperation := operationFor(t, doc, "/api/status", "GET")
 				healthSchema := jsonResponseSchema(t, healthOperation, 200)
-				assertRequired(t, healthSchema, "daemon", "health", "memory", "automation", "config", "log_tail")
+				assertRequired(t, healthSchema, "daemon", "health", "automation", "config", "log_tail")
 
 				automationSchema := propertySchema(t, healthSchema, "automation")
 				assertRequired(t, automationSchema, "enabled", "jobs", "triggers", "scheduler_running")
@@ -2579,7 +2542,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
 		{name: "ToolSource", typ: tools.ToolSourceBuiltin},
-		{name: "HostAPIMethod", typ: extensionprotocol.HostAPIMethod("memory.read")},
+		{name: "HostAPIMethod", typ: extensionprotocol.HostAPIMethod("session.read")},
 	}
 
 	for _, tt := range tests {
@@ -2828,18 +2791,6 @@ func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *op
 		t.Fatalf("missing operation %s %s", method, path)
 	}
 	return operation
-}
-
-func assertOperationAbsent(t *testing.T, doc *openapi3.T, path string, method string) {
-	t.Helper()
-
-	pathItem := doc.Paths.Value(path)
-	if pathItem == nil {
-		return
-	}
-	if operation := pathItem.GetOperation(method); operation != nil {
-		t.Fatalf("unexpected operation %s %s", method, path)
-	}
 }
 
 func jsonResponseSchema(t *testing.T, operation *openapi3.Operation, status int) *openapi3.Schema {

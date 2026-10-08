@@ -16,8 +16,8 @@ The parser is strict. Unknown frontmatter fields fail loading.
 
 <OperatorNote>
   RFC 001 is ahead of the current implementation. This page documents the fields accepted by the
-  current runtime. Draft RFC fields such as `description`, `skills.inherit`, `skills.extra_sources`,
-  and `memory.*` are listed as non-accepted fields near the end of this page. Extra skill
+  current runtime. Draft RFC fields such as `description`, `skills.inherit`, and
+  `skills.extra_sources` are listed as non-accepted fields near the end of this page. Extra skill
   directories are runtime configuration, not an agent field — see [`skills.sources` and
   `skills.custom_sources`](/docs/skills/sources).
 </OperatorNote>
@@ -75,10 +75,10 @@ does not merge lower-precedence definitions.
 
 ## Reserved Builtin Names
 
-`coordinator` and `dreaming-curator` are virtual, CompozyOS-owned role identities. They have embedded
-prompts, resolve without authored directories, and never appear in public agent catalogs. Creating,
-updating, renaming, duplicating, or publishing either name from an extension fails with
-`agent_name_reserved`; CompozyOS does not create or modify an authored directory.
+`coordinator` is a virtual, CompozyOS-owned role identity. It has an embedded prompt, resolves
+without an authored directory, and never appears in public agent catalogs. Creating, updating,
+renaming, duplicating, or publishing that name from an extension fails with `agent_name_reserved`;
+CompozyOS does not create or modify an authored directory.
 
 `general` is different: it is the normal managed public agent created by installation and remains
 editable. Other authored agents may be selected through `[roles.<role>].agent`; doing so changes the
@@ -301,7 +301,7 @@ category_path:
 ```
 
 This field does not affect provider selection, permissions, tools, scheduling, skill resolution,
-hooks, memory, or ACP startup. It is not a multi-tag list; it is one ordered path. Root-level agents
+hooks, or ACP startup. It is not a multi-tag list; it is one ordered path. Root-level agents
 omit the field or use an empty array. CompozyOS rejects `categories: [...]` and `category_path:
 "Marketing/Sales"` because the runtime has one canonical array shape and no compatibility aliases.
 
@@ -341,6 +341,12 @@ this agent.
 | `args`          | string array | empty                                               | Strings.                                                              | Command arguments.                                |
 | `env`           | string map   | empty                                               | String keys and values.                                               | Explicit hook environment values.                 |
 | `executor.kind` | string       | `subprocess` when a command is present.             | `subprocess` or `wasm` for user declarations.                         | Executor kind.                                    |
+
+A hook `matcher` that still carries the retired `compaction_reason` or `compaction_strategy` key
+loads normally. CompozyOS ignores those two keys, leaves `AGENT.md` untouched, and logs one
+`agent.retired_entries_ignored` warning with the `agent` name and the ignored `entries` (for example
+`hooks[0].matcher.compaction_reason`). Any other invalid matcher field is still rejected. See
+[Hook declarations](/docs/hooks/declaration#matchers).
 
 ## Provider Examples
 
@@ -521,16 +527,13 @@ layer narrows it. Denies still win.
 
 The current runtime diverges from the broader RFC 001 draft in these ways:
 
-| Field                     | RFC purpose                           | Current behavior                                                                                                          |
-| ------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `description`             | Human description.                    | Rejected.                                                                                                                 |
-| `skills.inherit`          | Control inherited skills.             | Rejected.                                                                                                                 |
-| `skills.disabled`         | Disable logical skills for one agent. | Accepted.                                                                                                                 |
-| `skills.extra_sources`    | Add agent-specific skill roots.       | Rejected. Skill scan roots are runtime config — see [`skills.sources` and `skills.custom_sources`](/docs/skills/sources). |
-| `memory.inherit`          | Control inherited memory.             | Rejected.                                                                                                                 |
-| `memory.scope`            | Default write scope for memory.       | Rejected.                                                                                                                 |
-| `memory.auto_consolidate` | Agent-scoped memory consolidation.    | Rejected.                                                                                                                 |
-| `categories`              | Ambiguous multi-tag grouping.         | Rejected.                                                                                                                 |
+| Field                  | RFC purpose                           | Current behavior                                                                                                          |
+| ---------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `description`          | Human description.                    | Rejected.                                                                                                                 |
+| `skills.inherit`       | Control inherited skills.             | Rejected.                                                                                                                 |
+| `skills.disabled`      | Disable logical skills for one agent. | Accepted.                                                                                                                 |
+| `skills.extra_sources` | Add agent-specific skill roots.       | Rejected. Skill scan roots are runtime config — see [`skills.sources` and `skills.custom_sources`](/docs/skills/sources). |
+| `categories`           | Ambiguous multi-tag grouping.         | Rejected.                                                                                                                 |
 
 RFC examples also use permission values such as `plan`. Current CompozyOS uses `deny-all`,
 `approve-reads`, and `approve-all`.

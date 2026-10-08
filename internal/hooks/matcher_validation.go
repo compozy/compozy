@@ -48,8 +48,7 @@ func appendCompactionMatcherFieldNames(fields *[]string, matcher *CompactionMatc
 		}
 	}
 
-	appendIf("compaction_reason", matcher.Reason != "")
-	appendIf("compaction_strategy", matcher.Strategy != "")
+	appendIf("compaction_trigger", matcher.Trigger != "")
 }
 
 func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher) {
@@ -112,8 +111,7 @@ func validateCompactionMatcherPatterns(matcher *CompactionMatcher) error {
 		field   string
 		pattern string
 	}{
-		{field: "compaction_reason", pattern: matcher.Reason},
-		{field: "compaction_strategy", pattern: matcher.Strategy},
+		{field: "compaction_trigger", pattern: matcher.Trigger},
 	}
 	for _, item := range patterns {
 		if err := validateMatcherPattern(item.field, item.pattern); err != nil {

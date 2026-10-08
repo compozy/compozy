@@ -7,7 +7,7 @@ remediation, and confirms the daemon's physical schema streams through structure
 flowchart TD
     C1[Entry: compozy daemon start] --> DB{compozy.db state}
     C2[Entry: foreground startup log] --> DB
-    DB -->|fresh or current| BOOT[Daemon applies global + memory streams]
+    DB -->|fresh or current| BOOT[Daemon applies the global stream]
     DB -->|pre-Goose table found| REFUSE[Startup refuses before readiness and names remediation]
     DB -->|recorded version ahead| AHEAD[Startup refuses and requests a newer binary or isolated fresh home]
     DB -->|SQLite corruption| CORRUPT[Startup refuses and leaves DB, WAL, and SHM unchanged]
@@ -25,7 +25,7 @@ flowchart TD
     AHEAD --> FRESH[Select a separate fresh COMPOZY_HOME]
     FRESH --> BOOT
     BACKUP --> FRESH
-    BOOT --> DOMAINS[Read workspace and memory catalogs through public CLI surfaces]
+    BOOT --> DOMAINS[Read the workspace catalog through public CLI surfaces]
     DOMAINS --> STATUS[Inspect full status and bounded identity over HTTP and UDS]
     STATUS --> CLI[Inspect compozy status -o json]
     CLI --> AUDIT[Run gateway audit over CLI, HTTP, UDS, and the native tool]
@@ -56,7 +56,7 @@ journey:
       origin: direct
     - url: "CLI: compozy extension list -o json; compozy mcp auth status -o json; compozy provider auth status <bound-secret-provider> -o json"
       origin: direct
-    - url: "CLI: compozy workspace list -o json; compozy memory list -o json"
+    - url: "CLI: compozy workspace list -o json"
       origin: direct
     - url: "CLI: compozy session events <session-id>; compozy session history <session-id>"
       origin: direct
@@ -71,11 +71,11 @@ journey:
       verb: "Read preserved session events or materialize a terminal ledger"
       expected_observable: "Legacy, ahead, corrupt, ownerless, and foreign-owned events.db files are refused before migration or mutation while an exactly owned session database remains readable."
     - step: 4
-      verb: "Exercise global and memory read paths after migration and restart"
-      expected_observable: "Workspace and memory catalog reads succeed while the two version streams remain independently visible."
+      verb: "Exercise global read paths after migration and restart"
+      expected_observable: "Workspace catalog reads succeed while the single global version stream stays visible."
     - step: 5
       verb: "Compare full status and bounded runtime identity over HTTP, UDS, and CLI JSON"
-      expected_observable: "Full status keeps the same ordered global and memory entries; repeated identity reads return only the process and listener identity on both transports."
+      expected_observable: "Full status keeps the same global stream entry (no memory stream); repeated identity reads return only the process and listener identity on both transports."
     - step: 6
       verb: "Run the gateway self-audit through each structured surface"
       expected_observable: "Every surface returns the same stable, severity-ranked findings or an explicit no-findings result without changing gateway state or exposing credentials."

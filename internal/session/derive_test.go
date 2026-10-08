@@ -1,6 +1,8 @@
 package session
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,8 +12,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func deriveTestMessages(count int, bodyBytes int) []transcript.Message {
@@ -34,7 +39,7 @@ func deriveTestMessages(count int, bodyBytes int) []transcript.Message {
 func TestBoundReplay(t *testing.T) {
 	t.Parallel()
 
-	budget := replayBudget{MaxBytes: 8192, MaxMessageBytes: 4096, KeepRecent: deriveProtectedTail}
+	budget := replayBudget{MaxBytes: 8192, MaxMessageBytes: 4096}
 
 	t.Run("Should keep everything and report no truncation within budget", func(t *testing.T) {
 		t.Parallel()
@@ -67,6 +72,64 @@ func TestBoundReplay(t *testing.T) {
 		}
 	})
 
+	for _, pin := range []bool{false, true} {
+		for _, below := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf(
+					"Should retain the newest fitting suffix with first-user pin %t and below-eight budget %t",
+					pin,
+					below,
+				),
+				func(t *testing.T) {
+					t.Parallel()
+					messages := deriveTestMessages(12, 100)
+					for index := range 4 {
+						messages[index].Content = strings.Repeat("older", 400)
+					}
+					omitted := 4
+					candidate := []transcript.Message{}
+					if pin {
+						candidate = append(candidate, messages[0])
+						omitted--
+					}
+					candidate = append(candidate, omittedReplayNote(omitted, messages[3].Timestamp))
+					candidate = append(candidate, messages[4:]...)
+					budget := replayBudget{
+						MaxBytes:        replayArrayBytes(candidate),
+						MaxMessageBytes: 4096,
+						PinFirstUser:    pin,
+					}
+					wantStart := 4
+					if below {
+						budget.MaxBytes--
+						wantStart++
+						omitted++
+					}
+					bounded, stats := boundReplay(messages, budget)
+					if stats.OmittedCount != omitted || stats.Bytes > budget.MaxBytes || stats.FirstUserPinned != pin {
+						t.Fatalf(
+							"suffix bound stats = %+v, want %d omissions, pin=%t and bytes <= %d",
+							stats,
+							omitted,
+							pin,
+							budget.MaxBytes,
+						)
+					}
+					if pin && bounded[0].ID != messages[0].ID {
+						t.Fatalf("pinned first user = %q, want %q", bounded[0].ID, messages[0].ID)
+					}
+					retained := bounded[len(bounded)-(len(messages)-wantStart):]
+					if !slices.EqualFunc(retained, messages[wantStart:], func(got, want transcript.Message) bool {
+						return got.ID == want.ID && got.Role == want.Role && got.Content == want.Content &&
+							got.Timestamp.Equal(want.Timestamp)
+					}) {
+						t.Fatalf("retained suffix = %+v, want unchanged messages from %d onward", retained, wantStart)
+					}
+				},
+			)
+		}
+	}
+
 	t.Run("Should drop protected messages down to one when the tail exceeds the budget", func(t *testing.T) {
 		t.Parallel()
 		bounded, stats := boundReplay(deriveTestMessages(8, 3500), budget)
@@ -95,6 +158,72 @@ func TestBoundReplay(t *testing.T) {
 			}
 		})
 	}
+
+	for _, firstBytes := range []int{1024, 40 << 10} {
+		t.Run(
+			fmt.Sprintf("Should pin the first user request with %d bytes before omitted history", firstBytes),
+			func(t *testing.T) {
+				t.Parallel()
+				messages := deriveTestMessages(300, 1024)
+				messages[0].Content = strings.Repeat("request", firstBytes/7)
+				messages[298] = transcript.Message{ID: "recorded-tool", Role: transcript.RoleToolCall,
+					ToolName: "compozy__task_read", ToolInput: json.RawMessage(`{"query":"original"}`)}
+				pinnedBudget := replayBudget{MaxBytes: 32768, MaxMessageBytes: 16384, PinFirstUser: true}
+				bounded, stats := boundReplay(messages, pinnedBudget)
+				if !stats.FirstUserPinned || bounded[0].ID != messages[0].ID ||
+					bounded[1].Content != fmt.Sprintf(deriveOmittedFmt, stats.OmittedCount) {
+					t.Fatalf("pin and omission = %+v / %+v", bounded[:2], stats)
+				}
+				if stats.MessageCount+stats.OmittedCount != len(messages) || stats.Bytes > pinnedBudget.MaxBytes {
+					t.Fatalf("stats = %+v, want kept+dropped=%d within budget", stats, len(messages))
+				}
+				for index, message := range bounded[len(bounded)-8:] {
+					want := messages[len(messages)-8+index]
+					if replayMessageBytes(message) != replayMessageBytes(want) ||
+						!slices.Equal(message.ToolInput, want.ToolInput) ||
+						message.ID != want.ID ||
+						message.Role != want.Role ||
+						message.ToolName != want.ToolName ||
+						message.Content != want.Content {
+						t.Fatalf("protected tail message = %+v, want %+v", message, want)
+					}
+				}
+				if firstBytes > pinnedBudget.MaxMessageBytes &&
+					(!strings.HasSuffix(bounded[0].Content, deriveTruncatedMark) || replayMessageBytes(bounded[0]) > pinnedBudget.MaxMessageBytes) {
+					t.Fatalf("original request was not capped: %+v", bounded[0])
+				}
+			},
+		)
+	}
+	t.Run("Should move a retained first user ahead of omitted non-user history", func(t *testing.T) {
+		t.Parallel()
+		messages := deriveTestMessages(3, 50)
+		messages[0].Role, messages[0].Content = transcript.RoleSystem, strings.Repeat("old", 2000)
+		messages[1].Role = transcript.RoleUser
+		bounded, stats := boundReplay(
+			messages,
+			replayBudget{MaxBytes: 1024, MaxMessageBytes: 8192, PinFirstUser: true},
+		)
+		if len(bounded) != 3 || bounded[0].ID != messages[1].ID || bounded[1].ID != deriveOmittedMessageID ||
+			bounded[2].ID != messages[2].ID ||
+			!stats.FirstUserPinned ||
+			stats.OmittedCount != 1 {
+			t.Fatalf("pin retained behind omitted non-user history: %+v, %+v", bounded, stats)
+		}
+	})
+
+	t.Run("Should leave a fitting pinned transcript unchanged", func(t *testing.T) {
+		t.Parallel()
+		messages := deriveTestMessages(8, 80)
+		pinnedBudget := budget
+		pinnedBudget.PinFirstUser = true
+		bounded, stats := boundReplay(messages, pinnedBudget)
+		before, _ := json.Marshal(messages)
+		after, _ := json.Marshal(bounded)
+		if !bytes.Equal(before, after) || stats.FirstUserPinned || stats.OmittedCount != 0 {
+			t.Fatalf("fitting transcript changed: %+v", stats)
+		}
+	})
 
 	t.Run("Should cap a huge tool result with the truncation mark", func(t *testing.T) {
 		t.Parallel()
@@ -407,4 +536,133 @@ func TestValidateDeriveSource(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReplayBudgetWorkspaceOverlay(t *testing.T) {
+	t.Parallel()
+	t.Run("Should use the same workspace overlay for resume and derive", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace.Config.Session.Derive = compozyconfig.SessionDeriveConfig{MaxReplayBytes: 8192, MaxMessageBytes: 4096}
+		h.resolver.upsert(&workspace)
+		resolved, err := resolveStoredSessionWorkspace(
+			t.Context(),
+			new(session.Meta()),
+			h.manager.workspace,
+			h.manager.profileNames,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ws := range []*workspacepkg.ResolvedWorkspace{&workspace, &resolved} {
+			budget := h.manager.deriveBudget(ws)
+			if budget.MaxBytes != 8192 || budget.MaxMessageBytes != 4096 ||
+				!budget.PinFirstUser {
+				t.Fatalf("replay budget = %+v, want workspace limits with pin", budget)
+			}
+		}
+	})
+	for _, historyAvailable := range []bool{false, true} {
+		name := "Should rebuild cached replay under current bounds without a removed history tool"
+		if historyAvailable {
+			name = "Should keep the omission pointer under the current effective history tool"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			sess := createSession(t, h)
+			messages := deriveTestMessages(30, 6000)
+			encoded, err := json.Marshal(messages)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cached := renderResumeReplay(sess.ID, nil, string(encoded), true, true)
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace.Config.Session.Derive = compozyconfig.SessionDeriveConfig{
+				MaxReplayBytes:  8192,
+				MaxMessageBytes: 4096,
+			}
+			replay, _, err := h.manager.reboundResumeReplay(sess, cached, rebuildReplayContext{
+				workspace: &workspace, historyAvailable: historyAvailable, reason: "resume",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			bounded := resumeReplayMessagesFromPrompt(t, replay)
+			if replayArrayBytes(bounded) > 8192 || len(bounded) == 0 || bounded[0].ID != messages[0].ID {
+				t.Fatalf(
+					"replay bytes=%d count=%d, want <=8192 with original request",
+					replayArrayBytes(bounded),
+					len(bounded),
+				)
+			}
+			for _, message := range bounded {
+				if replayMessageBytes(message) > 4096 {
+					t.Fatalf("message bytes=%d, want <=4096", replayMessageBytes(message))
+				}
+			}
+			if strings.Contains(replay, "Read them with the compozy__session_history tool") != historyAvailable {
+				t.Fatalf("effective history pointer disagrees with availability %t", historyAvailable)
+			}
+		})
+	}
+}
+
+// Invariant: derive readers rebuild a stale retained prefix without mutating their source.
+// Owner: derive snapshot; canonical suite: derive_test.go.
+func TestDeriveRewindBaselineRebuildsStaleState(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reconstruct restored rewind context using a read-only recorder", func(t *testing.T) {
+		t.Parallel()
+		path := store.SessionDBFile(t.TempDir())
+		owner := store.SessionDBOwner{SessionID: "legacy-derive", WorkspaceID: "workspace-derive"}
+		seedLegacyRewindDatabase(t, path, owner)
+		writer, err := sessiondb.OpenSessionDB(t.Context(), owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := sessiondb.OpenSessionDBReadOnly(t.Context(), owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		before, found, err := reader.ConversationRewindState(t.Context())
+		if err != nil || !found || !before.BaselineStale {
+			t.Fatalf("before=%+v found=%v err=%v", before, found, err)
+		}
+		messages, covered, err := deriveRewindBaseline(t.Context(), reader)
+		if err != nil || covered != 149 || len(messages) != 149 {
+			t.Fatalf("derive messages=%d covered=%d err=%v", len(messages), covered, err)
+		}
+		for index, message := range messages {
+			if want := fmt.Sprintf("message-%03d", index+1); message.Content != want {
+				t.Fatalf("message %d=%q want=%q", index, message.Content, want)
+			}
+		}
+		after, found, err := reader.ConversationRewindState(t.Context())
+		if err != nil || !found || after != before {
+			t.Fatalf(
+				"read-only derive changed stored baseline: before=%+v after=%+v found=%v err=%v",
+				before,
+				after,
+				found,
+				err,
+			)
+		}
+	})
 }

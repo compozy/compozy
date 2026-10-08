@@ -278,7 +278,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 				AgentName:   "coder",
 			}, nil
 		},
-	}, testutil.StubObserver{}, workspaces, nil, nil)
+	}, testutil.StubObserver{}, workspaces)
 	soulAuthoring := &workspaceIDCaptureSoulAuthoring{}
 	statusSpy := &heartbeatStatusSpy{}
 	wakeSpy := &heartbeatWakeSpy{}
@@ -391,7 +391,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 				}, nil
 			},
 		}
-		stableFixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspacesWithStableOnly, nil, nil)
+		stableFixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspacesWithStableOnly)
 		stableStatusSpy := &heartbeatStatusSpy{}
 		stableWakeSpy := &heartbeatWakeSpy{}
 		stableFixture.Handlers.HeartbeatStatus = stableStatusSpy
@@ -602,7 +602,7 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 					}, nil
 				},
 			}
-			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 			fixture.Handlers.SessionHealth = sessionHealthReaderStub{health: heartbeat.SessionHealth{
 				SessionID:       "sess-deleted-agent",
 				WorkspaceID:     "ws-registry",
@@ -693,7 +693,7 @@ func TestSessionStatusCarriesLineage(t *testing.T) {
 					}, nil
 				},
 			}
-			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 			fixture.Handlers.SessionHealth = sessionHealthReaderStub{health: heartbeat.SessionHealth{
 				SessionID: "sess-child", WorkspaceID: "ws-registry", AgentName: "coder",
 				State: heartbeat.SessionHealthStateIdle, Health: heartbeat.SessionHealthHealthy,
@@ -751,8 +751,6 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 						}, nil
 					},
 				},
-				nil,
-				nil,
 			)
 			wake := &heartbeatWakeSpy{}
 			fixture.Handlers.HeartbeatWake = wake
@@ -804,7 +802,7 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 			}, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 	statusSpy := &heartbeatStatusSpy{}
 	wakeSpy := &heartbeatWakeSpy{}
 	fixture.Handlers.HeartbeatStatus = statusSpy
@@ -977,8 +975,6 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 						}, nil
 					},
 				},
-				nil,
-				nil,
 			)
 			fixture.Handlers.Profiles = sessionProfileServiceStub{}
 			fixture.Handlers.SoulAuthoring = soulAuthoring
@@ -1136,8 +1132,6 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 				testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
-				nil,
-				nil,
 			)
 			fixture.Handlers.SoulAuthoring = authoring
 			fixture.Handlers.SoulRefresher = refresher
@@ -1391,8 +1385,6 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 						testutil.StubSessionManager{},
 						testutil.StubObserver{},
 						workspaces,
-						nil,
-						nil,
 					)
 					fixture.Handlers.Profiles = sessionProfileServiceStub{}
 					fixture.Handlers.SoulAuthoring, err = soul.NewManagedSoulAuthoringService(db)
@@ -1608,7 +1600,7 @@ func TestAuthoredContextHeartbeatSessionProfileScope(t *testing.T) {
 							}, nil
 						},
 					}
-					fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+					fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 					fixture.Handlers.Profiles = sessionProfileServiceStub{}
 					status, wake := &heartbeatStatusSpy{}, &heartbeatWakeSpy{}
 					fixture.Handlers.HeartbeatStatus, fixture.Handlers.HeartbeatWake = status, wake

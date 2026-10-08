@@ -24,6 +24,7 @@ import { useOsShell } from "../hooks/use-os-shell";
 import { useWindowManagerGestureDragging } from "../hooks/use-window-manager-store";
 import { useWindowLiveDataEnabled } from "../hooks/use-window-live-data-enabled";
 import { useWindowMergeTarget } from "../hooks/use-window-merge-target";
+import { osAppId } from "../lib/app-catalog";
 import { getOsApp, getOsAppMinimum } from "../lib/app-registry";
 import type { OsWindowFrameModel } from "../lib/group-projection";
 import type { OsRect } from "../lib/os-types";
@@ -65,9 +66,10 @@ export function OsWindow({ frame }: OsWindowProps) {
   const { presentation, activeApp, closeShortcut, newTabShortcut } = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
     const platform = typeof navigator === "undefined" ? "" : navigator.platform;
+    const activeWindowApp = state.windows[frame.activeWindowId]?.app;
     return {
       presentation: state.presentation,
-      activeApp: state.windows[frame.activeWindowId]?.app ?? null,
+      activeApp: activeWindowApp === undefined ? null : osAppId(activeWindowApp),
       closeShortcut: shortcutActionLabel(effective, "window.close", platform) ?? undefined,
       newTabShortcut: shortcutActionLabel(effective, "window.tab.new", platform) ?? undefined,
     };
@@ -238,7 +240,9 @@ function OsWindowMember({
   // Mount layout-heavy bodies after the restored window frames commit.
   const contentHost = useDeferredValue(overlayHost);
   if (!win) return null;
-  const app = getOsApp(win.app);
+  const appId = osAppId(win.app);
+  if (appId === null) return null;
+  const app = getOsApp(appId);
   const Controller = app.Controller;
   const AppIcon = app.icon;
   const compact = presentation === "compact";

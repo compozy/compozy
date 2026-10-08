@@ -46,7 +46,7 @@ func (m *Manager) sessionStartOpts(
 		AdditionalDirs:    s.executionAdditionalDirs(),
 		Env:               env,
 		MCPServers:        mcpServers,
-		Permissions:       m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
+		Permissions:       m.startPermissions(startSpecPermissions(s, resolved.Permissions)),
 		SystemPrompt:      resolved.Prompt,
 		PreferredModel:    preferredModel,
 		LaunchModelID:     launchModelID,

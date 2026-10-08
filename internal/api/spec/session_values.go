@@ -17,7 +17,6 @@ func sessionStateValues() []string {
 func sessionTypeValues() []string {
 	return []string{
 		string(session.SessionTypeUser),
-		string(session.SessionTypeDream),
 		string(session.SessionTypeSystem),
 		string(session.SessionTypeCoordinator),
 		string(session.SessionTypeSpawned),

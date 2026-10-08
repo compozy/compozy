@@ -7,37 +7,6 @@ import (
 	"time"
 )
 
-type ObserveHealth struct {
-	Status             string                  `json:"status"`
-	UptimeSeconds      int64                   `json:"uptime_seconds"`
-	ActiveSessions     int                     `json:"active_sessions"`
-	ActiveAgents       int                     `json:"active_agents"`
-	GlobalDBSizeBytes  int64                   `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                   `json:"session_db_size_bytes"`
-	Persistence        PersistenceHealth       `json:"persistence"`
-	Retention          RetentionHealth         `json:"retention"`
-	Failures           FailureHealth           `json:"failures"`
-	AgentProbes        []ProbeResult           `json:"agent_probes,omitempty"`
-	Tasks              TaskHealth              `json:"tasks"`
-	Activities         []SessionActivityHealth `json:"activities,omitempty"`
-	Version            string                  `json:"version"`
-}
-
-type OpenAppEffect struct {
-	App string `json:"app"`
-}
-
-type OpenURLEffect struct {
-	URL string `json:"url"`
-}
-
-type Origin struct {
-	Kind OriginKind `json:"kind"`
-	Ref  string     `json:"ref"`
-}
-
-type OriginKind string
-
 type OwnerKind string
 
 type Ownership struct {
@@ -230,3 +199,25 @@ type PickFilesEffect struct {
 }
 
 type Priority string
+
+type ProbeResult struct {
+	AgentName  string    `json:"agent_name,omitempty"`
+	Provider   string    `json:"provider,omitempty"`
+	Command    string    `json:"command,omitempty"`
+	Executable string    `json:"executable,omitempty"`
+	Status     string    `json:"status"`
+	Error      string    `json:"error,omitempty"`
+	CheckedAt  time.Time `json:"checked_at"`
+	DurationMS int64     `json:"duration_ms"`
+}
+
+type ProfileLens struct {
+	ID   ProfileLensID `json:"profile_lens_id"`
+	Name string        `json:"profile_name"`
+}
+
+type ProfileLensID string
+
+type PromptDelivery string
+
+type PromptMode string

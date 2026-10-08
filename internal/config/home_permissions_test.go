@@ -60,7 +60,6 @@ func configRuntimeDirectories(paths HomePaths) []string {
 		paths.LoopsDir,
 		paths.ProfilesDir,
 		paths.DefaultProfileDir,
-		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.ToolArtifactsDir,
 		paths.SessionAttachmentsDir,

@@ -91,15 +91,6 @@ const DOCK_ICON_GLYPHS = {
       />
     </DockGlyph>
   ),
-  knowledge: (props: GlyphProps) => (
-    <DockGlyph {...props}>
-      <path
-        d="M4 4.5A1.5 1.5 0 0 1 5.5 3H16v13H5.5A1.5 1.5 0 0 0 4 17.5zM4 4.5v13M16 13H5.5A1.5 1.5 0 0 0 4 14.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </DockGlyph>
-  ),
   vault: (props: GlyphProps) => (
     <DockGlyph {...props}>
       <circle cx="7.5" cy="8" r="3.8" />

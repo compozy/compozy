@@ -214,7 +214,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         {
           id: "group-focus",
           frame: { x: 0, y: 0, width: 1, height: 1 },
-          root: { id: "leaf-knowledge", kind: "leaf", window_id: "app:knowledge" },
+          root: { id: "leaf-terminal", kind: "leaf", window_id: "app:terminal" },
         },
       ],
       floating: [],
@@ -274,10 +274,10 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       minimized: true,
       floating_rect: { x: 0.58, y: 0.62, width: 0.28, height: 0.3 },
     },
-    "app:knowledge": tiled(
-      "app:knowledge",
-      "knowledge",
-      "/knowledge",
+    "app:terminal": tiled(
+      "app:terminal",
+      "terminal",
+      "/terminal",
       settingsWindowManagerDesktopIds.focus
     ),
   },

@@ -238,7 +238,7 @@ func TestHookHandlers(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixture(t, manager, observer, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, manager, observer, workspaces)
 
 	eventValue := hookspkg.HookToolPreCall.String()
 
@@ -317,8 +317,6 @@ func TestHookHandlersRejectInvalidRequests(t *testing.T) {
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	tests := []struct {

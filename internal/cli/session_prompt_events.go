@@ -411,7 +411,7 @@ func streamSessionEvents(
 				sessionAgentNameKey,
 				sessionTurnIDKey,
 				cliOutputTimestampKey,
-				memoryContentKey,
+				cliContentKey,
 			}, []string{
 				strconv.FormatInt(payload.Sequence, 10),
 				payload.Type,

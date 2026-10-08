@@ -1,11 +1,11 @@
 import type { HomeActivityEvent } from "../types";
 
-const QUIET_TYPE_PREFIXES = ["tool.", "config.", "memory.", "hook.", "stream."] as const;
+const QUIET_TYPE_PREFIXES = ["tool.", "config.", "hook.", "stream."] as const;
 const QUIET_TYPES = new Set(["tool_call", "usage_update", "current_mode_update", "plan"]);
 
 /**
  * Quiet events fold behind the activity feed's "quieter events" disclosure:
- * per-call tool traffic, config reads, and memory bookkeeping stay truthful
+ * per-call tool traffic, config reads, and hook bookkeeping stay truthful
  * but never compete with lifecycle events for attention.
  */
 export function isQuietActivityEvent(event: Pick<HomeActivityEvent, "type" | "outcome">): boolean {

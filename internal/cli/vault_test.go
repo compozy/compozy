@@ -12,6 +12,12 @@ import (
 
 func TestVaultCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should treat missing stdin as optional input", func(t *testing.T) {
+		t.Parallel()
+		if content, err := readOptionalCommandInput(nil); err != nil || content != "" {
+			t.Fatalf("optional stdin = %q, %v, want empty input", content, err)
+		}
+	})
 
 	t.Run("Should list vault metadata with filters and jsonl output", func(t *testing.T) {
 		t.Parallel()

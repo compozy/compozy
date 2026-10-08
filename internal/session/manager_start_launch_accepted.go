@@ -94,6 +94,9 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	}
 	accepted.runtime = runtime
 	acceptedID := accepted.proc.SessionID
+	if spec.resumeReplay || spec.resumeReplayBlock != "" {
+		session.setPendingResumeReplay(spec.resumeReplayBlock)
+	}
 	session.commitAcceptedRoute(acceptedRouteRecord(spec.fallbackAttempt, runtime.agent, ""), spec.command)
 	if err := m.persistResumeReplayMarker(ctx, spec, session); err != nil {
 		return acp.WrapAcceptedStart(acceptedID, startupFailure("session resume marker persistence failed", err))
@@ -117,7 +120,7 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 			fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err),
 		))
 	}
-	if spec.resumeReplay {
+	if spec.resumeReplayBlock != "" {
 		m.stageResumeReplay(spec.sessionID, spec.resumeReplayBlock)
 	}
 	return nil

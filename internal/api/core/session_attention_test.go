@@ -49,7 +49,7 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 			}
 			return leaseID, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		path := "/workspaces/ws-1/sessions/sess-attention/presence"
 
 		acquire := performRequest(t, fixture.Engine, http.MethodPost, path, []byte(`{"visible":true}`))
@@ -110,8 +110,6 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 					manager,
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
-					nil,
-					nil,
 				)
 				response := performRequest(t, fixture.Engine, http.MethodPost,
 					"/workspaces/ws-1/sessions/sess-attention/presence", []byte(`{"visible":true}`))
@@ -143,7 +141,7 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 				CreatedAt: time.Date(2026, 8, 15, 20, 0, 0, 0, time.UTC),
 			}}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -183,7 +181,7 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 				},
 			}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/attention-summary", nil)
 		if response.Code != http.StatusOK {
 			t.Fatalf("attention summary status = %d, want 200; body=%s", response.Code, response.Body.String())
@@ -220,7 +218,7 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 				Revision: 19,
 			}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -261,7 +259,7 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 				ResumeID: "wait-23",
 			}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -291,7 +289,7 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 			t.Fatal("WaitForBadge() called for invalid request")
 			return session.WaitOutcome{}, nil
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		tests := []struct {
 			name string
 			body string
@@ -364,8 +362,6 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 					manager,
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
-					nil,
-					nil,
 				)
 				response := performRequest(
 					t,
@@ -398,8 +394,6 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			attentionRouteSessionManager(),
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		headers := map[string]string{
 			agentidentity.HeaderSessionID: "sess-agent",
@@ -465,8 +459,6 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		headers := map[string]string{
 			agentidentity.HeaderSessionID: "sess-agent",
@@ -612,7 +604,7 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 				}
 				return page, nil
 			}
-			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 			fixture.Handlers.Observer = notificationRouteObserver{Store: db}
 			fixture.Handlers.Loops = &stubLoopService{
 				listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {

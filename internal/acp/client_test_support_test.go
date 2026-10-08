@@ -716,6 +716,48 @@ func (a *helperACPAgent) LoadSession(
 
 func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
 	switch a.scenario {
+	case "compaction_usage":
+		updates := []string{
+			`{"sessionUpdate":"usage_update","used":190000,"size":200000,"cost":{"amount":1.5,"currency":"USD"}}`,
+			`{"sessionUpdate":"compaction_update","compactionId":"c1","status":"completed"}`,
+		}
+		switch a.filePath {
+		case "cost":
+			updates = append(updates, `{"sessionUpdate":"usage_update","cost":{"amount":2.5,"currency":"USD"}}`)
+		case "used":
+			updates = append(updates, `{"sessionUpdate":"usage_update","used":8000}`)
+		case "late":
+			// The terminal compaction arrives after the prompt response, inside the drain window.
+			updates = updates[:1]
+			go func() {
+				time.Sleep(20 * time.Millisecond)
+				_ = a.conn.SessionUpdate(context.WithoutCancel(ctx), acpsdk.SessionNotification{
+					SessionId: params.SessionId,
+					Update: acpsdk.SessionUpdate{CompactionUpdate: &acpsdk.SessionCompactionUpdate{
+						SessionUpdate: "compaction_update", CompactionId: "c1", Status: "completed",
+					}},
+				})
+			}()
+		case "fresh":
+			updates = append(updates,
+				`{"sessionUpdate":"usage_update","used":8000,"size":200000}`,
+				`{"sessionUpdate":"compaction_update","compactionId":"c1","status":"failed","error":"correction"}`,
+			)
+		}
+		// Raw frames preserve omitted occupancy fields that the SDK's value types fill with zero.
+		for _, update := range updates {
+			if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"jsonrpc": "2.0", "method": acpsdk.ClientMethodSessionUpdate,
+				"params": wireSessionNotification{SessionID: params.SessionId, Update: json.RawMessage(update)},
+			}); err != nil {
+				return acpsdk.PromptResponse{}, err
+			}
+		}
+		response := acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}
+		if a.filePath == "totals" {
+			response.Usage = &acpsdk.Usage{InputTokens: 190000, OutputTokens: 1000, TotalTokens: 191000}
+		}
+		return response, nil
 	case "crash_on_prompt":
 		os.Exit(23)
 	case "provider_auth_recovers", "provider_rate_limit_recovers":

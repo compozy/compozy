@@ -210,6 +210,10 @@ func (m *Manager) buildImportedContext(
 		budget.MaxBytes -= replayMessageBytes(note) + 1
 	}
 	bounded, stats := boundReplay(messages, budget)
+	if imported := snapshot.meta.ImportedContext; imported != nil {
+		stats.OmittedCount += imported.OmittedCount
+		stats.Truncated = stats.Truncated || imported.Truncated
+	}
 	if aborted != nil {
 		bounded = append(bounded, *aborted)
 	}
@@ -268,7 +272,8 @@ func (m *Manager) deriveBudget(workspace *workspacepkg.ResolvedWorkspace) replay
 		cfg.MaxMessageBytes = compozyconfig.DefaultSessionDeriveMaxMessageBytes
 	}
 	return replayBudget{
-		MaxBytes: cfg.MaxReplayBytes, MaxMessageBytes: cfg.MaxMessageBytes, KeepRecent: deriveProtectedTail,
+		MaxBytes: cfg.MaxReplayBytes, MaxMessageBytes: cfg.MaxMessageBytes,
+		PinFirstUser: true,
 	}
 }
 

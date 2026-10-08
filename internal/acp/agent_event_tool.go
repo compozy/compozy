@@ -9,6 +9,7 @@ import (
 )
 
 type agentEventPayload struct {
+	goal              *GoalPromptMeta
 	delivery          *DeliveryManifest
 	eventID           string
 	messageID         string
@@ -44,6 +45,7 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 		return &agentEventPayload{}
 	}
 	cloned := *e.payload
+	cloned.goal = CloneGoalPromptMeta(e.payload.goal)
 	cloned.delivery = cloneDeliveryManifest(e.payload.delivery)
 	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
 	cloned.promptRuntime = ClonePromptRuntime(e.payload.promptRuntime)
@@ -59,7 +61,7 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
 		payload.resolvedBy == "" &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
-		payload.availableCommands == nil && payload.delivery == nil &&
+		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil &&
 		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
 		return nil
 	}
@@ -262,4 +264,18 @@ func (e AgentEvent) DeliveryManifest() *DeliveryManifest {
 		return nil
 	}
 	return cloneDeliveryManifest(e.payload.delivery)
+}
+
+func (e AgentEvent) WithGoalPromptMeta(goal *GoalPromptMeta) AgentEvent {
+	payload := e.clonePayload()
+	payload.goal = CloneGoalPromptMeta(goal)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+func (e AgentEvent) GoalPromptMeta() *GoalPromptMeta {
+	if e.payload == nil {
+		return nil
+	}
+	return CloneGoalPromptMeta(e.payload.goal)
 }

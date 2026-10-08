@@ -41,7 +41,7 @@ CompozyOS is the system around the agent, already built: it keeps AI agents work
 
 ### Short Pitch
 
-Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, memory, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes) and ships the operating layer around them already built: durable sessions, Loops, triggers, memory, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
+Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes) and ships the operating layer around them already built: durable sessions, Loops, triggers, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
 
 ### Product Category
 
@@ -57,15 +57,15 @@ Use the headline and subhead together, verbatim, on the landing hero, with `An o
 
 ### Primary Promise
 
-People get advanced, continuous agent work (loops, scheduled automation, memory, permissions, approvals, supervision) without assembling or maintaining the system around the agent. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
+People get advanced, continuous agent work (loops, scheduled automation, permissions, approvals, supervision) without assembling or maintaining the system around the agent. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
 
 ### Differentiator Ladder
 
 Lead with compression, then prove it through the connected parts:
 
-1. **Already built:** loops, triggers, memory, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
+1. **Already built:** loops, triggers, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
 2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, OpenClaw, and Hermes) plug in as drivers. CompozyOS is not another boxed agent competing with them.
-3. **One runtime, one state model:** execution, tasks, loops, memory, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
+3. **One runtime, one state model:** execution, tasks, loops, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
 4. **Built to be built on:** extensions, hooks, skills, capabilities, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
 5. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
 
@@ -85,9 +85,9 @@ Use the glossary as the authority. In public copy, keep these boundaries clear:
 
 The system around the agent, already built.
 
-Anyone can prompt an agent; making agents work continuously is still an engineering project. The advanced techniques (reliable loops, triggers, scheduled automation, memory, permissions, approvals) stay with the few who can assemble the system around the agent. CompozyOS lowers that floor: it ships the entire agent stack as one product, so the operating expertise comes built in. The parts already work together: a task can start a session, permissions bound it, memory follows the workspace, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
+Anyone can prompt an agent; making agents work continuously is still an engineering project. The advanced techniques (reliable loops, triggers, scheduled automation, permissions, approvals) stay with the few who can assemble the system around the agent. CompozyOS lowers that floor: it ships the entire agent stack as one product, so the operating expertise comes built in. The parts already work together: a task can start a session, permissions bound it, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
 
-The enemy in public copy is the DIY agent stack (agent CLI + loops + triggers + cron and webhooks + memory + permissions + approvals + observability + glue scripts), never a named rival. Architecture ("one runtime, one state model") explains why the system holds; it never leads.
+The enemy in public copy is the DIY agent stack (agent CLI + loops + triggers + cron and webhooks + permissions + approvals + observability + glue scripts), never a named rival. Architecture ("one runtime, one state model") explains why the system holds; it never leads.
 
 ### Secondary Narrative
 
@@ -99,15 +99,14 @@ CompozyOS exposes extensions, hooks, skills, capabilities, SDKs, MCP, native too
 
 Every major copy surface should draw from one or more proof pillars.
 
-| Pillar            | Claim Shape                                                                             | Proof to Prefer                                                                                                |
-| ----------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Assembled System  | The whole agent stack ships in one product; there is nothing to assemble.               | An install-to-first-Loop journey that needs no outside tooling; the built-in surfaces in generated references. |
-| Integrated System | Work, state, policy, memory, automation, coordination, and the OS shell stay connected. | A real task/session/loop journey that crosses those surfaces without duplicate state.                          |
-| Durable Runtime   | Sessions survive beyond one terminal interaction and remain inspectable.                | Session CLI, event databases, SSE, UDS/HTTP parity, web session views.                                         |
-| Shared Control    | People and agents operate the same daemon-owned state through structured surfaces.      | CLI `-o json`, HTTP/UDS endpoints, native tools, hosted MCP projection, truthful web views.                    |
-| Bounded Autonomy  | Work ownership is token-fenced, leased, observable, and recoverable.                    | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.                                   |
-| Extensibility     | Public contracts let the operating system grow without bypassing runtime ownership.     | Host API, hooks, extensions, skills, capability catalog, SDKs, and tool registry.                              |
-| Memory            | Memory is typed, scoped, file-backed, and inspectable.                                  | `compozy memory` commands, memory taxonomy, operation history, health.                                         |
+| Pillar            | Claim Shape                                                                         | Proof to Prefer                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Assembled System  | The whole agent stack ships in one product; there is nothing to assemble.           | An install-to-first-Loop journey that needs no outside tooling; the built-in surfaces in generated references. |
+| Integrated System | Work, state, policy, automation, coordination, and the OS shell stay connected.     | A real task/session/loop journey that crosses those surfaces without duplicate state.                          |
+| Durable Runtime   | Sessions survive beyond one terminal interaction and remain inspectable.            | Session CLI, event databases, SSE, UDS/HTTP parity, web session views.                                         |
+| Shared Control    | People and agents operate the same daemon-owned state through structured surfaces.  | CLI `-o json`, HTTP/UDS endpoints, native tools, hosted MCP projection, truthful web views.                    |
+| Bounded Autonomy  | Work ownership is token-fenced, leased, observable, and recoverable.                | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.                                   |
+| Extensibility     | Public contracts let the operating system grow without bypassing runtime ownership. | Host API, hooks, extensions, skills, capability catalog, SDKs, and tool registry.                              |
 
 ### Feature Priority by Surface
 
@@ -181,10 +180,10 @@ The glossary is authoritative. This section lists the terms most likely to appea
 
 ### Product Names
 
-| Term        | Use                                                                                                                                                                                                                                               |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CompozyOS` | The public product name in prose, UI, package descriptions, calls to action, and formal category language. It names the complete system: runtime, daemon, work model, memory, automation, permissions, OS shell, extensibility, and coordination. |
-| `compozy`   | The CLI command and technical identifier family. Keep the binary, `COMPOZY_*` environment variables, module path, `@compozy/*` packages, formula, sockets, config paths, and `compozy__*` tool IDs unchanged.                                     |
+| Term        | Use                                                                                                                                                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CompozyOS` | The public product name in prose, UI, package descriptions, calls to action, and formal category language. It names the complete system: runtime, daemon, work model, automation, permissions, OS shell, extensibility, and coordination. |
+| `compozy`   | The CLI command and technical identifier family. Keep the binary, `COMPOZY_*` environment variables, module path, `@compozy/*` packages, formula, sockets, config paths, and `compozy__*` tool IDs unchanged.                             |
 
 ### Canonical Example Trio
 
@@ -207,7 +206,7 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 
 ### Positioning Vocabulary
 
-- `the agent stack` / `the DIY agent stack`: the pile a user otherwise assembles and maintains around an agent CLI (loops, triggers, cron and webhooks, memory, permissions, approvals, observability, glue scripts). This is the canonical problem name in marketing copy; the enemy is the stack, never a named rival.
+- `the agent stack` / `the DIY agent stack`: the pile a user otherwise assembles and maintains around an agent CLI (loops, triggers, cron and webhooks, permissions, approvals, observability, glue scripts). This is the canonical problem name in marketing copy; the enemy is the stack, never a named rival.
 - **The second enemy**, for people who never assemble a stack: work redone by hand, agents that forget what already happened, and results nobody can verify. Name it in plain outcomes — never as a persona, never as a named rival, and never as a claim that those people are served today.
 - `Batteries included.`: the label and headline form of the completeness claim. In prose use `comes built in`, `already built`, or `nothing to assemble`. Never `full-feature`.
 - `simple` / `easy`: only with a measured metric behind them; until then use `assembled`, `complete`, `built in`.
@@ -234,6 +233,16 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - **Restart in a new session**: the dead-runtime recovery action (an empty child in the same workspace). Never call it a fork.
 - `handoff`: reserved for Network; never a label for continue or fork. The API's `next_action: "handoff"` is a wire value — the UI says "Continue this session with another agent or route."
 - Never in this feature's copy: `branch` (git, worktrees, Loops), `chat`, "Handoff from X", a "Badge".
+
+### Session Compaction Terms
+
+The agent compacts its own context window. CompozyOS observes that compaction when the agent supports it and asks for it only through the command the agent advertises. The surfaces are experimental while the upstream ACP contract is unstable. The glossary entry **Compaction** is authoritative.
+
+- **Compact now**: the context-rail action that asks the agent to compact. It appears only when the agent advertises a `compact` or `compress` command, and it is disabled while a turn runs. A refused request (`session_busy`, `compaction_unsupported`) shows the server's message inline; any other failure reads "Couldn't request compaction. Try again."
+- Timeline row, by status: "Compacting context…" (in progress), "Context compacted" (completed), "Context compaction failed" (failed, with the agent's error), "Context compaction cancelled" (cancelled). Any other status the agent reports is shown verbatim. An optional **Summary** disclosure shows the agent's own summary; agents that send none show no disclosure.
+- Context rail marker: "Agent compaction" when the agent compacted on its own, "Requested compaction" when it followed a Compact now request (or `compozy session compact`, a tool call, or a Goal). The marker adds the status and, when the daemon recorded them, the tokens before → after: in use when the compaction was observed, and the agent's first usage report after it ended. A figure the daemon has not recorded is left out.
+- Meter after a compaction: while the daemon reports the context as unknown because a compaction cleared it (`context.cleared_by`), the context meter and its tooltip read "Context usage unknown" with the sentence "Context compacted. Waiting for the agent's next usage report." Before any report, and in every other empty case, the sentence stays "This agent hasn't reported context usage."
+- Never in this feature's copy: "CompozyOS compacts the session", "summarizes older messages", a "{threshold} full" warning, "pressure", or "archived". A rebuild into a new agent session is a bounded replay, not a compaction.
 
 ### Surface Aliases
 
@@ -267,7 +276,6 @@ Three rules bind every row:
 | Loop `generation`                                                   | "round"                                                                                                   | One iteration of a Loop run. Wire, CLI, and payloads keep `generation`.                                                                                                                                                                                                                                                                                                                                                                               |
 | Loop step `quarantined`                                             | "set aside"                                                                                               | A step removed from scheduling after repeated failures; the UI verb is "Retry" (wire: requeue).                                                                                                                                                                                                                                                                                                                                                       |
 | fork (built-in Loop)                                                | "Copy and edit"                                                                                           | UI verb for forking a built-in Loop into the project.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| memory `dream`                                                      | "tidy up"                                                                                                 | Memory consolidation. `dream` stays in API, CLI, and config keys.                                                                                                                                                                                                                                                                                                                                                                                     |
 | extension dev overlay                                               | "local development copy"                                                                                  | Menu verb "Unlink local copy".                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | session status tokens (`waiting-for-input`, `hung`, `unhealthy`, …) | "Needs your answer", "Stuck", "Having trouble", …                                                         | Display words only; the token stays on `data-badge`/aria. Color only states that need the user.                                                                                                                                                                                                                                                                                                                                                       |
 
@@ -309,7 +317,7 @@ The web UI presents as a desktop environment. These terms are runtime-true — e
 - `desktop pager`: the minimal dot control in the menubar tray for switching desktops; an orange dot marks an off-screen desktop that needs you. The All desktops button beside it opens Desktops Overview, where full create, rename, reorder, transfer, and delete actions live.
 - `dock`: the rail of app launchers along the left edge (a bottom tab bar in compact presentation), with running/minimized indicators and badges bound to runtime projections. Its foot holds the profile switcher, the light/dark toggle, and Settings. User-facing copy says "dock", not "rail".
 - `menubar`: the top bar — CompozyOS mark (its menu holds Settings), Global scope globe, workspace trigger, app menus, then the tray: desktop pager, All desktops, the approvals bell, the ⌘K palette. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. Chip identity is the project name when scoped down, or **Global** (`~`) when Global scope is on.
-- `window manager`: the daemon-authoritative, workspace-scoped topology and command surface for desktops and windows. Browser focus and the active desktop are client-local projections. This presentation data never contains agent `memory`.
+- `window manager`: the daemon-authoritative, workspace-scoped topology and command surface for desktops and windows. Browser focus and the active desktop are client-local projections.
 - `theme`: the light or dark color scheme. Settings › Appearance offers **Light**, **Dark**, and **System** (help: "System follows your computer's light or dark setting."); Dark is the default. The dock-foot toggle reads "Switch to light mode" / "Switch to dark mode" (tooltip "Light mode" / "Dark mode"). Say "light" and "dark", never "night mode" or "day mode".
 - Empty desktop: the question "What should we work on?" above the session composer (placeholder "Describe a task or ask a question"; in Global scope "Pick a project to start a session" with **Pick a project**), plus the quiet line "Press ⌘K to open anything." Sending starts a session on that desktop. No card, never a modal and never a blocking wall.
 - Window arrangements (Window › Arrange): **Main and stack**, **Columns**, **Grid**, **Balance sizes**; **Move window to** sends the focused window to another desktop by name. Use "desktop", never "space" or "workspace", for these destinations.
@@ -399,7 +407,7 @@ Goal: make the core difference obvious quickly.
 Use:
 
 - the Hero Lock in §2 verbatim: headline, subhead, and the small category label.
-- the compression promise first, then proof that loops, triggers, memory, permissions, approvals, automation, and supervision come built in (create, automate, supervise).
+- the compression promise first, then proof that loops, triggers, permissions, approvals, automation, and supervision come built in (create, automate, supervise).
 - agent neutrality as a feature line: CompozyOS runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes).
 - extensibility as the next criterion: show how extensions, hooks, skills, SDKs, and tools participate in the same runtime.
 - architecture only as a why-it-holds caption ("one runtime, one state model"), never a section lead.

@@ -60,12 +60,6 @@ const (
 	HostAPIMethodAgentsHeartbeatStatus HostAPIMethod = "agents/heartbeat/status"
 	// HostAPIMethodAgentsHeartbeatWake requests one managed advisory Heartbeat wake.
 	HostAPIMethodAgentsHeartbeatWake HostAPIMethod = "agents/heartbeat/wake"
-	// HostAPIMethodMemoryRecall recalls memory.
-	HostAPIMethodMemoryRecall HostAPIMethod = "memory/recall"
-	// HostAPIMethodMemoryStore stores memory.
-	HostAPIMethodMemoryStore HostAPIMethod = "memory/store"
-	// HostAPIMethodMemoryForget forgets memory.
-	HostAPIMethodMemoryForget HostAPIMethod = "memory/forget"
 	// HostAPIMethodObserveHealth returns daemon health.
 	HostAPIMethodObserveHealth HostAPIMethod = "observe/health"
 	// HostAPIMethodListLogs returns runtime logs.

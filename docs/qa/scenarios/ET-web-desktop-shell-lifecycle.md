@@ -4,9 +4,9 @@ area: ET
 title: Operate the desktop shell across workspaces and connection states
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk whose empty-desktop card names the desktop and offers ⌘K and New session; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
+expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk whose empty-desktop card names the desktop and offers ⌘K and New session; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision; a saved layout naming an app that is no longer registered (the retired `knowledge` window) drops that window, keeps the session window rendered with no console error, and stays stable across reload.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
-qa_status: skipped
+qa_status: untested
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pass
@@ -20,7 +20,7 @@ story: As a builder, I can see the authoritative desktop state, understand when 
 
 QA impact 2026-10-05 (dependency upgrades): window bodies mount at deferred priority so
 restored frames commit before content performs layout measurements. Re-walk the existing
-12-window restore/drag/convergence envelope (E2E-023, 500 ms restore budget), plus the
+11-window restore/drag/convergence envelope (E2E-023, 500 ms restore budget; one distinct window per registered app, no Knowledge), plus the
 shell's window, menu, overlay and peer-navigation journeys. No test threshold changed.
 Re-walk passed through `COMPOZY_E2E_WEB_SHARD=2/4 make test-e2e-web`: all 83
 scenarios passed, including 76.1 ms restoration and the unchanged drag/convergence
@@ -121,3 +121,5 @@ Do not mount an empty desktop composer during that interval. Preserve final geom
 active window, and the existing drag responsiveness assertion. Focused hook regression
 and throttled browser profiling are recorded in the dependency-upgrades report; the
 full official shard rerun and final CI evidence are recorded separately.
+
+QA impact 2026-10-07 (memory removal): the daemon reconciles every loaded window-manager snapshot and `window_layout` resource: windows whose `app` is no longer registered are dropped, the topology is renormalized, `/settings/memory` window routes are rewritten to `/settings`, and the result is persisted once, after which the daemon logs `windowmanager.snapshot_reconciled` with `workspace_id`, `profile_id`, the sorted `dropped_apps` (here `knowledge`), the `rewritten_routes` count, and the new `revision`, counting the current arrangement, its history, and its closed windows (a reload logs nothing more); the web guards its descriptor lookups and skips unknown apps. Walk (E2E-008): seed the window-manager snapshot with a `knowledge` window beside a session window, including a case where Knowledge is the only window in its frame and one where it is focused, load the desktop, and confirm the session window renders, the console is clean, and a reload keeps the layout stable. The 2026-08-20 Knowledge route-projection note and the 2026-10-06 "twelve persisted windows" restore budget are historical; the budget check now uses the eleven registered apps. Stale skipped verdict reset to untested; no QA session ran.

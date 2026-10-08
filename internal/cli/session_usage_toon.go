@@ -58,11 +58,7 @@ func sessionUsageTurnsToon(value contract.SessionUsageTurnsResponse) (string, er
 		}
 	}
 	for _, marker := range value.Compactions {
-		compactions = append(compactions, []string{marker.TurnID, strconv.FormatInt(marker.Sequence, 10),
-			marker.At.Format(time.RFC3339Nano), strconv.FormatBool(marker.SpanArchived),
-			strconv.FormatInt(marker.FromSequence, 10), strconv.FormatInt(marker.ToSequence, 10),
-			strconv.FormatInt(marker.ContextUsed, 10), strconv.FormatInt(marker.ContextSize, 10),
-			strconv.FormatFloat(marker.Pressure, 'g', -1, 64), marker.Strategy})
+		compactions = append(compactions, sessionCompactionToonRow(marker))
 	}
 	return renderHumanBlocks(
 		renderToonArray("session_usage_turns", []string{sessionTurnIDKey, sessionSequenceKey}, turns),
@@ -110,11 +106,34 @@ func sessionUsageTurnsToon(value contract.SessionUsageTurnsResponse) (string, er
 		),
 		renderToonArray(
 			"compactions",
-			[]string{sessionTurnIDKey, sessionSequenceKey, "at", "span_archived", "from_sequence",
-				"to_sequence", sessionContextUsedKey, sessionContextSizeKey, "pressure", "strategy"},
+			[]string{sessionTurnIDKey, sessionSequenceKey, "at", "compaction_id", "trigger",
+				"status", sessionContextUsedKey, sessionContextSizeKey,
+				"context_after_used", "context_after_size", "context_after_sequence"},
 			compactions,
 		),
 	), nil
+}
+
+func sessionCompactionToonRow(marker contract.SessionCompactionPayload) []string {
+	afterUsed, afterSize, afterSequence := "", "", ""
+	if marker.ContextAfter != nil {
+		afterUsed = strconv.FormatInt(marker.ContextAfter.Used, 10)
+		afterSize = formatInt64Ptr(marker.ContextAfter.Size)
+		afterSequence = strconv.FormatInt(marker.ContextAfter.Sequence, 10)
+	}
+	return []string{
+		marker.TurnID,
+		strconv.FormatInt(marker.Sequence, 10),
+		marker.At.Format(time.RFC3339Nano),
+		marker.CompactionID,
+		marker.Trigger,
+		marker.Status,
+		formatInt64Ptr(marker.ContextUsed),
+		formatInt64Ptr(marker.ContextSize),
+		afterUsed,
+		afterSize,
+		afterSequence,
+	}
 }
 
 func sessionUsageReportToonRow(turnID string, usage *contract.TokenUsagePayload) ([]string, error) {

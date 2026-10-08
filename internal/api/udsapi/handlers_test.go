@@ -74,7 +74,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/automation/triggers/:id",
 			"DELETE /api/extensions/:name",
 			"DELETE /api/extensions/:name/secrets/:env_name",
-			"DELETE /api/memory/:filename",
 			"DELETE /api/tool-approval-grants/:id",
 			"DELETE /api/settings/hooks/:name",
 			"DELETE /api/settings/mcp-servers/:name",
@@ -152,23 +151,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/internal/hosted-mcp/projection/stream",
 			"GET /api/logs",
 			"GET /api/logs/stream",
-			"GET /api/memory",
-			"GET /api/memory/:filename",
-			"GET /api/memory/config",
-			"GET /api/memory/daily",
-			"GET /api/memory/decisions",
-			"GET /api/memory/decisions/:decision_id",
-			"GET /api/memory/dreams",
-			"GET /api/memory/dreams/:dream_id",
-			"GET /api/memory/dreams/status",
-			"GET /api/memory/extractor/failures",
-			"GET /api/memory/extractor/status",
-			"GET /api/memory/health",
-			"GET /api/memory/history",
-			"GET /api/memory/providers",
-			"GET /api/memory/providers/:provider_name",
-			"GET /api/memory/recall-traces/:session_id/:turn_seq",
-			"GET /api/memory/scope-show",
 			"GET /api/marketplace",
 			"GET /api/marketplace/entries/:entry_id",
 			"GET /api/marketplace/sources",
@@ -178,7 +160,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/marketplace/sources/:name/refresh",
 			"GET /api/settings/marketplace",
 			"PATCH /api/settings/marketplace",
-			"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 			"GET /api/status",
 			"GET /api/status/identity",
 			"POST /api/undrain",
@@ -246,7 +227,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/settings/mcp-servers/:name/auth/begin",
 			"POST /api/settings/mcp-servers/:name/auth/exchange",
 			"POST /api/settings/mcp-servers/:name/auth/logout",
-			"GET /api/settings/memory",
 			"GET /api/settings/attention",
 			"GET /api/settings/shell",
 			"GET /api/settings/cmd-palette",
@@ -313,7 +293,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 			"PATCH /api/automation/jobs/:id",
 			"PATCH /api/automation/triggers/:id",
-			"PATCH /api/memory/:filename",
 			"PATCH /api/settings/automation",
 			"PATCH /api/settings/attention",
 			"PATCH /api/settings/shell",
@@ -321,7 +300,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/settings/general",
 			"PATCH /api/settings/persona",
 			"PATCH /api/settings/hooks-extensions",
-			"PATCH /api/settings/memory",
 			"PATCH /api/settings/roles",
 			"PATCH /api/settings/window-manager",
 			"PATCH /api/settings/observability",
@@ -368,25 +346,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/internal/hosted-mcp/tools/call",
 			"POST /api/internal/mcp/host-api/invoke",
 			"POST /api/internal/mcp/host-api/session/close",
-			"POST /api/memory",
-			"POST /api/memory/ad-hoc",
-			"POST /api/memory/decisions/:decision_id/revert",
-			"POST /api/memory/dreams/:dream_id/retry",
-			"POST /api/memory/dreams/trigger",
-			"POST /api/memory/extractor/drain",
-			"POST /api/memory/extractor/retry",
-			"POST /api/memory/promote",
-			"POST /api/memory/providers/:provider_name/disable",
-			"POST /api/memory/providers/:provider_name/enable",
-			"POST /api/memory/providers/select",
-			"POST /api/memory/reindex",
-			"POST /api/memory/reload",
-			"POST /api/memory/reset",
-			"POST /api/memory/search",
-			"POST /api/memory/sessions/prune",
-			"POST /api/memory/sessions/repair",
 			"POST /api/marketplace/refresh",
-			"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
 			"POST /api/model-catalog/*catalog_path",
 			"POST /api/providers/:provider_id/auth/probe",
 			"POST /api/runs/:id/fail",
@@ -417,6 +377,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/sessions",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/compact",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/rewind",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/continue",
@@ -650,14 +611,37 @@ func TestRegisterRoutesRejectsLegacyProviderModelCatalogSurfaces(t *testing.T) {
 	}
 }
 
-func TestMemoryRoutesMatchV2Contract(t *testing.T) {
+func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 	engine := newTestRouter(t, handlers)
-
-	apitestutil.AssertMemoryV2RouteParity(t, apitestutil.MemoryV2RouteKeysFromGin(engine.Routes()))
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/api/memory"},
+		{http.MethodPost, "/api/memory/search"},
+		{http.MethodGet, "/api/settings/memory"},
+		{http.MethodGet, "/api/workspaces/ws_alpha/memory/sessions/sess-1/ledger"},
+	} {
+		t.Run("Should use unknown route behavior for "+tc.method+" "+tc.path, func(t *testing.T) {
+			t.Parallel()
+			unknown := httptest.NewRecorder()
+			engine.ServeHTTP(unknown, httptest.NewRequestWithContext(t.Context(), tc.method, "/api/nope", http.NoBody))
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, http.NoBody))
+			if response.Code != http.StatusNotFound || response.Code != unknown.Code ||
+				response.Body.String() != unknown.Body.String() ||
+				response.Header().Get("Content-Type") != unknown.Header().Get("Content-Type") {
+				t.Fatalf(
+					"retired route response = %d %q %q, unknown = %d %q %q",
+					response.Code,
+					response.Body.String(),
+					response.Header().Get("Content-Type"),
+					unknown.Code,
+					unknown.Body.String(),
+					unknown.Header().Get("Content-Type"),
+				)
+			}
+		})
+	}
 }
 
 func TestWorktreeRoutesMatchTransportParityContractIT033(t *testing.T) {
@@ -1876,6 +1860,46 @@ func TestPromptSessionHandlerReturnsRawSSEStreamWhenRequested(t *testing.T) {
 			t.Fatalf("events = [%s %s], want [agent_message done]", records[0].Event, records[1].Event)
 		}
 	})
+	t.Run("Should preserve typed redacted compaction snapshots without raw data", func(t *testing.T) {
+		t.Parallel()
+		observation := &acp.CompactionObservation{
+			CompactionID: "compact-raw", Status: "failed",
+			Summary: "Retained summary token=secret", Error: "access_token=secret", Terminal: true,
+		}
+		redacted := transcript.RedactAgentEvent(acp.AgentEvent{Compaction: observation}).Compaction
+		manager := stubSessionManager{
+			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 1)
+				events <- acp.AgentEvent{
+					Type: acp.EventTypeCompaction, SessionID: "sess-123", TurnID: "turn-1",
+					Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC), Compaction: redacted,
+				}
+				close(events)
+				return events, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt?format=raw",
+			[]byte(`{"message":"hello","message_id":"msg-compact","idempotency_key":"idem-compact"}`))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d; body=%s", recorder.Code, recorder.Body.String())
+		}
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) != 1 || records[0].Event != acp.EventTypeCompaction {
+			t.Fatalf("frames = %#v", records)
+		}
+		var payload contract.AgentEventPayload
+		if err := json.Unmarshal(records[0].Data, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Compaction == nil || payload.Compaction.CompactionID != "compact-raw" ||
+			payload.Compaction.Status != "failed" || payload.Compaction.Summary != redacted.Summary ||
+			payload.Compaction.Error != redacted.Error || string(payload.Raw) != "null" ||
+			strings.Contains(string(records[0].Data), "secret") {
+			t.Fatalf("snapshot frame = %s", records[0].Data)
+		}
+	})
 }
 
 func TestSessionInputClearHandlerUsesSharedQueueContract(t *testing.T) {
@@ -3047,6 +3071,73 @@ func TestSessionDeriveRoutesOverUDS(t *testing.T) {
 			if recorder.Code != tc.status || payload.Code != tc.code {
 				t.Fatalf("status = %d code = %q, want %d %q; body=%s",
 					recorder.Code, payload.Code, tc.status, tc.code, recorder.Body.String())
+			}
+		})
+	}
+}
+
+// IT-026: transport handlers preserve native compaction acceptance and refusal codes.
+func TestCompactSessionHandler(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"Should accept native compaction", nil, http.StatusAccepted, ""},
+		{
+			"Should reject a stopped session",
+			errors.Join(session.ErrSessionNotActive, errors.New("session is stopped")),
+			http.StatusBadRequest,
+			"session_not_promptable",
+		},
+		{
+			"Should reject a starting session",
+			errors.Join(session.ErrSessionNotActive, errors.New("session is starting")),
+			http.StatusBadRequest,
+			"session_not_promptable",
+		},
+		{"Should reject a busy session", session.ErrPromptInProgress, http.StatusConflict, "session_busy"},
+		{"Should reject unsupported compaction", session.ErrCompactionUnsupported, http.StatusConflict, "compaction_unsupported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := stubSessionManager{
+				RequestCompactionFn: func(_ context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
+					if id != "sess-123" {
+						t.Fatalf("request target=%q", id)
+					}
+					return session.CompactionRequestResult{
+						SessionID: id,
+						PromptID:  "prompt-compact",
+						Command:   "compact",
+					}, nil, tc.err
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/compact",
+				[]byte("{}"),
+			)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if tc.err != nil {
+				var payload contract.ErrorPayload
+				decodeJSONResponse(t, response, &payload)
+				if payload.Code != tc.code {
+					t.Fatalf("code=%q want %q", payload.Code, tc.code)
+				}
+				return
+			}
+			var payload contract.SessionCompactResponse
+			decodeJSONResponse(t, response, &payload)
+			if payload.SessionID != "sess-123" || payload.PromptID != "prompt-compact" ||
+				payload.Command != "compact" ||
+				payload.Status != "accepted" {
+				t.Fatalf("receipt=%#v", payload)
 			}
 		})
 	}

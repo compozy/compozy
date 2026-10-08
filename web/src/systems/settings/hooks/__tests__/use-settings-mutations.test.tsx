@@ -17,7 +17,6 @@ vi.mock("../../adapters/settings-api", () => ({
   updateSettingsAttention: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   updateSettingsHooksExtensions: vi.fn(),
-  updateSettingsMemory: vi.fn(),
   updateSettingsObservability: vi.fn(),
   updateSettingsPersona: vi.fn(),
   updateSettingsRoles: vi.fn(),
@@ -39,7 +38,6 @@ import {
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
-  updateSettingsMemory,
   updateSettingsObservability,
   updateSettingsPersona,
   updateSettingsRoles,
@@ -57,7 +55,6 @@ import {
   settingsAutomationSectionFixture,
   settingsGeneralSectionFixture,
   settingsHooksExtensionsSectionFixture,
-  settingsMemoryConfigFixture,
   settingsObservabilitySectionFixture,
   settingsSkillsSectionFixture,
 } from "../../mocks/fixtures";
@@ -76,7 +73,6 @@ import {
   useUpdateSettingsAutomation,
   useUpdateSettingsGeneral,
   useUpdateSettingsHooksExtensions,
-  useUpdateSettingsMemory,
   useUpdateSettingsObservability,
   useUpdateSettingsPersona,
   useUpdateSettingsRoles,
@@ -129,14 +125,6 @@ describe("explicit Settings form saves while offline", () => {
           mutation,
           save: () => mutation.mutate({ config: settingsGeneralSectionFixture.config }),
         };
-      },
-    },
-    {
-      name: "Memory",
-      adapter: updateSettingsMemory,
-      useSave: () => {
-        const mutation = useUpdateSettingsMemory();
-        return { mutation, save: () => mutation.mutate({ config: settingsMemoryConfigFixture }) };
       },
     },
     {
@@ -324,11 +312,6 @@ describe("useUpdateSettingsGeneral", () => {
     expect(settingsRestartStore.getSnapshot().context.lastMutation?.applyRecordId).toBe(
       "cfg_apply_001"
     );
-
-    const memoryInvalidations = invalidateSpy.mock.calls.filter(([arg]) =>
-      JSON.stringify(arg?.queryKey).includes("memory")
-    );
-    expect(memoryInvalidations).toHaveLength(0);
   });
 });
 
@@ -362,39 +345,12 @@ describe("useUpdateSettingsAttention", () => {
   });
 });
 
-describe("useUpdateSettingsMemory", () => {
-  it("invalidates memory section and apply records", async () => {
-    const { queryClient, wrapper } = createWrapper();
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    vi.mocked(updateSettingsMemory).mockResolvedValue({
-      ...generalMutation,
-      section: "memory" as const,
-    });
-
-    const { result } = renderHook(() => useUpdateSettingsMemory(), { wrapper });
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        config: {
-          ...settingsMemoryConfigFixture,
-          dream: { ...settingsMemoryConfigFixture.dream, min_hours: 1 },
-        },
-      });
-    });
-
-    await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.section("memory") });
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.applyRoot() });
-    });
-  });
-});
-
 describe("useUpdateSettingsRoles", () => {
   it("Should reconcile the section cache and invalidate role consumers", async () => {
     const { queryClient, wrapper } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const updatedConfig = structuredClone(settingsRolesSectionFixture.config);
-    updatedConfig.dream.model = "updated-dream-model";
+    updatedConfig.auto_title.model = "updated-auto-title-model";
     queryClient.setQueryData(settingsKeys.section("roles"), settingsRolesSectionFixture);
     vi.mocked(updateSettingsRoles).mockResolvedValue({
       ...generalMutation,
@@ -410,7 +366,7 @@ describe("useUpdateSettingsRoles", () => {
     });
 
     expect(queryClient.getQueryData(settingsKeys.section("roles"))).toMatchObject({
-      config: { dream: { model: "updated-dream-model" } },
+      config: { auto_title: { model: "updated-auto-title-model" } },
     });
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.section("roles") });

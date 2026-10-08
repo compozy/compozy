@@ -138,12 +138,8 @@ func (r *windowManagerRepository) Load(
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("load snapshot", err)
 	}
 	snapshot, err := decodeWindowManagerSnapshot(entry.Value, workspaceID)
-	version := storedWindowManagerSnapshotVersion(entry.Value)
-	if err == nil &&
-		(version == windowmanager.LegacySnapshotVersion || version == windowmanager.PreviousSnapshotVersion) {
-		return snapshot, r.persistMigratedSnapshot(
-			ctx, workspaceID, snapshot, entry.Rev, version, retiredSnapshotWindows(entry.Value),
-		)
+	if err == nil {
+		return r.reconcileLoadedSnapshot(ctx, workspaceID, snapshot, entry)
 	}
 	if !errors.Is(err, errWindowManagerSnapshotDiscardable) {
 		return snapshot, err

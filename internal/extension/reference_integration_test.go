@@ -1181,7 +1181,6 @@ func referenceConfig(t *testing.T, homePaths compozyconfig.HomePaths, command st
 	cfg.Daemon.Socket = homePaths.DaemonSocket
 	cfg.Defaults.Agent = "coder"
 	cfg.Defaults.Provider = acpmock.ProviderName
-	cfg.Memory.Enabled = false
 	cfg.Extensions.Trust.AllowUnverified = true
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	return cfg

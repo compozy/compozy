@@ -193,14 +193,9 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 
 		internalSessions := []*Session{
 			{
-				ID: "sess-memory-extractor", WorkspaceID: "ws-internal",
-				Lineage: &store.SessionLineage{SpawnRole: SpawnRoleMemoryExtractor},
-			},
-			{
 				ID: "sess-auto-title", WorkspaceID: "ws-internal",
 				Lineage: &store.SessionLineage{SpawnRole: SpawnRoleAutoTitle},
 			},
-			{ID: "sess-dream", WorkspaceID: "ws-internal", Type: SessionTypeDream},
 		}
 		for _, sess := range internalSessions {
 			manager.publishSessionCatalogWakeForEvent(sess, acp.AgentEvent{Type: acp.EventTypePermission})

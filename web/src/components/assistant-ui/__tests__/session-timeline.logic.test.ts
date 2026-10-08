@@ -654,6 +654,43 @@ describe("session timeline derivation", () => {
     expect(permissionRow.part.name).toBe("data-compozy-permission");
   });
 
+  // Invariant (S18): an observed compaction is its own visible row — never a hidden
+  // progress tick, never one of the turn's intra-turn work behind "Worked for".
+  it("Should keep a compaction item as its own row outside a settled turn fold", () => {
+    const compaction: SessionTimelinePart = {
+      kind: "data",
+      id: "c1f0b8f4",
+      name: "data-compozy-compaction",
+      data: {
+        kind: "compaction",
+        compaction_id: "c1f0b8f4",
+        status: "in_progress",
+        started_at: "2026-07-07T12:00:02Z",
+      },
+      turnId: "turn-compaction",
+      timestamp: "2026-07-07T12:00:02Z",
+    };
+    const alone = deriveSessionRows([compaction], { foldSettledTurns: true });
+    expect(alone).toHaveLength(1);
+    expect(alone[0]).toMatchObject({ kind: "data", id: "data:c1f0b8f4" });
+
+    const rows = deriveSessionRows(
+      [
+        tool(1, { turnId: "turn-compaction", timestamp: "2026-07-07T12:00:00Z" }),
+        compaction,
+        text("terminal-compaction", "Done.", "turn-compaction", "2026-07-07T12:00:05Z"),
+      ],
+      { foldSettledTurns: true }
+    );
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "data", "text"]);
+    const [foldRow, compactionRow] = rows;
+    if (foldRow?.kind !== "turn-fold" || compactionRow?.kind !== "data") {
+      throw new Error("expected a fold followed by the compaction row");
+    }
+    expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
+    expect(compactionRow.part.name).toBe("data-compozy-compaction");
+  });
+
   it("Should keep a settled deliberate terminal block outside a turn fold and summary", () => {
     const rows = deriveSessionRows(
       [

@@ -31,7 +31,6 @@ export type OsAppId =
   | "loops"
   | "automations"
   | "marketplace"
-  | "knowledge"
   | "vault"
   | "settings";
 

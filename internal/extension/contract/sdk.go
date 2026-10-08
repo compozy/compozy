@@ -4,7 +4,6 @@ import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/hooks"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/tools"
@@ -37,7 +36,7 @@ const (
 	sdkAutonomyMatcherValue                     = "AutonomyMatcher"
 	sdkAutonomyObservationPatchValue            = "AutonomyObservationPatch"
 	sdkContextBlockValue                        = "ContextBlock"
-	sdkContextCompactPayloadValue               = "ContextCompactPayload"
+	sdkContextCompactionPayloadValue            = "ContextCompactionPayload"
 	sdkContextCompactionPatchValue              = "ContextCompactionPatch"
 	sdkControlPatchValue                        = "ControlPatch"
 	sdkCoordinatorContextValue                  = "CoordinatorContext"
@@ -211,7 +210,6 @@ var sdkRootTypes = []NamedType{
 	{Name: "ForgeStatusResponse", Value: ForgeStatusResponse{}},
 	{Name: "ForgePRCreateRequest", Value: ForgePRCreateRequest{}},
 	{Name: "ForgePRCreateResponse", Value: ForgePRCreateResponse{}},
-	{Name: "MemoryScope", Value: memcontract.Scope("")},
 	{Name: "HookEventFamily", Value: hooks.HookEventFamily("")},
 	{Name: "HookRunOutcome", Value: hooks.HookRunOutcome("")},
 	{Name: "HookSkillSource", Value: hooks.HookSkillSourceUnset},
@@ -269,7 +267,7 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkPermissionRequestPayloadValue, Value: hooks.PermissionRequestPayload{}},
 	{Name: sdkPermissionResolutionPayloadValue, Value: hooks.PermissionResolutionPayload{}},
 	{Name: sdkPermissionRequestPatchValue, Value: hooks.PermissionRequestPatch{}},
-	{Name: sdkContextCompactPayloadValue, Value: hooks.ContextCompactPayload{}},
+	{Name: sdkContextCompactionPayloadValue, Value: hooks.ContextCompactionPayload{}},
 	{Name: sdkContextCompactionPatchValue, Value: hooks.ContextCompactionPatch{}},
 	{Name: sdkAutonomyObservationPatchValue, Value: hooks.AutonomyObservationPatch{}},
 	{Name: sdkCoordinatorContextValue, Value: hooks.CoordinatorContext{}},

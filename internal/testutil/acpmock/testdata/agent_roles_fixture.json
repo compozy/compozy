@@ -10,19 +10,19 @@
                 {
                     "id": "model",
                     "name": "Model",
-                    "current": "routed-dream-model",
+                    "current": "routed-auto-title-model",
                     "values": [
                         {
-                            "value": "routed-dream-model",
-                            "label": "Routed dream model"
+                            "value": "routed-auto-title-model",
+                            "label": "Routed auto-title model"
                         },
                         {
-                            "value": "extractor-model-v1",
-                            "label": "Extractor model v1"
+                            "value": "auto-title-model-v1",
+                            "label": "Auto-title model v1"
                         },
                         {
-                            "value": "extractor-model-v2",
-                            "label": "Extractor model v2"
+                            "value": "auto-title-model-v2",
+                            "label": "Auto-title model v2"
                         }
                     ]
                 }
@@ -41,27 +41,27 @@
                     ]
                 },
                 {
-                    "name": "memory-extractor-live-apply-parent",
+                    "name": "auto-title-live-apply-parent",
                     "match": {
                         "turn_source": "user",
-                        "user_text": "Record the extractor routing decision"
+                        "user_text": "Record the auto-title routing decision"
                     },
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "Recorded the extractor routing decision."
+                            "text": "Recorded the auto-title routing decision."
                         }
                     ]
                 },
                 {
-                    "name": "memory-extractor-live-apply-child",
+                    "name": "auto-title-live-apply-child",
                     "match": {
                         "turn_source": "synthetic"
                     },
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "{\"type\":\"project\",\"scope\":\"workspace\",\"content\":\"The memory extractor uses the live-applied role model.\",\"evidence\":\"The root turn recorded the extractor routing decision.\",\"entity\":\"memory extractor\",\"attribute\":\"model\"}"
+                            "text": "Auto-title routing decision"
                         }
                     ]
                 }

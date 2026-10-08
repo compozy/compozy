@@ -47,7 +47,7 @@ The synchronous response includes:
 before expecting a worktree or execution session.
 
 The raw bearer lease token is internal to CompozyOS. Public CLI, HTTP, UDS, native-tool, web, stream,
-log, and memory payloads use the calling session plus `run_id` and expose at most
+and log payloads use the calling session plus `run_id` and expose at most
 `claim_token_hash`. Tools belonging to the `compozy__autonomy` toolset reject any input or response
 field that would carry a raw claim token.
 
@@ -518,7 +518,7 @@ Lease writers and the autonomy tool bridge return the same deterministic reason 
 
 ## Lease credentials
 
-Never send raw lease credentials through prompts, logs, or memory. Read Task and run state to inspect progress. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
+Never send raw lease credentials through prompts or logs. Read Task and run state to inspect progress. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
 tools or the matching `compozy task` command for the owned `run_id`; CompozyOS resolves the internal lease
 server-side.
 

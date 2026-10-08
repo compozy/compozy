@@ -21,7 +21,7 @@ charter:
       - "During a live turn, exercise Queue, Steer, Interrupt, and Stop generation against the visible active turn, then confirm the durable result through a documented structured surface."
       - "Confirm rename, clear, attach, delete, and whole-session stop actions remain unavailable throughout the walk."
     must_avoid:
-      - "Dream and hidden maintenance sessions, which are intentionally read-only or absent from the public catalog."
+      - "Hidden maintenance sessions (auto-title children), which are intentionally read-only or absent from the public catalog."
       - "Internal database reads or evaluator language in prompts sent to the agent."
 ```
 

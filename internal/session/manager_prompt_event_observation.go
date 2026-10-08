@@ -34,7 +34,6 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	loop.fileMutations.Observe(normalized)
 	m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, normalized)
 	m.notifyManagedPromptEvent(ctx, session, turnState, normalized)
-	m.scheduleCompactionFromUsage(session, normalized)
 	if kind, summary, evidence, ok := promptTranscriptMarker(normalized); ok {
 		m.emitTranscriptMarker(ctx, session, turnState.turnID, kind, summary, evidence)
 	}

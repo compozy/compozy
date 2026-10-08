@@ -115,7 +115,7 @@ describe("ConfirmDialog", () => {
           confirmTyping="operator-style.md"
           description="Confirm the filename before removing this entry."
           onConfirm={() => undefined}
-          title="Delete knowledge entry?"
+          title="Delete note?"
         >
           <DialogTrigger render={<Button variant="outline">Open confirm</Button>} />
         </ConfirmDialog>

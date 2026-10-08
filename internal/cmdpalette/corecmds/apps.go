@@ -28,6 +28,21 @@ func appCommands() []cmdpalette.Descriptor {
 	return commands
 }
 
+// RegisteredApp reports membership in the daemon-owned OS app inventory.
+func RegisteredApp(id string) bool {
+	for _, app := range appOnlyDefinitions {
+		if app.id == id {
+			return true
+		}
+	}
+	for _, app := range sharedAppViewDomains {
+		if app.id == id {
+			return true
+		}
+	}
+	return false
+}
+
 // RetiredCommandID accepts public aliases until removal in v0.5.0.
 func RetiredCommandID(id cmdpalette.CommandID) (cmdpalette.CommandID, bool) {
 	switch id {

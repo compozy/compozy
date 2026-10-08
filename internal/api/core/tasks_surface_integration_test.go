@@ -207,7 +207,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces, nil, nil)
+		fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces)
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 			return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
@@ -402,8 +402,6 @@ func TestExpandedTaskReadsRejectForeignNamedProfile(t *testing.T) {
 		testutil.StubObserver{},
 		tasks,
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	fixture.Handlers.Profiles = sessionProfileServiceStub{}
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
@@ -563,8 +561,6 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		testutil.StubObserver{},
 		tasks,
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)

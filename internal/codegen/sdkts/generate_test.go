@@ -64,7 +64,6 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 			"export interface HookPatchByEvent {\n",
 			"export interface HostAPIMethodMap {\n",
 			"export interface HookDecl {\n",
-			`export type MemoryScope = "profile" | "workspace" | "agent";`,
 			`export type HookSkillSource = "bundled" | "marketplace" | "user" | "profile" | "additional" | "workspace" | "workspace_profile";`,
 		}
 		for _, snippet := range requiredSnippets {

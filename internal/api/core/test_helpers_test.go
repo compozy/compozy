@@ -12,37 +12,11 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
-
-type stubDreamTrigger struct {
-	Triggered bool
-	Reason    string
-	Err       error
-	Last      time.Time
-	LastErr   error
-	EnabledFn bool
-	Calls     int
-	Workspace string
-}
-
-func (s *stubDreamTrigger) Trigger(_ context.Context, workspace string) (bool, string, error) {
-	s.Calls++
-	s.Workspace = workspace
-	return s.Triggered, s.Reason, s.Err
-}
-
-func (s *stubDreamTrigger) LastConsolidatedAt() (time.Time, error) {
-	return s.Last, s.LastErr
-}
-
-func (s *stubDreamTrigger) Enabled() bool {
-	return s.EnabledFn
-}
 
 type handlerFixture struct {
 	Handlers  *core.BaseHandlers
@@ -131,8 +105,6 @@ func newHandlerFixture(
 	manager testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	return newHandlerFixtureWithAutomationAndTasks(
 		t,
@@ -141,8 +113,6 @@ func newHandlerFixture(
 		testutil.StubAutomationManager{},
 		&testutil.StubTaskManager{},
 		workspaces,
-		store,
-		dream,
 	)
 }
 
@@ -152,8 +122,6 @@ func newHandlerFixtureWithAutomation(
 	observer testutil.StubObserver,
 	automation testutil.StubAutomationManager,
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	return newHandlerFixtureWithAutomationAndTasks(
 		t,
@@ -162,8 +130,6 @@ func newHandlerFixtureWithAutomation(
 		automation,
 		&testutil.StubTaskManager{},
 		workspaces,
-		store,
-		dream,
 	)
 }
 
@@ -173,8 +139,6 @@ func newHandlerFixtureWithTasks(
 	observer testutil.StubObserver,
 	tasks *testutil.StubTaskManager,
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	return newHandlerFixtureWithAutomationAndTasks(
 		t,
@@ -183,8 +147,6 @@ func newHandlerFixtureWithTasks(
 		testutil.StubAutomationManager{},
 		tasks,
 		workspaces,
-		store,
-		dream,
 	)
 }
 
@@ -195,8 +157,6 @@ func newHandlerFixtureWithAutomationAndTasks(
 	automation testutil.StubAutomationManager,
 	tasks *testutil.StubTaskManager,
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	return newHandlerFixtureWithRuntime(
 		t,
@@ -205,8 +165,6 @@ func newHandlerFixtureWithAutomationAndTasks(
 		automation,
 		tasks,
 		workspaces,
-		store,
-		dream,
 	)
 }
 
@@ -218,8 +176,6 @@ func newHandlerFixtureWithRuntime(
 	tasks *testutil.StubTaskManager,
 
 	workspaces testutil.StubWorkspaceService,
-	store *memory.Store,
-	dream core.DreamTrigger,
 ) handlerFixture {
 	t.Helper()
 	manager = defaultCoreSessionManager(manager)
@@ -245,8 +201,6 @@ func newHandlerFixtureWithRuntime(
 
 		Workspaces:          workspaces,
 		AgentDefinitionSync: noOpAgentDefinitionSync{},
-		MemoryStore:         store,
-		DreamTrigger:        dream,
 		HomePaths:           homePaths,
 		Config:              cfg,
 		Logger:              testutil.DiscardLogger(),
@@ -386,44 +340,6 @@ func newHandlerFixtureWithRuntime(
 	engine.GET("/observe/overview", handlers.ObserveOverview)
 	engine.GET("/observe/tasks/dashboard", handlers.TaskDashboard)
 	engine.GET("/observe/tasks/inbox", handlers.TaskInbox)
-	engine.GET("/memory", handlers.ListMemory)
-	engine.GET("/memory/health", handlers.MemoryHealth)
-	engine.GET("/memory/config", handlers.MemoryConfigMetadata)
-	engine.GET("/memory/history", handlers.MemoryHistory)
-	engine.GET("/memory/scope-show", handlers.MemoryScopeShow)
-	engine.POST("/memory", handlers.WriteMemory)
-	engine.POST("/memory/search", handlers.SearchMemory)
-	engine.POST("/memory/reindex", handlers.ReindexMemory)
-	engine.POST("/memory/promote", handlers.PromoteMemory)
-	engine.POST("/memory/reset", handlers.ResetMemory)
-	engine.POST("/memory/reload", handlers.ReloadMemory)
-	engine.GET("/memory/decisions", handlers.ListMemoryDecisions)
-	engine.GET("/memory/decisions/:decision_id", handlers.GetMemoryDecision)
-	engine.POST("/memory/decisions/:decision_id/revert", handlers.RevertMemoryDecision)
-	engine.GET("/memory/recall-traces/:session_id/:turn_seq", handlers.GetMemoryRecallTrace)
-	engine.GET("/memory/dreams/status", handlers.GetMemoryDreamStatus)
-	engine.GET("/memory/dreams", handlers.ListMemoryDreams)
-	engine.POST("/memory/dreams/trigger", handlers.TriggerMemoryDream)
-	engine.GET("/memory/dreams/:dream_id", handlers.GetMemoryDream)
-	engine.POST("/memory/dreams/:dream_id/retry", handlers.RetryMemoryDream)
-	engine.GET("/memory/daily", handlers.ListMemoryDailyLogs)
-	engine.GET("/memory/extractor/status", handlers.GetMemoryExtractorStatus)
-	engine.GET("/memory/extractor/failures", handlers.ListMemoryExtractorFailures)
-	engine.POST("/memory/extractor/retry", handlers.RetryMemoryExtractor)
-	engine.POST("/memory/extractor/drain", handlers.DrainMemoryExtractor)
-	engine.GET("/memory/providers", handlers.ListMemoryProviders)
-	engine.POST("/memory/providers/select", handlers.SelectMemoryProvider)
-	engine.GET("/memory/providers/:provider_name", handlers.GetMemoryProvider)
-	engine.POST("/memory/providers/:provider_name/enable", handlers.EnableMemoryProvider)
-	engine.POST("/memory/providers/:provider_name/disable", handlers.DisableMemoryProvider)
-	engine.POST("/memory/ad-hoc", handlers.CreateMemoryAdhocNote)
-	engine.GET("/workspaces/:workspace_id/memory/sessions/:session_id/ledger", handlers.GetMemorySessionLedger)
-	engine.POST("/workspaces/:workspace_id/memory/sessions/:session_id/replay", handlers.ReplayMemorySession)
-	engine.POST("/memory/sessions/prune", handlers.PruneMemorySessions)
-	engine.POST("/memory/sessions/repair", handlers.RepairMemorySessions)
-	engine.GET("/memory/:filename", handlers.ReadMemory)
-	engine.PATCH("/memory/:filename", handlers.EditMemory)
-	engine.DELETE("/memory/:filename", handlers.DeleteMemory)
 	engine.POST("/workspaces", handlers.CreateWorkspace)
 	engine.GET("/workspaces", handlers.ListWorkspaces)
 	engine.GET("/workspaces/:workspace_id", handlers.GetWorkspace)

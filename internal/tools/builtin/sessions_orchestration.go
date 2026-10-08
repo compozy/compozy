@@ -8,6 +8,9 @@ import (
 
 func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{
+		orchestrationDescriptor(toolspkg.ToolIDSessionCompact, "session_compact", "Session Compact",
+			"Request advertised native agent compaction on an idle same-workspace session (experimental).",
+			sessionTargetInputSchema, sessionCompactOutputSchema, toolspkg.RiskMutating, false, false),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionWait, "session_wait", "Session Wait",
 			"Wait for one bounded badge transition on a same-workspace session.",
@@ -206,3 +209,5 @@ const sessionPromptCancelOutputSchema = `{
 	},
 	"additionalProperties":false
 }`
+
+const sessionCompactOutputSchema = `{"type":"object","required":["session_id","prompt_id","command","status"],"properties":{"session_id":{"type":"string"},"prompt_id":{"type":"string"},"command":{"type":"string","enum":["compact","compress"]},"status":{"type":"string","const":"accepted"}},"additionalProperties":false}`

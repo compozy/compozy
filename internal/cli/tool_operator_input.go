@@ -150,3 +150,24 @@ func parseToolInputJSON(field string, raw string) (json.RawMessage, error) {
 	}
 	return json.RawMessage(compacted.String()), nil
 }
+
+func readOptionalCommandInput(reader io.Reader) (string, error) {
+	if reader == nil {
+		return "", nil
+	}
+	if file, ok := reader.(*os.File); ok {
+		info, err := file.Stat()
+		if err != nil {
+			return "", fmt.Errorf("cli: stat stdin: %w", err)
+		}
+		if info.Mode()&os.ModeCharDevice != 0 {
+			return "", nil
+		}
+	}
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return "", fmt.Errorf("cli: read stdin: %w", err)
+	}
+	return string(data), nil
+}

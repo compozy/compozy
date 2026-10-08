@@ -15,83 +15,82 @@ import (
 )
 
 func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) {
-	t.Parallel()
+	t.Run("Should defer startup summaries until creation", func(t *testing.T) {
+		t.Parallel()
 
-	base := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
-	recorder := newHarnessLifecycleRecorder(discardLogger(), func() time.Time { return base })
-	summaryStore := &recordingHarnessSummaryStore{}
-	recorder.SetStore(summaryStore)
+		base := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
+		recorder := newHarnessLifecycleRecorder(discardLogger(), func() time.Time { return base })
+		summaryStore := &recordingHarnessSummaryStore{}
+		recorder.SetStore(summaryStore)
 
-	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
-		SkillsPromptSectionEnabled: true,
+		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+			RuntimeIdentityPromptSectionEnabled: true,
+			SkillsPromptSectionEnabled:          true,
+		})
+		selector := NewSectionSelector(resolver, recorder)
+		descriptors := defaultStartupPromptSectionDescriptors(
+			promptSectionProviderFunc(
+				func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
+			),
+			nil,
+		)
+
+		startup := session.StartupPromptContext{
+			SessionID:   "sess-startup",
+			ProfileID:   "profile-marketing",
+			AgentName:   "coder",
+			SessionType: session.SessionTypeUser,
+		}
+		selected, _, err := selector.Select(startup, descriptors)
+		if err != nil {
+			t.Fatalf("Select() error = %v", err)
+		}
+		if got, want := len(selected), 2; got != want {
+			t.Fatalf("len(selected) = %d, want %d", got, want)
+		}
+		if got := summaryStore.Summaries(); len(got) != 0 {
+			t.Fatalf("startup summaries written before session creation = %#v, want queued only", got)
+		}
+
+		recorder.OnSessionCreated(t.Context(), &session.Session{
+			ID: startup.SessionID, ProfileID: startup.ProfileID,
+		})
+
+		summaries := summaryStore.Summaries()
+		if got, want := len(summaries), 2; got != want {
+			t.Fatalf("len(flushed summaries) = %d, want %d", got, want)
+		}
+		if got, want := summaries[0].Type, harnessSummaryContextResolved; got != want {
+			t.Fatalf("summaries[0].Type = %q, want %q", got, want)
+		}
+		if got, want := summaries[1].Type, harnessSummarySectionSelected; got != want {
+			t.Fatalf("summaries[1].Type = %q, want %q", got, want)
+		}
+		if got, want := summaries[0].SessionID, startup.SessionID; got != want {
+			t.Fatalf("summaries[0].SessionID = %q, want %q", got, want)
+		}
+		if got, want := summaries[0].ProfileID, startup.ProfileID; got != want {
+			t.Fatalf("summaries[0].ProfileID = %q, want %q", got, want)
+		}
+		if got, want := summaries[0].AgentName, startup.AgentName; got != want {
+			t.Fatalf("summaries[0].AgentName = %q, want %q", got, want)
+		}
+		if got, want := summaries[0].Timestamp, base; !got.Equal(want) {
+			t.Fatalf("summaries[0].Timestamp = %v, want %v", got, want)
+		}
+		if got, want := summaries[0].RootSessionID, startup.SessionID; got != want {
+			t.Fatalf("summaries[0].RootSessionID = %q, want %q", got, want)
+		}
+		if !strings.Contains(summaries[0].Summary, "surface=startup") {
+			t.Fatalf("context summary = %q, want startup surface", summaries[0].Summary)
+		}
+		if !strings.Contains(summaries[0].Summary, "sections=runtime_identity|skills") {
+			t.Fatalf("context summary = %q, want selected section list", summaries[0].Summary)
+		}
+		if !strings.Contains(summaries[1].Summary, "selected=runtime_identity|skills") {
+			t.Fatalf("section summary = %q, want selected section names", summaries[1].Summary)
+		}
 	})
-	selector := NewSectionSelector(resolver, recorder)
-	descriptors := defaultStartupPromptSectionDescriptors(
-		promptSectionProviderFunc(
-			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "memory", nil },
-		),
-		promptSectionProviderFunc(
-			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
-		),
-		nil,
-	)
-
-	startup := session.StartupPromptContext{
-		SessionID:   "sess-startup",
-		ProfileID:   "profile-marketing",
-		AgentName:   "coder",
-		SessionType: session.SessionTypeUser,
-	}
-	selected, _, err := selector.Select(startup, descriptors)
-	if err != nil {
-		t.Fatalf("Select() error = %v", err)
-	}
-	if got, want := len(selected), 2; got != want {
-		t.Fatalf("len(selected) = %d, want %d", got, want)
-	}
-	if got := summaryStore.Summaries(); len(got) != 0 {
-		t.Fatalf("startup summaries written before session creation = %#v, want queued only", got)
-	}
-
-	recorder.OnSessionCreated(t.Context(), &session.Session{
-		ID: startup.SessionID, ProfileID: startup.ProfileID,
-	})
-
-	summaries := summaryStore.Summaries()
-	if got, want := len(summaries), 2; got != want {
-		t.Fatalf("len(flushed summaries) = %d, want %d", got, want)
-	}
-	if got, want := summaries[0].Type, harnessSummaryContextResolved; got != want {
-		t.Fatalf("summaries[0].Type = %q, want %q", got, want)
-	}
-	if got, want := summaries[1].Type, harnessSummarySectionSelected; got != want {
-		t.Fatalf("summaries[1].Type = %q, want %q", got, want)
-	}
-	if got, want := summaries[0].SessionID, startup.SessionID; got != want {
-		t.Fatalf("summaries[0].SessionID = %q, want %q", got, want)
-	}
-	if got, want := summaries[0].ProfileID, startup.ProfileID; got != want {
-		t.Fatalf("summaries[0].ProfileID = %q, want %q", got, want)
-	}
-	if got, want := summaries[0].AgentName, startup.AgentName; got != want {
-		t.Fatalf("summaries[0].AgentName = %q, want %q", got, want)
-	}
-	if got, want := summaries[0].Timestamp, base; !got.Equal(want) {
-		t.Fatalf("summaries[0].Timestamp = %v, want %v", got, want)
-	}
-	if got, want := summaries[0].RootSessionID, startup.SessionID; got != want {
-		t.Fatalf("summaries[0].RootSessionID = %q, want %q", got, want)
-	}
-	if !strings.Contains(summaries[0].Summary, "surface=startup") {
-		t.Fatalf("context summary = %q, want startup surface", summaries[0].Summary)
-	}
-	if !strings.Contains(summaries[0].Summary, "sections=memory|skills") {
-		t.Fatalf("context summary = %q, want selected section list", summaries[0].Summary)
-	}
-	if !strings.Contains(summaries[1].Summary, "selected=memory|skills") {
-		t.Fatalf("section summary = %q, want selected section names", summaries[1].Summary)
-	}
 }
 
 func TestPromptInputCompositeRecordsHarnessAugmenterObservability(t *testing.T) {

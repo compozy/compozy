@@ -6,7 +6,6 @@ var requiredMethodsByProvide = map[string][]string{
 	"connectivity.provider": []string{"connectivity/establish", "connectivity/status", "connectivity/teardown"},
 	"forge.provider":        []string{"forge/capabilities", "forge/pr_create", "forge/status"},
 	"loop.watch_source":     []string{"watch/poll"},
-	"memory.backend":        []string{"memory/forget", "memory/recall", "memory/store"},
 	"model.source":          []string{"models/list"},
 	"tool.provider":         []string{"provide_tools", "tools/call"},
 	"view.provider":         []string{"view/close", "view/event", "view/open"},
@@ -34,9 +33,6 @@ var publicProvideConformanceFixtures = []ProvideConformanceFixture{{
 }, {
 	Provide:         "loop.watch_source",
 	RequiredMethods: RequiredMethods("loop.watch_source"),
-}, {
-	Provide:         "memory.backend",
-	RequiredMethods: RequiredMethods("memory.backend"),
 }, {
 	Provide:         "model.source",
 	RequiredMethods: RequiredMethods("model.source"),

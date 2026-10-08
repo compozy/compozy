@@ -155,21 +155,6 @@ export function vaultRoute(ref: string): OsWindowRoute {
   return { pathname: "/vault", search: { ref: ref.trim() } };
 }
 
-export function knowledgeRoute(input: {
-  filename: string;
-  scope: "global" | "workspace";
-  workspaceId?: string;
-}): OsWindowRoute {
-  return {
-    pathname: "/knowledge",
-    search: {
-      memory: input.filename,
-      scope: input.scope,
-      ...(input.workspaceId ? { workspace: input.workspaceId } : {}),
-    },
-  };
-}
-
 export function rowSeed(
   title: string,
   row: OsPaletteDomainRow,

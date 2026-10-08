@@ -395,7 +395,7 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 		if _, err := fixture.manager.Execute(ctx, windowmanager.CommandRequest{
 			WorkspaceID: workspaceID, ExpectedRevision: 0, ClientID: &clientID,
 			Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
-				ID: "window-a", App: "Terminal", DesktopID: "desktop-default",
+				ID: "window-a", App: "terminal", DesktopID: "desktop-default",
 				Route: windowmanager.RouteIntent{
 					Pathname: "/terminal", Search: windowmanager.RouteSearch{},
 				},
@@ -626,7 +626,7 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 				WorkspaceID:      windowmanager.WorkspaceID(workspaceID),
 				ExpectedRevision: before.Revision,
 				Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
-					ID: windowID, App: "Terminal", DesktopID: "desktop-default",
+					ID: windowID, App: "terminal", DesktopID: "desktop-default",
 					Route:        windowmanager.RouteIntent{Pathname: "/terminal", Search: windowmanager.RouteSearch{}},
 					FloatingRect: windowmanager.NormalizedRect{X: 0.1, Y: 0.1, Width: 0.5, Height: 0.5},
 				}},

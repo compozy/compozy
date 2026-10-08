@@ -35,8 +35,8 @@ Stress profile: heavy CLI/release artifacts (Go service stub, Python benchmark, 
 
 ## Disruption probe seeds
 
-- **bench_regression** at minute 8 — overwrite the bench artifact with a 22% slowdown in cold-start.
-- **breaking_change_undocumented** at minute 14 — knowledge file with user feedback reporting a breaking flag rename not in the changelog.
+- **bench_regression** at minute 8 — task event reporting a 22% cold-start slowdown from the bench harness.
+- **breaking_change_undocumented** at minute 14 — task event with user feedback reporting a breaking flag rename not in the changelog.
 - **release_pipeline_signing_fail** at minute 22 — task event recording a signing-key failure on the release pipeline dry-run.
 
 ---
@@ -79,18 +79,12 @@ Stress profile: heavy CLI/release artifacts (Go service stub, Python benchmark, 
     {
       "id": "ws_community",
       "name": "community",
-      "purpose": "OSS contributors, GitHub issue triage, support tone",
-      "knowledge_files": [
-        "workspace/contributor-support-tone.md"
-      ]
+      "purpose": "OSS contributors, GitHub issue triage, support tone"
     },
     {
       "id": "ws_bench_ops",
       "name": "bench-ops",
-      "purpose": "Benchmark harness, regression analysis, SLA dashboard",
-      "knowledge_files": [
-        "workspace/bench-harness-status.md"
-      ]
+      "purpose": "Benchmark harness, regression analysis, SLA dashboard"
     }
   ],
   "agents": [
@@ -98,7 +92,7 @@ Stress profile: heavy CLI/release artifacts (Go service stub, Python benchmark, 
       "id": "eng-lead-agent",
       "role": "Engineering Lead",
       "persona": "Engineering Lead. Owns release sign-off and cross-team unblocking.",
-      "system_prompt": "You are the Engineering Lead at Helix CLI. Hold the v1.0 cutover checklist in release-eng task artifacts, unblock owners, and decide whether the release ships, ships with a known issue, or holds. Do not implement work yourself — coordinate it. Read the release-policy and the current bench status before approving cutover.",
+      "system_prompt": "You are the Engineering Lead at Helix CLI. Hold the v1.0 cutover checklist in release-eng task artifacts, unblock owners, and decide whether the release ships, ships with a known issue, or holds. Do not implement work yourself — coordinate it. Ship only with a signed binary, an accurate changelog, a live docs landing, cold-start within 15% of v0.9.x, and a live contributor macro pack. Ship with a known issue only with a documented regression, a rollback runbook, and a public note. Hold on a bench regression above 15%, a signing failure, or an undocumented breaking change. Check the current bench status before approving cutover.",
       "workspace": "ws_release_eng"
     },
     {
@@ -112,7 +106,7 @@ Stress profile: heavy CLI/release artifacts (Go service stub, Python benchmark, 
       "id": "docs-engineer-agent",
       "role": "Docs Engineer",
       "persona": "Docs Engineer. Owns the docs landing page and the upgrade guide.",
-      "system_prompt": "You are the Docs Engineer at Helix CLI. Ship the docs landing TSX page, the v1.0 upgrade guide runbook, and the changelog spec. Route every docs change through docs-reviewer on docs-site task artifacts before it lands.",
+      "system_prompt": "You are the Docs Engineer at Helix CLI. Ship the docs landing TSX page, the v1.0 upgrade guide runbook, and the changelog spec. Group changelog entries by Added, Changed, Deprecated, Removed, Fixed, and Performance; list flag renames under both Changed and Deprecated; cite an issue or PR id for every entry. Route every docs change through docs-reviewer on docs-site task artifacts before it lands.",
       "workspace": "ws_docs_site"
     },
     {
@@ -151,28 +145,6 @@ Stress profile: heavy CLI/release artifacts (Go service stub, Python benchmark, 
       "workspace": "ws_bench_ops"
     }
   ],
-  "knowledge_files": [
-    {
-      "path": "global/operator-style.md",
-      "content": "# Operator narrative style\n\nTechnical, low theatrics. State what shipped, what is blocked, what is next. Reference the bench harness, the docs PR queue, OSS contributor expectations, and the release pipeline. Never use evaluation or testing framing.\n"
-    },
-    {
-      "path": "global/release-policy.md",
-      "content": "# v1.0 release policy\n\n- Ship only with: signed binary, accurate changelog, docs landing live, bench cold-start within 15% of v0.9.x, contributor macro pack live.\n- Ship with known issue: documented regression, runbook for rollback, public note in announcement.\n- Hold: bench regression > 15%, signing failure, undocumented breaking change.\n"
-    },
-    {
-      "path": "global/changelog-style.md",
-      "content": "# Changelog style\n\n- Group by Added / Changed / Deprecated / Removed / Fixed / Performance.\n- Include flag renames in BOTH Changed and Deprecated.\n- Cite the issue or PR id for every entry.\n- v1.0 entry must include explicit \"Stable API\" note and version-table compatibility section.\n"
-    },
-    {
-      "path": "workspace/contributor-support-tone.md",
-      "content": "# Contributor support tone\n\nWarm, technical, never defensive. Acknowledge first, restate the issue, propose the next concrete step or known workaround. Do not over-promise on roadmap timing.\n"
-    },
-    {
-      "path": "workspace/bench-harness-status.md",
-      "content": "# Bench harness status\n\nLast clean run: two days ago. Cold-start path under observation; no regressions reported. Awaiting fresh run before release.\n"
-    }
-  ],
   "open_tasks": [
     {
       "title": "Release shell script (build, sign, publish)",
@@ -208,7 +180,7 @@ Stress profile: heavy CLI/release artifacts (Go service stub, Python benchmark, 
     },
     {
       "title": "v1.0 changelog spec",
-      "description": "Full changelog conforming to changelog-style.md; cite all PRs.",
+      "description": "Full changelog grouped by Added, Changed, Deprecated, Removed, Fixed, and Performance, with an explicit Stable API note and a version-table compatibility section; cite all PRs.",
       "owner_agent": "docs-engineer-agent",
       "deliverable_type": "spec_md",
       "deliverable_path_hint": "ws_docs_site/changelog/v1.md",
@@ -281,13 +253,13 @@ Stress profile: heavy CLI/release artifacts (Go service stub, Python benchmark, 
     {
       "type": "bench_regression",
       "seed_at_minute": 8,
-      "delivery": "knowledge_file",
+      "delivery": "task_event",
       "expected_recovery": "Bench engineer detects the 22% delta and posts to bench-ops task artifacts within 5 minutes; perf reviewer issues a verdict; engineering lead writes the bench-regression-decision before announcing release."
     },
     {
       "type": "breaking_change_undocumented",
       "seed_at_minute": 14,
-      "delivery": "knowledge_file",
+      "delivery": "task_event",
       "expected_recovery": "Docs engineer adds the flag rename to changelog and upgrade guide within 8 minutes; docs reviewer approves the diff."
     },
     {

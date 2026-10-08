@@ -17,13 +17,13 @@ func TestDeriveConsentAreas(t *testing.T) {
 	t.Run("Should derive unique consent areas from permissions", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := DeriveConsentAreas([]string{"sessions/list", "memory/store", "sessions/list"})
+		got, err := DeriveConsentAreas([]string{"logs/list", "sessions/create", "logs/list"})
 		if err != nil {
 			t.Fatalf("DeriveConsentAreas() error = %v", err)
 		}
 		want := []ConsentArea{
-			{Area: "memory", Access: "write"},
-			{Area: "sessions", Access: "read"},
+			{Area: "logs", Access: "read"},
+			{Area: "sessions", Access: "write"},
 		}
 		if !slices.Equal(got, want) {
 			t.Fatalf("DeriveConsentAreas() = %#v, want %#v", got, want)
@@ -232,15 +232,15 @@ func TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSour
 			checker := newTestCapabilityChecker(
 				"ext",
 				tt.source,
-				[]string{"memory/store", "sessions/create"},
+				[]string{"agents/soul/put", "sessions/create"},
 			)
 
-			for _, capability := range []string{"memory.write", "session.write"} {
+			for _, capability := range []string{"soul.write", "session.write"} {
 				if err := checker.Check("ext", capability); err != nil {
 					t.Fatalf("Check(%q) error = %v, want nil", capability, err)
 				}
 			}
-			for _, method := range []string{"memory/store", "sessions/create"} {
+			for _, method := range []string{"agents/soul/put", "sessions/create"} {
 				if err := checker.CheckHostAPI("ext", method); err != nil {
 					t.Fatalf("CheckHostAPI(%q) error = %v, want nil", method, err)
 				}
@@ -258,7 +258,6 @@ func TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities(t *testing
 		capability string
 	}{
 		{name: "session write", method: "sessions/create", capability: "session.write"},
-		{name: "memory write", method: "memory/store", capability: "memory.write"},
 	}
 
 	for _, tt := range tests {
@@ -283,15 +282,15 @@ func TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities(t *testi
 	checker := newTestCapabilityChecker(
 		"ext",
 		SourceMarketplace,
-		[]string{"memory/recall", "logs/list", "observe/health", "sessions/list", "skills/list"},
+		[]string{"logs/list", "observe/health", "sessions/list", "skills/list"},
 	)
 
-	for _, capability := range []string{"memory.read", "logs.read", "observe.read", "session.read"} {
+	for _, capability := range []string{"logs.read", "observe.read", "session.read"} {
 		if err := checker.Check("ext", capability); err != nil {
 			t.Fatalf("Check(%q) error = %v, want nil", capability, err)
 		}
 	}
-	for _, method := range []string{"memory/recall", "logs/list", "observe/health", "sessions/list", "skills/list"} {
+	for _, method := range []string{"logs/list", "observe/health", "sessions/list", "skills/list"} {
 		if err := checker.CheckHostAPI("ext", method); err != nil {
 			t.Fatalf("CheckHostAPI(%q) error = %v, want nil", method, err)
 		}
@@ -306,8 +305,6 @@ func TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling(t *testing.T
 		Permissions: PermissionsConfig{
 			Requires: []string{
 				"logs/list",
-				"memory/recall",
-				"memory/store",
 				"sessions/create",
 				"sessions/list",
 				"skills/list",
@@ -316,21 +313,21 @@ func TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling(t *testing.T
 	})
 
 	grant := checker.grants["ext"]
-	if !slices.Equal(grant.permissions, []string{"logs/list", "memory/recall", "sessions/list", "skills/list"}) {
+	if !slices.Equal(grant.permissions, []string{"logs/list", "sessions/list", "skills/list"}) {
 		t.Fatalf(
 			"grant.permissions = %v, want %v",
 			grant.permissions,
-			[]string{"logs/list", "memory/recall", "sessions/list", "skills/list"},
+			[]string{"logs/list", "sessions/list", "skills/list"},
 		)
 	}
 	if !slices.Equal(
 		grant.security,
-		[]string{"logs.read", "memory.read", "session.read", "skills.read"},
+		[]string{"logs.read", "session.read", "skills.read"},
 	) {
 		t.Fatalf(
 			"grant.security = %v, want %v",
 			grant.security,
-			[]string{"logs.read", "memory.read", "session.read", "skills.read"},
+			[]string{"logs.read", "session.read", "skills.read"},
 		)
 	}
 }

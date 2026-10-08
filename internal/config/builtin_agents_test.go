@@ -27,15 +27,6 @@ func TestBuiltinAgentDefReturnsRuntimeOwnedIdentities(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return the dreaming curator identity", func(t *testing.T) {
-		t.Parallel()
-
-		got, ok := BuiltinAgentDef("dreaming-curator")
-		if !ok || got.Name != "dreaming-curator" || strings.TrimSpace(got.Prompt) == "" {
-			t.Fatalf("BuiltinAgentDef(dreaming-curator) = (%#v, %t), want named non-empty identity", got, ok)
-		}
-	})
-
 	t.Run("Should reject catalog and unknown names", func(t *testing.T) {
 		t.Parallel()
 
@@ -53,7 +44,7 @@ func TestBuiltinAgentNamesOwnExactReservations(t *testing.T) {
 	t.Run("Should return the closed builtin roster", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := BuiltinAgentNames(), []string{"coordinator", "dreaming-curator"}; !slices.Equal(got, want) {
+		if got, want := BuiltinAgentNames(), []string{"coordinator"}; !slices.Equal(got, want) {
 			t.Fatalf("BuiltinAgentNames() = %#v, want %#v", got, want)
 		}
 	})
@@ -61,7 +52,7 @@ func TestBuiltinAgentNamesOwnExactReservations(t *testing.T) {
 	t.Run("Should normalize exact builtin names", func(t *testing.T) {
 		t.Parallel()
 
-		for _, name := range []string{"coordinator", " COORDINATOR ", "dreaming-curator", " DREAMING-CURATOR "} {
+		for _, name := range []string{"coordinator", " COORDINATOR "} {
 			if !IsReservedAgentName(name) {
 				t.Errorf("IsReservedAgentName(%q) = false, want true", name)
 			}
@@ -71,7 +62,7 @@ func TestBuiltinAgentNamesOwnExactReservations(t *testing.T) {
 	t.Run("Should not reserve catalog or prefix names", func(t *testing.T) {
 		t.Parallel()
 
-		for _, name := range []string{"general", "coordinator-helper"} {
+		for _, name := range []string{"general", "coordinator-helper", "dreaming-curator", " DREAMING-CURATOR "} {
 			if IsReservedAgentName(name) {
 				t.Errorf("IsReservedAgentName(%q) = true, want false", name)
 			}

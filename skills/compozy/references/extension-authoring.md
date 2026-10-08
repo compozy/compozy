@@ -47,7 +47,6 @@ extension cannot claim compatibility its SDK does not have.
 | `tool-provider-ts`         | Agent-callable tools in TypeScript (default).  |
 | `tool-provider-go`         | Agent-callable tools in Go.                    |
 | `view-provider-ts`         | A programmable palette view with React.        |
-| `memory-backend-ts`        | The `memory.backend` provide surface.          |
 | `loop-watch-source-go`     | The `loop.watch_source` provide surface.       |
 | `connectivity-provider-go` | A Gateway connectivity provider in Go.         |
 | `connectivity-provider-ts` | A Gateway connectivity provider in TypeScript. |
@@ -99,13 +98,13 @@ validated against the closed Host API method set at build, validate, install, an
 hard error, never a silent no-op. Both SDKs export the method names as typed constants.
 
 CompozyOS derives operator-facing consent areas (`area:access`, such as `sessions:read` or
-`memory:write`) from that list. Consent areas are a display and policy projection and are never
+`sessions:write`) from that list. Consent areas are a display and policy projection and are never
 authored. `compozy extension validate <dir> -o json` returns `consent_areas`; show that to the user
 before proposing an install.
 
 Grant ceilings by install source: dev links (`workspace`), local-path installs (`user`), and bundled
 extensions get every declared method. Published installs (`curated`, `github`, `git`) run under the
-marketplace tier, limited to `logs.read`, `memory.read`, `observe.read`, `session.read`,
+marketplace tier, limited to `logs.read`, `observe.read`, `session.read`,
 `skills.read`, and `tool.read`; anything outside is dropped at grant time with a recorded diagnostic.
 Design a mutating extension as a local or dev-linked install, not a published one.
 
@@ -160,7 +159,6 @@ Closed set, validated at build, install, and load.
 | Provide                 | Extension must implement                                                 | Public |
 | ----------------------- | ------------------------------------------------------------------------ | ------ |
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
-| `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
 | `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
@@ -252,7 +250,9 @@ kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, 
 `[resources.cmd_palette]`, `[[resources.hooks]]`, `[[resources.command_groups]]`, `[[profiles]]`, and
 `[gateway]`.
 
-Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`.
+Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`. An
+automation resource whose trigger `event` is `memory.consolidated` (a removed event) is skipped with an
+`extension.retired_entries_ignored` warning; the extension's other resources still load.
 Resource paths resolve inside the extension root; `{{config_dir}}` is that root and
 `{{env:NAME}}` reads the daemon process environment. Hooks, tools, command groups, MCP servers,
 dynamic resource publication, and subprocess behavior require a supported code toolchain.

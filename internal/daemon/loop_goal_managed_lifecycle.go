@@ -374,8 +374,13 @@ func (l *loopGoalManagedInputLifecycle) submission(
 		turn := claimed.Checkpoint.TurnsUsed
 		meta.Turn = &turn
 	}
+	delivery := session.PromptDeliveryNormal
+	if owner.PromptKind == loopManagedPromptKindCompact {
+		delivery = session.PromptDeliveryMaintenance
+	}
 	return session.ManagedInputSubmission{
-		Owner: owner, PromptMeta: meta, DispatchToken: claimed.DispatchToken,
+		Delivery: delivery,
+		Owner:    owner, PromptMeta: meta, DispatchToken: claimed.DispatchToken,
 		BudgetVersion: budgetVersion, StartedAt: l.currentTime(),
 		UsageReporter: l.usageReporter(owner.QueueEntryID),
 	}

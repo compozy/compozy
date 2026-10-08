@@ -47,10 +47,6 @@ const SECTION_LOADERS = {
     import("@/routes/_app/settings/-providers-settings-page").then(m => ({
       default: m.ProvidersSettingsPage,
     })),
-  memory: () =>
-    import("@/routes/_app/settings/-memory-settings-page").then(m => ({
-      default: m.MemorySettingsPage,
-    })),
   roles: () =>
     import("@/routes/_app/settings/-roles-settings-page").then(m => ({
       default: m.RolesSettingsPage,

@@ -59,16 +59,14 @@ export function RolePanel({
   updateFallback,
   registerFieldRef,
 }: RolePanelProps) {
-  const { role, fields, advancedFields, values, effective, status } = vm;
+  const { role, fields, values, effective, status } = vm;
   const bodyId = `role-panel-${useId().replace(/:/g, "")}`;
   const testId = `${TEST_PREFIX}-${role}`;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // A blocking error inside the fold force-opens it, so the save flow can focus
   // the offending field instead of aiming at a hidden control.
-  const hasAdvancedError = Object.keys(validationErrors).some(
-    id =>
-      id.startsWith(`${role}.fallback.`) ||
-      advancedFields.some(field => id === roleFieldId(role, field.key))
+  const hasAdvancedError = Object.keys(validationErrors).some(id =>
+    id.startsWith(`${role}.fallback.`)
   );
 
   return (
@@ -132,10 +130,7 @@ export function RolePanel({
             open={advancedOpen || hasAdvancedError}
             onOpenChange={setAdvancedOpen}
             disabled={disabled}
-            draftRevision={draftRevision}
             testId={`${testId}-advanced`}
-            setRoleField={setRoleField}
-            setNumberFieldValidity={setNumberFieldValidity}
             onAdd={() => addFallback(role)}
             onRemove={index => removeFallback(role, index)}
             onUpdate={(index, value) => updateFallback(role, index, value)}

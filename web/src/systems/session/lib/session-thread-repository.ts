@@ -272,8 +272,18 @@ function toThreadPart(
   return null;
 }
 
-function toThreadRole(role: SessionMessage["role"]): ThreadMessageLike["role"] {
-  if (role === "user" || role === "assistant" || role === "system") {
+// assistant-ui accepts a `system` message only as exactly one text part. Any other
+// system projection (the compaction item's data part) is carried as an assistant
+// message — the role whose parts the timeline renders — instead of failing the
+// whole thread conversion.
+function toThreadRole(
+  role: SessionMessage["role"],
+  parts: readonly ThreadContentPart[]
+): ThreadMessageLike["role"] {
+  if (role === "system") {
+    return parts.length === 1 && parts[0]?.type === "text" ? "system" : "assistant";
+  }
+  if (role === "user" || role === "assistant") {
     return role;
   }
   return "assistant";
@@ -293,7 +303,7 @@ export function toThreadMessageLikes(messages: SessionMessage[]): ThreadMessageL
       message.parts
         ?.map((part, index) => toThreadPart(part, index, facts))
         .filter(part => part !== null) ?? [];
-    const role = toThreadRole(message.role);
+    const role = toThreadRole(message.role, parts);
     const status = role === "assistant" ? (message as SessionMessageWithStatus).status : undefined;
     const metadata = toThreadMetadata(message);
     return {

@@ -186,6 +186,10 @@ func clearedConversationMeta(meta *store.SessionMeta, now time.Time) store.Sessi
 		return store.SessionMeta{}
 	}
 	cleared := *meta
+	if meta.SessionRuntimeBindingState != nil {
+		cleared.SessionRuntimeBindingState = new(*meta.SessionRuntimeBindingState)
+	}
+	cleared.SetPendingResumeReplay("")
 	cleared.State = string(StateStopped)
 	cleared.StopReason = nil
 	cleared.StopDetail = ""

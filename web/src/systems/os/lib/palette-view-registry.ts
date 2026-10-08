@@ -54,7 +54,6 @@ export const PALETTE_VIEWS: Readonly<Record<string, PaletteViewDefinition>> = {
   loops: domainView("loops", "Loops", OS_APP_DESCRIPTORS.loops.icon),
   automations: domainView("automations", "Automations", OS_APP_DESCRIPTORS.automations.icon),
   agents: domainView("agents", "Agents", OS_APP_DESCRIPTORS.agents.icon),
-  knowledge: domainView("knowledge", "Knowledge", OS_APP_DESCRIPTORS.knowledge.icon),
   vault: domainView("vault", "Vault", OS_APP_DESCRIPTORS.vault.icon),
   marketplace: domainView("marketplace", "Marketplace", OS_APP_DESCRIPTORS.marketplace.icon),
   extensions: domainView("extensions", "Extensions", Blocks),

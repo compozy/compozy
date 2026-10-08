@@ -111,7 +111,6 @@ func agentSoulFrontmatterPayload(front soulpkg.Frontmatter) AgentSoulFrontmatter
 		Principles:    normalizeAuthoredStrings(front.Principles),
 		Constraints:   normalizeAuthoredStrings(front.Constraints),
 		Collaboration: normalizeAuthoredStrings(front.Collaboration),
-		MemoryPolicy:  normalizeAuthoredStrings(front.MemoryPolicy),
 		Tags:          normalizeAuthoredStrings(front.Tags),
 	}
 }

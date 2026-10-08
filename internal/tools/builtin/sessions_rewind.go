@@ -12,7 +12,7 @@ func sessionRewindDescriptor() toolspkg.Descriptor {
 		"session_rewind",
 		"Session Rewind",
 		"Rewind an idle user session before one durable user message. "+
-			"This does not undo files, tools, network actions, or memory.",
+			"This does not undo files, tools, or network actions.",
 		sessionRewindInputSchema,
 		toolspkg.RiskDestructive,
 		false,

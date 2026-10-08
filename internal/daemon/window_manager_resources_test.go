@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -60,6 +61,85 @@ func TestWindowManagerLayoutResources(t *testing.T) {
 			windowmanager.ErrLayoutResourceNotFound,
 		) {
 			t.Fatalf("Resolve(missing) error = %v", err)
+		}
+	})
+
+	// Invariant: restored resources repair retired windows once without changing their source or surviving layout.
+	// Owning layer: daemon persisted resource load; canonical suite: this file.
+	t.Run("Should persist reconciled window resources once and preserve source ownership", func(t *testing.T) {
+		t.Parallel()
+		database := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(database.DB())
+		if err != nil {
+			t.Fatal(err)
+		}
+		codecs := resources.NewCodecRegistry()
+		if err := registerDaemonResourceCodecs(codecs); err != nil {
+			t.Fatal(err)
+		}
+		state := &bootState{resourceKernel: kernel, resourceCodecs: codecs, logger: discardLogger()}
+		_, store, err := state.resolveDaemonResourceStore[windowmanager.LayoutResource](
+			windowmanager.WindowLayoutResourceKind,
+			"window layout",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor := resources.MutationActor{
+			Kind: resources.MutationActorKindOperator, ID: "operator",
+			Source:   resources.ResourceSource{Kind: "dynamic", ID: "operator"},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}
+		fixture := windowLayoutRecord("restored", actor.MaxScope, "Restored")
+		fixture.Spec.Document.Windows = map[windowmanager.WindowID]windowmanager.Window{
+			"retired": {ID: "retired", App: "knowledge"},
+			"kept":    {ID: "kept", App: "settings", Route: windowmanager.RouteIntent{Pathname: "/settings/memory"}},
+		}
+		for id, window := range fixture.Spec.Document.Windows {
+			window.DesktopID = "desktop-default"
+			window.Placement = windowmanager.WindowPlacementFloating
+			window.FloatingRect = windowmanager.NormalizedRect{Width: 0.5, Height: 0.5}
+			window.Route.Search = windowmanager.RouteSearch{}
+			if window.Route.Pathname == "" {
+				window.Route.Pathname = "/"
+			}
+			fixture.Spec.Document.Windows[id] = window
+		}
+		fixture.Spec.Document.Desktops[0].Floating = []windowmanager.WindowID{"retired", "kept"}
+		fixture.Spec.ParticipantSlots = []windowmanager.WindowID{"retired", "kept", "virtual"}
+		original, err := store.Put(
+			t.Context(),
+			actor,
+			resources.Draft[windowmanager.LayoutResource]{ID: fixture.ID, Scope: fixture.Scope, Spec: fixture.Spec},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := reconcileStoredWindowLayouts(t.Context(), state); err != nil {
+			t.Fatal(err)
+		}
+		got, err := store.Get(t.Context(), actor, fixture.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Version != original.Version+1 || got.Source != original.Source || got.Owner != original.Owner ||
+			len(got.Spec.Document.Windows) != 1 || got.Spec.Document.Windows["kept"].Route.Pathname != "/settings" ||
+			!reflect.DeepEqual(got.Spec.ParticipantSlots, []windowmanager.WindowID{"kept", "virtual"}) ||
+			!reflect.DeepEqual(got.Spec.Document.Desktops[0].Floating, []windowmanager.WindowID{"kept"}) {
+			t.Fatalf("reconciled resource = %+v", got)
+		}
+		if err := reconcileStoredWindowLayouts(t.Context(), state); err != nil {
+			t.Fatal(err)
+		}
+		again, err := store.Get(t.Context(), actor, fixture.ID)
+		if err != nil || !reflect.DeepEqual(again, got) {
+			t.Fatalf("second reconciliation = %+v, error = %v; want unchanged %+v", again, err, got)
+		}
+		catalog := newResourceCatalog(windowmanager.CloneLayoutResource)
+		catalog.Replace(original.Version, []resources.Record[windowmanager.LayoutResource]{original})
+		resolved, err := newWindowManagerLayoutRegistry(catalog).Resolve(t.Context(), "workspace", fixture.ID)
+		if err != nil || len(resolved.Windows) != 1 || resolved.Windows["kept"].Route.Pathname != "/settings" {
+			t.Fatalf("Resolve(legacy) = %+v, error = %v", resolved, err)
 		}
 	})
 

@@ -173,7 +173,7 @@ func matchPermissionDenied(matcher HookMatcher, payload PermissionDeniedPayload)
 	return matcher.MatchesPermissionDenied(payload)
 }
 
-func matchContextCompact(matcher HookMatcher, payload ContextCompactPayload) bool {
+func matchContextCompact(matcher HookMatcher, payload ContextCompactionPayload) bool {
 	return matcher.MatchesContextCompact(payload)
 }
 

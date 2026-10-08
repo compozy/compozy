@@ -14,13 +14,8 @@ func (d *Daemon) runtimeDeps(
 	if state.agentProbeConfig == nil {
 		state.agentProbeConfig = newAgentProbeConfigState(&state.cfg)
 	}
-	d.initializeDreamRuntime(state, sessions)
 	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
 	state.runtimeWorkers.authoredHeartbeatWake = authoredContext.wakePrompter
-	var memoryProviders core.MemoryProviderService
-	if state.memoryProviderRegistry != nil {
-		memoryProviders = daemonMemoryProviderService{registry: state.memoryProviderRegistry}
-	}
 	var worktrees core.WorktreeService
 	if state.worktrees != nil {
 		worktrees = state.worktrees
@@ -42,10 +37,6 @@ func (d *Daemon) runtimeDeps(
 		Registry:              state.registry,
 		Profiles:              state.profiles,
 		SchemaStreams:         newDaemonSchemaStreamStatusReader(state.registry),
-		MemoryStore:           state.memoryCatalogStore,
-		MemoryExtractor:       state.memoryExtractor,
-		MemoryProviders:       memoryProviders,
-		MemorySessionLedger:   newDaemonMemorySessionLedgerService(state, d.now),
 		RuntimeMemory:         state.runtimeWorkers.runtimeMemory,
 		DeadEntities:          state.deadEntities,
 		WorkspaceResolver:     state.workspaceResolver,
@@ -81,7 +72,6 @@ func (d *Daemon) runtimeDeps(
 		Clarify:               state.clarify,
 		HostedMCP:             state.hostedMCP,
 		MCPHostAPI:            newMCPHostAPIRuntimeInvoker(state.currentExtensionRuntime),
-		DreamTrigger:          dreamTriggerFromRuntime(state.dreamRuntime),
 		Vault:                 state.providerVault,
 		StartedAt:             state.startedAt,
 		OnProviderAuthSuccess: d.providerPreStarter.Clear,

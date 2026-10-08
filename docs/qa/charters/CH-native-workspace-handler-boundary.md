@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Use fresh bound sessions with operator-authored permission modes in the continuing isolated lab; inspect live descriptors before invoking tools."
-      - "Invoke workspace, memory, automation, hook and task-claim reads or mutations with omitted workspace; confirm their result and an independent public read remain in the bound project."
+      - "Invoke workspace, automation, hook and task-claim reads or mutations with omitted workspace; confirm their result and an independent public read remain in the bound project."
       - "Name the own project by ID, name and path, then name the foreign project under an allowed and a denied mode; confirm canonical targets and preserved foreign state after denial."
       - "Attempt global and all scope from a bound session and compare with a legitimate operator read."
       - "Install a narrowly matched pre-call hook through the public hook interface, attempt to rewrite a native call's workspace, and verify that no effect lands in the rewritten project; remove the owned hook afterward."

@@ -64,12 +64,6 @@ func (m *Manager) HookTelemetrySink() hookspkg.TelemetrySink {
 	return managerHookTelemetrySink{manager: m}
 }
 
-// MemoryObserver exposes the automation memory-consolidation observer seam for
-// callers that can publish completion events.
-func (m *Manager) MemoryObserver() MemoryConsolidationObserver {
-	return managerMemoryObserver{manager: m}
-}
-
 // RecordAutomationSessionTaskActor stores the trusted task-domain actor
 // context for one automation-launched session.
 func (m *Manager) RecordAutomationSessionTaskActor(sessionID string, actor taskpkg.ActorContext) error {

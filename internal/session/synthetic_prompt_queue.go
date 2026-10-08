@@ -25,7 +25,9 @@ func (m *Manager) enqueueDurableSyntheticPrompt(
 	}
 	return m.inputQueue.EnqueueSynthetic(ctx, inputqueue.InputRequest{
 		SessionID: session.ID, Text: req.message, TargetTurnID: session.CurrentTurnID(), Generation: generation,
-	}, req.turnID, &store.SessionInputSyntheticPrompt{RunID: req.runID, Metadata: metadata}, req.meta.Synthetic.TaskRunID)
+	}, req.turnID, &store.SessionInputSyntheticPrompt{
+		RunID: req.runID, Metadata: metadata, Delivery: string(req.delivery),
+	}, req.meta.Synthetic.TaskRunID)
 }
 
 // This observer owns only delivery completion. Durable rows and the common pump

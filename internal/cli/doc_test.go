@@ -343,7 +343,6 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 
 	for _, expected := range []string{
 		"mcp/auth/login.mdx",
-		"memory/extractor/list-failures.mdx",
 	} {
 		if !mdxFiles[expected] {
 			t.Errorf("expected generated CLI doc %q", expected)
@@ -351,7 +350,6 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	}
 	for _, removed := range []string{
 		"mcp/authorize.mdx",
-		"memory/extractor/list-pending.mdx",
 	} {
 		if mdxFiles[removed] {
 			t.Errorf("removed CLI command doc %q must not be generated", removed)

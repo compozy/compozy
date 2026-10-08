@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	BuiltinCoordinatorAgentName     = "coordinator"
-	BuiltinDreamingCuratorAgentName = "dreaming-curator"
+	BuiltinCoordinatorAgentName = "coordinator"
 )
 
 // ErrAgentNameReserved marks attempts to author a catalog agent with a builtin identity.
@@ -19,22 +18,16 @@ var ErrAgentNameReserved = errors.New("config: agent name is reserved")
 var (
 	//go:embed prompts/coordinator.md
 	coordinatorBuiltinPrompt string
-	//go:embed prompts/dreaming-curator.md
-	dreamingCuratorBuiltinPrompt string
 
 	builtinAgentDefs = map[string]AgentDef{
 		BuiltinCoordinatorAgentName: {
 			Name:   BuiltinCoordinatorAgentName,
 			Prompt: strings.TrimSpace(coordinatorBuiltinPrompt),
 		},
-		BuiltinDreamingCuratorAgentName: {
-			Name:   BuiltinDreamingCuratorAgentName,
-			Prompt: strings.TrimSpace(dreamingCuratorBuiltinPrompt),
-		},
 	}
 )
 
-// BuiltinAgentNames returns the reserved runtime-owned identity names.
+// BuiltinAgentNames returns the runtime-owned identity names.
 func BuiltinAgentNames() []string {
 	names := slices.AppendSeq(make([]string, 0, len(builtinAgentDefs)), maps.Keys(builtinAgentDefs))
 	slices.Sort(names)
@@ -52,8 +45,7 @@ func BuiltinAgentDef(name string) (AgentDef, bool) {
 
 // IsReservedAgentName reports whether a catalog name collides with a builtin identity.
 func IsReservedAgentName(name string) bool {
-	_, ok := builtinAgentDefs[normalizeBuiltinAgentName(name)]
-	return ok
+	return normalizeBuiltinAgentName(name) == BuiltinCoordinatorAgentName
 }
 
 func normalizeBuiltinAgentName(name string) string {

@@ -1,10 +1,8 @@
 package daemon
 
 import (
-	"context"
 	"testing"
 
-	apitest "github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -50,30 +48,27 @@ func TestSessionLineageClassificationUsesSessionType(t *testing.T) {
 		}
 	})
 
-	t.Run("Should classify only spawned session metadata as a memory subagent", func(t *testing.T) {
+	t.Run("Should ignore retired lineage tools while retaining enforcement", func(t *testing.T) {
 		t.Parallel()
-
+		inputs := toolspkg.PolicyInputs{}
 		info := &session.Info{
-			ID: "sess-goal", Type: session.SessionTypeSystem,
+			ID:   "retired-lineage-session",
+			Type: session.SessionTypeSpawned,
 			Lineage: &store.SessionLineage{
-				ParentSessionID: "sess-orchestrator", RootSessionID: "sess-orchestrator", SpawnDepth: 1,
+				ParentSessionID:  "root-session",
+				RootSessionID:    "root-session",
+				SpawnDepth:       1,
+				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"compozy__memory_list"}},
 			},
 		}
-		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{Sessions: apitest.StubSessionManager{
-			StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
-		}}}
-		kind, err := native.memoryCallerActorKind(
-			t.Context(), toolspkg.Scope{SessionID: info.ID}, toolspkg.CallRequest{},
-		)
-		if err != nil || kind != nativeMemoryActorKindRoot {
-			t.Fatalf("memoryCallerActorKind(system provenance) = %q, %v, want root", kind, err)
+		if err := applySessionToolPolicy(&inputs, info); err != nil {
+			t.Fatal(err)
 		}
-		info.Type = session.SessionTypeSpawned
-		kind, err = native.memoryCallerActorKind(
-			t.Context(), toolspkg.Scope{SessionID: info.ID}, toolspkg.CallRequest{},
-		)
-		if err != nil || kind != nativeMemoryActorKindSubagent {
-			t.Fatalf("memoryCallerActorKind(spawned) = %q, %v, want subagent", kind, err)
+		if !inputs.Session.Enforced || len(inputs.Session.Tools) != 0 {
+			t.Fatalf("retired lineage policy = %#v", inputs.Session)
+		}
+		if len(info.Lineage.PermissionPolicy.Tools) != 1 {
+			t.Fatal("persisted lineage mutated")
 		}
 	})
 }

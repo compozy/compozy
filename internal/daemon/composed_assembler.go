@@ -16,9 +16,8 @@ import (
 // ComposedAssembler assembles selected startup prompt sections around the base
 // agent prompt.
 type ComposedAssembler struct {
-	selector           *SectionSelector
-	descriptors        []PromptSectionDescriptor
-	resumeOnlyProvider session.ResumeContextProvider
+	selector    *SectionSelector
+	descriptors []PromptSectionDescriptor
 }
 
 // ComposedAssemblerOption customizes the prompt section chain for a
@@ -65,7 +64,6 @@ var (
 	_ session.PromptAssembler          = (*ComposedAssembler)(nil)
 	_ session.StartupPromptAssembler   = (*ComposedAssembler)(nil)
 	_ session.StartupManifestAssembler = (*ComposedAssembler)(nil)
-	_ session.ResumeContextProvider    = (*ComposedAssembler)(nil)
 )
 
 // NewComposedAssembler constructs a ComposedAssembler from startup section
@@ -214,45 +212,6 @@ func (a *ComposedAssembler) AssembleStartupWithManifest(
 		manifest.Spans = append(manifest.Spans, acp.TextSpan(section.key, section.text))
 	}
 	return strings.Join(texts, "\n\n"), manifest, nil
-}
-
-// ResumeContextSection gathers resume-only sections from the same selected
-// startup providers used by normal prompt assembly.
-func (a *ComposedAssembler) ResumeContextSection(
-	ctx context.Context,
-	startup session.StartupPromptContext,
-) (string, error) {
-	if a == nil {
-		return "", nil
-	}
-	selected, _, err := a.selectDescriptors(startup)
-	if err != nil {
-		return "", err
-	}
-	sections := make([]string, 0, len(selected)+1)
-	if a.resumeOnlyProvider != nil {
-		section, err := a.resumeOnlyProvider.ResumeContextSection(ctx, startup)
-		if err != nil {
-			return "", fmt.Errorf("daemon: resume compaction coverage: %w", err)
-		}
-		if trimmed := strings.TrimSpace(section); trimmed != "" {
-			sections = append(sections, trimmed)
-		}
-	}
-	for _, descriptor := range selected {
-		provider, ok := descriptor.Provider.(session.ResumeContextProvider)
-		if !ok || provider == nil {
-			continue
-		}
-		section, err := provider.ResumeContextSection(ctx, startup)
-		if err != nil {
-			return "", fmt.Errorf("daemon: resume prompt section %q: %w", descriptor.Name, err)
-		}
-		if trimmed := strings.TrimSpace(section); trimmed != "" {
-			sections = append(sections, trimmed)
-		}
-	}
-	return strings.Join(sections, "\n\n"), nil
 }
 
 func (a *ComposedAssembler) selectDescriptors(

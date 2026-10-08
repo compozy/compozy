@@ -6,7 +6,7 @@ persona: Ada
 journey: J-validate-compozy-hard-cut
 expected: A fresh runtime discovers the bundled skill only as `compozy`; every read plane agrees, the router serves the desktop reference and teaches app commands, ownership, updates, diagnostics, and recovery without a duplicate catalog entry.
 entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill list|inspect|view -o json; compozy__skill_list|view; Web /skills
-qa_status: skipped
+qa_status: untested
 bug_ids: BUG-20260825-skill-source-agent-write-doc-mismatch
 fix_status: fixed
 retest_status:
@@ -81,3 +81,5 @@ typing grant. The public docs and live runtime catalogs agreed with that referen
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-07 (memory removal): the official skill dropped `references/memory.md` and its memory routing and gained Compact now guidance in its native-tools and runtime-operations references. `skill inspect -o json` no longer lists a memory reference, `skill view compozy --file references/memory.md` is rejected with "file does not exist", and the router carries no memory command or tool row. Stale skipped verdict reset to untested; the earlier "twelve current references" count describes an older reference set; no QA session ran.

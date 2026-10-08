@@ -10,7 +10,6 @@ import {
   settingsPersonaOptions,
   settingsHooksExtensionsOptions,
   settingsMCPServersListOptions,
-  settingsMemoryOptions,
   settingsAttentionOptions,
   settingsAttentionFilterForProfile,
   settingsObservabilityOptions,
@@ -55,10 +54,6 @@ export function preloadSettingsSkillsRoute(queryClient: QueryClient): Promise<vo
     queryClient.ensureQueryData(workspacesListOptions()),
     queryClient.ensureQueryData(settingsSkillsOptions({ scope: "user" })),
   ]);
-}
-
-export function preloadSettingsMemoryRoute(queryClient: QueryClient): Promise<void> {
-  return settleRouteQueries([queryClient.ensureQueryData(settingsMemoryOptions())]);
 }
 
 export function preloadSettingsRolesRoute(queryClient: QueryClient): Promise<void> {

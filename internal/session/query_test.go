@@ -612,8 +612,6 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 		}
 		if catalog.lastAgentMetricsQuery.WorkspaceID != h.workspaceID ||
 			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeIDs, active.ID) ||
-			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSessionTypes, string(SessionTypeDream)) ||
-			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSpawnRoles, SpawnRoleMemoryExtractor) ||
 			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSpawnRoles, SpawnRoleAutoTitle) {
 			t.Fatalf(
 				"AggregateSessionsByAgent() query = %#v, want workspace and live/internal exclusions",
@@ -701,12 +699,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 	t.Run("Should hide daemon-owned internal sessions before the page cut", func(t *testing.T) {
 		t.Parallel()
 
-		dream := *base
-		dream.Type = SessionTypeDream
-		if sessionMatchesListQuery(&dream, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}}, now) {
-			t.Fatal("sessionMatchesListQuery(dream) = true, want false")
-		}
-		for _, role := range []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle} {
+		for _, role := range []string{SpawnRoleAutoTitle} {
 			internal := *base
 			internal.Lineage = &store.SessionLineage{SpawnRole: role}
 			if sessionMatchesListQuery(&internal, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}}, now) {
@@ -810,7 +803,6 @@ func TestNormalizeListQuery(t *testing.T) {
 	}{
 		{name: "state", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, State: "unknown"}, want: "unsupported state"},
 		{name: "type", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, SessionType: "unknown"}, want: "unsupported type"},
-		{name: "dream type", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, SessionType: SessionTypeDream}, want: "unsupported type"},
 		{name: "sort", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Sort: "oldest"}, want: "unsupported sort"},
 		{name: "negative limit", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Limit: -1}, want: "limit must be between"},
 		{name: "oversized limit", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Limit: MaxListLimit + 1}, want: "limit must be between"},
@@ -1659,8 +1651,115 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 
 func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	t.Parallel()
+	for _, freshBeforeNext := range []bool{false, true} {
+		name := "Should leave after absent when the next compaction ends before an occupancy observation"
+		if freshBeforeNext {
+			name = "Should retain the first same-turn occupancy after the first terminal despite corrections"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			target := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			at := time.Date(2026, 10, 8, 10, 0, 0, 0, time.UTC)
+			appendEvent := func(event acp.AgentEvent) int64 {
+				t.Helper()
+				event.TurnID, event.Timestamp = "A", at
+				if err := h.manager.recordEvent(t.Context(), target, event); err != nil {
+					t.Fatal(err)
+				}
+				rows, err := h.manager.Events(t.Context(), target.ID, store.EventQuery{Type: event.Type})
+				if err != nil || len(rows) == 0 {
+					t.Fatalf("recorded rows=%#v error=%v", rows, err)
+				}
+				return rows[len(rows)-1].Sequence
+			}
+			attribute := func(id string) {
+				t.Helper()
+				payload, err := json.Marshal(
+					CompactionFiredPayload{CompactionID: id, Trigger: "agent", ContextUsed: new(int64(100))},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				appendEvent(acp.AgentEvent{Type: events.SessionCompactionFired, Raw: payload})
+			}
+			attribute("c1")
+			first := appendEvent(acp.AgentEvent{Type: acp.EventTypeCompaction, Compaction: &acp.CompactionObservation{
+				CompactionID: "c1", Status: "completed", Terminal: true,
+			}})
+			appendEvent(acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{TotalTokens: new(int64(999))}})
+			pending, err := h.manager.Compactions(t.Context(), target.ID)
+			if err != nil || len(pending) != 1 || pending[0].ContextAfter != nil {
+				t.Fatalf("counter-only after=%#v error=%v", pending, err)
+			}
+			var firstAfter int64
+			if freshBeforeNext {
+				firstAfter = appendEvent(acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{
+					ContextUsed: new(int64(25)), ContextSize: new(int64(200)),
+				}})
+			}
+			attribute("c2")
+			second := appendEvent(acp.AgentEvent{Type: acp.EventTypeCompaction, Compaction: &acp.CompactionObservation{
+				CompactionID: "c2", Status: "failed", Terminal: true,
+			}})
+			appendEvent(acp.AgentEvent{Type: acp.EventTypeDone, Usage: &acp.TokenUsage{TotalTokens: new(int64(1000))}})
+			secondAfter := appendEvent(
+				acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: new(int64(0))}},
+			)
+			appendEvent(acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{
+				ContextUsed: new(int64(40)), ContextSize: new(int64(300)),
+			}})
+			appendEvent(acp.AgentEvent{Type: acp.EventTypeCompaction, Compaction: &acp.CompactionObservation{
+				CompactionID: "c1", Status: "failed", Terminal: true,
+			}})
+			appendEvent(acp.AgentEvent{Type: acp.EventTypeCompaction, Compaction: &acp.CompactionObservation{
+				CompactionID: "c2", Status: "completed", Summary: "corrected summary",
+			}})
+			assertRead := func() {
+				t.Helper()
+				markers, err := h.manager.Compactions(t.Context(), target.ID)
+				if err != nil || len(markers) != 2 {
+					t.Fatalf("markers=%#v error=%v", markers, err)
+				}
+				byID := make(map[string]CompactionEnvelope)
+				for _, marker := range markers {
+					byID[marker.Payload.CompactionID] = marker
+				}
+				one, two := byID["c1"], byID["c2"]
+				if one.Status != "failed" || two.Status != "completed" {
+					t.Fatalf("latest corrective statuses=%#v", markers)
+				}
+				if freshBeforeNext {
+					if one.ContextAfter == nil || one.ContextAfter.Used != 25 || one.ContextAfter.Size == nil ||
+						*one.ContextAfter.Size != 200 || one.ContextAfter.Sequence != firstAfter {
+						t.Fatalf("first same-turn after=%#v, boundary=%d", one.ContextAfter, first)
+					}
+				} else if one.ContextAfter != nil {
+					t.Fatalf("earlier compaction borrowed later occupancy=%#v", one.ContextAfter)
+				}
+				if two.ContextAfter == nil || two.ContextAfter.Used != 0 || two.ContextAfter.Size != nil ||
+					two.ContextAfter.Sequence != secondAfter {
+					t.Fatalf("zero used-only after=%#v", two.ContextAfter)
+				}
+				cause, err := h.manager.CompactionClearBoundary(t.Context(), target.ID)
+				if err != nil || cause == nil || cause.CompactionID != "c2" || cause.Sequence != second {
+					t.Fatalf("first-terminal cause=%#v error=%v", cause, err)
+				}
+				boundary, err := h.manager.CompactionBoundary(t.Context(), target.ID)
+				if err != nil || boundary == nil || *boundary != second {
+					t.Fatalf("legacy boundary=%v error=%v", boundary, err)
+				}
+			}
+			assertRead()
+			if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertRead()
+		})
+	}
 	t.Run(
-		"Should read complete usage deliveries and compaction spans on active and stopped sessions",
+		"Should read complete usage deliveries and attributed compaction snapshots on active and stopped sessions",
 		func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
@@ -1707,29 +1806,37 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 				t.Fatal(err)
 			}
 			from, to := rows[0].Sequence, rows[len(rows)-1].Sequence
-			if err := h.manager.recordCompactionFired(
-				ctx,
-				sess,
-				CompactionFiredPayload{
-					TurnID:       "B",
-					FromSequence: from,
-					ToSequence:   to,
-					ContextUsed:  85,
-					ContextSize:  100,
-					Pressure:     0.85,
-					Strategy:     "summary_archive",
-				},
-			); err != nil {
+			raw, err := json.Marshal(CompactionFiredPayload{
+				CompactionID: "c1", Trigger: "agent", ContextUsed: new(int64(85)), ContextSize: new(int64(100)),
+			})
+			if err != nil {
 				t.Fatal(err)
+			}
+			if err := h.manager.recordEvent(ctx, sess, acp.AgentEvent{
+				Type: events.SessionCompactionFired, TurnID: "B", Raw: raw, Timestamp: at,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			for _, event := range []acp.AgentEvent{
+				{Type: events.SessionCompactionFired, TurnID: "B", Timestamp: at, Raw: []byte(`{"strategy":"summary_archive"}`)},
+				{Type: acp.EventTypeCompaction, TurnID: "B", Timestamp: at, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "in_progress"}},
+				{Type: acp.EventTypeCompaction, TurnID: "B", Timestamp: at, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true}},
+			} {
+				if err := h.manager.recordEvent(ctx, sess, event); err != nil {
+					t.Fatal(err)
+				}
 			}
 			markers, err := h.manager.Compactions(ctx, sess.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(markers) != 1 || markers[0].SpanArchived {
+			if len(markers) != 1 || markers[0].Status != "completed" || markers[0].Payload.CompactionID != "c1" {
 				t.Fatalf("unarchived marker=%#v", markers)
 			}
-			if err := archiveCompactionSpan(ctx, sess, from, to, len(rows)); err != nil {
+			if _, err := sess.recorderHandle().(store.EventArchiver).ArchiveEvents(
+				ctx,
+				store.EventArchiveRequest{FromSequence: from, ToSequence: to},
+			); err != nil {
 				t.Fatal(err)
 			}
 			assertRead := func() {
@@ -1762,7 +1869,7 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(markers) != 1 || !markers[0].SpanArchived {
+				if len(markers) != 1 || markers[0].Status != "completed" || markers[0].Payload.Trigger != "agent" {
 					t.Fatalf("archived marker=%#v", markers)
 				}
 			}

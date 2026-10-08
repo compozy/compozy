@@ -26,7 +26,8 @@ func (c *promptChunkCoalescer) hasPending() bool {
 }
 
 func (c *promptChunkCoalescer) append(event acp.AgentEvent, runtimeEvent bool) bool {
-	if c == nil || runtimeEvent || isPromptTerminalEvent(event.Type) || isPromptAttentionEvent(event.Type) {
+	if c == nil || runtimeEvent || event.Type == acp.EventTypeCompaction ||
+		isPromptTerminalEvent(event.Type) || isPromptAttentionEvent(event.Type) {
 		return false
 	}
 	if c.pending == nil {

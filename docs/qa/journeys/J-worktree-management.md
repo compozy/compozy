@@ -1,7 +1,7 @@
 # J-worktree-management — Isolate agent work in a Git worktree
 
 An operator creates or adopts a worktree, works inside it, leaves through the assisted-exit ladder,
-and removes the checkout without losing its branch, parent-workspace memory, or execution history.
+and removes the checkout without losing its branch or execution history.
 
 ```mermaid
 flowchart TD
@@ -18,7 +18,7 @@ flowchart TD
     H -->|cancel| X1[Abandon: original session and draft stay unchanged]
     G --> J[Agent works inside the selected checkout]
     I --> J
-    J --> K[Read shared parent memory and durable binding]
+    J --> K[Inspect the durable binding]
     K --> L[Open the server-computed exit plan]
     L --> M{Next safe action}
     M -->|changes| N[Commit, publish, and open or reuse a request]
@@ -41,7 +41,7 @@ flowchart TD
 journey:
   id: J-worktree-management
   name: "Complete isolated work without losing its history"
-  value_statement: "I can create or adopt an isolated checkout, work and leave safely, then remove it without losing its branch, workspace memory, or execution history."
+  value_statement: "I can create or adopt an isolated checkout, work and leave safely, then remove it without losing its branch or execution history."
   personas: [Bruno, Ada, Théo]
   entry_points:
     - url: "CLI: compozy worktree ...; compozy session new --worktree|--new-worktree"
@@ -63,8 +63,8 @@ journey:
       verb: "Read and change files during agent work"
       expected_observable: "The ACP process and local tools use the worktree root, reject paths outside it, and do not expose sibling checkout changes."
     - step: 4
-      verb: "Recall workspace memory and inspect the binding"
-      expected_observable: "Root and worktree sessions share the parent workspace brain, and every structured surface returns the same workspace and worktree identities."
+      verb: "Inspect the binding"
+      expected_observable: "Every structured surface returns the same workspace and worktree identities."
     - step: 5
       verb: "Follow the assisted-exit plan"
       expected_observable: "The server-computed ladder pauses on unknown or unsafe state, shows the complete commit scope, publishes once, and either opens or reuses a request without hiding a zero-credential browser path."
@@ -96,7 +96,7 @@ journey:
     - at_step: 7
       how: "Git removes the checkout outside Compozy before resume."
       resume: "Compozy preserves the session history, reports the missing binding, and lets the operator choose an explicit recovery path without root fallback."
-  crosses: [Git, worktree-registry, session-runtime, local-tool-host, memory, CLI, HTTP, UDS, native-tools, command-catalog]
+  crosses: [Git, worktree-registry, session-runtime, local-tool-host, CLI, HTTP, UDS, native-tools, command-catalog]
 
 coverage:
   journeys: "Creation or adoption, bound launch or fork, isolated work, assisted exit, removal, and missing recovery all reach truthful terminal states."

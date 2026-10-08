@@ -151,7 +151,6 @@ type ProfileRemovalSummary struct {
 	MCPServers          int `json:"mcp_servers"`
 	ConfigKeys          int `json:"config_keys"`
 	CredentialOverrides int `json:"credential_overrides"`
-	MemoryEntries       int `json:"memory_entries"`
 	DesktopPartitions   int `json:"desktop_partitions"`
 	PaletteUsage        int `json:"palette_usage"`
 	PaletteQueryHits    int `json:"palette_query_hits"`

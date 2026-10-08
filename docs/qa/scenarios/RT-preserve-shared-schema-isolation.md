@@ -1,12 +1,12 @@
 ---
 id: RT-preserve-shared-schema-isolation
 area: RT
-title: Preserve global and memory stream isolation
+title: Preserve the single global schema stream across restart
 persona: Ada
 journey: J-operate-daemon-schema
-expected: Global and memory operations remain usable across restart while status reports two independent version-one streams with distinct digests and no cross-stream interference.
-entry_points: compozy workspace list -o json; compozy memory list -o json; GET /api/status over HTTP and UDS; compozy status -o json
-qa_status: pass
+expected: Global operations remain usable across restart while status reports exactly one global stream with its digest, and a home upgraded from a release that had a memory stream reports no memory entry.
+entry_points: compozy workspace list -o json; GET /api/status over HTTP and UDS; compozy status -o json
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -18,3 +18,5 @@ overlaps: RT-inspect-schema-streams
 
 Store-redesign targeted QA smoke for Safety Invariant 4. Public reads prove both domains remain usable;
 the automated runtime/store suites own table-level disjointness.
+
+QA impact 2026-10-07 (memory removal): global migration 00130 drops the memory stream objects and its version table, and the memory stream is unregistered, so the cross-stream isolation invariant this scenario smoked in the 2026-07-12 store-redesign walk no longer has a second stream to isolate. The scenario now owns the single-stream posture: a fresh home and an upgraded home both report one global entry in `daemon.schema_streams` over HTTP, UDS, and CLI, unchanged across a daemon restart. Stale verdict reset to untested; historical evidence preserved; no QA session ran. The upgraded-home leg is walked inside RT-upgrade-memory-removal-home.

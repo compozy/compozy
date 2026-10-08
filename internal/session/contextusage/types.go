@@ -29,15 +29,26 @@ type Span struct {
 	Unchanged, StartupDedup, HookModified bool
 }
 
+type ContextAfter struct {
+	Used     int64
+	Size     *int64
+	Sequence int64
+}
+
+type ClearedBy struct {
+	CompactionID string
+	Sequence     int64
+}
+
 type Compaction struct {
-	Sequence                 int64
-	At                       time.Time
-	TurnID                   string
-	FromSequence, ToSequence int64
-	Used, Size               int64
-	Pressure                 float64
-	Strategy                 string
-	SpanArchived             bool
+	ContextAfter *ContextAfter
+	Sequence     int64
+	At           time.Time
+	TurnID       string
+	CompactionID string
+	Trigger      string
+	Status       string
+	Used, Size   *int64
 }
 
 type SettledTurn struct {
@@ -46,13 +57,14 @@ type SettledTurn struct {
 }
 
 type Input struct {
-	UsageEvents   []UsageEvent
-	Deliveries    []Delivery
-	Compactions   []Compaction
-	Settled       *SettledTurn
-	CatalogWindow *int64
-	Threshold     *float64
-	Available     bool
+	UsageEvents        []UsageEvent
+	Deliveries         []Delivery
+	Compactions        []Compaction
+	Settled            *SettledTurn
+	CatalogWindow      *int64
+	CompactionBoundary *int64
+	ClearedBy          *ClearedBy
+	Available          bool
 }
 
 type State string
@@ -65,16 +77,16 @@ const (
 )
 
 type ContextUsage struct {
-	State             State
-	Used, Size        *int64
-	Ratio             *float64
-	SizeSource        string
-	Stale             *bool
-	Sequence          *int64
-	ReportedTurnID    string
-	ReportedAt        *time.Time
-	PressureThreshold *float64
-	Injected          *Injected
+	State          State
+	Used, Size     *int64
+	Ratio          *float64
+	SizeSource     string
+	Stale          *bool
+	Sequence       *int64
+	ReportedTurnID string
+	ReportedAt     *time.Time
+	Injected       *Injected
+	ClearedBy      *ClearedBy
 }
 
 type Injected struct {

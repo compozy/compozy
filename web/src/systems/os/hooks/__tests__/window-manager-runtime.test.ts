@@ -579,10 +579,10 @@ describe("WindowManagerRuntime", () => {
     });
 
     const deepLink = runtime.openOrFocus({
-      app: "knowledge",
-      route: { pathname: "/knowledge", search: {} },
+      app: "marketplace",
+      route: { pathname: "/marketplace", search: {} },
     });
-    const dock = runtime.openOrFocus({ app: "knowledge" });
+    const dock = runtime.openOrFocus({ app: "marketplace" });
 
     expect(dock.windowId).toBe(deepLink.windowId);
     await expect(Promise.all([deepLink.completion, dock.completion])).resolves.toEqual([
@@ -598,7 +598,7 @@ describe("WindowManagerRuntime", () => {
       expect.objectContaining({
         commandId: "window.open",
         payload: expect.objectContaining({
-          window: expect.objectContaining({ app: "knowledge" }),
+          window: expect.objectContaining({ app: "marketplace" }),
         }),
       })
     );

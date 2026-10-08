@@ -349,7 +349,7 @@ test.describe("Profiles", () => {
 
   // Invariant: project entry restores its remembered profile, including after aggregate viewing.
   // Owner: Web profile selection; canonical suite: Profiles E2E-013.
-  test("E2E-013: switcher stays quiet, then carries identity, switch, and per-project memory", async ({
+  test("E2E-013: switcher stays quiet, then carries identity, switch, and per-project remembered profile", async ({
     appPage,
     runtime,
   }) => {

@@ -145,6 +145,7 @@ func (m *Manager) newQueuedInputPromptRequest(
 	}
 	req.turnID = turnID
 	if entry.syntheticPrompt != nil {
+		req.delivery = PromptDelivery(entry.syntheticPrompt.Delivery)
 		req.turnSource = TurnSourceSynthetic
 		req.meta = acp.PromptMeta{TurnSource: acp.PromptTurnSourceSynthetic}
 		if err := json.Unmarshal(entry.syntheticPrompt.Metadata, &req.meta.Synthetic); err != nil {

@@ -37,7 +37,7 @@ This is the complete manifest `compozy extension build` produced for the
   version = "0.1.0"
 
 [permissions]
-  requires = ["memory/recall", "memory/store", "sessions/list"]
+  requires = ["sessions/list"]
 
 [resources]
   [resources.tools]
@@ -93,7 +93,6 @@ most authors never write this block.
 | Provide                 | CompozyOS calls the extension with                                       | Public |
 | ----------------------- | ------------------------------------------------------------------------ | ------ |
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
-| `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
@@ -117,7 +116,7 @@ credential-source, and idempotency requirements.
 
 ```toml
 [permissions]
-  requires = ["memory/recall", "sessions/list"]
+  requires = ["sessions/list", "skills/list"]
 ```
 
 The Host API methods the extension calls, validated against the closed method set. Consent areas
@@ -326,6 +325,35 @@ The permission list is normalized and bound to `gateway_requirement_digest`. Ena
 updates that change this requirement require explicit consent to that exact digest through
 `--confirm-gateway-requirement` or `confirm_gateway_digest`. A stale digest cannot grant access.
 The selected Gateway tier must be declared. Workspace-scoped connectivity providers are rejected.
+
+## Retired manifest entries
+
+Manifests written before the memory removal keep loading. CompozyOS drops these retired entries from
+a TOML or JSON manifest before it validates the rest:
+
+- `capabilities.provides` entries for the removed memory backend surface;
+- `permissions.requires` entries `memory/recall`, `memory/store`, `memory/forget`, `memory.read`, and
+  `memory.write`;
+- the hook matcher keys `compaction_reason` and `compaction_strategy` on a `[[resources.hooks]]`
+  entry. The hook keeps running and observes every compaction; `compaction_trigger` replaces the
+  two keys. See the [hook declaration format](/docs/hooks/declaration#matchers).
+
+Each manifest load that dropped anything logs one `extension.retired_entries_ignored` warning with
+the extension name and the dropped entries, for example `permissions.requires=memory/store` or
+`hooks[0].compaction_reason`. `compozy extension list` shows the extension as loaded. An unknown
+entry outside that retired family keeps failing validation.
+
+The same shim covers automation resources, which load from the TOML files that `resources.automation`
+points at. A `[[triggers]]` entry for the removed memory-consolidation event is skipped, and the
+skip happens before CompozyOS checks the trigger's name, agent, or prompt. Every job and every other
+trigger in the file, and every other resource of the extension, still loads. Each skipped trigger
+logs an `extension.retired_entries_ignored` warning with the `extension` name, the `resource` file,
+and the retired event name as the dropped entry.
+
+A running extension that calls `memory/recall`, `memory/store`, or `memory/forget` gets the
+JSON-RPC method-not-found error (`-32601`), the same response as any other unknown Host API method.
+The shim that drops the retired entries is removed in v0.6.0. See the
+[migration guide](/docs/migration#memory-removal).
 
 ## Resource-only manifests
 

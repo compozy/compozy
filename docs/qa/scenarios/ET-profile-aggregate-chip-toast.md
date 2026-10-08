@@ -22,8 +22,8 @@ Walk:
 
 1. With a second profile created and All profiles on, open each selector-bearing surface — session,
    task, automation job, automation trigger, worktree, Loop run — and confirm the
-   "→ default" chip is visible without hovering and is text with no control attached. Agent definitions,
-   knowledge and MCP install remain chip-free because they do not declare
+   "→ default" chip is visible without hovering and is text with no control attached. Agent definitions
+   and MCP install remain chip-free because they do not declare
    a profile selector.
 2. Create one item on each selector-bearing surface and confirm every request files it in `default`,
    each success toast names `default`, and each aggregate row carries the default owner tag.

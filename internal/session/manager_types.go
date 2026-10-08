@@ -159,7 +159,6 @@ type Manager struct {
 	promptAdmissionLocks       map[string]*promptAdmissionLock
 	resumeReplayMu             sync.Mutex
 	resumeReplays              map[string]string
-	compactionLifecycle        sessionCompactionLifecycle
 	startLifecycle             sessionStartLifecycle
 	resumeLifecycle            sessionResumeLifecycle
 	processWatchLifecycle      sessionProcessWatchLifecycle
@@ -223,7 +222,6 @@ type Manager struct {
 	attentionStore               store.SessionAttentionStore
 	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore
-	ledgerMaterializer           LedgerMaterializer
 	homePaths                    compozyconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
 	worktreeResolver             WorktreeResolver
@@ -238,9 +236,7 @@ type Manager struct {
 	stopConfig                   compozyconfig.SessionStopConfig
 	busyInput                    compozyconfig.SessionBusyInputConfig
 	busyInputMu                  sync.RWMutex
-	compaction                   compozyconfig.SessionCompactionConfig
 	deriveConfig                 compozyconfig.SessionDeriveConfig
-	compactionHandler            CompactionHandler
 	sessionHealthStaleAfter      time.Duration
 	lifecycleCtx                 context.Context
 	now                          func() time.Time

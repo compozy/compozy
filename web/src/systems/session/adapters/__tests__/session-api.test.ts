@@ -8,7 +8,6 @@ import {
 import {
   SessionApiError,
   SessionGoalCommandError,
-  SessionLedgerUnavailableError,
   SessionNotFoundError,
   buildSessionStreamUrl,
   archiveSession,
@@ -16,12 +15,12 @@ import {
   cancelSessionPrompt,
   clearSessionRuntime,
   clearSessionConversation,
+  compactSession,
   createSession,
   deleteSession,
   fetchSession,
   fetchSessionEvents,
   fetchSessionInputs,
-  fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionTranscript,
   mutateSessionGoal,
@@ -543,6 +542,58 @@ describe("session archive", () => {
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/unarchive",
     });
+  });
+});
+
+describe("compactSession", () => {
+  const receipt = {
+    command: "compact",
+    prompt_id: "prompt-compact-1",
+    session_id: "sess-001",
+    status: "accepted",
+  };
+
+  it("posts an empty body to the compact route and resolves with the 202 receipt", async () => {
+    mockJsonResponse(receipt, { status: 202 });
+    const controller = new AbortController();
+
+    await expect(compactSession(WORKSPACE_ID, "sess-001", controller.signal)).resolves.toEqual(
+      receipt
+    );
+
+    await expectFetchRequest({
+      body: {},
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/compact",
+      signal: controller.signal,
+    });
+  });
+
+  it.each(["session_busy", "compaction_unsupported"])(
+    "carries the %s code and the daemon message on a 409",
+    async code => {
+      mockJsonResponse({ code, error: `daemon says ${code}` }, { status: 409 });
+
+      const error = await compactSession(WORKSPACE_ID, "sess-001").catch(
+        (reason: unknown) => reason
+      );
+
+      expect(error).toBeInstanceOf(SessionApiError);
+      expect(error).toMatchObject({
+        code,
+        message: `daemon says ${code}`,
+        sessionId: "sess-001",
+        status: 409,
+      });
+    }
+  );
+
+  it("reports an unknown session as not found", async () => {
+    mockJsonResponse({ error: "session not found" }, { status: 404 });
+
+    await expect(compactSession(WORKSPACE_ID, "unknown")).rejects.toBeInstanceOf(
+      SessionNotFoundError
+    );
   });
 });
 
@@ -1085,99 +1136,6 @@ describe("fetchSessionEvents", () => {
   });
 });
 
-describe("fetchSessionLedger", () => {
-  const mockLedger = {
-    meta: {
-      version: 1,
-      session_id: "sess-001",
-      workspace_id: "ws_alpha",
-      root_session_id: "sess-root",
-      parent_session_id: "sess-parent",
-      spawn_depth: 1,
-      path: "/sessions/ws_alpha/sess-001/ledger.jsonl",
-      checksum: "sha256:abc",
-      created_at: "2026-04-20T10:00:00Z",
-      stopped_at: "2026-04-20T11:00:00Z",
-    },
-    events: [
-      { sequence: 1, event_type: "session.started", emitted_at: "2026-04-20T10:00:00Z" },
-      { sequence: 2, event_type: "memory.recall", emitted_at: "2026-04-20T10:01:00Z" },
-    ],
-  };
-
-  it("returns the materialized ledger response on success", async () => {
-    mockJsonResponse(mockLedger);
-
-    const result = await fetchSessionLedger("ws-alpha", "sess-001");
-
-    expect(result).toEqual(mockLedger);
-    await expectFetchRequest({ path: "/api/workspaces/ws-alpha/memory/sessions/sess-001/ledger" });
-  });
-
-  it("throws SessionLedgerUnavailableError when the ledger has not materialized (404)", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
-
-    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toBeInstanceOf(
-      SessionLedgerUnavailableError
-    );
-    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toMatchObject({
-      message: "Session ledger not materialized: sess-001",
-      status: 404,
-      sessionId: "sess-001",
-    });
-  });
-
-  it("exposes unsupported session memory as unavailable", async () => {
-    mockJsonResponse(
-      { code: "memory.unsupported", message: "Unsupported memory operation" },
-      { status: 501 }
-    );
-
-    const error = await fetchSessionLedger("ws-alpha", "sess-001").catch(error => error);
-
-    expect(error).toBeInstanceOf(SessionLedgerUnavailableError);
-    expect(error).toMatchObject({ status: 501, code: "memory.unsupported", reason: "unsupported" });
-  });
-
-  it("preserves unrelated not-implemented failures as errors", async () => {
-    mockJsonResponse(
-      { code: "server.unsupported", message: "Unsupported operation" },
-      { status: 501 }
-    );
-
-    const error = await fetchSessionLedger("ws-alpha", "sess-001").catch(error => error);
-
-    expect(error).toBeInstanceOf(SessionApiError);
-    expect(error).not.toBeInstanceOf(SessionLedgerUnavailableError);
-    expect(error).toMatchObject({ status: 501, code: "server.unsupported" });
-  });
-
-  it("throws a typed adapter error for non-404 failures", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
-
-    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toBeInstanceOf(
-      SessionApiError
-    );
-    await expect(fetchSessionLedger("ws-alpha", "sess-001")).rejects.toMatchObject({
-      message: 'Failed to fetch session ledger "sess-001": 500',
-      status: 500,
-      sessionId: "sess-001",
-    });
-  });
-
-  it("passes the abort signal through to fetch", async () => {
-    mockJsonResponse(mockLedger);
-
-    const controller = new AbortController();
-    await fetchSessionLedger("ws-alpha", "sess-001", controller.signal);
-
-    await expectFetchRequest({
-      path: "/api/workspaces/ws-alpha/memory/sessions/sess-001/ledger",
-      signal: controller.signal,
-    });
-  });
-});
-
 describe("fetchSessionTranscript", () => {
   const mockTranscript = {
     epoch: 2,
@@ -1304,6 +1262,44 @@ describe("fetchSessionTranscript", () => {
       text: "Permission blocked diagnostic: terminal/create denied before writing workspace marker.",
       type: "text",
     });
+  });
+
+  // Invariant (S18): a compaction item survives transcript normalization whole — the
+  // `system` role, the agent's own (vendor) status, and the optional summary and error.
+  it("Should carry compaction items with any agent status through normalization", async () => {
+    const compactionTranscript = {
+      epoch: 1,
+      generation: 1,
+      max_sequence: 3,
+      has_older: false,
+      limit: 200,
+      entries: ["in_progress", "compaction_paused", "failed"].map((status, index) => ({
+        sequence: index + 1,
+        start_sequence: index + 1,
+        message: {
+          id: `compaction:c${index}`,
+          role: "system",
+          parts: [
+            {
+              type: "data-compozy-compaction",
+              id: `c${index}`,
+              data: {
+                kind: "compaction",
+                compaction_id: `c${index}`,
+                status,
+                started_at: "2026-10-08T14:02:11Z",
+                ...(status === "failed" ? { error: "context window exceeded" } : {}),
+              },
+            },
+          ],
+        },
+      })),
+    };
+    mockJsonResponse(compactionTranscript);
+
+    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
+
+    expect(result).toEqual(compactionTranscript);
   });
 
   it("throws 404 for unknown session", async () => {

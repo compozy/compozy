@@ -4,7 +4,7 @@
 // thinking frame entirely so the row never flickers (US-023.EC-1); a failure
 // before any content converts the pending reply into its error state.
 
-import { isAgentEventPayload } from "./message-parts";
+import { isAgentEventPayload, messageHasCompactionPart } from "./message-parts";
 import {
   isSessionErrorEvent,
   isQueueRemovalMarker,
@@ -92,9 +92,14 @@ export function assistantMessageHasContent(content: unknown): boolean {
   });
 }
 
-/** Operational traces can mount a row without counting as the agent's reply. */
+/**
+ * Operational traces can mount a row without counting as the agent's reply. An
+ * observed compaction is one: the reader sees it, but it is not an answer, so the
+ * status row keeps saying "Thinking…" until the agent's first real content.
+ */
 export function assistantMessageHasRenderableContent(content: unknown): boolean {
   if (assistantMessageHasContent(content)) return true;
+  if (messageHasCompactionPart(content)) return true;
   return (
     Array.isArray(content) &&
     content.some(part => {

@@ -66,7 +66,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 			return http.StatusForbidden
 		}
 		return http.StatusAccepted
-	case toolspkg.ErrorCodeConflict:
+	case toolspkg.ErrorCodeConflict, toolspkg.ErrorCodeSessionBusy, toolspkg.ErrorCodeCompactionUnsupported:
 		return http.StatusConflict
 	case toolspkg.ErrorCodeUnavailable,
 		toolspkg.ErrorCodeResultTooLarge,
@@ -163,6 +163,10 @@ func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspk
 		return "tool not found"
 	case toolspkg.ErrorCodeConflict:
 		return "tool conflict"
+	case toolspkg.ErrorCodeSessionBusy:
+		return "session is busy"
+	case toolspkg.ErrorCodeCompactionUnsupported:
+		return "session compaction is unsupported"
 	case toolspkg.ErrorCodeUnavailable:
 		return "tool unavailable"
 	case toolspkg.ErrorCodeDenied:

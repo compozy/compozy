@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	memorypkg "github.com/compozy/compozy/internal/memory"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -73,16 +72,10 @@ type daemonNativeToolsDeps struct {
 	MarketplaceCatalog  core.MarketplaceCatalogService
 	Settings            func() core.SettingsService
 
-	Tasks               taskpkg.Manager
-	TaskDesignations    core.TaskDesignationStore
-	TaskClaimHandoff    taskClaimHandoffCoordinator
-	MemoryStore         *memorypkg.Store
-	MemoryToolWrites    memoryToolWriteRecorder
-	DreamTrigger        core.DreamTrigger
-	Roles               core.RolesStatusProvider
-	MemoryExtractor     core.MemoryExtractorService
-	MemoryProviders     core.MemoryProviderService
-	MemorySessionLedger core.MemorySessionLedgerService
+	Tasks            taskpkg.Manager
+	TaskDesignations core.TaskDesignationStore
+	TaskClaimHandoff taskClaimHandoffCoordinator
+	Roles            core.RolesStatusProvider
 
 	Gateway               func() core.GatewayService
 	GatewayPermissionMode func(context.Context, string) (string, error)

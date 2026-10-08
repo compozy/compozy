@@ -339,13 +339,8 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 	t.Run("Should outlive the daemon graceful shutdown budget", func(t *testing.T) {
 		t.Parallel()
 
-		config := compozyconfig.Config{Memory: compozyconfig.MemoryConfig{
-			Enabled: true,
-			Extractor: compozyconfig.MemoryExtractorConfig{
-				Deadline: 42 * time.Second,
-			},
-		}}
-		want := compozydaemon.GracefulShutdownTimeout(&config) + daemonStopWaitMargin
+		config := compozyconfig.Config{}
+		want := max(defaultStopTimeout, compozydaemon.GracefulShutdownTimeout(&config)+daemonStopWaitMargin)
 		if got := daemonStopWaitTimeout(defaultStopTimeout, &config); got != want {
 			t.Fatalf("daemonStopWaitTimeout() = %s, want %s", got, want)
 		}
@@ -452,7 +447,7 @@ func TestStatusCommandReturnsDaemonStatus(t *testing.T) {
 						StartedAt: fixedTestNow,
 						SchemaStreams: []contract.SchemaStreamStatus{
 							{Stream: "global", Version: 1, AppliedCount: 1, SumDigest: "sha256:global"},
-							{Stream: "memory", Version: 1, AppliedCount: 1, SumDigest: "sha256:memory"},
+							{Stream: "workspace", Version: 1, AppliedCount: 1, SumDigest: "sha256:workspace"},
 						},
 					},
 				}, nil
@@ -473,7 +468,7 @@ func TestStatusCommandReturnsDaemonStatus(t *testing.T) {
 		}
 		if got, want := decoded.Daemon.SchemaStreams, []contract.SchemaStreamStatus{
 			{Stream: "global", Version: 1, AppliedCount: 1, SumDigest: "sha256:global"},
-			{Stream: "memory", Version: 1, AppliedCount: 1, SumDigest: "sha256:memory"},
+			{Stream: "workspace", Version: 1, AppliedCount: 1, SumDigest: "sha256:workspace"},
 		}; !slices.Equal(got, want) {
 			t.Fatalf("decoded schema streams = %#v, want %#v", got, want)
 		}

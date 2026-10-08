@@ -15,7 +15,6 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAgentsRouteImport } from './routes/_app/agents'
 import { Route as AppAutomationsRouteImport } from './routes/_app/automations'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
-import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
 import { Route as AppLoopRunsRouteImport } from './routes/_app/loop-runs'
 import { Route as AppLoopsRouteImport } from './routes/_app/loops'
 import { Route as AppMarketplaceRouteImport } from './routes/_app/marketplace'
@@ -47,7 +46,6 @@ import { Route as AppSettingsHooksRouteImport } from './routes/_app/settings/hoo
 import { Route as AppSettingsLayoutsRouteImport } from './routes/_app/settings/layouts'
 import { Route as AppSettingsMarketplaceRouteImport } from './routes/_app/settings/marketplace'
 import { Route as AppSettingsMcpRouteImport } from './routes/_app/settings/mcp'
-import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
 import { Route as AppSettingsPaletteRouteImport } from './routes/_app/settings/palette'
 import { Route as AppSettingsProfilesRouteImport } from './routes/_app/settings/profiles'
@@ -99,11 +97,6 @@ const AppAutomationsRoute = AppAutomationsRouteImport.update({
 const AppJobsRoute = AppJobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
-  id: '/knowledge',
-  path: '/knowledge',
   getParentRoute: () => AppRoute,
 } as any)
 const AppLoopRunsRoute = AppLoopRunsRouteImport.update({
@@ -261,11 +254,6 @@ const AppSettingsMcpRoute = AppSettingsMcpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => AppSettingsRoute,
 } as any)
-const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
-  id: '/memory',
-  path: '/memory',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
 const AppSettingsObservabilityRoute =
   AppSettingsObservabilityRouteImport.update({
     id: '/observability',
@@ -390,7 +378,6 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AppAgentsRouteWithChildren
   '/automations': typeof AppAutomationsRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
-  '/knowledge': typeof AppKnowledgeRoute
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
   '/marketplace': typeof AppMarketplaceRouteWithChildren
@@ -419,7 +406,6 @@ export interface FileRoutesByFullPath {
   '/settings/layouts': typeof AppSettingsLayoutsRoute
   '/settings/marketplace': typeof AppSettingsMarketplaceRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
-  '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/palette': typeof AppSettingsPaletteRoute
   '/settings/profiles': typeof AppSettingsProfilesRoute
@@ -451,7 +437,6 @@ export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
   '/automations': typeof AppAutomationsRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
-  '/knowledge': typeof AppKnowledgeRoute
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
   '/new-tab': typeof AppNewTabRoute
@@ -477,7 +462,6 @@ export interface FileRoutesByTo {
   '/settings/layouts': typeof AppSettingsLayoutsRoute
   '/settings/marketplace': typeof AppSettingsMarketplaceRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
-  '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/palette': typeof AppSettingsPaletteRoute
   '/settings/profiles': typeof AppSettingsProfilesRoute
@@ -512,7 +496,6 @@ export interface FileRoutesById {
   '/_app/agents': typeof AppAgentsRouteWithChildren
   '/_app/automations': typeof AppAutomationsRouteWithChildren
   '/_app/jobs': typeof AppJobsRouteWithChildren
-  '/_app/knowledge': typeof AppKnowledgeRoute
   '/_app/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/_app/loops': typeof AppLoopsRouteWithChildren
   '/_app/marketplace': typeof AppMarketplaceRouteWithChildren
@@ -542,7 +525,6 @@ export interface FileRoutesById {
   '/_app/settings/layouts': typeof AppSettingsLayoutsRoute
   '/_app/settings/marketplace': typeof AppSettingsMarketplaceRoute
   '/_app/settings/mcp': typeof AppSettingsMcpRoute
-  '/_app/settings/memory': typeof AppSettingsMemoryRoute
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/palette': typeof AppSettingsPaletteRoute
   '/_app/settings/profiles': typeof AppSettingsProfilesRoute
@@ -578,7 +560,6 @@ export interface FileRouteTypes {
     | '/agents'
     | '/automations'
     | '/jobs'
-    | '/knowledge'
     | '/loop-runs'
     | '/loops'
     | '/marketplace'
@@ -607,7 +588,6 @@ export interface FileRouteTypes {
     | '/settings/layouts'
     | '/settings/marketplace'
     | '/settings/mcp'
-    | '/settings/memory'
     | '/settings/observability'
     | '/settings/palette'
     | '/settings/profiles'
@@ -639,7 +619,6 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/automations'
     | '/jobs'
-    | '/knowledge'
     | '/loop-runs'
     | '/loops'
     | '/new-tab'
@@ -665,7 +644,6 @@ export interface FileRouteTypes {
     | '/settings/layouts'
     | '/settings/marketplace'
     | '/settings/mcp'
-    | '/settings/memory'
     | '/settings/observability'
     | '/settings/palette'
     | '/settings/profiles'
@@ -699,7 +677,6 @@ export interface FileRouteTypes {
     | '/_app/agents'
     | '/_app/automations'
     | '/_app/jobs'
-    | '/_app/knowledge'
     | '/_app/loop-runs'
     | '/_app/loops'
     | '/_app/marketplace'
@@ -729,7 +706,6 @@ export interface FileRouteTypes {
     | '/_app/settings/layouts'
     | '/_app/settings/marketplace'
     | '/_app/settings/mcp'
-    | '/_app/settings/memory'
     | '/_app/settings/observability'
     | '/_app/settings/palette'
     | '/_app/settings/profiles'
@@ -805,13 +781,6 @@ declare module '@tanstack/react-router' {
       path: '/jobs'
       fullPath: '/jobs'
       preLoaderRoute: typeof AppJobsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/knowledge': {
-      id: '/_app/knowledge'
-      path: '/knowledge'
-      fullPath: '/knowledge'
-      preLoaderRoute: typeof AppKnowledgeRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/loop-runs': {
@@ -1029,13 +998,6 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/settings/mcp'
       preLoaderRoute: typeof AppSettingsMcpRouteImport
-      parentRoute: typeof AppSettingsRoute
-    }
-    '/_app/settings/memory': {
-      id: '/_app/settings/memory'
-      path: '/memory'
-      fullPath: '/settings/memory'
-      preLoaderRoute: typeof AppSettingsMemoryRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/observability': {
@@ -1336,7 +1298,6 @@ interface AppSettingsRouteChildren {
   AppSettingsLayoutsRoute: typeof AppSettingsLayoutsRoute
   AppSettingsMarketplaceRoute: typeof AppSettingsMarketplaceRoute
   AppSettingsMcpRoute: typeof AppSettingsMcpRoute
-  AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
   AppSettingsPaletteRoute: typeof AppSettingsPaletteRoute
   AppSettingsProfilesRoute: typeof AppSettingsProfilesRoute
@@ -1359,7 +1320,6 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsLayoutsRoute: AppSettingsLayoutsRoute,
   AppSettingsMarketplaceRoute: AppSettingsMarketplaceRoute,
   AppSettingsMcpRoute: AppSettingsMcpRoute,
-  AppSettingsMemoryRoute: AppSettingsMemoryRoute,
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
   AppSettingsPaletteRoute: AppSettingsPaletteRoute,
   AppSettingsProfilesRoute: AppSettingsProfilesRoute,
@@ -1432,7 +1392,6 @@ interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRouteWithChildren
   AppAutomationsRoute: typeof AppAutomationsRouteWithChildren
   AppJobsRoute: typeof AppJobsRouteWithChildren
-  AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppLoopRunsRoute: typeof AppLoopRunsRouteWithChildren
   AppLoopsRoute: typeof AppLoopsRouteWithChildren
   AppMarketplaceRoute: typeof AppMarketplaceRouteWithChildren
@@ -1451,7 +1410,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRouteWithChildren,
   AppAutomationsRoute: AppAutomationsRouteWithChildren,
   AppJobsRoute: AppJobsRouteWithChildren,
-  AppKnowledgeRoute: AppKnowledgeRoute,
   AppLoopRunsRoute: AppLoopRunsRouteWithChildren,
   AppLoopsRoute: AppLoopsRouteWithChildren,
   AppMarketplaceRoute: AppMarketplaceRouteWithChildren,

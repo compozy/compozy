@@ -29,6 +29,7 @@ const (
 
 // PromptOpts carries per-turn metadata through the session prompt pipeline.
 type PromptOpts struct {
+	Delivery        PromptDelivery
 	Message         string
 	TurnSource      TurnSource
 	PromptMeta      acp.PromptMeta
@@ -36,14 +37,22 @@ type PromptOpts struct {
 	PrepareDelivery PromptDeliveryPreparer
 }
 
-// PromptDelivery identifies a prompt whose agent-event stream is ready to start.
-type PromptDelivery struct {
+// PromptDelivery controls context delivery for a prompt turn.
+type PromptDelivery string
+
+const (
+	PromptDeliveryNormal      PromptDelivery = ""
+	PromptDeliveryMaintenance PromptDelivery = "maintenance"
+)
+
+// PromptDeliveryInfo identifies a prompt whose agent-event stream is ready to start.
+type PromptDeliveryInfo struct {
 	SessionID string
 	TurnID    string
 }
 
 // PromptDeliveryPreparer runs after the provider accepts a prompt and before its first event is pumped.
-type PromptDeliveryPreparer func(context.Context, PromptDelivery) error
+type PromptDeliveryPreparer func(context.Context, PromptDeliveryInfo) error
 
 // WindowReconciler removes durable session windows after a session
 // deletion has committed its catalog mutation.
@@ -80,12 +89,6 @@ type CommandService interface {
 		invocations []commandpkg.Invocation,
 		message string,
 	) (string, error)
-}
-
-// LedgerMaterializer is the thin session-end seam for forensic ledger projection.
-type LedgerMaterializer interface {
-	MaterializeSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error
-	DiscardSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error
 }
 
 // AgentArtifacts returns an agent definition and resource ownership.

@@ -1,6 +1,6 @@
 ---
 name: compozy
-description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, tasks, Loops, Goals, Terminal, desktops and windows, automation, extensions, or configuration. Don't use for unrelated projects.
+description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, tasks, Loops, Goals, Terminal, desktops and windows, automation, extensions, or configuration. Don't use for unrelated projects.
 metadata:
   compozy:
     version: 1
@@ -11,7 +11,7 @@ metadata:
 
 # CompozyOS
 
-This body routes to the matching reference. When tools and skills are enabled, startup includes this router, not the full reference manuals. With tools enabled and skills disabled, capable sessions retain the two complete tool manuals inline because native skill reads are unavailable. Daemon-owned memory extraction, title generation, and checkpoint summarization omit the tool router because their role consumes supplied input and returns output; other tools-enabled sessions retain the appropriate guidance.
+This body routes to the matching reference. When tools and skills are enabled, startup includes this router, not the full reference manuals. With tools enabled and skills disabled, capable sessions retain the two complete tool manuals inline because native skill reads are unavailable. Daemon-owned title generation omits the tool router because its role consumes supplied input and returns output; other tools-enabled sessions retain the appropriate guidance.
 
 To read a reference in a managed session, resolve `compozy__skill_view` through the active harness and call the returned tool reference with `{"name":"compozy","file":"references/<file>.md"}` using the exact path below. Tool discovery, descriptor reads, skill reads, and retained-result reads needed to load these references are the bootstrap exception to the reading prerequisite. Inspect the live descriptor before calling other tools; discover capabilities with `compozy__tool_search`. Keep existing tool authorization: missing guidance does not grant or revoke access, and a denied skill read is not permission to bypass policy through CLI or filesystem access.
 
@@ -23,7 +23,7 @@ Match the task to the row. Read the listed files in full before producing output
 
 | Task                                                                                                                           | MUST read                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Start, inspect, prompt, stop, resume, or debug CompozyOS sessions and daemon state                                             | references/runtime-operations.md                                   |
+| Start, inspect, prompt, stop, resume, compact, or debug CompozyOS sessions and daemon state                                    | references/runtime-operations.md                                   |
 | Open, inspect, retry, diagnose, or recover the desktop app; update the host runtime and app                                    | references/desktop.md                                              |
 | Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing             | references/runtime-operations.md + references/agent-definitions.md |
 | Inspect, refresh, curate, or configure provider models, runtime strategies, ACP options, reasoning, Fast, or pricing           | references/runtime-operations.md + references/native-tools.md      |
@@ -34,7 +34,6 @@ Match the task to the row. Read the listed files in full before producing output
 | Create or review CompozyOS agent definitions, provider defaults, permissions, or MCP sidecars                                  | references/agent-definitions.md + references/tools-and-skills.md   |
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
 | List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
-| Read, write, clean, or consolidate CompozyOS memory                                                                            | references/memory.md                                               |
 | Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                          | references/tasks-and-orchestration.md                              |
 | Author, configure, run, observe, approve, or stop a CompozyOS Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                   |
 | Install, enable, update, dev-link, build, publish, or remove an extension; manage extension kits, secrets, or hooks            | references/extensions.md + references/native-tools.md              |
@@ -54,12 +53,11 @@ Match the task to the row. Read the listed files in full before producing output
 - references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.
 - references/native-tools.md - daemon-native toolsets, stable CompozyOS tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside CompozyOS.
-- references/memory.md - durable memory scopes, CLI operations, memory hygiene, and when not to write memory.
 - references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
 - references/extensions.md - extension kits, install trust, the authoring and dev loop, instance scoping, dev overlays, logs, and hook management.
 - references/extension-authoring.md - code-backed and resource-only extension authoring: templates, SDK declarations, static manifests, permissions, provide surfaces, contributed commands, command palette entries, and structured workflows.
-- references/configuration.md - layered config.toml desired state, profile credentials, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, compaction, role, and window-manager settings.
+- references/configuration.md - layered config.toml desired state, profile credentials, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, session rebuild, role, and window-manager settings.
 - references/worktrees.md - workspace worktree lifecycle, session binding, exit plans and actions, forge integration, cleanup evidence, and public management surfaces.
 - references/profiles.md - operator-profile selection, immutable session binding, lifecycle plans, local-only mutations, errors, events, and public management surfaces.
 
@@ -67,7 +65,7 @@ Match the task to the row. Read the listed files in full before producing output
 
 1. Read every reference selected by the router before acting, or qualify for the bounded descriptor fallback below.
 2. Prefer CompozyOS-native tools and structured outputs over prose, logs, or direct internal access when managing CompozyOS.
-3. Keep authority with the daemon: task state, review verdicts, session lifecycle, memory, extension lifecycle, hooks, and tool calls must use CompozyOS public surfaces. Never edit SQLite databases, process internals, or generated projections directly.
+3. Keep authority with the daemon: task state, review verdicts, session lifecycle, extension lifecycle, hooks, and tool calls must use CompozyOS public surfaces. Never edit SQLite databases, process internals, or generated projections directly.
 4. After a mutation, confirm the result through a structured read instead of assuming success.
 
 ## Error Handling

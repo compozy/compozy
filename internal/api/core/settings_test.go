@@ -25,7 +25,6 @@ import (
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensionmcp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -375,55 +374,9 @@ func applyResultFromMutation(result settingspkg.MutationResult) settingspkg.Appl
 	}
 }
 
-type unavailableSettingsMemoryProviderService struct {
-	err error
-}
-
-func (s unavailableSettingsMemoryProviderService) List(
-	context.Context,
-	string,
-) ([]contract.MemoryProviderPayload, error) {
-	return nil, s.err
-}
-
-func (s unavailableSettingsMemoryProviderService) Get(
-	context.Context,
-	string,
-	string,
-) (contract.MemoryProviderPayload, error) {
-	return contract.MemoryProviderPayload{}, s.err
-}
-
-func (s unavailableSettingsMemoryProviderService) Select(
-	context.Context,
-	string,
-	string,
-) (contract.MemoryProviderPayload, error) {
-	return contract.MemoryProviderPayload{}, s.err
-}
-
-func (s unavailableSettingsMemoryProviderService) Enable(
-	context.Context,
-	string,
-	string,
-	string,
-) (contract.MemoryProviderLifecycleResponse, error) {
-	return contract.MemoryProviderLifecycleResponse{}, s.err
-}
-
-func (s unavailableSettingsMemoryProviderService) Disable(
-	context.Context,
-	string,
-	string,
-	string,
-) (contract.MemoryProviderLifecycleResponse, error) {
-	return contract.MemoryProviderLifecycleResponse{}, s.err
-}
-
 type stubSettingsRestartController struct {
-	RequestFn func(context.Context) (core.SettingsRestartOperation, error)
-	StatusFn  func(context.Context, string) (core.SettingsRestartOperation, error)
-
+	RequestFn       func(context.Context) (core.SettingsRestartOperation, error)
+	StatusFn        func(context.Context, string) (core.SettingsRestartOperation, error)
 	LastOperationID string
 	RequestCalls    int
 	StatusCalls     int
@@ -563,8 +516,6 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
 	settings.GET("/persona", handlers.GetSettingsPersona)
 	settings.PATCH("/persona", handlers.UpdateSettingsPersona)
-	settings.GET("/memory", handlers.GetSettingsMemory)
-	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
 	settings.GET("/marketplace", handlers.GetSettingsMarketplace)
 	settings.PATCH("/marketplace", handlers.UpdateSettingsMarketplace)
 	settings.GET("/roles", handlers.GetSettingsRoles)
@@ -1316,7 +1267,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	t.Parallel()
 
 	startedAt := time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC)
-	lastConsolidatedAt := time.Date(2026, 4, 17, 17, 0, 0, 0, time.UTC)
 	nextFire := time.Date(2026, 4, 17, 19, 0, 0, 0, time.UTC)
 	lastSyncedAt := time.Date(2026, 4, 17, 18, 30, 0, 0, time.UTC)
 	readOnly := true
@@ -1377,35 +1327,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			},
 			Persona: &settingspkg.PersonaSection{
 				Config: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai"},
-			},
-		},
-		{
-			Section:         settingspkg.SectionMemory,
-			Scope:           settingspkg.ScopeUser,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
-			Memory: &settingspkg.MemorySection{
-				Config: compozyconfig.MemoryConfig{
-					Enabled:   true,
-					GlobalDir: "/tmp/home/memory",
-					Dream: compozyconfig.DreamConfig{
-						MinHours:      1.5,
-						MinSessions:   2,
-						CheckInterval: time.Hour,
-					},
-				},
-				Health: settingspkg.MemoryHealthStatus{
-					Available:          true,
-					FileCount:          4,
-					DreamEnabled:       true,
-					LastConsolidatedAt: &lastConsolidatedAt,
-				},
-				Actions: settingspkg.MemoryActions{
-					Consolidate: settingspkg.ActionMetadata{
-						Name:      "consolidate",
-						Available: true,
-						Behavior:  settingspkg.MutationBehaviorActionTrigger,
-					},
-				},
 			},
 		},
 		{
@@ -1989,7 +1910,6 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		want string
 	}{
 		{name: "general", path: "/api/settings/general", want: "general.config is required"},
-		{name: "memory", path: "/api/settings/memory", want: "memory.config is required"},
 		{name: "Should require roles config", path: "/api/settings/roles", want: "roles.config is required"},
 		{name: "skills", path: "/api/settings/skills", want: "skills.config is required"},
 		{name: "automation", path: "/api/settings/automation", want: "automation.config is required"},
@@ -2050,28 +1970,6 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 				payload,
 				service.UpdateSectionCalls,
 			)
-		}
-	})
-
-	t.Run("Should reject removed memory signal metrics field", func(t *testing.T) {
-		t.Parallel()
-
-		service := &stubSettingsService{}
-		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		body := []byte(`{"config":{"recall":{"signals":{"metrics_enabled":true}}}}`)
-
-		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", body)
-		if got, want := resp.Code, http.StatusBadRequest; got != want {
-			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-		}
-		if service.UpdateSectionCalls != 0 {
-			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-		}
-		var payload contract.ErrorPayload
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "unknown_field") ||
-			!strings.Contains(payload.Error, "metrics_enabled") {
-			t.Fatalf("payload.Error = %q, want unknown_field naming metrics_enabled", payload.Error)
 		}
 	})
 
@@ -2466,67 +2364,6 @@ func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
 	})
 }
 
-func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject unknown provider names as validation errors", func(t *testing.T) {
-		t.Parallel()
-
-		service := &stubSettingsService{}
-		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		fixture.Handlers.MemoryProviders = unavailableSettingsMemoryProviderService{
-			err: extensionpkg.ErrMemoryProviderNotFound,
-		}
-
-		memoryPayload := validSettingsMemoryConfigPayload()
-		memoryPayload.Provider.Name = "qa-missing-provider"
-		body := contract.UpdateSettingsMemoryRequest{Config: memoryPayload}
-
-		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", mustJSON(t, body))
-		if got, want := resp.Code, http.StatusBadRequest; got != want {
-			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-		}
-		if service.UpdateSectionCalls != 0 {
-			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-		}
-
-		var payload contract.ErrorPayload
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "qa-missing-provider") {
-			t.Fatalf("payload.Error = %q, want provider name", payload.Error)
-		}
-	})
-
-	t.Run("Should preserve provider lookup infrastructure failures as server errors", func(t *testing.T) {
-		t.Parallel()
-
-		service := &stubSettingsService{}
-		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		fixture.Handlers.MemoryProviders = unavailableSettingsMemoryProviderService{
-			err: errors.New("catalog backend offline"),
-		}
-
-		memoryPayload := validSettingsMemoryConfigPayload()
-		memoryPayload.Provider.Name = "qa-provider"
-		body := contract.UpdateSettingsMemoryRequest{Config: memoryPayload}
-
-		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", mustJSON(t, body))
-		if got, want := resp.Code, http.StatusInternalServerError; got != want {
-			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-		}
-		if service.UpdateSectionCalls != 0 {
-			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-		}
-
-		var payload contract.ErrorPayload
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "catalog backend offline") {
-			t.Fatalf("payload.Error = %q, want backend failure", payload.Error)
-		}
-	})
-}
-
-// TestUpdateSettingsSectionHandlersDelegateValidPayloads verifies decoded writes and echoed application outcomes.
 func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 	t.Parallel()
 
@@ -2599,11 +2436,6 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 		}
 	})
 
-	memoryPayload := validSettingsMemoryConfigPayload()
-	memoryPayload.GlobalDir = "/tmp/memory"
-	memoryPayload.Dream.MinHours = 1.5
-	memoryPayload.Dream.MinSessions = 2
-	memoryPayload.Dream.CheckInterval = "1h"
 	emptyMutedWorkspaces := []string{}
 
 	tests := []struct {
@@ -2648,19 +2480,6 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		},
 		{
-			name: "memory",
-			path: "/api/settings/memory",
-			body: contract.UpdateSettingsMemoryRequest{
-				Config: memoryPayload,
-			},
-			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
-				t.Helper()
-				if req.Memory == nil || req.Memory.Dream.MinHours != 1.5 {
-					t.Fatalf("req.Memory = %#v, want populated memory config", req.Memory)
-				}
-			},
-		},
-		{
 			name: "roles",
 			path: "/api/settings/roles",
 			body: contract.UpdateSettingsRolesRequest{
@@ -2668,7 +2487,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.Roles == nil || req.Roles.Dream.Model != "claude-opus" ||
+				if req.Roles == nil || req.Roles.Coordinator.Model != "claude-sonnet" ||
 					req.Roles.Coordinator.TTL != 2*time.Hour ||
 					len(req.Roles.AutoTitle.FallbackChain) != 1 ||
 					req.Roles.AutoTitle.FallbackChain[0].Model != "gpt-5-mini" {
@@ -2985,136 +2804,7 @@ func validSettingsRolesConfigPayload() contract.SettingsRolesConfigPayload {
 			MaxChildren:                   5,
 			MaxActiveSessionsPerWorkspace: 3,
 		},
-		Dream:             role("claude-opus"),
-		CheckpointSummary: role("claude-haiku"),
-		MemoryExtractor:   role("claude-haiku"),
-		AutoTitle:         role("claude-haiku"),
-		MemoryController: contract.SettingsMemoryControllerRoleConfigPayload{
-			Enabled:         true,
-			Provider:        "anthropic",
-			Model:           "claude-haiku",
-			ReasoningEffort: "low",
-			Timeout:         "250ms",
-			TopK:            5,
-			PromptVersion:   "v1",
-			MaxTokensOut:    256,
-			FallbackChain: []contract.SettingsRoleFallbackPayload{{
-				Provider: "openai", Model: "gpt-5-mini", ReasoningEffort: "medium",
-			}},
-		},
-	}
-}
-
-func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
-	return contract.SettingsMemoryConfigPayload{
-		Enabled:   true,
-		GlobalDir: "/tmp/compozy-memory",
-		Controller: contract.SettingsMemoryControllerPayload{
-			Mode:            "hybrid",
-			MaxLatency:      "300ms",
-			DefaultOpOnFail: "noop",
-			Policy: contract.SettingsMemoryControllerPolicyPayload{
-				MaxContentChars: 4096,
-				MaxWritesPerMin: 60,
-				AllowOrigins: []string{
-					"cli",
-					"http",
-					"uds",
-					"tool",
-					"extractor",
-					"dreaming",
-					"file",
-					"provider",
-				},
-			},
-		},
-		Recall: contract.SettingsMemoryRecallPayload{
-			TopK:          5,
-			RawCandidates: 50,
-			Fusion:        "weighted",
-			Weights: contract.SettingsMemoryRecallWeightsPayload{
-				BM25Unicode:  0.55,
-				BM25Trigram:  0.20,
-				Recency:      0.15,
-				RecallSignal: 0.10,
-			},
-			Freshness: contract.SettingsMemoryRecallFreshnessPayload{
-				BannerAfterDays: 1,
-			},
-			Signals: contract.SettingsMemoryRecallSignalsPayload{
-				QueueCapacity:  256,
-				WorkerRetryMax: 3,
-			},
-		},
-		Decisions: contract.SettingsMemoryDecisionsPayload{
-			PruneAfterAppliedDays: 90,
-			KeepAuditSummary:      true,
-			MaxPostContentBytes:   65536,
-		},
-		Extractor: contract.SettingsMemoryExtractorPayload{
-			Mode:             "post_message",
-			ThrottleTurns:    1,
-			Deadline:         "60s",
-			SandboxInboxOnly: true,
-			InboxPath:        "/tmp/compozy-memory/_inbox",
-			DLQPath:          "/tmp/compozy-memory/_system/extractor/failures",
-			Queue: contract.SettingsMemoryExtractorQueuePayload{
-				Capacity:    1,
-				CoalesceMax: 16,
-			},
-		},
-		Dream: contract.SettingsMemoryDreamPayload{
-			MinHours:      24,
-			MinSessions:   3,
-			Debounce:      "10m",
-			PromptVersion: "v1",
-			CheckInterval: "30m",
-			Gates: contract.SettingsMemoryDreamGatesPayload{
-				MinUnpromoted:  5,
-				MinRecallCount: 2,
-				MinScore:       0.75,
-			},
-			Scoring: contract.SettingsMemoryDreamScoringPayload{
-				RecencyHalfLifeDays: 14,
-				Weights: contract.SettingsMemoryDreamScoringWeightsPayload{
-					Frequency: 0.30,
-					Relevance: 0.35,
-					Recency:   0.20,
-					Freshness: 0.15,
-				},
-			},
-		},
-		Session: contract.SettingsMemorySessionPayload{
-			LedgerFormat:     "jsonl",
-			LedgerRoot:       "/tmp/compozy-sessions",
-			EventsPurgeGrace: "24h",
-			ColdArchiveDays:  30,
-			MaxArchiveBytes:  10737418240,
-			UnboundPartition: "_unbound",
-		},
-		Daily: contract.SettingsMemoryDailyPayload{
-			MaxBytes:        1048576,
-			MaxLines:        5000,
-			RotateFormat:    "{date}.{seq}.md",
-			DreamingWindow:  7,
-			ColdArchiveDays: 30,
-			MaxArchiveBytes: 1073741824,
-			SweepHour:       3,
-			ArchivePath:     "_system/archive",
-		},
-		File: contract.SettingsMemoryFilePayload{
-			MaxLines: 200,
-			MaxBytes: 25600,
-		},
-		Provider: contract.SettingsMemoryProviderPayload{
-			Timeout:          "2s",
-			FailureThreshold: 5,
-			Cooldown:         "30s",
-		},
-		Workspace: contract.SettingsMemoryWorkspacePayload{
-			TOMLPath:   "<workspace>/.compozy/workspace.toml",
-			AutoCreate: true,
-		},
+		AutoTitle: role("claude-haiku"),
 	}
 }
 
@@ -3685,18 +3375,8 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			}
 			switch req.Section {
-			case settingspkg.SectionMemory:
-				envelope.Memory = &settingspkg.MemorySection{
-					Config: compozyconfig.MemoryConfig{
-						Enabled: true,
-						Dream: compozyconfig.DreamConfig{
-							CheckInterval: time.Hour,
-						},
-					},
-				}
 			case settingspkg.SectionRoles:
 				roles := compozyconfig.DefaultRolesConfig()
-				roles.Dream.Model = "claude-opus"
 				roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 					Provider: "openai", Model: "gpt-5-mini", ReasoningEffort: "medium",
 				}}
@@ -3750,7 +3430,6 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 	fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 
 	for _, path := range []string{
-		"/api/settings/memory",
 		"/api/settings/roles",
 		"/api/settings/skills",
 		"/api/settings/automation",
@@ -3766,7 +3445,6 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 	var roles contract.SettingsRolesResponse
 	decodeJSON(t, rolesResp.Body.Bytes(), &roles)
 	if rolesResp.Code != http.StatusOK || roles.Section != contract.SettingsSectionRoles ||
-		roles.Config.Dream.Model != "claude-opus" ||
 		len(roles.Config.AutoTitle.FallbackChain) != 1 ||
 		roles.Config.AutoTitle.FallbackChain[0].Model != "gpt-5-mini" {
 		t.Fatalf("GET settings roles = status %d payload %#v", rolesResp.Code, roles)
@@ -4552,5 +4230,48 @@ func readStreamLine(t *testing.T, reader *bufio.Reader) string {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for SSE line")
 		return ""
+	}
+}
+
+func TestUpdateSettingsRolesRejectsRetiredFieldsWithoutWriting(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"dream", "checkpoint_summary", "memory_extractor", "memory_controller"} {
+		t.Run("Should reject "+field+" before writing config", func(t *testing.T) {
+			t.Parallel()
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			original := []byte("[roles.auto_title]\nenabled = true\n")
+			if err := os.WriteFile(fixture.HomePaths.ConfigFile, original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, body := range [][]byte{
+				[]byte(fmt.Sprintf(`{%q:{"enabled":true}}`, field)),
+				[]byte(fmt.Sprintf(`{"config":{%q:{"enabled":true}}}`, field)),
+			} {
+				response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/roles", body)
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+				}
+				var payload contract.ErrorPayload
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				if !strings.Contains(payload.Error, "unknown_field") || !strings.Contains(payload.Error, field) {
+					t.Fatalf("error = %q, want unknown field %s", payload.Error, field)
+				}
+				if service.UpdateSectionCalls != 0 || service.ApplySectionCalls != 0 {
+					t.Fatalf(
+						"settings writes = %d/%d, want zero",
+						service.UpdateSectionCalls,
+						service.ApplySectionCalls,
+					)
+				}
+				persisted, err := os.ReadFile(fixture.HomePaths.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(persisted, original) {
+					t.Fatalf("config changed: %s", persisted)
+				}
+			}
+		})
 	}
 }

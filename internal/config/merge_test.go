@@ -356,15 +356,12 @@ func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 
 		cfg := DefaultWithHome(HomePaths{})
 		path := filepath.Join(t.TempDir(), "roles.toml")
-		writeFile(t, path, "[roles.dream]\nmodel = \"model-x\"\n")
+		writeFile(t, path, "[roles.auto_title]\nmodel = \"model-x\"\n")
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Model != "model-x" || cfg.Roles.Dream.Enabled {
-			t.Fatalf("Roles.Dream = %#v, want model override with disabled default", cfg.Roles.Dream)
-		}
-		if !reflect.DeepEqual(cfg.Roles.CheckpointSummary, DefaultRolesConfig().CheckpointSummary) {
-			t.Fatalf("Roles.CheckpointSummary = %#v, want defaults", cfg.Roles.CheckpointSummary)
+		if cfg.Roles.AutoTitle.Model != "model-x" || !cfg.Roles.AutoTitle.Enabled {
+			t.Fatalf("Roles.AutoTitle = %#v, want model override with disabled default", cfg.Roles.AutoTitle)
 		}
 	})
 
@@ -373,12 +370,12 @@ func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 
 		cfg := DefaultWithHome(HomePaths{})
 		path := filepath.Join(t.TempDir(), "roles.toml")
-		writeFile(t, path, "[roles.dream]\n")
+		writeFile(t, path, "[roles.auto_title]\n")
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Enabled {
-			t.Fatal("Roles.Dream.Enabled = true, want default false")
+		if !cfg.Roles.AutoTitle.Enabled {
+			t.Fatal("Roles.AutoTitle.Enabled = true, want default false")
 		}
 	})
 
@@ -386,23 +383,23 @@ func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultWithHome(HomePaths{})
-		cfg.Roles.Dream.FallbackChain = []RoleFallback{
+		cfg.Roles.AutoTitle.FallbackChain = []RoleFallback{
 			{Provider: "a", Model: "one"},
 			{Provider: "b", Model: "two"},
 		}
 		path := filepath.Join(t.TempDir(), "roles.toml")
 		writeFile(t, path, `
-[[roles.dream.fallback_chain]]
+[[roles.auto_title.fallback_chain]]
 provider = "c"
 model = "three"
 `)
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		got := cfg.Roles.Dream.FallbackChain
+		got := cfg.Roles.AutoTitle.FallbackChain
 		want := []RoleFallback{{Provider: "c", Model: "three"}}
 		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("Roles.Dream.FallbackChain = %#v, want %#v", got, want)
+			t.Fatalf("Roles.AutoTitle.FallbackChain = %#v, want %#v", got, want)
 		}
 	})
 
@@ -450,24 +447,24 @@ model = "gpt-5.6-terra"
 		cfg := DefaultWithHome(HomePaths{})
 		path := filepath.Join(t.TempDir(), "roles.toml")
 		writeFile(t, path, `
-[roles.dream]
+[roles.auto_title]
 speed = "fast"
 acp_options = [{ id = "thinking", bool_value = true }]
 `)
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Speed != "fast" || len(cfg.Roles.Dream.ACPOptions) != 1 {
-			t.Fatalf("Roles.Dream runtime = %#v, want speed and one ACP option", cfg.Roles.Dream)
+		if cfg.Roles.AutoTitle.Speed != "fast" || len(cfg.Roles.AutoTitle.ACPOptions) != 1 {
+			t.Fatalf("Roles.AutoTitle runtime = %#v, want speed and one ACP option", cfg.Roles.AutoTitle)
 		}
-		option := cfg.Roles.Dream.ACPOptions[0]
+		option := cfg.Roles.AutoTitle.ACPOptions[0]
 		if option.ID != "thinking" || option.BoolValue == nil || !*option.BoolValue {
-			t.Fatalf("Roles.Dream.ACPOptions = %#v, want thinking=true", cfg.Roles.Dream.ACPOptions)
+			t.Fatalf("Roles.AutoTitle.ACPOptions = %#v, want thinking=true", cfg.Roles.AutoTitle.ACPOptions)
 		}
-		if got := cfg.RoleFieldSource(RoleDream, RoleFieldSpeed); got != RoleFieldSourceGlobal {
+		if got := cfg.RoleFieldSource(RoleAutoTitle, RoleFieldSpeed); got != RoleFieldSourceGlobal {
 			t.Fatalf("RoleFieldSource(speed) = %q, want %q", got, RoleFieldSourceGlobal)
 		}
-		if got := cfg.RoleFieldSource(RoleDream, RoleFieldACPOptions); got != RoleFieldSourceGlobal {
+		if got := cfg.RoleFieldSource(RoleAutoTitle, RoleFieldACPOptions); got != RoleFieldSourceGlobal {
 			t.Fatalf("RoleFieldSource(acp_options) = %q, want %q", got, RoleFieldSourceGlobal)
 		}
 	})
@@ -476,19 +473,19 @@ acp_options = [{ id = "thinking", bool_value = true }]
 		t.Parallel()
 
 		cfg := DefaultWithHome(HomePaths{})
-		cfg.Roles.Dream.Model = "default-model"
+		cfg.Roles.AutoTitle.Model = "default-model"
 		globalPath := filepath.Join(t.TempDir(), "global.toml")
 		workspacePath := filepath.Join(t.TempDir(), "workspace.toml")
-		writeFile(t, globalPath, "[roles.dream]\nmodel = \"global-model\"\n")
-		writeFile(t, workspacePath, "[roles.dream]\nmodel = \"workspace-model\"\n")
+		writeFile(t, globalPath, "[roles.auto_title]\nmodel = \"global-model\"\n")
+		writeFile(t, workspacePath, "[roles.auto_title]\nmodel = \"workspace-model\"\n")
 		if err := ApplyConfigOverlayFile(globalPath, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile(global) error = %v", err)
 		}
 		if err := applyWorkspaceConfigOverlayFile(workspacePath, &cfg); err != nil {
 			t.Fatalf("applyWorkspaceConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Model != "workspace-model" {
-			t.Fatalf("Roles.Dream.Model = %q, want workspace-model", cfg.Roles.Dream.Model)
+		if cfg.Roles.AutoTitle.Model != "workspace-model" {
+			t.Fatalf("Roles.AutoTitle.Model = %q, want workspace-model", cfg.Roles.AutoTitle.Model)
 		}
 	})
 

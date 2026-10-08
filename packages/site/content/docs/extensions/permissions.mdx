@@ -12,7 +12,7 @@ compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 	Name:    "release-notes",
 	Version: "0.1.0",
 	Permissions: compozysdk.PermissionsConfig{
-		Requires: []compozysdk.HostAPIMethod{"sessions/list", "memory/recall", "memory/store"},
+		Requires: []compozysdk.HostAPIMethod{"sessions/list", "skills/list"},
 	},
 	Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
 })
@@ -22,7 +22,7 @@ compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 
 ```toml
 [permissions]
-  requires = ["memory/recall", "memory/store", "sessions/list"]
+  requires = ["sessions/list", "skills/list"]
 ```
 
 ## Closed set
@@ -35,6 +35,10 @@ ERROR permissions.requires[0]  unknown Host API permission
 ```
 
 Both SDKs export the method names as typed constants, so a typo fails before the daemon sees it.
+
+The retired `memory/*` methods, together with the `memory.read` and `memory.write` entries, are the one
+exception: a manifest that still requires them keeps loading with those entries dropped. See
+[Retired manifest entries](/docs/extensions/manifest#retired-manifest-entries).
 
 ## Derived consent areas
 
@@ -50,7 +54,7 @@ Extension package validation
 ===========================
 Status:   valid
 Issues:   0
-Consent:  memory:read, memory:write, sessions:read
+Consent:  sessions:read, skills:read
 ```
 
 The same summary is available structurally:
@@ -64,13 +68,12 @@ compozy extension validate ./dist/gen-<hash> -o json
   "manifest": {
     "name": "hello",
     "provides": ["tool.provider"],
-    "permissions": ["memory/recall", "memory/store", "sessions/list"]
+    "permissions": ["sessions/list", "skills/list"]
   },
   "issues": [],
   "consent_areas": [
-    { "area": "memory", "access": "read" },
-    { "area": "memory", "access": "write" },
-    { "area": "sessions", "access": "read" }
+    { "area": "sessions", "access": "read" },
+    { "area": "skills", "access": "read" }
   ]
 }
 ```
@@ -86,7 +89,7 @@ approving a palette command does not expand the extension's scope.
 
 ## Permission catalog
 
-Twenty-six consent areas cover the cataloged methods.
+Twenty-four consent areas cover the cataloged methods.
 
 | Consent area       | Host API methods                                                                                                                                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -96,8 +99,6 @@ Twenty-six consent areas cover the cataloged methods.
 | `heartbeat:read`   | `agents/heartbeat/get`, `agents/heartbeat/history`, `agents/heartbeat/status`, `agents/heartbeat/validate`                                                                                                                    |
 | `heartbeat:write`  | `agents/heartbeat/delete`, `agents/heartbeat/put`, `agents/heartbeat/rollback`, `agents/heartbeat/wake`                                                                                                                       |
 | `logs:read`        | `logs/list`                                                                                                                                                                                                                   |
-| `memory:read`      | `memory/recall`                                                                                                                                                                                                               |
-| `memory:write`     | `memory/forget`, `memory/store`                                                                                                                                                                                               |
 | `model:read`       | `models/list`, `models/status`                                                                                                                                                                                                |
 | `model:write`      | `models/refresh`                                                                                                                                                                                                              |
 | `observe:read`     | `observe/health`                                                                                                                                                                                                              |
@@ -127,8 +128,8 @@ The install source decides how much of the declared list can be granted.
 | Bundled with the daemon                        | `bundled`      | Every declared method.                                                                                                    |
 | Published (`curated`, `github`, `git`)         | `marketplace`  | Only methods inside the read-oriented ceiling below. Everything else is dropped at grant time with a recorded diagnostic. |
 
-The published ceiling is `logs.read`, `memory.read`, `observe.read`, `session.read`, `skills.read`,
-and `tool.read`. A published extension that declares `sessions/prompt`, `models/refresh`, or
+The published ceiling is `logs.read`, `observe.read`, `session.read`, `skills.read`, and
+`tool.read`. A published extension that declares `sessions/prompt`, `models/refresh`, or
 `tasks/create` still installs, but those methods are not granted, and the trust report names each
 dropped request. Read the outcome with:
 

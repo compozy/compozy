@@ -10,12 +10,10 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
-	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	skillbundled "github.com/compozy/compozy/skills"
 )
@@ -50,7 +48,7 @@ func TestComposedAssemblerFiltersProviderNativeSkillsAtStartup(t *testing.T) {
 		assembler := NewComposedAssembler(
 			WithSectionSelector(NewSectionSelector(resolver, nil)),
 			WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(
-				nil, skillspkg.NewCatalogProvider(registry), nil,
+				skillspkg.NewCatalogProvider(registry), nil,
 			)...),
 		)
 		agent := compozyconfig.AgentDef{Name: "coder", Prompt: "Base prompt."}
@@ -87,7 +85,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		t.Parallel()
 		assembler := NewComposedAssembler(WithPromptSectionDescriptors(
 			PromptSectionDescriptor{
-				Name:     "memory",
+				Name:     "guidance",
 				Position: PromptSectionPositionPrepend,
 				Budget:   3,
 				Provider: staticPromptProvider("abcdef"),
@@ -117,7 +115,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		if prompt != "abc\n\nbase\n\náé" || len(manifest.Spans) != 3 {
 			t.Fatalf("prompt = %q, manifest = %#v", prompt, manifest)
 		}
-		keys := []string{"memory", "agent_prompt", "skills"}
+		keys := []string{"guidance", "agent_prompt", "skills"}
 		lengths := []int64{3, 4, 4}
 		var total int64
 		for i, span := range manifest.Spans {
@@ -148,12 +146,12 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 
 		var nilProvider session.PromptProvider
 		assembler := NewComposedAssembler(
-			WithPrependPromptProviders(nilProvider, staticPromptProvider("# Memory section")),
+			WithPrependPromptProviders(nilProvider, staticPromptProvider("# Guidance section")),
 			WithAppendPromptProviders(nilProvider, staticPromptProvider("<available-skills />")),
 		)
 
 		got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
-		want := "# Memory section\n\nBase prompt.\n\n<available-skills />"
+		want := "# Guidance section\n\nBase prompt.\n\n<available-skills />"
 		if got != want {
 			t.Fatalf("Assemble() = %q, want %q", got, want)
 		}
@@ -195,7 +193,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 	t.Run("Should workspace is passed to all providers", func(t *testing.T) {
 		t.Parallel()
 
-		prepend := &recordingPromptProvider{section: "# Memory section"}
+		prepend := &recordingPromptProvider{section: "# Guidance section"}
 		appendProvider := &recordingPromptProvider{section: "<available-skills />"}
 		workspace := filepath.Join(t.TempDir(), "workspace")
 
@@ -205,7 +203,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		)
 
 		got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), workspace)
-		want := "# Memory section\n\nBase prompt.\n\n<available-skills />"
+		want := "# Guidance section\n\nBase prompt.\n\n<available-skills />"
 		if got != want {
 			t.Fatalf("Assemble() = %q, want %q", got, want)
 		}
@@ -251,143 +249,71 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 	})
 }
 
-func TestComposedAssemblerResumeContext(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should delegate selected resume sections in descriptor order", func(t *testing.T) {
+func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.T) {
+	t.Run("Should assemble eligible sections in order", func(t *testing.T) {
 		t.Parallel()
 
-		first := &resumeContextPromptProvider{section: "<checkpoint>first</checkpoint>"}
-		second := &resumeContextPromptProvider{section: "<recovery>second</recovery>"}
-		assembler := NewComposedAssembler(WithPromptSectionDescriptors(
-			PromptSectionDescriptor{
-				Name:     "second",
-				Position: PromptSectionPositionAppend,
-				Order:    20,
-				Provider: second,
+		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+			ToolsPromptSectionEnabled:           true,
+			RuntimeIdentityPromptSectionEnabled: true,
+			SituationPromptSectionEnabled:       true,
+			SkillsPromptSectionEnabled:          true,
+		})
+		assembler := NewComposedAssembler(
+			WithSectionSelector(NewSectionSelector(resolver, nil)),
+			WithPromptSectionDescriptors(
+				PromptSectionDescriptor{
+					Name:      string(HarnessPromptSectionRuntimeIdentity),
+					Position:  PromptSectionPositionPrepend,
+					Order:     10,
+					Provider:  staticPromptProvider("runtime block"),
+					Predicate: policyIncludesSection(HarnessPromptSectionRuntimeIdentity),
+				},
+				PromptSectionDescriptor{
+					Name:     string(HarnessPromptSectionTools),
+					Position: PromptSectionPositionAppend,
+					Order:    200,
+					Provider: staticPromptProvider("tools block"),
+					Predicate: policyIncludesSection(
+						HarnessPromptSectionTools,
+					),
+				},
+				PromptSectionDescriptor{
+					Name:     string(HarnessPromptSectionSkills),
+					Position: PromptSectionPositionAppend,
+					Order:    100,
+					Provider: staticPromptProvider("skills block"),
+					Predicate: policyIncludesSection(
+						HarnessPromptSectionSkills,
+					),
+				},
+				PromptSectionDescriptor{
+					Name:     string(HarnessPromptSectionSituation),
+					Position: PromptSectionPositionPrepend,
+					Order:    100,
+					Provider: staticPromptProvider("situation block"),
+					Predicate: policyIncludesSection(
+						HarnessPromptSectionSituation,
+					),
+				},
+			),
+		)
+
+		got := assembleStartupPrompt(
+			t,
+			assembler,
+			session.StartupPromptContext{
+				SessionType: session.SessionTypeUser,
 			},
-			PromptSectionDescriptor{
-				Name:     "first",
-				Position: PromptSectionPositionPrepend,
-				Order:    10,
-				Provider: first,
-			},
-		))
-		startup := session.StartupPromptContext{
-			SessionID:   "sess-alpha",
-			WorkspaceID: "ws-alpha",
-			Workspace:   "/workspace/alpha",
-		}
-		got, err := assembler.ResumeContextSection(testutil.Context(t), startup)
-		if err != nil {
-			t.Fatalf("ResumeContextSection() error = %v", err)
-		}
-		want := "<checkpoint>first</checkpoint>\n\n<recovery>second</recovery>"
+			testPromptAgent("Base prompt."),
+			t.TempDir(),
+		)
+
+		want := "runtime block\n\nsituation block\n\nBase prompt.\n\nskills block\n\ntools block"
 		if got != want {
-			t.Fatalf("ResumeContextSection() = %q, want %q", got, want)
-		}
-		if first.startup != startup || second.startup != startup {
-			t.Fatalf(
-				"ResumeContextSection() contexts = (%#v, %#v), want %#v",
-				first.startup,
-				second.startup,
-				startup,
-			)
+			t.Fatalf("AssembleStartup() = %q, want %q", got, want)
 		}
 	})
-}
-
-func TestComposedAssemblerRegressionMatchesMemoryAssembler(t *testing.T) {
-	t.Parallel()
-
-	env := newComposedAssemblerMemoryEnv(t)
-	env.writeGlobalIndex(t, "- [Global](global.md) - global note")
-	env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
-
-	memoryAssembler := memory.NewAssembler(env.store)
-	composedAssembler := NewComposedAssembler(
-		WithPrependPromptProviders(memoryAssembler),
-	)
-
-	workspace := testResolvedWorkspace(env.workspace)
-	got, err := composedAssembler.Assemble(t.Context(), env.agent, &workspace)
-	if err != nil {
-		t.Fatalf("ComposedAssembler.Assemble() error = %v", err)
-	}
-
-	want, err := memoryAssembler.Assemble(t.Context(), env.agent, &workspace)
-	if err != nil {
-		t.Fatalf("memory.Assemble() error = %v", err)
-	}
-
-	if got != want {
-		t.Fatalf("memory-only regression mismatch\nwant:\n%s\n\ngot:\n%s", want, got)
-	}
-}
-
-func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.T) {
-	t.Parallel()
-
-	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		ToolsPromptSectionEnabled:           true,
-		RuntimeIdentityPromptSectionEnabled: true,
-		MemoryPromptSectionEnabled:          true,
-		SkillsPromptSectionEnabled:          true,
-	})
-	assembler := NewComposedAssembler(
-		WithSectionSelector(NewSectionSelector(resolver, nil)),
-		WithPromptSectionDescriptors(
-			PromptSectionDescriptor{
-				Name:      string(HarnessPromptSectionRuntimeIdentity),
-				Position:  PromptSectionPositionPrepend,
-				Order:     10,
-				Provider:  staticPromptProvider("runtime block"),
-				Predicate: policyIncludesSection(HarnessPromptSectionRuntimeIdentity),
-			},
-			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionTools),
-				Position: PromptSectionPositionAppend,
-				Order:    200,
-				Provider: staticPromptProvider("tools block"),
-				Predicate: policyIncludesSection(
-					HarnessPromptSectionTools,
-				),
-			},
-			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionSkills),
-				Position: PromptSectionPositionAppend,
-				Order:    100,
-				Provider: staticPromptProvider("skills block"),
-				Predicate: policyIncludesSection(
-					HarnessPromptSectionSkills,
-				),
-			},
-			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionMemory),
-				Position: PromptSectionPositionPrepend,
-				Order:    100,
-				Provider: staticPromptProvider("memory block"),
-				Predicate: policyIncludesSection(
-					HarnessPromptSectionMemory,
-				),
-			},
-		),
-	)
-
-	got := assembleStartupPrompt(
-		t,
-		assembler,
-		session.StartupPromptContext{
-			SessionType: session.SessionTypeUser,
-		},
-		testPromptAgent("Base prompt."),
-		t.TempDir(),
-	)
-
-	want := "runtime block\n\nmemory block\n\nBase prompt.\n\nskills block\n\ntools block"
-	if got != want {
-		t.Fatalf("AssembleStartup() = %q, want %q", got, want)
-	}
 }
 
 func TestComposedAssemblerAssembleStartupIncludesSoulSection(t *testing.T) {
@@ -512,99 +438,103 @@ func TestComposedAssemblerAssembleStartupIncludesSoulSection(t *testing.T) {
 }
 
 func TestComposedAssemblerAppliesBudgetPolicies(t *testing.T) {
-	t.Parallel()
+	t.Run("Should apply section budget policies", func(t *testing.T) {
+		t.Parallel()
 
-	assembler := NewComposedAssembler(
-		WithPromptSectionDescriptors(
-			PromptSectionDescriptor{
-				Name:           "trimmed",
-				Position:       PromptSectionPositionPrepend,
-				Order:          10,
-				Budget:         5,
-				BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-				Provider:       staticPromptProvider("123456789"),
-			},
-			PromptSectionDescriptor{
-				Name:           "omitted",
-				Position:       PromptSectionPositionAppend,
-				Order:          20,
-				Budget:         4,
-				BudgetBehavior: PromptSectionBudgetBehaviorOmit,
-				Provider:       staticPromptProvider("abcdef"),
-			},
-			PromptSectionDescriptor{
-				Name:     "empty",
-				Position: PromptSectionPositionAppend,
-				Order:    30,
-				Provider: staticPromptProvider("   \n\t"),
-			},
-		),
-	)
+		assembler := NewComposedAssembler(
+			WithPromptSectionDescriptors(
+				PromptSectionDescriptor{
+					Name:           "trimmed",
+					Position:       PromptSectionPositionPrepend,
+					Order:          10,
+					Budget:         5,
+					BudgetBehavior: PromptSectionBudgetBehaviorTrim,
+					Provider:       staticPromptProvider("123456789"),
+				},
+				PromptSectionDescriptor{
+					Name:           "omitted",
+					Position:       PromptSectionPositionAppend,
+					Order:          20,
+					Budget:         4,
+					BudgetBehavior: PromptSectionBudgetBehaviorOmit,
+					Provider:       staticPromptProvider("abcdef"),
+				},
+				PromptSectionDescriptor{
+					Name:     "empty",
+					Position: PromptSectionPositionAppend,
+					Order:    30,
+					Provider: staticPromptProvider("   \n\t"),
+				},
+			),
+		)
 
-	got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
-	want := "12345\n\nBase prompt."
-	if got != want {
-		t.Fatalf("Assemble() = %q, want %q", got, want)
-	}
+		got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
+		want := "12345\n\nBase prompt."
+		if got != want {
+			t.Fatalf("Assemble() = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestComposedAssemblerDeduplicatesEligibleSectionNames(t *testing.T) {
-	t.Parallel()
+	t.Run("Should deduplicate eligible sections", func(t *testing.T) {
+		t.Parallel()
 
-	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		ToolsPromptSectionEnabled:  true,
-		MemoryPromptSectionEnabled: true,
-		SkillsPromptSectionEnabled: true,
+		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+			ToolsPromptSectionEnabled:     true,
+			SituationPromptSectionEnabled: true,
+			SkillsPromptSectionEnabled:    true,
+		})
+		assembler := NewComposedAssembler(
+			WithSectionSelector(NewSectionSelector(resolver, nil)),
+			WithPromptSectionDescriptors(
+				PromptSectionDescriptor{
+					Name:     string(HarnessPromptSectionSituation),
+					Position: PromptSectionPositionPrepend,
+					Order:    100,
+					Provider: staticPromptProvider("situation block"),
+					Predicate: policyIncludesSection(
+						HarnessPromptSectionSituation,
+					),
+				},
+				PromptSectionDescriptor{
+					Name:     string(HarnessPromptSectionTools),
+					Position: PromptSectionPositionAppend,
+					Order:    200,
+					Provider: staticPromptProvider("tools block"),
+					Predicate: policyIncludesSection(
+						HarnessPromptSectionTools,
+					),
+				},
+				PromptSectionDescriptor{
+					Name:     string(HarnessPromptSectionTools),
+					Position: PromptSectionPositionAppend,
+					Order:    210,
+					Provider: staticPromptProvider("tools block duplicate"),
+					Predicate: policyIncludesSection(
+						HarnessPromptSectionTools,
+					),
+				},
+			),
+		)
+
+		got := assembleStartupPrompt(
+			t,
+			assembler,
+			session.StartupPromptContext{
+				SessionType: session.SessionTypeUser,
+			},
+			testPromptAgent("Base prompt."),
+			t.TempDir(),
+		)
+
+		if strings.Count(got, "tools block") != 1 {
+			t.Fatalf("tools block occurrences = %d, want 1", strings.Count(got, "tools block"))
+		}
+		if strings.Contains(got, "tools block duplicate") {
+			t.Fatalf("assembled prompt unexpectedly contains duplicate tools block: %q", got)
+		}
 	})
-	assembler := NewComposedAssembler(
-		WithSectionSelector(NewSectionSelector(resolver, nil)),
-		WithPromptSectionDescriptors(
-			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionMemory),
-				Position: PromptSectionPositionPrepend,
-				Order:    100,
-				Provider: staticPromptProvider("memory block"),
-				Predicate: policyIncludesSection(
-					HarnessPromptSectionMemory,
-				),
-			},
-			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionTools),
-				Position: PromptSectionPositionAppend,
-				Order:    200,
-				Provider: staticPromptProvider("tools block"),
-				Predicate: policyIncludesSection(
-					HarnessPromptSectionTools,
-				),
-			},
-			PromptSectionDescriptor{
-				Name:     string(HarnessPromptSectionTools),
-				Position: PromptSectionPositionAppend,
-				Order:    210,
-				Provider: staticPromptProvider("tools block duplicate"),
-				Predicate: policyIncludesSection(
-					HarnessPromptSectionTools,
-				),
-			},
-		),
-	)
-
-	got := assembleStartupPrompt(
-		t,
-		assembler,
-		session.StartupPromptContext{
-			SessionType: session.SessionTypeUser,
-		},
-		testPromptAgent("Base prompt."),
-		t.TempDir(),
-	)
-
-	if strings.Count(got, "tools block") != 1 {
-		t.Fatalf("tools block occurrences = %d, want 1", strings.Count(got, "tools block"))
-	}
-	if strings.Contains(got, "tools block duplicate") {
-		t.Fatalf("assembled prompt unexpectedly contains duplicate tools block: %q", got)
-	}
 }
 
 func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *testing.T) {
@@ -620,19 +550,14 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 	}{
 		{name: "Should retain discovery for interactive sessions", sessionType: session.SessionTypeUser, wantRouter: true},
 		{name: "Should retain discovery for system task workers", sessionType: session.SessionTypeSystem, wantRouter: true},
-		{name: "Should retain discovery for dream curators", sessionType: session.SessionTypeDream, wantRouter: true},
 		{name: "Should retain discovery for coordinators", sessionType: session.SessionTypeCoordinator, wantRouter: true},
 		{name: "Should retain discovery for spawned workers", sessionType: session.SessionTypeSpawned, role: session.DefaultSpawnRole, wantRouter: true},
-		{name: "Should omit discovery for extractor children", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleMemoryExtractor},
-		{name: "Should omit discovery for checkpoint summaries", sessionType: session.SessionTypeDream, role: session.SpawnRoleCheckpointSummary},
 		{name: "Should omit discovery for title generator children", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleAutoTitle},
-		{name: "Should normalize internal role metadata", sessionType: session.SessionTypeSpawned, role: " MEMORY-EXTRACTOR "},
+		{name: "Should normalize internal role metadata", sessionType: session.SessionTypeSpawned, role: " AUTO-TITLE "},
 		{name: "Should preserve guidance for unknown roles", sessionType: session.SessionTypeSystem, role: "custom-role", wantRouter: true},
 		{name: "Should respect disabled tools", sessionType: session.SessionTypeUser, disabled: true},
 		{name: "Should preserve complete manuals when skills are disabled", sessionType: session.SessionTypeUser, skillsDisabled: true, wantManuals: true},
-		{name: "Should omit extractor guidance when skills are disabled", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleMemoryExtractor, skillsDisabled: true},
 		{name: "Should omit title guidance when skills are disabled", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleAutoTitle, skillsDisabled: true},
-		{name: "Should omit summary guidance when skills are disabled", sessionType: session.SessionTypeDream, role: session.SpawnRoleCheckpointSummary, skillsDisabled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -644,7 +569,7 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 			)
 			assembler := NewComposedAssembler(
 				WithSectionSelector(NewSectionSelector(resolver, nil)),
-				WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil, nil)...),
+				WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil)...),
 			)
 			got := assembleStartupPrompt(t, assembler, session.StartupPromptContext{
 				SessionType: tc.sessionType, SpawnRole: tc.role,
@@ -708,75 +633,6 @@ type staticPromptProvider string
 
 func (p staticPromptProvider) PromptSection(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
 	return string(p), nil
-}
-
-type resumeContextPromptProvider struct {
-	section string
-	startup session.StartupPromptContext
-}
-
-func (p *resumeContextPromptProvider) PromptSection(
-	context.Context,
-	*workspacepkg.ResolvedWorkspace,
-) (string, error) {
-	return "", nil
-}
-
-func (p *resumeContextPromptProvider) ResumeContextSection(
-	_ context.Context,
-	startup session.StartupPromptContext,
-) (string, error) {
-	p.startup = startup
-	return p.section, nil
-}
-
-type composedAssemblerMemoryEnv struct {
-	store     *memory.Store
-	globalDir string
-	workspace string
-	agent     compozyconfig.AgentDef
-}
-
-func newComposedAssemblerMemoryEnv(t *testing.T) composedAssemblerMemoryEnv {
-	t.Helper()
-
-	baseDir := t.TempDir()
-	workspace := filepath.Join(baseDir, "workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
-		t.Fatalf("MkdirAll(%q) error = %v", workspace, err)
-	}
-
-	store := memory.NewStore(filepath.Join(baseDir, "home", "memory"))
-	if err := store.EnsureDirs(); err != nil {
-		t.Fatalf("Store.EnsureDirs() error = %v", err)
-	}
-
-	return composedAssemblerMemoryEnv{
-		store:     store,
-		globalDir: filepath.Join(baseDir, "home", "memory"),
-		workspace: workspace,
-		agent:     testPromptAgent("  You are a coding assistant.\n"),
-	}
-}
-
-func (e composedAssemblerMemoryEnv) writeGlobalIndex(t *testing.T, content string) {
-	t.Helper()
-	writeComposedAssemblerFile(t, filepath.Join(e.globalDir, "MEMORY.md"), content)
-}
-
-func (e composedAssemblerMemoryEnv) writeWorkspaceIndex(t *testing.T, content string) {
-	t.Helper()
-	writeComposedAssemblerFile(t, filepath.Join(e.workspace, compozyconfig.DirName, "memory", "MEMORY.md"), content)
-}
-
-func writeComposedAssemblerFile(t *testing.T, path string, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(path), err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile(%q) error = %v", path, err)
-	}
 }
 
 func assemblePrompt(t *testing.T, assembler *ComposedAssembler, agent compozyconfig.AgentDef, workspace string) string {
@@ -875,4 +731,39 @@ func assertPromptOrder(t *testing.T, value string, tokens []string) {
 		}
 		last = index
 	}
+}
+
+// Invariant: legacy persona input retains active content while retired policy stays inert.
+// Owner: daemon prompt rendering. Canonical suite: composed_assembler_test.go.
+func TestSoulPromptIgnoresRetiredMemoryPolicy(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render retained persona from a pre-upgrade document [UT-009]", func(t *testing.T) {
+		t.Parallel()
+		resolved, err := soul.Parse(
+			t.Context(),
+			soul.ParseRequest{
+				SourcePath: "SOUL.md",
+				Config:     compozyconfig.DefaultSoulConfig(),
+				Content: []byte(
+					"---\nrole: Reviewer\nprinciples: [protect correctness]\nmemory_policy: [keep notes]\n---\nKeep the persona.",
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(resolved.Diagnostics) != 0 {
+			t.Fatalf("SOUL diagnostics = %#v", resolved.Diagnostics)
+		}
+		profile := soul.SnapshotProfile{Profile: resolved.Profile}
+		got := renderSoulPromptSection(&soul.Snapshot{ID: "soul-old"}, &profile)
+		for _, want := range []string{"Role: Reviewer", "protect correctness", "Keep the persona."} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("rendered prompt = %q, want %q", got, want)
+			}
+		}
+		if strings.Contains(got, "Memory policy") || strings.Contains(got, "keep notes") {
+			t.Fatalf("retired policy rendered in prompt: %q", got)
+		}
+	})
 }

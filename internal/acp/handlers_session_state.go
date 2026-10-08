@@ -50,6 +50,14 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 		return nil
 	}
 
+	if envelope.SessionUpdate == "compaction_update" || envelope.SessionUpdate == "compaction_summary_chunk" {
+		return p.handleCompactionUpdate(raw, envelope.SessionUpdate)
+	}
+	if !knownSessionUpdate(envelope.SessionUpdate) {
+		p.emitUnknownSessionUpdate(raw, envelope.SessionUpdate)
+		return nil
+	}
+
 	var notification acpsdk.SessionNotification
 	if err := json.Unmarshal(params, &notification); err != nil {
 		return fmt.Errorf("acp: decode session notification: %w", err)
@@ -72,6 +80,10 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 // captureForkSessionUpdate hands a clone-id notification to the open fork
 // capture. It never touches the bound session's turn, stream, or config state.
 func (p *AgentProcess) captureForkSessionUpdate(params json.RawMessage, id acpsdk.SessionId, kind string) {
+	if !knownSessionUpdate(kind) {
+		p.dropForeignSessionTraffic(id, kind)
+		return
+	}
 	var notification acpsdk.SessionNotification
 	if err := json.Unmarshal(params, &notification); err != nil {
 		p.dropForeignSessionTraffic(id, kind)

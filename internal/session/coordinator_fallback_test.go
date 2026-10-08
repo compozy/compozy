@@ -13,60 +13,22 @@ import (
 )
 
 func TestBundledBuiltinSessionFallback(t *testing.T) {
-	t.Run("Should create a dream session without a materialized agent definition", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		configureBundledBuiltinFallbackWorkspace(t, h)
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: compozyconfig.BuiltinDreamingCuratorAgentName,
-			Provider:  "claude",
-			Name:      "bundled-dream",
-			Workspace: h.workspaceID,
-			Type:      SessionTypeDream,
-		})
-		if err != nil {
-			t.Fatalf("Create(dream) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
-				t.Fatalf("Stop(%q) error = %v", created.ID, err)
-			}
-		})
-
-		if got, want := created.AgentName, compozyconfig.BuiltinDreamingCuratorAgentName; got != want {
-			t.Fatalf("Create().AgentName = %q, want %q", got, want)
-		}
-		if got, want := created.Type, SessionTypeDream; got != want {
-			t.Fatalf("Create().Type = %q, want %q", got, want)
-		}
-		if got := h.driver.startCalls[0].SystemPrompt; !strings.Contains(
-			got,
-			mustBuiltinAgentDef(t, compozyconfig.BuiltinDreamingCuratorAgentName).Prompt,
-		) {
-			t.Fatalf("startCalls[0].SystemPrompt = %q, want bundled dream prompt", got)
-		}
-	})
-
 	t.Run("Should reject a builtin identity for a mismatched session type", func(t *testing.T) {
 		t.Parallel()
 
-		if _, ok := builtinSessionAgentDef(compozyconfig.BuiltinDreamingCuratorAgentName, SessionTypeUser); ok {
-			t.Fatal("builtinSessionAgentDef(dreaming-curator, user) ok = true, want false")
-		}
-		if _, ok := builtinSessionAgentDef(compozyconfig.BuiltinCoordinatorAgentName, SessionTypeDream); ok {
-			t.Fatal("builtinSessionAgentDef(coordinator, dream) ok = true, want false")
+		if _, ok := builtinSessionAgentDef(compozyconfig.BuiltinCoordinatorAgentName, SessionTypeUser); ok {
+			t.Fatal("builtinSessionAgentDef(coordinator, user) ok = true, want false")
 		}
 	})
 
 	t.Run("Should resolve normalized builtin identities for their session type", func(t *testing.T) {
 		t.Parallel()
 
-		def, ok := builtinSessionAgentDef("  DREAMING-CURATOR  ", SessionTypeDream)
+		def, ok := builtinSessionAgentDef("  COORDINATOR  ", SessionTypeCoordinator)
 		if !ok {
-			t.Fatal("builtinSessionAgentDef(normalized dreaming-curator, dream) ok = false, want true")
+			t.Fatal("builtinSessionAgentDef(normalized coordinator, coordinator) ok = false, want true")
 		}
-		if got, want := def.Name, compozyconfig.BuiltinDreamingCuratorAgentName; got != want {
+		if got, want := def.Name, compozyconfig.BuiltinCoordinatorAgentName; got != want {
 			t.Fatalf("builtinSessionAgentDef().Name = %q, want %q", got, want)
 		}
 	})

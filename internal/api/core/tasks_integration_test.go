@@ -75,8 +75,6 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 		testutil.StubObserver{},
 		tasks,
 		workspaces,
-		nil,
-		nil,
 	)
 	fixture.Handlers.Profiles = sessionProfileServiceStub{}
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {

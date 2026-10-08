@@ -33,7 +33,6 @@ instructions for agents.
 | `metadata`                     | object                      | empty                    | Any YAML mapping.                                 | Free-form metadata. CompozyOS acts on `metadata.compozy`.                    |
 | `metadata.compozy.mcp_servers` | array of MCP server objects | empty                    | Each object requires `name` and `command`.        | Skill-declared MCP servers.                                                  |
 | `metadata.compozy.hooks`       | array of hook objects       | empty                    | Each object requires valid `event` and `command`. | Skill-declared runtime hooks.                                                |
-| `metadata.compozy.memory_tags` | string array                | no runtime default       | RFC-only today.                                   | Parsed as metadata only; current runtime does not consume it.                |
 | Markdown body                  | Markdown text               | empty accepted by parser | Procedural instructions.                          | Content read when the skill is used and scanned for critical abuse patterns. |
 
 ## Complete Annotated Example
@@ -108,7 +107,6 @@ with other AgentSkills readers.
 | ------------- | --------------------------- | ------- | --------------------- | ------------------------------------------------------- |
 | `mcp_servers` | array of MCP server objects | empty   | Objects listed below. | Adds MCP servers when this skill is active and trusted. |
 | `hooks`       | array of hook objects       | empty   | Objects listed below. | Adds skill-owned runtime hooks.                         |
-| `memory_tags` | string array                | none    | RFC-only.             | Current code does not use this field.                   |
 
 Malformed `metadata.compozy` values warn and are ignored when possible. Invalid hook declarations fail
 skill parsing because hooks must be safe to register.
@@ -147,9 +145,14 @@ session MCP list after config, provider, and agent MCP servers.
 | `matcher`  | object       | empty                                               | Hook matcher fields.                                     | Narrows eligibility.                                                                  |
 
 Supported matcher fields are `agent_name`, `agent_type`, `workspace_id`, `workspace_root`,
-`session_type`, `input_class`, `acp_event_type`, `turn_id`, `tool_name`, `tool_namespace`,
-`tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, `compaction_reason`, and
-`compaction_strategy`.
+`session_type`, `input_class`, `acp_event_type`, `turn_id`, `tool_id`, `tool_name`,
+`tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, and
+`compaction_trigger`. Each event family accepts only some of them. A retired `compaction_reason` or
+`compaction_strategy` key in a skill hook matcher is ignored: the skill loads, the hook runs without
+that filter, `SKILL.md` stays untouched, and CompozyOS logs one `skills.retired_entries_ignored`
+warning per skill with its `path`, `name`, and the ignored `entries` (for example
+`hooks[0].matcher.compaction_reason`). Any other invalid matcher field is still rejected. See
+[Hook declarations](/docs/hooks/declaration#matchers).
 
 Marketplace skill hooks are trust-gated by `[skills].allowed_marketplace_hooks`, using the same
 slug, `registry:slug`, or hash forms as marketplace MCP trust.
@@ -291,7 +294,6 @@ active-registry precedence model.
 
 | Field or behavior                                             | Current implementation                                       |
 | ------------------------------------------------------------- | ------------------------------------------------------------ |
-| `metadata.compozy.memory_tags`                                | RFC-only; current runtime does not consume it.               |
 | `allowed-tools`                                               | Recognized without a warning, but ignored by CompozyOS.      |
 | `user-invocable`                                              | Recognized, but ignored.                                     |
 | `argument-hint`                                               | Recognized, but ignored.                                     |

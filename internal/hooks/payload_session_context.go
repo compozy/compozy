@@ -64,7 +64,7 @@ func (p PermissionResolutionPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 
-func (p ContextCompactPayload) hookSessionContext() SessionContext {
+func (p ContextCompactionPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 

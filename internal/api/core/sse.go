@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	ssepkg "github.com/compozy/compozy/internal/sse"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -109,7 +108,6 @@ func writeSSERaw(writer FlushWriter, id string, raw []byte, names ...string) err
 	if len(raw) == 0 {
 		raw = []byte("null")
 	}
-	raw = ssepkg.ScrubMemoryContextBytes(raw)
 
 	if id != "" {
 		if err := writeSSEString(writer, "write sse id prefix", "id: "); err != nil {

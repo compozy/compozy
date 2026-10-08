@@ -41,8 +41,6 @@ func TestSessionsSnapshotDecoratesProfileOwners(t *testing.T) {
 		}},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	payload, err := fixture.Handlers.SessionsSnapshot(t.Context())
 	if err != nil {

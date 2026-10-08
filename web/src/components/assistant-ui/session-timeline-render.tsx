@@ -44,8 +44,10 @@ import {
   type GoalPromptMeta,
   isAgentEventPayload,
   isClarifyEventData,
+  isCompactionItemData,
   PermissionDataPart,
   RuntimeActivityNotice,
+  SessionCompactionItem,
   ThinkingBlock,
 } from "@/systems/session";
 
@@ -99,6 +101,9 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
   }
   if (row.part.name === "data-compozy-permission" && isCompozyPermissionData(row.part.data)) {
     return <PermissionDataPart data={row.part.data} />;
+  }
+  if (row.part.name === "data-compozy-compaction" && isCompactionItemData(row.part.data)) {
+    return <SessionCompactionItem item={row.part.data} />;
   }
 
   return <SessionDataEventMarker name={row.part.name} />;

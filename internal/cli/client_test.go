@@ -18,7 +18,6 @@ import (
 	"testing/iotest"
 	"time"
 
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/transcript"
 
@@ -2949,7 +2948,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 				case req.Method == http.MethodGet && req.URL.Path == "/api/status":
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/compozy.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"},"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
+						`{"schema_version":"2026-10-07","generated_at":"2026-04-03T12:00:00Z","daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/compozy.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"},"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/drain":
 					return newHTTPResponse(http.StatusOK, `{"state":"draining"}`), nil
@@ -2967,112 +2966,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","duration_ms":1,"status":"ok","summary":{"total":0,"counts_by_severity":{}},"items":[]}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/health":
-					if got := req.URL.Query().Get("workspace"); got != "/workspace/project" {
-						t.Fatalf("memory health workspace = %q, want /workspace/project", got)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"status":"ok","enabled":true,"configured":true,"global_files":1,"workspace_files":1,"workspace_count":1,"indexed_files":2,"operation_count":3,"last_operation_at":"2026-04-03T12:00:00Z"}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/history":
-					if got := req.URL.Query().Get("scope"); got != "workspace" {
-						t.Fatalf("memory history scope = %q, want workspace", got)
-					}
-					if got := req.URL.Query().Get("operation"); got != "memory.write" {
-						t.Fatalf("memory history operation = %q, want memory.write", got)
-					}
-					if got := req.URL.Query().Get("since"); got != "2026-04-03T11:00:00Z" {
-						t.Fatalf("memory history since = %q, want 2026-04-03T11:00:00Z", got)
-					}
-					if got := req.URL.Query().Get("limit"); got != "4" {
-						t.Fatalf("memory history limit = %q, want 4", got)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"operations":[{"id":"memevt_1","operation":"memory.write","scope":"workspace","workspace":"/workspace/project","filename":"memory.md","agent_name":"daemon","summary":"scope=workspace filename=memory.md","timestamp":"2026-04-03T12:00:00Z"}]}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory":
-					if got := req.URL.Query().Get("scope"); got != "profile" {
-						t.Fatalf("memory scope query = %q, want %q", got, "profile")
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"memories":[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user","scope":"profile","injection":true}]}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/search":
-					var body contract.MemorySearchRequest
-					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-						t.Fatalf("decode memory search request error = %v", err)
-					}
-					if body.QueryText != "release plan" || body.Scope != memcontract.ScopeWorkspace ||
-						body.WorkspaceID != "/workspace/project" || body.TopK != 5 {
-						t.Fatalf("memory search body = %#v", body)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"results":[{"memory":{"filename":"release.md","scope":"workspace","workspace_id":"/workspace/project","type":"project","name":"Release Plan","description":"plan","mod_time":"2026-04-03T12:00:00Z","injection":true},"score":3.4,"snippet":"Ship phases incrementally"}],"recall":{"blocks":null}}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/memory.md":
-					if got := req.URL.Query().Get("scope"); got != "profile" {
-						t.Fatalf("show memory scope query = %q, want %q", got, "profile")
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"user","scope":"profile","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"hello"}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory":
-					var body contract.MemoryCreateRequest
-					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-						t.Fatalf("decode memory create request error = %v", err)
-					}
-					if body.Scope != memcontract.ScopeProfile ||
-						body.Type != memcontract.TypeUser ||
-						body.Name != "Memory" ||
-						body.Content != "payload" {
-						t.Fatalf("memory create body = %#v", body)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"decision":{"id":"dec-write","candidate_hash":"sha256:test","op":"add","scope":"profile","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
-					), nil
-				case req.Method == http.MethodDelete && req.URL.Path == "/api/memory/memory.md":
-					if got := req.URL.Query().Get("scope"); got != "workspace" {
-						t.Fatalf("delete memory scope query = %q, want %q", got, "workspace")
-					}
-					if got := req.URL.Query().Get("workspace_id"); got != "/workspace/project" {
-						t.Fatalf("delete memory workspace_id query = %q, want %q", got, "/workspace/project")
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"decision":{"id":"dec-delete","candidate_hash":"sha256:test","op":"delete","scope":"workspace","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/dreams/trigger":
-					var body contract.MemoryDreamTriggerRequest
-					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-						t.Fatalf("decode memory dream trigger request error = %v", err)
-					}
-					if body.Scope != memcontract.ScopeWorkspace || body.WorkspaceID != "/workspace/project" {
-						t.Fatalf("memory dream trigger body = %#v", body)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"dream":{"id":"dream-1","status":"running","scope":"workspace","workspace_id":"/workspace/project","candidate_count":0,"promoted_count":0,"started_at":"2026-04-03T12:00:00Z"},"triggered":true}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/reindex":
-					body, err := io.ReadAll(req.Body)
-					if err != nil {
-						t.Fatalf("io.ReadAll(memory reindex body) error = %v", err)
-					}
-					if !strings.Contains(string(body), `"scope":"workspace"`) ||
-						!strings.Contains(string(body), `"workspace_id":"/workspace/project"`) {
-						t.Fatalf("memory reindex body = %s, want scope/workspace", body)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"indexed_files":2,"scope":"workspace","workspace_id":"/workspace/project","completed_at":"2026-04-03T12:00:00Z"}`,
+						`{"schema_version":"2026-10-07","generated_at":"2026-04-03T12:00:00Z","duration_ms":1,"status":"ok","summary":{"total":0,"counts_by_severity":{}},"items":[]}`,
 					), nil
 				default:
 					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
@@ -3295,78 +3189,6 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	})
 	if err != nil || doctor.Status != "ok" {
 		t.Fatalf("Doctor() = %#v, %v", doctor, err)
-	}
-
-	memoryHealth, err := client.MemoryHealth(ctx, "/workspace/project")
-	if err != nil || memoryHealth.Status != "ok" || memoryHealth.OperationCount != 3 {
-		t.Fatalf("MemoryHealth() = %#v, %v", memoryHealth, err)
-	}
-
-	memoryHistoryRecords, err := client.MemoryHistory(ctx, MemoryHistoryQuery{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-		Operation:   "memory.write",
-		Since:       time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		Limit:       4,
-	})
-	if err != nil || len(memoryHistoryRecords) != 1 || memoryHistoryRecords[0].Operation != "memory.write" {
-		t.Fatalf("MemoryHistory() = %#v, %v", memoryHistoryRecords, err)
-	}
-
-	memories, err := client.ListMemory(ctx, MemoryListQuery{
-		Scope: memcontract.ScopeProfile,
-	})
-	if err != nil || len(memories.Memories) != 1 {
-		t.Fatalf("ListMemory() = %#v, %v", memories, err)
-	}
-
-	searchResults, err := client.SearchMemory(ctx, MemorySearchRequest{
-		QueryText:   "release plan",
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-		TopK:        5,
-	})
-	if err != nil || len(searchResults.Results) != 1 || searchResults.Results[0].Memory.Filename != "release.md" {
-		t.Fatalf("SearchMemory() = %#v, %v", searchResults, err)
-	}
-
-	memoryRecord, err := client.ShowMemory(ctx, "memory.md", MemorySelectorQuery{Scope: memcontract.ScopeProfile})
-	if err != nil || !strings.Contains(memoryRecord.Memory.Content, "hello") {
-		t.Fatalf("ShowMemory() = %#v, %v", memoryRecord, err)
-	}
-
-	written, err := client.CreateMemory(ctx, MemoryCreateRequest{
-		Scope:   memcontract.ScopeProfile,
-		Type:    memcontract.TypeUser,
-		Name:    "Memory",
-		Content: "payload",
-	})
-	if err != nil || !written.Applied {
-		t.Fatalf("CreateMemory() = %#v, %v", written, err)
-	}
-
-	deleted, err := client.DeleteMemory(ctx, "memory.md", MemorySelectorQuery{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-	})
-	if err != nil || !deleted.Applied {
-		t.Fatalf("DeleteMemory() = %#v, %v", deleted, err)
-	}
-
-	reindexed, err := client.ReindexMemory(ctx, MemoryReindexRequest{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-	})
-	if err != nil || reindexed.IndexedFiles != 2 {
-		t.Fatalf("ReindexMemory() = %#v, %v", reindexed, err)
-	}
-
-	dreamed, err := client.TriggerMemoryDream(ctx, MemoryDreamTriggerRequest{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-	})
-	if err != nil || !dreamed.Triggered {
-		t.Fatalf("TriggerMemoryDream() = %#v, %v", dreamed, err)
 	}
 }
 
@@ -4717,66 +4539,6 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	); got.Get("family") != "tool" ||
 		got.Get("sync_only") != "true" {
 		t.Fatalf("hookEventsValues() = %v, want family/sync_only", got)
-	}
-
-	if got := memorySelectorValues(MemorySelectorQuery{
-		Scope:         memcontract.ScopeWorkspace,
-		WorkspaceID:   "/workspace/project",
-		AgentName:     "reviewer",
-		AgentTier:     memcontract.AgentTierWorkspace,
-		IncludeSystem: true,
-	}); got.Get("scope") != "workspace" ||
-		got.Get("workspace_id") != "/workspace/project" ||
-		got.Get("agent_name") != "reviewer" ||
-		got.Get("agent_tier") != "workspace" ||
-		got.Get("include_system") != "true" {
-		t.Fatalf("memorySelectorValues() = %v, want selector filters", got)
-	}
-
-	if got := memoryListValues(MemoryListQuery{
-		Scope:  memcontract.ScopeWorkspace,
-		Type:   memcontract.TypeProject,
-		Sort:   "name",
-		Cursor: "next-page",
-		Limit:  25,
-	}); got.Get("scope") != "workspace" ||
-		got.Get("type") != "project" ||
-		got.Get("sort") != "name" ||
-		got.Get("cursor") != "next-page" ||
-		got.Get("limit") != "25" {
-		t.Fatalf("memoryListValues() = %v, want list filters", got)
-	}
-
-	if got := memoryHistoryValues(MemoryHistoryQuery{
-		Scope:       memcontract.ScopeWorkspace,
-		WorkspaceID: "/workspace/project",
-		Operation:   "memory.delete",
-		Since:       time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		Limit:       6,
-	}); got.Get("scope") != "workspace" ||
-		got.Get("workspace_id") != "/workspace/project" ||
-		got.Get("operation") != "memory.delete" ||
-		got.Get("since") != "2026-04-03T11:00:00Z" ||
-		got.Get("limit") != "6" {
-		t.Fatalf("memoryHistoryValues() = %v, want all history filters", got)
-	}
-
-	if got := memoryDecisionValues(MemoryDecisionListQuery{
-		Scope:          memcontract.ScopeWorkspace,
-		WorkspaceID:    "/workspace/project",
-		Operation:      "update",
-		TargetFilename: "project.md",
-		Since:          time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		Reason:         "accepted",
-		Limit:          1,
-	}); got.Get("scope") != "workspace" ||
-		got.Get("workspace_id") != "/workspace/project" ||
-		got.Get("op") != "update" ||
-		got.Get("filename") != "project.md" ||
-		got.Get("since") != "2026-04-03T11:00:00Z" ||
-		got.Get("reason") != "accepted" ||
-		got.Get("limit") != "1" {
-		t.Fatalf("memoryDecisionValues() = %v, want all decision filters", got)
 	}
 
 	if got := automationJobValues(AutomationJobQuery{

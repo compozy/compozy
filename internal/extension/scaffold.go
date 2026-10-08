@@ -27,10 +27,9 @@ var extensionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 type ScaffoldTemplate string
 
 const (
-	ScaffoldTemplateToolProviderTS  ScaffoldTemplate = "tool-provider-ts"
-	ScaffoldTemplateToolProviderGo  ScaffoldTemplate = "tool-provider-go"
-	ScaffoldTemplateMemoryBackendTS ScaffoldTemplate = "memory-backend-ts"
-	ScaffoldTemplateViewProviderTS  ScaffoldTemplate = "view-provider-ts"
+	ScaffoldTemplateToolProviderTS ScaffoldTemplate = "tool-provider-ts"
+	ScaffoldTemplateToolProviderGo ScaffoldTemplate = "tool-provider-go"
+	ScaffoldTemplateViewProviderTS ScaffoldTemplate = "view-provider-ts"
 	// #nosec G101 -- this public scaffold identifier is not a credential.
 	ScaffoldTemplateLoopWatchSourceGo      ScaffoldTemplate = "loop-watch-source-go"
 	ScaffoldTemplateConnectivityProviderGo ScaffoldTemplate = "connectivity-provider-go"
@@ -41,7 +40,6 @@ var scaffoldTemplates = []ScaffoldTemplate{
 	ScaffoldTemplateConnectivityProviderGo,
 	ScaffoldTemplateConnectivityProviderTS,
 	ScaffoldTemplateLoopWatchSourceGo,
-	ScaffoldTemplateMemoryBackendTS,
 	ScaffoldTemplateToolProviderGo,
 	ScaffoldTemplateToolProviderTS,
 	ScaffoldTemplateViewProviderTS,

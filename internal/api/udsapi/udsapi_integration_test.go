@@ -24,7 +24,6 @@ import (
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
@@ -39,8 +38,6 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gorilla/websocket"
 )
-
-type memoryMutationDecisionResponse = contract.MemoryMutationDecisionResponse
 
 func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
@@ -410,82 +407,6 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	}
 	if got := syntheticReply.Role; got != transcript.UIRoleAssistant {
 		t.Fatalf("syntheticReply.Role = %q, want %q", got, transcript.UIRoleAssistant)
-	}
-}
-
-func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-
-	writeResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		"http://unix/api/memory",
-		[]byte(
-			`{"scope":"profile","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
-		),
-		nil,
-	)
-	if writeResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, writeResp)
-		t.Fatalf("write status = %d, want %d; body=%s", writeResp.StatusCode, http.StatusOK, string(body))
-	}
-	var writePayload memoryMutationDecisionResponse
-	decodeHTTPJSON(t, writeResp, &writePayload)
-	targetFilename := writePayload.Decision.TargetFilename
-	if targetFilename == "" {
-		t.Fatalf("write payload = %#v, want target filename", writePayload)
-	}
-
-	readResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		"http://unix/api/memory/"+targetFilename+"?scope=profile",
-		nil,
-		nil,
-	)
-	if readResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, readResp)
-		t.Fatalf("read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
-	}
-	var readPayload memoryEntryResponse
-	decodeHTTPJSON(t, readResp, &readPayload)
-	if !strings.Contains(readPayload.Memory.Content, "hello integration") {
-		t.Fatalf("content = %q, want written body", readPayload.Memory.Content)
-	}
-
-	deleteResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodDelete,
-		"http://unix/api/memory/"+targetFilename+"?scope=profile",
-		nil,
-		nil,
-	)
-	if deleteResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, deleteResp)
-		t.Fatalf("delete status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusOK, string(body))
-	}
-	closeHTTPBody(t, deleteResp.Body)
-
-	resp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		"http://unix/api/memory/dreams/trigger",
-		[]byte(`{"workspace_id":"`+runtime.workspace+`"}`),
-		nil,
-	)
-	if resp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, resp)
-		t.Fatalf("dream trigger status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
-	}
-
-	var payload memoryDreamTriggerResponse
-	decodeHTTPJSON(t, resp, &payload)
-	if !payload.Triggered || runtime.dream.calls != 1 {
-		t.Fatalf("payload = %#v dream.calls=%d, want triggered once", payload, runtime.dream.calls)
 	}
 }
 
@@ -2201,15 +2122,12 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 }
 
 type integrationRuntime struct {
-	client   *http.Client
-	server   *Server
-	manager  *session.Manager
-	tasks    *taskpkg.Service
-	observer *observe.Observer
-	registry *globaldb.GlobalDB
-
-	memory          *memory.Store
-	dream           *integrationDreamTrigger
+	client          *http.Client
+	server          *Server
+	manager         *session.Manager
+	tasks           *taskpkg.Service
+	observer        *observe.Observer
+	registry        *globaldb.GlobalDB
 	resourceDriver  resources.ReconcileDriver
 	reconcileEvents *integrationReconcileEventSink
 	toolCatalog     *integrationToolCatalog
@@ -2574,27 +2492,6 @@ func (*integrationTaskSessionExecutor) ForceTaskStop(context.Context, string, ta
 	return nil
 }
 
-type integrationDreamTrigger struct {
-	enabled   bool
-	triggered bool
-	reason    string
-	last      time.Time
-	calls     int
-}
-
-func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
-	t.calls++
-	return t.triggered, t.reason, nil
-}
-
-func (t *integrationDreamTrigger) LastConsolidatedAt() (time.Time, error) {
-	return t.last, nil
-}
-
-func (t *integrationDreamTrigger) Enabled() bool {
-	return t.enabled
-}
-
 type integrationNotifierFanout struct {
 	notifiers []session.Notifier
 }
@@ -2917,28 +2814,6 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
 
-	memoryStore := memory.NewStore(
-		homePaths.MemoryDir,
-		memory.WithCatalogDatabasePath(homePaths.DatabaseFile),
-	)
-	if err := memoryStore.EnsureDirs(); err != nil {
-		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
-	}
-	if err := memoryStore.OpenCatalog(t.Context()); err != nil {
-		t.Fatalf("memoryStore.OpenCatalog() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := memoryStore.CloseCatalog(context.Background()); err != nil {
-			t.Errorf("memoryStore.CloseCatalog() error = %v", err)
-		}
-	})
-
-	dreamTrigger := &integrationDreamTrigger{
-		enabled:   true,
-		triggered: true,
-		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
-	}
-
 	automationManager, err := automationpkg.New(
 		automationpkg.WithStore(registry),
 		automationpkg.WithSessions(manager),
@@ -3031,8 +2906,6 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithResourceService(resourceService),
 		WithAutomation(automationManager),
 		WithWorkspaceResolver(resolver),
-		WithMemoryStore(memoryStore),
-		WithDreamTrigger(dreamTrigger),
 		WithWindowManagerProvider(apitestutil.SingleProfileWindowManagers{Manager: windowManager}),
 		WithTerminalProvider(terminalManager),
 		WithPollInterval(10*time.Millisecond),
@@ -3058,8 +2931,6 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		tasks:           taskManager,
 		observer:        observer,
 		registry:        registry,
-		memory:          memoryStore,
-		dream:           dreamTrigger,
 		resourceDriver:  resourceDriver,
 		reconcileEvents: reconcileEvents,
 		toolCatalog:     toolCatalog,

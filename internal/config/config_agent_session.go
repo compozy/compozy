@@ -44,7 +44,6 @@ type SessionConfig struct {
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
-	Compaction  SessionCompactionConfig  `toml:"compaction"`
 	Attachments SessionAttachmentsConfig `toml:"attachments"`
 	Derive      SessionDeriveConfig      `toml:"derive"`
 }
@@ -92,14 +91,6 @@ type SessionBusyInputConfig struct {
 	MaxTextBytes int    `toml:"max_text_bytes,omitempty"`
 }
 
-// SessionCompactionConfig controls pressure-triggered persisted-context compaction.
-type SessionCompactionConfig struct {
-	Enabled            bool          `toml:"enabled"`
-	PressureThreshold  float64       `toml:"pressure_threshold"`
-	MaxAttemptsPerTurn int           `toml:"max_attempts_per_turn"`
-	FailureCooldown    time.Duration `toml:"failure_cooldown"`
-}
-
 const (
 	minSessionBusyInputQueueCap  = 1
 	maxSessionBusyInputQueueCap  = 1000
@@ -143,4 +134,11 @@ type ObservabilityConfig struct {
 	MaxGlobalBytes    int64                         `toml:"max_global_bytes"`
 	AgentProbeTimeout time.Duration                 `toml:"agent_probe_timeout"`
 	Transcripts       ObservabilityTranscriptConfig `toml:"transcripts"`
+}
+
+// ObservabilityTranscriptConfig configures transcript capture and retention.
+type ObservabilityTranscriptConfig struct {
+	Enabled            bool  `toml:"enabled"`
+	SegmentBytes       int   `toml:"segment_bytes"`
+	MaxBytesPerSession int64 `toml:"max_bytes_per_session"`
 }

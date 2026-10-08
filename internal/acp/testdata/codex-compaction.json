@@ -1,0 +1,18 @@
+[
+    {
+        "sessionId": "sess-direct",
+        "update": {
+            "sessionUpdate": "compaction_update",
+            "compactionId": "codex-1",
+            "status": "in_progress"
+        }
+    },
+    {
+        "sessionId": "sess-direct",
+        "update": {
+            "sessionUpdate": "compaction_update",
+            "compactionId": "codex-1",
+            "status": "completed"
+        }
+    }
+]

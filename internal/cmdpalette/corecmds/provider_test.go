@@ -199,7 +199,6 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.general=/settings/general",
 			"settings.hooks=/settings/hooks",
 			"settings.layouts=/settings/layouts",
-			"settings.memory=/settings/memory",
 			"settings.observability=/settings/observability",
 			"settings.palette=/settings/palette",
 			"settings.profiles=/settings/profiles",
@@ -217,7 +216,7 @@ func TestProviderAbsorption(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
 		want := []string{
-			"agents", "automations", "extensions", "knowledge", "loops", "marketplace",
+			"agents", "automations", "extensions", "loops", "marketplace",
 			"profiles", "sessions", "tasks", "vault", "worktrees",
 		}
 		actual := make([]string, 0, len(want))

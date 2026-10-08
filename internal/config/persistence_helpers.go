@@ -75,15 +75,7 @@ func clonePath(path []string) []string {
 }
 
 func pathsEqual(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for idx := range left {
-		if left[idx] != right[idx] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }
 
 func pathHasPrefix(path []string, prefix []string) bool {

@@ -16,7 +16,7 @@ import (
 func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *activePromptState, req PromptRequest) {
 	sectionsDelivered := false
 	defer func() {
-		if !sectionsDelivered {
+		if !sectionsDelivered && !req.Maintenance {
 			proc.forgetPromptSections(req.Sections)
 		}
 		if active != nil && active.cancel != nil {
@@ -53,14 +53,17 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		proc.emitPromptEvent(proc.promptErrorEvent(req, err, timeNowUTC()))
 		return
 	}
-	if _, included := promptRequest.Meta["system"]; included {
+	if _, included := promptRequest.Meta["system"]; included && !req.Maintenance {
 		proc.markSystemPromptSent()
 	}
-	if ctx.Err() == nil && response.StopReason != acpsdk.StopReasonCancelled {
+	if !req.Maintenance && ctx.Err() == nil && response.StopReason != acpsdk.StopReasonCancelled {
 		proc.markPromptSectionsDelivered(req)
 		sectionsDelivered = true
 	}
 
+	// Late notifications can still carry a terminal compaction that invalidates the
+	// accumulated occupancy, so the final usage snapshot is taken only after they drain.
+	d.waitForPromptQuiescence(active)
 	proc.warnUsageAlias(response.Usage)
 	usage := proc.mergePromptUsage(proc.validatedUsage(tokenUsageFromPromptResponse(req.TurnID, response.Usage)))
 	doneEvent := AgentEvent{
@@ -73,7 +76,6 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	if !usage.IsZero() {
 		doneEvent.Usage = &usage
 	}
-	d.waitForPromptQuiescence(active)
 	proc.emitPromptEvent(AgentEvent{Type: EventTypePromptDelivery, SessionID: proc.SessionID,
 		TurnID: req.TurnID, Timestamp: timeNowUTC()}.WithDelivery(&manifest))
 
@@ -85,8 +87,12 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 	if err != nil {
 		return acpsdk.PromptRequest{}, DeliveryManifest{}, err
 	}
-	message, spans := proc.compactPromptSections(req.Message, req.Sections)
-	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message)
+	message := req.Message
+	var spans []DeliveredSpan
+	if !req.Maintenance {
+		message, spans = proc.compactPromptSections(message, req.Sections)
+	}
+	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message, req.Maintenance)
 	prompt := make([]acpsdk.ContentBlock, 0, 1+len(req.Attachments))
 	if promptText != "" {
 		prompt = append(prompt, textBlockWithPromptCacheControl(promptText, proc.promptCacheControl))

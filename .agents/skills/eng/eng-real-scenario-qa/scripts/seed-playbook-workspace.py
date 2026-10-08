@@ -6,8 +6,6 @@ Mutating helper. Called by the bootstrap when --playbook is provided.
 Per playbook:
   - Creates an agent-visible project root under WORKSPACE_PATH/project/
   - Creates logical workspace directories under WORKSPACE_PATH/project/workspaces/<workspace.name>/
-  - Writes canonical knowledge under WORKSPACE_PATH/knowledge/
-  - Projects global and declared workspace knowledge into each readable workspace root
   - Writes a per-agent registration manifest at WORKSPACE_PATH/.compozy/agents/<agent-id>.json
   - Writes the open task tree with deterministic runtime ids at WORKSPACE_PATH/.compozy/tasks/open-tasks.json
   - Writes WORKSPACE_PATH/.compozy/playbook.json with the resolved playbook spec for downstream tools
@@ -60,56 +58,6 @@ def materialize_workspaces(workspace_root: Path, playbook: dict) -> list[str]:
             )
         notes.append(str(ws_dir))
     return notes
-
-
-def materialize_knowledge(
-    workspace_root: Path,
-    runtime_workspace_root: Path,
-    playbook: dict,
-) -> tuple[list[str], list[str]]:
-    canonical_written: list[str] = []
-    projected_written: list[str] = []
-    knowledge_root = workspace_root / "knowledge"
-    entries: dict[str, str] = {}
-    for entry in playbook["knowledge_files"]:
-        rel = Path(entry["path"])
-        if rel.is_absolute() or ".." in rel.parts:
-            raise PlaybookError(f"knowledge_files[{entry['path']!r}] must be a relative path")
-        rel_text = rel.as_posix()
-        if rel_text in entries:
-            raise PlaybookError(f"knowledge_files contains duplicate path {rel_text!r}")
-        entries[rel_text] = entry["content"]
-        target = knowledge_root / rel
-        write_text(target, entry["content"])
-        canonical_written.append(str(target))
-
-    global_paths = {path for path in entries if Path(path).parts[0] == "global"}
-    declared_scoped_paths: set[str] = set()
-    for workspace in playbook["workspaces"]:
-        workspace_paths = set(workspace.get("knowledge_files", []))
-        unknown = sorted(workspace_paths - set(entries))
-        if unknown:
-            raise PlaybookError(
-                f"workspace {workspace['id']} references unknown knowledge file(s): "
-                + ", ".join(unknown)
-            )
-        declared_scoped_paths.update(workspace_paths)
-        readable_paths = sorted(global_paths | workspace_paths)
-        workspace_knowledge_root = (
-            runtime_workspace_root / "workspaces" / workspace["name"] / "knowledge"
-        )
-        for rel_text in readable_paths:
-            target = workspace_knowledge_root / rel_text
-            write_text(target, entries[rel_text])
-            projected_written.append(str(target))
-
-    unassigned = sorted(set(entries) - global_paths - declared_scoped_paths)
-    if unassigned:
-        raise PlaybookError(
-            "workspace-scoped knowledge must be assigned to at least one workspace: "
-            + ", ".join(unassigned)
-        )
-    return canonical_written, projected_written
 
 
 def materialize_agents(
@@ -238,11 +186,6 @@ def main() -> int:
     runtime_workspace_root = workspace_root / "project"
     runtime_workspace_root.mkdir(parents=True, exist_ok=True)
     workspaces_written = materialize_workspaces(runtime_workspace_root, playbook)
-    knowledge_written, workspace_knowledge_written = materialize_knowledge(
-        workspace_root,
-        runtime_workspace_root,
-        playbook,
-    )
     agents_written = materialize_agents(workspace_root, runtime_workspace_root, playbook)
     open_tasks_path = materialize_open_tasks(workspace_root, runtime_workspace_root, playbook)
     snapshot_path = write_playbook_snapshot(workspace_root, playbook)
@@ -252,8 +195,6 @@ def main() -> int:
         "playbook_ref": playbook["playbook_ref"],
         "runtime_workspace_path": str(runtime_workspace_root),
         "workspaces_created": workspaces_written,
-        "knowledge_files_written": knowledge_written,
-        "workspace_knowledge_files_written": workspace_knowledge_written,
         "agents_registered": agents_written,
         "open_tasks_path": open_tasks_path,
         "playbook_snapshot": snapshot_path,

@@ -26,18 +26,44 @@ func availableCommandPayloads(commands []store.SessionAdvertisedCommand) []contr
 // AgentEventPayloadFromEvent converts an agent event into the shared raw-stream payload.
 func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload {
 	return contract.AgentEventPayload{
-		Type: event.Type, SessionID: event.SessionID, TurnID: event.TurnID,
-		MessageID: event.MessageIDValue(), RequestID: event.RequestIDValue(),
-		Timestamp: event.Timestamp, Text: event.Text, Title: event.Title, ToolCallID: event.ToolCallID,
-		StopReason: event.StopReason, PromptStopReason: contract.ACPPromptStopReason(event.PromptStopReason),
-		AvailableCommands: availableCommandPayloads(event.AvailableCommandSet().Values()), Action: event.Action,
-		Resource: event.Resource, Decision: event.Decision, Error: event.Error,
-		Failure: SessionFailurePayloadFromStore(event.Failure), Usage: TokenUsagePayloadFromUsage(event.Usage),
-		Delivery:      transcript.RedactAgentEvent(event).DeliveryManifest(),
-		ProviderError: providerErrorDiagnosticPayload(event.ProviderError),
-		Goal:          goalPromptMetaPayload(event.Goal), Runtime: runtimeActivityPayloadFromEvent(event.Runtime),
+		Type:              event.Type,
+		SessionID:         event.SessionID,
+		TurnID:            event.TurnID,
+		MessageID:         event.MessageIDValue(),
+		RequestID:         event.RequestIDValue(),
+		Timestamp:         event.Timestamp,
+		Text:              event.Text,
+		Title:             event.Title,
+		ToolCallID:        event.ToolCallID,
+		StopReason:        event.StopReason,
+		PromptStopReason:  contract.ACPPromptStopReason(event.PromptStopReason),
+		AvailableCommands: availableCommandPayloads(event.AvailableCommandSet().Values()),
+		Action:            event.Action,
+		Resource:          event.Resource,
+		Decision:          event.Decision,
+		Error:             event.Error,
+		Failure:           SessionFailurePayloadFromStore(event.Failure),
+		Usage:             TokenUsagePayloadFromUsage(event.Usage),
+		Compaction:        compactionSnapshotPayload(event.Compaction),
+		Delivery:          transcript.RedactAgentEvent(event).DeliveryManifest(),
+		ProviderError:     providerErrorDiagnosticPayload(event.ProviderError),
+		Goal: goalPromptMetaPayload(
+			event.GoalPromptMeta(),
+		),
+		Runtime:       runtimeActivityPayloadFromEvent(event.Runtime),
 		PromptRuntime: runtimeSelectionPayloadFromACP(event.PromptRuntimeSnapshot()),
 		Raw:           payloadJSONBytes(event.Raw),
+	}
+}
+
+func compactionSnapshotPayload(observation *acp.CompactionObservation) *contract.CompactionSnapshotPayload {
+	redacted := transcript.RedactAgentEvent(acp.AgentEvent{Compaction: observation}).Compaction
+	if redacted == nil {
+		return nil
+	}
+	return &contract.CompactionSnapshotPayload{
+		CompactionID: redacted.CompactionID, Status: redacted.Status,
+		Summary: redacted.Summary, Error: redacted.Error,
 	}
 }
 

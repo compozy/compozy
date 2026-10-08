@@ -58,8 +58,6 @@ export function describeTriggerWhen(
       return { icon, headline: "A session starts", eventId: trigger.event, sub: workspaceSub };
     case "session.stopped":
       return { icon, headline: "A session stops", eventId: trigger.event, sub: workspaceSub };
-    case "memory.consolidated":
-      return { icon, headline: "Memory consolidated", eventId: trigger.event, sub: workspaceSub };
     case "hook.completed":
       return {
         icon,

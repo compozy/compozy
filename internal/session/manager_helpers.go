@@ -16,11 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) startPermissions(sessionType Type, configured string) compozyconfig.PermissionMode {
-	if normalizeSessionType(sessionType) == SessionTypeDream {
-		return compozyconfig.PermissionModeApproveAll
-	}
-
+func (m *Manager) startPermissions(configured string) compozyconfig.PermissionMode {
 	mode := compozyconfig.PermissionMode(strings.TrimSpace(configured))
 	if mode == "" {
 		return compozyconfig.PermissionModeApproveReads

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -312,6 +313,52 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 func TestPromptRuntimeRecovery(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve maintenance and pending context after runtime recovery", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0, 0, 0}
+		session := createSession(t, h)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		h.manager.stageResumeReplay(
+			session.ID,
+			renderResumeReplay(session.ID, nil, `[{"role":"user","content":"prior ordinary history"}]`, false, false),
+		)
+		var calls atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			if calls.Add(1) <= 3 {
+				proc.crash(errors.New("provider process exited"), "provider disconnected")
+				events <- acp.AgentEvent{Type: acp.EventTypeError, TurnID: req.TurnID, Timestamp: h.manager.now(), Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "peer disconnected"}}
+			} else {
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, Timestamp: h.manager.now()}
+			}
+			close(events)
+			return events, nil
+		}
+		_, events, err := h.manager.RequestCompaction(t.Context(), session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		delivered := collectEvents(t, events)
+		if countAgentEvents(delivered, acp.EventTypeRuntimeRecoverySucceeded) != 3 {
+			t.Fatalf("recovery events=%#v", delivered)
+		}
+		h.driver.mu.Lock()
+		requests := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
+		h.driver.mu.Unlock()
+		if len(requests) != 4 {
+			t.Fatalf("requests=%#v", requests)
+		}
+		for _, req := range requests {
+			if req.Message != "/compact" || !req.Maintenance {
+				t.Fatalf("recovery changed maintenance request=%#v", req)
+			}
+		}
+		if h.manager.pendingResumeReplay(session.ID) == "" {
+			t.Fatal("maintenance recovery consumed rebuild replay")
+		}
+	})
+
 	t.Run("Should discard a recovery candidate when session stop wins the binding race", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -474,6 +521,30 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 		h.manager.promptRecoveryDelays = []time.Duration{0, 0, 0}
 		session := createSession(t, h)
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace.Config.Session.Derive = compozyconfig.SessionDeriveConfig{MaxReplayBytes: 8192, MaxMessageBytes: 4096}
+		h.resolver.upsert(&workspace)
+		for index := range 20 {
+			turnID := fmt.Sprintf("recovery-history-%d", index)
+			for _, event := range []acp.AgentEvent{
+				{Type: acp.EventTypeUserMessage, TurnID: turnID, Text: strings.Repeat("history user ", 512)},
+				{Type: acp.EventTypeAgentMessage, TurnID: turnID, Text: strings.Repeat("history answer ", 512)},
+				{Type: acp.EventTypeDone, TurnID: turnID},
+			} {
+				event.Timestamp = h.manager.now()
+				if err := h.manager.recordEvent(t.Context(), session, event); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		replay, _, err := h.manager.buildResumeReplay(t.Context(), session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.stageResumeReplay(session.ID, replay)
 
 		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			events := make(chan acp.AgentEvent, 1)
@@ -503,9 +574,41 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 
 		h.driver.mu.Lock()
 		startCalls := len(h.driver.startCalls)
+		requests := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
 		h.driver.mu.Unlock()
 		if startCalls != 4 {
 			t.Fatalf("driver Start() calls = %d, want initial runtime plus three recoveries", startCalls)
+		}
+		if len(requests) != 4 {
+			t.Fatalf("delivered requests=%d, want initial plus three recoveries", len(requests))
+		}
+		for index, request := range requests {
+			if strings.Count(request.Message, resumeReplayOpenTag) != 1 ||
+				strings.Count(request.Message, resumeReplayCloseTag) != 1 {
+				t.Fatalf("dispatch %d does not contain exactly one historical array", index)
+			}
+			messages := resumeReplayMessagesFromPrompt(t, request.Message)
+			if len(messages) == 0 || replayArrayBytes(messages) > 8192 {
+				t.Fatalf(
+					"dispatch %d history bytes=%d count=%d, want nonempty <=8192",
+					index,
+					replayArrayBytes(messages),
+					len(messages),
+				)
+			}
+			for _, message := range messages {
+				if replayMessageBytes(message) > 4096 {
+					t.Fatalf("dispatch %d message bytes=%d, want <=4096", index, replayMessageBytes(message))
+				}
+			}
+			_, suffix, ok := strings.Cut(request.Message, resumeReplayCloseTag)
+			if !ok || suffix != "\n\nUser request:\n\ncomplete a long task" {
+				t.Fatalf("dispatch %d ordinary payload suffix=%q", index, suffix)
+			}
+			if request.TurnID != requests[0].TurnID || request.RunID != requests[0].RunID ||
+				request.Generation != int64(index+1) || request.Maintenance {
+				t.Fatalf("dispatch %d changed ordinary prompt identity: %+v", index, request)
+			}
 		}
 		exhausted := <-exhaustedHooks
 		if exhausted.Attempt != 3 || exhausted.MaxAttempts != 3 || exhausted.Generation != 4 {

@@ -175,6 +175,23 @@ compozy tool invoke <tool-id> \
 What happened: CompozyOS still received the input needed by the handler, but the specified field is
 treated as sensitive in diagnostic and event surfaces.
 
+## Retired tool IDs
+
+The removed memory tool IDs and the two removed memory toolsets stay reserved and are never reused.
+A tool policy that still names one of them by its exact ID is never an error. CompozyOS drops the
+entry and applies the rest of the policy:
+
+- in an agent definition's `tools`, `toolsets`, or `deny_tools`;
+- in the tool list of a spawned or coordinator session's permission policy, or in a session's
+  allowed-tools override.
+
+CompozyOS logs one `tools.retired_ids_ignored` warning per policy owner (`agent:<source path or name>`
+or `session:<session id>`) for the life of the daemon process, with the owner and the dropped `ids`.
+A wildcard pattern in `tools` or `deny_tools` is not a retired entry. It is kept and matches no tool
+because the memory tools no longer exist. An allow-list that held only retired entries stays
+enforced, so it grants no tools; it never becomes an unrestricted policy. The filter is removed in
+v0.6.0. See the [migration guide](/docs/migration#memory-removal).
+
 ## Common failures
 
 | Symptom                            | Likely cause                                                         | First check                                          |

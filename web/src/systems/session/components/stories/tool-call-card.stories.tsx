@@ -71,16 +71,17 @@ const webSearchToolMessageFixture: UIMessage = {
   timestamp: Date.parse("2026-04-17T16:08:00Z"),
 };
 
-const compozyMemoryToolMessageFixture: UIMessage = {
-  id: "tool_compozy_memory",
+const compozyConfigToolMessageFixture: UIMessage = {
+  id: "tool_compozy_config",
   role: "tool_result",
   content: "",
-  toolName: "compozy__memory_note",
+  toolName: "compozy__config_set",
   toolInput: {
-    note: "Launch cutover blocked on partner-bank timeout copy sign-off.",
+    path: "log.level",
+    value: "debug",
   },
   toolResult: {
-    content: "Recorded memory note.",
+    content: "Updated log.level.",
   },
   timestamp: Date.parse("2026-04-17T16:08:30Z"),
 };
@@ -174,7 +175,7 @@ const truncatedToolMessageFixture: UIMessage = {
   id: "tool_retained_result",
   role: "tool_result",
   content: "",
-  toolName: "compozy__memory_recall",
+  toolName: "compozy__session_search",
   toolInput: { query: "release verification evidence" },
   toolResult: {
     preview: retainedResultPreview,
@@ -298,7 +299,7 @@ export const StatusMatrix: Story = {
 /**
  * Mixed-tool batch: each row shows its per-tool glyph and a visible tense-aware
  * verb + target — terminal (running), file-text, file-pen, search, folder-search,
- * globe, the CompozyOS-native `memory` family glyph, the MCP connector, and a failed
+ * globe, the CompozyOS-native `config` family glyph, the MCP connector, and a failed
  * command. No two known tools share the generic terminal icon.
  */
 export const MixedToolBatch: Story = {
@@ -312,7 +313,7 @@ export const MixedToolBatch: Story = {
         <SessionToolCallRow message={searchToolMessageFixture} />
         <SessionToolCallRow message={globToolMessageFixture} />
         <SessionToolCallRow message={webSearchToolMessageFixture} />
-        <SessionToolCallRow message={compozyMemoryToolMessageFixture} />
+        <SessionToolCallRow message={compozyConfigToolMessageFixture} />
         <SessionToolCallRow message={mcpToolMessageFixture} />
         <SessionToolCallRow message={errorToolMessageFixture} />
       </div>

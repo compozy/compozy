@@ -32,7 +32,6 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerTaskRunRoutes(api, handlers)
 	registerMarketplaceRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
-	registerMemoryRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)
@@ -297,55 +296,6 @@ func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	}
 }
 
-func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
-	memoryGroup := api.Group("/memory")
-	memoryGroup.Use(handlers.BindMemoryProfile)
-	{
-		memoryGroup.GET("", handlers.ListMemory)
-		memoryGroup.GET("/health", handlers.MemoryHealth)
-		memoryGroup.GET("/config", handlers.MemoryConfigMetadata)
-		memoryGroup.GET("/history", handlers.MemoryHistory)
-		memoryGroup.GET("/scope-show", handlers.MemoryScopeShow)
-		memoryGroup.POST("", handlers.WriteMemory)
-		memoryGroup.POST("/search", handlers.SearchMemory)
-		memoryGroup.POST("/reindex", handlers.ReindexMemory)
-		memoryGroup.POST("/promote", handlers.PromoteMemory)
-		memoryGroup.POST("/reset", handlers.ResetMemory)
-		memoryGroup.POST("/reload", handlers.ReloadMemory)
-		memoryGroup.GET("/decisions", handlers.ListMemoryDecisions)
-		memoryGroup.GET("/decisions/:decision_id", handlers.GetMemoryDecision)
-		memoryGroup.POST("/decisions/:decision_id/revert", handlers.RevertMemoryDecision)
-		memoryGroup.GET("/recall-traces/:session_id/:turn_seq", handlers.GetMemoryRecallTrace)
-		memoryGroup.GET("/dreams/status", handlers.GetMemoryDreamStatus)
-		memoryGroup.GET("/dreams", handlers.ListMemoryDreams)
-		memoryGroup.POST("/dreams/trigger", handlers.TriggerMemoryDream)
-		memoryGroup.GET("/dreams/:dream_id", handlers.GetMemoryDream)
-		memoryGroup.POST("/dreams/:dream_id/retry", handlers.RetryMemoryDream)
-		memoryGroup.GET("/daily", handlers.ListMemoryDailyLogs)
-		memoryGroup.GET("/extractor/status", handlers.GetMemoryExtractorStatus)
-		memoryGroup.GET("/extractor/failures", handlers.ListMemoryExtractorFailures)
-		memoryGroup.POST("/extractor/retry", handlers.RetryMemoryExtractor)
-		memoryGroup.POST("/extractor/drain", handlers.DrainMemoryExtractor)
-		memoryGroup.GET("/providers", handlers.ListMemoryProviders)
-		memoryGroup.POST("/providers/select", handlers.SelectMemoryProvider)
-		memoryGroup.GET("/providers/:provider_name", handlers.GetMemoryProvider)
-		memoryGroup.POST("/providers/:provider_name/enable", handlers.EnableMemoryProvider)
-		memoryGroup.POST("/providers/:provider_name/disable", handlers.DisableMemoryProvider)
-		memoryGroup.POST("/ad-hoc", handlers.CreateMemoryAdhocNote)
-		memoryGroup.POST("/sessions/prune", handlers.PruneMemorySessions)
-		memoryGroup.POST("/sessions/repair", handlers.RepairMemorySessions)
-		memoryGroup.GET("/:filename", handlers.ReadMemory)
-		memoryGroup.PATCH("/:filename", handlers.EditMemory)
-		memoryGroup.DELETE("/:filename", handlers.DeleteMemory)
-	}
-	workspaceMemorySessions := api.Group("/workspaces/:workspace_id/memory/sessions")
-	workspaceMemorySessions.Use(handlers.BindMemoryProfile)
-	{
-		workspaceMemorySessions.GET("/:session_id/ledger", handlers.GetMemorySessionLedger)
-		workspaceMemorySessions.POST("/:session_id/replay", handlers.ReplayMemorySession)
-	}
-}
-
 func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings := api.Group("/settings")
 
@@ -358,8 +308,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.POST("/update/cancel", handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
 	settings.PATCH("/persona", handlers.UpdateSettingsPersona)
-	settings.GET("/memory", handlers.GetSettingsMemory)
-	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
 	settings.GET("/roles", handlers.GetSettingsRoles)
 	settings.PATCH("/roles", handlers.UpdateSettingsRoles)
 	settings.GET("/skills", handlers.GetSettingsSkills)

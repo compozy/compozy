@@ -210,3 +210,7 @@ func nativeUnavailableError(id toolspkg.ToolID, message string) error {
 		toolspkg.ReasonBackendUnhealthy,
 	)
 }
+
+type taskReadInput struct {
+	TaskID string `json:"task_id"`
+}

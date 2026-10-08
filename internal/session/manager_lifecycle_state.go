@@ -5,13 +5,6 @@ import (
 	"sync"
 )
 
-// sessionCompactionLifecycle owns all mutable state for background compaction runs.
-type sessionCompactionLifecycle struct {
-	mu      sync.Mutex
-	runs    map[string]*sessionCompactionState
-	closing bool
-}
-
 // sessionStartLifecycle owns all mutable state for sessions still starting.
 type sessionStartLifecycle struct {
 	mu      sync.Mutex

@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/gin-gonic/gin"
@@ -24,4 +25,13 @@ func (h *BaseHandlers) GetStatus(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, payload)
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

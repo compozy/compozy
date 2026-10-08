@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
@@ -171,6 +172,67 @@ func (h *deriveHarness) childMeta(t *testing.T, childID string) store.SessionMet
 
 func TestContinueSession(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should continue a large transcript into another agent with its source history pointer", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		h.manager.hostedMCP = &recordingHostedMCPLauncher{server: compozyconfig.MCPServer{
+			Name: "hosted", Transport: compozyconfig.MCPServerTransportStdio, Command: "/bin/compozy",
+		}}
+		h.manager.toolUniverse = []toolspkg.ToolID{toolspkg.ToolIDSessionHistory}
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range workspace.Agents {
+			if workspace.Agents[index].Name == "b" {
+				workspace.Agents[index].Tools = []string{toolspkg.ToolIDSessionHistory.String()}
+			}
+		}
+		h.resolver.upsert(&workspace)
+		source := h.newDeriveSource(t)
+		for index := range 300 {
+			turnID := fmt.Sprintf("large-%d", index/2)
+			eventType := acp.EventTypeUserMessage
+			if index%2 == 1 {
+				eventType = acp.EventTypeAgentMessage
+			}
+			if err := h.manager.recordEvent(t.Context(), source, acp.AgentEvent{
+				Type: eventType, TurnID: turnID, Text: fmt.Sprintf("large-%d ", index) + strings.Repeat("x", 2048),
+				Timestamp: time.Now().UTC().Add(time.Duration(index) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if index%2 == 1 {
+				if err := h.manager.recordEvent(
+					t.Context(),
+					source,
+					acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turnID, Timestamp: time.Now().UTC()},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		result, err := h.manager.ContinueSession(t.Context(), h.continueOpts(source, "large-continue"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sendDeriveChildPrompt(t, h, result.Child.ID, "continue", "large-child", "large-child-admission")
+		prompts := h.promptMessages()
+		block := prompts[len(prompts)-1]
+		messages := resumeReplayMessagesFromPrompt(t, block)
+		if !strings.Contains(messages[0].Content, "Start the migration") || messages[1].ID != deriveOmittedMessageID ||
+			replayArrayBytes(messages) > compozyconfig.DefaultSessionDeriveMaxReplayBytes {
+			t.Fatalf(
+				"large continue replay lost pin, note, or bound: bytes=%d count=%d",
+				replayArrayBytes(messages),
+				len(messages),
+			)
+		}
+		if !strings.Contains(block, "session_id: "+source.ID) || !strings.Contains(block, deriveWorkspaceLine) {
+			t.Fatalf("child replay lacks source history pointer or workspace authority: %s", block)
+		}
+	})
 
 	t.Run("Should commit the child, carry the context in its first prompt, and leave the source untouched",
 		func(t *testing.T) {
@@ -594,6 +656,86 @@ func TestDeriveCarriedContextLifecycle(t *testing.T) {
 		}
 		if strings.Index(joined, "Start the migration") > strings.Index(joined, "B own turn") {
 			t.Fatalf("C carried = %q, want A's messages before B's", joined)
+		}
+	})
+
+	t.Run("Should retain inherited omissions when a nested continue fits its budget", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		h.manager.hostedMCP = &recordingHostedMCPLauncher{server: compozyconfig.MCPServer{
+			Name: "hosted", Transport: compozyconfig.MCPServerTransportStdio, Command: "/bin/compozy",
+		}}
+		h.manager.toolUniverse = []toolspkg.ToolID{toolspkg.ToolIDSessionHistory}
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range workspace.Agents {
+			if workspace.Agents[index].Name == "b" {
+				workspace.Agents[index].Tools = []string{toolspkg.ToolIDSessionHistory.String()}
+			}
+		}
+		workspace.Config.Session.Derive = compozyconfig.SessionDeriveConfig{MaxReplayBytes: 8192, MaxMessageBytes: 4096}
+		h.resolver.upsert(&workspace)
+		source := h.newDeriveSource(t)
+		timestamp := h.manager.now().UTC()
+		for index := range 20 {
+			turnID := fmt.Sprintf("inherited-%d", index/2)
+			eventType := acp.EventTypeUserMessage
+			if index%2 == 1 {
+				eventType = acp.EventTypeAgentMessage
+			}
+			if err := h.manager.recordEvent(t.Context(), source, acp.AgentEvent{
+				Type: eventType, TurnID: turnID, Text: strings.Repeat("x", 2048),
+				Timestamp: timestamp.Add(time.Duration(index) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if index%2 == 1 {
+				if err := h.manager.recordEvent(t.Context(), source, acp.AgentEvent{
+					Type:      acp.EventTypeDone,
+					TurnID:    turnID,
+					Timestamp: timestamp.Add(time.Duration(index) * time.Second),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		b, err := h.manager.ContinueSession(t.Context(), h.continueOpts(source, "inherited-ab"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		importedB := h.childMeta(t, b.Child.ID).ImportedContext
+		if importedB.OmittedCount == 0 || !importedB.Truncated {
+			t.Fatalf("B imported context = %+v, want omitted history", importedB)
+		}
+		workspace.Config.Session.Derive = compozyconfig.DefaultSessionDeriveConfig()
+		h.resolver.upsert(&workspace)
+		sendDeriveChildPrompt(t, h, b.Child.ID, "B own settled turn", "inherited-b", "inherited-b-admission")
+		c, err := h.manager.ContinueSession(t.Context(), ContinueSessionOpts{
+			SourceSessionID: b.Child.ID, WorkspaceID: h.workspaceID, AgentName: "b", IdempotencyKey: "inherited-bc",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		importedC := h.childMeta(t, c.Child.ID).ImportedContext
+		if importedC.SourceSessionID != b.Child.ID || importedC.OmittedCount != importedB.OmittedCount ||
+			!importedC.Truncated || c.OmittedCount != importedB.OmittedCount || !c.Truncated {
+			t.Fatalf("C imported = %+v outcome = %+v, want B's omission evidence with B as source", importedC, c)
+		}
+		messages, err := decodeImportedMessages(importedC)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if messages[1].ID != deriveOmittedMessageID ||
+			replayArrayBytes(messages) >= workspace.Config.Session.Derive.MaxReplayBytes {
+			t.Fatalf("C flattened replay must retain omission note and fit without new omissions: %+v", messages)
+		}
+		sendDeriveChildPrompt(t, h, c.Child.ID, "C first turn", "inherited-c", "inherited-c-admission")
+		prompts := h.promptMessages()
+		block := prompts[len(prompts)-1]
+		if !strings.Contains(block, "session_id: "+b.Child.ID) || strings.Contains(block, "session_id: "+source.ID) {
+			t.Fatalf("C replay history pointer must target immediate source B: %s", block)
 		}
 	})
 

@@ -3,27 +3,8 @@ package settings
 import (
 	"reflect"
 
-	"strings"
-
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
-
-func diffMemorySettings(current *compozyconfig.MemoryConfig, desired *compozyconfig.MemoryConfig) []string {
-	var changed []string
-	currentValues := memorySettingsUpdates(current)
-	desiredValues := memorySettingsUpdates(desired)
-	for i, currentValue := range currentValues {
-		if i >= len(desiredValues) {
-			break
-		}
-		desiredValue := desiredValues[i]
-		if reflect.DeepEqual(currentValue.value, desiredValue.value) {
-			continue
-		}
-		changed = append(changed, strings.Join(currentValue.path, "."))
-	}
-	return changed
-}
 
 func diffSkillsSettings(current compozyconfig.SkillsConfig, desired compozyconfig.SkillsConfig) []string {
 	var changed []string

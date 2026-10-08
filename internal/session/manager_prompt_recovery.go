@@ -99,7 +99,9 @@ func (m *Manager) attemptPromptRecovery(
 			}
 			continue
 		}
-		m.consumeResumeReplay(session.ID, replayBlock)
+		if !recovery.request.Maintenance {
+			m.consumeResumeReplay(session.ID, replayBlock)
+		}
 		loop.source = source
 		loop.turnEnded = false
 		loop.sourceProbeRequired = false
@@ -149,7 +151,9 @@ func (m *Manager) startRecoveredPrompt(
 	}
 	replayRequest := clonePromptRecoveryRequest(request)
 	replayRequest.Generation = session.Info().RuntimeGeneration
-	replayRequest.Message = promptWithResumeReplay(replayBlock, replayRequest.Message)
+	if !replayRequest.Maintenance {
+		replayRequest.Message = promptWithResumeReplay(replayBlock, state.recovery.originalMessage)
+	}
 	source, err := m.startHostedPromptRun(ctx, session, process, state, replayRequest)
 	if err != nil {
 		return nil, "", err
@@ -275,6 +279,7 @@ func (m *Manager) recoverPromptRuntime(
 		attempt = snapshot.acceptedRoute.Attempt
 	}
 	session.commitAcceptedRoute(acceptedRouteRecord(attempt, runtime.agent, plan.selection.Model), plan.spec.command)
+	session.setPendingResumeReplay(plan.spec.resumeReplayBlock)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRecoveryBinding(candidate, &snapshot, err.Error(), m.now())
 		stopErr := m.stopReplacedRuntime(session, candidate, false)

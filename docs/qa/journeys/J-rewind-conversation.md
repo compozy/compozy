@@ -33,7 +33,7 @@ journey:
       expected_observable: "The message action offers Rewind only when no prompt, approval, clarification, queue item, or composer draft is active."
     - step: 2
       verb: "Confirm the rewind"
-      expected_observable: "The confirmation states that files, tools, network calls, and memory are not undone."
+      expected_observable: "The confirmation states that files and tool effects are not undone."
     - step: 3
       verb: "Inspect the restarted conversation"
       expected_observable: "The same session id shows only the retained prefix, the selected text is restored as an editable draft, and the transcript fence advances."

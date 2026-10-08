@@ -57,13 +57,13 @@ describe("TestHarness", () => {
       version: "0.1.0",
     });
 
-    extension.handle("memory/store", async (_ctx, params: { key: string; content: string }) => ({
+    extension.handle("custom/store", async (_ctx, params: { key: string; content: string }) => ({
       key: params.key,
       content: params.content,
     }));
 
     await harness.loadExtension(extension);
-    await expect(harness.call("memory/store", { key: "x", content: "y" })).resolves.toEqual({
+    await expect(harness.call("custom/store", { key: "x", content: "y" })).resolves.toEqual({
       key: "x",
       content: "y",
     });

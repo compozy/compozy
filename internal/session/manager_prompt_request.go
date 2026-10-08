@@ -27,6 +27,12 @@ func (m *Manager) parsePromptRequestWithMessagePolicy(
 		return promptRequest{}, errors.New("session: session id is required")
 	}
 	message := strings.TrimSpace(opts.Message)
+	if opts.Delivery == PromptDeliveryMaintenance {
+		message = opts.Message
+	}
+	if opts.Delivery != PromptDeliveryNormal && opts.Delivery != PromptDeliveryMaintenance {
+		return promptRequest{}, fmt.Errorf("session: invalid prompt delivery %q", opts.Delivery)
+	}
 	if message == "" && !allowEmptyMessage {
 		return promptRequest{}, errors.New("session: prompt message is required")
 	}
@@ -50,6 +56,7 @@ func (m *Manager) parsePromptRequestWithMessagePolicy(
 		return promptRequest{}, err
 	}
 	return promptRequest{
+		delivery:        opts.Delivery,
 		turnID:          turnID,
 		runID:           runID,
 		target:          target,

@@ -60,7 +60,7 @@ func TestWaitForBadgeMatchesSnapshotsAndEdges(t *testing.T) {
 			}
 			if _, err := h.manager.PromptWithOpts(t.Context(), session.ID, PromptOpts{
 				Message:         "Read the workspace note",
-				PrepareDelivery: func(context.Context, PromptDelivery) error { return startupErr },
+				PrepareDelivery: func(context.Context, PromptDeliveryInfo) error { return startupErr },
 			}); !errors.Is(err, startupErr) {
 				t.Fatalf("Prompt() error = %v, want startup failure", err)
 			}

@@ -13,13 +13,13 @@ import (
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
 
 const (
 	daemonBlockKey          = "block"
+	daemonTimeoutKey        = "timeout"
 	nativeToolsClaimedKey   = "claimed"
 	nativeToolsEventsKey    = "events"
 	nativeToolsHealthKey    = "health"
@@ -42,23 +42,8 @@ const (
 	nativeToolsContentKey   = "content"
 )
 
-type nativeMemoryActorKind string
-
-const (
-	nativeMemoryActorKindRoot     nativeMemoryActorKind = "agent_root"
-	nativeMemoryActorKindSubagent nativeMemoryActorKind = "agent_subagent"
-)
-
-func normalizeNativeMemoryActorKind(actorKind string) nativeMemoryActorKind {
-	return nativeMemoryActorKind(taskpkg.ActorKind(actorKind).Normalize())
-}
-
 type daemonNativeTools struct {
 	deps *daemonNativeToolsDeps
-}
-
-type memoryToolWriteRecorder interface {
-	RecordToolWrite(sessionID string, turnSeq int64)
 }
 
 type nativeToolBinding struct {
@@ -83,16 +68,11 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 		binding := bindings[descriptor.ID]
 		if binding.call != nil {
 			call := binding.call
-			toolID := descriptor.ID
 			binding.call = func(
 				ctx context.Context,
 				scope toolspkg.Scope,
 				req toolspkg.CallRequest,
 			) (toolspkg.ToolResult, error) {
-				if nativeMemoryToolRequiresCallerProfile(toolID) &&
-					strings.TrimSpace(scope.ProfileID) == "" && strings.TrimSpace(scope.SessionID) == "" {
-					return call(ctx, scope, req)
-				}
 				effectiveScope, err := adapter.nativeEffectiveScope(ctx, scope)
 				if err != nil {
 					return toolspkg.ToolResult{}, err

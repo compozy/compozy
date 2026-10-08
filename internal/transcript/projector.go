@@ -137,6 +137,9 @@ func (p *Projector) routeExisting(
 	decoded *decodedStoredEvent,
 	kind EntryKind,
 ) (EntryIdentity, bool, error) {
+	if kind == EntryKindCompaction {
+		return p.resolveIdentity(ctx, p.compactionEntryKey(decoded))
+	}
 	if kind != EntryKindAssistant {
 		return EntryIdentity{}, false, nil
 	}
@@ -176,6 +179,9 @@ func (p *Projector) newIdentity(decoded *decodedStoredEvent, kind EntryKind) Ent
 	logicalID := ""
 	baseID := ""
 	switch kind {
+	case EntryKindCompaction:
+		logicalID = "compaction:" + decoded.agent.Compaction.CompactionID
+		baseID = logicalID
 	case EntryKindUser:
 		logicalID = inputMessageID(decoded, UIRoleUser)
 		baseID = logicalID
@@ -190,8 +196,12 @@ func (p *Projector) newIdentity(decoded *decodedStoredEvent, kind EntryKind) Ent
 		logicalID = assistantMessageID(decoded)
 		baseID = logicalID
 	}
+	key := fmt.Sprintf("g%d:s%d", p.state.Generation, sequence)
+	if kind == EntryKindCompaction {
+		key = p.compactionEntryKey(decoded)
+	}
 	return EntryIdentity{
-		Key:             fmt.Sprintf("g%d:s%d", p.state.Generation, sequence),
+		Key:             key,
 		Kind:            kind,
 		LogicalID:       logicalID,
 		TurnID:          strings.TrimSpace(decoded.parsed.TurnID),
@@ -273,6 +283,11 @@ func classifyProjectionEvent(decoded *decodedStoredEvent) EntryKind {
 		return EntryKindMarker
 	}
 	switch decoded.parsed.Type {
+	case acp.EventTypeCompaction:
+		if decoded.agent.Compaction != nil && decoded.agent.Compaction.CompactionID != "" {
+			return EntryKindCompaction
+		}
+		return EntryKindAssistant
 	case acp.EventTypeUserMessage:
 		return EntryKindUser
 	case acp.EventTypeSyntheticReentry:
@@ -280,4 +295,8 @@ func classifyProjectionEvent(decoded *decodedStoredEvent) EntryKind {
 	default:
 		return EntryKindAssistant
 	}
+}
+
+func (p *Projector) compactionEntryKey(decoded *decodedStoredEvent) string {
+	return fmt.Sprintf("g%d:compaction:%s", p.state.Generation, decoded.agent.Compaction.CompactionID)
 }
