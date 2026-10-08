@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { applyWindowManagerLayout } from "../adapters/window-manager-layouts-api";
-import { parseWindowManagerLayoutDocument } from "../lib/window-manager-layout-schema";
+import { parseImportedWindowManagerLayoutDocument } from "../lib/window-manager-layout-import";
 import {
   windowManagerLayoutFingerprint,
   windowManagerLayoutReviewOptions,
@@ -257,7 +257,7 @@ export function useWindowManagerLayoutEditor(
   const importDocument = async (file: File) => {
     try {
       const value: unknown = JSON.parse(await file.text());
-      const imported = parseWindowManagerLayoutDocument(value);
+      const imported = parseImportedWindowManagerLayoutDocument(value);
       updateDraft({ ...imported, workspaceId });
     } catch (cause) {
       store.trigger.importFailed({
