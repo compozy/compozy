@@ -55,99 +55,9 @@ type SettingsRedactPayload struct {
 	Enabled bool `json:"enabled"`
 }
 
-type SettingsMemoryConfigPayload struct {
-	Enabled    bool                            `json:"enabled"`
-	GlobalDir  string                          `json:"global_dir,omitempty"`
-	Controller SettingsMemoryControllerPayload `json:"controller"`
-	Recall     SettingsMemoryRecallPayload     `json:"recall"`
-	Decisions  SettingsMemoryDecisionsPayload  `json:"decisions"`
-	Extractor  SettingsMemoryExtractorPayload  `json:"extractor"`
-	Dream      SettingsMemoryDreamPayload      `json:"dream"`
-	Session    SettingsMemorySessionPayload    `json:"session"`
-	Daily      SettingsMemoryDailyPayload      `json:"daily"`
-	File       SettingsMemoryFilePayload       `json:"file"`
-	Provider   SettingsMemoryProviderPayload   `json:"provider"`
-	Workspace  SettingsMemoryWorkspacePayload  `json:"workspace"`
-}
-
-type SettingsMemoryControllerPayload struct {
-	Mode            string                                `json:"mode"`
-	MaxLatency      string                                `json:"max_latency"`
-	DefaultOpOnFail string                                `json:"default_op_on_fail"`
-	Policy          SettingsMemoryControllerPolicyPayload `json:"policy"`
-}
-
-type SettingsMemoryControllerPolicyPayload struct {
-	MaxContentChars int      `json:"max_content_chars"`
-	MaxWritesPerMin int      `json:"max_writes_per_min"`
-	AllowOrigins    []string `json:"allow_origins"`
-}
-
-type SettingsMemoryRecallPayload struct {
-	TopK                   int                                  `json:"top_k"`
-	RawCandidates          int                                  `json:"raw_candidates"`
-	Fusion                 string                               `json:"fusion"`
-	IncludeAlreadySurfaced bool                                 `json:"include_already_surfaced"`
-	IncludeSystem          bool                                 `json:"include_system"`
-	Weights                SettingsMemoryRecallWeightsPayload   `json:"weights"`
-	Freshness              SettingsMemoryRecallFreshnessPayload `json:"freshness"`
-	Signals                SettingsMemoryRecallSignalsPayload   `json:"signals"`
-}
-
-type SettingsMemoryRecallWeightsPayload struct {
-	BM25Unicode  float64 `json:"bm25_unicode"`
-	BM25Trigram  float64 `json:"bm25_trigram"`
-	Recency      float64 `json:"recency"`
-	RecallSignal float64 `json:"recall_signal"`
-}
-
-type SettingsMemoryRecallFreshnessPayload struct {
-	BannerAfterDays int `json:"banner_after_days"`
-}
-
-type SettingsMemoryRecallSignalsPayload struct {
-	QueueCapacity  int `json:"queue_capacity"`
-	WorkerRetryMax int `json:"worker_retry_max"`
-}
-
-type SettingsMemoryDecisionsPayload struct {
-	PruneAfterAppliedDays int   `json:"prune_after_applied_days"`
-	KeepAuditSummary      bool  `json:"keep_audit_summary"`
-	MaxPostContentBytes   int64 `json:"max_post_content_bytes"`
-}
-
-type SettingsMemoryExtractorPayload struct {
-	Mode             string                              `json:"mode"`
-	ThrottleTurns    int                                 `json:"throttle_turns"`
-	Deadline         string                              `json:"deadline"`
-	SandboxInboxOnly bool                                `json:"sandbox_inbox_only"`
-	InboxPath        string                              `json:"inbox_path"`
-	DLQPath          string                              `json:"dlq_path"`
-	Queue            SettingsMemoryExtractorQueuePayload `json:"queue"`
-}
-
-type SettingsMemoryExtractorQueuePayload struct {
-	Capacity    int `json:"capacity"`
-	CoalesceMax int `json:"coalesce_max"`
-}
-
-type SettingsMemoryDreamPayload struct {
-	MinHours      float64                           `json:"min_hours"`
-	MinSessions   int                               `json:"min_sessions"`
-	Debounce      string                            `json:"debounce"`
-	PromptVersion string                            `json:"prompt_version"`
-	CheckInterval string                            `json:"check_interval"`
-	Gates         SettingsMemoryDreamGatesPayload   `json:"gates"`
-	Scoring       SettingsMemoryDreamScoringPayload `json:"scoring"`
-}
-
 type SettingsRolesConfigPayload struct {
-	Coordinator       SettingsCoordinatorRoleConfigPayload      `json:"coordinator"`
-	Dream             SettingsRoleConfigPayload                 `json:"dream"`
-	CheckpointSummary SettingsRoleConfigPayload                 `json:"checkpoint_summary"`
-	MemoryExtractor   SettingsRoleConfigPayload                 `json:"memory_extractor"`
-	AutoTitle         SettingsRoleConfigPayload                 `json:"auto_title"`
-	MemoryController  SettingsMemoryControllerRoleConfigPayload `json:"memory_controller"`
+	Coordinator SettingsCoordinatorRoleConfigPayload `json:"coordinator"`
+	AutoTitle   SettingsRoleConfigPayload            `json:"auto_title"`
 }
 
 type SettingsRoleConfigPayload struct {
@@ -168,20 +78,6 @@ type SettingsCoordinatorRoleConfigPayload struct {
 	MaxActiveSessionsPerWorkspace int    `json:"max_active_sessions_per_workspace"`
 }
 
-type SettingsMemoryControllerRoleConfigPayload struct {
-	Enabled         bool                          `json:"enabled"`
-	Provider        string                        `json:"provider"`
-	Model           string                        `json:"model"`
-	ReasoningEffort string                        `json:"reasoning_effort"`
-	Speed           *Speed                        `json:"speed,omitzero"`
-	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
-	Timeout         string                        `json:"timeout"`
-	TopK            int                           `json:"top_k"`
-	PromptVersion   string                        `json:"prompt_version"`
-	MaxTokensOut    int                           `json:"max_tokens_out"`
-	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
-}
-
 type SettingsRoleFallbackPayload struct {
 	Provider        string                    `json:"provider"`
 	Model           string                    `json:"model"`
@@ -190,63 +86,6 @@ type SettingsRoleFallbackPayload struct {
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
 	// Command is the route account; always present on the settings surface, empty inherits.
 	Command string `json:"command"`
-}
-
-type SettingsMemoryDreamGatesPayload struct {
-	MinUnpromoted  int     `json:"min_unpromoted"`
-	MinRecallCount int     `json:"min_recall_count"`
-	MinScore       float64 `json:"min_score"`
-}
-
-type SettingsMemoryDreamScoringPayload struct {
-	RecencyHalfLifeDays int                                      `json:"recency_half_life_days"`
-	Weights             SettingsMemoryDreamScoringWeightsPayload `json:"weights"`
-}
-
-type SettingsMemoryDreamScoringWeightsPayload struct {
-	Frequency float64 `json:"frequency"`
-	Relevance float64 `json:"relevance"`
-	Recency   float64 `json:"recency"`
-	Freshness float64 `json:"freshness"`
-}
-
-type SettingsMemorySessionPayload struct {
-	LedgerFormat     string `json:"ledger_format"`
-	LedgerRoot       string `json:"ledger_root"`
-	EventsPurgeGrace string `json:"events_purge_grace"`
-	ColdArchiveDays  int    `json:"cold_archive_days"`
-	HardDeleteDays   int    `json:"hard_delete_days"`
-	MaxArchiveBytes  int64  `json:"max_archive_bytes"`
-	UnboundPartition string `json:"unbound_partition"`
-}
-
-type SettingsMemoryDailyPayload struct {
-	MaxBytes        int64  `json:"max_bytes"`
-	MaxLines        int    `json:"max_lines"`
-	RotateFormat    string `json:"rotate_format"`
-	DreamingWindow  int    `json:"dreaming_window"`
-	ColdArchiveDays int    `json:"cold_archive_days"`
-	HardDeleteDays  int    `json:"hard_delete_days"`
-	MaxArchiveBytes int64  `json:"max_archive_bytes"`
-	SweepHour       int    `json:"sweep_hour"`
-	ArchivePath     string `json:"archive_path"`
-}
-
-type SettingsMemoryFilePayload struct {
-	MaxLines int   `json:"max_lines"`
-	MaxBytes int64 `json:"max_bytes"`
-}
-
-type SettingsMemoryProviderPayload struct {
-	Name             string `json:"name"`
-	Timeout          string `json:"timeout"`
-	FailureThreshold int    `json:"failure_threshold"`
-	Cooldown         string `json:"cooldown"`
-}
-
-type SettingsMemoryWorkspacePayload struct {
-	TOMLPath   string `json:"toml_path"`
-	AutoCreate bool   `json:"auto_create"`
 }
 
 type SettingsExtensionTrustPayload struct {
@@ -343,13 +182,6 @@ type SettingsDaemonRuntimePayload struct {
 	Version        string     `json:"version,omitempty"`
 }
 
-type SettingsMemoryHealthPayload struct {
-	Available          bool       `json:"available"`
-	FileCount          int        `json:"file_count"`
-	DreamEnabled       bool       `json:"dream_enabled"`
-	LastConsolidatedAt *time.Time `json:"last_consolidated_at,omitempty"`
-}
-
 type SettingsAutomationRuntimePayload struct {
 	Available        bool       `json:"available"`
 	Running          bool       `json:"running"`
@@ -386,10 +218,6 @@ type SettingsActionMetadataPayload struct {
 
 type SettingsGeneralActionsPayload struct {
 	Restart SettingsActionMetadataPayload `json:"restart"`
-}
-
-type SettingsMemoryActionsPayload struct {
-	Consolidate SettingsActionMetadataPayload `json:"consolidate"`
 }
 
 type SettingsOperationalLinkPayload struct {

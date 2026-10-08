@@ -226,7 +226,7 @@ func runtimeSelectionFromStoreInfo(selection *store.SessionRuntimeSelection) *se
 func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
 	visible := make([]*session.Info, 0, len(infos))
 	for _, info := range infos {
-		if info == nil || isInternalSessionInfo(info.Type, info.Lineage) {
+		if info == nil || isInternalSessionInfo(info.Lineage) {
 			continue
 		}
 		visible = append(visible, info)
@@ -234,10 +234,7 @@ func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
 	return visible
 }
 
-func isInternalSessionInfo(sessionType session.Type, lineage *store.SessionLineage) bool {
-	if sessionType == session.SessionTypeDream {
-		return true
-	}
+func isInternalSessionInfo(lineage *store.SessionLineage) bool {
 	normalized := store.NormalizeSessionLineage("", lineage)
 	return session.IsInternalSpawnRole(normalized.SpawnRole)
 }

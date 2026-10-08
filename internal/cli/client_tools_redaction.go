@@ -34,7 +34,7 @@ var toolResultDisplayJSONFields = []string{
 	"raw",
 	"raw_input",
 	"raw_output",
-	memoryReasonKey,
+	cliReasonKey,
 	clientResultKey,
 	"stderr",
 	"stdout",

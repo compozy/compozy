@@ -29,8 +29,6 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPIHeartbeatWake(deps.HeartbeatWake),
 		extensionpkg.WithHostAPISessionHealth(deps.SessionHealth),
 		extensionpkg.WithHostAPIHeartbeatWakeEvents(deps.WakeEvents),
-		extensionpkg.WithHostAPIMemoryProviderRegistry(deps.MemoryProviderRegistry),
-		extensionpkg.WithHostAPIMemoryStoreResolver(deps.MemoryStoreResolver),
 		extensionpkg.WithHostAPIClarify(deps.Clarify),
 		extensionpkg.WithHostAPIViewService(deps.CmdPalette),
 	}

@@ -28,9 +28,6 @@ var hostAPIProjectionDecisions = map[extensionprotocol.HostAPIMethod]projectionD
 	extensionprotocol.HostAPIMethodSessionsSoulRefresh:   {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsHealthGet:     {Publish: true},
 	extensionprotocol.HostAPIMethodSessionsStatusGet:     {Publish: true},
-	extensionprotocol.HostAPIMethodMemoryRecall:          {Publish: true},
-	extensionprotocol.HostAPIMethodMemoryStore:           {Publish: true},
-	extensionprotocol.HostAPIMethodMemoryForget:          {Publish: true},
 	extensionprotocol.HostAPIMethodObserveHealth: {
 		Reason: "observe is outside the approved MCP families",
 	},

@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"strings"
+	"time"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -49,4 +50,31 @@ func hostAPIRuntimeHasEffectiveSelection(info *session.Info) bool {
 	default:
 		return false
 	}
+}
+
+func hostAPISessionStatusFromInfo(info *session.Info) hostAPISessionStatus {
+	if info == nil {
+		return hostAPISessionStatus{}
+	}
+	return hostAPISessionStatus{
+		SessionID:   info.ID,
+		Name:        info.Name,
+		Agent:       info.AgentName,
+		Runtime:     hostAPISessionRuntimePayloadFromInfo(info),
+		WorkspaceID: info.WorkspaceID,
+		Workspace:   info.Workspace,
+		State:       info.State,
+		ArchivedAt:  cloneHostAPITime(info.ArchivedAt),
+		StopReason:  info.StopReason,
+		StopDetail:  info.StopDetail,
+		CreatedAt:   info.CreatedAt,
+		UpdatedAt:   info.UpdatedAt,
+	}
+}
+
+func cloneHostAPITime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	return new(value.UTC())
 }

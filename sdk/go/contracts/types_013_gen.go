@@ -7,23 +7,6 @@ import (
 	"time"
 )
 
-type OpenAppEffect struct {
-	App string `json:"app"`
-}
-
-type OpenURLEffect struct {
-	URL string `json:"url"`
-}
-
-type Origin struct {
-	Kind OriginKind `json:"kind"`
-	Ref  string     `json:"ref"`
-}
-
-type OriginKind string
-
-type OwnerKind string
-
 type Ownership struct {
 	Kind OwnerKind `json:"kind"`
 	Ref  string    `json:"ref"`
@@ -224,4 +207,22 @@ type ProbeResult struct {
 	Error      string    `json:"error,omitempty"`
 	CheckedAt  time.Time `json:"checked_at"`
 	DurationMS int64     `json:"duration_ms"`
+}
+
+type ProfileLens struct {
+	ID   ProfileLensID `json:"profile_lens_id"`
+	Name string        `json:"profile_name"`
+}
+
+type ProfileLensID string
+
+type PromptDelivery string
+
+type PromptMode string
+
+type PromptPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Prompt        *string        `json:"prompt,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
 }

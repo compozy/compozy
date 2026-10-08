@@ -10,10 +10,6 @@ type UpdateSettingsPersonaRequest struct {
 	Config SettingsDefaultsPayload `json:"config"`
 }
 
-type UpdateSettingsMemoryRequest struct {
-	Config SettingsMemoryConfigPayload `json:"config"`
-}
-
 type UpdateSettingsRolesRequest struct {
 	Config SettingsRolesConfigPayload `json:"config"`
 }
@@ -63,13 +59,6 @@ type SettingsGeneralResponse struct {
 type SettingsPersonaResponse struct {
 	SettingsLayeredSectionResponseMetaPayload
 	Config SettingsDefaultsPayload `json:"config"`
-}
-
-type SettingsMemoryResponse struct {
-	SettingsUserSectionResponseMetaPayload
-	Config  SettingsMemoryConfigPayload  `json:"config"`
-	Health  SettingsMemoryHealthPayload  `json:"health"`
-	Actions SettingsMemoryActionsPayload `json:"actions"`
 }
 
 type SettingsRolesResponse struct {

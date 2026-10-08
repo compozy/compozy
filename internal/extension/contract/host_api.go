@@ -6,7 +6,6 @@ import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
@@ -140,30 +139,6 @@ type SessionHealthGetParams = SessionTargetParams
 
 // SessionStatusGetParams identifies one authored-context session status row.
 type SessionStatusGetParams = SessionTargetParams
-
-// MemoryStoreParams persists one memory document.
-type MemoryStoreParams struct {
-	Key       string            `json:"key"`
-	Content   string            `json:"content"`
-	Scope     memcontract.Scope `json:"scope,omitempty"`
-	Workspace string            `json:"workspace,omitempty"`
-	Tags      []string          `json:"tags,omitempty"`
-}
-
-// MemoryRecallParams queries stored memory documents.
-type MemoryRecallParams struct {
-	Query     string            `json:"query"`
-	Limit     int               `json:"limit,omitempty"`
-	Scope     memcontract.Scope `json:"scope,omitempty"`
-	Workspace string            `json:"workspace,omitempty"`
-}
-
-// MemoryForgetParams removes one stored memory document.
-type MemoryForgetParams struct {
-	Key       string            `json:"key"`
-	Scope     memcontract.Scope `json:"scope,omitempty"`
-	Workspace string            `json:"workspace,omitempty"`
-}
 
 // ListLogsParams filters workspace runtime logs.
 type ListLogsParams struct {

@@ -7,24 +7,6 @@ import (
 	"time"
 )
 
-type ProfileLens struct {
-	ID   ProfileLensID `json:"profile_lens_id"`
-	Name string        `json:"profile_name"`
-}
-
-type ProfileLensID string
-
-type PromptDelivery string
-
-type PromptMode string
-
-type PromptPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Prompt        *string        `json:"prompt,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}
-
 type PromptPayload struct {
 	Event          HookEvent      `json:"event"`
 	Timestamp      time.Time      `json:"timestamp"`
@@ -152,3 +134,24 @@ type ResourceRecord struct {
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
 }
+
+type ResourceScope struct {
+	Kind ResourceScopeKind `json:"kind"`
+	ID   string            `json:"id,omitempty"`
+}
+
+type ResourceScopeKind string
+
+type ResourceSnapshotRecord struct {
+	Kind  ResourceKind    `json:"kind"`
+	ID    string          `json:"id"`
+	Scope ResourceScope   `json:"scope"`
+	Spec  json.RawMessage `json:"spec"`
+}
+
+type ResourceSource struct {
+	Kind ResourceSourceKind `json:"kind"`
+	ID   string             `json:"id"`
+}
+
+type ResourceSourceKind string

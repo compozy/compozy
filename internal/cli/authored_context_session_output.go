@@ -20,7 +20,7 @@ func sessionHealthBundle(record SessionHealthRecord) outputBundle {
 				stateKey,
 				authoredContextHealthKey,
 				"eligible_for_wake",
-				memoryReasonKey,
+				cliReasonKey,
 			}, []string{
 				record.SessionID,
 				record.WorkspaceID,
@@ -70,7 +70,7 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				"lifecycle_state", "verified", "escalated", "attention",
 				authoredContextHealthKey,
 				"eligible_for_wake",
-				memoryReasonKey,
+				cliReasonKey,
 			}, []string{
 				record.SessionID,
 				record.WorkspaceID,

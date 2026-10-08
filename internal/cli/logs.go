@@ -165,7 +165,7 @@ func streamLogs(cmd *cobra.Command, client logsStreamClient, query LogsListQuery
 				cliProviderKey,
 				cliComponentKey,
 				cliOutcomeKey,
-				memorySummaryKey,
+				cliSummaryKey,
 				cliOutputTimestampKey,
 			}, []string{
 				payload.ID,
@@ -224,7 +224,7 @@ func logsBundle(events []LogEventRecord) outputBundle {
 			cliProviderKey,
 			cliComponentKey,
 			cliOutcomeKey,
-			memorySummaryKey,
+			cliSummaryKey,
 			cliOutputTimestampKey,
 		},
 		func(event LogEventRecord) []string {

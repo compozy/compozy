@@ -908,7 +908,7 @@ command = "./bin"
     "version": "0.1.0",
     "min_compozy_version": "0.3.0-beta.1"
   },
-  "permissions": {"requires": ["sessions/list", "memory/store"]},
+  "permissions": {"requires": ["sessions/create", "logs/list"]},
   "capabilities": {"provides": []},
   "subprocess": {"command": "./bin"}
 }`)
@@ -916,7 +916,7 @@ command = "./bin"
 		if err != nil {
 			t.Fatalf("ValidateBundleReport() error = %v", err)
 		}
-		want := []ConsentArea{{Area: "memory", Access: "write"}, {Area: "sessions", Access: "read"}}
+		want := []ConsentArea{{Area: "logs", Access: "read"}, {Area: "sessions", Access: "write"}}
 		if !reflect.DeepEqual(report.ConsentAreas, want) {
 			t.Fatalf("ConsentAreas = %#v, want %#v", report.ConsentAreas, want)
 		}
@@ -929,11 +929,23 @@ command = "./bin"
 func TestScaffoldExtension(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject the retired scaffold template", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ScaffoldExtension(ScaffoldRequest{
+			Name:      "my-ext",
+			Template:  ScaffoldTemplate("memory-backend-ts"),
+			Directory: filepath.Join(t.TempDir(), "my-ext"),
+		})
+		if err == nil || err.Error() != `extension: unknown scaffold template "memory-backend-ts"` {
+			t.Fatalf("ScaffoldExtension() error = %v, want unknown scaffold template", err)
+		}
+	})
+
 	expectedTemplates := []ScaffoldTemplate{
 		ScaffoldTemplateConnectivityProviderGo,
 		ScaffoldTemplateConnectivityProviderTS,
 		ScaffoldTemplateLoopWatchSourceGo,
-		ScaffoldTemplateMemoryBackendTS,
 		ScaffoldTemplateToolProviderGo,
 		ScaffoldTemplateToolProviderTS,
 		ScaffoldTemplateViewProviderTS,

@@ -19,8 +19,6 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
-
 	"github.com/compozy/compozy/internal/acp"
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -29,7 +27,6 @@ import (
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	protocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/memory"
 	observepkg "github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
@@ -1203,7 +1200,6 @@ func TestHostAPIHandlerSessionsMethodsRequireConfiguredManager(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIRateLimit(1000, 1000),
 	)
@@ -1469,191 +1465,65 @@ func TestHostAPIHandlerResourceSnapshotRequiresWritePermission(t *testing.T) {
 	})
 }
 
-func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
+func TestHostAPIHandlerRetiredMethodReturnsMethodNotFound(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-memory", []string{"memory/store"}, []string{"memory.write"})
-
-	if _, err := env.call(t, "ext-memory", "memory/store", map[string]any{
-		"key":     "deploy-script",
-		"content": "The deploy script is documented in the release handbook as deploy.sh.",
-		"tags":    []string{"project-knowledge", "reference"},
-	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-
-	content, err := env.memory.Read(t.Context(), memcontract.ScopeProfile, "deploy-script.md")
-	if err != nil {
-		t.Fatalf("memory.Read() error = %v", err)
-	}
-	if !strings.Contains(string(content), "deploy.sh") {
-		t.Fatalf("stored content = %q, want deploy script reference", string(content))
-	}
-	if !strings.Contains(string(content), "compozy-tags: project-knowledge, reference") {
-		t.Fatalf("stored content = %q, want persisted tag comment", string(content))
-	}
-}
-
-func TestHostAPIHandlerMemoryRecallReturnsRankedMatches(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-memory", []string{"memory/store", "memory/recall"}, []string{"memory.write", "memory.read"})
-
-	if _, err := env.call(t, "ext-memory", "memory/store", map[string]any{
-		"key":     "deploy-script",
-		"content": "The deploy script is documented in the release handbook as deploy.sh.",
-		"tags":    []string{"reference"},
-	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-
-	result, err := env.call(t, "ext-memory", "memory/recall", map[string]any{
-		"query": "deploy script release handbook",
-		"limit": 5,
-	})
-	if err != nil {
-		t.Fatalf("Handle(memory/recall) error = %v", err)
-	}
-
-	var entries []hostAPIMemoryRecallEntry
-	decodeResult(t, result, &entries)
-	if len(entries) == 0 {
-		t.Fatal("memory/recall entries = 0, want at least one match")
-	}
-	if !strings.Contains(entries[0].Content, "deploy.sh") {
-		t.Fatalf("memory/recall first content = %q, want deploy.sh", entries[0].Content)
-	}
-	if entries[0].Score <= 0 {
-		t.Fatalf("memory/recall first score = %f, want > 0", entries[0].Score)
-	}
-
-	t.Run("Should isolate profile memory by the extension owner", func(t *testing.T) {
+	t.Run("Should return method-not-found for a retired Host API call", func(t *testing.T) {
 		t.Parallel()
 
-		profileEnv := newHostAPITestEnv(t)
-		profileEnv.grant(
-			"ext-memory",
-			[]string{"memory/store", "memory/recall"},
-			[]string{"memory.write", "memory.read"},
-		)
-		ctx := withHostAPIInstanceKey(t.Context(), InstanceKey{Name: "ext-memory", ProfileID: profileEnv.marketingID})
-		if _, err := profileEnv.callWithContext(ctx, t, "ext-memory", "memory/store", map[string]any{
-			"key": "campaign", "content": "The marketing campaign uses the aurora launch message.",
-		}); err != nil {
-			t.Fatalf("Handle(marketing memory/store) error = %v", err)
+		env := newRegistryTestEnv(t)
+		marker := filepath.Join(t.TempDir(), "retired-host-api.json")
+		fixture := createManagerTestExtension(t, managerTestManifest("ext-retired", managerManifestOptions{
+			command:      helperCommand(t),
+			args:         helperArgs(),
+			withEnv:      helperEnv("retired_host_call", marker),
+			capabilities: []string{"tool.provider"},
+			permissions:  []string{"logs/list"},
+		}), nil)
+		installManagerFixture(t, env.registry, fixture, SourceUser, true)
+		manager := NewManager(env.registry)
+		if err := manager.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
 		}
-		if _, err := profileEnv.memory.Read(t.Context(), memcontract.ScopeProfile, "campaign.md"); err == nil {
-			t.Fatal("default profile memory contains marketing campaign, want isolation")
-		}
-		result, err := profileEnv.callWithContext(ctx, t, "ext-memory", "memory/recall", map[string]any{
-			"query": "aurora launch campaign", "limit": 5,
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t)); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
 		})
+		manager.mu.RLock()
+		var process processHandle
+		for _, ext := range manager.extensions {
+			process = ext.process
+		}
+		manager.mu.RUnlock()
+		if process == nil {
+			t.Fatal("running extension process is missing")
+		}
+		if err := process.Call(t.Context(), "health_check", nil, nil); err != nil {
+			t.Fatalf("Call(health_check) error = %v", err)
+		}
+		waitForManagerCondition(t, time.Second, func() bool {
+			_, err := os.Stat(marker)
+			return err == nil
+		})
+		response, err := os.ReadFile(marker)
 		if err != nil {
-			t.Fatalf("Handle(marketing memory/recall) error = %v", err)
+			t.Fatalf("ReadFile() error = %v", err)
 		}
-		var profileEntries []hostAPIMemoryRecallEntry
-		decodeResult(t, result, &profileEntries)
-		if len(profileEntries) == 0 || !strings.Contains(profileEntries[0].Content, "aurora") {
-			t.Fatalf("marketing memory/recall entries = %#v, want isolated campaign", profileEntries)
+		var rpcError struct {
+			Code int `json:"code"`
+		}
+		if err := json.Unmarshal(response, &rpcError); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if rpcError.Code != -32601 {
+			t.Fatalf("Host API error = %s, want method-not-found", response)
+		}
+		statuses := manager.Statuses()
+		if len(statuses) != 1 || !statuses[0].Active {
+			t.Fatalf("Statuses() = %#v, want a running extension", statuses)
 		}
 	})
-}
-
-func TestHostAPIHandlerMemoryRecallUsesActiveProvider(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-memory", []string{"memory/recall"}, []string{"memory.read"})
-	provider := &recordingHostAPIRecallProvider{
-		packaged: memcontract.Packaged{Blocks: []memcontract.Block{{
-			Scope: memcontract.ScopeWorkspace,
-			Entries: []memcontract.PackagedEntry{{
-				ID:    "provider/chunk-1",
-				Body:  "Provider-backed recall result",
-				Title: "Provider Result",
-			}},
-		}}},
-	}
-	registry := NewMemoryProviderRegistry()
-	if err := registry.Register(testutil.Context(t), MemoryProviderRegistration{
-		Name:          "local",
-		Version:       "test",
-		ExtensionName: "provider-ext",
-		Provider:      provider,
-	}); err != nil {
-		t.Fatalf("Register(provider) error = %v", err)
-	}
-	env.handler.memoryProviders = registry
-
-	result, err := env.call(t, "ext-memory", "memory/recall", map[string]any{
-		"query":     "provider recall result",
-		"workspace": env.workspaceID,
-		"limit":     1,
-	})
-	if err != nil {
-		t.Fatalf("Handle(memory/recall provider) error = %v", err)
-	}
-
-	if got := provider.lastRequest().WorkspaceID; got != env.workspaceID {
-		t.Fatalf("provider workspace_id = %q, want %q", got, env.workspaceID)
-	}
-	var entries []hostAPIMemoryRecallEntry
-	decodeResult(t, result, &entries)
-	if got, want := len(entries), 1; got != want {
-		t.Fatalf("provider recall entries = %d, want %d", got, want)
-	}
-	if entries[0].Content != "Provider-backed recall result" {
-		t.Fatalf("provider recall content = %q", entries[0].Content)
-	}
-}
-
-func TestHostAPIHandlerMemoryRecallRequiresConfiguredStore(t *testing.T) {
-	t.Parallel()
-
-	checker := &CapabilityChecker{}
-	checker.Register("ext-memory", SourceUser, &Manifest{
-		Permissions: PermissionsConfig{Requires: []string{"memory/recall"}},
-	})
-
-	handler := NewHostAPIHandler(
-		nil,
-		nil,
-		nil,
-		nil,
-		WithHostAPICapabilityChecker(checker),
-		WithHostAPIRateLimit(1000, 1000),
-	)
-
-	params, err := marshalParams(map[string]any{"query": "needle"})
-	if err != nil {
-		t.Fatalf("marshalParams() error = %v", err)
-	}
-
-	_, err = handler.Handle(testutil.Context(t), "ext-memory", "memory/recall", params)
-	assertErrorContains(t, err, "memory store is not configured")
-}
-
-func TestHostAPIHandlerMemoryForgetRemovesEntries(t *testing.T) {
-	t.Parallel()
-
-	env := newHostAPITestEnv(t)
-	env.grant("ext-memory", []string{"memory/store", "memory/forget"}, []string{"memory.write"})
-
-	if _, err := env.call(t, "ext-memory", "memory/store", map[string]any{
-		"key":     "scratch",
-		"content": "temporary note",
-	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-	if _, err := env.call(t, "ext-memory", "memory/forget", map[string]any{"key": "scratch"}); err != nil {
-		t.Fatalf("Handle(memory/forget) error = %v", err)
-	}
-
-	if _, err := env.memory.Read(t.Context(), memcontract.ScopeProfile, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("memory.Read() error = %v, want os.ErrNotExist", err)
-	}
 }
 
 func TestHostAPIHandlerObserveHealthReturnsSnapshot(t *testing.T) {
@@ -1714,7 +1584,7 @@ func TestHostAPIHandlerListLogsRequiresPermission(t *testing.T) {
 	checker.Register("ext-observe", SourceUser, &Manifest{
 		Permissions: PermissionsConfig{Requires: []string{"observe/health"}},
 	})
-	handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPICapabilityChecker(checker))
+	handler := NewHostAPIHandler(nil, nil, nil, WithHostAPICapabilityChecker(checker))
 
 	_, err := handler.Handle(t.Context(), "ext-observe", "logs/list", mustMarshalRawMessage(t, map[string]any{
 		"workspace_id": "ws-permission-check",
@@ -1948,7 +1818,7 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 func TestHostAPIHandlerUnknownMethodReturnsMethodNotFound(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHostAPIHandler(nil, nil, nil, nil)
+	handler := NewHostAPIHandler(nil, nil, nil)
 	_, err := handler.Handle(t.Context(), "ext-any", "sessions/missing", nil)
 	assertRPCErrorCode(t, err, HostAPIMethodNotFoundCode)
 }
@@ -1961,7 +1831,6 @@ func TestHostAPIHandlerRateLimitExceededReturnsRetryAfter(t *testing.T) {
 
 	handler := NewHostAPIHandler(
 		env.sessions,
-		env.memory,
 		env.observer,
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
@@ -1993,7 +1862,6 @@ func TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder(t *te
 
 	handler := NewHostAPIHandler(
 		env.sessions,
-		env.memory,
 		env.observer,
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
@@ -2017,7 +1885,7 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 
 	checker := &CapabilityChecker{}
 	checker.Register("ext-denied", SourceUser, &Manifest{})
-	handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPICapabilityChecker(checker))
+	handler := NewHostAPIHandler(nil, nil, nil, WithHostAPICapabilityChecker(checker))
 
 	tests := []struct {
 		method string
@@ -2041,9 +1909,6 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 			method: "sessions/events",
 			params: map[string]any{"workspace_id": "ws-permission-check", "session_id": "sess-1"},
 		},
-		{method: "memory/recall", params: map[string]any{"query": "needle"}},
-		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
-		{method: "memory/forget", params: map[string]any{"key": "note"}},
 		{method: "observe/health", params: nil},
 		{method: "logs/list", params: map[string]any{"limit": 1}},
 		{method: "skills/list", params: map[string]any{"workspace": "ws-permission-check"}},
@@ -2085,7 +1950,7 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 		t.Parallel()
 
 		checker := &CapabilityChecker{}
-		handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPICapabilityChecker(checker))
+		handler := NewHostAPIHandler(nil, nil, nil, WithHostAPICapabilityChecker(checker))
 		key := GlobalInstanceKey("ext-wrapped")
 		grantID := extensionCapabilityGrantID(key, "session-nonce")
 		checker.Register(grantID, SourceUser, &Manifest{
@@ -2880,7 +2745,6 @@ func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	handler := NewHostAPIHandler(
 		env.sessions,
-		env.memory,
 		env.observer,
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
@@ -2933,7 +2797,7 @@ func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 
 	checker := &CapabilityChecker{}
 	checker.Register("ext-denied", SourceUser, &Manifest{})
-	handler := NewHostAPIHandler(nil, nil, nil, nil, WithHostAPICapabilityChecker(checker))
+	handler := NewHostAPIHandler(nil, nil, nil, WithHostAPICapabilityChecker(checker))
 
 	tests := []struct {
 		name   string
@@ -4051,7 +3915,6 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			nil,
 			WithHostAPICapabilityChecker(checker),
 			WithHostAPIRateLimit(1000, 1000),
 		)
@@ -4934,7 +4797,6 @@ type hostAPITestEnv struct {
 	automation     HostAPIAutomationManager
 	tasks          taskpkg.Manager
 	observer       *observepkg.Observer
-	memory         *memory.Store
 	skills         *skillspkg.Registry
 	workspaces     *hostAPIFakeWorkspaceResolver
 	driver         *hostAPIFakeDriver
@@ -4972,30 +4834,6 @@ func (*hostAPITestLoopStarter) StartLoop(
 	automationpkg.LoopStartRequest,
 ) (automationpkg.LoopStartResult, error) {
 	return automationpkg.LoopStartResult{RunID: "looprun-host-api"}, nil
-}
-
-type recordingHostAPIRecallProvider struct {
-	stubMemoryProvider
-
-	mu       sync.Mutex
-	request  memcontract.RecallRequest
-	packaged memcontract.Packaged
-}
-
-func (p *recordingHostAPIRecallProvider) Recall(
-	_ context.Context,
-	req memcontract.RecallRequest,
-) (memcontract.RecallResult, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.request = req
-	return memcontract.RecallResult{Packaged: p.packaged}, nil
-}
-
-func (p *recordingHostAPIRecallProvider) lastRequest() memcontract.RecallRequest {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.request
 }
 
 type hostAPITestTaskSessionExecutor struct {
@@ -5280,26 +5118,6 @@ Review the workspace changes carefully.
 	}
 	source.manager = sessions
 
-	memoryCatalogPath := filepath.Join(homePaths.HomeDir, "memory-catalog.db")
-	if err := extensionTestMemorySeed.Clone(memoryCatalogPath); err != nil {
-		t.Fatalf("memory store seed Clone() error = %v", err)
-	}
-	memoryStore := memory.NewStore(
-		homePaths.MemoryDir,
-		memory.WithCatalogDatabasePath(memoryCatalogPath),
-	)
-	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
-		t.Fatalf("memory.OpenCatalog() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := memoryStore.CloseCatalog(testutil.Context(t)); err != nil {
-			t.Errorf("memory.CloseCatalog() error = %v", err)
-		}
-	})
-	if err := memoryStore.EnsureDirs(); err != nil {
-		t.Fatalf("memory.EnsureDirs() error = %v", err)
-	}
-
 	skillsRegistry := skillspkg.NewRegistry(
 		skillspkg.RegistryConfig{},
 		skillspkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
@@ -5350,28 +5168,12 @@ Review the workspace changes carefully.
 	}
 	handler := NewHostAPIHandler(
 		sessions,
-		memoryStore,
 		observer,
 		skillsRegistry,
 		WithHostAPIAutomationManager(automationManager),
 		WithHostAPITaskManager(taskManager),
 		WithHostAPITaskCatalogFilterMapper(hostAPITestTaskCatalogFilterMapper),
 		WithHostAPIProfileReader(profileManager),
-		WithHostAPIMemoryStoreResolver(func(ctx context.Context, profileID string) (*memory.Store, error) {
-			profiles, err := profileManager.List(ctx)
-			if err != nil {
-				return nil, err
-			}
-			for _, profile := range profiles {
-				if profile.ID == profileID {
-					return memoryStore.ForProfile(
-						profileID,
-						filepath.Join(homePaths.ProfilesDir, profile.Name, compozyconfig.MemoryDirName),
-					), nil
-				}
-			}
-			return nil, fmt.Errorf("test profile %q was not found", profileID)
-		}),
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIWorkspaceResolver(workspaces),
 		WithHostAPIResourceStore(resourceKernel),
@@ -5387,7 +5189,6 @@ Review the workspace changes carefully.
 	env.automation = automationManager
 	env.tasks = taskManager
 	env.observer = observer
-	env.memory = memoryStore
 	env.skills = skillsRegistry
 	env.workspaces = workspaces
 	env.driver = driver
@@ -5792,7 +5593,6 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 	e.tasks = taskManager
 	e.handler = NewHostAPIHandler(
 		e.sessions,
-		e.memory,
 		nil,
 		e.skills,
 		WithHostAPITaskManager(e.tasks),

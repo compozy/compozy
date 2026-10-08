@@ -58,7 +58,7 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		withAgents:   true,
 		withHooks:    true,
 		withMCP:      true,
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	}), map[string]string{
 		"skills/ext-review/SKILL.md": managerSkillFile("ext-review", "External review workflow"),
@@ -120,8 +120,8 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}) {
 		t.Fatalf("initialize granted permissions = %#v, want [sessions/list]", request.Capabilities.GrantedPermissions)
 	}
-	if !slices.Equal(request.Methods.ExtensionServices, []string{"memory/forget", "memory/recall", "memory/store"}) {
-		t.Fatalf("initialize extension services = %#v, want memory backend methods", request.Methods.ExtensionServices)
+	if !slices.Equal(request.Methods.ExtensionServices, []string{"provide_tools", "tools/call"}) {
+		t.Fatalf("initialize extension services = %#v, want tool provider methods", request.Methods.ExtensionServices)
 	}
 
 	decls, err := manager.HookDeclarationsForProfiles(testutil.Context(t), []ProfileLens{{
@@ -968,7 +968,7 @@ func TestManagerStartSkipsDisabledExtensions(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-disabled", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, false)
@@ -1057,7 +1057,7 @@ func TestManagerStartContinuesAfterParseFailure(t *testing.T) {
 
 	badFixture := createManagerTestExtension(t, managerTestManifest("ext-bad", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, badFixture, SourceUser, true)
@@ -1065,7 +1065,7 @@ func TestManagerStartContinuesAfterParseFailure(t *testing.T) {
 
 	goodFixture := createManagerTestExtension(t, managerTestManifest("ext-good", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 		withHooks:    true,
 	}), nil)
@@ -1110,7 +1110,7 @@ func TestManagerStartRejectsIncompatibleManifest(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-incompatible", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -1120,7 +1120,7 @@ func TestManagerStartRejectsIncompatibleManifest(t *testing.T) {
 		managerTestManifest("ext-incompatible", managerManifestOptions{
 			command:      "fake-extension",
 			minVersion:   "9.0.0",
-			capabilities: []string{"memory.backend"},
+			capabilities: []string{"tool.provider"},
 			permissions:  []string{"sessions/list"},
 		}),
 	)
@@ -1147,7 +1147,7 @@ func TestManagerCrashTriggersRestartWithBackoff(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-restart", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -1198,7 +1198,7 @@ func TestManagerStartDetachesSupervisorFromStartContext(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-detached", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -1243,7 +1243,7 @@ func TestManagerDisablesExtensionAfterConsecutiveFailures(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-flaky", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 		withHooks:    true,
 	}), nil)
@@ -1315,7 +1315,7 @@ func TestManagerStopUsesRealSubprocessShutdown(t *testing.T) {
 		command:      helperCommand(t),
 		args:         helperArgs(),
 		withEnv:      helperEnv("default", markerPath),
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -1348,7 +1348,7 @@ func TestManagerStopKillsHungSubprocessAfterTimeout(t *testing.T) {
 		command:      helperCommand(t),
 		args:         helperArgs(),
 		withEnv:      helperEnv("shutdown_hang", ""),
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 		shutdown:     40 * time.Millisecond,
 	}), nil)
@@ -1481,7 +1481,7 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 		env := newRegistryTestEnv(t)
 		fixture := createManagerTestExtension(t, managerTestManifest("ext-reload", managerManifestOptions{
 			command:      "fake-extension",
-			capabilities: []string{"memory.backend"},
+			capabilities: []string{"tool.provider"},
 			permissions:  []string{"sessions/list"},
 		}), nil)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -1536,7 +1536,7 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 		env := newRegistryTestEnv(t)
 		fixture := createManagerTestExtension(t, managerTestManifest("ext-reload-serialized", managerManifestOptions{
 			command:      "fake-extension",
-			capabilities: []string{"memory.backend"},
+			capabilities: []string{"tool.provider"},
 			permissions:  []string{"sessions/list"},
 		}), nil)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -1631,7 +1631,7 @@ func TestManagerHelperPathsAndAccessors(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-fallback", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -1890,7 +1890,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				Source:  SourceUser,
 				Enabled: true,
 				Capabilities: CapabilitiesConfig{
-					Provides: []string{"memory.backend"},
+					Provides: []string{"tool.provider"},
 				},
 				Permissions: PermissionsConfig{
 					Requires: []string{"sessions/list"},
@@ -1908,7 +1908,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 					},
 				},
 				Capabilities: CapabilitiesConfig{
-					Provides: []string{"memory.backend"},
+					Provides: []string{"tool.provider"},
 				},
 				Permissions: PermissionsConfig{
 					Requires: []string{"sessions/list"},
@@ -1952,7 +1952,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				ImplementedMethods:  []string{"shutdown"},
 				SupportedHookEvents: []string{"turn.start"},
 				AcceptedCapabilities: subprocess.AcceptedCapabilities{
-					Provides:    []string{"memory.backend"},
+					Provides:    []string{"tool.provider"},
 					Permissions: []extensionprotocol.HostAPIMethod{"sessions/list"},
 				},
 			},
@@ -1986,7 +1986,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 		if ext.manifest.Gateway.Permissions[0] != "gateway.private" {
 			t.Fatalf("original gateway permissions mutated to %#v", ext.manifest.Gateway.Permissions)
 		}
-		if ext.info.Capabilities.Provides[0] != "memory.backend" {
+		if ext.info.Capabilities.Provides[0] != "tool.provider" {
 			t.Fatalf("original capabilities mutated to %#v", ext.info.Capabilities.Provides)
 		}
 		if ext.info.Permissions.Requires[0] != "sessions/list" {
@@ -2031,7 +2031,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 		if ext.initialize.ImplementedMethods[0] != "shutdown" {
 			t.Fatalf("original initialize methods mutated to %#v", ext.initialize.ImplementedMethods)
 		}
-		if ext.initialize.AcceptedCapabilities.Provides[0] != "memory.backend" {
+		if ext.initialize.AcceptedCapabilities.Provides[0] != "tool.provider" {
 			t.Fatalf("original initialize provides mutated to %#v", ext.initialize.AcceptedCapabilities.Provides)
 		}
 	})
@@ -2587,7 +2587,16 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		}
 		return nil
 	case "health_check":
-		return h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
+		if err := h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true}); err != nil {
+			return err
+		}
+		if h.scenario == "retired_host_call" {
+			h.mu.Lock()
+			h.pendingReq = "host-retired"
+			h.mu.Unlock()
+			return h.sendRequest("host-retired", "memory/recall", map[string]string{"query": "needle"})
+		}
+		return nil
 
 	case "models/list":
 		var params extensioncontract.ModelSourceListParams
@@ -2765,6 +2774,12 @@ func (h *extensionHelperServer) handleResponse(resp helperResponse) {
 	if h.pendingReq == "" || fmt.Sprint(resp.ID) != h.pendingReq || h.marker == "" {
 		return
 	}
+	if h.scenario == "retired_host_call" && len(resp.Error) > 0 {
+		if err := fileutil.AtomicWriteFile(h.marker, resp.Error, 0o600); err != nil {
+			h.pendingReq = ""
+			return
+		}
+	}
 	if len(resp.Result) > 0 {
 		if err := fileutil.AtomicWriteFile(h.marker, resp.Result, 0o600); err != nil {
 			h.pendingReq = ""
@@ -2859,6 +2874,7 @@ type helperRequest struct {
 type helperResponse struct {
 	ID     any             `json:"id"`
 	Result json.RawMessage `json:"result"`
+	Error  json.RawMessage `json:"error"`
 }
 
 func createManagerTestExtension(t *testing.T, manifestContent string, files map[string]string) managerFixture {
@@ -2945,7 +2961,7 @@ func managerTestManifest(name string, opts managerManifestOptions) string {
 	}
 	capabilities := opts.capabilities
 	if len(capabilities) == 0 {
-		capabilities = []string{"memory.backend"}
+		capabilities = []string{"tool.provider"}
 	}
 	permissions := opts.permissions
 	if len(permissions) == 0 {

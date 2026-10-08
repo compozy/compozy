@@ -170,7 +170,7 @@ func (s StubSessionManager) AggregateSessionsByAgent(
 	}
 	metrics := make(map[string]session.AgentSessionMetrics)
 	for _, info := range infos {
-		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream ||
+		if info == nil || info.WorkspaceID != workspaceID ||
 			!readScope.Matches(info.ProfileID) {
 			continue
 		}

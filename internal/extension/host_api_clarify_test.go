@@ -41,7 +41,6 @@ func TestHostAPIClarifyAskDerivesScopeFromActiveInvocation(t *testing.T) {
 		env.sessions,
 		nil,
 		nil,
-		nil,
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIClarify(broker),
 		WithHostAPIRateLimit(1000, 1000),
@@ -82,7 +81,6 @@ func TestHostAPIClarifyAskRejectsForeignInvocationAndUndeclaredFields(t *testing
 		env.sessions,
 		nil,
 		nil,
-		nil,
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIClarify(&hostAPIClarifyBrokerStub{}),
 		WithHostAPIRateLimit(1000, 1000),
@@ -118,7 +116,6 @@ func TestHostAPIClarifyAskCancelsWithOriginatingToolCall(t *testing.T) {
 	askCanceled := make(chan struct{})
 	handler := NewHostAPIHandler(
 		env.sessions,
-		nil,
 		nil,
 		nil,
 		WithHostAPICapabilityChecker(env.checker),
@@ -198,7 +195,6 @@ func TestHostAPIClarifyAskClassifiesInputAndBrokerFailures(t *testing.T) {
 			env.sessions,
 			nil,
 			nil,
-			nil,
 			WithHostAPICapabilityChecker(env.checker),
 			WithHostAPIClarify(&hostAPIClarifyBrokerStub{}),
 			WithHostAPIRateLimit(1000, 1000),
@@ -220,7 +216,6 @@ func TestHostAPIClarifyAskClassifiesInputAndBrokerFailures(t *testing.T) {
 
 		handler := NewHostAPIHandler(
 			env.sessions,
-			nil,
 			nil,
 			nil,
 			WithHostAPICapabilityChecker(env.checker),

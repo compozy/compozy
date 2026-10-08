@@ -285,7 +285,6 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 			parseTerminalAPIError,
 			parseSessionDeriveAPIError,
 			parseDaemonAPIError,
-			parseMemoryAPIError,
 			parseToolAPIError,
 		} {
 			if ok, err := parse(statusCode, status, body); ok {
@@ -420,19 +419,6 @@ func parseDaemonAPIError(statusCode int, status string, body []byte) (bool, erro
 		return true, diagnosticspkg.NewStructuredError(*payload.Diagnostic, cause)
 	}
 	return true, &daemonAPIError{statusCode: statusCode, status: status, payload: payload}
-}
-
-func parseMemoryAPIError(_ int, _ string, body []byte) (bool, error) {
-	var memoryPayload contract.MemoryErrorPayload
-	if json.Unmarshal(body, &memoryPayload) != nil || strings.TrimSpace(memoryPayload.Code) == "" {
-		return false, nil
-	}
-	message := cmp.Or(strings.TrimSpace(memoryPayload.Message), strings.TrimSpace(memoryPayload.Code))
-	return true, fmt.Errorf(
-		"%s: %s",
-		strings.TrimSpace(memoryPayload.Code),
-		redactToolDiagnostic(message),
-	)
 }
 
 func parseToolAPIError(statusCode int, status string, body []byte) (bool, error) {

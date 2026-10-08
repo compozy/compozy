@@ -112,7 +112,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			WorkspaceID: "ws_alpha",
 			Workspace:   "/workspace",
 
-			Type: session.SessionTypeDream,
+			Type: session.SessionTypeSpawned,
 			Lineage: &store.SessionLineage{
 				ParentSessionID:  "sess-root",
 				RootSessionID:    "sess-root",
@@ -226,8 +226,8 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		if payload.State != session.StateActive || payload.Runtime.ACPSessionID != "acp-123" {
 			t.Fatalf("payload session fields = %#v", payload)
 		}
-		if payload.Type != session.SessionTypeDream {
-			t.Fatalf("payload.Type = %q, want %q", payload.Type, session.SessionTypeDream)
+		if payload.Type != session.SessionTypeSpawned {
+			t.Fatalf("payload.Type = %q, want %q", payload.Type, session.SessionTypeSpawned)
 		}
 		if payload.Lineage == nil ||
 			payload.Lineage.ParentSessionID != "sess-root" ||

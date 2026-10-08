@@ -107,7 +107,7 @@ func gatewayProfileOutput(record gatewayProfileMutationRecord) outputBundle {
 			gatewayProfileTOMLPortKey,
 			gatewayProfileTOMLDefaultWorkspaceKey,
 			gatewayProfileTOMLRemoteHomeKey,
-			memoryActiveKey,
+			cliActiveKey,
 			automationStatusKey,
 			"device_id",
 		}, []string{
@@ -146,7 +146,7 @@ func gatewayProfilesOutput(records []gatewayProfileRecord) outputBundle {
 			gatewayProfileTOMLSchemeKey,
 			gatewayProfileTOMLHostKey,
 			gatewayProfileTOMLPortKey,
-			memoryActiveKey,
+			cliActiveKey,
 		},
 		func(record gatewayProfileRecord) []string {
 			return []string{

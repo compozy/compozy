@@ -7,7 +7,6 @@ import (
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -40,8 +39,6 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[hooks.HookSkillSource]():                        hookSkillSourceValues(),
 	reflect.TypeFor[hooks.HookExecutorKind]():                       hookExecutorKindValues(),
 	reflect.TypeFor[hooks.HookSource]():                             hookSourceValues(),
-	reflect.TypeFor[memcontract.Type]():                             memoryTypeValues(),
-	reflect.TypeFor[memcontract.Scope]():                            memoryScopeValues(),
 	reflect.TypeFor[modelcatalog.ReasoningSource]():                 modelcatalog.ReasoningSourceValues(),
 	reflect.TypeFor[modelcatalog.CostStatus]():                      modelcatalog.CostStatusValues(),
 	reflect.TypeFor[modelcatalog.CostSource]():                      modelcatalog.CostSourceValues(),

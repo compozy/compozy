@@ -63,28 +63,6 @@ describe("HostAPI", () => {
     ]);
   });
 
-  it("memory.store sends correct params", async () => {
-    const pair = createMockTransportPair();
-    const host = new HostAPI(pair.extension, { isReady: () => true });
-
-    pair.host.handle("memory/store", async params => {
-      expect(params).toEqual({
-        key: "deploy-script",
-        content: "use ./scripts/deploy.sh",
-        tags: ["reference"],
-      });
-      return {};
-    });
-
-    await expect(
-      host.memory.store({
-        key: "deploy-script",
-        content: "use ./scripts/deploy.sh",
-        tags: ["reference"],
-      })
-    ).resolves.toEqual({});
-  });
-
   it("authored context helpers route through managed Host API methods", async () => {
     const pair = createMockTransportPair();
     const host = new HostAPI(pair.extension, { isReady: () => true });
@@ -344,13 +322,6 @@ describe("HostAPI", () => {
       created_at: "2026-04-10T12:00:00.000Z",
       updated_at: "2026-04-10T12:01:00.000Z",
     }));
-    pair.host.handle("memory/recall", async () => [
-      { key: "deploy", content: "run deploy", score: 1 },
-    ]);
-    pair.host.handle("memory/forget", async params => {
-      expect(params).toEqual({ key: "deploy" });
-      return {};
-    });
     pair.host.handle("observe/health", async () => ({
       status: "ok",
       uptime_seconds: 1,
@@ -400,10 +371,6 @@ describe("HostAPI", () => {
       session_id: "sess-1",
       state: "active",
     });
-    await expect(host.memory.recall({ query: "deploy" })).resolves.toEqual([
-      { key: "deploy", content: "run deploy", score: 1 },
-    ]);
-    await expect(host.memory.forget({ key: "deploy" })).resolves.toEqual({});
     await expect(host.observe.health()).resolves.toMatchObject({ status: "ok" });
     await expect(host.skills.list()).resolves.toEqual([
       { name: "skill-a", description: "desc", source: "workspace" },

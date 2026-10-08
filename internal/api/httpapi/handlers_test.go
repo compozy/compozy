@@ -79,7 +79,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/automation/triggers/:id",
 		"DELETE /api/extensions/:name",
 		"DELETE /api/extensions/:name/secrets/:env_name",
-		"DELETE /api/memory/:filename",
 		"DELETE /api/tool-approval-grants/:id",
 		"DELETE /api/settings/hooks/:name",
 		"DELETE /api/settings/mcp-servers/:name",
@@ -172,24 +171,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/hooks/runs",
 		"GET /api/logs",
 		"GET /api/logs/stream",
-		"GET /api/memory",
-		"GET /api/memory/:filename",
 		"GET /api/mcp/oauth/callback",
-		"GET /api/memory/config",
-		"GET /api/memory/daily",
-		"GET /api/memory/decisions",
-		"GET /api/memory/decisions/:decision_id",
-		"GET /api/memory/dreams",
-		"GET /api/memory/dreams/:dream_id",
-		"GET /api/memory/dreams/status",
-		"GET /api/memory/extractor/failures",
-		"GET /api/memory/extractor/status",
-		"GET /api/memory/health",
-		"GET /api/memory/history",
-		"GET /api/memory/providers",
-		"GET /api/memory/providers/:provider_name",
-		"GET /api/memory/recall-traces/:session_id/:turn_seq",
-		"GET /api/memory/scope-show",
 		"GET /api/marketplace",
 		"GET /api/marketplace/entries/:entry_id",
 		"GET /api/marketplace/sources",
@@ -199,7 +181,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/marketplace/sources/:name/refresh",
 		"GET /api/settings/marketplace",
 		"PATCH /api/settings/marketplace",
-		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"GET /api/status",
 		"GET /api/status/identity",
 		"POST /api/undrain",
@@ -265,7 +246,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/settings/mcp-servers/:name/auth/begin",
 		"POST /api/settings/mcp-servers/:name/auth/exchange",
 		"POST /api/settings/mcp-servers/:name/auth/logout",
-		"GET /api/settings/memory",
 		"GET /api/settings/attention",
 		"GET /api/settings/shell",
 		"GET /api/settings/cmd-palette",
@@ -332,7 +312,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 		"PATCH /api/automation/jobs/:id",
 		"PATCH /api/automation/triggers/:id",
-		"PATCH /api/memory/:filename",
 		"PATCH /api/settings/automation",
 		"PATCH /api/settings/attention",
 		"PATCH /api/settings/shell",
@@ -340,7 +319,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/settings/general",
 		"PATCH /api/settings/persona",
 		"PATCH /api/settings/hooks-extensions",
-		"PATCH /api/settings/memory",
 		"PATCH /api/settings/window-manager",
 		"PATCH /api/settings/observability",
 		"PATCH /api/settings/roles",
@@ -376,25 +354,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
 		"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/accept",
 		"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/dismiss",
-		"POST /api/memory",
-		"POST /api/memory/ad-hoc",
-		"POST /api/memory/decisions/:decision_id/revert",
-		"POST /api/memory/dreams/:dream_id/retry",
-		"POST /api/memory/dreams/trigger",
-		"POST /api/memory/extractor/drain",
-		"POST /api/memory/extractor/retry",
-		"POST /api/memory/promote",
-		"POST /api/memory/providers/:provider_name/disable",
-		"POST /api/memory/providers/:provider_name/enable",
-		"POST /api/memory/providers/select",
-		"POST /api/memory/reindex",
-		"POST /api/memory/reload",
-		"POST /api/memory/reset",
-		"POST /api/memory/search",
-		"POST /api/memory/sessions/prune",
-		"POST /api/memory/sessions/repair",
 		"POST /api/marketplace/refresh",
-		"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
 		"POST /api/model-catalog/*catalog_path",
 		"POST /api/providers/:provider_id/auth/probe",
 		"POST /api/runs/:id/fail",
@@ -1028,14 +988,27 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 	}
 }
 
-func TestMemoryRoutesMatchV2Contract(t *testing.T) {
+func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 	t.Parallel()
-
-	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 	engine := newTestRouter(t, handlers)
-
-	apitestutil.AssertMemoryV2RouteParity(t, apitestutil.MemoryV2RouteKeysFromGin(engine.Routes()))
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/api/memory"},
+		{http.MethodPost, "/api/memory/search"},
+		{http.MethodGet, "/api/settings/memory"},
+		{http.MethodGet, "/api/workspaces/ws_alpha/memory/sessions/sess-1/ledger"},
+	} {
+		t.Run("Should use unknown route behavior for "+tc.method+" "+tc.path, func(t *testing.T) {
+			t.Parallel()
+			unknown := httptest.NewRecorder()
+			engine.ServeHTTP(unknown, httptest.NewRequest(tc.method, "/api/nope", nil))
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequest(tc.method, tc.path, nil))
+			if response.Code != http.StatusNotFound || response.Code != unknown.Code || response.Body.String() != unknown.Body.String() || response.Header().Get("Content-Type") != unknown.Header().Get("Content-Type") {
+				t.Fatalf("retired route response = %d %q %q, unknown = %d %q %q", response.Code, response.Body.String(), response.Header().Get("Content-Type"), unknown.Code, unknown.Body.String(), unknown.Header().Get("Content-Type"))
+			}
+		})
+	}
 }
 
 func TestWorktreeRoutesMatchTransportParityContractIT033(t *testing.T) {
@@ -1091,7 +1064,6 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 
 	tests := []string{
 		"/api/settings/general",
-		"/api/settings/memory",
 		"/api/settings/skills",
 		"/api/settings/automation",
 		"/api/settings/attention",
@@ -1219,7 +1191,6 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		body   []byte
 	}{
 		{method: http.MethodPatch, path: "/api/settings/general", body: []byte(`{}`)},
-		{method: http.MethodPatch, path: "/api/settings/memory", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/skills", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/automation", body: []byte(`{}`)},
 

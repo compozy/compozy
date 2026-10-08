@@ -222,45 +222,6 @@
         }
     },
     {
-        "constant": "HostAPIMethodMemoryRecall",
-        "wire": "memory/recall",
-        "family": "core",
-        "params": {
-            "name": "MemoryRecallParams",
-            "value": "MemoryRecallParams{}"
-        },
-        "result": {
-            "name": "MemoryRecallEntry",
-            "value": "[]MemoryRecallEntry{}"
-        }
-    },
-    {
-        "constant": "HostAPIMethodMemoryStore",
-        "wire": "memory/store",
-        "family": "core",
-        "params": {
-            "name": "MemoryStoreParams",
-            "value": "MemoryStoreParams{}"
-        },
-        "result": {
-            "name": "EmptyResult",
-            "value": "EmptyResult{}"
-        }
-    },
-    {
-        "constant": "HostAPIMethodMemoryForget",
-        "wire": "memory/forget",
-        "family": "core",
-        "params": {
-            "name": "MemoryForgetParams",
-            "value": "MemoryForgetParams{}"
-        },
-        "result": {
-            "name": "EmptyResult",
-            "value": "EmptyResult{}"
-        }
-    },
-    {
         "constant": "HostAPIMethodObserveHealth",
         "wire": "observe/health",
         "family": "core",

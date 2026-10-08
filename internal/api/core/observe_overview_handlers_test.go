@@ -45,7 +45,7 @@ func TestObserveOverviewHandler(t *testing.T) {
 			},
 		}
 		fixture := newHandlerFixture(
-			t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{}, nil, nil,
+			t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{},
 		)
 
 		request := httptest.NewRequestWithContext(
@@ -83,7 +83,7 @@ func TestObserveOverviewHandler(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixture(
-			t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil,
+			t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{},
 		)
 
 		request := httptest.NewRequestWithContext(

@@ -138,12 +138,12 @@ describe("Extension", () => {
       version: "0.1.0",
     });
 
-    extension.handle("memory/store", async (_ctx, params: { key: string }) => ({
+    extension.handle("custom/store", async (_ctx, params: { key: string }) => ({
       stored: params.key,
     }));
     await harness.loadExtension(extension);
 
-    await expect(harness.call("memory/store", { key: "alpha" })).resolves.toEqual({
+    await expect(harness.call("custom/store", { key: "alpha" })).resolves.toEqual({
       stored: "alpha",
     });
   });
@@ -156,7 +156,7 @@ describe("Extension", () => {
     });
 
     await harness.loadExtension(extension);
-    await expect(harness.call("memory/store", { key: "x" })).rejects.toBeInstanceOf(
+    await expect(harness.call("custom/store", { key: "x" })).rejects.toBeInstanceOf(
       MethodNotFoundError
     );
   });

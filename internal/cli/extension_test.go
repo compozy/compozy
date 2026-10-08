@@ -672,7 +672,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 
 	deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
 	dir := writeExtensionFixture(t, "list-ext", extensionFixtureOptions{
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 	})
 	installExtensionFixture(t, homePaths, dir)
 
@@ -690,7 +690,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 			"State",
 			"Capabilities",
 			"list-ext",
-			"memory.backend",
+			"tool.provider",
 		} {
 			if !strings.Contains(stdout, token) {
 				t.Fatalf("human output missing %q: %s", token, stdout)
@@ -974,8 +974,8 @@ func TestExtensionStatusOnlineUsesDaemonClient(t *testing.T) {
 		Source:        "user",
 		Enabled:       true,
 		State:         "active",
-		Capabilities:  []string{"memory.backend"},
-		Permissions:   []string{"memory/store"},
+		Capabilities:  []string{"tool.provider"},
+		Permissions:   []string{"tasks/create"},
 		PID:           4242,
 		UptimeSeconds: 120,
 		Health:        "healthy",
@@ -1013,7 +1013,7 @@ func TestExtensionStatusOfflineUsesRegistryState(t *testing.T) {
 
 	deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
 	dir := writeExtensionFixture(t, "offline-ext", extensionFixtureOptions{
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 	})
 	installExtensionFixture(t, homePaths, dir)
 

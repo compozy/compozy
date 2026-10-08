@@ -306,7 +306,7 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 				SessionID: "sess-harness",
 				Type:      "harness.context_resolved",
 				AgentName: "coder",
-				Summary:   "surface=startup sections=memory|skills",
+				Summary:   "surface=startup sections=skills|situation",
 				Timestamp: time.Date(2026, 4, 18, 13, 0, 0, 0, time.UTC),
 			}}, nil
 		},
@@ -339,7 +339,7 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	if got, want := payload.SessionID, "sess-harness"; got != want {
 		t.Fatalf("payload.SessionID = %q, want %q", got, want)
 	}
-	if !bytes.Contains(records[0].Data, []byte("sections=memory|skills")) {
+	if !bytes.Contains(records[0].Data, []byte("sections=skills|situation")) {
 		t.Fatalf("payload = %s, want harness summary content", string(records[0].Data))
 	}
 }

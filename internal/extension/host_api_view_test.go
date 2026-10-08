@@ -96,7 +96,7 @@ func newHostAPIViewPatchHandler(
 	if publisher != nil {
 		opts = append(opts, WithHostAPIViewPatchPublisher(publisher))
 	}
-	return NewHostAPIHandler(nil, nil, nil, nil, opts...)
+	return NewHostAPIHandler(nil, nil, nil, opts...)
 }
 
 func mustViewPatchParams(t *testing.T, payload map[string]any) json.RawMessage {

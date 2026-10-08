@@ -16,7 +16,6 @@ import (
 
 var (
 	extensionTestGlobalSeed *storeseed.Seed
-	extensionTestMemorySeed *storeseed.Seed
 )
 
 const extensionTestDaemonVersion = "0.6.0"
@@ -41,19 +40,7 @@ func runExtensionTests(m *testing.M) (code int) {
 		reportExtensionTestMainError("create global seed: %v", err)
 		return 1
 	}
-	memorySeed, err := storeseed.NewMemory(context.Background())
-	if err != nil {
-		reportExtensionTestMainError("create memory seed: %v", err)
-		if closeErr := globalSeed.Close(); closeErr != nil {
-			reportExtensionTestMainError("close global seed after memory seed failure: %v", closeErr)
-		}
-		return 1
-	}
 	defer func() {
-		if err := memorySeed.Close(); err != nil {
-			reportExtensionTestMainError("close memory seed: %v", err)
-			code = 1
-		}
 		if err := globalSeed.Close(); err != nil {
 			reportExtensionTestMainError("close global seed: %v", err)
 			code = 1
@@ -61,7 +48,6 @@ func runExtensionTests(m *testing.M) (code int) {
 	}()
 
 	extensionTestGlobalSeed = globalSeed
-	extensionTestMemorySeed = memorySeed
 	return m.Run()
 }
 

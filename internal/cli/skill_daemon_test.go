@@ -535,7 +535,7 @@ func TestSkillPublicTranscriptsMatchDXContract(t *testing.T) {
 	t.Run("Should render the list origin columns without legacy status columns", func(t *testing.T) {
 		t.Parallel()
 		got := renderSkillListTranscript([]skillListItem{
-			{Name: "compozy", Source: "bundled", Description: "Operate CompozyOS sessions, tasks, and memory"},
+			{Name: "compozy", Source: "bundled", Description: "Operate CompozyOS sessions and tasks"},
 			{
 				Name:        "frontend-qa",
 				Source:      "user",
@@ -551,7 +551,7 @@ func TestSkillPublicTranscriptsMatchDXContract(t *testing.T) {
 		})
 		want := strings.Join([]string{
 			"NAME         SOURCE   ORIGIN  DESCRIPTION",
-			"compozy      bundled  —       Operate CompozyOS sessions, tasks, and memory",
+			"compozy      bundled  —       Operate CompozyOS sessions and tasks",
 			"frontend-qa  user     agents  Audit web UIs against the team checklist",
 			"git-hygiene  user     agents  Keep branches, commits, and PRs clean",
 		}, "\n")

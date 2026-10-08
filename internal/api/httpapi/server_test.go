@@ -22,7 +22,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -42,8 +41,6 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	customLoader := func(name string, _ compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
 		return compozyconfig.AgentDef{Name: name, Provider: "fake", Prompt: "hello"}, nil
 	}
-	store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
-	dream := &stubDreamTrigger{}
 	extensionService := &stubExtensionService{}
 	cfg := testConfigForTest(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
@@ -62,8 +59,6 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
-		WithMemoryStore(store),
-		WithDreamTrigger(dream),
 		WithAgentLoader(customLoader),
 		WithExtensionService(extensionService),
 		WithEngine(engine),
@@ -88,12 +83,6 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	}
 	if server.handlers.AgentLoader == nil {
 		t.Fatal("expected custom agent loader to be installed")
-	}
-	if server.handlers.MemoryStore != store {
-		t.Fatal("expected memory store option to be installed")
-	}
-	if server.handlers.DreamTrigger != dream {
-		t.Fatal("expected dream trigger option to be installed")
 	}
 	if server.handlers.Extensions != extensionService {
 		t.Fatal("expected extension service option to be installed")

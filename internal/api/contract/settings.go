@@ -42,7 +42,6 @@ type SettingsSectionName string
 const (
 	SettingsSectionGeneral    SettingsSectionName = "general"
 	SettingsSectionPersona    SettingsSectionName = "persona"
-	SettingsSectionMemory     SettingsSectionName = "memory"
 	SettingsSectionRoles      SettingsSectionName = "roles"
 	SettingsSectionSkills     SettingsSectionName = "skills"
 	SettingsSectionAutomation SettingsSectionName = "automation"
@@ -70,7 +69,6 @@ type SettingsApplyTargetName string
 const (
 	SettingsApplyTargetGeneral    SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionGeneral)
 	SettingsApplyTargetPersona    SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionPersona)
-	SettingsApplyTargetMemory     SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMemory)
 	SettingsApplyTargetRoles      SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionRoles)
 	SettingsApplyTargetSkills     SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionSkills)
 	SettingsApplyTargetAutomation SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAutomation)

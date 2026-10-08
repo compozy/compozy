@@ -24,8 +24,6 @@ func TestTestutilStubFallbacksReturnDeterministicErrors(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		response := performRequest(
 			t,
@@ -51,8 +49,6 @@ func TestTestutilStubFallbacksReturnDeterministicErrors(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Engine.POST(
 			"/workspaces/:workspace_id/sessions/:session_id/clear-conversation",
@@ -110,8 +106,6 @@ func TestTestutilAutomationToggleFallbacksReturnDeterministicErrors(t *testing.T
 				},
 			},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		response := performRequest(
@@ -150,8 +144,6 @@ func TestTestutilAutomationToggleFallbacksReturnDeterministicErrors(t *testing.T
 				},
 			},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		response := performRequest(

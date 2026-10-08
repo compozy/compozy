@@ -24,12 +24,6 @@ type hostAPISessionTargetParams = extensioncontract.SessionTargetParams
 
 type hostAPISessionEventsParams = extensioncontract.SessionEventsParams
 
-type hostAPIMemoryStoreParams = extensioncontract.MemoryStoreParams
-
-type hostAPIMemoryRecallParams = extensioncontract.MemoryRecallParams
-
-type hostAPIMemoryForgetParams = extensioncontract.MemoryForgetParams
-
 type hostAPIListLogsParams = extensioncontract.ListLogsParams
 
 type hostAPISkillsListParams = extensioncontract.SkillsListParams
@@ -49,8 +43,6 @@ type hostAPISessionInput = extensioncontract.SessionInput
 type hostAPISessionInputListResult = extensioncontract.SessionInputListResult
 
 type hostAPISessionInputResult = extensioncontract.SessionInputResult
-
-type hostAPIMemoryRecallEntry = extensioncontract.MemoryRecallEntry
 
 type hostAPISkillSummary = extensioncontract.SkillSummary
 

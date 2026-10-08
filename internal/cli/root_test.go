@@ -237,3 +237,14 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 		}
 	})
 }
+
+func TestRootUnknownCommand(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject an unregistered root command", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), "memory", "list")
+		if err == nil || err.Error() != `unknown command "memory" for "compozy"` {
+			t.Fatalf("root error = %v, want unknown memory command", err)
+		}
+	})
+}

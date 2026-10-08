@@ -21,7 +21,6 @@ const (
 	HostAPIWorkspaceBindingPath
 	HostAPIWorkspaceBindingID
 	HostAPIWorkspaceBindingTask
-	HostAPIWorkspaceBindingMemory
 	HostAPIWorkspaceBindingAutomation
 	HostAPIWorkspaceBindingResource
 )
@@ -45,9 +44,6 @@ var hostAPIWorkspaceBindings = map[extensionprotocol.HostAPIMethod]HostAPIWorksp
 	extensionprotocol.HostAPIMethodSessionsSoulRefresh:      HostAPIWorkspaceBindingID,
 	extensionprotocol.HostAPIMethodSessionsHealthGet:        HostAPIWorkspaceBindingID,
 	extensionprotocol.HostAPIMethodSessionsStatusGet:        HostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodMemoryRecall:             HostAPIWorkspaceBindingMemory,
-	extensionprotocol.HostAPIMethodMemoryStore:              HostAPIWorkspaceBindingMemory,
-	extensionprotocol.HostAPIMethodMemoryForget:             HostAPIWorkspaceBindingMemory,
 	extensionprotocol.HostAPIMethodObserveHealth:            HostAPIWorkspaceBindingNone,
 	extensionprotocol.HostAPIMethodListLogs:                 HostAPIWorkspaceBindingID,
 	extensionprotocol.HostAPIMethodSkillsList:               HostAPIWorkspaceBindingPath,
@@ -214,7 +210,7 @@ func BindHostAPIWorkspaceParams(
 		err = bindWorkspaceReference(ctx, params, "workspace", workspaceID, workspaceRoot, workspaces)
 	case HostAPIWorkspaceBindingID:
 		err = bindWorkspaceReference(ctx, params, "workspace_id", workspaceID, workspaceID, workspaces)
-	case HostAPIWorkspaceBindingTask, HostAPIWorkspaceBindingMemory:
+	case HostAPIWorkspaceBindingTask:
 		err = errors.Join(
 			bindWorkspaceScopeLiteral(params),
 			bindWorkspaceReference(ctx, params, "workspace", workspaceID, workspaceRoot, workspaces),

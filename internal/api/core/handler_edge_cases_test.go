@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
-
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -24,7 +22,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -259,31 +256,10 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	if status := core.StatusForWorkspaceError(workspacepkg.ErrWorkspacePathTaken); status != http.StatusConflict {
 		t.Fatalf("StatusForWorkspaceError() = %d, want %d", status, http.StatusConflict)
 	}
-	if status := core.StatusForMemoryError(errors.New("boom")); status != http.StatusInternalServerError {
-		t.Fatalf("StatusForMemoryError(default) = %d, want %d", status, http.StatusInternalServerError)
-	}
-	if status := core.StatusForMemoryError(nil); status != http.StatusOK {
-		t.Fatalf("StatusForMemoryError(nil) = %d, want %d", status, http.StatusOK)
-	}
-	if got := core.NewMemoryValidationError(nil); got != nil {
-		t.Fatalf("NewMemoryValidationError(nil) = %v, want nil", got)
-	}
 
 	sessions := core.SessionPayloadsForWorkspace([]*session.Info{
 		{ID: "sess-1", WorkspaceID: "ws_alpha"},
 		{ID: "sess-2", WorkspaceID: "ws_beta"},
-		{ID: "sess-3", WorkspaceID: "ws_alpha", Type: session.SessionTypeDream},
-		{
-			ID:          "sess-4",
-			WorkspaceID: "ws_alpha",
-			Type:        session.SessionTypeSpawned,
-			Lineage: &store.SessionLineage{
-				ParentSessionID: "sess-1",
-				RootSessionID:   "sess-1",
-				SpawnDepth:      1,
-				SpawnRole:       session.SpawnRoleMemoryExtractor,
-			},
-		},
 		{
 			ID:          "sess-5",
 			WorkspaceID: "ws_alpha",
@@ -499,8 +475,6 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 					manager,
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
-					nil,
-					nil,
 				)
 				fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
 					if dispatch, ok := fixture.Handlers.DispatchSessionPrompt(c); ok {
@@ -563,8 +537,6 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
 			dispatch, ok := fixture.Handlers.DispatchSessionPrompt(c)
@@ -633,8 +605,6 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Config.Session.Attachments.MaxFilesPerPrompt = 1
 		fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
@@ -686,8 +656,6 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
 			fixture.Handlers.DispatchSessionPrompt(c)
@@ -731,7 +699,7 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 			return workspacepkg.Workspace{ID: "ws_alpha", RootDir: "/workspace"}, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 	fixture.Handlers.Settings = &stubSettingsService{
 		PendingRestartFn: func(context.Context) (bool, error) { return true, nil },
 	}
@@ -777,8 +745,6 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		errorFixture.Handlers.Settings = &stubSettingsService{
 			PendingRestartFn: func(context.Context) (bool, error) {
@@ -801,62 +767,6 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{})
 	if handlers.TransportName != "" {
 		t.Fatalf("TransportName default = %q, want empty", handlers.TransportName)
-	}
-}
-
-func TestMemoryWrapperExports(t *testing.T) {
-	t.Parallel()
-
-	workspace := t.TempDir()
-	if _, err := workspacepkg.EnsureIdentity(t.Context(), workspace); err != nil {
-		t.Fatalf("EnsureIdentity(%q) error = %v", workspace, err)
-	}
-	req := contract.MemoryWriteRequest{
-		Scope:     "workspace",
-		Workspace: workspace,
-		Content:   "---\nname: Project\ndescription: desc\ntype: project\n---\n\nbody",
-	}
-	scope, resolvedWorkspace, err := core.ResolveMemoryWriteScope(req)
-	if err != nil {
-		t.Fatalf("ResolveMemoryWriteScope() error = %v", err)
-	}
-	if scope != memcontract.ScopeWorkspace || resolvedWorkspace == "" {
-		t.Fatalf("scope=%q workspace=%q", scope, resolvedWorkspace)
-	}
-	if _, err := core.ParseOptionalMemoryScope("bogus"); err == nil {
-		t.Fatal("ParseOptionalMemoryScope(bogus) error = nil, want non-nil")
-	}
-	if _, err := core.ResolveMemoryWorkspace(""); err == nil {
-		t.Fatal("ResolveMemoryWorkspace(\"\") error = nil, want non-nil")
-	}
-	if scope, resolved, err := core.ResolveMemoryWriteScope(contract.MemoryWriteRequest{
-		Content: "---\nname: Global\ndescription: desc\ntype: user\n---\n\nbody",
-	}); err != nil || scope != memcontract.ScopeProfile || resolved != "" {
-		t.Fatalf("ResolveMemoryWriteScope(user default) = %q %q %v", scope, resolved, err)
-	}
-
-	store := memory.NewStore(t.TempDir())
-	if err := store.EnsureDirs(); err != nil {
-		t.Fatalf("EnsureDirs() error = %v", err)
-	}
-	if err := store.ForWorkspace(workspace).Write(t.Context(),
-		memcontract.ScopeWorkspace, "note.md", []byte("---\nname: note\ndescription: desc\ntype: project\n---\n\nbody")); err != nil {
-		t.Fatalf("Write() error = %v", err)
-	}
-	manager := testutil.StubSessionManager{
-		ListAllFn: func(context.Context) ([]*session.Info, error) {
-			info := testutil.NewSessionInfo("sess-a")
-			info.Workspace = workspace
-			return []*session.Info{info}, nil
-		},
-	}
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, store, nil)
-	if _, err := fixture.Handlers.ResolveMemoryLocation("note.md", "workspace", workspace); err != nil {
-		t.Fatalf("ResolveMemoryLocation() error = %v", err)
-	}
-	workspacesOut, err := fixture.Handlers.MemoryHealthWorkspaces(t.Context(), "")
-	if err != nil || len(workspacesOut) != 1 {
-		t.Fatalf("MemoryHealthWorkspaces() = %#v, %v", workspacesOut, err)
 	}
 }
 
@@ -922,8 +832,6 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 			},
 		},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
@@ -972,37 +880,6 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should health memory failure", func(t *testing.T) {
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{
-				HealthFn: func(context.Context) (observe.Health, error) {
-					return observe.Health{Status: "ok", Version: "dev"}, nil
-				},
-			},
-			testutil.StubWorkspaceService{},
-			nil,
-			&stubDreamTrigger{EnabledFn: true, LastErr: errors.New("dream status failed")},
-		)
-
-		fixture.Handlers.Config.Memory.Enabled = true
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf(
-				"health status = %d, want %d; body=%s",
-				resp.Code,
-				http.StatusOK,
-				resp.Body.String(),
-			)
-		}
-		var payload contract.StatusPayload
-		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Memory.Status != "unavailable" || payload.Memory.Reason == "" {
-			t.Fatalf("health memory = %#v, want structured unavailable memory payload", payload.Memory)
-		}
-	})
-
 	t.Run("Should health automation failure", func(t *testing.T) {
 		fixture := newHandlerFixtureWithAutomation(
 			t,
@@ -1018,8 +895,6 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 				},
 			},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
@@ -1047,8 +922,6 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 				},
 			},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
@@ -1072,8 +945,6 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 				},
 			},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
@@ -1125,8 +996,6 @@ func TestBaseHandlersStatusProjectsWorkspaceMCPDeadState(t *testing.T) {
 			},
 		},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	fixture.Handlers.Settings = settingsService
 
@@ -1188,7 +1057,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Engine.GET("/sessions/facets", fixture.Handlers.ListSessionFacets)
 		resp := performRequest(
 			t,
@@ -1224,7 +1093,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		resp := performRequest(
 			t,
 			fixture.Engine,
@@ -1277,7 +1146,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 				}, Total: 2, Limit: session.DefaultListLimit}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil)
 		if resp.Code != http.StatusOK {
@@ -1339,7 +1208,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 				}, Total: 2, Limit: session.DefaultListLimit}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 
 		resp := performRequest(
 			t,
@@ -1388,7 +1257,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		pageHealthCalls := 0
 		singleHealthCalls := 0
 		fixture.Handlers.SessionHealth = sessionHealthPageReaderStub{
@@ -1457,8 +1326,6 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil)
@@ -1485,8 +1352,6 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&type=temporary", nil)
@@ -1500,24 +1365,22 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject the internal dream type before paging", func(t *testing.T) {
+	t.Run("Should reject an unsupported session type before paging", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
 				ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
-					t.Fatal("ListPage() called for internal dream session type")
+					t.Fatal("ListPage() called for unsupported session type")
 					return session.ListPage{}, nil
 				},
 			},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&type=dream", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&type=unsupported", nil)
 		if resp.Code != http.StatusBadRequest {
 			t.Fatalf(
 				"list sessions status = %d, want %d; body=%s",
@@ -1558,7 +1421,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 				return session.ListPage{Sessions: []*session.Info{{ID: "sess-returned"}}, Total: 1, Limit: 1}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		singleCalls := 0
 		fixture.Handlers.SessionHealth = sessionHealthReaderFunc(func(
 			context.Context,
@@ -1600,8 +1463,6 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 				},
 			},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace_id=alpha", nil)
@@ -1622,8 +1483,6 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceRootMissing
 				},
 			},
-			nil,
-			nil,
 		)
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace_id=missing-root", nil)
 		if resp.Code != http.StatusGone {
@@ -1644,8 +1503,6 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 				testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
-				nil,
-				nil,
 			)
 			resp := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
 			if resp.Code != http.StatusBadRequest {
@@ -1678,7 +1535,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			scopes <- scope
 			return events, func() { close(canceled) }, nil
 		}}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		server := httptest.NewServer(fixture.Engine)
 		t.Cleanup(server.Close)
 		dialer := websocket.Dialer{HandshakeTimeout: time.Second}
@@ -1766,8 +1623,6 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(
@@ -1833,7 +1688,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 				return workspacepkg.Workspace{ID: "ws-resolved"}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
 
 		resp := testutil.PerformRequestWithHeaders(
 			t,
@@ -1878,8 +1733,6 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			manager,
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, test := range []struct {
 			path    string
@@ -1934,7 +1787,7 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 			queries <- query
 			return []store.EventSummary{{
 				ID: "profile-18", Sequence: 18, Type: "profile.renamed", Timestamp: timestamp,
-				Summary: "renamed <memory-context>private context</memory-context>",
+				Summary: "renamed profile",
 			}}, nil
 		}}
 		fixture := newHandlerFixture(
@@ -1942,8 +1795,6 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 			testutil.StubSessionManager{},
 			observer,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		server := httptest.NewServer(fixture.Engine)
 		t.Cleanup(server.Close)
@@ -1953,8 +1804,7 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 		if err != nil || kind != websocket.TextMessage ||
 			!strings.Contains(string(payload), "event: profile.renamed\n") ||
 			!strings.Contains(string(payload), "id: 2026-10-02T23:00:00Z|00000000000000000018\n") ||
-			strings.Contains(string(payload), "private context") ||
-			!strings.Contains(string(payload), "[memory-context redacted]") {
+			!strings.Contains(string(payload), "renamed profile") {
 			t.Fatalf("log frame = %d %q, error = %v", kind, payload, err)
 		}
 		query := <-queries
@@ -1999,7 +1849,7 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 			}
 		},
 	}
-	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
 	fixture.Handlers.SetStreamDone(done)
 
 	resp := performRequest(
