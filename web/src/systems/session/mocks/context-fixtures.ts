@@ -182,8 +182,7 @@ function contextTurn(id: string, sequence: number, used: number): UsageTurn {
 
 /**
  * Every compaction marker state: agent and requested triggers across each status.
- * Agent markers have a later turn's usage report (before → after); requested ones
- * stop at the reading they were observed at, and the in-progress request has none.
+ * Each marker carries the occupancy it was observed at; the in-progress request has none.
  */
 export const sessionContextCompactionStatesFixture: SessionUsageTurnsResponse = (() => {
   const turns: UsageTurn[] = [];
@@ -194,7 +193,6 @@ export const sessionContextCompactionStatesFixture: SessionUsageTurnsResponse = 
       const turnId = `turn-${base}`;
       const observed = trigger === "requested" && status === "in_progress" ? undefined : 200_000;
       turns.push(contextTurn(turnId, base + 10, 200_000));
-      if (trigger === "agent") turns.push(contextTurn(`turn-${base + 40}`, base + 40, 41_000));
       compactions.push({
         sequence: base + 20,
         turn_id: turnId,

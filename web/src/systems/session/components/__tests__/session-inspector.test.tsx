@@ -511,7 +511,7 @@ describe("Session context", () => {
     expect(marker).toHaveAttribute("data-status", status);
   });
 
-  it("Should show tokens before to after only for the figures the daemon knows", () => {
+  it("Should show the occupancy a compaction was observed at and never infer a later one", () => {
     render(
       <SessionInspector
         turnsDefaultOpen
@@ -519,30 +519,26 @@ describe("Session context", () => {
           turns: [
             contextTurn("turn-1", 10, 180_000),
             contextTurn("turn-2", 30, 42_000),
-            // The compacted turn's own later report is not a reading from a later turn.
+            // The compacted turn's own later usage row may carry a merged pre-boundary reading.
             contextTurn("turn-3", 55, 30_000),
-            // A report after a second compaction belongs to that compaction, not the first.
             contextTurn("turn-5", 120, 61_000),
           ],
           compactions: [
             compactionMarker({ sequence: 20, turn_id: "turn-1", context_used: 180_000 }),
             compactionMarker({ sequence: 50, turn_id: "turn-3", context_used: 150_000 }),
             compactionMarker({ sequence: 70, turn_id: "turn-4" }),
-            compactionMarker({ sequence: 100, turn_id: "turn-4", context_used: 90_000 }),
-            compactionMarker({ sequence: 110, turn_id: "turn-4", context_used: 95_000 }),
           ],
         }}
       />
     );
-    // Newest first.
-    const [fifth, fourth, third, second, first] = screen
+    // Newest first. Later usage rows never become an "after" figure: only the daemon's own
+    // post-boundary reading could, and the usage payload carries none.
+    const [third, second, first] = screen
       .getAllByTestId("session-context-compaction-marker")
       .map(marker => marker.textContent);
-    expect(first).toBe("Agent compaction · completed · 180K → 42K");
+    expect(first).toBe("Agent compaction · completed · 180K");
     expect(second).toBe("Agent compaction · completed · 150K");
     expect(third).toBe("Agent compaction · completed");
-    expect(fourth).toBe("Agent compaction · completed · 90K");
-    expect(fifth).toBe("Agent compaction · completed · 95K → 61K");
   });
 
   it.each([
@@ -557,6 +553,14 @@ describe("Session context", () => {
     {
       name: "a failed compaction with no report after it",
       turns: { turns: [], compactions: [compactionMarker({ sequence: 20, status: "failed" })] },
+      awaiting: true,
+    },
+    {
+      name: "only the compacted turn's own later usage row",
+      turns: {
+        turns: [contextTurn("turn-1", 10, 180_000), contextTurn("turn-1", 55, 30_000)],
+        compactions: [compactionMarker({ sequence: 20, turn_id: "turn-1" })],
+      },
       awaiting: true,
     },
     {
