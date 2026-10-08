@@ -43,11 +43,10 @@ func (m *Manager) AggregateSessionsByAgent(
 		Archive:     ArchiveExclude,
 	})
 	durable, err := reader.AggregateSessionsByAgent(ctx, store.SessionAgentMetricsQuery{
-		ReadScope:           readScope,
-		WorkspaceID:         workspaceID,
-		ExcludeIDs:          activeIDs,
-		ExcludeSessionTypes: []string{string(SessionTypeDream)},
-		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle},
+		ReadScope:         readScope,
+		WorkspaceID:       workspaceID,
+		ExcludeIDs:        activeIDs,
+		ExcludeSpawnRoles: []string{SpawnRoleAutoTitle},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("session: aggregate durable sessions by agent: %w", err)

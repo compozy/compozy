@@ -16,7 +16,6 @@ func CloneConfig(source *Config) Config {
 	cloned.ModelCatalog.Sources.ModelsDev.Enabled = cloneBoolPtr(
 		source.ModelCatalog.Sources.ModelsDev.Enabled,
 	)
-	cloned.Memory = CloneMemoryConfig(&source.Memory)
 	cloned.Roles = CloneRolesConfig(&source.Roles)
 	cloned.RoleSources = CloneRoleFieldSources(source.RoleSources)
 	cloned.Skills.Sources = cloneStrings(source.Skills.Sources)

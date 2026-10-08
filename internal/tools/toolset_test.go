@@ -171,9 +171,14 @@ func TestDropRetiredToolReferences(t *testing.T) {
 	t.Parallel()
 	t.Run("Should resolve surviving tools and toolsets after dropping retired references", func(t *testing.T) {
 		t.Parallel()
-		policy := ToolPolicy{Toolsets: []string{"compozy__sessions", "compozy__memory"}, Tools: []string{"compozy__memory_list", "compozy__session_list"}}
+		policy := ToolPolicy{
+			Toolsets: []string{"compozy__sessions", "compozy__memory"},
+			Tools:    []string{"compozy__memory_list", "compozy__session_list"},
+		}
 		filtered, dropped := DropRetiredToolReferences(policy)
-		if !slices.Equal(filtered.Toolsets, []string{"compozy__sessions"}) || !slices.Equal(filtered.Tools, []string{"compozy__session_list"}) || !slices.Equal(dropped, []string{"compozy__memory", "compozy__memory_list"}) {
+		if !slices.Equal(filtered.Toolsets, []string{"compozy__sessions"}) ||
+			!slices.Equal(filtered.Tools, []string{"compozy__session_list"}) ||
+			!slices.Equal(dropped, []string{"compozy__memory", "compozy__memory_list"}) {
 			t.Fatalf("DropRetiredToolReferences() = %#v, %#v", filtered, dropped)
 		}
 		catalog, err := NewToolsetCatalog(Toolset{ID: "compozy__sessions", Tools: []string{"compozy__session_list"}})
@@ -184,7 +189,11 @@ func TestDropRetiredToolReferences(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ids, err := catalog.ExpandPatterns(patterns, []ToolsetID{ToolsetID(filtered.Toolsets[0])}, []ToolID{"compozy__session_list"})
+		ids, err := catalog.ExpandPatterns(
+			patterns,
+			[]ToolsetID{ToolsetID(filtered.Toolsets[0])},
+			[]ToolID{"compozy__session_list"},
+		)
 		if err != nil || !slices.Equal(ids, []ToolID{"compozy__session_list"}) {
 			t.Fatalf("ExpandPatterns() = %#v, %v", ids, err)
 		}
@@ -193,33 +202,38 @@ func TestDropRetiredToolReferences(t *testing.T) {
 			t.Fatalf("input mutated: %#v", policy)
 		}
 	})
-	t.Run("Should drop every retired catalog atom without treating unknown IDs or wildcards as retired", func(t *testing.T) {
-		t.Parallel()
-		policy := ToolPolicy{Tools: []string{"compozy__typo", "compozy__*"}}
-		for _, id := range RetiredMemoryToolIDs {
-			policy.Tools = append(policy.Tools, id.String())
-		}
-		for _, id := range RetiredMemoryToolsetIDs {
-			policy.Toolsets = append(policy.Toolsets, id.String())
-		}
-		policy.DenyTools = []string{"compozy__memory_list", "compozy__task_*"}
-		filtered, dropped := DropRetiredToolReferences(policy)
-		if len(dropped) != 37 || !slices.Equal(filtered.Tools, []string{"compozy__typo", "compozy__*"}) || len(filtered.Toolsets) != 0 || !slices.Equal(filtered.DenyTools, []string{"compozy__task_*"}) {
-			t.Fatalf("filtered = %#v, dropped = %#v", filtered, dropped)
-		}
-		patterns, err := ParseToolPatterns(filtered.Tools)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = (ToolsetCatalog{}).ExpandPatterns(patterns, nil, []ToolID{"compozy__session_list"})
-		if err == nil || !strings.Contains(err.Error(), "unknown tool") {
-			t.Fatalf("unknown policy error = %v", err)
-		}
-		again, dropped := DropRetiredToolReferences(filtered)
-		if len(dropped) != 0 || !slices.Equal(again.Tools, filtered.Tools) {
-			t.Fatalf("repeat filter = %#v, %#v", again, dropped)
-		}
-	})
+	t.Run(
+		"Should drop every retired catalog atom without treating unknown IDs or wildcards as retired",
+		func(t *testing.T) {
+			t.Parallel()
+			policy := ToolPolicy{Tools: []string{"compozy__typo", "compozy__*"}}
+			for _, id := range RetiredMemoryToolIDs {
+				policy.Tools = append(policy.Tools, id.String())
+			}
+			for _, id := range RetiredMemoryToolsetIDs {
+				policy.Toolsets = append(policy.Toolsets, id.String())
+			}
+			policy.DenyTools = []string{"compozy__memory_list", "compozy__task_*"}
+			filtered, dropped := DropRetiredToolReferences(policy)
+			if len(dropped) != 37 || !slices.Equal(filtered.Tools, []string{"compozy__typo", "compozy__*"}) ||
+				len(filtered.Toolsets) != 0 ||
+				!slices.Equal(filtered.DenyTools, []string{"compozy__task_*"}) {
+				t.Fatalf("filtered = %#v, dropped = %#v", filtered, dropped)
+			}
+			patterns, err := ParseToolPatterns(filtered.Tools)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = (ToolsetCatalog{}).ExpandPatterns(patterns, nil, []ToolID{"compozy__session_list"})
+			if err == nil || !strings.Contains(err.Error(), "unknown tool") {
+				t.Fatalf("unknown policy error = %v", err)
+			}
+			again, dropped := DropRetiredToolReferences(filtered)
+			if len(dropped) != 0 || !slices.Equal(again.Tools, filtered.Tools) {
+				t.Fatalf("repeat filter = %#v, %#v", again, dropped)
+			}
+		},
+	)
 	t.Run("Should preserve an enforced empty policy when every allowed tool is retired", func(t *testing.T) {
 		t.Parallel()
 		retired, err := ParseToolPatterns([]string{"compozy__memory_list"})
@@ -235,18 +249,21 @@ func TestDropRetiredToolReferences(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptorWithID("compozy__session_list", "List sessions"))
+			decision, err := evaluator.Evaluate(
+				t.Context(),
+				Scope{},
+				descriptorWithID("compozy__session_list", "List sessions"),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if decision.Callable || decision.VisibleToSession {
 				t.Fatalf("retired-only policy granted an unrelated tool: %#v", decision)
 			}
-			if !slices.Contains(decision.ReasonCodes, ReasonPolicyDenied) && !slices.Contains(decision.ReasonCodes, ReasonSessionDenied) {
+			if !slices.Contains(decision.ReasonCodes, ReasonPolicyDenied) &&
+				!slices.Contains(decision.ReasonCodes, ReasonSessionDenied) {
 				t.Fatalf("unexpected denial reason: %#v", decision)
 			}
 		}
-
 	})
-
 }

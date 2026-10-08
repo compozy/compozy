@@ -21,8 +21,6 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/memory/consolidation"
 
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -115,9 +113,6 @@ type GatewayTierServerFactory func(
 	surfaces []gateway.Surface,
 ) (Server, error)
 
-// DreamTrigger exposes consolidation controls and health state to transport layers.
-type DreamTrigger = core.DreamTrigger
-
 type registryOpener func(ctx context.Context, path string) (Registry, error)
 type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error)
 type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
@@ -127,10 +122,6 @@ type resourceReconcileDriverFactory func(
 	ctx context.Context,
 	deps resourceReconcileDriverDeps,
 ) (resources.ReconcileDriver, error)
-
-type memoryProviderShutdowner interface {
-	Shutdown(context.Context) error
-}
 
 type supportBundleShutdowner interface {
 	Shutdown(context.Context) error
@@ -183,40 +174,37 @@ type extensionDevRuntime interface {
 }
 
 type extensionManagerDeps struct {
-	Registry               *extensionpkg.Registry
-	HomePaths              compozyconfig.HomePaths
-	Extensions             compozyconfig.ExtensionsConfig
-	Sessions               SessionManager
-	Clarify                toolspkg.ClarifyBroker
-	Automation             func() extensionpkg.HostAPIAutomationManager
-	Tasks                  taskpkg.Manager
-	ModelCatalog           core.ModelCatalogService
-	MemoryStore            *memory.Store
-	MemoryStoreResolver    memory.RecallStoreResolver
-	MemoryProviderRegistry *extensionpkg.MemoryProviderRegistry
-	Observer               Observer
-	SkillsRegistry         *skills.Registry
-	WorkspaceResolver      workspacepkg.RuntimeResolver
-	Profiles               *profilepkg.Manager
-	Logger                 *slog.Logger
-	ResourceStore          resources.RawStore
-	SourceSessions         resources.SourceSessionManager
-	ResourceCodecs         *resources.CodecRegistry
-	ResourceTrigger        func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	SoulAuthoring          core.SoulAuthoringService
-	SoulRefresher          core.SoulRefresher
-	HeartbeatAuthor        core.HeartbeatAuthoringService
-	HeartbeatStatus        core.HeartbeatStatusService
-	HeartbeatWake          core.HeartbeatWakeService
-	SessionHealth          core.SessionHealthReader
-	WakeEvents             core.HeartbeatWakeEventReader
-	CmdPalette             cmdpalette.ViewService
-	ViewPatches            extensionpkg.ViewPatchPublisher
-	ProcessRegistry        *toolruntime.Registry
-	SecretResolver         extensionpkg.SecretRefResolver
-	EnvBindings            extensionpkg.EnvBindingStore
-	LifecycleEvents        extensionpkg.LifecycleEventSink
-	CompozyExecutable      func() (string, error)
+	Registry          *extensionpkg.Registry
+	HomePaths         compozyconfig.HomePaths
+	Extensions        compozyconfig.ExtensionsConfig
+	Sessions          SessionManager
+	Clarify           toolspkg.ClarifyBroker
+	Automation        func() extensionpkg.HostAPIAutomationManager
+	Tasks             taskpkg.Manager
+	ModelCatalog      core.ModelCatalogService
+	Observer          Observer
+	SkillsRegistry    *skills.Registry
+	WorkspaceResolver workspacepkg.RuntimeResolver
+	Profiles          *profilepkg.Manager
+	Logger            *slog.Logger
+	ResourceStore     resources.RawStore
+	SourceSessions    resources.SourceSessionManager
+	ResourceCodecs    *resources.CodecRegistry
+	ResourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	SoulAuthoring     core.SoulAuthoringService
+	SoulRefresher     core.SoulRefresher
+	HeartbeatAuthor   core.HeartbeatAuthoringService
+	HeartbeatStatus   core.HeartbeatStatusService
+	HeartbeatWake     core.HeartbeatWakeService
+	SessionHealth     core.SessionHealthReader
+	WakeEvents        core.HeartbeatWakeEventReader
+	CmdPalette        cmdpalette.ViewService
+	ViewPatches       extensionpkg.ViewPatchPublisher
+	ProcessRegistry   *toolruntime.Registry
+	SecretResolver    extensionpkg.SecretRefResolver
+	EnvBindings       extensionpkg.EnvBindingStore
+	LifecycleEvents   extensionpkg.LifecycleEventSink
+	CompozyExecutable func() (string, error)
 }
 
 // Daemon is the sole Compozy composition root.
@@ -233,7 +221,6 @@ type Daemon struct {
 	acquireLock            func(path string, pid int) (*Lock, error)
 	openRegistry           registryOpener
 	newSessionManager      sessionManagerFactory
-	newDreamService        consolidation.ServiceFactory
 	newObserver            observerFactory
 	newExtensionManager    extensionManagerFactory
 	newAutomationManager   automationManagerFactory

@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	core "github.com/compozy/compozy/internal/api/core"
-
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -14,45 +12,44 @@ import (
 func TestRoleStatusProjection(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve workspace role overrides and live opt-in changes in memory health", func(t *testing.T) {
+	t.Run("Should preserve workspace role overrides and live opt-in changes in role status", func(t *testing.T) {
 		t.Parallel()
 		cfg := roleResolverConfig()
-		cfg.Memory.Enabled, cfg.Roles.Dream.Enabled = true, false
+		cfg.Roles.AutoTitle.Enabled = false
 		scoped := cfg
-		scoped.Roles.Dream.Enabled = true
+		scoped.Roles.AutoTitle.Enabled = true
 		resolver := newRoleResolver(
 			&cfg,
-			roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{"ws-dream": scoped}},
+			roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{"ws-title": scoped}},
 			nil,
 		)
-		for _, workspace := range []string{"", "ws-dream"} {
-			role, err := core.MemoryDreamRoleStatus(t.Context(), resolver, workspace)
+		for _, workspace := range []string{"", "ws-title"} {
+			role, err := resolver.RoleStatus(t.Context(), workspace, string(compozyconfig.RoleAutoTitle))
 			if err != nil || role.Enabled != (workspace != "") {
 				t.Fatalf("workspace=%q role=%#v err=%v", workspace, role, err)
 			}
 		}
-		cfg.Roles.Dream.Enabled = true
-		role, err := core.MemoryDreamRoleStatus(t.Context(), resolver, "")
+		cfg.Roles.AutoTitle.Enabled = true
+		role, err := resolver.RoleStatus(t.Context(), "", string(compozyconfig.RoleAutoTitle))
 		if err != nil || !role.Enabled {
 			t.Fatalf("live role=%#v err=%v", role, err)
 		}
 	})
-	t.Run("Should preserve the profile role context in memory health", func(t *testing.T) {
+	t.Run("Should preserve the profile role context in role status", func(t *testing.T) {
 		t.Parallel()
 		cfg := roleResolverConfig()
-		cfg.Memory.Enabled = true
 		scoped := loopActionBinderWorkspace(t, nil)
 		scoped.ProfileID = "profile-engineering"
-		scoped.Config.Memory.Enabled, scoped.Config.Roles.Dream.Enabled = true, true
+		scoped.Config.Roles.AutoTitle.Enabled = true
 		resolver := newRoleResolver(&cfg, &loopPolicyProfileWorkspaceResolver{scoped: scoped}, nil)
 		resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
 		ctx := withRoleInvocationCorrelation(t.Context(), roleInvocationCorrelation{ProfileID: "profile-engineering"})
-		role, err := core.MemoryDreamRoleStatus(ctx, resolver, "ws-loop")
+		role, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleAutoTitle))
 		if err != nil || !role.Enabled {
 			t.Fatalf("profile role=%#v err=%v", role, err)
 		}
 		ctx = withRoleInvocationCorrelation(ctx, roleInvocationCorrelation{ProfileID: "profile-missing"})
-		if _, err := core.MemoryDreamRoleStatus(ctx, resolver, "ws-loop"); err == nil {
+		if _, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleAutoTitle)); err == nil {
 			t.Fatal("missing profile must remain an error")
 		}
 	})
@@ -72,11 +69,7 @@ func TestRoleStatusProjection(t *testing.T) {
 		}
 		want := []string{
 			"auto_title",
-			"checkpoint_summary",
 			"coordinator",
-			"dream",
-			"memory_controller",
-			"memory_extractor",
 		}
 		if !reflect.DeepEqual(roles, want) {
 			t.Fatalf("RoleStatuses() roles = %#v, want %#v", roles, want)
@@ -86,131 +79,51 @@ func TestRoleStatusProjection(t *testing.T) {
 		}
 	})
 
-	for _, tc := range []struct {
-		name                        string
-		memoryEnabled, rolesEnabled bool
-	}{
-		{name: "Should project memory master suppression", rolesEnabled: true},
-		{name: "Should project deliberate memory opt-in", memoryEnabled: true, rolesEnabled: true},
-		{name: "Should retain explicit role opt-out", memoryEnabled: true},
-		{name: "Should disable roles when every switch is off"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			cfg := roleResolverConfig()
-			cfg.Roles.Coordinator.Enabled = true
-			cfg.Memory.Enabled = tc.memoryEnabled
-			cfg.Roles.Dream.Enabled = tc.rolesEnabled
-			cfg.Roles.MemoryExtractor.Enabled = tc.rolesEnabled
-			cfg.Roles.MemoryController.Enabled = tc.rolesEnabled
-			cfg.Roles.CheckpointSummary.Enabled = tc.rolesEnabled
-			resolver := newRoleResolver(&cfg, nil, nil)
-			statuses, err := resolver.RoleStatuses(t.Context(), "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, status := range statuses {
-				want := true
-				switch compozyconfig.RoleName(status.Role) {
-				case compozyconfig.RoleDream, compozyconfig.RoleMemoryExtractor,
-					compozyconfig.RoleMemoryController:
-					want = tc.memoryEnabled && tc.rolesEnabled
-				case compozyconfig.RoleCheckpointSummary:
-					want = tc.rolesEnabled && tc.memoryEnabled
-				}
-				if status.Enabled != want {
-					t.Fatalf("role %s enabled=%t, want %t", status.Role, status.Enabled, want)
-				}
-				single, err := resolver.RoleStatus(t.Context(), "", status.Role)
-				if err != nil || single.Enabled != status.Enabled {
-					t.Fatalf("single role=%#v error=%v", single, err)
-				}
-			}
-			resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleCheckpointSummary)
-			want := tc.rolesEnabled && tc.memoryEnabled
-			if err != nil || resolved.Enabled != want {
-				t.Fatalf("invocation=%#v error=%v, want enabled=%t", resolved, err, want)
-			}
-		})
-	}
-
-	t.Run("Should keep workspace opt-in behind the daemon memory master", func(t *testing.T) {
+	t.Run("Should honor workspace auto-title opt-out in role status", func(t *testing.T) {
 		t.Parallel()
 		global := roleResolverConfig()
-		global.Memory.Enabled = false
-		workspace := roleResolverConfig()
-		workspace.Memory.Enabled = true
+		global.Roles.AutoTitle.Enabled = true
+		workspace := global
+		disabled := workspace
+		disabled.Roles.AutoTitle.Enabled = false
+		disabled.RoleSources = compozyconfig.CloneRoleFieldSources(global.RoleSources)
+		disabled.RoleSources[compozyconfig.RoleAutoTitle][compozyconfig.RoleFieldEnabled] = compozyconfig.RoleFieldSourceWorkspace
 		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
-			"ws-memory": workspace,
+			"ws-disabled": disabled,
+			"ws-overlay":  workspace,
 		}}, nil)
-		status, err := resolver.RoleStatus(t.Context(), "ws-memory", string(compozyconfig.RoleMemoryExtractor))
-		if err != nil || status.Enabled {
-			t.Fatalf("workspace status=%#v error=%v", status, err)
-		}
-		resolved, err := resolver.Resolve(t.Context(), "ws-memory", compozyconfig.RoleMemoryExtractor)
-		if err != nil || resolved.Enabled {
-			t.Fatalf("workspace invocation=%#v error=%v", resolved, err)
+		for _, target := range []string{"ws-disabled", "ws-overlay", ""} {
+			status, err := resolver.RoleStatus(t.Context(), target, string(compozyconfig.RoleAutoTitle))
+			want := target != "ws-disabled"
+			if err != nil || status.Enabled != want {
+				t.Fatalf("workspace=%q status=%#v error=%v, want enabled=%t", target, status, err, want)
+			}
+			if target == "ws-disabled" &&
+				status.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceWorkspace {
+				t.Fatalf("workspace role switch provenance=%#v", status.Provenance)
+			}
 		}
 	})
-
-	for _, tc := range []struct {
-		name          string
-		memoryEnabled bool
-	}{
-		{name: "Should honor workspace checkpoint opt-out under daemon memory", memoryEnabled: true},
-		{name: "Should keep workspace checkpoint opt-in behind daemon memory master"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			global := roleResolverConfig()
-			global.Memory.Enabled = tc.memoryEnabled
-			global.Roles.CheckpointSummary.Enabled = true
-			workspace := global
-			workspace.Memory.Enabled = true
-			disabled := workspace
-			disabled.Roles.CheckpointSummary.Enabled = false
-			disabled.RoleSources = compozyconfig.CloneRoleFieldSources(global.RoleSources)
-			disabled.RoleSources[compozyconfig.RoleCheckpointSummary][compozyconfig.RoleFieldEnabled] = compozyconfig.RoleFieldSourceWorkspace
-			resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
-				"ws-disabled": disabled,
-				"ws-overlay":  workspace,
-			}}, nil)
-			for _, target := range []string{"ws-disabled", "ws-overlay", ""} {
-				status, err := resolver.RoleStatus(t.Context(), target, string(compozyconfig.RoleCheckpointSummary))
-				want := tc.memoryEnabled && target != "ws-disabled"
-				if err != nil || status.Enabled != want {
-					t.Fatalf("workspace=%q status=%#v error=%v, want enabled=%t", target, status, err, want)
-				}
-				if target == "ws-disabled" &&
-					status.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceWorkspace {
-					t.Fatalf("workspace role switch provenance=%#v", status.Provenance)
-				}
-			}
-		})
-	}
-
 	for _, tc := range []struct {
 		name    string
 		enabled bool
 	}{
-		{name: "Should honor profile checkpoint opt-in under daemon memory", enabled: true},
-		{name: "Should honor profile checkpoint opt-out under daemon memory"},
+		{name: "Should honor profile auto-title opt-in in role status", enabled: true},
+		{name: "Should honor profile auto-title opt-out in role status"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			global := roleResolverConfig()
-			global.Memory.Enabled = true
 			scoped := loopActionBinderWorkspace(t, nil)
 			scoped.ProfileID = "profile-engineering"
-			scoped.Config.Memory.Enabled = true
-			scoped.Config.Roles.CheckpointSummary.Enabled = tc.enabled
+			scoped.Config.Roles.AutoTitle.Enabled = tc.enabled
 			resolver := newRoleResolver(&global, &loopPolicyProfileWorkspaceResolver{scoped: scoped}, nil)
 			resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
 			ctx := withRoleInvocationCorrelation(
 				t.Context(),
 				roleInvocationCorrelation{ProfileID: "profile-engineering"},
 			)
-			status, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleCheckpointSummary))
+			status, err := resolver.RoleStatus(ctx, "ws-loop", string(compozyconfig.RoleAutoTitle))
 			if err != nil || status.Enabled != tc.enabled {
 				t.Fatalf("profile status=%#v error=%v, want enabled=%t", status, err, tc.enabled)
 			}
@@ -221,22 +134,22 @@ func TestRoleStatusProjection(t *testing.T) {
 		t.Parallel()
 
 		cfg := roleResolverConfig()
-		cfg.Roles.Dream.Agent = "missing-curator"
+		cfg.Roles.AutoTitle.Agent = "missing-curator"
 		status, err := newRoleResolver(&cfg, nil, roleAgentResolverStub{}).RoleStatus(
 			t.Context(),
 			"",
-			string(compozyconfig.RoleDream),
+			string(compozyconfig.RoleAutoTitle),
 		)
 		if err != nil {
-			t.Fatalf("RoleStatus(dream) error = %v", err)
+			t.Fatalf("RoleStatus(title) error = %v", err)
 		}
 		if len(status.Diagnostics) != 1 || status.Diagnostics[0].Code != contract.CodeRoleAgentNotFound ||
 			status.Diagnostics[0].Agent != "missing-curator" {
-			t.Fatalf("RoleStatus(dream).Diagnostics = %#v", status.Diagnostics)
+			t.Fatalf("RoleStatus(title).Diagnostics = %#v", status.Diagnostics)
 		}
 		if status.Agent == nil || *status.Agent != "missing-curator" ||
 			status.ResolutionMode != contract.RoleResolutionModeCatalog {
-			t.Fatalf("RoleStatus(dream) = %#v, want missing catalog projection", status)
+			t.Fatalf("RoleStatus(title) = %#v, want missing catalog projection", status)
 		}
 	})
 
@@ -269,34 +182,34 @@ func TestRoleStatusProjection(t *testing.T) {
 		t.Parallel()
 
 		global := roleResolverConfig()
-		global.Roles.Dream.Model = "global-model"
-		global.RoleSources[compozyconfig.RoleDream][compozyconfig.RoleFieldModel] = compozyconfig.RoleFieldSourceGlobal
+		global.Roles.AutoTitle.Model = "global-model"
+		global.RoleSources[compozyconfig.RoleAutoTitle][compozyconfig.RoleFieldModel] = compozyconfig.RoleFieldSourceGlobal
 		resolver := newRoleResolver(&global, nil, nil)
-		globalStatus, err := resolver.RoleStatus(t.Context(), "", string(compozyconfig.RoleDream))
+		globalStatus, err := resolver.RoleStatus(t.Context(), "", string(compozyconfig.RoleAutoTitle))
 		if err != nil {
-			t.Fatalf("RoleStatus(global dream) error = %v", err)
+			t.Fatalf("RoleStatus(global title) error = %v", err)
 		}
 		if got := globalStatus.Provenance[compozyconfig.RoleFieldModel]; got != compozyconfig.RoleFieldSourceGlobal {
-			t.Fatalf("RoleStatus(global dream) model source = %q, want global", got)
+			t.Fatalf("RoleStatus(global title) model source = %q, want global", got)
 		}
 
 		workspace := global
 		workspace.RoleSources = compozyconfig.CloneRoleFieldSources(global.RoleSources)
-		workspace.Roles.Dream.Model = "workspace-model"
-		workspace.RoleSources[compozyconfig.RoleDream][compozyconfig.RoleFieldModel] = compozyconfig.RoleFieldSourceWorkspace
+		workspace.Roles.AutoTitle.Model = "workspace-model"
+		workspace.RoleSources[compozyconfig.RoleAutoTitle][compozyconfig.RoleFieldModel] = compozyconfig.RoleFieldSourceWorkspace
 		resolver = newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
 			"ws-role-status": workspace,
 		}}, nil)
 		workspaceStatus, err := resolver.RoleStatus(
 			t.Context(),
 			"ws-role-status",
-			string(compozyconfig.RoleDream),
+			string(compozyconfig.RoleAutoTitle),
 		)
 		if err != nil {
-			t.Fatalf("RoleStatus(workspace dream) error = %v", err)
+			t.Fatalf("RoleStatus(workspace title) error = %v", err)
 		}
 		if got := workspaceStatus.Provenance[compozyconfig.RoleFieldModel]; got != compozyconfig.RoleFieldSourceWorkspace {
-			t.Fatalf("RoleStatus(workspace dream) model source = %q, want workspace", got)
+			t.Fatalf("RoleStatus(workspace title) model source = %q, want workspace", got)
 		}
 	})
 
@@ -324,7 +237,6 @@ func assertRoleStatusProvenance(t *testing.T, status contract.RoleStatus) {
 		{name: compozyconfig.RoleFieldProvider, present: status.Provider != nil},
 		{name: compozyconfig.RoleFieldModel, present: status.Model != nil},
 		{name: compozyconfig.RoleFieldReasoning, present: status.ReasoningEffort != nil},
-		{name: roleFieldTimeout, present: status.Timeout != nil},
 	} {
 		source, exists := status.Provenance[field.name]
 		if exists != field.present {

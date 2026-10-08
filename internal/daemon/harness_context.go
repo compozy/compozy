@@ -35,8 +35,6 @@ type SessionClass string
 const (
 	// SessionClassInteractive identifies user-owned interactive sessions.
 	SessionClassInteractive SessionClass = "interactive"
-	// SessionClassDream identifies dream consolidation sessions.
-	SessionClassDream SessionClass = "dream"
 	// SessionClassSystem identifies daemon-owned system sessions.
 	SessionClassSystem SessionClass = "system"
 	// SessionClassCoordinator identifies daemon-owned workspace coordinator sessions.
@@ -53,8 +51,6 @@ const (
 	HarnessPromptSectionRuntimeIdentity HarnessPromptSection = "runtime_identity"
 	// HarnessPromptSectionSituation injects the bounded Compozy situation context.
 	HarnessPromptSectionSituation HarnessPromptSection = "situation"
-	// HarnessPromptSectionMemory injects durable memory prompt context.
-	HarnessPromptSectionMemory HarnessPromptSection = "memory"
 	// HarnessPromptSectionSkills injects the active skills catalog prompt context.
 	HarnessPromptSectionSkills HarnessPromptSection = "skills"
 	// HarnessPromptSectionTools injects Compozy-native tool discovery and invocation guidance.
@@ -65,14 +61,10 @@ const (
 type HarnessAugmenter string
 
 const (
-	// HarnessAugmenterWorkspaceKnowledge injects current workspace-owned knowledge.
-	HarnessAugmenterWorkspaceKnowledge HarnessAugmenter = "workspace_knowledge"
 	// HarnessAugmenterSituation injects fresh bounded Compozy situation context.
 	HarnessAugmenterSituation HarnessAugmenter = "situation"
 	// HarnessAugmenterSkills injects the current effective skills catalog.
 	HarnessAugmenterSkills HarnessAugmenter = "skills"
-	// HarnessAugmenterDurableMemory enables the durable memory recall augmenter.
-	HarnessAugmenterDurableMemory HarnessAugmenter = "durable_memory"
 )
 
 // ReentryMode identifies how a resolved policy participates in synthetic reentry.
@@ -109,13 +101,10 @@ const (
 type HarnessRuntimeSignals struct {
 	RuntimeIdentityPromptSectionEnabled bool
 	SituationPromptSectionEnabled       bool
-	MemoryPromptSectionEnabled          bool
 	SkillsPromptSectionEnabled          bool
 	ToolsPromptSectionEnabled           bool
-	WorkspaceKnowledgeAugmenter         bool
 	SkillsAugmenter                     bool
 	SituationAugmenter                  bool
-	DurableMemoryAugmenter              bool
 	SyntheticTurnsEnabled               bool
 	DetachedTaskRuntimeEnabled          bool
 }
@@ -327,8 +316,6 @@ func normalizeHarnessSessionType(sessionType session.Type) session.Type {
 	switch session.Type(strings.TrimSpace(string(sessionType))) {
 	case session.SessionTypeUser:
 		return session.SessionTypeUser
-	case session.SessionTypeDream:
-		return session.SessionTypeDream
 	case session.SessionTypeSystem:
 		return session.SessionTypeSystem
 	case session.SessionTypeCoordinator:
@@ -344,8 +331,6 @@ func harnessSessionClassForType(sessionType session.Type) (SessionClass, error) 
 	switch sessionType {
 	case session.SessionTypeUser:
 		return SessionClassInteractive, nil
-	case session.SessionTypeDream:
-		return SessionClassDream, nil
 	case session.SessionTypeSystem:
 		return SessionClassSystem, nil
 	case session.SessionTypeCoordinator:

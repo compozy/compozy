@@ -72,8 +72,8 @@ func TestLoadWorkspaceAgentDefsSkipsReservedNames(t *testing.T) {
 		)
 		writeAgentDefinition(
 			t,
-			filepath.Join(homePaths.AgentsDir, BuiltinDreamingCuratorAgentName, agentDefName),
-			BuiltinDreamingCuratorAgentName,
+			filepath.Join(homePaths.AgentsDir, "dreaming-curator", agentDefName),
+			"dreaming-curator",
 			"claude",
 			"shadowed-curator",
 		)
@@ -89,7 +89,7 @@ func TestLoadWorkspaceAgentDefsSkipsReservedNames(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 		}
-		if len(agents) != 2 || agents[0].Name != "worker" || agents[1].Name != BuiltinDreamingCuratorAgentName {
+		if len(agents) != 2 || agents[0].Name != "worker" || agents[1].Name != "dreaming-curator" {
 			t.Fatalf("LoadWorkspaceAgentDefs() = %#v, want worker and authored dreaming-curator", agents)
 		}
 	})

@@ -33,9 +33,9 @@ func classifyProviderEventErrorCode(eventError string) string {
 		strings.Contains(normalized, "token refresh"),
 		strings.Contains(normalized, "refresh token"):
 		return "provider_auth_failure"
-	case strings.Contains(normalized, "timeout"),
+	case strings.Contains(normalized, daemonTimeoutKey),
 		strings.Contains(normalized, "deadline"):
-		return roleFieldTimeout
+		return daemonTimeoutKey
 	case strings.Contains(normalized, "disconnect"),
 		strings.Contains(normalized, "connection"),
 		strings.Contains(normalized, "transport"),

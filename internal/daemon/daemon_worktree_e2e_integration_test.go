@@ -1065,7 +1065,6 @@ func TestDaemonNativeWorktreeJourneyE2E004(t *testing.T) {
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			PermissionMode: config.PermissionModeApproveReads,
 			Mutate: func(cfg *config.Config) {
-				cfg.Memory.Enabled = false
 			},
 		},
 		MockAgents: []e2etest.MockAgentSpec{mockSpec, denyMockSpec},

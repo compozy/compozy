@@ -153,10 +153,6 @@ func (c *promptInputComposite) handleAugmenterFailure(
 func registerDeliveredAugmentation(ctx context.Context, name HarnessAugmenter, current, next string) {
 	var key string
 	switch name {
-	case HarnessAugmenterWorkspaceKnowledge:
-		key = "knowledge"
-	case HarnessAugmenterDurableMemory:
-		key = "memory"
 	case HarnessAugmenterSituation:
 		key = "situation"
 	default:

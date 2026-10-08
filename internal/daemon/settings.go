@@ -9,15 +9,12 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
-
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-	"github.com/compozy/compozy/internal/memory"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
@@ -27,9 +24,6 @@ type settingsRuntimeSurface struct {
 	startedAt         time.Time
 	sessions          SessionManager
 	observer          Observer
-	memoryStore       *memory.Store
-	dreamTrigger      DreamTrigger
-	roles             core.RolesStatusProvider
 	automation        automationRuntime
 	mcpAuthStore      mcpauth.TokenStore
 	mcpAuthManager    *mcpauth.Manager
@@ -53,7 +47,6 @@ type settingsRuntimeSurface struct {
 }
 
 var _ settingspkg.GeneralRuntimeProvider = (*settingsRuntimeSurface)(nil)
-var _ settingspkg.MemoryRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.AutomationRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.ObservabilityRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.ExtensionStatusProvider = (*settingsRuntimeSurface)(nil)
@@ -93,9 +86,6 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		startedAt:         state.startedAt,
 		sessions:          state.sessions,
 		observer:          state.observer,
-		memoryStore:       state.memoryStore,
-		dreamTrigger:      dreamTriggerFromRuntime(state.dreamRuntime),
-		roles:             roleResolverForState(state),
 		automation:        state.automation,
 		mcpHealthRegistry: state.mcpRuntimeHealth,
 		mcpHealthKey: func(ctx context.Context, target mcpauth.Target) (mcppkg.RuntimeHealthKey, error) {
@@ -170,43 +160,6 @@ func (s *settingsRuntimeSurface) GeneralRuntimeStatus(
 	status.ActiveAgents = health.ActiveAgents
 	status.TotalSessions = len(sessions)
 	status.Version = strings.TrimSpace(health.Version)
-	return status, nil
-}
-
-func (s *settingsRuntimeSurface) MemoryHealthStatus(ctx context.Context) (settingspkg.MemoryHealthStatus, error) {
-	status := settingspkg.MemoryHealthStatus{
-		Available: s.memoryStore != nil,
-	}
-	if s.dreamTrigger != nil {
-		role, err := core.MemoryDreamRoleStatus(ctx, s.roles, "")
-		if err != nil {
-			return settingspkg.MemoryHealthStatus{}, fmt.Errorf("daemon: settings memory health: %w", err)
-		}
-		status.DreamEnabled = role.Enabled
-	}
-	if s.memoryStore == nil {
-		return status, nil
-	}
-
-	count, err := s.memoryStore.SourceHeaderCount(ctx, memcontract.ScopeProfile)
-	if err != nil {
-		return settingspkg.MemoryHealthStatus{}, fmt.Errorf("daemon: settings memory health scan: %w", err)
-	}
-	status.FileCount = count
-
-	if s.dreamTrigger != nil {
-		lastConsolidatedAt, err := s.dreamTrigger.LastConsolidatedAt()
-		if err != nil {
-			return settingspkg.MemoryHealthStatus{}, fmt.Errorf(
-				"daemon: settings last consolidation timestamp: %w",
-				err,
-			)
-		}
-		if !lastConsolidatedAt.IsZero() {
-			status.LastConsolidatedAt = &lastConsolidatedAt
-		}
-	}
-
 	return status, nil
 }
 

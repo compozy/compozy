@@ -157,33 +157,6 @@ func (n *daemonNativeTools) worktreeToolBindings(
 	}
 }
 
-func (n *daemonNativeTools) memoryToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
-) map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDMemoryList: {
-			call:         n.memoryList,
-			availability: availability,
-		},
-		toolspkg.ToolIDMemoryShow: {
-			call:         n.memoryShow,
-			availability: availability,
-		},
-		toolspkg.ToolIDMemorySearch: {
-			call:         n.memorySearch,
-			availability: availability,
-		},
-		toolspkg.ToolIDMemoryPropose: {
-			call:         n.memoryPropose,
-			availability: availability,
-		},
-		toolspkg.ToolIDMemoryNote: {
-			call:         n.memoryNote,
-			availability: availability,
-		},
-	}
-}
-
 func (n *daemonNativeTools) observeToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {

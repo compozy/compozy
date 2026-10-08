@@ -148,7 +148,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		}
 		want := []roleAttemptRoute{
 			{
-				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				AgentName:       compozyconfig.BuiltinCoordinatorAgentName,
 				Provider:        "primary",
 				Model:           "m1",
 				ReasoningEffort: "low",
@@ -158,7 +158,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 				},
 			},
 			{
-				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				AgentName:       compozyconfig.BuiltinCoordinatorAgentName,
 				Provider:        "secondary",
 				Model:           "m2",
 				ReasoningEffort: "medium",
@@ -168,7 +168,7 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 				},
 			},
 			{
-				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				AgentName:       compozyconfig.BuiltinCoordinatorAgentName,
 				Provider:        "tertiary",
 				Model:           "m3",
 				ReasoningEffort: "high",
@@ -359,7 +359,7 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		if err := json.Unmarshal(event.Content, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(event.Content) error = %v", err)
 		}
-		if payload.Role != string(compozyconfig.RoleDream) || payload.Attempt != 1 ||
+		if payload.Role != string(compozyconfig.RoleCoordinator) || payload.Attempt != 1 ||
 			payload.Provider != "secondary" || payload.Model != "m2" {
 			t.Fatalf("fallback payload = %#v", payload)
 		}
@@ -369,9 +369,8 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		t.Parallel()
 
 		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
-		cfg.Memory.Enabled = true
-		cfg.Roles.Dream.Enabled = true
-		cfg.Roles.Dream.Agent = "missing-curator"
+		cfg.Roles.Coordinator.Enabled = true
+		cfg.Roles.Coordinator.Agent = "missing-curator"
 		recorder := &roleEventRecorder{}
 		resolver := newRoleResolver(&cfg, nil, nil, recorder)
 		correlation := roleInvocationCorrelation{
@@ -385,7 +384,7 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		_, err := resolver.Resolve(
 			withRoleInvocationCorrelation(t.Context(), correlation),
 			"",
-			compozyconfig.RoleDream,
+			compozyconfig.RoleCoordinator,
 		)
 		resolutionErr, resolutionErrMatched := errors.AsType[*RoleResolutionError](err)
 		if !resolutionErrMatched || resolutionErr.Code != roleErrorAgentNotFound {
@@ -401,7 +400,7 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		if err := json.Unmarshal(event.Content, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(event.Content) error = %v", err)
 		}
-		if payload.Role != string(compozyconfig.RoleDream) ||
+		if payload.Role != string(compozyconfig.RoleCoordinator) ||
 			payload.ErrorCode != roleErrorAgentNotFound || payload.Agent != "missing-curator" {
 			t.Fatalf("resolution payload = %#v", payload)
 		}
@@ -410,8 +409,8 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 
 func fallbackTestRole(writer roleEventSummaryWriter) *ResolvedRole {
 	return &ResolvedRole{
-		Role:            compozyconfig.RoleDream,
-		AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+		Role:            compozyconfig.RoleCoordinator,
+		AgentName:       compozyconfig.BuiltinCoordinatorAgentName,
 		Provider:        "primary",
 		Model:           "m1",
 		ReasoningEffort: "low",

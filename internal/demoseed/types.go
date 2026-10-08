@@ -28,7 +28,6 @@ type Counts struct {
 	LoopGenerations  int `json:"loop_generations"`
 	LoopRunEvents    int `json:"loop_run_events"`
 	GoalTurns        int `json:"goal_turns"`
-	Memories         int `json:"memories"`
 	EventSummaries   int `json:"event_summaries"`
 	TokenUsageDays   int `json:"token_usage_days"`
 	Worktrees        int `json:"worktrees"`

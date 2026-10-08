@@ -54,51 +54,56 @@ func TestCreateFailsWhenSessionPreCreateDenied(t *testing.T) {
 func TestCreateUsesPatchedSessionPreCreatePayload(t *testing.T) {
 	t.Parallel()
 
-	const patchedName = "patched-session"
-	sessionName := patchedName
-	hooks := newNativeHookDispatcher(t,
-		[]hookspkg.HookDecl{{
-			Name:         "patch-create",
-			Event:        hookspkg.HookSessionPreCreate,
-			Mode:         hookspkg.HookModeSync,
-			ExecutorKind: hookspkg.HookExecutorNative,
-		}},
-		map[string]hookspkg.Executor{
-			"patch-create": hookspkg.NewTypedNativeExecutor(
-				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreCreatePayload) (hookspkg.SessionCreatePatch, error) {
-					sessionType := string(SessionTypeDream)
-					return hookspkg.SessionCreatePatch{
-						SessionName: &sessionName,
-						SessionType: &sessionType,
-					}, nil
-				},
-			),
-		},
-	)
+	t.Run("Should apply the patched session identity with requested permissions", func(t *testing.T) {
+		t.Parallel()
 
-	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "original",
-		Workspace: h.workspaceID,
-		Type:      SessionTypeUser,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
+		const patchedName = "patched-session"
+		sessionName := patchedName
+		hooks := newNativeHookDispatcher(t,
+			[]hookspkg.HookDecl{{
+				Name:         "patch-create",
+				Event:        hookspkg.HookSessionPreCreate,
+				Mode:         hookspkg.HookModeSync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			}},
+			map[string]hookspkg.Executor{
+				"patch-create": hookspkg.NewTypedNativeExecutor(
+					func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreCreatePayload) (hookspkg.SessionCreatePatch, error) {
+						sessionType := string(SessionTypeSystem)
+						return hookspkg.SessionCreatePatch{
+							SessionName: &sessionName,
+							SessionType: &sessionType,
+						}, nil
+					},
+				),
+			},
+		)
 
-	if got := session.Info().Name; got != patchedName {
-		t.Fatalf("session name = %q, want %q", got, patchedName)
-	}
-	if got := session.Info().Type; got != SessionTypeDream {
-		t.Fatalf("session type = %q, want %q", got, SessionTypeDream)
-	}
-	if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveAll {
-		t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveAll)
-	}
+		h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:   "coder",
+			Name:        "original",
+			Workspace:   h.workspaceID,
+			Type:        SessionTypeUser,
+			Permissions: compozyconfig.PermissionModeApproveReads,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+
+		if got := session.Info().Name; got != patchedName {
+			t.Fatalf("session name = %q, want %q", got, patchedName)
+		}
+		if got := session.Info().Type; got != SessionTypeSystem {
+			t.Fatalf("session type = %q, want %q", got, SessionTypeSystem)
+		}
+		if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveReads {
+			t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveReads)
+		}
+	})
 }
 
 func TestCreateRejectsInvalidPreCreateProvenance(t *testing.T) {

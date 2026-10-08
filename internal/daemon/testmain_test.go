@@ -33,7 +33,7 @@ func runDaemonTests(m *testing.M) (code int) {
 		reportDaemonTestMainError("set isolated home: %v", err)
 		return 1
 	}
-	seed, err := storeseed.NewCombined(context.Background())
+	seed, err := storeseed.NewGlobal(context.Background())
 	if err != nil {
 		reportDaemonTestMainError("create store seed: %v", err)
 		return 1

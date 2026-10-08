@@ -10,19 +10,7 @@ import (
 func diffRolesSettings(current *compozyconfig.RolesConfig, desired *compozyconfig.RolesConfig) []string {
 	var changed []string
 	changed = append(changed, diffCoordinatorRoleSettings(current.Coordinator, desired.Coordinator)...)
-	changed = append(changed, diffRoleSettings(compozyconfig.RoleDream, current.Dream, desired.Dream)...)
-	changed = append(changed, diffRoleSettings(
-		compozyconfig.RoleCheckpointSummary,
-		current.CheckpointSummary,
-		desired.CheckpointSummary,
-	)...)
-	changed = append(changed, diffRoleSettings(
-		compozyconfig.RoleMemoryExtractor,
-		current.MemoryExtractor,
-		desired.MemoryExtractor,
-	)...)
-	changed = append(changed, diffRoleSettings(compozyconfig.RoleAutoTitle, current.AutoTitle, desired.AutoTitle)...)
-	return append(changed, diffMemoryControllerRoleSettings(current.MemoryController, desired.MemoryController)...)
+	return append(changed, diffRoleSettings(compozyconfig.RoleAutoTitle, current.AutoTitle, desired.AutoTitle)...)
 }
 
 func diffCoordinatorRoleSettings(
@@ -77,96 +65,13 @@ func diffRoleSettings(
 	return changed
 }
 
-func diffMemoryControllerRoleSettings(
-	current compozyconfig.MemoryControllerRoleConfig,
-	desired compozyconfig.MemoryControllerRoleConfig,
-) []string {
-	prefix := "roles." + string(compozyconfig.RoleMemoryController) + "."
-	changed := diffSharedRoleRouteFields(
-		prefix,
-		current.Enabled,
-		desired.Enabled,
-		current.Provider,
-		desired.Provider,
-		current.Model,
-		desired.Model,
-		current.ReasoningEffort,
-		desired.ReasoningEffort,
-		string(current.Speed),
-		string(desired.Speed),
-		current.ACPOptions,
-		desired.ACPOptions,
-		current.FallbackChain,
-		desired.FallbackChain,
-	)
-	if current.Timeout != desired.Timeout {
-		changed = append(changed, prefix+sectionsTimeoutKey)
-	}
-	if current.TopK != desired.TopK {
-		changed = append(changed, prefix+"top_k")
-	}
-	if current.PromptVersion != desired.PromptVersion {
-		changed = append(changed, prefix+"prompt_version")
-	}
-	if current.MaxTokensOut != desired.MaxTokensOut {
-		changed = append(changed, prefix+"max_tokens_out")
-	}
-	return changed
-}
-
-func diffSharedRoleRouteFields(
-	prefix string,
-	currentEnabled bool,
-	desiredEnabled bool,
-	currentProvider string,
-	desiredProvider string,
-	currentModel string,
-	desiredModel string,
-	currentEffort string,
-	desiredEffort string,
-	currentSpeed string,
-	desiredSpeed string,
-	currentACPOptions []compozyconfig.ACPOptionSelection,
-	desiredACPOptions []compozyconfig.ACPOptionSelection,
-	currentFallbacks []compozyconfig.RoleFallback,
-	desiredFallbacks []compozyconfig.RoleFallback,
-) []string {
-	changed := make([]string, 0, 5)
-	if currentEnabled != desiredEnabled {
-		changed = append(changed, prefix+sectionsEnabledKey)
-	}
-	if currentProvider != desiredProvider {
-		changed = append(changed, prefix+sectionsProviderKey)
-	}
-	if currentModel != desiredModel {
-		changed = append(changed, prefix+sectionsModelKey)
-	}
-	if currentEffort != desiredEffort {
-		changed = append(changed, prefix+sectionsReasoningEffortKey)
-	}
-	if currentSpeed != desiredSpeed {
-		changed = append(changed, prefix+sectionsSpeedKey)
-	}
-	if !roleACPOptionsEqual(currentACPOptions, desiredACPOptions) {
-		changed = append(changed, prefix+sectionsACPOptionsKey)
-	}
-	if !roleFallbacksEqual(currentFallbacks, desiredFallbacks) {
-		changed = append(changed, prefix+sectionsFallbackChainKey)
-	}
-	return changed
-}
-
 func applyRolesSettings(editor *compozyconfig.OverlayEditor, roles *compozyconfig.RolesConfig) error {
 	tables := []struct {
 		role   compozyconfig.RoleName
 		values map[string]any
 	}{
 		{role: compozyconfig.RoleCoordinator, values: coordinatorRoleTable(roles.Coordinator)},
-		{role: compozyconfig.RoleDream, values: roleTable(roles.Dream)},
-		{role: compozyconfig.RoleCheckpointSummary, values: roleTable(roles.CheckpointSummary)},
-		{role: compozyconfig.RoleMemoryExtractor, values: roleTable(roles.MemoryExtractor)},
 		{role: compozyconfig.RoleAutoTitle, values: roleTable(roles.AutoTitle)},
-		{role: compozyconfig.RoleMemoryController, values: memoryControllerRoleTable(roles.MemoryController)},
 	}
 	for _, table := range tables {
 		if err := editor.SetTable([]string{"roles", string(table.role)}, table.values); err != nil {
@@ -195,22 +100,6 @@ func coordinatorRoleTable(role compozyconfig.CoordinatorRoleConfig) map[string]a
 	table["max_children"] = role.MaxChildren
 	table["max_active_sessions_per_workspace"] = role.MaxActiveSessionsPerWorkspace
 	return table
-}
-
-func memoryControllerRoleTable(role compozyconfig.MemoryControllerRoleConfig) map[string]any {
-	return map[string]any{
-		sectionsEnabledKey:         role.Enabled,
-		sectionsProviderKey:        role.Provider,
-		sectionsModelKey:           role.Model,
-		sectionsReasoningEffortKey: role.ReasoningEffort,
-		sectionsSpeedKey:           string(role.Speed),
-		sectionsACPOptionsKey:      roleACPOptionTables(role.ACPOptions),
-		"timeout":                  role.Timeout.String(),
-		"top_k":                    role.TopK,
-		"prompt_version":           role.PromptVersion,
-		"max_tokens_out":           role.MaxTokensOut,
-		sectionsFallbackChainKey:   roleFallbackTables(role.FallbackChain),
-	}
 }
 
 func roleFallbackTables(fallbacks []compozyconfig.RoleFallback) []map[string]any {

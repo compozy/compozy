@@ -319,7 +319,8 @@ func TestValidateRetiredMemoryTriggerEvent(t *testing.T) {
 			t.Parallel()
 			err := ValidateTriggerEvent(event, "triggers[0]")
 			if event == "memory.consolidated" {
-				if err == nil || !strings.Contains(err.Error(), "triggers[0].event") || !strings.Contains(err.Error(), "no activation producer") {
+				if err == nil || !strings.Contains(err.Error(), "triggers[0].event") ||
+					!strings.Contains(err.Error(), "no activation producer") {
 					t.Fatalf("ValidateTriggerEvent() = %v, want unknown event error", err)
 				}
 			} else if err != nil {

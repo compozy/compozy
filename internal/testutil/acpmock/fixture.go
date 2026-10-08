@@ -33,10 +33,6 @@ const (
 	currentSkillsCatalogOpeningLine   = "The <current-available-skills> block above is " +
 		"the authoritative current skill state for this turn."
 	currentSkillsCatalogFinalLine = skillspkg.ManagedSkillLoadingInstructions
-	durableMemoryOpen             = "<turn-recall>"
-	durableMemoryClose            = "</turn-recall>"
-	workspaceKnowledgeOpen        = "<workspace-knowledge-snapshot>"
-	workspaceKnowledgeClose       = "</workspace-knowledge-snapshot>"
 )
 
 // LoadFixture parses and validates one fixture file.

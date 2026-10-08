@@ -29,7 +29,6 @@ func TestRoleResolverIntegration(t *testing.T) {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		resolver := newRoleResolver(&cfg, nil, nil)
-		defaults := compozyconfig.DefaultRolesConfig()
 
 		for _, testCase := range []struct {
 			role    compozyconfig.RoleName
@@ -40,11 +39,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 			model   string
 		}{
 			{role: compozyconfig.RoleCoordinator, agent: compozyconfig.BuiltinCoordinatorAgentName, builtin: true},
-			{role: compozyconfig.RoleDream, agent: compozyconfig.BuiltinDreamingCuratorAgentName, builtin: true},
-			{role: compozyconfig.RoleCheckpointSummary, agent: compozyconfig.BuiltinDreamingCuratorAgentName, builtin: true},
-			{role: compozyconfig.RoleMemoryExtractor, inherit: true},
 			{role: compozyconfig.RoleAutoTitle, enabled: true, inherit: true},
-			{role: compozyconfig.RoleMemoryController, model: defaults.MemoryController.Model},
 		} {
 			t.Run("Should resolve "+string(testCase.role), func(t *testing.T) {
 				t.Parallel()
@@ -79,16 +74,17 @@ func TestRoleResolverIntegration(t *testing.T) {
 				"mock": {Command: "mock-acp"},
 			},
 			Mutate: func(cfg *compozyconfig.Config) {
-				cfg.Roles.Dream.Provider = "mock"
-				cfg.Roles.Dream.Model = "global-model"
+				cfg.Roles.Coordinator.Enabled = true
+				cfg.Roles.Coordinator.Provider = "mock"
+				cfg.Roles.Coordinator.Model = "global-model"
 			},
 		})
 		workspaceA := e2etest.SeedWorkspace(t, e2etest.WorkspaceSeedOptions{Files: map[string]string{
-			".compozy/config.toml": "[roles.dream]\nmodel = \"workspace-model\"\n",
+			".compozy/config.toml": "[roles.coordinator]\nmodel = \"workspace-model\"\n",
 		}})
 		workspaceB := e2etest.SeedWorkspace(t, e2etest.WorkspaceSeedOptions{})
 		workspaceC := e2etest.SeedWorkspace(t, e2etest.WorkspaceSeedOptions{Files: map[string]string{
-			".compozy/config.toml": "[roles.dream]\nmodel = \"global-model\"\n",
+			".compozy/config.toml": "[roles.coordinator]\nmodel = \"global-model\"\n",
 		}})
 
 		global, err := compozyconfig.LoadForHome(homePaths)
@@ -113,11 +109,11 @@ func TestRoleResolverIntegration(t *testing.T) {
 			"workspace-c": configC,
 		}}, nil)
 
-		resolvedA, err := resolver.Resolve(t.Context(), "workspace-a", compozyconfig.RoleDream)
+		resolvedA, err := resolver.Resolve(t.Context(), "workspace-a", compozyconfig.RoleCoordinator)
 		if err != nil {
 			t.Fatalf("Resolve(workspace A) error = %v", err)
 		}
-		resolvedB, err := resolver.Resolve(t.Context(), "workspace-b", compozyconfig.RoleDream)
+		resolvedB, err := resolver.Resolve(t.Context(), "workspace-b", compozyconfig.RoleCoordinator)
 		if err != nil {
 			t.Fatalf("Resolve(workspace B) error = %v", err)
 		}
@@ -127,7 +123,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 		if resolvedB.Model != "global-model" || resolvedB.Provenance["model"] != "global" {
 			t.Fatalf("Resolve(workspace B) = %#v, want global model provenance", resolvedB)
 		}
-		resolvedC, err := resolver.Resolve(t.Context(), "workspace-c", compozyconfig.RoleDream)
+		resolvedC, err := resolver.Resolve(t.Context(), "workspace-c", compozyconfig.RoleCoordinator)
 		if err != nil {
 			t.Fatalf("Resolve(workspace C) error = %v", err)
 		}
@@ -148,10 +144,11 @@ func TestRoleResolverIntegration(t *testing.T) {
 				Name:     "my-curator",
 				Provider: "mock",
 				Model:    "agent-model",
-				Prompt:   "Curate durable memories.",
+				Prompt:   "Coordinate workspace work.",
 			}},
 			Mutate: func(cfg *compozyconfig.Config) {
-				cfg.Roles.Dream.Agent = "my-curator"
+				cfg.Roles.Coordinator.Enabled = true
+				cfg.Roles.Coordinator.Agent = "my-curator"
 			},
 		})
 		cfg, err := compozyconfig.LoadForHome(homePaths)
@@ -170,27 +167,27 @@ func TestRoleResolverIntegration(t *testing.T) {
 		resolved, err := newRoleResolver(&cfg, nil, roleAgentResolverStub{agents: catalog}).Resolve(
 			t.Context(),
 			"",
-			compozyconfig.RoleDream,
+			compozyconfig.RoleCoordinator,
 		)
 		if err != nil {
-			t.Fatalf("Resolve(dream) error = %v", err)
+			t.Fatalf("Resolve(coordinator) error = %v", err)
 		}
 		if resolved.AgentName != "my-curator" || resolved.Model != "agent-model" ||
-			resolved.AgentDef.Prompt != "Curate durable memories." {
-			t.Fatalf("Resolve(dream) = %#v, want disk-backed my-curator route", resolved)
+			resolved.AgentDef.Prompt != "Coordinate workspace work." {
+			t.Fatalf("Resolve(coordinator) = %#v, want disk-backed my-curator route", resolved)
 		}
 
-		cfg.Roles.Dream.Model = "role-model"
+		cfg.Roles.Coordinator.Model = "role-model"
 		resolved, err = newRoleResolver(&cfg, nil, roleAgentResolverStub{agents: catalog}).Resolve(
 			t.Context(),
 			"",
-			compozyconfig.RoleDream,
+			compozyconfig.RoleCoordinator,
 		)
 		if err != nil {
-			t.Fatalf("Resolve(dream role override) error = %v", err)
+			t.Fatalf("Resolve(coordinator role override) error = %v", err)
 		}
 		if resolved.Model != "role-model" {
-			t.Fatalf("Resolve(dream role override) model = %q, want role-model", resolved.Model)
+			t.Fatalf("Resolve(coordinator role override) model = %q, want role-model", resolved.Model)
 		}
 	})
 
@@ -243,13 +240,13 @@ func TestRoleResolverIntegration(t *testing.T) {
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
-				cfg.Memory.Enabled = true
-				cfg.Roles.CheckpointSummary.Enabled = true
-				cfg.Roles.CheckpointSummary.Provider = "claude"
-				cfg.Roles.CheckpointSummary.Model = "checkpoint-model"
+				cfg.Roles.Coordinator.Enabled = true
+				cfg.Roles.AutoTitle.Enabled = true
+				cfg.Roles.AutoTitle.Provider = "claude"
+				cfg.Roles.AutoTitle.Model = "title-model"
 			}},
 			Workspace: e2etest.WorkspaceSeedOptions{Files: map[string]string{
-				".compozy/config.toml": `[roles.dream]
+				".compozy/config.toml": `[roles.coordinator]
 agent = "missing-curator"
 
 `,
@@ -270,8 +267,8 @@ agent = "missing-curator"
 		if !reflect.DeepEqual(httpRoles, udsRoles) {
 			t.Fatalf("HTTP roles = %#v, want UDS parity %#v", httpRoles, udsRoles)
 		}
-		if len(httpRoles.Roles) != 6 {
-			t.Fatalf("len(roles) = %d, want 6", len(httpRoles.Roles))
+		if len(httpRoles.Roles) != 2 {
+			t.Fatalf("len(roles) = %d, want 2", len(httpRoles.Roles))
 		}
 		for index := 1; index < len(httpRoles.Roles); index++ {
 			if httpRoles.Roles[index-1].Role >= httpRoles.Roles[index].Role {
@@ -279,37 +276,37 @@ agent = "missing-curator"
 			}
 		}
 
-		var dream compozycontract.RoleStatus
+		var coordinator compozycontract.RoleStatus
 		for _, role := range httpRoles.Roles {
-			if role.Role == string(compozyconfig.RoleDream) {
-				dream = role
+			if role.Role == string(compozyconfig.RoleCoordinator) {
+				coordinator = role
 			}
 			if role.ResolutionMode == compozycontract.RoleResolutionModeInherit && role.Agent != nil {
 				t.Fatalf("inherit role fabricated an agent identity: %#v", role)
 			}
 		}
-		if dream.Role == "" || len(dream.Diagnostics) != 1 ||
-			dream.Diagnostics[0].Code != compozycontract.CodeRoleAgentNotFound {
-			t.Fatalf("dream role = %#v, want role_agent_not_found diagnostic", dream)
+		if coordinator.Role == "" || len(coordinator.Diagnostics) != 1 ||
+			coordinator.Diagnostics[0].Code != compozycontract.CodeRoleAgentNotFound {
+			t.Fatalf("coordinator role = %#v, want role_agent_not_found diagnostic", coordinator)
 		}
 
-		var cliDream compozycontract.RoleStatus
+		var cliCoordinator compozycontract.RoleStatus
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
-			&cliDream,
+			&cliCoordinator,
 			"roles",
 			"show",
-			"dream",
+			"coordinator",
 			"--workspace",
 			harness.WorkspaceRoot,
 			"-o",
 			"json",
 		); err != nil {
-			t.Fatalf("CLI roles show dream error = %v", err)
+			t.Fatalf("CLI roles show coordinator error = %v", err)
 		}
-		if !reflect.DeepEqual(cliDream, dream) {
-			t.Fatalf("CLI dream = %#v, want HTTP/UDS parity %#v", cliDream, dream)
+		if !reflect.DeepEqual(cliCoordinator, coordinator) {
+			t.Fatalf("CLI coordinator = %#v, want HTTP/UDS parity %#v", cliCoordinator, coordinator)
 		}
 		var cliRoles []compozycontract.RoleStatus
 		if err := harness.CLI.RunJSONInDir(
@@ -326,43 +323,43 @@ agent = "missing-curator"
 		if !reflect.DeepEqual(cliRoles, httpRoles.Roles) {
 			t.Fatalf("CLI roles=%#v, want HTTP/UDS parity %#v", cliRoles, httpRoles)
 		}
-		var checkpoint compozycontract.RoleStatus
+		var title compozycontract.RoleStatus
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
-			&checkpoint,
+			&title,
 			"roles",
 			"show",
-			"checkpoint_summary",
+			"auto_title",
 			"-o",
 			"json",
 		); err != nil {
-			t.Fatalf("CLI checkpoint role error = %v", err)
+			t.Fatalf("CLI title role error = %v", err)
 		}
-		if !checkpoint.Enabled || checkpoint.Provider == nil || *checkpoint.Provider != "claude" ||
-			checkpoint.Model == nil || *checkpoint.Model != "checkpoint-model" || len(checkpoint.Diagnostics) != 0 ||
-			checkpoint.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceGlobal {
-			t.Fatalf("checkpoint role=%#v, want configured memory availability", checkpoint)
+		if !title.Enabled || title.Provider == nil || *title.Provider != "claude" ||
+			title.Model == nil || *title.Model != "title-model" || len(title.Diagnostics) != 0 ||
+			title.Provenance[compozyconfig.RoleFieldEnabled] != compozyconfig.RoleFieldSourceGlobal {
+			t.Fatalf("title role=%#v, want configured role availability", title)
 		}
-		checkpointIndex := slices.IndexFunc(cliRoles, func(role compozycontract.RoleStatus) bool {
-			return role.Role == checkpoint.Role
+		titleIndex := slices.IndexFunc(cliRoles, func(role compozycontract.RoleStatus) bool {
+			return role.Role == title.Role
 		})
-		if checkpointIndex < 0 {
-			t.Fatalf("checkpoint_summary missing from CLI/HTTP/UDS roster: %#v", cliRoles)
+		if titleIndex < 0 {
+			t.Fatalf("auto_title missing from CLI/HTTP/UDS roster: %#v", cliRoles)
 		}
-		if !reflect.DeepEqual(cliRoles[checkpointIndex], checkpoint) {
-			t.Fatalf("checkpoint list=%#v, show=%#v", cliRoles[checkpointIndex], checkpoint)
+		if !reflect.DeepEqual(cliRoles[titleIndex], title) {
+			t.Fatalf("title list=%#v, show=%#v", cliRoles[titleIndex], title)
 		}
-		stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "roles", "show", "checkpoint_summary")
+		stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "roles", "show", "auto_title")
 		if err != nil || !strings.Contains(strings.Join(strings.Fields(stdout), " "), "Enabled: true") {
-			t.Fatalf("human checkpoint status stdout=%q stderr=%q error=%v", stdout, stderr, err)
+			t.Fatalf("human title status stdout=%q stderr=%q error=%v", stdout, stderr, err)
 		}
 		t.Logf(
-			"checkpoint_summary: enabled=%t provider=%s model=%s provenance=%s; CLI/HTTP/UDS agree",
-			checkpoint.Enabled,
-			*checkpoint.Provider,
-			*checkpoint.Model,
-			checkpoint.Provenance[compozyconfig.RoleFieldEnabled],
+			"auto_title: enabled=%t provider=%s model=%s provenance=%s; CLI/HTTP/UDS agree",
+			title.Enabled,
+			*title.Provider,
+			*title.Model,
+			title.Provenance[compozyconfig.RoleFieldEnabled],
 		)
 
 		workspace := url.QueryEscape(harness.WorkspaceRoot)

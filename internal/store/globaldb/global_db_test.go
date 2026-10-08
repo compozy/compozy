@@ -24,7 +24,6 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
-	memorypkg "github.com/compozy/compozy/internal/memory"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
@@ -107,18 +106,6 @@ func runGlobalDBTests(m *testing.M) (code int) {
 	globalDB, err := OpenGlobalDB(ctx, path)
 	if err != nil {
 		reportTestMainError("OpenGlobalDB(globaldb seed) error = %v", err)
-		return 1
-	}
-	memoryStore := memorypkg.NewStore(
-		filepath.Join(dir, "memory"),
-		memorypkg.WithCatalogDatabasePath(path),
-	)
-	if err := memoryStore.OpenCatalog(ctx); err != nil {
-		reportTestMainError("OpenCatalog(globaldb seed) error = %v", err)
-		return 1
-	}
-	if err := memoryStore.CloseCatalog(ctx); err != nil {
-		reportTestMainError("CloseCatalog(globaldb seed) error = %v", err)
 		return 1
 	}
 	if err := globalDB.Close(ctx); err != nil {
@@ -5430,13 +5417,21 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 			t.Parallel()
 			ctx := globalMigrationTestContext(t)
 			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-			prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00128_retire_memory.sql"))
+			prior, err := openGlobalMigrationPrefixDatabase(
+				t,
+				path,
+				globalMigrationPrefixBefore(t, "00128_retire_memory.sql"),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			seedMemoryRetirementKeptState(t, prior)
 			if fixture.memory {
-				if err := store.Apply(ctx, prior, memorypkg.MigrationStream()); err != nil {
+				fixtureSQL, err := os.ReadFile("testdata/retired_memory_v3.sql")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := prior.ExecContext(ctx, string(fixtureSQL)); err != nil {
 					t.Fatal(err)
 				}
 				seedMemoryRetirementStream(t, prior)
@@ -5481,7 +5476,8 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 					}
 				}
 				var eventSession sql.NullString
-				if err := upgraded.db.QueryRowContext(ctx, `SELECT session_id FROM agent_heartbeat_wake_events WHERE id='retired-wake'`).Scan(&eventSession); err != nil {
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT session_id FROM agent_heartbeat_wake_events WHERE id='retired-wake'`).
+					Scan(&eventSession); err != nil {
 					t.Fatal(err)
 				}
 				if eventSession.Valid {
@@ -5538,7 +5534,10 @@ func seedMemoryRetirementKeptState(t *testing.T, db *sql.DB) {
 			}
 		}
 	}
-	if _, err := db.ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,session_id,source,result,reason,created_at,expires_at) VALUES ('retired-wake','retirement-ws','coder','retired-dream','manual','sent','wake_sent','2026-10-07','2026-10-08')`); err != nil {
+	if _, err := db.ExecContext(
+		t.Context(),
+		`INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,session_id,source,result,reason,created_at,expires_at) VALUES ('retired-wake','retirement-ws','coder','retired-dream','manual','sent','wake_sent','2026-10-07','2026-10-08')`,
+	); err != nil {
 		t.Fatal(err)
 	}
 }

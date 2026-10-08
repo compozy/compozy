@@ -1511,7 +1511,6 @@ func bootModelCatalogTestDaemonWithSetup(
 
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = false
 	cfg.Skills.Enabled = false
 	cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
 	if mutate != nil {

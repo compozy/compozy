@@ -85,6 +85,7 @@ func (r *windowManagerLayoutRegistry) List(
 	for _, record := range selected {
 		resource := windowmanager.CloneLayoutResource(record.Spec)
 		resource.Document.WorkspaceID = workspaceID
+		resource, _ = reconcileWindowLayoutResource(resource)
 		visible = append(visible, resource)
 	}
 	slices.SortFunc(visible, func(a, b windowmanager.LayoutResource) int {

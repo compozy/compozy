@@ -3190,7 +3190,6 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	if err != nil || doctor.Status != "ok" {
 		t.Fatalf("Doctor() = %#v, %v", doctor, err)
 	}
-
 }
 
 func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {

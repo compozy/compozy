@@ -123,76 +123,6 @@ const (
 	ToolIDProviderModelsCurate ToolID = "compozy__provider_models_curate"
 	// ToolIDVaultList lists global redacted Vault secret metadata.
 	ToolIDVaultList ToolID = "compozy__vault_list"
-	// ToolIDMemoryList lists memory headers visible for a scope.
-	ToolIDMemoryList ToolID = "compozy__memory_list"
-	// ToolIDMemoryShow reads one memory document through the current memory store.
-	ToolIDMemoryShow ToolID = "compozy__memory_show"
-	// ToolIDMemorySearch recalls memory documents through the active memory provider.
-	ToolIDMemorySearch ToolID = "compozy__memory_search"
-	// ToolIDMemoryPropose submits a controller-backed memory proposal.
-	ToolIDMemoryPropose ToolID = "compozy__memory_propose"
-	// ToolIDMemoryNote records a controller-backed ad-hoc memory note.
-	ToolIDMemoryNote ToolID = "compozy__memory_note"
-	// ToolIDMemoryHealth reads Memory v2 health and derived catalog state.
-	ToolIDMemoryHealth ToolID = "compozy__memory_health"
-	// ToolIDMemoryScopeShow reports effective Memory v2 scope resolution.
-	ToolIDMemoryScopeShow ToolID = "compozy__memory_scope_show"
-	// ToolIDMemoryAdminHistory lists Memory v2 operation history without reusing the removed legacy ID.
-	ToolIDMemoryAdminHistory ToolID = "compozy__memory_admin_history"
-	// ToolIDMemoryReindex rebuilds Memory v2 derived indexes.
-	ToolIDMemoryReindex ToolID = "compozy__memory_reindex"
-	// ToolIDMemoryPromote promotes one Memory v2 entry across scopes.
-	ToolIDMemoryPromote ToolID = "compozy__memory_promote"
-	// ToolIDMemoryReset resets derived Memory v2 state.
-	ToolIDMemoryReset ToolID = "compozy__memory_reset"
-	// ToolIDMemoryReload invalidates future Memory v2 snapshots.
-	ToolIDMemoryReload ToolID = "compozy__memory_reload"
-	// ToolIDMemoryDecisionsList lists Memory v2 controller decisions.
-	ToolIDMemoryDecisionsList ToolID = "compozy__memory_decisions_list"
-	// ToolIDMemoryDecisionsShow reads one Memory v2 controller decision.
-	ToolIDMemoryDecisionsShow ToolID = "compozy__memory_decisions_show"
-	// ToolIDMemoryDecisionsRevert reverts one applied Memory v2 controller decision.
-	ToolIDMemoryDecisionsRevert ToolID = "compozy__memory_decisions_revert"
-	// ToolIDMemoryRecallTrace reads one materialized Memory v2 recall trace.
-	ToolIDMemoryRecallTrace ToolID = "compozy__memory_recall_trace"
-	// ToolIDMemoryDreamStatus reads live Memory v2 dreaming status.
-	ToolIDMemoryDreamStatus ToolID = "compozy__memory_dream_status"
-	// ToolIDMemoryDreamList lists Memory v2 dreaming run records.
-	ToolIDMemoryDreamList ToolID = "compozy__memory_dream_list"
-	// ToolIDMemoryDreamShow reads one Memory v2 dreaming run record.
-	ToolIDMemoryDreamShow ToolID = "compozy__memory_dream_show"
-	// ToolIDMemoryDreamTrigger triggers Memory v2 dream consolidation.
-	ToolIDMemoryDreamTrigger ToolID = "compozy__memory_dream_trigger"
-	// ToolIDMemoryDreamRetry retries Memory v2 dream consolidation.
-	ToolIDMemoryDreamRetry ToolID = "compozy__memory_dream_retry"
-	// ToolIDMemoryDailyList lists Memory v2 daily operation logs.
-	ToolIDMemoryDailyList ToolID = "compozy__memory_daily_list"
-	// ToolIDMemoryExtractorStatus reads Memory v2 extractor queue status.
-	ToolIDMemoryExtractorStatus ToolID = "compozy__memory_extractor_status"
-	// ToolIDMemoryExtractorFailures lists Memory v2 extractor failures.
-	ToolIDMemoryExtractorFailures ToolID = "compozy__memory_extractor_failures"
-	// ToolIDMemoryExtractorRetry retries Memory v2 extractor failures.
-	ToolIDMemoryExtractorRetry ToolID = "compozy__memory_extractor_retry"
-	// ToolIDMemoryExtractorDrain drains the Memory v2 extractor queue.
-	ToolIDMemoryExtractorDrain ToolID = "compozy__memory_extractor_drain"
-	// ToolIDMemoryProviderList lists Memory v2 providers.
-	ToolIDMemoryProviderList ToolID = "compozy__memory_provider_list"
-	// ToolIDMemoryProviderGet reads one Memory v2 provider.
-	ToolIDMemoryProviderGet ToolID = "compozy__memory_provider_get"
-	// ToolIDMemoryProviderSelect selects the active Memory v2 provider.
-	ToolIDMemoryProviderSelect ToolID = "compozy__memory_provider_select"
-	// ToolIDMemoryProviderEnable enables one Memory v2 provider.
-	ToolIDMemoryProviderEnable ToolID = "compozy__memory_provider_enable"
-	// ToolIDMemoryProviderDisable disables one Memory v2 provider.
-	ToolIDMemoryProviderDisable ToolID = "compozy__memory_provider_disable"
-	// ToolIDMemorySessionLedger reads one materialized Memory v2 session ledger.
-	ToolIDMemorySessionLedger ToolID = "compozy__memory_session_ledger"
-	// ToolIDMemorySessionReplay replays one materialized Memory v2 session ledger.
-	ToolIDMemorySessionReplay ToolID = "compozy__memory_session_replay"
-	// ToolIDMemorySessionsPrune prunes Memory v2 session ledgers.
-	ToolIDMemorySessionsPrune ToolID = "compozy__memory_sessions_prune"
-	// ToolIDMemorySessionsRepair repairs Memory v2 session ledgers.
-	ToolIDMemorySessionsRepair ToolID = "compozy__memory_sessions_repair"
 	// ToolIDListLogs reads redacted runtime logs.
 	ToolIDListLogs ToolID = "compozy__logs"
 	// ToolIDToolArtifactRead pages one retained oversized tool result.
@@ -378,10 +308,6 @@ const (
 	ToolsetIDWorktrees ToolsetID = "compozy__worktree"
 	// ToolsetIDProviderModels groups provider model catalog tools.
 	ToolsetIDProviderModels ToolsetID = "compozy__provider_models"
-	// ToolsetIDMemory groups Memory v2 read and proposal tools.
-	ToolsetIDMemory ToolsetID = "compozy__memory"
-	// ToolsetIDMemoryAdmin groups Memory v2 operational tools.
-	ToolsetIDMemoryAdmin ToolsetID = "compozy__memory_admin"
 	// ToolsetIDObserve groups read-only observability tools.
 	ToolsetIDObserve ToolsetID = "compozy__observe"
 	// ToolsetIDGateway groups gateway inspection and permission-gated management.

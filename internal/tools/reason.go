@@ -116,8 +116,6 @@ const (
 	ReasonScopeMismatch ReasonCode = "scope_mismatch"
 	// ReasonWorkspaceAccessDenied reports a workspace-axis policy denial.
 	ReasonWorkspaceAccessDenied ReasonCode = "workspace_access_denied"
-	// ReasonMemorySubagentWriteDenied reports a sub-agent direct memory write denial.
-	ReasonMemorySubagentWriteDenied ReasonCode = "memory_subagent_write_denied"
 	// ReasonHookDenied reports hook denial.
 	ReasonHookDenied ReasonCode = "hook_denied"
 	// ReasonSchemaInvalid reports invalid JSON schema.
@@ -243,7 +241,6 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonLoopNodeNotPaused:              {},
 	ReasonLoopNodeNotQuarantined:         {},
 	ReasonLoopAlreadyDecided:             {},
-	ReasonMemorySubagentWriteDenied:      {},
 	ReasonWorkspaceAccessDenied:          {},
 	ReasonHookDenied:                     {},
 	ReasonSchemaInvalid:                  {},

@@ -14,7 +14,6 @@ func (d *Daemon) runtimeDeps(
 	if state.agentProbeConfig == nil {
 		state.agentProbeConfig = newAgentProbeConfigState(&state.cfg)
 	}
-	d.initializeDreamRuntime(state, sessions)
 	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
 	state.runtimeWorkers.authoredHeartbeatWake = authoredContext.wakePrompter
 	var worktrees core.WorktreeService

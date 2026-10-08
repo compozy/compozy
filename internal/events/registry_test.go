@@ -289,17 +289,6 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep memory operation projections out of direct global writes", func(t *testing.T) {
-		t.Parallel()
-
-		if AllowsGlobalScope(MemoryWriteCommitted) {
-			t.Fatal("AllowsGlobalScope(MemoryWriteCommitted) = true, want false for memory_events projection")
-		}
-		if !AllowsGlobalScope(MemoryProviderCollision) {
-			t.Fatal("AllowsGlobalScope(MemoryProviderCollision) = false, want true for extension collision summaries")
-		}
-	})
-
 	t.Run("Should expose transcript stream snapshot metadata", func(t *testing.T) {
 		t.Parallel()
 
