@@ -1,5 +1,5 @@
 import { useDesktop } from "../../hooks/use-desktop";
-import { validateAutomationsSearch } from "@/systems/automation";
+import { validateAutomationDetailSearch, validateAutomationsSearch } from "@/systems/automation";
 import { AutomationDetailLocation } from "./automation-detail-location";
 import { AutomationsCatalogLocation } from "./automations-catalog-location";
 
@@ -23,6 +23,7 @@ export function AutomationsWindow({ windowId }: { windowId: string }) {
       <AutomationDetailLocation
         id={decodePathSegment(detail[2])}
         kind={detail[1] === "jobs" ? "job" : "trigger"}
+        search={validateAutomationDetailSearch(location.search)}
       />
     );
   }

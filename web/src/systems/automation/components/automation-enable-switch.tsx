@@ -3,6 +3,8 @@ import { useId, type ComponentProps } from "react";
 import { Switch, cn } from "@compozy/ui";
 
 interface AutomationEnableSwitchProps extends Omit<ComponentProps<"div">, "children"> {
+  /** Names the automation in the switch's accessible label. */
+  name: string;
   enabled: boolean;
   pending: boolean;
   onEnabledChange: (enabled: boolean) => void;
@@ -11,13 +13,14 @@ interface AutomationEnableSwitchProps extends Omit<ComponentProps<"div">, "child
 }
 
 /**
- * The labeled enable switch shown in job and trigger detail heads.
+ * The labeled On/Off switch opposite the detail sentence.
  *
  * While the PATCH is in flight the track keeps the state the daemon last
  * confirmed; the label announces the transition instead. An optimistic flip
  * would claim a state the runtime has not agreed to yet.
  */
 export function AutomationEnableSwitch({
+  name,
   enabled,
   pending,
   onEnabledChange,
@@ -27,7 +30,7 @@ export function AutomationEnableSwitch({
   ...props
 }: AutomationEnableSwitchProps) {
   const labelId = useId();
-  const label = pending ? (enabled ? "Disabling…" : "Enabling…") : enabled ? "Enabled" : "Disabled";
+  const label = pending ? (enabled ? "Turning off…" : "Turning on…") : enabled ? "On" : "Off";
   return (
     <div
       aria-busy={pending || undefined}
@@ -49,7 +52,8 @@ export function AutomationEnableSwitch({
         {label}
       </span>
       <Switch
-        aria-labelledby={labelId}
+        aria-describedby={labelId}
+        aria-label={`Turn ${name} on or off`}
         checked={enabled}
         data-testid={switchTestId}
         disabled={pending}

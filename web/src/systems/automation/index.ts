@@ -126,8 +126,11 @@ export {
   parseAutomationScope,
   parseAutomationSource,
   automationsStartView,
+  automationListingSearch,
   parseAutomationTarget,
+  validateAutomationDetailSearch,
   validateAutomationsSearch,
+  type AutomationDetailRouteSearch,
   type AutomationsRouteSearch,
 } from "./lib/automation-route-search";
 export { redirectLegacyAutomationURL } from "./lib/automation-redirects";
@@ -137,6 +140,7 @@ export {
   compareAutomationViews,
   toAutomationView,
   type AutomationDoes,
+  type AutomationEntityKind,
   type AutomationLastRun,
   type AutomationStart,
   type AutomationView,
@@ -152,6 +156,7 @@ export {
   type AutomationSentenceSegment,
   type SentenceContext,
 } from "./lib/automation-sentence";
+export { automationLastRanAt, type AutomationEntity } from "./lib/automation-detail";
 export {
   automationEditorWorkspaceId,
   automationMatchesActiveWorkspace,
@@ -188,9 +193,11 @@ export {
 export { useAutomationSuggestions } from "./hooks/use-automation-suggestions";
 
 // Components
-export { AutomationDetailPanel } from "./components/automation-detail-panel";
-export { TriggerDetailPanel } from "./components/trigger-detail/trigger-detail-panel";
-export type { TriggerDetailPanelProps } from "./components/trigger-detail/trigger-detail-panel";
+export {
+  AutomationDetailPanel,
+  type AutomationDetailPanelProps,
+  type AutomationDetailStatus,
+} from "./components/automation-detail/automation-detail-panel";
 export { AutomationEditorDialog } from "./components/automation-editor-dialog";
 export { AutomationJobForm } from "./components/automation-job-form";
 export { AutomationListFilters } from "./components/automation-list-filters";
@@ -198,7 +205,6 @@ export { AutomationCatalogShell } from "./components/automation-catalog-shell";
 export { AutomationRow, type AutomationItemControls } from "./components/automation-row";
 export { AutomationCard } from "./components/automation-card";
 export { AutomationStartViews } from "./components/automation-start-views";
-export { AutomationRunHistory } from "./components/automation-run-history";
 export {
   AutomationSuggestionsCard,
   type AutomationSuggestionsCardProps,

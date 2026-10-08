@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger, Eyebrow, cn } from "@compozy/ui";
 
-interface TriggerDetailSectionProps {
+interface AutomationDetailSectionProps {
   icon: LucideIcon;
   label: string;
   /** Omitted at zero — a zero count is not a fact worth a chip. */
@@ -19,7 +19,7 @@ interface TriggerDetailSectionProps {
  * Main-column collapsible section: quiet uppercase label, optional count, and a
  * one-line gist so the section still says something while collapsed.
  */
-export function TriggerDetailSection({
+export function AutomationDetailSection({
   icon: Icon,
   label,
   count,
@@ -27,7 +27,7 @@ export function TriggerDetailSection({
   defaultOpen = true,
   children,
   "data-testid": testId,
-}: TriggerDetailSectionProps) {
+}: AutomationDetailSectionProps) {
   return (
     <Collapsible data-testid={testId} defaultOpen={defaultOpen}>
       <CollapsibleTrigger

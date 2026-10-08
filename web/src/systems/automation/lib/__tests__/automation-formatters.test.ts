@@ -3,9 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   automationRunSkipReason,
   automationScopeTone,
-  automationSkipReasonDetail,
   automationSkipReasonLabel,
-  automationSkipReasonTone,
   automationSourceLabel,
   automationSourceTone,
   automationRunStateGlyph,
@@ -13,8 +11,7 @@ import {
   describeFireLimit,
   describeRetry,
   describeTrigger,
-  describeTriggerFireLimit,
-  describeTriggerRetry,
+  describeRetryPlain,
   formatDate,
   formatDateTime,
   formatPromptPreview,
@@ -22,7 +19,6 @@ import {
   formatRunDuration,
   formatRunTitle,
   humanizeFireWindow,
-  summarizeTriggerReliability,
 } from "../automation-formatters";
 
 const triggerFixture = {
@@ -132,23 +128,16 @@ describe("automation formatter helpers", () => {
     expect(automationSourceLabel("dynamic")).toBe("Created here");
   });
 
-  it("Should format trigger reliability across singular, plural, and unknown windows", () => {
+  it("Should format reliability in plain words across singular, plural, and unknown windows", () => {
     expect(humanizeFireWindow("1h")).toBe("hour");
     expect(humanizeFireWindow("30m")).toBe("30 minutes");
     expect(humanizeFireWindow("calendar-day")).toBe("calendar-day");
-    expect(describeTriggerRetry({ strategy: "none", max_retries: 0, base_delay: "" })).toBe(
+    expect(describeRetryPlain({ strategy: "none", max_retries: 0, base_delay: "" })).toBe(
       "No retries"
     );
-    expect(describeTriggerRetry({ strategy: "backoff", max_retries: 1, base_delay: "5s" })).toBe(
-      "Backoff · 1 time"
+    expect(describeRetryPlain({ strategy: "backoff", max_retries: 2, base_delay: "5s" })).toBe(
+      "Up to 2, waiting longer each time"
     );
-    expect(describeTriggerFireLimit({ max: 1, window: "1h" })).toBe("1 time / hour");
-    expect(
-      summarizeTriggerReliability(
-        { strategy: "backoff", max_retries: 2, base_delay: "5s" },
-        { max: 4, window: "1h" }
-      )
-    ).toBe("Backoff · 4 / hour");
   });
 
   it("labels catch-up policies and never surfaces the removed skip value", () => {
@@ -161,7 +150,7 @@ describe("automation formatter helpers", () => {
     expect(catchUpPolicyLabel("skip_missed")).not.toBe("skip");
   });
 
-  it("recognizes durable skip reasons only on canceled runs and maps label, tone, and detail", () => {
+  it("recognizes durable skip reasons only on canceled runs and maps the label", () => {
     expect(
       automationRunSkipReason({ status: "canceled", metadata: { reason: "self_overlap" } } as never)
     ).toBe("self_overlap");
@@ -195,9 +184,5 @@ describe("automation formatter helpers", () => {
 
     expect(automationSkipReasonLabel("self_overlap")).toBe("Skipped");
     expect(automationSkipReasonLabel("misfire_grace_exceeded")).toBe("Missed");
-    expect(automationSkipReasonTone("self_overlap")).toBe("neutral");
-    expect(automationSkipReasonTone("misfire_grace_exceeded")).toBe("neutral");
-    expect(automationSkipReasonDetail("self_overlap")).toContain("previous run");
-    expect(automationSkipReasonDetail("misfire_grace_exceeded")).toContain("start window");
   });
 });
