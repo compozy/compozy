@@ -198,6 +198,24 @@ describe("AutomationRow", () => {
   });
 });
 
+describe("AutomationRow last-run instant", () => {
+  it("Should date the last-ran stat and the last-run truth line by the same instant", () => {
+    const startedAt = new Date(Date.now() - 150_000).toISOString();
+    const endedAt = new Date(Date.now() - 90_000).toISOString();
+    renderRow(
+      withEntity({
+        ...automationStoryTriggers[2],
+        last_run: { id: "run_x", status: "failed", started_at: startedAt, ended_at: endedAt },
+      })
+    );
+    const stat = screen.getByTestId("automation-stat-deploy-webhook").querySelector("time");
+    const truth = screen.getByTestId("automation-last-run-deploy-webhook").querySelector("time");
+    expect(stat).toHaveAttribute("datetime", startedAt);
+    expect(truth).toHaveAttribute("datetime", startedAt);
+    expect(stat?.textContent).toBe(truth?.textContent);
+  });
+});
+
 describe("AutomationCard", () => {
   it("Should caption the start kind and exceptions without an overflow", () => {
     for (const id of ["morning-digest", "summarize-failures", "deploy-webhook"]) {
@@ -222,6 +240,13 @@ describe("AutomationCard", () => {
     );
     expect(screen.queryByRole("button", { name: /More actions/ })).toBeNull();
     expect(screen.getAllByRole("switch")).toHaveLength(5);
+    expect(screen.getByTestId("automation-card-foot-morning-digest")).toHaveTextContent(
+      /^Next run in 1[34]h$/
+    );
+    expect(screen.getByTestId("automation-card-foot-summarize-failures")).toHaveTextContent(
+      /^Last ran 2h ago$/
+    );
+    expect(screen.getByTestId("automation-card-foot-dependency-review")).toHaveTextContent("—");
   });
 });
 

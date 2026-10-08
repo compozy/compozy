@@ -5,17 +5,18 @@
 import { isRedirect } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
+import { Route as AutomationsRoute } from "../automations";
 import { Route as JobsRoute } from "../jobs";
 import { Route as TriggersRoute } from "../triggers";
 
 type BeforeLoad = (args: {
-  location: { pathname: string };
+  location: { pathname: string; search: Record<string, unknown> };
   search: Record<string, unknown>;
 }) => unknown;
 
 function redirectOf(route: { options: { beforeLoad?: unknown } }, pathname: string, search = {}) {
   try {
-    (route.options.beforeLoad as BeforeLoad)({ location: { pathname }, search });
+    (route.options.beforeLoad as BeforeLoad)({ location: { pathname, search }, search });
   } catch (error) {
     if (isRedirect(error)) return error.options;
     throw error;
@@ -43,5 +44,29 @@ describe("legacy automation route stubs", () => {
       params: { triggerId: "rerun-delivery" },
       replace: true,
     });
+  });
+});
+
+describe("automations listing route", () => {
+  it("Should replace an unknown start with the canonical listing URL", () => {
+    expect(redirectOf(AutomationsRoute, "/automations", { start: "bogus", q: "" })).toMatchObject({
+      to: "/automations",
+      search: {},
+      replace: true,
+    });
+  });
+
+  it("Should not touch a canonical listing or any detail URL", () => {
+    const beforeLoad = AutomationsRoute.options.beforeLoad as unknown as (args: {
+      location: { pathname: string; search: Record<string, unknown> };
+    }) => unknown;
+    expect(
+      beforeLoad({ location: { pathname: "/automations", search: { start: "event" } } })
+    ).toMatchObject({ topbar: { crumb: { label: "Automations" } } });
+    expect(
+      beforeLoad({
+        location: { pathname: "/automations/jobs/morning-digest", search: { edit: "options" } },
+      })
+    ).toMatchObject({ topbar: { crumb: { label: "Automations" } } });
   });
 });

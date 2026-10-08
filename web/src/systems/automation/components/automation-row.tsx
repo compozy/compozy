@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { ListingRow, cn } from "@compozy/ui";
+import { ListingRow, Time, cn } from "@compozy/ui";
 
 import {
   automationLocationLabel,
@@ -114,7 +114,7 @@ export function AutomationRow({ view, controls }: AutomationRowProps) {
       <ListingRow.Trail>
         <ListingRow.Stat data-testid={`automation-stat-${view.id}`}>
           <ListingRow.Stat.Value className={cn(stat.value === null && "text-faint")}>
-            {stat.value ?? "—"}
+            {stat.at ? <Time iso={stat.at} /> : (stat.value ?? "—")}
           </ListingRow.Stat.Value>
           <ListingRow.Stat.Label>{stat.label}</ListingRow.Stat.Label>
         </ListingRow.Stat>

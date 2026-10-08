@@ -11,6 +11,7 @@ import { redirectLegacyAutomationURL } from "../automation-redirects";
 import {
   automationRouteHasActiveFilters,
   validateAutomationDetailSearch,
+  canonicalAutomationsSearch,
   validateAutomationsSearch,
 } from "../automation-route-search";
 
@@ -148,5 +149,23 @@ describe("redirectLegacyAutomationURL", () => {
   it("Should ignore paths outside the legacy routes", () => {
     expect(redirectLegacyAutomationURL("/automations", {})).toBeNull();
     expect(redirectLegacyAutomationURL("/jobsite", {})).toBeNull();
+  });
+});
+
+describe("canonicalAutomationsSearch", () => {
+  it("Should rewrite a URL that carries unknown or empty listing params", () => {
+    expect(canonicalAutomationsSearch({ start: "bogus", q: "" })).toEqual({});
+    expect(canonicalAutomationsSearch({ start: "event", view: "grid", q: "digest" })).toEqual({
+      start: "event",
+      q: "digest",
+    });
+  });
+
+  it("Should leave a canonical listing URL alone", () => {
+    expect(canonicalAutomationsSearch({})).toBeNull();
+    expect(
+      canonicalAutomationsSearch({ start: "schedule", q: "digest", view: "cards" })
+    ).toBeNull();
+    expect(canonicalAutomationsSearch({ create: "1", start: "webhook" })).toBeNull();
   });
 });

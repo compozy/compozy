@@ -1,6 +1,10 @@
-import { CatalogCard, cn } from "@compozy/ui";
+import { CatalogCard, Time, cn } from "@compozy/ui";
 
-import { automationTimeStat, type AutomationView } from "../lib/automation-view";
+import {
+  automationCardFootLead,
+  automationTimeStat,
+  type AutomationView,
+} from "../lib/automation-view";
 import { AutomationRowSwitch } from "./automation-enable-switch";
 import type { AutomationItemControls } from "./automation-row";
 import { AutomationDetailLink } from "./automation-row";
@@ -30,6 +34,7 @@ export function AutomationCard({
   controls: AutomationItemControls;
 }) {
   const stat = automationTimeStat(view);
+  const footLead = automationCardFootLead(stat);
   return (
     <CatalogCard
       actionable
@@ -64,10 +69,19 @@ export function AutomationCard({
         </CatalogCard.Description>
       </AutomationDetailLink>
       <CatalogCard.Actions className="justify-between">
-        <span className={cn("text-form-label", stat.value === null ? "text-faint" : "text-muted")}>
-          {stat.value === null
-            ? "—"
-            : `${stat.label === "next run" ? "Next" : "Last ran"} ${stat.value}`}
+        <span
+          className={cn("text-form-label", stat.value === null ? "text-faint" : "text-muted")}
+          data-testid={`automation-card-foot-${view.id}`}
+        >
+          {footLead === null ? (
+            "—"
+          ) : stat.at ? (
+            <>
+              {footLead} <Time iso={stat.at} />
+            </>
+          ) : (
+            footLead
+          )}
         </span>
         <AutomationRowSwitch
           data-testid={`automation-switch-${view.id}`}

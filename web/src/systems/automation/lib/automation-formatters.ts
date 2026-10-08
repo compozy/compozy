@@ -223,6 +223,13 @@ const LAST_RUN_TEXT = {
   canceled: "Last run canceled",
 } as const satisfies Record<AutomationRunStatus, string>;
 
+/** The one instant a last run is dated by, on every surface: its start, else its end. */
+export function automationLastRunAt(
+  run: { startedAt?: string; endedAt?: string } | undefined
+): string | undefined {
+  return run?.startedAt ?? run?.endedAt;
+}
+
 /** Row meta for an automation's last run (Business Rule 7); null when it never ran. */
 export function automationLastRunMeta(
   run:
@@ -238,7 +245,7 @@ export function automationLastRunMeta(
   if (run.status === "canceled" && run.skipReason) {
     return { tone: "neutral", glyph: "skip", text: LAST_RUN_SKIP_TEXT[run.skipReason] };
   }
-  const at = run.startedAt ?? run.endedAt;
+  const at = automationLastRunAt(run);
   return {
     tone: run.status === "failed" ? "danger" : "neutral",
     glyph: run.status === "failed" ? "fail" : null,

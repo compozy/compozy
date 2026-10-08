@@ -1,20 +1,19 @@
 import { useAgents } from "@/systems/agent";
 import {
-  compareAutomationViews,
-  toAutomationView,
   useAutomationJobs,
   useAutomationTimeZone,
   useAutomationTriggers,
 } from "@/systems/automation";
 import { useLoops } from "@/systems/loops";
 import { useTasks } from "@/systems/tasks";
-import { useWorktrees } from "@/systems/workspace";
+import { useActiveWorkspace, useWorktrees } from "@/systems/workspace";
 
 import {
   agentRoute,
   loopRoute,
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
+  paletteAutomationViews,
   projectAutomationRows,
   rowSeed,
   section,
@@ -197,14 +196,17 @@ function useAutomationSection(context: OsPaletteDomainContext) {
   const jobs = useAutomationJobs(filters, { enabled });
   const triggers = useAutomationTriggers(filters, { enabled });
   const timeZone = useAutomationTimeZone();
+  // `context.workspaceNames` is a Global-only label index; the sentence names the
+  // project in every scope, exactly as the listing does.
+  const { registeredWorkspaces } = useActiveWorkspace();
   usePaletteInfiniteCatalog(jobs, enabled);
   usePaletteInfiniteCatalog(triggers, enabled);
   if (context.signals === null) return EMPTY_SECTION("Automations");
-  const sentence = { timeZone, workspaceName: (id: string) => context.workspaceNames.get(id) };
-  const views = [
-    ...jobs.jobs.map(job => toAutomationView(job, sentence)),
-    ...triggers.triggers.map(trigger => toAutomationView(trigger, sentence)),
-  ].sort(compareAutomationViews);
+  const views = paletteAutomationViews(jobs.jobs, triggers.triggers, {
+    timeZone,
+    names: context.workspaceNames,
+    projects: registeredWorkspaces,
+  });
   const rows = projectAutomationRows(views, context.scope, context.workspaceNames);
   const failed = jobs.isError ? jobs : triggers;
   return section(

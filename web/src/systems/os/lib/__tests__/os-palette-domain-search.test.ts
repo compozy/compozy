@@ -9,6 +9,8 @@ import { Clock3, Radio } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import type { AutomationView } from "@/systems/automation";
+import { automationStoryJobs, automationStoryTriggers } from "@/systems/automation/mocks";
+import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 
 import type { CmdPaletteRankSignals } from "../cmd-palette-types";
 import {
@@ -24,6 +26,7 @@ import {
   terminalRoute,
   vaultRoute,
   workspaceLabel,
+  paletteAutomationViews,
 } from "../os-palette-domain-search";
 
 const TEST_WEIGHTS = JSON.parse(
@@ -231,5 +234,21 @@ describe("os-palette-domain-search helpers", () => {
     );
     expect(projected.rows).toHaveLength(4);
     expect(projected.total).toBe(4);
+  });
+});
+
+describe("paletteAutomationViews", () => {
+  it("Should name the project in the sentence even without the Global label index", () => {
+    const views = paletteAutomationViews(automationStoryJobs, automationStoryTriggers, {
+      names: new Map(),
+      projects: [{ id: storyWorkspaceIds.hq, name: "checkout-api" }],
+    });
+    const rows = projectAutomationRows(views, "workspace", new Map());
+    const rerun = rows.find(row => row.label === "rerun-delivery");
+    expect(rerun?.detail).toBe(
+      "When a session stops in checkout-api with an error, start the Loop software-delivery."
+    );
+    expect(rerun?.workspaceLabel).toBeUndefined();
+    expect(rows.map(row => row.label)).toEqual(views.map(view => view.name));
   });
 });

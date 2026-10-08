@@ -3,6 +3,10 @@ import type { LucideIcon } from "lucide-react";
 import {
   automationSentenceText,
   AUTOMATION_START_ICON,
+  compareAutomationViews,
+  toAutomationView,
+  type AutomationJob,
+  type AutomationTrigger,
   type AutomationView,
 } from "@/systems/automation";
 import type { VaultSecret } from "@/systems/vault";
@@ -255,6 +259,30 @@ export function projectVaultRows(
 }
 
 /** Both automation kinds as one section: start glyph, name, and the sentence as subtitle. */
+/**
+ * Palette automation views with the same sentence as the listing: the project name
+ * resolves from every registered workspace, not only the Global-scope label index.
+ */
+export function paletteAutomationViews(
+  jobs: readonly AutomationJob[],
+  triggers: readonly AutomationTrigger[],
+  ctx: {
+    timeZone?: string;
+    names: ReadonlyMap<string, string>;
+    projects: readonly { id: string; name: string }[];
+  }
+): AutomationView[] {
+  const sentence = {
+    timeZone: ctx.timeZone,
+    workspaceName: (id: string) =>
+      ctx.names.get(id) ?? ctx.projects.find(project => project.id === id)?.name,
+  };
+  return [
+    ...jobs.map(job => toAutomationView(job, sentence)),
+    ...triggers.map(trigger => toAutomationView(trigger, sentence)),
+  ].sort(compareAutomationViews);
+}
+
 export function projectAutomationRows(
   views: readonly AutomationView[],
   scope: WorkspaceScopeMode,

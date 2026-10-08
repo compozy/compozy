@@ -124,6 +124,7 @@ export {
   parseAutomationTarget,
   validateAutomationDetailSearch,
   type AutomationEditorSeed,
+  canonicalAutomationsSearch,
   validateAutomationsSearch,
   type AutomationDetailRouteSearch,
   type AutomationsRouteSearch,
