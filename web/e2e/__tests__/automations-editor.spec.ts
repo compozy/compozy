@@ -247,8 +247,14 @@ test("E2E-005 operator automates a Loop from its page and finds it through the S
 
   await appPage.goto(runtime.url(loopPath), { waitUntil: "domcontentloaded" });
   const bindings = appPage.getByTestId("loop-start-bindings");
-  await expect(bindings).toContainText("1 automation");
-  await bindings.getByTestId("loop-bindings-open-automations").click();
+  // The rail card folds by default (LoopRailSection: the gist carries the answer);
+  // the link to the filtered listing sits inside it.
+  const bindingsCard = bindings.getByRole("button", { name: /^Automations\s*1 automation$/ });
+  await expect(bindingsCard).toBeVisible();
+  await bindingsCard.click();
+  const openAutomations = bindings.getByTestId("loop-bindings-open-automations");
+  await expect(openAutomations).toHaveText(/1 automation/);
+  await openAutomations.click();
 
   await expect(appPage).toHaveURL(new RegExp(`/automations\\?loop=${eventLoopName}`));
   const rows = appPage.locator('[data-testid^="automation-row-"]');
