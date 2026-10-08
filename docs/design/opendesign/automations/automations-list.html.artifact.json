@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "automations/automations-list.html",
+  "entry": "automations/automations-list.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-08T04:41:20.031Z",
+  "updatedAt": "2026-10-08T04:41:20.031Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

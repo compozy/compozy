@@ -1,0 +1,461 @@
+/* ============================================================
+   AUTOMATIONS — automations.css
+   Domain lane for the boards under opendesign/automations/.
+   Depends on ../design-system/ds-core.css + ds-shell.css (linked first,
+   never rebound here). Contract: DESIGN-NOTES.md. Spec: none yet — this
+   set is the reference Pedro approves before cy-create-spec.
+
+   One user-facing area, "Automations", replaces the Jobs and Triggers
+   windows. The daemon keeps both entities (automation_jobs /
+   automation_triggers, one automation_runs table); only the UI merges.
+
+   Naming rule: every product class is prefixed `au-` and named after the
+   production component it renders (PARITY.md convention):
+     .au-win*        → systems/os/apps/automations/automations-window.tsx (new · replaces jobs/ + triggers/ windows)
+     .au-row*        → AutomationRow (new · replaces automation-job-row + automation-trigger-row)
+     .au-card*       → AutomationCard (new · replaces automation-job-card + automation-trigger-card)
+     .au-sentence    → describeAutomation() (new · lib/automation-sentence.ts, absorbs trigger-sentence + describeSchedule)
+     .au-start*      → AutomationStartIcon / kind glyph (new)
+     .au-lede*       → AutomationDetailHead (new · absorbs trigger-detail-head + job page header)
+     .au-rule*       → AutomationRuleCard (new · Starts / Only if / Does; absorbs trigger-rule-card + job target sections)
+     .au-runs*       → AutomationRunList (new · one accordion list for both; replaces automation-run-history + trigger-run-list)
+     .au-next*       → AutomationNextRuns (modify · from job-form/preview/next-runs-card)
+     .au-endpoint*   → TriggerWebhookEndpoint (reuse · restyled bar)
+     .au-sbar*       → AutomationEditorSentenceBar (new · live sentence in the dialog modebar)
+     .au-inset*      → event/schedule sub-config shell (modify · event-sub-config + cron-builder shells)
+     .au-cond*       → FilterConditions rows (reuse)
+   Lab chrome (contract block, callouts, legend, stage) is prefixed
+   `lab-` / `au-contract` / `au-n` / `au-legend` and is NEVER product UI.
+
+   Color = state, never decoration. Run state rides StateGlyph (glyph
+   carries the tone, the word stays fg-2): done/running success, handed
+   off info, failed danger, scheduled/stopped/skips neutral. Warning only
+   for "Needs a fix". No accent at rest: the switch is the production
+   inverted primary, not orange. Start kind (schedule / event / webhook)
+   is structure: icon + word, never a pill. Glyphs: clock-3 schedule ·
+   radio event · webhook link · zap = the Automations app mark only.
+   ============================================================ */
+
+/* ============ 00 · LAB SCAFFOLD ============
+   Provenance: copied verbatim from marketplace-catalog.css (itself from sessions-stability / 
+   agent-comms / graph-eng). This set owns its copy so boards never link
+   into another domain lane. */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:none;width:100%;margin:0;padding:24px 36px 80px}
+.lab-sec{margin:0 0 44px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.spec{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11.5px;line-height:1.55;color:var(--subtle)}
+.spec__note b{font-weight:600;color:var(--fg)}
+.spec__note > b:first-child{display:block;font-size:12px;margin-bottom:3px;color:var(--fg-strong)}
+.spec__note code{font-family:var(--font-mono);font-size:10px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+.stage{
+  position:relative;min-height:400px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--short{min-height:260px}
+.stage--auto{min-height:0}
+.stage--tall{min-height:520px}
+.stage--pad{display:flex;align-items:flex-start;justify-content:center;padding:28px 20px 32px}
+.stage--center{display:flex;align-items:center;justify-content:center;padding:24px 20px}
+.stage .win{position:relative;animation:none}
+.stage--pad > .win{width:min(var(--au-win-w,1080px),100%)}
+.plain{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+.plain--flush{padding:0;overflow:hidden}
+.plain--canvas{background:var(--canvas)}
+.lab-foot{font-size:11px;line-height:1.6;color:var(--faint);border-top:1px solid var(--line-soft);padding-top:14px;max-width:72ch}
+.lab-grid{display:grid;gap:12px}
+.lab-grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lab-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.lab-grid--4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.lab-cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.lab-cell__t{font-size:11px;font-weight:510;color:var(--muted);display:flex;align-items:center;gap:6px}
+.lab-cell__t code{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.lab-mono{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0}
+.lab-del{display:grid;grid-template-columns:minmax(0,1.2fr) 110px minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;font-size:11.5px}
+.lab-del > div{padding:8px 12px;border-top:1px solid var(--line-soft);color:var(--muted);line-height:1.5;min-width:0}
+.lab-del > div:nth-child(-n+3){border-top:0;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);background:var(--canvas-soft)}
+.lab-del code{font-family:var(--font-mono);font-size:10px;color:var(--fg);overflow-wrap:anywhere}
+.lab-del .reg{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+@media (max-width:760px){
+  .spec{grid-template-columns:1fr}
+  .lab-sec__gist{display:none}
+  .page{padding-left:20px;padding-right:20px}
+  .lab-grid--2,.lab-grid--3,.lab-grid--4{grid-template-columns:1fr}
+}
+
+/* ============ 01 · BOARD CONTRACT (lab chrome — the "what is this board" block) ============
+   Same grammar as sessions-stability (`.ss-contract`); every board opens
+   with (a) what the surface is in plain words, (b) which production
+   components it modifies / adds / deletes / reuses, (c) the states on the
+   board with their Visual Contract ids. Reviewers read this first. */
+.au-contract{
+  display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,.9fr);gap:0;
+  border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);
+  margin:0 0 32px;overflow:hidden;
+}
+.au-contract__col{padding:16px 18px;min-width:0}
+.au-contract__col + .au-contract__col{border-left:1px solid var(--line-soft)}
+.au-contract__col .eyebrow{display:block;margin-bottom:8px}
+.au-contract__what{font-size:var(--text-small-body);line-height:1.55;color:var(--fg);max-width:48ch;text-wrap:pretty}
+.au-contract__what b{color:var(--fg-strong);font-weight:600}
+.au-contract__file{margin-top:10px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.au-mods{display:flex;flex-direction:column;gap:6px}
+.au-mods li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:start;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.au-mods li b{display:block;font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--fg);letter-spacing:0}
+.au-mods li i{display:block;font-style:normal;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);overflow-wrap:anywhere}
+.au-mods li span{display:block}
+.au-mod{
+  display:inline-flex;align-items:center;justify-content:center;height:18px;padding:0 6px;
+  border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  background:var(--neutral-tint);color:var(--neutral-ink);box-shadow:var(--shadow-hairline-inset);
+}
+.au-mod--new{background:var(--success-tint);color:var(--success)}
+.au-mod--modify{background:var(--info-tint);color:var(--info)}
+.au-mod--delete{background:var(--danger-tint);color:var(--danger)}
+.au-mod--reuse{background:var(--neutral-tint);color:var(--subtle)}
+.au-mod--backend{background:var(--warning-tint);color:var(--warning)}
+.au-states{display:flex;flex-direction:column;gap:4px;counter-reset:st}
+.au-states li{display:flex;align-items:baseline;gap:8px;font-size:11.5px;line-height:1.5}
+.au-states li a{color:var(--fg);border-radius:var(--radius-xxs)}
+.au-states li a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.au-states li::before{counter-increment:st;content:counter(st,decimal-leading-zero);font-family:var(--font-mono);font-size:10px;color:var(--faint);flex:none;width:18px}
+.au-states li code{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);white-space:nowrap}
+@media (max-width:960px){.au-contract{grid-template-columns:1fr}.au-contract__col + .au-contract__col{border-left:0;border-top:1px solid var(--line-soft)}}
+
+/* numbered callouts inside a specimen + legend below it (annotation ink) */
+.au-n{
+  display:inline-grid;place-items:center;width:15px;height:15px;flex:none;
+  border-radius:var(--radius-xxs);background:var(--fg-strong);color:var(--canvas);
+  font-family:var(--font-mono);font-size:9px;font-weight:700;line-height:1;letter-spacing:0;
+  vertical-align:middle;margin:0 4px;pointer-events:none;user-select:none;
+}
+.au-n--abs{position:absolute;margin:0;z-index:4}
+/* pin = annotation riding the corner of its (positioned) host; it never takes layout space */
+.au-n--pin{position:absolute;top:-7px;right:-7px;margin:0;z-index:4}
+.au-win .win-head .w2-actions,.listing-row__stat,.au-rule__v,.au-endpoint,.dialog__sec-head{position:relative}
+.au-legend{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;
+  margin-top:10px;padding:10px 12px;border-radius:var(--radius-md);
+  background:var(--canvas-soft);border:1px solid var(--line-soft);
+}
+.au-legend li{display:grid;grid-template-columns:15px minmax(0,1fr);gap:8px;align-items:start;font-size:11px;line-height:1.5;color:var(--muted)}
+.au-legend li .au-n{margin:2px 0 0}
+.au-legend li b{font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--fg);letter-spacing:0}
+.au-legend li em{font-style:normal;color:var(--subtle)}
+.au-legend--1{grid-template-columns:1fr}
+@media (max-width:760px){.au-legend{grid-template-columns:1fr}}
+.au-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.au-tag{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;border-radius:var(--radius-xs);
+  font-family:var(--font-mono);font-size:9.5px;color:var(--subtle);background:var(--badge-fill)}
+
+/* ============ 02 · AUTOMATIONS WINDOW HOST ============
+   Provenance: production OS window (48px head · 44px toolbar · body),
+   ListingPage + useTopbarSlot in jobs-/triggers-catalog-location.tsx.
+   Delta: one window; the toolbar gains the leading Start view group. */
+:root{--au-win-w:1080px;--au-win-h:640px;
+  /* tokens.css --color-indicator (dark); ds-core has no copy yet */
+  --au-indicator:#707070}
+
+/* Switch parity — production Switch: data-checked:bg-primary + primary-foreground
+   knob, data-unchecked:bg-indicator. ds-core still paints the checked track
+   accent, which put 6+ orange targets in one listing viewport. */
+.switch{background:var(--au-indicator)}
+.switch .knob{background:var(--fg-strong)}
+.switch.is-on,.switch[aria-checked="true"]{background:var(--primary)}
+.switch.is-on .knob,.switch[aria-checked="true"] .knob{background:var(--primary-ink)}
+.au-win{width:min(var(--au-win-w),100%);height:var(--au-win-h);display:flex;flex-direction:column}
+.au-win--auto{height:auto}
+.au-win .win-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto;background:var(--canvas)}
+.au-win .win-toolbar .listing-toolbar{flex:1}
+.au-win .win-toolbar .field-search{width:200px}
+.au-page{padding:16px 20px 28px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.au-foot{display:flex;align-items:center;gap:8px;padding:10px 20px;border-top:1px solid var(--line-soft);font-size:var(--text-eyebrow);color:var(--faint);flex:none;background:var(--canvas)}
+.au-foot b{font-weight:500;color:var(--subtle)}
+.au-foot .w2-flex{flex:1}
+
+/* ============ 03 · START KIND (structure, not state) ============
+   Icon + word. The row well carries the kind glyph; nowhere else repeats it
+   as a colored badge. Lucide: clock-3 schedule · zap event · webhook webhook. */
+.au-kind{display:inline-flex;align-items:center;gap:5px;font-size:var(--text-eyebrow);font-weight:500;color:var(--muted);white-space:nowrap}
+.au-kind svg{width:12px;height:12px;color:var(--subtle);flex:none}
+
+/* ============ 04 · ROW + CARD (AutomationRow / AutomationCard) ============ */
+.au-row{cursor:pointer}
+.au-row .listing-row__name b a{color:inherit}
+.au-row .listing-row__name b a:hover{text-decoration:underline;text-underline-offset:2px}
+.au-row .listing-row__name b a:focus-visible{outline:none;box-shadow:var(--focus-ring);border-radius:3px}
+.au-row .listing-row__desc{white-space:normal;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
+.au-row .listing-row__meta{flex-wrap:wrap;row-gap:2px}
+.au-row .listing-row__trail{gap:14px}
+.au-row .listing-row__stat{min-width:84px}
+.au-row.is-off .listing-row__icon{color:var(--faint)}
+.au-row.is-off .listing-row__name b{color:var(--fg-2)}
+.au-meta-fail{color:var(--danger);display:inline-flex;align-items:center;gap:4px}
+.au-meta-fail svg{width:12px;height:12px}
+.au-meta-skip{color:var(--subtle);display:inline-flex;align-items:center;gap:4px}
+.au-meta-skip svg{width:12px;height:12px}
+.au-row.is-off .listing-row__stat-v{color:var(--faint);font-weight:500}
+.au-lock{display:inline-flex;align-items:center;gap:4px}
+.au-lock svg{width:11px;height:11px}
+.au-trail-btns{display:flex;align-items:center;gap:4px}
+.au-sentence{color:var(--muted)}
+/* emphasis is one step up the ladder (fg-2), so the row title stays the only bright line */
+.au-sentence em{font-style:normal;color:var(--fg-2)}
+.au-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:960px){.au-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.au-cards{grid-template-columns:1fr}}
+.au-card{cursor:pointer;min-height:168px}
+.au-card .listing-card__icon{width:28px;height:28px;border-radius:var(--radius-sm)}
+.au-card .listing-card__icon svg{width:14px;height:14px}
+.au-card__desc{font-size:var(--text-small-body);line-height:1.5;color:var(--muted);flex:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty}
+.au-card__foot{display:flex;align-items:center;gap:8px;font-size:var(--text-eyebrow);color:var(--faint)}
+.au-card__foot .w2-flex{flex:1}
+.au-card.is-off .listing-card__title b{color:var(--fg-2)}
+.au-sugg-hint{margin-left:auto;font-size:var(--text-eyebrow);color:var(--subtle)}
+.au-group-h{display:flex;align-items:center;gap:8px;margin:2px 0 -4px}
+
+/* ============ 05 · DETAIL (AutomationDetailPage) ============
+   Rhythm contract (patterns.html §03): 32 page gap · 320 rail · 26 section
+   rhythm · 24px section header line · rail = ONE card · 30px prow. */
+.au-detail{padding:24px 28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0}
+.au-lede{display:flex;align-items:flex-start;gap:24px}
+.au-lede__copy{flex:1;min-width:0}
+/* DESIGN.md --text-detail-h1 = 1.125rem / -0.015em (ds-core still carries 22px).
+   Glue in fg-2, the parts that vary (time, agent, Loop) in fg-strong. */
+.au-lede{position:relative}
+.au-lede__s{font-size:1.125rem;line-height:1.45;font-weight:500;letter-spacing:-.015em;color:var(--fg-2);max-width:52ch;text-wrap:pretty}
+.au-lede__s em{font-style:normal;color:var(--fg-strong)}
+.au-lede__pause{margin-top:6px;font-size:var(--text-small-body);color:var(--muted);display:flex;align-items:center;gap:6px}
+.au-lede__pause svg{width:13px;height:13px;color:var(--subtle)}
+.au-enable{position:relative;display:inline-flex;align-items:center;gap:10px;flex:none;padding:6px 4px 6px 10px;border-radius:var(--radius-md);font-size:var(--text-form);font-weight:500;color:var(--fg)}
+.au-enable:hover{background:var(--row-hover)}
+.au-enable:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.au-enable[aria-busy="true"]{pointer-events:none}
+.au-enable[aria-busy="true"] .switch{opacity:.55}
+.au-sub{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:var(--text-eyebrow);color:var(--subtle)}
+.au-sub b{font-weight:500;color:var(--fg)}
+.au-sub time{color:var(--fg-2)}
+.au-sec{margin:0}
+.au-sec + .au-sec{margin-top:26px}
+.au-sec > summary{display:flex;align-items:center;gap:8px;min-height:24px;padding-bottom:10px;list-style:none;cursor:pointer;border-radius:var(--radius-xs)}
+.au-sec > summary::-webkit-details-marker{display:none}
+.au-sec > summary:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.au-sec > summary .si{width:14px;height:14px;color:var(--muted);flex:none}
+.au-sec > summary .st{font-size:var(--text-small-body);font-weight:600;color:var(--fg-strong)}
+.au-sec > summary .ssum{font-size:var(--text-eyebrow);color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.au-sec > summary .spacer{flex:1}
+.au-sec > summary .chev{width:14px;height:14px;color:var(--faint);transition:transform var(--dur) var(--ease);flex:none}
+.au-sec:not([open]) > summary .chev{transform:rotate(-90deg)}
+.au-sec:not([open]) > summary{padding-bottom:0}
+
+/* rule card — Starts / Only if / Does */
+.au-rule{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);overflow:hidden}
+.au-rule__row{display:grid;grid-template-columns:84px minmax(0,1fr);gap:14px;padding:14px 16px;border-top:1px solid var(--line-soft)}
+.au-rule__row:first-child{border-top:0}
+.au-rule__k{font-size:var(--text-eyebrow);font-weight:500;color:var(--subtle);padding-top:2px}
+.au-rule__v{min-width:0;display:flex;flex-direction:column;gap:6px}
+.au-rule__h{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:var(--text-form);font-weight:500;color:var(--fg-strong)}
+.au-rule__h > svg{width:14px;height:14px;color:var(--muted);flex:none}
+.au-rule__sub{font-size:var(--text-eyebrow);line-height:1.5;color:var(--subtle)}
+.au-rule__sub code,.au-micro{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:0}
+.au-val{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:var(--radius-xs);background:var(--badge-fill);font-family:var(--font-mono);font-size:11px;color:var(--fg);box-shadow:var(--shadow-hairline-inset)}
+.au-agent{display:inline-flex;align-items:center;gap:7px}
+.au-agent__chip{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;background:var(--elevated);color:var(--fg);font-size:10.5px;font-weight:600;text-transform:uppercase;box-shadow:var(--shadow-hairline-inset)}
+.au-agent__chip svg{width:12px;height:12px}
+.au-prompt{position:relative;margin-top:2px;padding:10px 12px;border-radius:var(--radius-md);background:var(--code-bg);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:11.5px;line-height:1.6;color:var(--fg-2);white-space:pre-wrap;overflow:hidden}
+.au-prompt[data-open="false"]{max-height:calc(1.6em * 3 + 20px)}
+.au-prompt[data-open="false"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:24px;background:linear-gradient(transparent,var(--code-bg))}
+.au-var{display:inline-flex;align-items:center;padding:0 4px;border-radius:4px;background:var(--info-tint);color:var(--info)}
+.au-pinrow{display:flex;align-items:center;gap:2px}
+.au-linkbtn{align-self:flex-start;font-size:var(--text-eyebrow);font-weight:500;color:var(--muted);border-radius:var(--radius-xs);padding:2px 0}
+.au-linkbtn:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.au-linkbtn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.au-map{display:grid;grid-template-columns:minmax(0,auto) 18px minmax(0,1fr) auto;gap:6px 8px;align-items:center;font-size:var(--text-eyebrow);color:var(--muted)}
+.au-map .k{font-family:var(--font-mono);font-size:11px;color:var(--fg)}
+.au-map .op{font-family:var(--font-mono);color:var(--faint);text-align:center}
+.au-map .v{font-family:var(--font-mono);font-size:11px;color:var(--fg-2);overflow-wrap:anywhere}
+.au-map .src{font-size:var(--text-badge);color:var(--faint)}
+
+/* next runs */
+.au-next{display:flex;flex-direction:column}
+.au-next li{display:flex;align-items:center;gap:10px;min-height:28px;font-size:var(--text-eyebrow);color:var(--muted);border-top:1px solid var(--line-soft)}
+.au-next li:first-child{border-top:0}
+.au-next .i{width:16px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.au-next .rel{color:var(--fg);font-weight:500;min-width:86px}
+.au-next .abs{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+
+/* webhook endpoint bar */
+.au-endpoint{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 6px 0 10px;border-radius:var(--radius-md);background:var(--code-bg);border:1px solid var(--line-soft)}
+.au-endpoint .m{font-size:var(--text-eyebrow-caps);font-weight:600;letter-spacing:var(--track-caps);color:var(--subtle)}
+.au-endpoint code{flex:1;min-width:0;font-family:var(--font-mono);font-size:11px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.au-code{margin-top:6px;padding:10px 12px;border-radius:var(--radius-md);background:var(--code-bg);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:11px;line-height:1.6;color:var(--fg-2);white-space:pre;overflow-x:auto}
+
+/* run list — one accordion for scheduled and event runs.
+   Production TriggerRunRow: StateGlyph + fg-2 word · faint meta glyph +
+   muted text + subtle mono id · mono duration · chevron; drawer on sunken.
+   Danger text lives only in the drawer, never in the collapsed row. */
+.au-runs{position:relative;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);overflow:hidden}
+.au-run{position:relative;display:grid;grid-template-columns:112px minmax(0,1fr) 64px 92px 14px;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 16px;border-top:1px solid var(--line-soft);text-align:left;font-size:var(--text-small-body);color:var(--muted);transition:background var(--dur-fast) var(--ease)}
+.au-run:first-child{border-top:0}
+.au-run:hover{background:var(--row-hover)}
+.au-run:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+.au-run__what{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.au-run__what svg{width:14px;height:14px;flex:none;color:var(--faint)}
+.au-run__what .mono{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--subtle)}
+.au-run__dur,.au-run__when{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--subtle);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.au-run__chev{width:14px;height:14px;color:var(--subtle);transition:transform var(--dur) var(--ease)}
+.au-run[aria-expanded="true"]{background:var(--row-selected)}
+.au-run[aria-expanded="true"] .au-run__chev{transform:rotate(90deg)}
+.au-run__draw{display:none;padding:10px 16px 14px 140px;border-top:1px solid var(--line-soft);background:var(--sunken);font-size:var(--text-small-body);line-height:1.6;color:var(--muted)}
+.au-run[aria-expanded="true"] + .au-run__draw{display:block}
+.au-run__draw .err{color:var(--danger)}
+.au-run__draw .acts{display:flex;gap:6px;margin-top:10px}
+.au-runs__more{display:flex;justify-content:center;padding:8px;border-top:1px solid var(--line-soft)}
+@media (max-width:760px){.au-run{grid-template-columns:104px minmax(0,1fr) 14px}.au-run__dur,.au-run__when{display:none}.au-run__draw{padding-left:16px}}
+
+/* StateGlyph (packages/ui custom/state-glyph.tsx) — 16-unit box, 1.5 stroke,
+   tone on the glyph only; the label beside it stays fg-2. automations.js
+   draws the SVG into every [data-sg]. */
+.au-state{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:var(--text-small-body);color:var(--fg-2);white-space:nowrap}
+.au-sg{display:inline-grid;place-items:center;width:14px;height:14px;flex:none}
+.au-sg svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5}
+.au-sg[data-sg="running"],.au-sg[data-sg="done"]{color:var(--success)}
+.au-sg[data-sg="delegated"]{color:var(--info)}
+.au-sg[data-sg="failed"]{color:var(--danger)}
+.au-sg[data-sg="queued"]{color:var(--au-indicator)}
+.au-sg[data-sg="stopped"],.au-sg[data-sg="idle"]{color:var(--subtle)}
+.au-sg[data-sg="done"] path{stroke:var(--canvas)}
+
+/* rail */
+.au-rail .rail-sec__t{justify-content:space-between}
+.au-rail .rail-sec__t span{display:inline-flex;align-items:center;gap:6px}
+.au-rail .rail-sec__t .sum{font-size:var(--text-badge);color:var(--faint);font-weight:400}
+.au-rail .prow__v .copy{width:20px;height:20px;display:inline-grid;place-items:center;border-radius:5px;color:var(--subtle);vertical-align:middle;margin-left:4px}
+.au-rail .prow__v .copy:hover{background:var(--surface-2);color:var(--fg)}
+.au-rail .prow__v .copy svg{width:12px;height:12px}
+.au-rail .prow__v .d{display:inline-block;margin-right:6px;vertical-align:1px}
+.au-kv{display:grid;grid-template-columns:56px minmax(0,1fr);gap:6px 12px;align-items:baseline;font-size:var(--text-small-body);color:var(--fg)}
+.au-kv dt{font-size:var(--text-eyebrow);color:var(--subtle)}
+.au-kv dd{margin:0;min-width:0}
+.au-kv .mono{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--fg-2)}
+.au-rail-foot{display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--line-soft);background:var(--canvas)}
+.au-rail-foot .cli{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.au-lockbar{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:1px dashed var(--line-strong);border-radius:var(--radius-md);font-size:var(--text-eyebrow);line-height:1.5;color:var(--muted)}
+.au-lockbar svg{width:13px;height:13px;color:var(--subtle);flex:none;margin-top:2px}
+.au-lockbar code{font-family:var(--font-mono);font-size:10.5px;color:var(--fg-2)}
+@media (max-width:960px){.au-detail .layout{grid-template-columns:1fr}.au-lede{flex-direction:column;gap:12px}}
+
+/* ============ 06 · EDITOR (AutomationEditorDialog) ============ */
+.au-dialog{max-height:none}
+.au-dialog .dialog__body{max-height:none;overflow:visible}
+.au-sbar{display:flex;align-items:center;gap:10px}
+.au-sbar__s{flex:1;min-width:0;font-size:var(--text-small-body);line-height:1.45;color:var(--muted);text-wrap:pretty}
+.au-sbar__s em{font-style:normal;color:var(--fg-strong);font-weight:500}
+.au-sbar__s .miss{color:var(--faint);border-bottom:1px dashed var(--line-strong)}
+.au-start-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.au-start-grid .choice{text-align:left;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.au-start-grid .choice:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.au-start-grid .choice[aria-disabled="true"]{cursor:not-allowed;background:transparent;border-color:var(--line-soft)}
+.au-start-grid .choice[aria-disabled="true"] .choice__name,.au-start-grid .choice[aria-disabled="true"] .choice__desc{color:var(--disabled)}
+.au-start-grid .choice[aria-disabled="true"] .choice__ic{color:var(--disabled)}
+.au-start-grid .choice .lockline{font-size:var(--text-badge);color:var(--faint);display:inline-flex;align-items:center;gap:4px}
+.au-start-grid .choice .lockline svg{width:11px;height:11px}
+@media (max-width:760px){.au-start-grid{grid-template-columns:1fr}}
+.au-inset{margin-top:12px;padding:14px;border-radius:var(--radius-lg);background:var(--sunken);border:1px solid var(--line-soft);display:flex;flex-direction:column;gap:14px}
+.au-inset .ffield{margin-bottom:0}
+.au-chips{display:flex;flex-wrap:wrap;gap:6px}
+.au-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:var(--radius-pill);background:var(--btn-fill);font-size:var(--text-eyebrow);font-weight:500;color:var(--fg);transition:background var(--dur-fast)}
+.au-chip:hover{background:var(--btn-hover)}
+.au-chip:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.au-chip[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--inset-strong)}
+.au-chip .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.au-inline{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:var(--text-form);color:var(--fg)}
+.au-inline .input{width:auto}
+.au-inline .input[type="time"]{width:132px;font-variant-numeric:tabular-nums}
+.au-locked{display:inline-flex;align-items:center;gap:5px}
+.au-locked svg{width:11px;height:11px;color:var(--faint)}
+.au-days{display:inline-flex;gap:4px}
+.au-day{width:34px;height:30px;border-radius:var(--radius-sm);background:var(--btn-fill);font-size:var(--text-eyebrow);font-weight:500;color:var(--muted)}
+.au-day:hover{background:var(--btn-hover);color:var(--fg)}
+.au-day:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.au-day[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--inset-strong)}
+.au-readout{display:flex;align-items:center;gap:7px;font-size:var(--text-eyebrow);color:var(--fg)}
+.au-readout svg{width:13px;height:13px;flex:none}
+.au-readout[data-ok="true"] svg{color:var(--success)}
+.au-readout[data-ok="false"]{color:var(--warning)}
+.au-readout .tz{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.au-cond{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr) 28px;gap:8px;align-items:center}
+.au-cond .eq{font-family:var(--font-mono);color:var(--faint);text-align:center}
+.au-events{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.au-events .choice{flex-direction:row;align-items:flex-start;gap:10px}
+.au-events .choice > div{display:flex;flex-direction:column;gap:3px;min-width:0}
+@media (max-width:760px){.au-events{grid-template-columns:1fr}}
+.au-opts{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+.au-opt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 14px;border-top:1px solid var(--line-soft)}
+.au-opt:first-child{border-top:0}
+.au-opt__l{font-size:var(--text-form);font-weight:500;color:var(--fg-strong)}
+.au-opt__d{font-size:var(--text-eyebrow);color:var(--muted);margin-top:2px;line-height:1.45}
+.au-opt__c{display:flex;align-items:center;gap:8px}
+.au-opt__c .input{width:84px}
+.au-sum{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-left:auto}
+.au-preview{display:flex;flex-direction:column;gap:12px}
+.au-pcard{border-radius:var(--radius-lg);background:var(--sunken);border:1px solid var(--line-soft);padding:12px 14px}
+.au-pcard .eyebrow{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.au-pcard .eyebrow svg{width:12px;height:12px}
+.au-pcard .eyebrow .r{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+/* ============ 07 · TOAST + MENU POSITIONING (demo plumbing) ============ */
+.au-menu-host{position:relative}
+.au-menu-host .menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:200px;display:none}
+.au-menu-host.is-open .menu{display:block}
+.au-toast{position:fixed;left:50%;bottom:24px;translate:-50% 12px;opacity:0;z-index:90;padding:9px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-pop);font-size:var(--text-form);color:var(--fg-strong);transition:opacity var(--dur) var(--ease),translate var(--dur) var(--ease);pointer-events:none}
+.au-toast.is-on{opacity:1;translate:-50% 0}
+@media (prefers-reduced-motion:reduce){.au-toast,.au-run__chev,.au-sec > summary .chev{transition:none}}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[hidden]{display:none !important}
+.au-rule__row,.au-dialog,.au-inset{position:relative}
+
+/* ============ 08 · NARROW (phone-width review) ============
+   The shell swaps the rail for the bottom tab bar under 960px; a window
+   body then has ~360px. Rows keep name + sentence + switch, the time stat
+   and the free-text controls fold away, the rule card stacks. */
+.au-mods li b,.au-states li a{overflow-wrap:anywhere}
+.spec__demo{overflow-x:auto}
+@media (max-width:640px){
+  .stage--pad{padding:16px 10px 20px}
+  .au-win .win-toolbar .field-search,.au-win .win-toolbar .btn--ghost,.au-win .win-toolbar .listing-toolbar__trailing{display:none}
+  .au-row .listing-row__stat,.au-row .au-menu-host{display:none}
+  .au-row .listing-row__meta{display:none}
+  .au-detail{padding:18px 16px 28px}
+  .au-lede{flex-direction:column;gap:10px}
+  .au-rule__row{grid-template-columns:1fr;gap:6px}
+  .au-run{grid-template-columns:104px minmax(0,1fr) 14px;padding:0 12px}
+  .au-run__dur,.au-run__when{display:none}
+  .au-run__draw{padding-left:12px}
+  .au-cond{grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr) 28px}
+  .au-opt{grid-template-columns:1fr;gap:8px}
+}
