@@ -21,6 +21,10 @@ import {
   windowFrame,
   windowID,
 } from "../fixtures/os-navigation";
+import {
+  restartRetiredKnowledgeWindowRuntime,
+  seedRetiredKnowledgeWindow,
+} from "../fixtures/retired-knowledge-window";
 import { createWorktreeRepo } from "../fixtures/worktree-repo";
 import {
   osShellSelectors,
@@ -2967,39 +2971,35 @@ test("Memory removal E2E-008: a saved layout holding a retired knowledge window 
   const workspace = await prepareShell(appPage, runtime);
   const session = await createNamedSession(runtime, workspace.id, "Layout upgrade session");
   const sessionWindowID = await openSessionWindowInAuthority(runtime, workspace.id, session);
-  // The window manager stores app IDs as plain strings, so this persists the shape
-  // an earlier release left behind.
-  const [knowledgeID] = await openDeckFixtureWindows(runtime, workspace.id, ["knowledge"]);
-  if (!knowledgeID) throw new Error("layout upgrade fixture must open the knowledge window");
   await moveWindowToNormalizedRect(runtime, workspace.id, sessionWindowID, {
     x: 0.01,
     y: 0.06,
     width: 0.48,
     height: 0.7,
   });
-  await moveWindowToNormalizedRect(runtime, workspace.id, knowledgeID, {
-    x: 0.51,
-    y: 0.06,
-    width: 0.48,
-    height: 0.7,
-  });
-  const seeded = await windowManagerSnapshot(runtime, workspace.id);
-  expect(seeded.windows[knowledgeID]?.app).toBe("knowledge");
-  expect(seeded.windows[sessionWindowID]?.app).toBe("session");
-
-  // Restart so the daemon loads the stored layout from disk, then open the desktop
-  // on a fresh page so only the loaded layout can produce console output.
+  // The client-state store is exclusively locked by the daemon. Seed the previous
+  // release's raw layout during a cold restart, without a reconciling API read.
   await appPage.goto("about:blank");
-  const restart = await runtime.requestJSON<SettingsRestartAction>(
-    "/api/settings/actions/restart",
-    {
-      method: "POST",
-      body: "{}",
-    }
+  const knowledgeID = `${sessionWindowID}-retired-knowledge`;
+  const knowledgeRect = { x: 0.51, y: 0.06, width: 0.48, height: 0.7 };
+  const seeded = await seedRetiredKnowledgeWindow(runtime, {
+    workspaceId: workspace.id,
+    sessionWindowId: sessionWindowID,
+    knowledgeWindowId: knowledgeID,
+    rect: knowledgeRect,
+  });
+  expect(seeded.windows[knowledgeID]?.app).toBe("knowledge");
+  expect(seeded.windows[knowledgeID]?.floating_rect).toEqual(knowledgeRect);
+  expect(seeded.windows[sessionWindowID]?.app).toBe("session");
+  const sessionDesktopID = seeded.windows[sessionWindowID]?.desktop_id;
+  expect(seeded.windows[knowledgeID]?.desktop_id).toBe(sessionDesktopID);
+  expect(seeded.desktops.find(desktop => desktop.id === sessionDesktopID)?.floating[0]).toBe(
+    knowledgeID
   );
-  await expect
-    .poll(() => pollRestartStatus(runtime, restart.status_url), { timeout: 45_000 })
-    .toBe("ready");
+
+  // Only boot the daemon after inspecting the actual stored legacy shape. A fresh
+  // page then observes the loaded layout and its console output.
+  await restartRetiredKnowledgeWindowRuntime(runtime);
   const consoleErrors: string[] = [];
   appPage.on("console", message => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -3013,11 +3013,13 @@ test("Memory removal E2E-008: a saved layout holding a retired knowledge window 
   await expect(restoredSession).toBeVisible();
   const loaded = await windowManagerSnapshot(runtime, workspace.id);
   const loadedRect = loaded.windows[sessionWindowID]?.floating_rect;
-  expect(loadedRect).toBeDefined();
+  expect(loaded.windows[knowledgeID]).toBeUndefined();
+  expect(loadedRect).toEqual(seeded.windows[sessionWindowID]?.floating_rect);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(restoredSession).toBeVisible();
   const reloaded = await windowManagerSnapshot(runtime, workspace.id);
+  expect(reloaded.windows[knowledgeID]).toBeUndefined();
   expect(reloaded.windows[sessionWindowID]?.floating_rect).toEqual(loadedRect);
   expect(consoleErrors).toEqual([]);
 });

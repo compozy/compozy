@@ -2,6 +2,12 @@
 
 ## Memory removal — 2026-10-07
 
+CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the
+clientstate store while its isolated daemon is stopped, and inspects the reread raw snapshot before
+boot. The existing scenario then verifies registered Session visibility, Knowledge removal and stable
+geometry after reload with no console errors. This repairs only the test boundary; production
+reconciliation, public contracts, hooks/config, isolation and official skill behavior are unchanged.
+
 CI runtime parity follow-up: the existing HTTP/UDS fixture now opens the registered `session` app
 rather than the `sessions` palette view ID, and expects durable harness events for retained skills
 and situation augmenters. Removed workspace-knowledge and memory augmenters cannot emit those events.
