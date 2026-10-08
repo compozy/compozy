@@ -662,7 +662,7 @@ func TestManagerStartupTransactionRollback(t *testing.T) {
 		fixture := createManagerTestExtension(t, managerTestManifest("startup-rollback", managerManifestOptions{
 			command:      "fake-extension",
 			withHooks:    true,
-			capabilities: []string{"memory.backend"},
+			capabilities: []string{"loop.watch_source"},
 			permissions:  []string{"sessions/list"},
 		}), nil)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -719,7 +719,7 @@ func TestManagerStartupTransactionRollback(t *testing.T) {
 		env := newRegistryTestEnv(t)
 		fixture := createManagerTestExtension(t, managerTestManifest("startup-canceled", managerManifestOptions{
 			command:      "fake-extension",
-			capabilities: []string{"memory.backend"},
+			capabilities: []string{"loop.watch_source"},
 			permissions:  []string{"sessions/list"},
 		}), nil)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)

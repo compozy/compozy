@@ -662,8 +662,8 @@ args = ["--config", " ", "\t", "config.toml"]
 	if !reflect.DeepEqual(manifestResourcePaths(manifest.Resources.Agents), []string{"agents/"}) {
 		t.Fatalf("Resources.Agents = %#v, want %#v", manifest.Resources.Agents, []string{"agents/"})
 	}
-	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"memory.backend"}) {
-		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"memory.backend"})
+	if len(manifest.Capabilities.Provides) != 0 {
+		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{})
 	}
 	if !reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) {
 		t.Fatalf("Actions.Requires = %#v, want %#v", manifest.Permissions.Requires, []string{"sessions/list"})
@@ -1823,7 +1823,7 @@ func expectedManifest() Manifest {
 			},
 		},
 		Capabilities: CapabilitiesConfig{
-			Provides: []string{"memory.backend"},
+			Provides: []string{},
 		},
 		Permissions: PermissionsConfig{
 			Requires: []string{"sessions/list", "sessions/events"},
@@ -2500,4 +2500,64 @@ func TestClientPluginManifestPackages(t *testing.T) {
 			t.Fatalf("schema error = %v", err)
 		}
 	})
+}
+
+// Invariant: retired manifest entries cannot block a kept extension or relax unknown-entry validation.
+// Owner: extension manifest ingestion. Canonical suite: manifest_test.go.
+func TestManifestRetiredMemoryEntries(t *testing.T) {
+	t.Parallel()
+	t.Run("Should filter retired provides methods and consent [UT-021]", func(t *testing.T) {
+		t.Parallel()
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{"memory.backend", "tool.provider"}
+		manifest.Permissions.Requires = []string{"memory/recall", "sessions/list", "memory.read", "memory/store", "memory/forget", "memory.write"}
+		dropped := dropRetiredMemoryManifestEntries(&manifest)
+		if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"tool.provider"}) || !reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) || len(dropped) != 6 {
+			t.Fatalf("filtered manifest = %#v, dropped = %#v", manifest, dropped)
+		}
+		if !slices.Contains(dropped, "capabilities.provides=memory.backend") || !slices.Contains(dropped, "permissions.requires=memory/recall") || !slices.Contains(dropped, "permissions.requires=memory.read") {
+			t.Fatalf("dropped = %#v", dropped)
+		}
+		if err := manifest.Validate(); err != nil {
+			t.Fatalf("Validate() = %v", err)
+		}
+		if again := dropRetiredMemoryManifestEntries(&manifest); len(again) != 0 {
+			t.Fatalf("second filter = %#v", again)
+		}
+		manifest.Capabilities.Provides = append(manifest.Capabilities.Provides, "unknown.backend")
+		dropRetiredMemoryManifestEntries(&manifest)
+		if _, ok := errors.AsType[*ManifestValidationError](manifest.Validate()); !ok {
+			t.Fatal("Validate() should retain unknown capability error")
+		}
+	})
+	for _, format := range []string{"toml", "json"} {
+		t.Run("Should load retired entries through "+format+" install ingestion [UT-021]", func(t *testing.T) {
+			t.Parallel()
+			manifest := expectedManifest()
+			manifest.Resources.Tools = nil
+			manifest.Capabilities.Provides = []string{"memory.backend"}
+			manifest.Permissions.Requires = []string{"memory/store", "memory.write", "sessions/list"}
+			var content []byte
+			var err error
+			if format == "toml" {
+				content, err = encodeManifestTOML(&manifest)
+			} else {
+				content, err = json.Marshal(manifest)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatalf("LoadManifest() = %v", err)
+			}
+			if len(loaded.Capabilities.Provides) != 0 || !reflect.DeepEqual(loaded.Permissions.Requires, []string{"sessions/list"}) {
+				t.Fatalf("loaded manifest = %#v", loaded)
+			}
+		})
+	}
 }

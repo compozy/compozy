@@ -190,7 +190,7 @@ func TestProviderAbsorption(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
 		want := []string{
-			"agents", "extensions", "jobs", "knowledge", "loops", "marketplace",
+			"agents", "extensions", "jobs", "loops", "marketplace",
 			"profiles", "sessions", "tasks", "triggers", "vault", "worktrees",
 		}
 		actual := make([]string, 0, len(want))

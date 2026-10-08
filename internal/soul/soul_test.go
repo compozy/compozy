@@ -96,7 +96,7 @@ func TestParseStrictFrontmatterSoul(t *testing.T) {
 		assertStrings(t, resolved.Profile.Principles, []string{"protect correctness"})
 		assertStrings(t, resolved.Profile.Constraints, []string{"no hidden authority"})
 		assertStrings(t, resolved.Profile.Collaboration, []string{"ask only when blocked"})
-		assertStrings(t, resolved.Profile.MemoryPolicy, []string{"cite durable memory"})
+		assertStrings(t, resolved.Profile.MemoryPolicy, nil)
 		assertStrings(t, resolved.Profile.Tags, []string{"qa"})
 		if got, want := resolved.ReadModel.Body, "Review implementation behavior."; got != want {
 			t.Fatalf("ReadModel.Body = %q, want %q", got, want)
@@ -235,7 +235,6 @@ func TestParseRejectsForbiddenOwnerCategories(t *testing.T) {
 		{name: "Should reject network presence authority", field: "presence", owner: "runtime state"},
 		{name: "Should reject spawn overlay authority", field: "spawn", owner: "session spawn overlays"},
 		{name: "Should reject config authority", field: "settings", owner: "config"},
-		{name: "Should reject memory runtime authority", field: "memory_scope", owner: "memory runtime"},
 	}
 
 	for _, tt := range tests {
@@ -711,5 +710,45 @@ func assertStrings(t *testing.T, got []string, want []string) {
 		if got[idx] != want[idx] {
 			t.Fatalf("strings[%d] = %q, want %q", idx, got[idx], want[idx])
 		}
+	}
+}
+
+// Invariant: retired memory_policy cannot invalidate a persona or populate its parsed policy.
+// Owner: soul parsing. Canonical suite: soul_test.go.
+func TestParseIgnoresRetiredMemoryPolicy(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"[keep notes]", "{invalid: [1, false]}", "42", "null"} {
+		t.Run("Should ignore retired policy value "+value+" [UT-009]", func(t *testing.T) {
+			t.Parallel()
+			resolved, err := Parse(t.Context(), ParseRequest{SourcePath: "SOUL.md", Content: []byte("---\nrole: Reviewer\nprinciples: [protect correctness]\nmemory_policy: " + value + "\n---\nKeep the persona."), Config: testSoulConfig()})
+			if err != nil || len(resolved.Diagnostics) != 0 || !resolved.Active {
+				t.Fatalf("Parse() = %#v, %v, want active persona without diagnostics", resolved, err)
+			}
+			if resolved.Profile.Role != "Reviewer" || resolved.Profile.Body != "Keep the persona." {
+				t.Fatalf("Profile = %#v, want preserved role and body", resolved.Profile)
+			}
+			assertStrings(t, resolved.Profile.Principles, []string{"protect correctness"})
+			assertStrings(t, resolved.Profile.MemoryPolicy, nil)
+			assertStrings(t, resolved.ReadModel.Frontmatter.MemoryPolicy, nil)
+		})
+	}
+}
+
+// Invariant: unsupported memory authority keys remain invalid without a retired runtime owner.
+// Owner: soul parsing. Canonical suite: soul_test.go.
+func TestParseUnsupportedRetiredMemoryKeys(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"memory", "memory_store", "memory_scope", "memory_type", "memories"} {
+		t.Run("Should reject unsupported key "+field+" [UT-010]", func(t *testing.T) {
+			t.Parallel()
+			resolved, err := Parse(t.Context(), ParseRequest{SourcePath: "SOUL.md", Content: []byte("---\n" + field + ": value\n---\nPersona"), Config: testSoulConfig()})
+			if err == nil || len(resolved.Diagnostics) != 1 {
+				t.Fatalf("Parse() = %#v, %v, want one diagnostic", resolved, err)
+			}
+			diag := resolved.Diagnostics[0]
+			if diag.Code != "unsupported_field" || diag.Field != field || strings.Contains(diag.Message, "memory runtime") {
+				t.Fatalf("Diagnostic = %#v", diag)
+			}
+		})
 	}
 }

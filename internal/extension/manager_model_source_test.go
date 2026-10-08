@@ -53,7 +53,7 @@ func TestManagerListModelSourceRows(t *testing.T) {
 			command:      helperCommand(t),
 			args:         helperArgs(),
 			withEnv:      helperEnv("model_source_success", ""),
-			capabilities: []string{"memory.backend"},
+			capabilities: []string{"loop.watch_source"},
 		}), nil)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)
 

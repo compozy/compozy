@@ -46,10 +46,13 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(
 	resolved *compozyconfig.ResolvedAgent,
 	catalog toolspkg.ToolsetCatalog,
 ) error {
-	override, hasOverride, err := normalizeAllowedToolsOverride(s.allowedToolsOverride)
+	policy, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{Tools: s.allowedToolsOverride})
+	toolspkg.WarnRetiredToolReferences("session:"+s.sessionID, dropped)
+	override, hasOverride, err := normalizeAllowedToolsOverride(policy.Tools)
 	if err != nil {
 		return err
 	}
+	hasOverride = hasOverride || len(s.allowedToolsOverride) > 0
 	if !hasOverride {
 		return nil
 	}
@@ -60,11 +63,19 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(
 		return err
 	}
 
+	resolved.ToolPolicyEnforced = true
 	resolved.Tools = append([]string(nil), override...)
 	resolved.Toolsets = nil
 
 	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
-	lineage.PermissionPolicy.Tools = append([]string(nil), override...)
+	persistedOverride := override
+	if len(dropped) > 0 {
+		persistedOverride, _, err = normalizeAllowedToolsOverride(s.allowedToolsOverride)
+		if err != nil {
+			return err
+		}
+	}
+	lineage.PermissionPolicy.Tools = append([]string(nil), persistedOverride...)
 	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	if err := store.ValidateSessionLineage(s.sessionID, lineage); err != nil {
 		return fmt.Errorf("%w: allowed_tools override lineage policy: %w", ErrValidation, err)
@@ -117,7 +128,7 @@ func concreteDelegationTools(
 	}
 	candidates := make(map[toolspkg.ToolID]struct{})
 	// An Agent without an allowlist can use the native universe; preserve its denies below.
-	if len(resolved.Tools) == 0 && len(resolved.Toolsets) == 0 {
+	if !resolved.ToolPolicyEnforced && len(resolved.Tools) == 0 && len(resolved.Toolsets) == 0 {
 		for _, id := range universe {
 			candidates[id] = struct{}{}
 		}
@@ -212,7 +223,7 @@ func validateAllowedToolsOverrideSubset(
 		return err
 	}
 
-	agentRestrictsTools := len(allowPatterns) > 0 || len(toolsets) > 0
+	agentRestrictsTools := resolved.ToolPolicyEnforced || len(allowPatterns) > 0 || len(toolsets) > 0
 	for _, raw := range requested {
 		id := toolspkg.ToolID(raw)
 		if matchesAllowedToolsPattern(denyPatterns, id) {

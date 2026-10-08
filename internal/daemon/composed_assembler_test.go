@@ -876,3 +876,22 @@ func assertPromptOrder(t *testing.T, value string, tokens []string) {
 		last = index
 	}
 }
+
+// Invariant: persisted persona snapshots retain active content while retired policy stays inert.
+// Owner: daemon prompt rendering. Canonical suite: composed_assembler_test.go.
+func TestSoulPromptIgnoresRetiredMemoryPolicy(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render retained persona from a pre-upgrade snapshot [UT-009]", func(t *testing.T) {
+		t.Parallel()
+		profile := soul.SnapshotProfile{Profile: soul.Profile{Role: "Reviewer", Principles: []string{"protect correctness"}, Body: "Keep the persona.", MemoryPolicy: []string{"keep notes"}}}
+		got := renderSoulPromptSection(&soul.Snapshot{ID: "soul-old"}, &profile)
+		for _, want := range []string{"Role: Reviewer", "protect correctness", "Keep the persona."} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("rendered prompt = %q, want %q", got, want)
+			}
+		}
+		if strings.Contains(got, "Memory policy") || strings.Contains(got, "keep notes") {
+			t.Fatalf("retired policy rendered in prompt: %q", got)
+		}
+	})
+}

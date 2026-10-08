@@ -4,7 +4,6 @@ const (
 	coreAppAgents         = "agents"
 	coreAppExtensions     = "extensions"
 	coreAppJobs           = "jobs"
-	coreAppKnowledge      = "knowledge"
 	coreAppLoops          = "loops"
 	coreAppMarketplace    = "marketplace"
 	coreAppTasks          = "tasks"

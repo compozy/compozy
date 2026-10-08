@@ -34,7 +34,7 @@ var (
 	}
 )
 
-// BuiltinAgentNames returns the reserved runtime-owned identity names.
+// BuiltinAgentNames returns the runtime-owned identity names.
 func BuiltinAgentNames() []string {
 	names := slices.AppendSeq(make([]string, 0, len(builtinAgentDefs)), maps.Keys(builtinAgentDefs))
 	slices.Sort(names)
@@ -52,8 +52,7 @@ func BuiltinAgentDef(name string) (AgentDef, bool) {
 
 // IsReservedAgentName reports whether a catalog name collides with a builtin identity.
 func IsReservedAgentName(name string) bool {
-	_, ok := builtinAgentDefs[normalizeBuiltinAgentName(name)]
-	return ok
+	return normalizeBuiltinAgentName(name) == BuiltinCoordinatorAgentName
 }
 
 func normalizeBuiltinAgentName(name string) string {

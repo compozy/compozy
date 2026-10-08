@@ -33,7 +33,7 @@ func TestManagerIntegrationLifecycleAndHostAPICall(t *testing.T) {
 		command:      helperCommand(t),
 		args:         helperArgs(),
 		withEnv:      helperEnv("host_call", markerPath),
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"loop.watch_source"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -79,7 +79,7 @@ func TestManagerIntegrationRestartRecovery(t *testing.T) {
 		command:      helperCommand(t),
 		args:         helperArgs(),
 		withEnv:      helperEnv("auto_exit", markerPath),
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"loop.watch_source"},
 		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -298,7 +298,7 @@ func TestManagerIntegrationExtensionStartsWithNegotiatedServices(t *testing.T) {
 			command:      helperCommand(t),
 			args:         helperArgs(),
 			withEnv:      helperEnv("record_initialize", markerPath),
-			capabilities: []string{"memory.backend"},
+			capabilities: []string{"loop.watch_source"},
 			permissions:  []string{"sessions/list"},
 		}), nil)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -330,9 +330,9 @@ func TestManagerIntegrationExtensionStartsWithNegotiatedServices(t *testing.T) {
 		request := markers[0].Request
 		if !slicesEqualStrings(
 			request.Methods.ExtensionServices,
-			[]string{"memory/forget", "memory/recall", "memory/store"},
+			[]string{"watch/poll"},
 		) {
-			t.Fatalf("initialize services = %#v, want memory service methods", request.Methods.ExtensionServices)
+			t.Fatalf("initialize services = %#v, want watch source methods", request.Methods.ExtensionServices)
 		}
 	})
 }

@@ -908,7 +908,7 @@ command = "./bin"
     "version": "0.1.0",
     "min_compozy_version": "0.3.0-beta.1"
   },
-  "permissions": {"requires": ["sessions/list", "memory/store"]},
+  "permissions": {"requires": ["sessions/list", "tasks/create"]},
   "capabilities": {"provides": []},
   "subprocess": {"command": "./bin"}
 }`)
@@ -916,7 +916,7 @@ command = "./bin"
 		if err != nil {
 			t.Fatalf("ValidateBundleReport() error = %v", err)
 		}
-		want := []ConsentArea{{Area: "memory", Access: "write"}, {Area: "sessions", Access: "read"}}
+		want := []ConsentArea{{Area: "sessions", Access: "read"}, {Area: "task", Access: "write"}}
 		if !reflect.DeepEqual(report.ConsentAreas, want) {
 			t.Fatalf("ConsentAreas = %#v, want %#v", report.ConsentAreas, want)
 		}
