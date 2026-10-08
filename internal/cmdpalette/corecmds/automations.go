@@ -2,8 +2,6 @@ package corecmds
 
 import "github.com/compozy/compozy/internal/cmdpalette"
 
-const coreAppAutomations = "automations"
-
 type automationCreateDefinition struct {
 	start    string
 	title    string
