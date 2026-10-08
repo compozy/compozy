@@ -62,6 +62,7 @@ import type {
   ResolvedPaletteCommand,
 } from "../../lib/cmd-palette-types";
 import { paletteCommand } from "../../lib/__tests__/cmd-palette-dispatch-fixtures";
+import { paletteNavigationTarget } from "../../lib/cmd-palette-navigation";
 import {
   filterPaletteSessions,
   paletteSessionFilterCounts,
@@ -677,10 +678,10 @@ const paletteDispatch = {
     const view = command.action.kind === "view" ? command.action.view : undefined;
     if (view) paletteMocks.writeViewStack([{ viewId: view as "sessions" }]);
     if (command.action.kind === "navigate" && options?.navigate !== undefined) {
-      const pathname = command.action.args?.pathname;
+      const route = paletteNavigationTarget(command.action.args ?? {});
       options.navigate(
         command.action.app as OsAppId,
-        typeof pathname === "string" ? { pathname, search: {} } : null
+        route.pathname === null ? null : { pathname: route.pathname, search: route.search }
       );
     }
     return { status: "ran" } as const;
@@ -963,6 +964,36 @@ describe("useOsPaletteRoot", () => {
     });
     expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
     await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
+  });
+
+  it("Should open the Automations editor with the chosen start [UT-112, IT-020]", async () => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
+    paletteMocks.desktop = desktopFixture(
+      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      "window:new-tab"
+    );
+    const { result } = renderRoot();
+    const command = paletteCommand({
+      id: "automation.create.event",
+      title: "New automation on an event",
+      section: "Apps",
+      action: {
+        kind: "navigate",
+        app: "automations",
+        args: { pathname: "/automations", create: "1", start: "event" },
+      },
+      execution: { retry_safe: true, single_flight: false },
+    });
+
+    await act(async () => {
+      result.current.runCommand(command);
+    });
+
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "automations",
+      route: { pathname: "/automations", search: { create: "1", start: "event" } },
+      stackTargetWindowId: "window:new-tab",
+    });
   });
 
   it("Should land on a session through the shared attention jump [BR-20]", async () => {

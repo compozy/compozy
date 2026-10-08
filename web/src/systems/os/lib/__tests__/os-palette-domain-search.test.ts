@@ -1,25 +1,27 @@
 // Suite: palette domain search projection
 // Invariant: domain rows honor workspace scope filters, per-domain landing
-// routes, server catalog totals, and an optional visible cap without a numeric
+// routes, automation rows of both kinds, server catalog totals, and an optional visible cap without a numeric
 // sentinel for uncapped pushed views.
 // Owning layer: unit — the domain-search helpers.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { Clock3, Radio } from "lucide-react";
 import { describe, expect, it } from "vitest";
+
+import type { AutomationView } from "@/systems/automation";
 
 import type { CmdPaletteRankSignals } from "../cmd-palette-types";
 import {
   agentRoute,
   knowledgeRoute,
-  jobRoute,
   loopRoute,
   marketplaceEntryRoute,
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
+  projectAutomationRows,
   section,
   taskRoute,
   terminalRoute,
-  triggerRoute,
   vaultRoute,
   workspaceLabel,
 } from "../os-palette-domain-search";
@@ -63,8 +65,6 @@ describe("os-palette-domain-search helpers", () => {
       pathname: "/loops/Release%20%2F%20Ops",
       search: { workspace: "ws-a" },
     });
-    expect(jobRoute("job-42")).toEqual({ pathname: "/jobs/job-42", search: {} });
-    expect(triggerRoute("trigger-42")).toEqual({ pathname: "/triggers/trigger-42", search: {} });
     expect(agentRoute("agent/ops")).toEqual({ pathname: "/agents/agent%2Fops", search: {} });
     expect(terminalRoute("term/4f21")).toEqual({
       pathname: "/terminal/term%2F4f21",
@@ -114,6 +114,74 @@ describe("os-palette-domain-search helpers", () => {
       pathname: "/knowledge",
       search: { memory: "notes.md", scope: "workspace", workspace: "ws-a" },
     });
+  });
+
+  it("Should list both automation kinds with the start glyph and sentence [UT-111]", () => {
+    const base = {
+      does: "agent",
+      enabled: true,
+      source: "dynamic",
+      profileName: "default",
+      canEdit: true,
+    } as const;
+    const views: AutomationView[] = [
+      {
+        ...base,
+        kind: "job",
+        id: "digest/am",
+        name: "morning-digest",
+        start: "schedule",
+        sentence: [
+          { text: "Every weekday at 09:00 UTC", emphasis: true },
+          { text: ", ask ", emphasis: false },
+          { text: "summarizer", emphasis: true },
+          { text: ".", emphasis: false },
+        ],
+        scope: "global",
+        canRunNow: true,
+        detailPath: "/automations/jobs/digest%2Fam",
+      },
+      {
+        ...base,
+        kind: "trigger",
+        id: "trg-1",
+        name: "summarize-failures",
+        start: "event",
+        sentence: [
+          { text: "When ", emphasis: false },
+          { text: "a session stops", emphasis: true },
+          { text: ", ask summarizer.", emphasis: false },
+        ],
+        scope: "workspace",
+        workspaceId: "ws-a",
+        canRunNow: false,
+        detailPath: "/automations/triggers/trg-1",
+      },
+    ];
+
+    const rows = projectAutomationRows(views, "global", new Map([["ws-a", "Alpha"]]));
+
+    expect(rows).toEqual([
+      {
+        key: "job:digest/am",
+        label: "morning-digest",
+        detail: "Every weekday at 09:00 UTC, ask summarizer.",
+        workspaceLabel: "Global",
+        app: "automations",
+        icon: Clock3,
+        route: { pathname: "/automations/jobs/digest%2Fam", search: {} },
+      },
+      {
+        key: "trigger:trg-1",
+        label: "summarize-failures",
+        detail: "When a session stops, ask summarizer.",
+        workspaceLabel: "Alpha",
+        app: "automations",
+        icon: Radio,
+        route: { pathname: "/automations/triggers/trg-1", search: {} },
+        workspaceId: "ws-a",
+      },
+    ]);
   });
 
   it("Should scope catalog filters to one workspace or every workspace", () => {

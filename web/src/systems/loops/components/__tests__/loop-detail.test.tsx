@@ -53,8 +53,7 @@ function renderDetail(
     onOpenEditor: noop,
     onDelete: noop,
     onDeleteReset: noop,
-    onAddTrigger: noop,
-    onAddSchedule: noop,
+    onAutomate: noop,
     ...handlers,
   };
   renderWithTopbar(
@@ -147,6 +146,40 @@ describe("LoopDetailView", () => {
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onConfigure).toHaveBeenCalledTimes(1);
     expect(onOpenEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should offer one Automate menu with the starts the Loop allows [UT-114]", async () => {
+    const onAutomate = vi.fn();
+    const automatable = {
+      ...loop,
+      definition: {
+        ...loop.definition,
+        start: [{ kind: "manual" }, { kind: "schedule" }, { kind: "webhook" }],
+      },
+    };
+    renderDetail({ onAutomate }, savedConfig, automatable);
+
+    const actions = screen.getByTestId("loop-detail-actions");
+    expect(actions).not.toHaveTextContent("Add trigger");
+    expect(actions).not.toHaveTextContent("Add schedule");
+    fireEvent.click(within(actions).getByTestId("loop-automate-action"));
+    const menu = await screen.findByTestId("loop-automate-menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map(item => item.textContent)
+    ).toEqual(["On a schedule", "When something happens"]);
+    fireEvent.click(within(menu).getByText("When something happens"));
+    expect(onAutomate).toHaveBeenCalledExactlyOnceWith("event");
+  });
+
+  it("Should not offer Automate when the Loop only starts by hand", () => {
+    const manualOnly = {
+      ...loop,
+      definition: { ...loop.definition, start: [{ kind: "manual" }, { kind: "cli" }] },
+    };
+    renderDetail({}, savedConfig, manualOnly);
+    expect(screen.queryByTestId("loop-automate-action")).not.toBeInTheDocument();
   });
 
   it("Should require the exact Loop name before deleting a workspace definition", () => {

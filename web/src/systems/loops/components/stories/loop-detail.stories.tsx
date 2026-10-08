@@ -87,8 +87,7 @@ export const WithBinding: Story = {
         onDeleteReset={noop}
         deletePending={false}
         deleteError={null}
-        onAddTrigger={noop}
-        onAddSchedule={noop}
+        onAutomate={noop}
       />
     </>
   ),
@@ -115,8 +114,7 @@ export const NoBindings: Story = {
         onDeleteReset={noop}
         deletePending={false}
         deleteError={null}
-        onAddTrigger={noop}
-        onAddSchedule={noop}
+        onAutomate={noop}
       />
     </>
   ),
@@ -134,8 +132,7 @@ export const GraphCompletionGlyphs: Story = {
       effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
       graph={readLoopGraph(releaseTrainDetail.definition)}
       loop={releaseTrainDetail}
-      onAddSchedule={noop}
-      onAddTrigger={noop}
+      onAutomate={noop}
       onConfigure={noop}
       onDelete={async () => undefined}
       onDeleteReset={noop}

@@ -131,6 +131,7 @@ export {
   type AutomationsRouteSearch,
 } from "./lib/automation-route-search";
 export { redirectLegacyAutomationURL } from "./lib/automation-redirects";
+export { AUTOMATION_START_ICON } from "./lib/automation-start-icon";
 export {
   automationLocationLabel,
   automationTimeStat,

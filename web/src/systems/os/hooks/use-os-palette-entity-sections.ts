@@ -1,19 +1,23 @@
 import { useAgents } from "@/systems/agent";
-import { useAutomationJobs, useAutomationTriggers } from "@/systems/automation";
+import {
+  compareAutomationViews,
+  toAutomationView,
+  useAutomationJobs,
+  useAutomationTriggers,
+} from "@/systems/automation";
 import { useLoops } from "@/systems/loops";
 import { useTasks } from "@/systems/tasks";
 import { useWorktrees } from "@/systems/workspace";
 
 import {
   agentRoute,
-  jobRoute,
   loopRoute,
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
+  projectAutomationRows,
   rowSeed,
   section,
   taskRoute,
-  triggerRoute,
   worktreeRowSeed,
   workspaceLabel,
   type OsPaletteDomainSection,
@@ -194,32 +198,16 @@ function useAutomationSection(context: OsPaletteDomainContext) {
   usePaletteInfiniteCatalog(jobs, enabled);
   usePaletteInfiniteCatalog(triggers, enabled);
   if (context.signals === null) return EMPTY_SECTION("Automations");
-  const jobRows = jobs.jobs.map(job =>
-    rowSeed("Automations", {
-      key: `job:${job.id}`,
-      label: job.name,
-      detail: job.agent_name,
-      workspaceLabel: workspaceLabel(context.scope, job.workspace_id, context.workspaceNames),
-      app: "automations",
-      route: jobRoute(job.id),
-      ...(job.workspace_id ? { workspaceId: job.workspace_id } : {}),
-    })
-  );
-  const triggerRows = triggers.triggers.map(trigger =>
-    rowSeed("Automations", {
-      key: `trigger:${trigger.id}`,
-      label: trigger.name,
-      detail: trigger.event,
-      workspaceLabel: workspaceLabel(context.scope, trigger.workspace_id, context.workspaceNames),
-      app: "automations",
-      route: triggerRoute(trigger.id),
-      ...(trigger.workspace_id ? { workspaceId: trigger.workspace_id } : {}),
-    })
-  );
+  const sentence = { workspaceName: (id: string) => context.workspaceNames.get(id) };
+  const views = [
+    ...jobs.jobs.map(job => toAutomationView(job, sentence)),
+    ...triggers.triggers.map(trigger => toAutomationView(trigger, sentence)),
+  ].sort(compareAutomationViews);
+  const rows = projectAutomationRows(views, context.scope, context.workspaceNames);
   const failed = jobs.isError ? jobs : triggers;
   return section(
     "Automations",
-    [...jobRows, ...triggerRows],
+    rows.map(row => rowSeed("Automations", row)),
     {
       isError: jobs.isError || triggers.isError,
       isLoading: jobs.isLoading || triggers.isLoading,

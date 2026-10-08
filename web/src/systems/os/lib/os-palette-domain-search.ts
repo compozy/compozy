@@ -1,3 +1,10 @@
+import type { LucideIcon } from "lucide-react";
+
+import {
+  automationSentenceText,
+  AUTOMATION_START_ICON,
+  type AutomationView,
+} from "@/systems/automation";
 import type { VaultSecret } from "@/systems/vault";
 import { ownerFromRow, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import type { WorkspaceScopeMode } from "@/systems/workspace";
@@ -17,6 +24,8 @@ export interface OsPaletteDomainRow {
   /** Owning workspace for global rows that need a workspace switch before opening. */
   readonly workspaceId?: string;
   readonly app: OsAppId;
+  /** Kind glyph that replaces the app mark (automation start kinds). */
+  readonly icon?: LucideIcon;
   readonly route: OsWindowRoute;
   /** Worktree rows scope the shell instead of opening an application route. */
   readonly worktreeSelection?: {
@@ -97,14 +106,6 @@ export function loopRoute(name: string, workspaceId?: string | null): OsWindowRo
     pathname: `/loops/${encodedSegment(name)}`,
     search: workspace ? { workspace } : {},
   };
-}
-
-export function jobRoute(id: string): OsWindowRoute {
-  return { pathname: `/automations/jobs/${encodedSegment(id)}`, search: {} };
-}
-
-export function triggerRoute(id: string): OsWindowRoute {
-  return { pathname: `/automations/triggers/${encodedSegment(id)}`, search: {} };
 }
 
 export function agentRoute(name: string): OsWindowRoute {
@@ -251,6 +252,24 @@ export function projectVaultRows(
       kind: secret.kind ?? "",
     };
   });
+}
+
+/** Both automation kinds as one section: start glyph, name, and the sentence as subtitle. */
+export function projectAutomationRows(
+  views: readonly AutomationView[],
+  scope: WorkspaceScopeMode,
+  names: ReadonlyMap<string, string>
+): readonly OsPaletteDomainRow[] {
+  return views.map(view => ({
+    key: `${view.kind}:${view.id}`,
+    label: view.name,
+    detail: automationSentenceText(view.sentence),
+    workspaceLabel: workspaceLabel(scope, view.workspaceId, names),
+    app: "automations",
+    icon: AUTOMATION_START_ICON[view.start],
+    route: { pathname: view.detailPath, search: {} },
+    ...(view.workspaceId ? { workspaceId: view.workspaceId } : {}),
+  }));
 }
 
 export function paletteTaskFilters(
