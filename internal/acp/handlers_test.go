@@ -2068,9 +2068,10 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 		defer proc.endPrompt(active)
 		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"x"}`)
 		unknown := json.RawMessage(`{"sessionUpdate":"_vendor_thing","content":{"type":"text","text":"y"},"vendor":42}`)
-		if err := proc.handleSessionUpdate(
+		err = proc.handleSessionUpdate(
 			mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: unknown}),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatal(err)
 		}
 		events := drainCompactionTestEvents(t, proc, active)
@@ -2078,10 +2079,12 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 			t.Fatalf("discriminator events = %#v", events)
 		}
 		var got, want map[string]any
-		if err := json.Unmarshal(events[1].Raw, &got); err != nil {
+		err = json.Unmarshal(events[1].Raw, &got)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if err := json.Unmarshal(unknown, &want); err != nil {
+		err = json.Unmarshal(unknown, &want)
+		if err != nil {
 			t.Fatal(err)
 		}
 		if fmt.Sprint(got) != fmt.Sprint(want) {
@@ -2103,9 +2106,10 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 			update := mustMarshalJSON(
 				map[string]any{"sessionUpdate": kind, "content": map[string]any{"type": "text", "text": "payload"}},
 			)
-			if err := proc.handleSessionUpdate(
+			err = proc.handleSessionUpdate(
 				mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: update}),
-			); err != nil {
+			)
+			if err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -2153,7 +2157,8 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer proc.endPrompt(active)
-		if err := proc.handleSessionUpdate(data); err != nil {
+		err = proc.handleSessionUpdate(data)
+		if err != nil {
 			t.Fatal(err)
 		}
 		events := drainCompactionTestEvents(t, proc, active)
@@ -2167,7 +2172,8 @@ func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
 func sendCompactionTestUpdate(t *testing.T, proc *AgentProcess, id, fields string) {
 	t.Helper()
 	var update map[string]any
-	if err := json.Unmarshal([]byte(fields), &update); err != nil {
+	err := json.Unmarshal([]byte(fields), &update)
+	if err != nil {
 		t.Fatal(err)
 	}
 	update["sessionUpdate"] = "compaction_update"
@@ -2177,9 +2183,10 @@ func sendCompactionTestUpdate(t *testing.T, proc *AgentProcess, id, fields strin
 		update["sessionUpdate"] = "compaction_summary_chunk"
 		update["content"] = map[string]any{"type": "text", "text": chunk}
 	}
-	if err := proc.handleSessionUpdate(
+	err = proc.handleSessionUpdate(
 		mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: mustMarshalJSON(update)}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatal(err)
 	}
 }

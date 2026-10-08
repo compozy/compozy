@@ -132,7 +132,7 @@ func (s *compactionState) appendSummary(text string) {
 	available := compactionSummaryLimit - len(s.buffer)
 	if len(text) > available {
 		text = text[:available]
-		for !utf8.ValidString(text) && len(text) > 0 {
+		for !utf8.ValidString(text) && text != "" {
 			text = text[:len(text)-1]
 		}
 		s.truncated = true
@@ -145,7 +145,7 @@ func (s *compactionState) summary() string {
 	if s.truncated || len(text) > compactionSummaryLimit {
 		end := min(len(text), compactionSummaryLimit-len(compactionTruncationMark))
 		text = text[:end]
-		for !utf8.ValidString(text) && len(text) > 0 {
+		for !utf8.ValidString(text) && text != "" {
 			text = text[:len(text)-1]
 		}
 		text += compactionTruncationMark
