@@ -88,8 +88,7 @@ export function LoopDetailLocation({
       onDeleteReset={handlers.onDeleteReset}
       deletePending={deleteLoop.isPending}
       deleteError={deleteLoop.error?.message ?? null}
-      onAddTrigger={handlers.onAddTrigger}
-      onAddSchedule={handlers.onAddSchedule}
+      onAutomate={handlers.onAutomate}
     />
   );
 }

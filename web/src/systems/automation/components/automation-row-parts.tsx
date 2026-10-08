@@ -1,16 +1,12 @@
 import {
   CircleAlert,
-  Clock3,
   Link2,
   Lock,
   MoreHorizontal,
   Pencil,
   Play,
-  Radio,
   SkipForward,
   Trash2,
-  Webhook,
-  type LucideIcon,
 } from "lucide-react";
 import type { ComponentProps } from "react";
 
@@ -27,14 +23,9 @@ import {
 } from "@compozy/ui";
 
 import { automationLastRunMeta } from "../lib/automation-formatters";
+import { AUTOMATION_START_ICON } from "../lib/automation-start-icon";
 import type { AutomationSentence } from "../lib/automation-sentence";
 import type { AutomationStart, AutomationView } from "../lib/automation-view";
-
-const START_GLYPH: Record<AutomationStart, LucideIcon> = {
-  schedule: Clock3,
-  event: Radio,
-  webhook: Webhook,
-};
 
 /** Kind glyph for the icon well: `clock-3` schedule · `radio` event · `webhook` link. */
 export function AutomationStartGlyph({
@@ -42,7 +33,7 @@ export function AutomationStartGlyph({
   className,
   ...props
 }: { start: AutomationStart } & ComponentProps<"svg">) {
-  const Glyph = START_GLYPH[start];
+  const Glyph = AUTOMATION_START_ICON[start];
   return (
     <Glyph aria-hidden="true" className={cn("size-4", className)} data-start={start} {...props} />
   );

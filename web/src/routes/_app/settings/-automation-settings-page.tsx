@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Zap } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "@tanstack/react-router";
 
@@ -113,7 +113,7 @@ function AutomationRuntimeUnavailable({ runtime }: { runtime: AutomationRuntime 
       <AlertCircle aria-hidden="true" />
       <AlertTitle>Automation is off</AlertTitle>
       <AlertDescription>
-        Turn on Run automation and restart CompozyOS. Jobs and triggers wait until then.
+        Turn on Run automation and restart CompozyOS. Your automations wait until then.
       </AlertDescription>
     </Alert>
   );
@@ -150,20 +150,30 @@ function AutomationHero({ runtime }: { runtime: AutomationRuntime }) {
   );
 }
 
+function countLabel(count: number, singular: string): string {
+  return `${count} ${count === 1 ? singular : `${singular}s`}`;
+}
+
+/** `7 automations, 6 on · 4 scheduled, 3 on events` — schedules are jobs, events are triggers. */
+function automationsSummary(runtime: AutomationRuntime): string {
+  const total = runtime.job_total + runtime.trigger_total;
+  const on = runtime.job_enabled + runtime.trigger_enabled;
+  return `${countLabel(total, "automation")}, ${on} on · ${runtime.job_total} scheduled, ${runtime.trigger_total} on events`;
+}
+
 function ManageSection({ runtime }: { runtime: AutomationRuntime }) {
   return (
     <SettingsGroup data-testid="settings-page-automation-operational-links" title="Manage">
       <SettingLinkRow
-        data-testid="settings-page-automation-link-jobs"
-        description={`${runtime.job_total} defined, ${runtime.job_enabled} enabled`}
-        label="Jobs"
-        render={<Link to="/jobs" />}
-      />
-      <SettingLinkRow
-        data-testid="settings-page-automation-link-triggers"
-        description={`${runtime.trigger_total} defined, ${runtime.trigger_enabled} enabled`}
-        label="Triggers"
-        render={<Link to="/triggers" />}
+        data-testid="settings-page-automation-link-automations"
+        description={automationsSummary(runtime)}
+        label={
+          <>
+            <Zap aria-hidden="true" className="size-3.5 text-muted" />
+            Automations
+          </>
+        }
+        render={<Link to="/automations" />}
       />
     </SettingsGroup>
   );
@@ -196,7 +206,7 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-automation-timezone"
         label="Schedule time zone"
-        help="Scheduled jobs run on this time zone"
+        help="Scheduled automations use this time zone"
         control={
           <Input
             className="w-56 font-mono"
@@ -229,10 +239,10 @@ function LimitsSection({
     <SettingsGroup title="Limits">
       <SettingsFieldRow
         data-testid="settings-page-automation-max-concurrent"
-        label="Max jobs at once"
+        label="Scheduled automations at once"
         help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            Caps the number of jobs running simultaneously
+            How many scheduled automations can run at the same time
             <SettingsProvChip>automation.max_concurrent_jobs</SettingsProvChip>
           </span>
         }
@@ -258,10 +268,10 @@ function LimitsSection({
       />
       <SettingsFieldRow
         data-testid="settings-page-automation-fire-limit-max"
-        label="Default fire limit"
+        label="Default run limit"
         help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            How often a new trigger can start work
+            How often a new automation can start work
             <SettingsProvChip>automation.default_fire_limit</SettingsProvChip>
           </span>
         }

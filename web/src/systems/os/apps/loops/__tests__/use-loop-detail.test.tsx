@@ -131,6 +131,28 @@ describe("useLoopDetail", () => {
     });
   });
 
+  it("Should open the Automations editor locked to this Loop [UT-114]", () => {
+    const { result } = renderHook(() => useLoopDetail("software-delivery"));
+
+    act(() => result.current.handlers.onAutomate("schedule"));
+    act(() => result.current.handlers.onAutomate("event"));
+
+    expect(mocks.navigate.mock.calls).toEqual([
+      [
+        {
+          to: "/automations",
+          search: { create: "loop", start: "schedule", loop: "software-delivery" },
+        },
+      ],
+      [
+        {
+          to: "/automations",
+          search: { create: "loop", start: "event", loop: "software-delivery" },
+        },
+      ],
+    ]);
+  });
+
   it("Should await workspace deletion before replacing detail with the catalog", async () => {
     mocks.loopSource = "workspace";
     mocks.deleteMutateAsync.mockResolvedValue(undefined);
