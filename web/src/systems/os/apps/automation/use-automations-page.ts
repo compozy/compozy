@@ -4,11 +4,11 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import {
+  automationEditorSeed,
   compareAutomationViews,
   toAutomationView,
-  useAutomationJobEditor,
+  useAutomationEditor,
   useAutomationJobs,
-  useAutomationTriggerEditor,
   useAutomationTriggers,
   useDeleteAutomationJob,
   useDeleteAutomationTrigger,
@@ -24,10 +24,8 @@ import { useProfileReadScope } from "@/systems/profiles";
 
 import { automationPendingLogic } from "./automation-pending-store";
 import {
-  automationCreateSeedOf,
   automationUnavailableMessage,
   useAutomationCreateSeed,
-  type AutomationCreateSeed,
   useAutomationPageBase,
 } from "./use-automation-page-base";
 
@@ -144,31 +142,34 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     items.length === 0 &&
     ((loadJobs && jobsQuery.isLoading) || (loadTriggers && triggersQuery.isLoading));
 
+  const firstRun = !isLoading && items.length === 0 && !page.hasActiveFilters;
+  // Suggestions are workspace-scoped: never in Global scope or the all-profiles aggregate.
+  const suggestionsWorkspaceId =
+    firstRun && search.scope !== "global" && !profile.aggregate && page.activeWorkspaceId
+      ? page.activeWorkspaceId
+      : null;
+
   const findEntity = (view: AutomationView): AutomationJob | AutomationTrigger | undefined =>
     view.kind === "job"
       ? jobs.find(job => job.id === view.id)
       : triggers.find(trigger => trigger.id === view.id);
 
-  const jobEditor = useAutomationJobEditor({
+  const editor = useAutomationEditor({
     activeWorkspaceId: page.activeWorkspaceId,
     workspaces: page.workspaces,
-    onSaved: job => void navigate({ to: "/automations/jobs/$jobId", params: { jobId: job.id } }),
+    onSaved: saved =>
+      void (saved.entity === "job"
+        ? navigate({ to: "/automations/jobs/$jobId", params: { jobId: saved.automation.id } })
+        : navigate({
+            to: "/automations/triggers/$triggerId",
+            params: { triggerId: saved.automation.id },
+          })),
   });
-  const triggerEditor = useAutomationTriggerEditor({
-    activeWorkspaceId: page.activeWorkspaceId,
-    workspaces: page.workspaces,
-    onSaved: trigger =>
-      void navigate({
-        to: "/automations/triggers/$triggerId",
-        params: { triggerId: trigger.id },
-      }),
-  });
-  const openSeed = (seed: AutomationCreateSeed) => {
-    const editor = seed.start === "event" || seed.start === "webhook" ? triggerEditor : jobEditor;
-    if (seed.loop) editor.openLoopCreate(seed.loop);
-    else editor.openCreate();
-  };
-  useAutomationCreateSeed(automationCreateSeedOf(search), page.activeWorkspaceId, openSeed);
+  useAutomationCreateSeed(
+    automationEditorSeed(search),
+    { activeWorkspaceId: page.activeWorkspaceId, resolved: page.workspaceResolved },
+    seed => editor.openCreate({ loop: seed.loop, start: seed.start })
+  );
 
   const updateJob = useUpdateAutomationJob();
   const updateTrigger = useUpdateAutomationTrigger();
@@ -207,8 +208,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   const edit = (view: AutomationView) => {
     const entity = findEntity(view);
     if (!entity || !view.canEdit) return;
-    if ("event" in entity) triggerEditor.openEdit(entity);
-    else jobEditor.openEdit(entity);
+    editor.openEdit(entity);
   };
 
   const confirmDelete = async () => {
@@ -220,10 +220,8 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     setDeleteTarget(null);
   };
 
-  const create = (start: "schedule" | "event" | null = page.start) => {
-    if (start === "event") triggerEditor.openCreate();
-    else jobEditor.openCreate();
-  };
+  const create = (start: "schedule" | "event" | "webhook" | null = page.start) =>
+    editor.openCreate({ start: start ?? "schedule" });
 
   const loadMore = () => {
     if (loadJobs && jobsQuery.hasNextPage) void jobsQuery.fetchNextPage();
@@ -240,7 +238,9 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     deletePending: deleteJob.isPending || deleteTrigger.isPending,
     deleteTarget,
     edit,
-    editorDialogProps: [jobEditor.editorDialogProps, triggerEditor.editorDialogProps] as const,
+    editorDialogProps: editor.editorDialogProps,
+    firstRun,
+    suggestionsWorkspaceId,
     enabledCount: items.filter(item => item.enabled).length,
     isFetchingMore: jobsQuery.isFetchingNextPage || triggersQuery.isFetchingNextPage,
     isLoading,

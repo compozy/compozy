@@ -41,18 +41,18 @@ WHERE id = sqlc.arg(id);
 
 -- name: UpsertAutomationJobCatalog :exec
 INSERT INTO automation_job_catalog_entries (
-  job_id, scope, workspace_id, source, source_rank, name, loop_name, enabled,
+  job_id, target, scope, workspace_id, source, source_rank, name, loop_name, enabled,
   search_name, search_agent_name, search_prompt, search_scope, search_source,
   search_schedule_mode, search_schedule_expr, search_schedule_interval, search_schedule_time
 ) VALUES (
-  sqlc.arg(job_id), sqlc.arg(scope), sqlc.arg(workspace_id), sqlc.arg(source),
+  sqlc.arg(job_id), sqlc.arg(target), sqlc.arg(scope), sqlc.arg(workspace_id), sqlc.arg(source),
   sqlc.arg(source_rank), sqlc.arg(name), sqlc.arg(loop_name), sqlc.arg(enabled),
   sqlc.arg(search_name), sqlc.arg(search_agent_name), sqlc.arg(search_prompt),
   sqlc.arg(search_scope), sqlc.arg(search_source), sqlc.arg(search_schedule_mode),
   sqlc.arg(search_schedule_expr), sqlc.arg(search_schedule_interval), sqlc.arg(search_schedule_time)
 )
 ON CONFLICT(job_id) DO UPDATE SET
-  scope = excluded.scope, workspace_id = excluded.workspace_id, source = excluded.source,
+  target = excluded.target, scope = excluded.scope, workspace_id = excluded.workspace_id, source = excluded.source,
   source_rank = excluded.source_rank, name = excluded.name, loop_name = excluded.loop_name,
   enabled = excluded.enabled, search_name = excluded.search_name,
   search_agent_name = excluded.search_agent_name, search_prompt = excluded.search_prompt,
@@ -64,18 +64,18 @@ ON CONFLICT(job_id) DO UPDATE SET
 
 -- name: UpsertAutomationTriggerCatalog :exec
 INSERT INTO automation_trigger_catalog_entries (
-  trigger_id, scope, workspace_id, event, source, source_rank, name, loop_name, enabled,
+  trigger_id, target, scope, workspace_id, event, source, source_rank, name, loop_name, enabled,
   search_name, search_agent_name, search_prompt, search_scope, search_source,
   search_event, search_endpoint_slug, search_webhook_id
 ) VALUES (
-  sqlc.arg(trigger_id), sqlc.arg(scope), sqlc.arg(workspace_id), sqlc.arg(event),
+  sqlc.arg(trigger_id), sqlc.arg(target), sqlc.arg(scope), sqlc.arg(workspace_id), sqlc.arg(event),
   sqlc.arg(source), sqlc.arg(source_rank), sqlc.arg(name), sqlc.arg(loop_name),
   sqlc.arg(enabled), sqlc.arg(search_name), sqlc.arg(search_agent_name),
   sqlc.arg(search_prompt), sqlc.arg(search_scope), sqlc.arg(search_source),
   sqlc.arg(search_event), sqlc.arg(search_endpoint_slug), sqlc.arg(search_webhook_id)
 )
 ON CONFLICT(trigger_id) DO UPDATE SET
-  scope = excluded.scope, workspace_id = excluded.workspace_id, event = excluded.event,
+  target = excluded.target, scope = excluded.scope, workspace_id = excluded.workspace_id, event = excluded.event,
   source = excluded.source, source_rank = excluded.source_rank, name = excluded.name,
   loop_name = excluded.loop_name, enabled = excluded.enabled, search_name = excluded.search_name,
   search_agent_name = excluded.search_agent_name, search_prompt = excluded.search_prompt,

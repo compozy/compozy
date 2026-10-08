@@ -52,14 +52,6 @@ export interface EventDef {
 
 export type EventGroup = "Session lifecycle" | "Memory" | "Hooks" | "External" | "Extensions";
 
-export const EVENT_GROUP_ORDER: readonly EventGroup[] = [
-  "Session lifecycle",
-  "Memory",
-  "Hooks",
-  "External",
-  "Extensions",
-];
-
 /** Top-level envelope keys available to every filter and template. */
 export const ENVELOPE_KEYS = ["kind", "scope", "source", "workspace_id"] as const;
 
@@ -253,26 +245,6 @@ const EVENTS_BY_ID = new Map<string, EventDef>(EVENTS.map(event => [event.id, ev
 
 export function getEventDef(id: string): EventDef | undefined {
   return EVENTS_BY_ID.get(id);
-}
-
-export interface EventGroupBucket {
-  group: EventGroup;
-  events: EventDef[];
-}
-
-/** Events filtered by `query` and bucketed into their groups, in canonical order. */
-export function listEventGroups(query = ""): EventGroupBucket[] {
-  const normalized = query.trim().toLowerCase();
-  const matches = (event: EventDef) => {
-    if (normalized === "") return true;
-    const haystack = `${event.id} ${event.label} ${event.description} ${event.group}`.toLowerCase();
-    return haystack.includes(normalized);
-  };
-
-  return EVENT_GROUP_ORDER.flatMap(group => {
-    const events = EVENTS.filter(event => event.group === group && matches(event));
-    return events.length > 0 ? [{ group, events }] : [];
-  });
 }
 
 /**

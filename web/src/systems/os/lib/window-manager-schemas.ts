@@ -249,7 +249,7 @@ const commandIdSchema = z.enum([
 
 export const windowManagerSnapshotSchema = z
   .strictObject({
-    version: z.literal(4),
+    version: z.literal(5),
     workspace_id: identifierSchema,
     revision: safeRevisionSchema,
     desktops: z.array(desktopSchema).min(1),

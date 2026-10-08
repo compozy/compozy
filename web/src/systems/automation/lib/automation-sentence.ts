@@ -269,6 +269,11 @@ function eventSegments(event: string | undefined): AutomationSentenceSegment[] {
       return selection.hookName
         ? [plain("the "), strong(selection.hookName), plain(" hook completes")]
         : [missing("a hook"), plain(" completes")];
+    case "ext":
+      // An editor draft may still miss the extension or its event name.
+      return selection.extExt.trim() && selection.extEvent.trim()
+        ? [strong(id), plain(" fires")]
+        : [missing("an extension event"), plain(" fires")];
     default:
       return [strong(id), plain(" fires")];
   }

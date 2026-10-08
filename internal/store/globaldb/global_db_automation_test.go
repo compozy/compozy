@@ -3354,3 +3354,151 @@ func assertIndexesPresent(t *testing.T, db *sql.DB, table string, want ...string
 		}
 	}
 }
+
+func TestGlobalDBLatestRunsByOwner(t *testing.T) {
+	t.Parallel()
+	t.Run("Should select each owner's latest run with stable ties and preserve metadata", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		base := time.Date(2026, 10, 8, 1, 0, 0, 0, time.UTC)
+		for _, owner := range []automation.RunOwnerKind{automation.RunOwnerJob, automation.RunOwnerTrigger} {
+			for _, item := range []struct {
+				id, parent string
+				status     automation.RunStatus
+				at         time.Time
+			}{
+				{"a-old", "digest", automation.RunCompleted, base},
+				{"a-tie-a", "digest", automation.RunFailed, base.Add(time.Minute)},
+				{"a-tie-z", "digest", automation.RunCancelled, base.Add(time.Minute)},
+				{"b", "second", automation.RunCompleted, base},
+			} {
+				run := automationRunForJob(item.parent, item.status, 1, item.at)
+				if owner == automation.RunOwnerTrigger {
+					run = automationRunForTrigger(item.parent, item.status, 1, item.at)
+				}
+				run.ID = string(owner) + "-" + item.id
+				if item.status == automation.RunCancelled {
+					run.Metadata = map[string]any{"reason": "self_overlap"}
+				}
+				if _, err := db.CreateRun(ctx, run); err != nil {
+					t.Fatal(err)
+				}
+			}
+			latest, err := db.LatestRunsByOwner(ctx, owner, []string{"digest", "second", "none", "digest"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(latest) != 2 || latest["digest"].ID != string(owner)+"-a-tie-z" ||
+				latest["second"].ID != string(owner)+"-b" {
+				t.Fatalf("LatestRunsByOwner(%s) = %#v", owner, latest)
+			}
+			if latest["digest"].Metadata["reason"] != "self_overlap" {
+				t.Fatalf("metadata = %#v", latest["digest"].Metadata)
+			}
+		}
+		for _, owner := range []automation.RunOwnerKind{automation.RunOwnerJob, automation.RunOwnerTrigger} {
+			latest, err := db.LatestRunsByOwner(ctx, owner, []string{"digest"})
+			if err != nil || latest["digest"].ID != string(owner)+"-a-tie-z" {
+				t.Fatalf("owner isolation: %#v, %v", latest, err)
+			}
+			empty, err := db.LatestRunsByOwner(ctx, owner, nil)
+			if err != nil || len(empty) != 0 {
+				t.Fatalf("empty ids: %#v, %v", empty, err)
+			}
+		}
+		if _, err := db.LatestRunsByOwner(ctx, "invalid", []string{"digest"}); err == nil {
+			t.Fatal("invalid owner accepted")
+		}
+	})
+}
+
+func TestGlobalDBAutomationTargetFilter(t *testing.T) {
+	t.Parallel()
+	t.Run("Should filter projected targets and update the projection when a target changes", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		workspaceID := registerWorkspaceForGlobalTests(t, db, "target-filter", t.TempDir())
+		agent := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"agent",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		_, err := db.CreateJob(ctx, agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		task := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"task",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		task.Task = &automation.JobTaskConfig{Title: "Scheduled task"}
+		task, err = db.CreateJob(ctx, task)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		loopJob := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"loop",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		loopJob.AgentName, loopJob.Prompt = "", ""
+		loopJob.TargetKind = automation.TargetKindLoop
+		loopJob.LoopTarget = &automation.LoopTarget{WorkspaceID: workspaceID, LoopName: "triage"}
+		if _, err := db.CreateJob(ctx, loopJob); err != nil {
+			t.Fatal(err)
+		}
+		for _, target := range []string{"agent", "task", "loop"} {
+			page, err := db.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles, Target: target})
+			if err != nil || len(page.Jobs) != 1 || page.Jobs[0].Name != target || page.Total != 1 {
+				t.Fatalf("target %s: %#v, %v", target, page, err)
+			}
+		}
+		task.Task = nil
+		if _, err := db.UpdateJob(ctx, task); err != nil {
+			t.Fatal(err)
+		}
+		page, err := db.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles, Target: "task"})
+		if err != nil || page.Total != 0 {
+			t.Fatalf("changed task target: %#v, %v", page, err)
+		}
+		trigger := automationNonWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"trigger",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		if _, err := db.CreateTrigger(ctx, trigger); err != nil {
+			t.Fatal(err)
+		}
+
+		loopTrigger := automationNonWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"loop-trigger",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		loopTrigger.AgentName, loopTrigger.Prompt = "", ""
+		loopTrigger.TargetKind = automation.TargetKindLoop
+		loopTrigger.LoopTarget = &automation.LoopTarget{WorkspaceID: workspaceID, LoopName: "triage"}
+		if _, err := db.CreateTrigger(ctx, loopTrigger); err != nil {
+			t.Fatal(err)
+		}
+		for _, target := range []string{"agent", "task", "loop"} {
+			page, err := db.ListTriggers(ctx, TriggerListQuery{ReadScope: automationAllProfiles, Target: target})
+			want := 0
+			if target != "task" {
+				want = 1
+			}
+			if err != nil || page.Total != want {
+				t.Fatalf("trigger target %s: %#v, %v", target, page, err)
+			}
+		}
+	})
+}

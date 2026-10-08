@@ -86,7 +86,7 @@ vi.mock("@/systems/profiles", async importOriginal => ({
 }));
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 4,
+  version: 5,
   workspaceId: "workspace:test",
   revision: 1,
   desktops: [],

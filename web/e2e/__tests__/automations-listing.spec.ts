@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { reloadDaemonServedPage } from "../fixtures/navigation";
 import { appWindow } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
-import { automationOperatorSelectors } from "../fixtures/selectors";
+import { automationOperatorSelectors, osShellSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
@@ -164,6 +165,139 @@ test("Automations E2E-001/E2E-002: one listing filters, searches, and toggles jo
   await deleteAutomationIfExists(runtime, "jobs", job.id);
   await deleteAutomationIfExists(runtime, "triggers", trigger.id);
 });
+
+/**
+ * E2E-007 (US-033): desktops that still name the retired `jobs` / `triggers` apps reopen
+ * as Automations windows. No browser fixture seeds a stored client-state snapshot before
+ * boot, so the windows enter through the same daemon boundary a saved layout or an older
+ * client uses (`RetiredApp` + `RewriteRetiredAppRoute`, aliased for one release); the
+ * stored v4 → v5 document rewrite itself is owned by the repository suites (IT-010/IT-011).
+ */
+test("Automations E2E-007: retired Jobs and Triggers windows reopen as Automations across restart", async ({
+  appPage,
+  runtime,
+}) => {
+  test.setTimeout(150_000);
+  await ensureProjectWorkspace(appPage, runtime);
+  await completeOnboardingIfPrompted(appPage);
+  const workspaceId = await activeWorkspaceId(runtime);
+  const job = await createJob(runtime, uniqueName("desktop-job"));
+  const shell = osShellSelectors(appPage);
+
+  const jobsWindowId = `e2e-retired-jobs-${randomUUID().slice(0, 8)}`;
+  const triggersWindowId = `e2e-retired-triggers-${randomUUID().slice(0, 8)}`;
+
+  await test.step("windows opened under the retired app ids land as Automations", async () => {
+    await openRetiredAppWindow(runtime, workspaceId, jobsWindowId, "jobs", {
+      pathname: `/jobs/${job.id}`,
+      search: {},
+    });
+    await openRetiredAppWindow(runtime, workspaceId, triggersWindowId, "triggers", {
+      pathname: "/triggers",
+      search: { event: "session.stopped" },
+    });
+    const snapshot = await windowManagerSnapshot(runtime, workspaceId);
+    expect(snapshot.windows[jobsWindowId]).toMatchObject({
+      app: "automations",
+      route: { pathname: `/automations/jobs/${job.id}` },
+    });
+    expect(snapshot.windows[triggersWindowId]).toMatchObject({
+      app: "automations",
+      route: { pathname: "/automations", search: { start: "event", q: "session.stopped" } },
+    });
+  });
+
+  await test.step("both reopen in place after a daemon restart, with no further rewrite", async () => {
+    const before = await windowManagerSnapshot(runtime, workspaceId);
+    const restart = await runtime.requestJSON<{ operation_id: string; status_url: string }>(
+      "/api/settings/actions/restart",
+      { method: "POST", body: "{}" }
+    );
+    await expect
+      .poll(async () => await restartStatus(runtime, restart.status_url), { timeout: 45_000 })
+      .toBe("ready");
+    await reloadDaemonServedPage(appPage, runtime, "/", {});
+
+    const after = await windowManagerSnapshot(runtime, workspaceId);
+    expect(after.version).toBe(5);
+    for (const id of [jobsWindowId, triggersWindowId]) {
+      expect(after.windows[id]).toEqual(before.windows[id]);
+    }
+    await expect(shell.window(jobsWindowId)).toBeAttached();
+    await expect(shell.window(triggersWindowId)).toBeAttached();
+    await expect(shell.window(jobsWindowId).getByTestId("automation-detail-panel")).toBeAttached();
+    await expect(shell.window(triggersWindowId).getByTestId("automations-shell")).toBeAttached();
+  });
+
+  await deleteAutomationIfExists(runtime, "jobs", job.id);
+});
+
+interface WindowManagerSnapshotView {
+  revision: number;
+  version: number;
+  windows: Record<
+    string,
+    { app: string; route: { pathname: string; search: Record<string, unknown> } }
+  >;
+}
+
+function windowManagerPath(workspaceId: string): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceId)}/window-manager`;
+}
+
+async function windowManagerSnapshot(
+  runtime: BrowserRuntime,
+  workspaceId: string
+): Promise<WindowManagerSnapshotView> {
+  return await runtime.requestJSON<WindowManagerSnapshotView>(windowManagerPath(workspaceId));
+}
+
+async function openRetiredAppWindow(
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  id: string,
+  app: "jobs" | "triggers",
+  route: { pathname: string; search: Record<string, unknown> }
+): Promise<void> {
+  const snapshot = await windowManagerSnapshot(runtime, workspaceId);
+  await runtime.requestJSON(`${windowManagerPath(workspaceId)}/commands`, {
+    method: "POST",
+    body: JSON.stringify({
+      workspace_id: workspaceId,
+      command_id: "window.open",
+      expected_revision: snapshot.revision,
+      actor: { kind: "e2e", id: "automations-listing" },
+      origin: "web-e2e",
+      payload: {
+        window: {
+          id,
+          app,
+          route,
+          desktop_id: "desktop-default",
+          floating_rect: { x: 0.08, y: 0.08, width: 0.5, height: 0.6 },
+          insert_tiled: false,
+        },
+      },
+    }),
+  });
+}
+
+async function activeWorkspaceId(runtime: BrowserRuntime): Promise<string> {
+  const payload = await runtime.requestJSON<{ workspaces: Array<{ id: string }> }>(
+    "/api/workspaces"
+  );
+  const id = payload.workspaces[0]?.id;
+  if (!id) throw new Error("Expected the Automations scenario to have a workspace.");
+  return id;
+}
+
+async function restartStatus(runtime: BrowserRuntime, statusURL: string): Promise<string> {
+  try {
+    return (await runtime.requestJSON<{ status: string }>(statusURL)).status;
+  } catch {
+    return "restarting";
+  }
+}
 
 async function createJob(runtime: BrowserRuntime, name: string): Promise<SeededJob> {
   return (

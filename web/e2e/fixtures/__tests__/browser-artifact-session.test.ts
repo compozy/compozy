@@ -32,7 +32,7 @@ describe("captureRouteState", () => {
           </li>
         </ul>
       </section>
-      <form data-testid="automation-job-form"></form>
+      <form data-entity="job" data-testid="automation-form"></form>
     `;
 
     const routeState = await captureRouteState({

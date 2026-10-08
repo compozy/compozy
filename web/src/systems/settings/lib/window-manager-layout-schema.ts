@@ -161,7 +161,7 @@ const layoutWindowSchema = z
 
 export const windowManagerLayoutDocumentSchema = z
   .strictObject({
-    version: z.literal(4),
+    version: z.literal(5),
     workspace_id: z.string(),
     desktops: z.array(desktopSchema).min(1),
     windows: z.record(z.string(), layoutWindowSchema),

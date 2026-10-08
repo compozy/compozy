@@ -27,8 +27,7 @@ const state = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   runNow: vi.fn(),
-  openJobEdit: vi.fn(),
-  openTriggerEdit: vi.fn(),
+  openEdit: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => state.navigate }));
@@ -63,8 +62,7 @@ vi.mock("@/systems/automation", async importOriginal => {
     useAutomationTrigger: () => state.trigger,
     useAutomationJobRuns: runsQuery,
     useAutomationTriggerRuns: runsQuery,
-    useAutomationJobEditor: () => ({ editorDialogProps: {}, openEdit: state.openJobEdit }),
-    useAutomationTriggerEditor: () => ({ editorDialogProps: {}, openEdit: state.openTriggerEdit }),
+    useAutomationEditor: () => ({ editorDialogProps: {}, openEdit: state.openEdit }),
     useUpdateAutomationJob: () => mutation(state.update),
     useUpdateAutomationTrigger: () => mutation(state.update),
     useDeleteAutomationJob: () => mutation(state.remove),
@@ -222,8 +220,8 @@ describe("useAutomationDetailPage", () => {
     const { rerender } = renderHook(() => useAutomationDetailPage("job", "morning-digest", search));
     rerender();
 
-    expect(state.openJobEdit).toHaveBeenCalledOnce();
-    expect(state.openJobEdit).toHaveBeenCalledWith(morningDigestJob);
+    expect(state.openEdit).toHaveBeenCalledOnce();
+    expect(state.openEdit).toHaveBeenCalledWith(morningDigestJob, { section: "options" });
     expect(state.navigate).toHaveBeenCalledWith({
       to: "/automations/jobs/$jobId",
       params: { jobId: "morning-digest" },

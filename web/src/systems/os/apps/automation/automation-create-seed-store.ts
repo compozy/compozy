@@ -1,5 +1,7 @@
 import { createStoreLogic } from "@xstate/store";
 
+import type { AutomationEditorSeed } from "@/systems/automation";
+
 interface AutomationCreateSeedState {
   consumedKey: string | null;
 }
@@ -7,8 +9,9 @@ interface AutomationCreateSeedState {
 type AutomationCreateSeedEvents = {
   seedObserved: {
     activeWorkspaceId: string | null | undefined;
-    consume: (key: string) => void;
-    key: string | null;
+    consume: (seed: AutomationEditorSeed) => void;
+    seed: AutomationEditorSeed | null;
+    workspaceResolved: boolean;
   };
 };
 
@@ -20,13 +23,16 @@ export const automationCreateSeedLogic = createStoreLogic<
   context: { consumedKey: null },
   on: {
     seedObserved: (context, event, enqueue) => {
-      const key = event.key;
-      if (key === null) {
+      const seed = event.seed;
+      if (seed === null) {
         return context.consumedKey === null ? undefined : { consumedKey: null };
       }
-      if (!event.activeWorkspaceId || context.consumedKey === key) return;
-      enqueue.effect(() => event.consume(key));
-      return { consumedKey: key };
+      // Global (no project) is a resolved lens for a plain create; a Loop seed needs its project.
+      const ready =
+        event.workspaceResolved && (seed.loop === undefined || Boolean(event.activeWorkspaceId));
+      if (!ready || context.consumedKey === seed.key) return;
+      enqueue.effect(() => event.consume(seed));
+      return { consumedKey: seed.key };
     },
   },
 });

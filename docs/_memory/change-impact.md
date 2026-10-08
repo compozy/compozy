@@ -15,7 +15,7 @@ only Settings labels change. Public inputs on the one-release ladder (removal v0
 `/jobs*`, `/triggers*` (redirect stubs), CLI `--app jobs|triggers` (stderr warning), window commands,
 palette ids `app.open.{jobs,triggers}` / `palette.view.{jobs,triggers}` (WARN
 `cmdpalette.command_id_deprecated`). User state: saved desktops migrate permanently through snapshot
-v5 (no window closed); palette pins/recents/usage merge through Goose `00130`; `00129` adds the
+v5 (no window closed); palette pins/recents/usage merge through Goose `00129`; `00128` adds the
 latest-run indexes and the catalog `target` column. Workspace data isolation: `last_run` is computed
 per owner column (`job_id` / `trigger_id`) inside the existing scoped list query; workspace/profile
 filters and the other-project detail state are unchanged. Official skill: `SKILL.md` routing row

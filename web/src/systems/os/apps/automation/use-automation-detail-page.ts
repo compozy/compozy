@@ -13,16 +13,16 @@ import {
   automationListingSearch,
   type AutomationDetailRouteSearch,
   type AutomationDetailStatus,
+  type AutomationEditorSection,
   type AutomationEntityKind,
   type AutomationRun,
   automationWorkspaceAccessError,
   projectAutomationTarget,
   toAutomationView,
   useAutomationJob,
-  useAutomationJobEditor,
+  useAutomationEditor,
   useAutomationJobRuns,
   useAutomationTrigger,
-  useAutomationTriggerEditor,
   useAutomationTriggerRuns,
   useDeleteAutomationJob,
   useDeleteAutomationTrigger,
@@ -113,19 +113,14 @@ export function useAutomationDetailPage(
 
   const editorWorkspaceId = automationEditorWorkspaceId(entity, activeWorkspaceId);
   const editorWorkspaces = toWorkspaceCommandSelectOptions(workspaces);
-  const jobEditor = useAutomationJobEditor({
-    activeWorkspaceId: editorWorkspaceId,
-    workspaces: editorWorkspaces,
-  });
-  const triggerEditor = useAutomationTriggerEditor({
+  const editor = useAutomationEditor({
     activeWorkspaceId: editorWorkspaceId,
     workspaces: editorWorkspaces,
   });
 
-  const openEdit = () => {
+  const openEdit = (section?: AutomationEditorSection) => {
     if (!entity) return;
-    if ("event" in entity) triggerEditor.openEdit(entity);
-    else jobEditor.openEdit(entity);
+    editor.openEdit(entity, { section });
   };
 
   const navigateDetail = (edit: AutomationDetailRouteSearch["edit"], replace: boolean) => {
@@ -149,7 +144,7 @@ export function useAutomationDetailPage(
       key: editKey,
       ready: editReady,
       consume: () => {
-        openEdit();
+        openEdit(search.edit === "options" ? "options" : undefined);
         navigateDetail(undefined, true);
       },
     });
@@ -209,7 +204,7 @@ export function useAutomationDetailPage(
           : "missing";
 
   return {
-    editorDialogProps: isJob ? jobEditor.editorDialogProps : triggerEditor.editorDialogProps,
+    editorDialogProps: editor.editorDialogProps,
     isJob,
     panel: {
       status,
@@ -236,7 +231,7 @@ export function useAutomationDetailPage(
       },
       onBack: () => void navigate({ to: "/automations", search: automationListingSearch(search) }),
       onDelete: handleDelete,
-      onEdit: openEdit,
+      onEdit: () => openEdit(),
       onRetryRuns: () => void runsQuery.refetch(),
       onRunNow: () => void handleRunNow(),
       onSetUpRetries: () => navigateDetail("options", false),

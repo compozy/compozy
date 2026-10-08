@@ -148,6 +148,7 @@ type AutomationJob struct {
 }
 
 type AutomationJobCatalogEntry struct {
+	Target                 string `json:"target"`
 	JobID                  string `json:"job_id"`
 	Scope                  string `json:"scope"`
 	WorkspaceID            string `json:"workspace_id"`
@@ -249,6 +250,7 @@ type AutomationTrigger struct {
 }
 
 type AutomationTriggerCatalogEntry struct {
+	Target             string `json:"target"`
 	TriggerID          string `json:"trigger_id"`
 	Scope              string `json:"scope"`
 	WorkspaceID        string `json:"workspace_id"`

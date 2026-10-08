@@ -240,10 +240,13 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
     const automationSelectedItem = document.querySelector('[data-testid="automation-detail-panel"]')
       ? topbarTitle
       : undefined;
-    const automationEditorKind = document.querySelector('[data-testid="automation-job-form"]')
-      ? "job"
-      : document.querySelector('[data-testid="automation-trigger-form"]')
-        ? "trigger"
+    // The one editor form names the daemon entity its Starts choice saves as.
+    const automationEditorEntity = document
+      .querySelector('[data-testid="automation-form"]')
+      ?.getAttribute("data-entity");
+    const automationEditorKind =
+      automationEditorEntity === "job" || automationEditorEntity === "trigger"
+        ? automationEditorEntity
         : undefined;
     const tasksActiveMode = (["dashboard", "inbox", "kanban", "list"] as const).find(
       mode =>

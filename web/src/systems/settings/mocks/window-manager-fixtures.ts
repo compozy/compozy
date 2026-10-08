@@ -132,7 +132,7 @@ export const settingsWindowManagerDesktopIds = {
  * review capture.
  */
 export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
-  version: 4,
+  version: 5,
   workspace_id: storyDefaultWorkspaceId,
   revision: 41,
   desktops: [
@@ -302,7 +302,7 @@ function tiled(
 }
 
 export const windowManagerLayoutDocumentFixture: WindowManagerLayoutDocumentWire = {
-  version: 4,
+  version: 5,
   workspace_id: storyDefaultWorkspaceId,
   desktops: settingsWindowManagerSnapshotFixture.desktops,
   windows: settingsWindowManagerSnapshotFixture.windows,

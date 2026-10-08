@@ -164,7 +164,7 @@ describe("LoopTargetFields", () => {
     fireEvent.click(select);
     expect(screen.getByText("implement-tasks", { selector: "[cmdk-item] *" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "review-and-fix does not declare the schedule start kind"
+      "review-and-fix can't be started on a schedule"
     );
   });
 

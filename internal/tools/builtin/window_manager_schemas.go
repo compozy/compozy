@@ -395,7 +395,7 @@ const windowManagerLayoutHistoryInputSchema = `{
 const windowManagerLayoutDocumentSchema = `{
 	"type":"object",
 	"properties":{
-		"version":{"type":"integer","const":4},
+		"version":{"type":"integer","const":5},
 		"workspace_id":{"type":"string","minLength":1},
 		"desktops":{"type":"array","minItems":1,"items":{"type":"object"}},
 		"windows":{"type":"object"},

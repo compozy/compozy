@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -44,6 +43,20 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	if err != nil {
 		h.respondGatewayError(c, err)
 		return
+	}
+	ids := make([]string, len(page.Triggers))
+	for i, item := range page.Triggers {
+		ids[i] = item.ID
+	}
+	latest, err := manager.LatestRunsByOwner(c.Request.Context(), automationpkg.RunOwnerTrigger, ids)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	for i := range payloads {
+		if run, ok := latest[payloads[i].ID]; ok {
+			payloads[i].LastRun = AutomationLastRunPayloadFromRun(run)
+		}
 	}
 	if err := h.decorateAutomationTriggerOwners(c.Request.Context(), payloads); err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
@@ -151,6 +164,14 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 	if err != nil {
 		h.respondGatewayError(c, err)
 		return
+	}
+	latest, err := manager.LatestRunsByOwner(c.Request.Context(), automationpkg.RunOwnerTrigger, []string{trigger.ID})
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	if run, ok := latest[trigger.ID]; ok {
+		payload.LastRun = AutomationLastRunPayloadFromRun(run)
 	}
 	if err := h.decorateAutomationTriggerOwner(c.Request.Context(), &payload); err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
@@ -403,66 +424,6 @@ func (h *BaseHandlers) requireAutomationManager(c *gin.Context) (AutomationManag
 		return nil, false
 	}
 	return h.Automation, true
-}
-
-func (h *BaseHandlers) automationSchedulerStateByJobID(
-	ctx context.Context,
-	manager AutomationManager,
-) (map[string]contract.AutomationSchedulerStatePayload, error) {
-	if manager == nil {
-		return nil, nil
-	}
-
-	status, err := manager.Status(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	stateByID := make(map[string]contract.AutomationSchedulerStatePayload, len(status.ScheduledJobs))
-	for _, scheduled := range status.ScheduledJobs {
-		stateByID[scheduled.JobID] = AutomationSchedulerStatePayloadFromState(scheduled)
-	}
-	return stateByID, nil
-}
-
-func (h *BaseHandlers) automationSchedulerStateByJobIDBestEffort(
-	ctx context.Context,
-	manager AutomationManager,
-	operation string,
-) map[string]contract.AutomationSchedulerStatePayload {
-	stateByID, err := h.automationSchedulerStateByJobID(ctx, manager)
-	if err == nil {
-		return stateByID
-	}
-
-	h.Logger.Warn(
-		"api: automation scheduler state enrichment failed",
-		"transport", h.transportName(),
-		handlersOperationKey, strings.TrimSpace(operation),
-		"error", err,
-	)
-	return nil
-}
-
-func schedulerStatePointerFromMap(
-	states map[string]contract.AutomationSchedulerStatePayload,
-	jobID string,
-) *contract.AutomationSchedulerStatePayload {
-	if states == nil {
-		return nil
-	}
-	state, ok := states[jobID]
-	if !ok {
-		return nil
-	}
-	return &state
-}
-
-func schedulerNextRunFromMap(
-	states map[string]contract.AutomationSchedulerStatePayload,
-	jobID string,
-) *time.Time {
-	return schedulerNextRun(schedulerStatePointerFromMap(states, jobID))
 }
 
 func (h *BaseHandlers) automationHealth(ctx context.Context) (contract.AutomationHealthPayload, error) {

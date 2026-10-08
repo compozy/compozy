@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   updateTrigger: vi.fn(),
   triggerJob: vi.fn(),
   runtime: { available: true } as { available: boolean },
+  aggregate: false,
+  activeWorkspaceId: "ws_launch_hq" as string | null,
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -39,7 +41,7 @@ vi.mock("@/systems/automation/adapters/automation-api", async importOriginal => 
 
 vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
   useProfileReadScope: () => ({
-    aggregate: false,
+    aggregate: mocks.aggregate,
     destination: "default",
     key: "default",
     params: {},
@@ -54,9 +56,10 @@ vi.mock("@/systems/settings/hooks/use-settings-sections", () => ({
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
-    activeWorkspace: { id: "ws_launch_hq", name: "checkout-api" },
-    activeWorkspaceId: "ws_launch_hq",
+    activeWorkspace: mocks.activeWorkspaceId ? { id: "ws_launch_hq", name: "checkout-api" } : null,
+    activeWorkspaceId: mocks.activeWorkspaceId,
     isLoading: false,
+    pending: false,
     workspaces: [{ id: "ws_launch_hq", name: "checkout-api", root_dir: "/tmp" }],
   }),
 }));
@@ -92,6 +95,8 @@ describe("useAutomationsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.runtime = { available: true };
+    mocks.aggregate = false;
+    mocks.activeWorkspaceId = "ws_launch_hq";
     mocks.listJobs.mockResolvedValue(page("jobs", automationStoryJobs));
     mocks.listTriggers.mockResolvedValue(page("triggers", automationStoryTriggers));
   });
@@ -240,8 +245,8 @@ describe("useAutomationsPage", () => {
     const { result } = renderHook(() => useAutomationsPage({ create: "1", start: "event" }), {
       wrapper: wrapper(),
     });
-    await waitFor(() => expect(result.current.editorDialogProps[1].editor).not.toBeNull());
-    expect(result.current.editorDialogProps[0].editor).toBeNull();
+    await waitFor(() => expect(result.current.editorDialogProps.editor).not.toBeNull());
+    expect(result.current.editorDialogProps.editor?.draft.start).toBe("event");
     const strip = mocks.navigate.mock.calls.find(([call]) => call.replace === true)?.[0];
     expect(strip.search({ create: "1", start: "event", q: "x" })).toEqual({
       create: undefined,
@@ -249,6 +254,85 @@ describe("useAutomationsPage", () => {
       start: undefined,
       q: "x",
     });
+  });
+
+  it("Should offer suggestions only for an empty unfiltered workspace listing", async () => {
+    mocks.listJobs.mockResolvedValue(page("jobs", []));
+    mocks.listTriggers.mockResolvedValue(page("triggers", []));
+
+    const workspace = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(workspace.result.current.firstRun).toBe(true));
+    expect(workspace.result.current.suggestionsWorkspaceId).toBe("ws_launch_hq");
+
+    const global = renderHook(() => useAutomationsPage({ scope: "global" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(global.result.current.isLoading).toBe(false));
+    expect(global.result.current.suggestionsWorkspaceId).toBeNull();
+
+    mocks.aggregate = true;
+    const aggregate = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(aggregate.result.current.firstRun).toBe(true));
+    expect(aggregate.result.current.suggestionsWorkspaceId).toBeNull();
+  });
+
+  it("UT-106 opens a Loop seed with Does fixed and never reopens once the params are gone", async () => {
+    const { result, rerender } = renderHook(
+      ({ search }: { search: Parameters<typeof useAutomationsPage>[0] }) =>
+        useAutomationsPage(search),
+      {
+        initialProps: {
+          search: { create: "loop", start: "event", loop: "software-delivery" } as const,
+        },
+        wrapper: wrapper(),
+      }
+    );
+    await waitFor(() => expect(result.current.editorDialogProps.editor).not.toBeNull());
+    expect(result.current.editorDialogProps.editor).toMatchObject({
+      lockedLoop: "software-delivery",
+      draft: {
+        start: "event",
+        target_kind: "loop",
+        loop_target: expect.objectContaining({ loop_name: "software-delivery" }),
+      },
+    });
+    const strip = mocks.navigate.mock.calls.find(([call]) => call.replace === true)?.[0];
+    expect(
+      strip.search({
+        create: "loop",
+        start: "event",
+        loop: "software-delivery",
+        scope: "workspace",
+      })
+    ).toEqual({ create: undefined, loop: undefined, start: undefined, scope: "workspace" });
+
+    // The stripped URL arrives, then the operator closes the dialog: it stays closed.
+    rerender({ search: {} as never });
+    act(() => result.current.editorDialogProps.editor?.onCancel());
+    rerender({ search: {} as never });
+    expect(result.current.editorDialogProps.editor).toBeNull();
+  });
+
+  it("Should open a plain create link in Global, but hold a Loop seed until a project is active", async () => {
+    mocks.activeWorkspaceId = null;
+    const created = renderHook(() => useAutomationsPage({ create: "1", start: "schedule" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(created.result.current.editorDialogProps.editor).not.toBeNull());
+    expect(created.result.current.editorDialogProps.editor?.draft).toMatchObject({
+      start: "schedule",
+      scope: "global",
+    });
+    created.unmount();
+    mocks.navigate.mockClear();
+
+    const seeded = renderHook(
+      () => useAutomationsPage({ create: "loop", loop: "software-delivery" }),
+      { wrapper: wrapper() }
+    );
+    await waitFor(() => expect(seeded.result.current.items).toHaveLength(7));
+    expect(seeded.result.current.editorDialogProps.editor).toBeNull();
+    expect(mocks.navigate.mock.calls.some(([call]) => call.replace === true)).toBe(false);
   });
 
   it("Should clear search, every facet and the Start view", async () => {
