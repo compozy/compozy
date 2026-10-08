@@ -352,6 +352,54 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		name  string
 		check func(t *testing.T, doc *openapi3.T)
 	}{
+
+		{
+			name: "Should describe optional experimental compaction occupancy fields",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+				usage := jsonResponseSchema(
+					t,
+					operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/usage", http.MethodGet),
+					http.StatusOK,
+				)
+				context := propertySchema(t, propertySchema(t, usage, "usage"), "context")
+				cleared := propertySchema(t, context, "cleared_by")
+				turns := jsonResponseSchema(
+					t,
+					operationFor(
+						t,
+						doc,
+						"/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
+						http.MethodGet,
+					),
+					http.StatusOK,
+				)
+				marker := propertySchema(t, turns, "compactions").Items.Value
+				after := propertySchema(t, marker, "context_after")
+				for _, schema := range []*openapi3.Schema{cleared, after} {
+					if schema.Extensions["x-stability"] != "experimental" ||
+						!strings.Contains(schema.Description, "first terminal") {
+						t.Fatalf("experimental chronology missing: %#v", schema)
+					}
+				}
+				assertRequired(t, cleared, "compaction_id", "sequence")
+				assertRequired(t, after, "used", "sequence")
+				if slices.Contains(context.Required, "cleared_by") ||
+					slices.Contains(marker.Required, "context_after") ||
+					slices.Contains(after.Required, "size") {
+					t.Fatal("unknown occupancy fields must remain optional")
+				}
+				for _, target := range []struct {
+					schema *openapi3.Schema
+					field  string
+				}{{after, "used"}, {after, "size"}, {after, "sequence"}, {cleared, "sequence"}} {
+					value := propertySchema(t, target.schema, target.field)
+					if !value.Type.Is("integer") || value.Format != "int64" {
+						t.Fatalf("%s must be int64: %#v", target.field, value)
+					}
+				}
+			},
+		},
 		{
 			name: "ShouldDescribeDaemonDrainAndAdmissionContracts",
 			check: func(t *testing.T, doc *openapi3.T) {

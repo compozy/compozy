@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/session/contextusage"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -35,11 +36,12 @@ type CompactionFiredPayload struct {
 }
 
 type CompactionEnvelope struct {
-	Sequence int64
-	At       time.Time
-	TurnID   string
-	Payload  CompactionFiredPayload
-	Status   string
+	ContextAfter *contextusage.ContextAfter
+	Sequence     int64
+	At           time.Time
+	TurnID       string
+	Payload      CompactionFiredPayload
+	Status       string
 }
 
 type SettledTurn struct {
@@ -100,6 +102,14 @@ func (m *Manager) Compactions(ctx context.Context, id string) ([]CompactionEnvel
 	if err != nil {
 		return nil, err
 	}
+	boundaries, err := firstCompactionBoundaries(rows)
+	if err != nil {
+		return nil, err
+	}
+	observations, err := contextAfterObservations(rows)
+	if err != nil {
+		return nil, err
+	}
 	attributed := make(map[string]CompactionFiredPayload)
 	latest := make(map[string]CompactionEnvelope)
 	for _, row := range rows {
@@ -134,28 +144,100 @@ func (m *Manager) Compactions(ctx context.Context, id string) ([]CompactionEnvel
 			continue
 		}
 		marker.Payload = payload
+		if boundary, terminal := boundaries[id]; terminal {
+			marker.ContextAfter = firstContextAfter(boundary, boundaries, observations)
+		}
 		result = append(result, marker)
 	}
 	slices.SortFunc(result, func(a, b CompactionEnvelope) int { return cmp.Compare(a.Sequence, b.Sequence) })
 	return result, nil
 }
 
-func (m *Manager) CompactionBoundary(ctx context.Context, id string) (*int64, error) {
-	rows, err := m.Events(ctx, id, store.EventQuery{Type: acp.EventTypeCompaction})
-	if err != nil {
-		return nil, err
-	}
-	var boundary *int64
+func contextAfterObservations(rows []store.SessionEvent) ([]contextusage.ContextAfter, error) {
+	observations := make([]contextusage.ContextAfter, 0)
 	for _, row := range rows {
+		if row.Type != acp.EventTypeUsage && row.Type != acp.EventTypeDone {
+			continue
+		}
+		event, err := transcript.UnmarshalAgentEvent(row.Content)
+		if err != nil {
+			return nil, fmt.Errorf("session: decode usage event %d: %w", row.Sequence, err)
+		}
+		if event.Usage != nil && event.Usage.ContextUsed != nil {
+			observations = append(observations, contextusage.ContextAfter{
+				Used: *event.Usage.ContextUsed, Size: event.Usage.ContextSize, Sequence: row.Sequence,
+			})
+		}
+	}
+	return observations, nil
+}
+
+func firstContextAfter(
+	boundary int64,
+	boundaries map[string]int64,
+	observations []contextusage.ContextAfter,
+) *contextusage.ContextAfter {
+	var next int64
+	for _, sequence := range boundaries {
+		if sequence > boundary && (next == 0 || sequence < next) {
+			next = sequence
+		}
+	}
+	var after *contextusage.ContextAfter
+	for _, observation := range observations {
+		if observation.Sequence > boundary && (next == 0 || observation.Sequence < next) &&
+			(after == nil || observation.Sequence < after.Sequence) {
+			after = new(observation)
+		}
+	}
+	return after
+}
+
+func firstCompactionBoundaries(rows []store.SessionEvent) (map[string]int64, error) {
+	boundaries := make(map[string]int64)
+	for _, row := range rows {
+		if row.Type != acp.EventTypeCompaction {
+			continue
+		}
 		event, err := transcript.UnmarshalAgentEvent(row.Content)
 		if err != nil {
 			return nil, fmt.Errorf("session: decode compaction event %d: %w", row.Sequence, err)
 		}
-		if event.Compaction != nil && event.Compaction.Terminal && (boundary == nil || row.Sequence > *boundary) {
-			boundary = new(row.Sequence)
+		if event.Compaction == nil || !event.Compaction.Terminal || event.Compaction.CompactionID == "" {
+			continue
+		}
+		id := event.Compaction.CompactionID
+		if previous, found := boundaries[id]; !found || row.Sequence < previous {
+			boundaries[id] = row.Sequence
+		}
+	}
+	return boundaries, nil
+}
+
+func (m *Manager) CompactionClearBoundary(ctx context.Context, id string) (*contextusage.ClearedBy, error) {
+	rows, err := m.Events(ctx, id, store.EventQuery{Type: acp.EventTypeCompaction})
+	if err != nil {
+		return nil, err
+	}
+	boundaries, err := firstCompactionBoundaries(rows)
+	if err != nil {
+		return nil, err
+	}
+	var boundary *contextusage.ClearedBy
+	for compactionID, sequence := range boundaries {
+		if boundary == nil || sequence > boundary.Sequence {
+			boundary = &contextusage.ClearedBy{CompactionID: compactionID, Sequence: sequence}
 		}
 	}
 	return boundary, nil
+}
+
+func (m *Manager) CompactionBoundary(ctx context.Context, id string) (*int64, error) {
+	boundary, err := m.CompactionClearBoundary(ctx, id)
+	if err != nil || boundary == nil {
+		return nil, err
+	}
+	return new(boundary.Sequence), nil
 }
 
 func (m *Manager) LatestSettledTurn(ctx context.Context, id string) (SettledTurn, error) {

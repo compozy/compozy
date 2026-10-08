@@ -18,6 +18,11 @@ func contextUsagePayload(value contextusage.ContextUsage) contract.SessionContex
 		ReportedTurnID: value.ReportedTurnID,
 		ReportedAt:     value.ReportedAt,
 	}
+	if value.ClearedBy != nil {
+		payload.ClearedBy = &contract.SessionContextClearedByPayload{
+			CompactionID: value.ClearedBy.CompactionID, Sequence: value.ClearedBy.Sequence,
+		}
+	}
 	if value.Injected == nil {
 		return payload
 	}
@@ -112,19 +117,21 @@ func sessionUsageTurnsPayload(
 		response.Turns = append(response.Turns, row)
 	}
 	for _, marker := range compactions {
-		response.Compactions = append(
-			response.Compactions,
-			contract.SessionCompactionPayload{
-				TurnID:       marker.TurnID,
-				Sequence:     marker.Sequence,
-				At:           marker.At,
-				CompactionID: marker.CompactionID,
-				Trigger:      marker.Trigger,
-				Status:       marker.Status,
-				ContextUsed:  marker.Used,
-				ContextSize:  marker.Size,
-			},
-		)
+		response.Compactions = append(response.Compactions, sessionCompactionPayload(marker))
 	}
 	return response
+}
+
+func sessionCompactionPayload(marker contextusage.Compaction) contract.SessionCompactionPayload {
+	payload := contract.SessionCompactionPayload{
+		TurnID: marker.TurnID, Sequence: marker.Sequence, At: marker.At,
+		CompactionID: marker.CompactionID, Trigger: marker.Trigger, Status: marker.Status,
+		ContextUsed: marker.Used, ContextSize: marker.Size,
+	}
+	if marker.ContextAfter != nil {
+		payload.ContextAfter = &contract.SessionCompactionContextAfterPayload{
+			Used: marker.ContextAfter.Used, Size: marker.ContextAfter.Size, Sequence: marker.ContextAfter.Sequence,
+		}
+	}
+	return payload
 }

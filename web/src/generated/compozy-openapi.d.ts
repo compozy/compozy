@@ -118821,6 +118821,12 @@ export interface operations {
               /** Format: int64 */
               cache_write_tokens?: number | null;
               context: {
+                /** @description Experimental: compaction id and first terminal snapshot sequence that cleared occupancy. Present only while context is unknown awaiting a later occupancy observation. */
+                cleared_by?: {
+                  compaction_id: string;
+                  /** Format: int64 */
+                  sequence: number;
+                } | null;
                 injected?: {
                   estimate: string;
                   rows: {
@@ -118970,6 +118976,15 @@ export interface operations {
               /** Format: date-time */
               at: string;
               compaction_id: string;
+              /** @description Experimental: first occupancy observation after this compaction's first terminal snapshot and before the next compaction's first terminal boundary; counter-only events and later corrections do not change it. Omitted until observed. */
+              context_after?: {
+                /** Format: int64 */
+                sequence: number;
+                /** Format: int64 */
+                size?: number | null;
+                /** Format: int64 */
+                used: number;
+              } | null;
               /** Format: int64 */
               context_size?: number | null;
               /** Format: int64 */

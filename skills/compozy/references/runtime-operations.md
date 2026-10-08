@@ -208,7 +208,11 @@ compacted", "Context compaction failed" (with the agent's error), and "Context c
 Any other status is shown verbatim and never treated as finished. An optional **Summary** disclosure shows
 the agent's summary. The context rail's Turns section lists one marker per compaction: "Agent compaction"
 or "Requested compaction", the status, and, when known, the tokens before → after (the after figure is the
-agent's next usage report for a later turn). Until the agent's next usage report after a terminal
+first later occupancy observation, including one in the same turn). Experimental `compactions[].context_after`
+contains `{used, size?, sequence}` from that event after the ID's first terminal snapshot and before the next
+compaction's first terminal boundary. Counter-only events and later corrections never move it. While occupancy
+is unknown after compaction, experimental `context.cleared_by` names `{compaction_id, sequence}` of the first
+terminal boundary; it disappears when an occupancy observation restores the reading. Until the agent's next usage report after a terminal
 compaction, the meter reads "Context usage unknown" with "Context compacted. Waiting for the agent's next
 usage report."; every other empty reading says "This agent hasn't reported context usage."
 

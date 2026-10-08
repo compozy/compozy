@@ -298937,6 +298937,25 @@
                         },
                         "context": {
                           "properties": {
+                            "cleared_by": {
+                              "description": "Experimental: compaction id and first terminal snapshot sequence that cleared occupancy. Present only while context is unknown awaiting a later occupancy observation.",
+                              "nullable": true,
+                              "properties": {
+                                "compaction_id": {
+                                  "type": "string"
+                                },
+                                "sequence": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "compaction_id",
+                                "sequence"
+                              ],
+                              "type": "object",
+                              "x-stability": "experimental"
+                            },
                             "injected": {
                               "nullable": true,
                               "properties": {
@@ -299343,6 +299362,31 @@
                           },
                           "compaction_id": {
                             "type": "string"
+                          },
+                          "context_after": {
+                            "description": "Experimental: first occupancy observation after this compaction's first terminal snapshot and before the next compaction's first terminal boundary; counter-only events and later corrections do not change it. Omitted until observed.",
+                            "nullable": true,
+                            "properties": {
+                              "sequence": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "size": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "used": {
+                                "format": "int64",
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "sequence",
+                              "used"
+                            ],
+                            "type": "object",
+                            "x-stability": "experimental"
                           },
                           "context_size": {
                             "format": "int64",
