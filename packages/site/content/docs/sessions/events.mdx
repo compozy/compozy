@@ -256,7 +256,8 @@ unknown. Markers come only from observed compactions; see
 returns an error if its ledger reads fail.
 
 A transcript stream emits `session_usage_changed` with `{sequence, turn_id, kind}` for new `usage`,
-`done`, and `prompt_delivery` events. Use it to refresh usage and turns queries. This side signal
+`done`, `prompt_delivery`, `compaction`, and `session.compaction_fired` events, so the meter and markers
+catch up with a compaction while its turn is still running. Use it to refresh usage and turns queries. This side signal
 carries no SSE event ID and does not advance the transcript resume cursor.
 
 ACP prompt-response counters use `cachedReadTokens` and `cachedWriteTokens`. CompozyOS carries them

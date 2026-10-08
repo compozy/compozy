@@ -213,7 +213,9 @@ compaction, the meter reads "Context usage unknown" with "Context compacted. Wai
 usage report."; every other empty reading says "This agent hasn't reported context usage."
 
 Hooks `context.pre_compact` (once, at the first snapshot for an id) and `context.post_compact` (once, at
-the first terminal snapshot) are observation-only. Both are sync-eligible, but the patch is labels-only
+the first terminal snapshot) are observation-only. The first terminal snapshot also fixes `ended_at` and
+the usage freshness boundary; a later correction updates the item and the CLI/Goal outcome (which follow
+the latest status) but fires nothing again and never moves that boundary. Both are sync-eligible, but the patch is labels-only
 (`{"labels": {...}}`) and applied as a no-op, so a hook can annotate but never deny or change a
 compaction. They share one payload, `ContextCompactionPayload`: the base, session, and turn context plus
 `compaction_id` and `trigger`; the post event adds `status`, `summary?`, and `error?`. Hook introspection and
@@ -252,7 +254,8 @@ in-flight request fails with `session_busy`, and an agent advertising neither co
 `409`: human mode prints the daemon message on stderr (`error: session: prompt already in progress`), and
 `-o json` prints the error payload with the stable `code`. The native tool carries the same two codes
 structurally: its tool error has `code` `session_busy` or `compaction_unsupported`, the tool ID, and the
-daemon message (not a generic `tool_conflict`). The tool is `mutating` risk, targets one idle session in the
+daemon message (not a generic `tool_conflict`); over `POST /api/tools/{id}/invoke` both are `409` responses
+carrying those codes. The tool is `mutating` risk, targets one idle session in the
 caller's workspace by `session_id`, and returns the accepted receipt only; read the outcome through the
 transcript item and events above. A Goal's context-compaction turn uses the same advertised command and
 reads the compaction's current terminal status the same way; an agent advertising neither goes straight to

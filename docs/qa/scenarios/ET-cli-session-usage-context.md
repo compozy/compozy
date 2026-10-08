@@ -28,9 +28,9 @@ Exercise an agent-reported window, catalog fallback, and no window. No window so
 threshold: the usage payload has no `pressure_threshold`. A fresh session has unknown context with absent
 numbers. A failed ledger read retains aggregates with unavailable context; usage/turns reports an error.
 
-Confirm transcript-stream push and polling paths emit session_usage_changed for new usage, done and
-prompt_delivery events (compaction events are not part of that list; the meter and markers catch up on the next usage
-update), without advancing the transcript cursor. Reconnect must preserve transcript
+Confirm transcript-stream push and polling paths emit session_usage_changed for new usage, done,
+prompt_delivery, compaction and session.compaction_fired events (so the meter and markers catch up while a compaction
+turn is still running), without advancing the transcript cursor. Reconnect must preserve transcript
 fences while usage refreshes. Commit a usage or settlement event between the usage read and transcript
 projection read: the next refresh must still emit its sequence, turn ID, and kind.
 

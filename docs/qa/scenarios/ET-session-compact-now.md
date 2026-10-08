@@ -60,8 +60,9 @@ that replay the recorded Claude compaction frames; the real-adapter walk is RT-s
 7. **Native tool.** `compozy__session_compact {"session_id": …}` returns the accepted shape without waiting, is gated
    as a `mutating` risk by the session's tool policy, and refuses with the structural tool-error codes
    `session_busy` and `compaction_unsupported` (each with the tool ID and the daemon message, not a generic
-   `tool_conflict`) or `tool_invalid_input` (a session that is not active). The caller's own session is always
-   mid-turn, so targeting it returns `session_busy`.
+   `tool_conflict`) or `tool_invalid_input` (a session that is not active). Through `POST /api/tools/{id}/invoke` the
+   two refusals are HTTP `409` responses carrying `session_busy` / `compaction_unsupported` (not `500`). The caller's own
+   session is always mid-turn, so targeting it returns `session_busy`.
 8. **Web (E2E-005, E2E-006).** Open the session's context rail from the composer context control; Compact now is
    a button in the rail's meter section (`data-testid="session-context-compact-now"`), not a popover.
    - Presence: it is present and enabled when the session is active, idle, and its agent advertises `compact` or
