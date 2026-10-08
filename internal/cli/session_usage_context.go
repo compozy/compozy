@@ -11,10 +11,17 @@ import (
 )
 
 func sessionContextHuman(value contract.SessionContextPayload) string {
-	if (value.State == "" || value.State == contract.SessionContextStateUnknown) && value.Injected == nil {
+	if (value.State == "" || value.State == contract.SessionContextStateUnknown) && value.Injected == nil &&
+		value.ClearedBy == nil {
 		return ""
 	}
 	rows := []keyValue{{Label: authoredContextStateValue, Value: string(value.State)}}
+	if value.ClearedBy != nil {
+		rows = append(rows, keyValue{
+			Label: "Cleared By",
+			Value: fmt.Sprintf("%s · seq %d", value.ClearedBy.CompactionID, value.ClearedBy.Sequence),
+		})
+	}
 	if value.Used != nil {
 		used := formatInt64Ptr(value.Used)
 		if value.Size != nil {
@@ -151,6 +158,10 @@ func sessionUsageToon(record SessionUsageRecord, cost string) string {
 		injectedStale,
 		formatFloat64Ptr(record.TotalCost),
 		record.CostCurrency,
+	}
+	if value.ClearedBy != nil {
+		fields = append(fields, "context_cleared_by_compaction_id", "context_cleared_by_sequence")
+		values = append(values, value.ClearedBy.CompactionID, strconv.FormatInt(value.ClearedBy.Sequence, 10))
 	}
 	return renderHumanBlocks(renderToonObject("session_usage", fields, values), sessionContextRowsToon(value.Injected))
 }

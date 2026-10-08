@@ -47,6 +47,12 @@ func sessionUsageTurnRows(value contract.SessionUsageTurnsResponse) [][]string {
 		description := fmt.Sprintf("Agent compaction · %s · %s · %s · %s / %s",
 			marker.CompactionID, marker.Trigger, marker.Status,
 			formatInt64Ptr(marker.ContextUsed), formatInt64Ptr(marker.ContextSize))
+		if marker.ContextAfter != nil {
+			description += " → " + strconv.FormatInt(marker.ContextAfter.Used, 10)
+			if marker.ContextAfter.Size != nil {
+				description += " / " + formatInt64Ptr(marker.ContextAfter.Size)
+			}
+		}
 		ordered = append(
 			ordered,
 			orderedRow{

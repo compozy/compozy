@@ -34,9 +34,21 @@ func (h *BaseHandlers) sessionContextInput(
 		return input, err
 	}
 	populateContextEvents(&input, usage, deliveries, compactions)
-	if reader, ok := h.Sessions.(interface {
+	switch reader := h.Sessions.(type) {
+	case interface {
+		CompactionClearBoundary(context.Context, string) (*contextusage.ClearedBy, error)
+	}:
+		boundary, err := reader.CompactionClearBoundary(ctx, id)
+		if err != nil {
+			return input, err
+		}
+		input.ClearedBy = boundary
+		if boundary != nil {
+			input.CompactionBoundary = new(boundary.Sequence)
+		}
+	case interface {
 		CompactionBoundary(context.Context, string) (*int64, error)
-	}); ok {
+	}:
 		boundary, err := reader.CompactionBoundary(ctx, id)
 		if err != nil {
 			return input, err
@@ -129,6 +141,7 @@ func populateContextEvents(
 		input.Compactions = append(
 			input.Compactions,
 			contextusage.Compaction{
+				ContextAfter: event.ContextAfter,
 				Sequence:     event.Sequence,
 				At:           event.At,
 				TurnID:       event.TurnID,

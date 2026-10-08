@@ -25,6 +25,7 @@ func TestDerive(t *testing.T) {
 			in := Input{
 				Available:          true,
 				CompactionBoundary: new(int64(12)),
+				ClearedBy:          &ClearedBy{CompactionID: "c1", Sequence: 12},
 				UsageEvents: []UsageEvent{
 					observation(t, 10, "A", new(int64(190000)), new(int64(200000))),
 					{Sequence: 13, TurnID: "B", Usage: store.TokenUsage{TurnID: "B", TotalTokens: new(int64(100))}},
@@ -37,6 +38,9 @@ func TestDerive(t *testing.T) {
 			if before.State != StateUnknown || before.Used != nil || before.Size != nil || before.Sequence != nil {
 				t.Fatalf("pre-compaction occupancy survived: %#v", before)
 			}
+			if before.ClearedBy == nil || before.ClearedBy.CompactionID != "c1" || before.ClearedBy.Sequence != 12 {
+				t.Fatalf("unknown context lost compaction cause: %#v", before)
+			}
 			if before.Injected == nil || before.Injected.Tokens != 20 || before.Injected.Stale {
 				t.Fatalf("injected attribution changed: %#v", before.Injected)
 			}
@@ -45,6 +49,14 @@ func TestDerive(t *testing.T) {
 			if after.State != StateReported || after.Used == nil || *after.Used != 40000 ||
 				after.Sequence == nil || *after.Sequence != 14 {
 				t.Fatalf("fresh occupancy = %#v", after)
+			}
+			if after.ClearedBy != nil {
+				t.Fatalf("reported context retained compaction cause: %#v", after)
+			}
+			if got := Derive(
+				Input{ClearedBy: in.ClearedBy, CompactionBoundary: in.CompactionBoundary},
+			); got.ClearedBy != nil {
+				t.Fatalf("unavailable context retained cause: %#v", got)
 			}
 			if after.Injected == nil || !after.Injected.Stale || !after.Injected.Rows[0].Stale {
 				t.Fatalf("historical context drop was lost: %#v", after.Injected)

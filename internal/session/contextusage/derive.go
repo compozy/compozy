@@ -18,6 +18,9 @@ func Derive(in Input) ContextUsage {
 		})
 	}
 	if len(observations) == 0 {
+		if in.CompactionBoundary != nil {
+			result.ClearedBy = in.ClearedBy
+		}
 		return result
 	}
 	latest := observations[len(observations)-1]

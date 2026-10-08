@@ -30,6 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/session/contextusage"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -1677,6 +1678,119 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 
 func TestSessionUsageEndpoint(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should expose freshness cause only until a same-turn occupancy report and optional marker after",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, fresh := range []bool{false, true} {
+				t.Run(fmt.Sprintf("Should preserve optional fields when fresh=%t", fresh), func(t *testing.T) {
+					t.Parallel()
+					manager := usageBoundarySessionManager{
+						StatusFn: func(context.Context, string) (*session.Info, error) { return testutil.NewSessionInfo("sess-a"), nil },
+						UsageEventsFn: func(context.Context, string) ([]session.UsageEventEnvelope, error) {
+							rows := []session.UsageEventEnvelope{
+								{Sequence: 10, TurnID: "A", Usage: acp.TokenUsage{ContextUsed: new(int64(80))}},
+								{Sequence: 13, TurnID: "A", Usage: acp.TokenUsage{TotalTokens: new(int64(10))}},
+							}
+							if fresh {
+								rows = append(
+									rows,
+									session.UsageEventEnvelope{
+										Sequence: 14,
+										TurnID:   "A",
+										Usage:    acp.TokenUsage{ContextUsed: new(int64(0))},
+									},
+								)
+							}
+							return rows, nil
+						},
+						CompactionsFn: func(context.Context, string) ([]session.CompactionEnvelope, error) {
+							marker := session.CompactionEnvelope{
+								Sequence: 20,
+								TurnID:   "A",
+								Status:   "failed",
+								Payload:  session.CompactionFiredPayload{CompactionID: "c1"},
+							}
+							if fresh {
+								marker.ContextAfter = &contextusage.ContextAfter{Used: 0, Sequence: 14}
+							}
+							return []session.CompactionEnvelope{marker}, nil
+						},
+					}
+					fixture := newHandlerFixture(
+						t,
+						manager.StubSessionManager,
+						testutil.StubObserver{},
+						testutil.StubWorkspaceService{},
+					)
+					fixture.Handlers.Sessions = manager
+					response := performRequest(
+						t,
+						fixture.Engine,
+						http.MethodGet,
+						"/workspaces/ws-workspace/sessions/sess-a/usage",
+						nil,
+					)
+					if response.Code != http.StatusOK {
+						t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+					}
+					var payload contract.SessionUsageResponse
+					if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+						t.Fatal(err)
+					}
+					c := payload.Usage.Context
+					if fresh {
+						if c.State != contract.SessionContextStateReported || c.ClearedBy != nil || c.Used == nil ||
+							*c.Used != 0 ||
+							strings.Contains(response.Body.String(), "cleared_by") {
+							t.Fatalf("fresh context=%#v body=%s", c, response.Body.String())
+						}
+					} else if c.State != contract.SessionContextStateUnknown || c.ClearedBy == nil || c.ClearedBy.CompactionID != "c1" || c.ClearedBy.Sequence != 12 {
+						t.Fatalf("cleared context=%#v", c)
+					}
+					response = performRequest(
+						t,
+						fixture.Engine,
+						http.MethodGet,
+						"/workspaces/ws-workspace/sessions/sess-a/usage/turns",
+						nil,
+					)
+					if response.Code != http.StatusOK {
+						t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+					}
+					var turns contract.SessionUsageTurnsResponse
+					if err := json.Unmarshal(response.Body.Bytes(), &turns); err != nil {
+						t.Fatal(err)
+					}
+					if len(turns.Compactions) != 1 {
+						t.Fatalf("markers=%#v", turns.Compactions)
+					}
+					after := turns.Compactions[0].ContextAfter
+					if fresh {
+						if after == nil || after.Used != 0 || after.Sequence != 14 || after.Size != nil {
+							t.Fatalf("after=%#v", after)
+						}
+						var body struct {
+							Compactions []map[string]json.RawMessage `json:"compactions"`
+						}
+						if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+							t.Fatal(err)
+						}
+						var fields map[string]json.RawMessage
+						if err := json.Unmarshal(body.Compactions[0]["context_after"], &fields); err != nil {
+							t.Fatal(err)
+						}
+						if _, exists := fields["size"]; exists {
+							t.Fatalf("unknown after size serialized: %s", response.Body.String())
+						}
+					} else if after != nil || strings.Contains(response.Body.String(), "context_after") {
+						t.Fatalf("absent after fabricated: %s", response.Body.String())
+					}
+				})
+			}
+		},
+	)
+
 	t.Run(
 		"Should distinguish reported unknown and unavailable context while retaining aggregate cache counts",
 		func(t *testing.T) {
@@ -5574,4 +5688,11 @@ func TestEventsRejectInvalidComponentsIT014(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The richer reader preserves the first terminal boundary even when a marker is corrected.
+type usageBoundarySessionManager struct{ testutil.StubSessionManager }
+
+func (usageBoundarySessionManager) CompactionClearBoundary(context.Context, string) (*contextusage.ClearedBy, error) {
+	return &contextusage.ClearedBy{CompactionID: "c1", Sequence: 12}, nil
 }

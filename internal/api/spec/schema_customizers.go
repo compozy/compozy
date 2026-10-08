@@ -11,7 +11,20 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+const schemaStabilityExperimental = "experimental"
+
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
+	reflect.TypeFor[contract.SessionCompactionContextAfterPayload](): func(schema *openapi3.Schema) {
+		schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
+		schema.Description = "Experimental: first occupancy observation after this compaction's first terminal snapshot " +
+			"and before the next compaction's first terminal boundary; " +
+			"counter-only events and later corrections do not change it. Omitted until observed."
+	},
+	reflect.TypeFor[contract.SessionContextClearedByPayload](): func(schema *openapi3.Schema) {
+		schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
+		schema.Description = "Experimental: compaction id and first terminal snapshot sequence that cleared occupancy. " +
+			"Present only while context is unknown awaiting a later occupancy observation."
+	},
 	reflect.TypeFor[contract.ResolveToolApprovalRequest](): func(schema *openapi3.Schema) {
 		customizeClosedObjectSchema(schema)
 		schema.Properties["decision"] = &openapi3.SchemaRef{

@@ -29,7 +29,19 @@ type Span struct {
 	Unchanged, StartupDedup, HookModified bool
 }
 
+type ContextAfter struct {
+	Used     int64
+	Size     *int64
+	Sequence int64
+}
+
+type ClearedBy struct {
+	CompactionID string
+	Sequence     int64
+}
+
 type Compaction struct {
+	ContextAfter *ContextAfter
 	Sequence     int64
 	At           time.Time
 	TurnID       string
@@ -51,6 +63,7 @@ type Input struct {
 	Settled            *SettledTurn
 	CatalogWindow      *int64
 	CompactionBoundary *int64
+	ClearedBy          *ClearedBy
 	Available          bool
 }
 
@@ -73,6 +86,7 @@ type ContextUsage struct {
 	ReportedTurnID string
 	ReportedAt     *time.Time
 	Injected       *Injected
+	ClearedBy      *ClearedBy
 }
 
 type Injected struct {

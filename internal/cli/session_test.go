@@ -2512,6 +2512,38 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should expose the compaction cause of unknown context without inventing occupancy", func(t *testing.T) {
+		t.Parallel()
+		value := SessionUsageRecord{Context: contract.SessionContextPayload{
+			State:     contract.SessionContextStateUnknown,
+			ClearedBy: &contract.SessionContextClearedByPayload{CompactionID: "c1", Sequence: 40},
+		}}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionUsageFn: func(context.Context, string) (SessionUsageRecord, error) { return value, nil },
+		})
+		for _, format := range []string{"human", "toon", "json"} {
+			output, _, err := executeRootCommand(t, deps, "session", "usage", "sess-1", "-o", format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(output, "c1") || !strings.Contains(output, "40") ||
+				!strings.Contains(output, "unknown") {
+				t.Fatalf("%s omitted the compaction boundary: %s", format, output)
+			}
+			if format == "human" && strings.Contains(output, "Used") {
+				t.Fatalf("unknown context invented occupancy: %s", output)
+			}
+			if format == "json" {
+				var got SessionUsageRecord
+				if err := json.Unmarshal([]byte(output), &got); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(got, value) {
+					t.Fatalf("unknown context JSON = %s", output)
+				}
+			}
+		}
+	})
 	t.Run("Should route turns and preserve the JSON union with ordered compaction markers", func(t *testing.T) {
 		t.Parallel()
 		at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
@@ -2573,7 +2605,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		}
 		for _, want := range []string{
 			"session_usage_turns[3]{turn_id,sequence}", "usage[2]", "deliveries[1]", "spans[1]",
-			"compactions[1]{turn_id,sequence,at,compaction_id,trigger,status,context_used,context_size}",
+			"compactions[1]{turn_id,sequence,at,compaction_id,trigger,status,context_used,context_size,context_after_used,context_after_size,context_after_sequence}",
 			"B,40,2026-09-11T10:00:00Z,c1,agent,completed,85,100",
 		} {
 			if !strings.Contains(stdout, want) {
@@ -2583,6 +2615,39 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		rows := sessionUsageTurnRows(value)
 		if len(rows) != 4 || rows[0][0] != "A" || rows[1][0] != "B" || rows[2][0] != "C" || rows[3][0] != "D" {
 			t.Fatalf("turn/marker order=%#v", rows)
+		}
+		if strings.Contains(rows[1][3], "→") {
+			t.Fatalf("marker without after observation invented a transition: %s", rows[1][3])
+		}
+		for _, size := range []*int64{nil, new(int64(100))} {
+			value.Compactions[0].ContextAfter = &contract.SessionCompactionContextAfterPayload{
+				Used: 0, Size: size, Sequence: 41,
+			}
+			rows = sessionUsageTurnRows(value)
+			want := "85 / 100 → 0"
+			if size != nil {
+				want += " / 100"
+			}
+			if !strings.Contains(rows[1][3], want) {
+				t.Fatalf("known after occupancy = %s, want %s", rows[1][3], want)
+			}
+			output, _, err := executeRootCommand(t, deps, "session", "usage", "sess-1", "--turns", "-o", "json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(output), &got); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, value) {
+				t.Fatalf("marker after JSON = %s", output)
+			}
+			toon, err := sessionUsageTurnsToon(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(toon, ",85,100,0,"+toonValue(formatInt64Ptr(size))+",41") {
+				t.Fatalf("missing explicit after occupancy in TOON: %s", toon)
+			}
 		}
 	})
 
