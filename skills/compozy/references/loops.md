@@ -260,12 +260,14 @@ The origin session remains the Goal owner; use the new `bound_session_id` for or
 Pause/Resume, approval, and reseed each allocate at most one successor control epoch.
 
 The Goal executor's context-compaction turn sends the agent's advertised `/compact` (or `/compress`)
-command on its managed path (experimental). It succeeds when the turn observes a terminal `completed`
-compaction and fails on a terminal `failed` or `cancelled` one; when no compaction update is observed, the
-turn's stop reason decides as before, and an agent advertising neither command goes straight to the
-reseed path. After a terminal compaction the Goal's context stays `unknown` (in the live reader, the pinned
-reread, and the Goal snapshot) until a later usage update carries both `used` and a positive `size`; a
-used-only or counter-only update never restores it.
+command on its managed path (experimental). The outcome follows the compaction's latest observed
+status in that turn, so a correction before the turn completes changes it: it succeeds on a terminal
+`completed` compaction and fails on a terminal `failed` or `cancelled` one (a later `failed` after
+`completed`, or the reverse, wins); when no compaction update is observed, the turn's stop reason decides
+as before, and an agent advertising neither command goes straight to the reseed path. After a terminal
+compaction the Goal's context stays `unknown` (in the live reader, the pinned reread, and the Goal
+snapshot) until a later usage update carries both `used` and a positive `size`; a used-only or
+counter-only update never restores it.
 
 The checkpoint-local approval scopes are narrow: turn exhaustion grants
 `turn-extension/turn-limit`; budget crossed after work grants `budget/settle-current` and cannot

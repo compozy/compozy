@@ -227,7 +227,15 @@ and rules.
 
 The replay is only the agent's working context. The stored event log is unchanged, and
 `compozy session events`, `compozy session history`, and the transcript API still return the full
-history.
+history. That includes history that an earlier release archived as compacted: the upgrade restores
+those events together with their transcript entries and tool routes, so they appear in the transcript,
+search, outline, and fork and rewind anchors as well as in `history` and `events`.
+
+If the first turn after a rebuild is only a [Compact now](/docs/sessions/compaction#compact-now-experimental)
+request, the replay is not spent on it. CompozyOS stores the pending replay with the session (the
+`pending_resume_replay` metadata), so it survives that turn, a stop, a daemon restart, and a native
+`session/load` resume, and it is sent exactly once with the next ordinary prompt. Clearing or
+rewinding the conversation discards a pending replay.
 
 ### The command name is historical
 

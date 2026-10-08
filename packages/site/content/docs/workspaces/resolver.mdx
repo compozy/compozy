@@ -86,7 +86,8 @@ my-repo/
 
 The resolver directly snapshots config, MCP sidecars, agent definitions, and skill definitions. Loading
 a workspace `config.toml` that still holds retired settings archives them as comments at the end of that
-file; see [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings).
+file. If the file cannot be rewritten, the snapshot still loads with those settings inactive and the next
+load retries; see [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings).
 
 ## Resolution Inputs
 

@@ -148,8 +148,11 @@ Supported matcher fields are `agent_name`, `agent_type`, `workspace_id`, `worksp
 `session_type`, `input_class`, `acp_event_type`, `turn_id`, `tool_id`, `tool_name`,
 `tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, and
 `compaction_trigger`. Each event family accepts only some of them. A retired `compaction_reason` or
-`compaction_strategy` key is not accepted in skill hooks: the skill fails to load with a
-`metadata.compozy` error until you delete it. See [Hook declarations](/docs/hooks/declaration#matchers).
+`compaction_strategy` key in a skill hook matcher is ignored: the skill loads, the hook runs without
+that filter, `SKILL.md` stays untouched, and CompozyOS logs one `skills.retired_entries_ignored`
+warning per skill with its `path`, `name`, and the ignored `entries` (for example
+`hooks[0].matcher.compaction_reason`). Any other invalid matcher field is still rejected. See
+[Hook declarations](/docs/hooks/declaration#matchers).
 
 Marketplace skill hooks are trust-gated by `[skills].allowed_marketplace_hooks`, using the same
 slug, `registry:slug`, or hash forms as marketplace MCP trust.

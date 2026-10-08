@@ -37,10 +37,13 @@ the session idle for several minutes while sending two more prompts. Confirm:
 (`clientCapabilities.session.compaction` advertised at initialize), replay the recorded Claude
 compaction frames inside one turn. Confirm for the compaction id:
 
+- over the UDS raw prompt stream the same compaction update frames carry the typed, already-redacted
+  `compaction` object (`compaction_id`, `status`, `summary?`, `error?`) and no raw payload data;
 - the transcript projection (`GET …/transcript`, the layer the Web timeline reads) folds exactly one Compaction
   item (a `data-compozy-compaction` part) with `status: completed`, `started_at`, `ended_at` (the first terminal
-  snapshot), and the summary (at most 16 KiB, ` [summary truncated]` appended past the cap); streaming chunks are
-  never shown individually;
+  snapshot), and the summary (redacted first, then bounded to 16 KiB UTF-8-safe, ` [summary truncated]` appended
+  past the cap, so a secret in the summary never survives and the bound holds after redaction); streaming chunks
+  are never shown individually;
 - `compozy session history -o json` and `GET …/history` do not fold: they return the raw grouped ledger rows for
   the id, at least two `compaction` snapshot rows ending `completed` plus the `session.compaction_fired` row;
 - one `session.compaction_fired` event with `trigger: "agent"`, `context_used`, and `context_size` (both `null`
@@ -53,7 +56,9 @@ compaction frames inside one turn. Confirm for the compaction id:
   frame, on a reread, after reopening the session, and after a daemon restart, until the agent sends a later usage
   report that carries a context `used` value (a counter-only report never restores it; a used-only report restores
   `reported`, or `estimated_size` when the model catalog knows the window; the Goal context reader is stricter, see
-  GL-018);
+  GL-018). The prompt-response token totals that close the compaction turn keep the token counters and costs but
+  never restore the reading, even when the agent reported occupancy earlier in that same turn: only a later genuine
+  usage observation does;
 - registered `context.pre_compact` (first update for the id) and `context.post_compact` (first terminal
   status) hooks each ran exactly once with the payloads in the public contract (`ContextCompactionPayload`;
   the pre event carries no `status`, `summary`, or `error`), and a hook patch that returns `deny`,
@@ -62,7 +67,9 @@ compaction frames inside one turn. Confirm for the compaction id:
 
 Repeat with the recorded Codex frames: the Compaction item has no summary. Replay a duplicate terminal
 frame and a corrected terminal update: the item updates in place and neither the event nor the hooks
-fire again. Replay an intermediate vendor status (for example `_paused`): the transcript item shows it verbatim
+fire again. The compaction's current status is what the CLI `outcome` and a Goal compaction turn report, so a
+correction before the prompt completes (completed → failed, or failed → completed) changes them (owned by
+ET-session-compact-now step 2 and RT-session-compact-real-adapters step 3). Replay an intermediate vendor status (for example `_paused`): the transcript item shows it verbatim
 and is not treated as finished. A failed compaction shows `status: failed` with its `error` in the transcript
 item and in the final raw snapshot row.
 

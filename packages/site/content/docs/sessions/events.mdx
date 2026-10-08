@@ -242,7 +242,9 @@ ledger observation; it never sums context-window usage. `stale` marks an observa
 turn that precedes the latest settled turn. After an agent compaction reaches a terminal status,
 `context` reports `state: "unknown"` with `used` and `size` absent (omitted, not `null`) until the agent
 sends a later usage report that carries a context `used` value. A report with only token counters does
-not restore it. CompozyOS has no usage threshold of its own, so the context object carries none.
+not restore it, and neither do the token totals returned with a prompt response, including in the turn
+that compacted: those keep their counters and costs, while the occupancy they carried before the
+compaction is cleared. CompozyOS has no usage threshold of its own, so the context object carries none.
 
 Use `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns` or
 `compozy session usage <session-id> --turns` for the union of usage-bearing and delivery-bearing turns.

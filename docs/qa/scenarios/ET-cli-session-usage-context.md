@@ -29,7 +29,8 @@ threshold: the usage payload has no `pressure_threshold`. A fresh session has un
 numbers. A failed ledger read retains aggregates with unavailable context; usage/turns reports an error.
 
 Confirm transcript-stream push and polling paths emit session_usage_changed for new usage, done and
-prompt_delivery events, without advancing the transcript cursor. Reconnect must preserve transcript
+prompt_delivery events (compaction events are not part of that list; the meter and markers catch up on the next usage
+update), without advancing the transcript cursor. Reconnect must preserve transcript
 fences while usage refreshes. Commit a usage or settlement event between the usage read and transcript
 projection read: the next refresh must still emit its sequence, turn ID, and kind.
 
@@ -38,7 +39,8 @@ status}` plus `context_used` and `context_size` in CLI human, `-o json`, TOON, H
 fields are omitted (absent, not `null`) when the reading before the compaction was unknown, and the removed
 `from_sequence`, `to_sequence`, `pressure`, `strategy`, and `span_archived` fields are absent. After a terminal
 compaction the context is `state: "unknown"` with `used`, `size`, and `ratio` absent on rereads, reopens, and a
-daemon restart until the agent sends a later usage report with a context reading. A `session.compaction_fired` row
+daemon restart until the agent sends a later usage report with a context reading; the prompt-response token totals that
+end the compaction turn update the counters and costs but never restore it. A `session.compaction_fired` row
 recorded before the upgrade appears in `compozy session events` as opaque history and never produces a marker.
 
 Execution owner: session-context tasks 05/06. Task 04 completes real injected delivery rows before this walk.

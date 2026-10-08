@@ -250,7 +250,9 @@ kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, 
 `[resources.cmd_palette]`, `[[resources.hooks]]`, `[[resources.command_groups]]`, `[[profiles]]`, and
 `[gateway]`.
 
-Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`.
+Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`. An
+automation resource whose trigger `event` is `memory.consolidated` (a removed event) is skipped with an
+`extension.retired_entries_ignored` warning; the extension's other resources still load.
 Resource paths resolve inside the extension root; `{{config_dir}}` is that root and
 `{{env:NAME}}` reads the daemon process environment. Hooks, tools, command groups, MCP servers,
 dynamic resource publication, and subprocess behavior require a supported code toolchain.

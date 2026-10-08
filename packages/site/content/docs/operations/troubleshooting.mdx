@@ -283,13 +283,13 @@ compozy status
 For systemd or launchd installs, define `COMPOZY_HOME` in the service environment and keep provider API
 keys in the same environment.
 
-## Config load fails while archiving retired settings
+## Retired settings are not archived
 
-| Field      | What to check                                                                                                                                                                                                  |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | A command or the daemon fails with `migrate config file "<path>": config changed during retirement migration` or with `write config file "<path>": ...`.                                                       |
-| Diagnosis  | The loader found retired settings in `<path>` and tried to archive them as comments. The file changed or was replaced between the read and the write, or the loader could not replace it. Nothing was written. |
-| Resolution | Stop whatever else edits the file, make its directory writable, and run the command again. The next load archives the current content.                                                                         |
+| Field      | What to check                                                                                                                                                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | The log holds a `config.retired_keys_archive_failed` warning with the `path` of a `config.toml` and a `reason`, for example `config changed during retirement migration` or a write error. The daemon and your commands keep working, and the file still holds its retired settings.                               |
+| Diagnosis  | The loader found retired settings in `<path>` and tried to archive them as comments. The file changed or was replaced between the read and the write, or the loader could not replace it, for example in a read-only directory. Nothing was written, so the retired values are inactive until an archive succeeds. |
+| Resolution | Stop whatever else edits the file and make the file and its directory writable. The next load archives the current content and logs `config.retired_keys_archived`; the warning stops once that happens. Nothing else needs changing, because the retired settings no longer apply.                                |
 
 See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings) for what
 the loader archives.

@@ -18,6 +18,11 @@ overlaps: ET-web-session-fork-from-here; RT-session-lineage-upgrade
 
 Conversation rewind does not restore files, tool effects, or network calls. The confirmation and structured output must preserve that boundary.
 
+Rewind starts fresh provider context, so it also discards a resume replay that is still pending: after a runtime
+replacement followed only by a maintenance turn, a rewind must not let the pre-rewind replay block reappear on
+the next ordinary prompt (only the rewind's own replay of the retained prefix reaches the agent). On a home upgraded from the release that archived compacted spans, events archived by a rewind
+stay archived while the span the removed compaction had archived is visible again (RT-upgrade-memory-removal-home).
+
 Provenance child case: create a session with `compozy session new --parent <root-id>`, prompt it, confirm
 `compozy session status <child-id> -o json` reports `lineage.kind: "provenance"`, then rewind the child
 to its first prompt. The rewind succeeds with the same child session ID and the parent is untouched. A

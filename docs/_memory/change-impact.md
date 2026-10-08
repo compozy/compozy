@@ -18,7 +18,9 @@ leftovers in user-owned files are retired without blocking the user.
   `memory/*`, `memory.backend`, consent `memory:read|write`, the `memory-backend-ts` scaffold, and the
   SDK members are deleted; tool IDs are retired permanently. Added, all `experimental`:
   `compozy session compact`, `compactSession`, and `compozy__session_compact` (toolset
-  `compozy__sessions`, risk `mutating`). Changed: `session.compaction_fired`, usage `compactions[]`
+  `compozy__sessions`, risk `mutating`; refusals carry the structural `session_busy` and
+  `compaction_unsupported` codes on every surface, and the request is attributed `requested_by`
+  `cli`, `http`, `tool`, `goal`, or `web`). Changed: `session.compaction_fired`, usage `compactions[]`
   markers (no `pressure_threshold`; `context_used`/`context_size` are omitted when unknown), the
   session `type` enum (no `dream`), the roles roster (`coordinator`, `auto_title`), and
   `StatusSchemaVersion` `2026-10-07` without `memory`. `GET …/history` and `compozy session history`
@@ -71,8 +73,9 @@ leftovers in user-owned files are retired without blocking the user.
 - **Official skill / Web / docs:** `skills/compozy/references/memory.md` is deleted and every memory
   or CompozyOS-compaction mention is removed; `compozy__session_compact` and Compact now are
   documented. Web drops the Knowledge app, Settings → Memory, the Home Memory tile, memory role
-  panels, and the context-meter threshold warning, and gains the Compact now action and the
-  Compaction timeline item. Site: memory docs, the `cli/memory` subtree, landing Memory/Dream
+  panels, and the context-meter threshold warning, and gains the Compact now button (context rail meter
+  section, no popover), the Compaction timeline item, agent/requested compaction markers, and the
+  post-compaction meter sentence. Site: memory docs, the `cli/memory` subtree, landing Memory/Dream
   content, and the `defining-agent-sessions-compozyos` memory section are removed; new
   `sessions/compaction.mdx`; migration guide (root and site) and a breaking release note ship.
   COPY, README, PRODUCT, and the glossary drop memory vocabulary and gain a Compaction entry. Dated
