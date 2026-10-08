@@ -33,8 +33,8 @@ const START_CHOICES: readonly AutomationChoice<AutomationStart>[] = [
 ];
 
 /** The chosen start's settings in a few words, shown on its card while editing. */
-function startSummary(draft: AutomationFormDraft): string {
-  if (draft.start === "schedule") return describeSchedule(draft.schedule);
+function startSummary(draft: AutomationFormDraft, timeZone: string | undefined): string {
+  if (draft.start === "schedule") return describeSchedule(draft.schedule, { timeZone });
   if (draft.start === "webhook") {
     const slug = draft.endpoint_slug?.trim();
     return slug ? `The ${slug} link` : "A link another app calls";
@@ -56,7 +56,7 @@ export function StartsSection({ draft, form, mode }: StartsSectionProps) {
     !locked
       ? choice
       : choice.value === draft.start
-        ? { ...choice, description: startSummary(draft) }
+        ? { ...choice, description: startSummary(draft, form.timeZone) }
         : { ...choice, lockedReason: "Locked" }
   );
 

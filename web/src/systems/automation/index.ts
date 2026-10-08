@@ -5,7 +5,6 @@ export type {
   AutomationJobListFilter,
   AutomationJobsListResponse,
   AutomationJobStableFilter,
-  AutomationKind,
   AutomationRetry,
   AutomationRun,
   AutomationRunHistoryFilter,
@@ -99,20 +98,13 @@ export { projectAutomationTarget, type AutomationTargetProjection } from "./lib/
 export {
   automationSourceLabel,
   automationScopeLabel,
-  automationScopeTone,
-  automationSourceTone,
   automationLastRunLabel,
   automationLastRunMeta,
   automationRunStateGlyph,
   describeFireLimit,
-  describeRetry,
-  describeTrigger,
-  formatDate,
-  formatDateTime,
   formatPromptPreview,
   formatRelativeTime,
   formatRunDuration,
-  formatRunTitle,
 } from "./lib/automation-formatters";
 export {
   applyAutomationFilterChips,
@@ -136,7 +128,7 @@ export {
   type AutomationDetailRouteSearch,
   type AutomationsRouteSearch,
 } from "./lib/automation-route-search";
-export { redirectLegacyAutomationURL } from "./lib/automation-redirects";
+export { parseAutomationDetailPath, redirectLegacyAutomationURL } from "./lib/automation-redirects";
 export { AUTOMATION_START_ICON } from "./lib/automation-start-icon";
 export type { AutomationEditorSection } from "./lib/automation-form-draft";
 export {
@@ -161,7 +153,8 @@ export {
   type AutomationSentenceSegment,
   type SentenceContext,
 } from "./lib/automation-sentence";
-export { automationLastRanAt, type AutomationEntity } from "./lib/automation-detail";
+export { automationLastRanAt } from "./lib/automation-detail";
+export type { AutomationEntity } from "./lib/automation-entity";
 export {
   automationEditorWorkspaceId,
   automationMatchesActiveWorkspace,
@@ -172,6 +165,7 @@ export type {
   AutomationFilterState,
 } from "./lib/automation-list-filters";
 // Hooks
+export { useAutomationTimeZone } from "./hooks/use-automation-time-zone";
 export {
   useAutomationJob,
   useAutomationJobs,

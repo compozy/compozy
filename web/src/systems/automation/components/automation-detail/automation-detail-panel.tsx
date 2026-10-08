@@ -3,12 +3,8 @@ import { Workflow } from "lucide-react";
 
 import { PAGE_CONTENT_GUTTER, cn, useTopbarSlot } from "@compozy/ui";
 
-import {
-  automationDeleteConsequence,
-  describeScheduleStarts,
-  isAutomationTrigger,
-  type AutomationEntity,
-} from "../../lib/automation-detail";
+import { automationDeleteConsequence, describeScheduleStarts } from "../../lib/automation-detail";
+import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-entity";
 import { triggerEventLabel } from "../../lib/automation-rule";
 import { projectAutomationTarget } from "../../lib/automation-target";
 import type { SentenceContext } from "../../lib/automation-sentence";

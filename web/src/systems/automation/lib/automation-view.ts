@@ -15,7 +15,9 @@ import {
   type AutomationStart,
   type SentenceContext,
 } from "./automation-sentence";
+import { isAutomationTrigger, type AutomationEntity } from "./automation-entity";
 import { automationScopeLabel, formatRelativeTime } from "./automation-formatters";
+import { triggerWebhookPath } from "./automation-rule";
 import type { AutomationJob, AutomationRunStatus, AutomationTrigger } from "../types";
 
 export type { AutomationDoes, AutomationSentence, AutomationStart } from "./automation-sentence";
@@ -71,12 +73,6 @@ export interface AutomationViewContext extends SentenceContext {
   ownerOf?: (entity: AutomationJob | AutomationTrigger) => ProfileOwner | undefined;
 }
 
-type AutomationEntity = AutomationJob | AutomationTrigger;
-
-function isTrigger(entity: AutomationEntity): entity is AutomationTrigger {
-  return "event" in entity;
-}
-
 function nonEmpty(value: string | null | undefined): string | undefined {
   return value ? value : undefined;
 }
@@ -101,33 +97,22 @@ function detailPathOf(kind: AutomationEntityKind, id: string): AutomationDetailP
   return kind === "job" ? `/automations/jobs/${segment}` : `/automations/triggers/${segment}`;
 }
 
-/** `/api/webhooks/{global|workspaces/{ws}}/{slug}--{id}`, or undefined when incomplete. */
-function webhookPathOf(trigger: AutomationTrigger): string | undefined {
-  if (trigger.event !== "webhook") return undefined;
-  const slug = trigger.endpoint_slug?.trim();
-  const webhookId = trigger.webhook_id?.trim();
-  if (!slug || !webhookId) return undefined;
-  const base =
-    trigger.scope === "workspace" && trigger.workspace_id
-      ? `workspaces/${trigger.workspace_id}`
-      : "global";
-  return `/api/webhooks/${base}/${slug}--${webhookId}`;
-}
-
 export function toAutomationView(
   entity: AutomationEntity,
   ctx: AutomationViewContext = {}
 ): AutomationView {
-  const kind: AutomationEntityKind = isTrigger(entity) ? "trigger" : "job";
+  const kind: AutomationEntityKind = isAutomationTrigger(entity) ? "trigger" : "job";
   const owner = ctx.ownerOf?.(entity);
   const workspaceName = entity.workspace_id
     ? (ctx.workspaceName?.(entity.workspace_id) ?? undefined)
     : undefined;
   const lastRun = toLastRun(entity);
-  const nextRunAt = isTrigger(entity)
+  const nextRunAt = isAutomationTrigger(entity)
     ? undefined
     : nonEmpty(entity.scheduler?.next_run_at ?? entity.next_run);
-  const webhookPath = isTrigger(entity) ? webhookPathOf(entity) : undefined;
+  const webhookPath = isAutomationTrigger(entity)
+    ? (triggerWebhookPath(entity) ?? undefined)
+    : undefined;
   return {
     kind,
     id: entity.id,
@@ -145,7 +130,7 @@ export function toAutomationView(
     ...(nextRunAt ? { nextRunAt } : {}),
     ...(lastRun ? { lastRun } : {}),
     ...(webhookPath ? { webhookPath } : {}),
-    ...(isTrigger(entity) && entity.event === "webhook"
+    ...(isAutomationTrigger(entity) && entity.event === "webhook"
       ? { publicLinkLive: entity.ingress?.reachability === "live" }
       : {}),
     canRunNow: kind === "job",

@@ -34,7 +34,6 @@ export interface TriggerEnvelope {
 export interface EventDef {
   /** Stable catalog key used for selection (not always the literal event id). */
   id: string;
-  group: EventGroup;
   family: EventFamily;
   icon: EventIconKey;
   label: string;
@@ -49,8 +48,6 @@ export interface EventDef {
    */
   openPayload?: boolean;
 }
-
-export type EventGroup = "Session lifecycle" | "Memory" | "Hooks" | "External" | "Extensions";
 
 /** Top-level envelope keys available to every filter and template. */
 export const ENVELOPE_KEYS = ["kind", "scope", "source", "workspace_id"] as const;
@@ -71,7 +68,6 @@ const SESSION_FIELDS = [
 export const EVENTS: readonly EventDef[] = [
   {
     id: "session.created",
-    group: "Session lifecycle",
     family: "fixed",
     icon: "session-start",
     label: "Session started",
@@ -98,7 +94,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "session.stopped",
-    group: "Session lifecycle",
     family: "fixed",
     icon: "session-stop",
     label: "Session stopped",
@@ -127,7 +122,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "memory.consolidated",
-    group: "Memory",
     family: "fixed",
     icon: "memory",
     label: "Memory consolidated",
@@ -147,7 +141,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "hook.completed",
-    group: "Hooks",
     family: "hook",
     icon: "hook",
     label: "Hook completed",
@@ -191,7 +184,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "webhook",
-    group: "External",
     family: "webhook",
     icon: "webhook",
     label: "Incoming webhook",
@@ -220,7 +212,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "ext",
-    group: "Extensions",
     family: "ext",
     icon: "extension",
     label: "Extension event",

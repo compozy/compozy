@@ -67,7 +67,7 @@ let deckOpenNewTab = vi.fn();
 vi.mock("../../lib/app-registry", () => ({
   OS_APPS: {},
   getOsApp: (app: string) => ({
-    title: app === "automations" ? "Jobs" : "Tasks",
+    title: app === "automations" ? "Automations" : "Tasks",
     icon: () => null,
     Controller:
       pendingJobsController && app === "automations" ? PendingController : TasksController,

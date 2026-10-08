@@ -8,6 +8,7 @@ import {
   Button,
   ListingPage,
   ListingToolbar,
+  buttonVariants,
   useTopbarSlot,
 } from "@compozy/ui";
 
@@ -37,7 +38,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
 
   useTopbarSlot({
     glyph: <Zap />,
-    count: page.total,
+    count: page.total ?? "—",
     actions: (
       <Button
         data-testid="automations-create"
@@ -116,14 +117,12 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
                 <AlertDescription>
                   {page.unavailableMessage}
                   <div className="mt-2">
-                    <Button
-                      nativeButton={false}
-                      render={<Link to="/settings/automation" />}
-                      size="sm"
-                      variant="secondary"
+                    <Link
+                      className={buttonVariants({ size: "sm", variant: "secondary" })}
+                      to="/settings/automation"
                     >
                       Open Settings
-                    </Button>
+                    </Link>
                   </div>
                 </AlertDescription>
               </Alert>
@@ -137,24 +136,22 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
         <AutomationCatalogShell
           firstRunActions={
             <div className="flex gap-2">
-              <Button
+              <Link
+                className={buttonVariants({ size: "sm", variant: "neutral" })}
                 data-testid="automations-empty-start-schedule"
-                nativeButton={false}
-                render={<Link search={{ create: "1", start: "schedule" }} to="/automations" />}
-                size="sm"
-                variant="neutral"
+                search={{ create: "1", start: "schedule" }}
+                to="/automations"
               >
                 On a schedule
-              </Button>
-              <Button
+              </Link>
+              <Link
+                className={buttonVariants({ size: "sm", variant: "neutral" })}
                 data-testid="automations-empty-start-event"
-                nativeButton={false}
-                render={<Link search={{ create: "1", start: "event" }} to="/automations" />}
-                size="sm"
-                variant="neutral"
+                search={{ create: "1", start: "event" }}
+                to="/automations"
               >
                 When something happens
-              </Button>
+              </Link>
             </div>
           }
           hasActiveFilters={page.hasActiveFilters}
@@ -175,6 +172,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
             page.suggestionsWorkspaceId ? (
               <AutomationSuggestionsPanel
                 key={page.suggestionsWorkspaceId}
+                timeZone={page.timeZone}
                 workspaceID={page.suggestionsWorkspaceId}
               />
             ) : null

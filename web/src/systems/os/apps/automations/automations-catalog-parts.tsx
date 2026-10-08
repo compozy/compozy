@@ -10,7 +10,8 @@ export function AutomationListFooter({
   enabledCount,
   nextRunAt,
 }: {
-  total: number;
+  /** Both kinds' totals; null while one is unknown or failed. */
+  total: number | null;
   enabledCount: number;
   nextRunAt: string | null;
 }) {
@@ -20,7 +21,7 @@ export function AutomationListFooter({
       className="px-1 pt-3 text-caption text-subtle tabular-nums"
       data-testid="automations-list-footer"
     >
-      {total} {total === 1 ? "automation" : "automations"} · {enabledCount} on
+      {total ?? "—"} {total === 1 ? "automation" : "automations"} · {enabledCount} on
       {next ? ` · next run in ${next}` : null}
     </p>
   );

@@ -7,7 +7,7 @@ import {
   AutomationDetailPanel,
   type AutomationDetailPanelProps,
 } from "../automation-detail/automation-detail-panel";
-import type { AutomationEntity } from "../../lib/automation-detail";
+import type { AutomationEntity } from "../../lib/automation-entity";
 import { toAutomationView } from "../../lib/automation-view";
 import {
   dependencyReviewJob,

@@ -106,6 +106,7 @@ export const appRouteStories = [
     title: "systems/automation/routes/AutomationDetail",
     storyName: "TriggerDetail",
   },
+  // Shim: the four legacy redirect stories go with the `/jobs*` and `/triggers*` stubs in v0.5.0.
   {
     system: "automation",
     routePath: "/jobs",

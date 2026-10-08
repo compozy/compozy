@@ -26,6 +26,13 @@ vi.mock("@/systems/loops/hooks/use-loops", async () => {
 });
 
 const aggregateDestination = vi.hoisted(() => ({ value: null as string | null }));
+const automationTimeZone = vi.hoisted(() => ({ value: undefined as string | undefined }));
+vi.mock("@/systems/settings/hooks/use-settings-sections", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/settings/hooks/use-settings-sections")>()),
+  useSettingsAutomation: () => ({
+    data: automationTimeZone.value ? { config: { timezone: automationTimeZone.value } } : undefined,
+  }),
+}));
 vi.mock("@/systems/profiles", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/profiles")>()),
   useAggregateDestination: () => aggregateDestination.value,
@@ -134,6 +141,7 @@ function togglePreview() {
 
 beforeEach(() => {
   aggregateDestination.value = null;
+  automationTimeZone.value = undefined;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-07T19:00:00Z"));
 });
@@ -253,6 +261,18 @@ describe("AutomationEditorDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Friday" }));
     expect(readout()).toHaveTextContent("Every Friday at 08:00 UTC · next in 1d 13h · 0 8 * * 5");
     expect(status()).toHaveTextContent("Ready");
+  });
+
+  it("Should read the sentence bar and readout in the global automation time zone", () => {
+    automationTimeZone.value = "America/Sao_Paulo";
+    render(<EditorHarness draft={readyDraft()} />);
+
+    expect(sentence()).toHaveTextContent(
+      `Every day at 09:00 America/Sao_Paulo, ask ${AGENT} to summarize yesterday's sessions.`
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weekdays 9am" }));
+    expect(readout()).toHaveTextContent("Every weekday at 09:00 America/Sao_Paulo");
+    expect(sentence()).not.toHaveTextContent("UTC");
   });
 
   it("UT-095 reads out Every… and Once in plain words", () => {

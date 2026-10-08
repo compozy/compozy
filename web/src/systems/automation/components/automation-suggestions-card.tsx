@@ -21,6 +21,8 @@ export interface AutomationSuggestionsCardProps {
   onRetry?: () => void;
   pendingActions?: Partial<Record<string, AutomationSuggestionPendingAction>>;
   suggestions: AutomationSuggestion[];
+  /** The global automation time zone the schedule phrases read in. */
+  timeZone?: string;
 }
 
 function SuggestionsShell({
@@ -148,6 +150,7 @@ export function AutomationSuggestionsCard({
   onRetry,
   pendingActions = {},
   suggestions,
+  timeZone,
 }: AutomationSuggestionsCardProps) {
   if (isLoading && suggestions.length === 0) {
     return <AutomationSuggestionsLoading className={className} />;
@@ -174,7 +177,7 @@ export function AutomationSuggestionsCard({
           const pendingAction = pendingActions[suggestion.id];
           const actionError = actionErrors[suggestion.id];
           const payload = suggestion.payload;
-          const schedule = describeSchedule(payload.schedule);
+          const schedule = describeSchedule(payload.schedule, { timeZone });
           const target = projectAutomationTarget(payload);
 
           return (

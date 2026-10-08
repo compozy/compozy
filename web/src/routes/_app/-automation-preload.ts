@@ -9,7 +9,6 @@ import {
   automationJobsListOptions,
   automationListLoopFilter,
   automationRouteHasActiveFilters,
-  automationsStartView,
   automationMatchesActiveWorkspace,
   automationSuggestionsListOptions,
   automationTriggerDetailOptions,
@@ -18,7 +17,10 @@ import {
 } from "@/systems/automation";
 import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
-/** Both lists with the shared filters minus `start`; a Start view skips the other kind. */
+/**
+ * Both lists with the shared filters minus `start`: a Start view only decides which kind
+ * renders, so both totals (the view counts) load. `target=task` never asks for triggers.
+ */
 export async function preloadAutomationsRoute(
   queryClient: QueryClient,
   search: AutomationsRouteSearch
@@ -38,17 +40,13 @@ export async function preloadAutomationsRoute(
     target: search.target,
     ...profileScope,
   };
-  const start = automationsStartView(search);
-  const loadJobs = start !== "event";
-  const loadTriggers = start !== "schedule" && search.target !== "task";
-  const jobsQuery = loadJobs
-    ? queryClient.ensureInfiniteQueryData(automationJobsListOptions(filters))
-    : undefined;
-  const triggersQuery = loadTriggers
-    ? queryClient.ensureInfiniteQueryData(automationTriggersListOptions(filters))
-    : undefined;
+  const jobsQuery = queryClient.ensureInfiniteQueryData(automationJobsListOptions(filters));
+  const triggersQuery =
+    search.target !== "task"
+      ? queryClient.ensureInfiniteQueryData(automationTriggersListOptions(filters))
+      : undefined;
   const suggestionsQuery =
-    activeWorkspaceID && !automationRouteHasActiveFilters(search) && jobsQuery && triggersQuery
+    activeWorkspaceID && !automationRouteHasActiveFilters(search) && triggersQuery
       ? Promise.all([jobsQuery, triggersQuery]).then(([jobs, triggers]) => {
           if (jobs.pages[0]?.page.total !== 0 || triggers.pages[0]?.page.total !== 0) {
             return undefined;
