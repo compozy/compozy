@@ -34,6 +34,15 @@ func (h *BaseHandlers) sessionContextInput(
 		return input, err
 	}
 	populateContextEvents(&input, usage, deliveries, compactions)
+	if reader, ok := h.Sessions.(interface {
+		CompactionBoundary(context.Context, string) (*int64, error)
+	}); ok {
+		boundary, err := reader.CompactionBoundary(ctx, id)
+		if err != nil {
+			return input, err
+		}
+		input.CompactionBoundary = boundary
+	}
 	if settled.Sequence > 0 {
 		input.Settled = &contextusage.SettledTurn{TurnID: settled.TurnID, Sequence: settled.Sequence}
 	}
@@ -122,14 +131,12 @@ func populateContextEvents(
 			contextusage.Compaction{
 				Sequence:     event.Sequence,
 				At:           event.At,
-				TurnID:       p.TurnID,
-				FromSequence: p.FromSequence,
-				ToSequence:   p.ToSequence,
+				TurnID:       event.TurnID,
+				CompactionID: p.CompactionID,
+				Trigger:      p.Trigger,
+				Status:       event.Status,
 				Used:         p.ContextUsed,
 				Size:         p.ContextSize,
-				Pressure:     p.Pressure,
-				Strategy:     p.Strategy,
-				SpanArchived: event.SpanArchived,
 			},
 		)
 	}

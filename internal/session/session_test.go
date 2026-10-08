@@ -503,3 +503,27 @@ func TestNormalizeSessionTypeDefaultsToUser(t *testing.T) {
 		}
 	})
 }
+
+func TestResolveCompactionCommand(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		commands []store.SessionAdvertisedCommand
+		want     string
+		ok       bool
+	}{
+		{name: "Should resolve compact", commands: []store.SessionAdvertisedCommand{{Name: "compact"}}, want: "compact", ok: true},
+		{name: "Should resolve compress", commands: []store.SessionAdvertisedCommand{{Name: "compress"}}, want: "compress", ok: true},
+		{name: "Should prefer compact", commands: []store.SessionAdvertisedCommand{{Name: "compress"}, {Name: "compact"}}, want: "compact", ok: true},
+		{name: "Should reject other commands", commands: []store.SessionAdvertisedCommand{{Name: "review"}}},
+		{name: "Should reject an empty command set"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := ResolveCompactionCommand(tc.commands)
+			if got != tc.want || ok != tc.ok {
+				t.Fatalf("ResolveCompactionCommand=%q,%t want %q,%t", got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}

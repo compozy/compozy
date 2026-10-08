@@ -206,7 +206,8 @@ func statusForSessionValidationError(err error) (int, bool) {
 
 func statusForSessionConflictError(err error) (int, bool) {
 	switch {
-	case errors.Is(err, session.ErrPromptInProgress),
+	case errors.Is(err, session.ErrCompactionUnsupported),
+		errors.Is(err, session.ErrPromptInProgress),
 		errors.Is(err, session.ErrSessionArchived),
 		errors.Is(err, session.ErrSessionArchiveRequiresStopped),
 		errors.Is(err, store.ErrSessionArchived),

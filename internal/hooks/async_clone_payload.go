@@ -129,9 +129,8 @@ func clonePermissionDeniedPayload(payload PermissionDeniedPayload) PermissionDen
 	return payload
 }
 
-func cloneContextCompactPayload(payload ContextCompactPayload) ContextCompactPayload {
+func cloneContextCompactionPayload(payload ContextCompactionPayload) ContextCompactionPayload {
 	payload.SessionContext = cloneSessionContext(payload.SessionContext)
-	payload.ContextBlocks = cloneContextBlocks(payload.ContextBlocks)
 	return payload
 }
 

@@ -136,7 +136,7 @@ export type {
   ForgeStatusResponse,
   ContextBlock,
   ContextCompactionPatch,
-  ContextCompactPayload,
+  ContextCompactionPayload,
   ContextPostCompactPatch,
   ContextPostCompactPayload,
   ContextPreCompactPatch,

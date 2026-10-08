@@ -41,31 +41,30 @@ type parsedHookExecutor struct {
 }
 
 type parsedHookMatcher struct {
-	AgentName          string `yaml:"agent_name,omitempty"             toml:"agent_name,omitempty"`
-	AgentType          string `yaml:"agent_type,omitempty"             toml:"agent_type,omitempty"`
-	WorkspaceID        string `yaml:"workspace_id,omitempty"           toml:"workspace_id,omitempty"`
-	WorkspaceRoot      string `yaml:"workspace_root,omitempty"         toml:"workspace_root,omitempty"`
-	SessionType        string `yaml:"session_type,omitempty"           toml:"session_type,omitempty"`
-	InputClass         string `yaml:"input_class,omitempty"            toml:"input_class,omitempty"`
-	ACPEventType       string `yaml:"acp_event_type,omitempty"         toml:"acp_event_type,omitempty"`
-	TurnID             string `yaml:"turn_id,omitempty"                toml:"turn_id,omitempty"`
-	ToolID             string `yaml:"tool_id,omitempty"                toml:"tool_id,omitempty"`
-	ToolName           string `yaml:"tool_name,omitempty"              toml:"tool_name,omitempty"`
-	ToolReadOnly       *bool  `yaml:"tool_read_only,omitempty"         toml:"tool_read_only,omitempty"`
-	DecisionClass      string `yaml:"decision_class,omitempty"         toml:"decision_class,omitempty"`
-	MessageRole        string `yaml:"message_role,omitempty"           toml:"message_role,omitempty"`
-	MessageDeltaType   string `yaml:"message_delta_type,omitempty"     toml:"message_delta_type,omitempty"`
-	CompactionReason   string `yaml:"compaction_reason,omitempty"      toml:"compaction_reason,omitempty"`
-	CompactionStrategy string `yaml:"compaction_strategy,omitempty"    toml:"compaction_strategy,omitempty"`
-	TaskID             string `yaml:"task_id,omitempty"                toml:"task_id,omitempty"`
-	RunID              string `yaml:"run_id,omitempty"                 toml:"run_id,omitempty"`
-	WorkflowID         string `yaml:"workflow_id,omitempty"            toml:"workflow_id,omitempty"`
-	CoordinatorID      string `yaml:"coordinator_session_id,omitempty" toml:"coordinator_session_id,omitempty"`
-	ParentSessionID    string `yaml:"parent_session_id,omitempty"      toml:"parent_session_id,omitempty"`
-	RootSessionID      string `yaml:"root_session_id,omitempty"        toml:"root_session_id,omitempty"`
-	ChildSessionID     string `yaml:"child_session_id,omitempty"       toml:"child_session_id,omitempty"`
-	SpawnRole          string `yaml:"spawn_role,omitempty"             toml:"spawn_role,omitempty"`
-	ReleaseReason      string `yaml:"release_reason,omitempty"         toml:"release_reason,omitempty"`
+	AgentName         string `yaml:"agent_name,omitempty"             toml:"agent_name,omitempty"`
+	AgentType         string `yaml:"agent_type,omitempty"             toml:"agent_type,omitempty"`
+	WorkspaceID       string `yaml:"workspace_id,omitempty"           toml:"workspace_id,omitempty"`
+	WorkspaceRoot     string `yaml:"workspace_root,omitempty"         toml:"workspace_root,omitempty"`
+	SessionType       string `yaml:"session_type,omitempty"           toml:"session_type,omitempty"`
+	InputClass        string `yaml:"input_class,omitempty"            toml:"input_class,omitempty"`
+	ACPEventType      string `yaml:"acp_event_type,omitempty"         toml:"acp_event_type,omitempty"`
+	TurnID            string `yaml:"turn_id,omitempty"                toml:"turn_id,omitempty"`
+	ToolID            string `yaml:"tool_id,omitempty"                toml:"tool_id,omitempty"`
+	ToolName          string `yaml:"tool_name,omitempty"              toml:"tool_name,omitempty"`
+	ToolReadOnly      *bool  `yaml:"tool_read_only,omitempty"         toml:"tool_read_only,omitempty"`
+	DecisionClass     string `yaml:"decision_class,omitempty"         toml:"decision_class,omitempty"`
+	MessageRole       string `yaml:"message_role,omitempty"           toml:"message_role,omitempty"`
+	MessageDeltaType  string `yaml:"message_delta_type,omitempty"     toml:"message_delta_type,omitempty"`
+	CompactionTrigger string `yaml:"compaction_trigger,omitempty"     toml:"compaction_trigger,omitempty"`
+	TaskID            string `yaml:"task_id,omitempty"                toml:"task_id,omitempty"`
+	RunID             string `yaml:"run_id,omitempty"                 toml:"run_id,omitempty"`
+	WorkflowID        string `yaml:"workflow_id,omitempty"            toml:"workflow_id,omitempty"`
+	CoordinatorID     string `yaml:"coordinator_session_id,omitempty" toml:"coordinator_session_id,omitempty"`
+	ParentSessionID   string `yaml:"parent_session_id,omitempty"      toml:"parent_session_id,omitempty"`
+	RootSessionID     string `yaml:"root_session_id,omitempty"        toml:"root_session_id,omitempty"`
+	ChildSessionID    string `yaml:"child_session_id,omitempty"       toml:"child_session_id,omitempty"`
+	SpawnRole         string `yaml:"spawn_role,omitempty"             toml:"spawn_role,omitempty"`
+	ReleaseReason     string `yaml:"release_reason,omitempty"         toml:"release_reason,omitempty"`
 }
 
 type hookValidationExecutor struct {
@@ -234,8 +233,7 @@ func (m *parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookM
 		MessageDeltaType: strings.TrimSpace(m.MessageDeltaType),
 
 		CompactionMatcher: &hookspkg.CompactionMatcher{
-			Reason:   strings.TrimSpace(m.CompactionReason),
-			Strategy: strings.TrimSpace(m.CompactionStrategy),
+			Trigger: strings.TrimSpace(m.CompactionTrigger),
 		}}
 	autonomy := hookspkg.AutonomyMatcher{
 		TaskID:               strings.TrimSpace(m.TaskID),
@@ -349,8 +347,7 @@ func parsedHookMatcherFromHookMatcher(
 		MessageDeltaType: strings.TrimSpace(matcher.MessageDeltaType),
 	}
 	if matcher.CompactionMatcher != nil {
-		parsed.CompactionReason = strings.TrimSpace(matcher.Reason)
-		parsed.CompactionStrategy = strings.TrimSpace(matcher.Strategy)
+		parsed.CompactionTrigger = strings.TrimSpace(matcher.Trigger)
 	}
 	if matcher.Autonomy != nil {
 		parsed.TaskID = strings.TrimSpace(matcher.Autonomy.TaskID)

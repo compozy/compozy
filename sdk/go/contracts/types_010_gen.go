@@ -43,8 +43,7 @@ type HookMatcher struct {
 	DecisionClass    string           `json:"decision_class,omitempty"`
 	MessageRole      string           `json:"message_role,omitempty"`
 	MessageDeltaType string           `json:"message_delta_type,omitempty"`
-	Reason           string           `json:"compaction_reason,omitempty"`
-	Strategy         string           `json:"compaction_strategy,omitempty"`
+	Trigger          string           `json:"compaction_trigger,omitempty"`
 	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
 }
 

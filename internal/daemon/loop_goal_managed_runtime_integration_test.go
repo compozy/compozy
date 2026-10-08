@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -15,6 +17,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -24,11 +27,258 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspace"
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	for _, command := range []string{"compact", "compress"} {
+		t.Run(
+			"Should execute the managed maintenance command "+command+" and observe native completion",
+			func(t *testing.T) {
+				driver := newHarnessIntegrationDriver()
+				received := make(chan acp.PromptRequest, 2)
+				driver.promptHook = func(_ context.Context, _ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					received <- req
+					out := make(chan acp.AgentEvent, 4)
+					if !req.Maintenance {
+						out <- (acp.AgentEvent{Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate, TurnID: req.TurnID}).WithAvailableCommands([]store.SessionAdvertisedCommand{{Name: command}})
+						out <- acp.AgentEvent{Type: acp.EventTypeUsage, TurnID: req.TurnID, Usage: &acp.TokenUsage{ContextUsed: new(int64(90)), ContextSize: new(int64(100))}}
+					} else {
+						out <- acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: req.TurnID, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "in_progress"}}
+						out <- acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: req.TurnID, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true}}
+					}
+					out <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, PromptStopReason: acp.PromptStopReasonEndTurn}
+					close(out)
+					return out, nil
+				}
+				fixture := newLoopGoalManagedRuntimeFixture(t, "native-"+command, driver)
+				initial, err := fixture.manager.Prompt(t.Context(), fixture.binding.SessionID, "Observe context")
+				if err != nil {
+					t.Fatal(err)
+				}
+				drainHarnessIntegrationEvents(initial)
+				<-received
+				usage, err := fixture.runtime.Usage(t.Context(), fixture.binding)
+				if err != nil || !usage.Known {
+					t.Fatalf("usage=%#v %v", usage, err)
+				}
+				resolved, ok, err := fixture.runtime.CompactionCommand(t.Context(), fixture.binding)
+				if err != nil || !ok || resolved != command {
+					t.Fatalf("command=%q/%v %v", resolved, ok, err)
+				}
+				if _, err := fixture.goalStore.BindCheckpoint(
+					t.Context(),
+					goalpkg.BindCheckpointRequest{
+						Key:                  fixture.key,
+						ExpectedControlEpoch: 1,
+						ExpectedBindingEpoch: 0,
+						ExpectedPhase:        "idle",
+						TaskRunID:            fixture.taskRunID,
+						SessionID:            fixture.binding.SessionID,
+						BindingHandle:        fixture.binding.Handle,
+						BindingEpoch:         fixture.binding.BindingEpoch,
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+				current, err := fixture.goalStore.LoadCheckpoint(t.Context(), fixture.key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := fixture.goalStore.RecordContextUsage(
+					t.Context(),
+					goalpkg.RecordContextUsageRequest{
+						Key:                  fixture.key,
+						ExpectedControlEpoch: current.ControlEpoch,
+						ExpectedBindingEpoch: fixture.binding.BindingEpoch,
+						ExpectedPhase:        current.Phase,
+						SessionID:            fixture.binding.SessionID,
+						BindingHandle:        fixture.binding.Handle,
+						Usage:                usage,
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+				request := looppkg.ActionPromptRequest{
+					PromptID:             "native-compact",
+					Message:              "/" + resolved,
+					Kind:                 "compact",
+					Delivery:             looppkg.ActionPromptDeliveryMaintenance,
+					ContextUsageSequence: new(usage.Sequence),
+					ContextUsageUsed:     new(usage.Used),
+					Owner: looppkg.ActionPromptOwner{
+						LoopRunID:    fixture.run.ID,
+						TaskRunID:    fixture.taskRunID,
+						Generation:   1,
+						NodeID:       "converge",
+						ControlEpoch: 1,
+						BindingEpoch: fixture.binding.BindingEpoch,
+					},
+				}
+				staleBinding := fixture.binding
+				staleBinding.BindingEpoch++
+				staleRequest := request
+				staleRequest.Owner.BindingEpoch++
+				if _, err := fixture.runtime.PrepareActionPrompt(t.Context(), staleBinding, staleRequest); err == nil {
+					t.Fatal("superseded compaction binding accepted")
+				}
+				ticket, err := fixture.runtime.PrepareActionPrompt(t.Context(), fixture.binding, request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, err := fixture.runtime.AwaitActionPrompt(t.Context(), ticket)
+				if err != nil {
+					t.Fatal(err)
+				}
+				req := <-received
+				if req.Message != "/"+command || !req.Maintenance {
+					t.Fatalf("maintenance request=%#v", req)
+				}
+				if result.Compaction == nil || result.Compaction.CompactionID != "c1" ||
+					result.Compaction.Status != "completed" {
+					t.Fatalf("result=%#v", result)
+				}
+				recovered, _, found, err := reconstructManagedGoalPromptResult(
+					t.Context(),
+					fixture.manager,
+					fixture.binding.SessionID,
+					ticket.PromptID,
+				)
+				if err != nil || !found || recovered.PromptID != ticket.PromptID || recovered.Compaction == nil ||
+					recovered.Compaction.Status != "completed" {
+					t.Fatalf("reconstructed result=%#v found=%v err=%v", recovered, found, err)
+				}
+				after, err := fixture.runtime.Usage(t.Context(), fixture.binding)
+				if err != nil || after.Known {
+					t.Fatalf("post compact usage=%#v %v", after, err)
+				}
+				checkpoint, err := fixture.goalStore.CompleteCompaction(
+					t.Context(),
+					goalpkg.CompleteCompactionRequest{
+						Key:                  fixture.key,
+						ExpectedControlEpoch: 1,
+						ExpectedBindingEpoch: fixture.binding.BindingEpoch,
+						TaskRunID:            fixture.taskRunID,
+						QueueEntryID:         ticket.QueueEntryID,
+						PromptID:             ticket.PromptID,
+						Result: goalpkg.CompactionResult{
+							PromptResult:      result,
+							Outcome:           goalpkg.CompactionSucceeded,
+							UsageSequence:     new(usage.Sequence),
+							UsageBaselineUsed: new(usage.Used),
+						},
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if checkpoint.ContextState != "unknown" || checkpoint.CompactionBaselineUsed != nil {
+					t.Fatalf("checkpoint=%#v", checkpoint)
+				}
+			},
+		)
+	}
+
+	// Invariant: native completion permits managed Goal work on the same binding without a fresh usage update.
+	// Owner: daemon managed Goal lifecycle; canonical managed runtime integration suite (IT-028).
+	t.Run("Should compact native ACP context and continue Goal work without reseeding", func(t *testing.T) {
+		fixtureScript, err := acpmock.LoadFixture(mockFixturePath(t, "native_compaction_fixture.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range fixtureScript.Agents {
+			fixtureScript.Agents[i].Turns = append(
+				fixtureScript.Agents[i].Turns,
+				acpmock.TurnFixture{
+					Name:  "goal-work",
+					Match: acpmock.TurnMatch{Goal: &acpmock.TurnMatchGoal{Kind: acp.GoalPromptKindWork}},
+					Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: `{"status":"complete"}`}},
+				},
+			)
+		}
+		bytes, err := json.Marshal(fixtureScript)
+		if err != nil {
+			t.Fatal(err)
+		}
+		scriptPath := filepath.Join(t.TempDir(), "goal-native.json")
+		if err := os.WriteFile(scriptPath, bytes, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		command := acpmock.BuildCommand(
+			acpmock.RequireDriver(t),
+			scriptPath,
+			"compaction-claude",
+			filepath.Join(t.TempDir(), "native-driver.jsonl"),
+		)
+		fixture := newLoopGoalManagedRuntimeFixture(t, "native-executor", nil, withGoalRuntimeProviderCommand(command))
+		baseline, err := fixture.manager.Prompt(t.Context(), fixture.binding.SessionID, "baseline")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drainHarnessIntegrationEvents(baseline)
+		node := compileManagedGoalDefinition(t, "native-executor", fixture.agentName, "native-executor").Definition.Graph.Nodes[0]
+		executor, err := goalpkg.NewExecutor(
+			goalpkg.Dependencies{
+				Store:    fixture.goalStore,
+				Binder:   fixture.runtime,
+				Budget:   fixture.goalStore,
+				Context:  fixture.runtime,
+				Recovery: fixture.runtime,
+				Judge: loopGoalJudgeEvaluatorFunc(
+					func(context.Context, goalpkg.JudgeRequest) (goalpkg.JudgeResult, error) {
+						return goalpkg.JudgeResult{Verdict: gate.Verdict{Outcome: gate.VerdictOutcomeApproved}}, nil
+					},
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := executor.Execute(
+			t.Context(),
+			node,
+			looppkg.ActionExecutionInput{
+				WorkspaceID:      fixture.run.WorkspaceID,
+				LoopRunID:        fixture.run.ID,
+				Generation:       1,
+				NodeID:           node.ID,
+				CorrelationID:    fixture.taskRunID,
+				ToolScope:        toolspkg.Scope{ProfileID: store.DefaultProfileID},
+				RuntimeSelection: &looppkg.ActionRuntimeSelection{Catalog: integrationRuntimeCatalog{}},
+				Environment:      &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot},
+				GoalSegmentEpoch: 1,
+				Actor: &taskpkg.ActorContext{
+					Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "goal-managed-test"},
+				},
+				GoalContextNudgeRatio: new(0.8),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if raw.Control == nil || raw.Control.Disposition != looppkg.ActionDispositionSucceeded {
+			t.Fatalf("Goal control=%#v", raw.Control)
+		}
+		checkpoint, err := fixture.goalStore.LoadCheckpoint(t.Context(), fixture.key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if checkpoint.BindingEpoch != fixture.binding.BindingEpoch ||
+			checkpoint.SessionID != fixture.binding.SessionID ||
+			checkpoint.TurnsUsed != 1 {
+			t.Fatalf("reseeded or skipped work checkpoint=%#v", checkpoint)
+		}
+		markers, err := fixture.manager.Compactions(t.Context(), fixture.binding.SessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(markers) != 1 || markers[0].Status != "completed" || markers[0].Payload.Trigger != "requested" {
+			t.Fatalf("markers=%#v", markers)
+		}
+	})
+
 	// Invariant: deleting a stopped Goal owner settles unbound work and preserves unrelated sessions and Run history.
 	// Owner: Manager/daemon lifecycle seam; canonical managed runtime integration suite.
 	t.Run("Should delete a stopped session with an unbound Goal checkpoint", func(t *testing.T) {
@@ -1413,24 +1663,33 @@ func (f loopGoalCoordinatorRuntimeFixture) assertAwaitingGoalWithoutWorker(t *te
 }
 
 type loopGoalManagedRuntimeFixture struct {
-	runtime       *loopGoalRuntime
-	goalStore     loopGoalProductionStore
-	manager       *session.Manager
-	run           looppkg.Run
-	key           goalpkg.TurnKey
-	binding       looppkg.ActionSessionBinding
-	taskRunID     string
-	workspaceRoot string
-	agentName     string
+	homePaths         compozyconfig.HomePaths
+	config            compozyconfig.Config
+	resolvedWorkspace workspace.ResolvedWorkspace
+	daemonInstance    *Daemon
+	runtime           *loopGoalRuntime
+	goalStore         loopGoalProductionStore
+	manager           *session.Manager
+	run               looppkg.Run
+	key               goalpkg.TurnKey
+	binding           looppkg.ActionSessionBinding
+	taskRunID         string
+	workspaceRoot     string
+	agentName         string
 }
 
 type loopGoalManagedRuntimeFixtureConfig struct {
-	bindInitial bool
-	decorate    func(*session.Manager) SessionManager
-	agentTools  []string
+	providerCommand string
+	bindInitial     bool
+	decorate        func(*session.Manager) SessionManager
+	agentTools      []string
 }
 
 type loopGoalManagedRuntimeFixtureOption func(*loopGoalManagedRuntimeFixtureConfig)
+
+func withGoalRuntimeProviderCommand(command string) loopGoalManagedRuntimeFixtureOption {
+	return func(config *loopGoalManagedRuntimeFixtureConfig) { config.providerCommand = command }
+}
 
 func withoutInitialGoalBinding() loopGoalManagedRuntimeFixtureOption {
 	return func(config *loopGoalManagedRuntimeFixtureConfig) { config.bindInitial = false }
@@ -1494,7 +1753,7 @@ func (m *delayedEnsureCreatedManager) EnsureCreated(
 func newLoopGoalManagedRuntimeFixture(
 	t *testing.T,
 	suffix string,
-	driver *harnessIntegrationDriver,
+	driver session.AgentDriver,
 	options ...loopGoalManagedRuntimeFixtureOption,
 ) loopGoalManagedRuntimeFixture {
 	t.Helper()
@@ -1507,6 +1766,14 @@ func newLoopGoalManagedRuntimeFixture(
 	workspaceRoot := homePaths.HomeDir + "/workspace"
 	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
 	resolvedWorkspace.Agents[0].Tools = slices.Clone(config.agentTools)
+	if config.providerCommand != "" {
+		cfg.Roles.AutoTitle.Enabled = false
+		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(config.providerCommand)
+		cfg.Providers["acpmock-replacement"] = acpmock.ProviderConfig(config.providerCommand)
+		resolvedWorkspace.Config = cfg
+		resolvedWorkspace.Agents[0].Provider = acpmock.ProviderName
+		resolvedWorkspace.Agents[0].Model = ""
+	}
 	daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
@@ -1535,7 +1802,11 @@ func newLoopGoalManagedRuntimeFixture(
 	}
 
 	if driver == nil {
-		driver = newHarnessIntegrationDriver()
+		if config.providerCommand != "" {
+			driver = session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(daemonInstance.providerPreStarter)))
+		} else {
+			driver = newHarnessIntegrationDriver()
+		}
 	}
 	manager := newHarnessIntegrationManager(
 		t,
@@ -1561,7 +1832,18 @@ func newLoopGoalManagedRuntimeFixture(
 		ReattemptStrategy: looppkg.ReattemptFailedOnly, CreatedAt: now, StartedAt: now,
 		LastProgressAt: now, Inputs: map[string]any{},
 	}
-	applyLoopRunPinningForTest(t, &run, now)
+	if config.providerCommand != "" {
+		applyResolvedLoopRunPinningForTest(
+			t,
+			&run,
+			now,
+			compileManagedGoalDefinition(t, run.LoopName, resolvedWorkspace.Agents[0].Name, suffix),
+		)
+		run.IterationCap = 3
+		run.BudgetOnExceeded = loopdsl.BudgetExceededHalt
+	} else {
+		applyLoopRunPinningForTest(t, &run, now)
+	}
 	run.BudgetTokens = 100
 	run.BudgetWallSec = 60
 	if _, err := goalStore.CreateLoopRunForStart(
@@ -1634,12 +1916,21 @@ func newLoopGoalManagedRuntimeFixture(
 		nil,
 	)
 	fixture := loopGoalManagedRuntimeFixture{
+		homePaths: homePaths, config: cfg, resolvedWorkspace: resolvedWorkspace, daemonInstance: daemonInstance,
 		runtime: runtime, goalStore: goalStore, manager: manager,
 		run: run, key: key, taskRunID: taskRunID,
 		workspaceRoot: resolvedWorkspace.RootDir, agentName: resolvedWorkspace.Agents[0].Name,
 	}
 	if config.bindInitial {
-		binding, err := runtime.BindActionSession(testutil.Context(t), fixture.bindingRequest(suffix))
+		request := fixture.bindingRequest(suffix)
+		if config.providerCommand != "" {
+			var err error
+			request.Handle, err = loopdsl.DeriveGoalHandle("converge", suffix, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		binding, err := runtime.BindActionSession(testutil.Context(t), request)
 		if err != nil {
 			t.Fatalf("BindActionSession() error = %v", err)
 		}
@@ -1648,7 +1939,7 @@ func newLoopGoalManagedRuntimeFixture(
 	return fixture
 }
 
-func (f loopGoalManagedRuntimeFixture) bindingRequest(suffix string) looppkg.ActionSessionBindRequest {
+func (f *loopGoalManagedRuntimeFixture) bindingRequest(suffix string) looppkg.ActionSessionBindRequest {
 	return looppkg.ActionSessionBindRequest{
 		WorkspaceID: f.run.WorkspaceID, ProfileID: store.DefaultProfileID, LoopRunID: f.run.ID, Generation: 1,
 		NodeID: "converge", ItemIndex: 0, Agent: f.agentName,
@@ -1662,7 +1953,7 @@ func (f loopGoalManagedRuntimeFixture) bindingRequest(suffix string) looppkg.Act
 	}
 }
 
-func (f loopGoalManagedRuntimeFixture) createOriginSession(
+func (f *loopGoalManagedRuntimeFixture) createOriginSession(
 	t *testing.T,
 	suffix string,
 ) (string, store.SessionCreationIdentity) {
@@ -1711,7 +2002,7 @@ func assertSessionProvenanceParent(
 	}
 }
 
-func (f loopGoalManagedRuntimeFixture) preparePrompt(
+func (f *loopGoalManagedRuntimeFixture) preparePrompt(
 	t *testing.T,
 	promptID string,
 	reporter looppkg.ActionUsageReporter,

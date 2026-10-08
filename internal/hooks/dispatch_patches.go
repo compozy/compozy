@@ -154,19 +154,6 @@ func mergePermissionRequestPatch(
 	return payload
 }
 
-func applyContextCompactionPatch(payload ContextCompactPayload, patch ContextCompactionPatch) ContextCompactPayload {
-	if patch.Reason != nil {
-		payload.Reason = *patch.Reason
-	}
-	if patch.Strategy != nil {
-		payload.Strategy = *patch.Strategy
-	}
-	if patch.ContextBlocks != nil {
-		payload.ContextBlocks = cloneContextBlocks(patch.ContextBlocks)
-	}
-	return payload
-}
-
 func applyCoordinatorSpawnPatch(
 	payload CoordinatorPreSpawnPayload,
 	patch CoordinatorSpawnPatch,

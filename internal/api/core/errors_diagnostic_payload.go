@@ -20,6 +20,10 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
 	switch {
+	case errors.Is(err, session.ErrCompactionUnsupported):
+		payload.Code = "compaction_unsupported"
+	case errors.Is(err, session.ErrPromptInProgress):
+		payload.Code = "session_busy"
 	case errors.Is(err, settingspkg.ErrMCPServerNameTaken):
 		payload.Code = "mcp_server_name_taken"
 	case errors.Is(err, session.ErrActiveTurnMismatch):

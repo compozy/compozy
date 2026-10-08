@@ -53,6 +53,7 @@ func clearPromptState(session *Session, turnID string) {
 	session.currentTurnID = ""
 	session.currentTurnSource = ""
 	session.currentPromptMessage = ""
+	session.currentPromptDelivery = PromptDeliveryNormal
 	session.currentPromptMeta = acp.PromptMeta{}
 	session.currentSkillInvocations = nil
 	session.currentPromptCancel = nil

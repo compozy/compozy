@@ -199,6 +199,12 @@ func (a *recoveredManagedGoalPromptAccumulator) accept(event store.SessionEvent)
 	if a.result.EventStartSeq == 0 {
 		a.result.EventStartSeq = event.Sequence
 	}
+	if agentEvent.Compaction != nil && agentEvent.Compaction.Terminal {
+		a.result.Compaction = &looppkg.ActionCompactionOutcome{
+			CompactionID: agentEvent.Compaction.CompactionID,
+			Status:       agentEvent.Compaction.Status,
+		}
+	}
 	a.appendText(agentEvent)
 	if err := a.observeUsage(event.Sequence, agentEvent.Usage); err != nil {
 		return false, err

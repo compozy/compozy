@@ -12,6 +12,7 @@ import (
 )
 
 type promptRequest struct {
+	delivery               PromptDelivery
 	turnID                 string
 	runID                  string
 	target                 string

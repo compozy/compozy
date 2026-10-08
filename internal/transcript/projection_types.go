@@ -98,10 +98,11 @@ type ProjectionState struct {
 type EntryKind string
 
 const (
-	EntryKindAssistant EntryKind = "assistant"
-	EntryKindUser      EntryKind = "user"
-	EntryKindSystem    EntryKind = "system"
-	EntryKindMarker    EntryKind = "marker"
+	EntryKindAssistant  EntryKind = "assistant"
+	EntryKindUser       EntryKind = "user"
+	EntryKindSystem     EntryKind = "system"
+	EntryKindMarker     EntryKind = "marker"
+	EntryKindCompaction EntryKind = "compaction"
 )
 
 // EntryIdentity is the stable metadata for one logical transcript segment.

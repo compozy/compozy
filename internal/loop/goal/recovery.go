@@ -121,13 +121,18 @@ func (e *Executor) recoverPendingPrompt(ctx context.Context, segment *segmentSta
 		}
 		operationBase, operationBaseReported := segment.usage.snapshot()
 		contextSequence, contextUsed := recoveredCompactionBaseline(checkpoint)
-		message, err := e.recoveryPromptMessage(segment, checkpoint)
+		delivery := loop.ActionPromptDeliveryNormal
+		if checkpoint.PromptKind == promptKindCompact {
+			delivery = loop.ActionPromptDeliveryMaintenance
+		}
+		message, err := e.recoveryPromptMessage(ctx, segment, checkpoint)
 		if err != nil {
 			return nil, fmt.Errorf("goal: render recovered prompt: %w", err)
 		}
 		_, err = e.binder.PrepareActionPrompt(ctx, segment.binding, loop.ActionPromptRequest{
 			PromptID:             checkpoint.PromptID,
 			Message:              message,
+			Delivery:             delivery,
 			Kind:                 checkpoint.PromptKind,
 			Owner:                segment.promptOwner(turn),
 			UsageBaseTokens:      operationBase,
@@ -170,9 +175,20 @@ func recoveredCompactionBaseline(checkpoint Checkpoint) (*int64, *int64) {
 	return new(*checkpoint.UsageSequence), new(*checkpoint.CompactionBaselineUsed)
 }
 
-func (e *Executor) recoveryPromptMessage(segment *segmentState, checkpoint Checkpoint) (string, error) {
+func (e *Executor) recoveryPromptMessage(
+	ctx context.Context,
+	segment *segmentState,
+	checkpoint Checkpoint,
+) (string, error) {
 	if checkpoint.PromptKind == promptKindCompact {
-		return renderCompactionPrompt(segment), nil
+		command, ok, err := e.context.CompactionCommand(ctx, segment.binding)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", fmt.Errorf("%w: compaction command unavailable", loop.ErrValidation)
+		}
+		return "/" + command, nil
 	}
 	turn := checkpoint.TurnsUsed + 1
 	return renderWorkPrompt(segment, turn, checkpoint.PromptKind)

@@ -2441,16 +2441,15 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 			CacheReadTokens:  new(int64(4)),
 			CacheWriteTokens: new(int64(5)),
 			Context: contract.SessionContextPayload{
-				State:             contract.SessionContextStateReported,
-				Used:              new(int64(80)),
-				Size:              new(int64(100)),
-				Ratio:             new(0.8),
-				SizeSource:        "agent",
-				Sequence:          new(int64(10)),
-				ReportedTurnID:    "A",
-				ReportedAt:        &at,
-				PressureThreshold: new(0.85),
-				Stale:             new(false),
+				State:          contract.SessionContextStateReported,
+				Used:           new(int64(80)),
+				Size:           new(int64(100)),
+				Ratio:          new(0.8),
+				SizeSource:     "agent",
+				Sequence:       new(int64(10)),
+				ReportedTurnID: "A",
+				ReportedAt:     &at,
+				Stale:          new(false),
 				Injected: &contract.SessionContextInjectedPayload{
 					Estimate: "bytes_div_4",
 					Tokens:   20,
@@ -2481,7 +2480,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{"Cache Read", "Cache Write", "Context", "Skills catalog", "80 / 100 (80%)", "Compaction At", "85%", "≈ 20", "unchanged since A (last seen B)", "1024 B", "screenshot.png", "binary, no estimate", "included in the startup prompt"} {
+		for _, want := range []string{"Cache Read", "Cache Write", "Context", "Skills catalog", "80 / 100 (80%)", "≈ 20", "unchanged since A (last seen B)", "1024 B", "screenshot.png", "binary, no estimate", "included in the startup prompt"} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("missing %q in %s", want, stdout)
 			}
@@ -2490,7 +2489,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{"cache_read_tokens", "cache_write_tokens", "context_state", "context_sequence", "context_reported_turn_id", "context_pressure_threshold", "injected_tokens", "injected_stale", "context_reported_at", "2026-09-11T10:00:00Z", "context_rows[3]", "Skills catalog", "screenshot.png", "startup_opaque", "bytes_div_4"} {
+		for _, want := range []string{"cache_read_tokens", "cache_write_tokens", "context_state", "context_sequence", "context_reported_turn_id", "injected_tokens", "injected_stale", "context_reported_at", "2026-09-11T10:00:00Z", "context_rows[3]", "Skills catalog", "screenshot.png", "startup_opaque", "bytes_div_4"} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("missing TOON field %q in %s", want, stdout)
 			}
@@ -2536,7 +2535,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 				},
 			},
 			{TurnID: "D", Sequence: 77, Usage: &contract.TokenUsagePayload{InputTokens: new(int64(10)), Timestamp: at}},
-		}, Compactions: []contract.SessionCompactionPayload{{TurnID: "B", Sequence: 40, At: at, SpanArchived: true, Pressure: 0.85, ContextUsed: 85, ContextSize: 100, FromSequence: 1, ToSequence: 8}}}
+		}, Compactions: []contract.SessionCompactionPayload{{TurnID: "B", Sequence: 40, At: at, CompactionID: "c1", Trigger: "agent", Status: "completed", ContextUsed: new(int64(85)), ContextSize: new(int64(100))}}}
 		deps := newWorkspaceTestDeps(
 			t,
 			&stubClient{
@@ -2563,7 +2562,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{"80 / 100", "CompozyOS compaction · at 85%", "replay span archived", "≈ 8 (unchanged)", "CACHE R", "CACHE W"} {
+		for _, want := range []string{"80 / 100", "Agent compaction · c1 · agent · completed · 85 / 100", "≈ 8 (unchanged)", "CACHE R", "CACHE W"} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("missing turns %q in %s", want, stdout)
 			}
@@ -2574,8 +2573,8 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		}
 		for _, want := range []string{
 			"session_usage_turns[3]{turn_id,sequence}", "usage[2]", "deliveries[1]", "spans[1]",
-			"compactions[1]{turn_id,sequence,at,span_archived,from_sequence,to_sequence,context_used,context_size,pressure,strategy}",
-			"B,40,2026-09-11T10:00:00Z,true,1,8,85,100,0.85",
+			"compactions[1]{turn_id,sequence,at,compaction_id,trigger,status,context_used,context_size}",
+			"B,40,2026-09-11T10:00:00Z,c1,agent,completed,85,100",
 		} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("missing structured TOON %q in %s", want, stdout)
@@ -4440,4 +4439,81 @@ func TestSessionDeriveCommandDaemonFailures(t *testing.T) {
 				err, cliExitCodeForError(err))
 		}
 	})
+}
+
+type compactEventStreamClient struct {
+	stream func(context.Context, string, SessionEventQuery, string, SSEHandler) error
+}
+
+func (c compactEventStreamClient) StreamSessionEvents(
+	ctx context.Context,
+	id string,
+	query SessionEventQuery,
+	lastID string,
+	handler SSEHandler,
+) error {
+	return c.stream(ctx, id, query, lastID, handler)
+}
+
+// The CLI waits for its own turn's terminal event even after observing compaction completion.
+func TestWaitSessionCompaction(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct{ status, terminal, outcome string }{
+		{"completed", acp.EventTypeDone, "completed"},
+		{"failed", acp.EventTypeDone, "failed"},
+		{"cancelled", acp.EventTypeDone, "cancelled"}, //nolint:misspell // ACP wire spelling.
+		{"", acp.EventTypeDone, "turn_completed"},
+		{"", acp.EventTypeError, "turn_failed"},
+	} {
+		t.Run(test.outcome, func(t *testing.T) {
+			t.Parallel()
+			terminalSeen := false
+			client := compactEventStreamClient{
+				stream: func(_ context.Context, id string, query SessionEventQuery, _ string, handler SSEHandler) error {
+					if id != "sess-1" || query.TurnID != "turn-1" || !query.Forward {
+						t.Fatalf("stream scope: %s %#v", id, query)
+					}
+					send := func(turnID, kind, status string) error {
+						event := acp.AgentEvent{Type: kind}
+						if status != "" {
+							event.Compaction = &acp.CompactionObservation{
+								CompactionID: "c1",
+								Status:       status,
+								Terminal:     true,
+							}
+						}
+						content, err := transcript.MarshalAgentEvent(event)
+						if err != nil {
+							t.Fatal(err)
+						}
+						frame, err := json.Marshal(
+							SessionEventRecord{TurnID: turnID, Type: kind, Content: json.RawMessage(content)},
+						)
+						if err != nil {
+							t.Fatal(err)
+						}
+						return handler(SSEEvent{Data: frame})
+					}
+					if err := send("other-turn", acp.EventTypeError, ""); err != nil {
+						t.Fatalf("unrelated turn ended wait: %v", err)
+					}
+					if test.status != "" {
+						if err := send("turn-1", acp.EventTypeCompaction, test.status); err != nil {
+							t.Fatalf("compaction frame ended turn wait: %v", err)
+						}
+					}
+					terminalSeen = true
+					return send("turn-1", test.terminal, "")
+				},
+			}
+			outcome, err := waitSessionCompaction(
+				t.Context(),
+				client,
+				contract.SessionCompactResponse{SessionID: "sess-1", PromptID: "turn-1"},
+			)
+			if err != nil || outcome != test.outcome || !terminalSeen {
+				t.Fatalf("wait = %q, %v, terminal=%v", outcome, err, terminalSeen)
+			}
+		})
+	}
 }

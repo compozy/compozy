@@ -1391,6 +1391,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			approval = req
 			return session.ApprovalResult{Outcome: "applied", RequestID: req.RequestID, Decision: req.Decision}, nil
 		}
+		base.RequestCompactionFn = func(_ context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
+			if id != targetID {
+				t.Fatalf("compaction target=%q", id)
+			}
+			return session.CompactionRequestResult{SessionID: id, PromptID: "compact-1", Command: "compact"}, nil, nil
+		}
 		base.CancelPromptFn = func(_ context.Context, id string) (session.PromptCancelResult, error) {
 			canceledTarget = id
 			return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled, TurnID: "turn-1"}, nil
@@ -1491,6 +1497,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				`"outcome":"answered"`,
 			},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-target"}`, `"turn_id":"turn-1"`},
+			{toolspkg.ToolIDSessionCompact, `{"session_id":"sess-target"}`, `"status":"accepted"`},
 		}
 		for _, call := range calls {
 			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{

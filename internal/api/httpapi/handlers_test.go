@@ -391,6 +391,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/sessions",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/compact",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/rewind",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/continue",
@@ -3869,4 +3870,59 @@ func TestExtensionKitAndSecretsRoutesReachHTTPService(t *testing.T) {
 
 func contains(values []string, target string) bool {
 	return slices.Contains(values, target)
+}
+
+// IT-026: transport handlers preserve native compaction acceptance and refusal codes.
+func TestCompactSessionHandler(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"Accepted", nil, http.StatusAccepted, ""},
+		{"Busy", session.ErrPromptInProgress, http.StatusConflict, "session_busy"},
+		{"Unsupported", session.ErrCompactionUnsupported, http.StatusConflict, "compaction_unsupported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := stubSessionManager{
+				RequestCompactionFn: func(_ context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
+					if id != "sess-123" {
+						t.Fatalf("request target=%q", id)
+					}
+					return session.CompactionRequestResult{
+						SessionID: id,
+						PromptID:  "prompt-compact",
+						Command:   "compact",
+					}, nil, tc.err
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/compact",
+				[]byte("{}"),
+			)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if tc.err != nil {
+				var payload contract.ErrorPayload
+				decodeJSONResponse(t, response, &payload)
+				if payload.Code != tc.code {
+					t.Fatalf("code=%q want %q", payload.Code, tc.code)
+				}
+				return
+			}
+			var payload contract.SessionCompactResponse
+			decodeJSONResponse(t, response, &payload)
+			if payload.SessionID != "sess-123" || payload.PromptID != "prompt-compact" ||
+				payload.Command != "compact" ||
+				payload.Status != "accepted" {
+				t.Fatalf("receipt=%#v", payload)
+			}
+		})
+	}
 }

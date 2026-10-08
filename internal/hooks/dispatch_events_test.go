@@ -118,7 +118,7 @@ func TestTurnIDFromPayloadTrimsSupportedPayloads(t *testing.T) {
 		},
 		{
 			name:    "Should return turn ID for context compact payload",
-			payload: ContextCompactPayload{TurnID: " turn-compact "},
+			payload: ContextCompactionPayload{TurnID: " turn-compact "},
 			want:    "turn-compact",
 		},
 	}
@@ -239,7 +239,7 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name:     "Should return session context for context compact payload",
-			payload:  ContextCompactPayload{SessionContext: session},
+			payload:  ContextCompactionPayload{SessionContext: session},
 			expected: session,
 		},
 		{

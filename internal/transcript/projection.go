@@ -86,6 +86,8 @@ func ProjectAssignedEntry(events []store.SessionEvent, identity EntryIdentity) (
 	messageID := fallbackMessageID(identity.MessageID, identity.BaseMessageID, identity.LogicalID)
 
 	switch identity.Kind {
+	case EntryKindCompaction:
+		return projectCompactionEntry(sorted, identity)
 	case EntryKindUser:
 		message := inputUIMessage(decodeStoredEvent(sorted[0]), UIRoleUser)
 		return projectedInputEntry(message, identity), nil

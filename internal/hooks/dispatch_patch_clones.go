@@ -63,10 +63,6 @@ func toolResultPatchDenied(patch ToolResultPatch) bool {
 	return patch.Deny
 }
 
-func contextCompactionPatchDenied(patch ContextCompactionPatch) bool {
-	return patch.Deny
-}
-
 func coordinatorSpawnPatchDenied(patch CoordinatorSpawnPatch) bool {
 	return patch.Deny
 }

@@ -101,21 +101,18 @@ func TestHookMatcherMatchesMessageAndContext(t *testing.T) {
 
 	contextMatcher := HookMatcher{
 		CompactionMatcher: &CompactionMatcher{
-			Reason:   "token_limit",
-			Strategy: "summary",
+			Trigger: "requested",
 		},
 	}
-	if !contextMatcher.MatchesContextCompact(ContextCompactPayload{
-		Reason:   "token_limit",
-		Strategy: "summary",
+	if !contextMatcher.MatchesContextCompact(ContextCompactionPayload{
+		Trigger: "requested",
 	}) {
 		t.Fatal("MatchesContextCompact() = false, want true")
 	}
-	if contextMatcher.MatchesContextCompact(ContextCompactPayload{
-		Reason:   "manual",
-		Strategy: "summary",
+	if contextMatcher.MatchesContextCompact(ContextCompactionPayload{
+		Trigger: "agent",
 	}) {
-		t.Fatal("MatchesContextCompact() = true, want false for reason mismatch")
+		t.Fatal("MatchesContextCompact() = true, want false for trigger mismatch")
 	}
 }
 

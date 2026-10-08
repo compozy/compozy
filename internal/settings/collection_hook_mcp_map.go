@@ -63,8 +63,7 @@ func hookCompactionMatcherMap(matcher map[string]any, compaction *hookspkg.Compa
 	if compaction == nil {
 		return
 	}
-	hookMatcherString(matcher, "compaction_reason", compaction.Reason)
-	hookMatcherString(matcher, "compaction_strategy", compaction.Strategy)
+	hookMatcherString(matcher, "compaction_trigger", compaction.Trigger)
 }
 
 func hookExecutorMap(declaration hookspkg.HookDecl) map[string]any {

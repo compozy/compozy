@@ -12,6 +12,10 @@ import (
 )
 
 type StubSessionManager struct {
+	RequestCompactionFn func(
+		context.Context, string,
+	) (session.CompactionRequestResult, <-chan acp.AgentEvent, error)
+	CompactionBoundaryFn         func(context.Context, string) (*int64, error)
 	UsageEventsFn                func(context.Context, string) ([]session.UsageEventEnvelope, error)
 	DeliveriesFn                 func(context.Context, string) ([]session.DeliveryEventEnvelope, error)
 	CompactionsFn                func(context.Context, string) ([]session.CompactionEnvelope, error)

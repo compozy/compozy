@@ -5,6 +5,7 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -16,12 +17,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testing.T) {
@@ -1021,4 +1028,213 @@ func assertGoalTurnsCLIParity(
 			t.Fatalf("CLI Goal turn JSONL line %d = %#v, want %#v", index, turn, want.Turns[index])
 		}
 	}
+}
+
+// IT-032 invariant: a native terminal observed before managed settlement survives
+// daemon/runtime shutdown and database reopen with the exact executor-issued ID.
+// Owner: daemon managed Goal persistence; canonical Goal command integration suite.
+func TestGoalCompactionRestart(t *testing.T) {
+	t.Run("Should recover an inflight ticket once after reopening the daemon and session store", func(t *testing.T) {
+		// Serial: integrationHomePaths uses t.Setenv.
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		command := acpmock.BuildCommand(
+			acpmock.RequireDriver(t),
+			mockFixturePath(t, "native_compaction_fixture.json"),
+			"compaction-claude",
+			filepath.Join(t.TempDir(), "restart-driver.jsonl"),
+		)
+		fixture := newLoopGoalManagedRuntimeFixture(
+			t,
+			"restart-compaction",
+			nil,
+			withGoalRuntimeProviderCommand(command),
+		)
+		baseline, err := fixture.manager.Prompt(ctx, fixture.binding.SessionID, "baseline")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drainHarnessIntegrationEvents(baseline)
+		connection, ok := fixture.goalStore.(interface{ DB() *sql.DB })
+		if !ok {
+			t.Fatal("Goal store lacks real SQL connection")
+		}
+		// The managed fixture begins after generation 1 dispatch; persist its live
+		// Goal output so boot sees the same active worker as the checkpoint.
+		_, err = connection.DB().ExecContext(ctx, `INSERT INTO loop_generation_outputs
+		 (loop_run_id, generation, node_id, item_index, status, task_run_id)
+		 VALUES (?, 1, 'converge', 0, 'running', ?)`, string(fixture.run.ID), fixture.taskRunID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Fail only the durable terminal write. Native ACP/event persistence remains real.
+		// Both terminal and ambiguity writes must fail, leaving the same dispatched ticket.
+		_, err = connection.DB().
+			ExecContext(ctx, `CREATE TRIGGER interrupt_goal_terminal BEFORE UPDATE OF terminal_at ON session_input_queue
+   WHEN NEW.owner_kind = 'goal' AND OLD.terminal_at IS NULL AND NEW.terminal_at IS NOT NULL
+   BEGIN SELECT RAISE(ABORT, 'restart before managed settlement'); END`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		node := compileManagedGoalDefinition(t, "restart-compaction", fixture.agentName, "restart-compaction").Definition.Graph.Nodes[0]
+		executor, err := goalpkg.NewExecutor(goalpkg.Dependencies{
+			Store: fixture.goalStore, Binder: fixture.runtime, Budget: fixture.goalStore,
+			Context: fixture.runtime, Recovery: fixture.runtime,
+			Judge: loopGoalJudgeEvaluatorFunc(func(context.Context, goalpkg.JudgeRequest) (goalpkg.JudgeResult, error) {
+				return goalpkg.JudgeResult{}, errors.New("judge must not run before compaction settlement")
+			}),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		executionCtx, stopExecution := context.WithCancel(ctx)
+		defer stopExecution()
+		finished := make(chan error, 1)
+		go func() {
+			_, executionErr := executor.Execute(executionCtx, node, looppkg.ActionExecutionInput{
+				WorkspaceID:           fixture.run.WorkspaceID,
+				LoopRunID:             fixture.run.ID,
+				Generation:            1,
+				NodeID:                node.ID,
+				CorrelationID:         fixture.taskRunID,
+				ToolScope:             toolspkg.Scope{ProfileID: store.DefaultProfileID},
+				RuntimeSelection:      &looppkg.ActionRuntimeSelection{Catalog: integrationRuntimeCatalog{}},
+				Environment:           &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot},
+				GoalSegmentEpoch:      1,
+				GoalContextNudgeRatio: new(0.8),
+				Actor: &taskpkg.ActorContext{
+					Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "goal-managed-test"},
+				},
+			})
+			finished <- executionErr
+		}()
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		var checkpoint goalpkg.Checkpoint
+		for {
+			checkpoint, err = fixture.goalStore.LoadCheckpoint(ctx, fixture.key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if checkpoint.PromptID != "" {
+				events, readErr := fixture.manager.Events(
+					ctx,
+					fixture.binding.SessionID,
+					store.EventQuery{TurnID: checkpoint.PromptID},
+				)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				if len(events) > 0 && events[len(events)-1].Type == acp.EventTypeDone {
+					break
+				}
+			}
+			select {
+			case <-ctx.Done():
+				t.Fatal("native compaction terminal never persisted")
+			case <-ticker.C:
+			}
+		}
+		if err := fixture.manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		stopExecution()
+		select {
+		case executionErr := <-finished:
+			if executionErr == nil || !strings.Contains(executionErr.Error(), "restart before managed settlement") {
+				t.Fatalf("injected terminal write failure = %v", executionErr)
+			}
+		case <-ctx.Done():
+			t.Fatal("executor failed to stop at interrupted settlement")
+		}
+		ticket := looppkg.ActionPromptTicket{PromptID: checkpoint.PromptID, QueueEntryID: checkpoint.QueueEntryID}
+		entry, err := fixture.goalStore.GetSessionInputQueueEntryByID(ctx, ticket.QueueEntryID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if managedGoalEntrySettled(&entry) || !strings.HasPrefix(ticket.PromptID, "goal-prompt:") {
+			t.Fatalf("ticket before restart = %#v checkpoint=%#v", entry, checkpoint)
+		}
+		if err := fixture.manager.Stop(ctx, fixture.binding.SessionID); err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.daemonInstance.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+
+		restarted, deps := bootHarnessPolicyDaemon(t, fixture.homePaths, &fixture.config)
+		t.Cleanup(func() {
+			if err := restarted.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		reopened, ok := restarted.registry.(loopGoalProductionStore)
+		if !ok {
+			t.Fatal("reopened registry lacks Goal production store")
+		}
+		queue, ok := restarted.registry.(store.SessionInputQueueStore)
+		if !ok {
+			t.Fatal("reopened registry lacks queue store")
+		}
+		reopenedSQL, ok := reopened.(interface{ DB() *sql.DB })
+		if !ok {
+			t.Fatal("reopened Goal store lacks SQL connection")
+		}
+		_, err = reopenedSQL.DB().ExecContext(ctx, `DROP TRIGGER interrupt_goal_terminal;
+   CREATE TABLE goal_restart_settlements (count INTEGER NOT NULL);
+   INSERT INTO goal_restart_settlements VALUES (0);
+   CREATE TRIGGER count_goal_restart_settlement AFTER UPDATE OF terminal_at ON session_input_queue
+   WHEN NEW.owner_kind = 'goal' AND OLD.terminal_at IS NULL AND NEW.terminal_at IS NOT NULL
+   BEGIN UPDATE goal_restart_settlements SET count = count + 1; END`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager := newHarnessIntegrationManager(t, fixture.homePaths, deps, fixture.resolvedWorkspace,
+			session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(restarted.providerPreStarter))),
+			session.WithHostedMCPLauncher(deps.HostedMCP), session.WithSessionCatalog(restarted.registry),
+			session.WithSessionCreationStore(reopened), session.WithSessionInputQueueStore(queue))
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		runtime := newLoopGoalProductionRuntime(
+			reopened,
+			manager,
+			fixture.homePaths.HomeDir,
+			&loopSessionPolicyGate{
+				workspaceResolver: &harnessIntegrationWorkspaceResolver{resolved: fixture.resolvedWorkspace},
+			},
+			time.Now,
+			discardLogger(),
+			nil,
+		)
+		identity := goalpkg.PromptRecoveryIdentity{Key: fixture.key, ExpectedControlEpoch: checkpoint.ControlEpoch,
+			ExpectedBindingEpoch: checkpoint.BindingEpoch, QueueEntryID: ticket.QueueEntryID, PromptID: ticket.PromptID,
+			SessionID: fixture.binding.SessionID}
+		for range 2 {
+			result, found, recoveryErr := runtime.ReconcileTerminalFromEvents(ctx, identity)
+			if recoveryErr != nil || !found || result.PromptID != ticket.PromptID || result.Compaction == nil ||
+				result.Compaction.CompactionID != "native-1" || result.Compaction.Status != "completed" {
+				t.Fatalf("reopened terminal = %#v found=%v err=%v", result, found, recoveryErr)
+			}
+			awaited, awaitErr := runtime.AwaitActionPrompt(ctx, ticket)
+			if awaitErr != nil || awaited.PromptID != ticket.PromptID || awaited.Compaction == nil ||
+				awaited.Compaction.Status != "completed" {
+				t.Fatalf("reopened ticket = %#v err=%v", awaited, awaitErr)
+			}
+		}
+		var settlements int
+		if err := reopenedSQL.DB().
+			QueryRowContext(ctx, "SELECT count FROM goal_restart_settlements").
+			Scan(&settlements); err != nil {
+			t.Fatal(err)
+		}
+		if settlements != 1 {
+			t.Fatalf("durable ticket settlements=%d, want 1", settlements)
+		}
+	})
 }

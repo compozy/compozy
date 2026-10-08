@@ -91,9 +91,8 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"message_delta_type": {},
 	},
 	HookEventFamilyContext: {
-		matcherWorktreeIDKey:  {},
-		"compaction_reason":   {},
-		"compaction_strategy": {},
+		matcherWorktreeIDKey: {},
+		"compaction_trigger": {},
 	},
 	HookEventFamilyCoordinator: {
 		matcherAgentNameKey:      {},

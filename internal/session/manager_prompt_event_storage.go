@@ -104,6 +104,16 @@ func (m *Manager) recordEventWithWriter(
 	write func(context.Context, EventRecorder, store.SessionEvent) (store.SessionEvent, error),
 ) error {
 	event = m.enrichRecordedAgentEvent(session, event)
+	if event.Type == acp.EventTypeCompaction || event.Type == acp.EventTypeSystem {
+		event = transcript.RedactAgentEvent(event)
+	}
+	compaction, skip, err := m.prepareCompactionSnapshot(ctx, session, &event)
+	if err != nil {
+		return err
+	}
+	if skip {
+		return m.dispatchObservedCompaction(ctx, session, event, compaction)
+	}
 	attentionCommitted, err := m.applyAttentionAgentEvent(ctx, session, event)
 	if err != nil {
 		return fmt.Errorf("session: persist canonical attention event: %w", err)
@@ -150,7 +160,7 @@ func (m *Manager) recordEventWithWriter(
 		m.publishSessionCatalogWakeForEvent(session, event)
 	}
 
-	return nil
+	return m.dispatchObservedCompaction(ctx, session, event, compaction)
 }
 
 func (m *Manager) handleAttentionTranscriptFailure(

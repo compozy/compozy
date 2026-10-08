@@ -12,9 +12,8 @@ func (h *Hooks) DispatchContextPreCompact(
 		HookContextPreCompact,
 		payload,
 		dispatchConfig[ContextPreCompactPayload, ContextPreCompactPatch]{
-			match:  matchContextCompact,
-			apply:  applyContextCompactionPatch,
-			denied: contextCompactionPatchDenied,
+			match: matchContextCompact,
+			apply: applyNoop[ContextCompactionPayload, ContextCompactionPatch],
 		},
 	)
 }
@@ -29,9 +28,8 @@ func (h *Hooks) DispatchContextPostCompact(
 		HookContextPostCompact,
 		payload,
 		dispatchConfig[ContextPostCompactPayload, ContextPostCompactPatch]{
-			match:  matchContextCompact,
-			apply:  applyContextCompactionPatch,
-			denied: contextCompactionPatchDenied,
+			match: matchContextCompact,
+			apply: applyNoop[ContextCompactionPayload, ContextCompactionPatch],
 		},
 	)
 }

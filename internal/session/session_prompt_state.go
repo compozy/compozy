@@ -31,6 +31,7 @@ func (s *Session) beginExclusivePromptSetupForRequest(
 	s.currentTurnID = turnID
 	s.currentTurnSource = turnSource
 	s.currentPromptMessage = strings.TrimSpace(req.authoredMessage)
+	s.currentPromptDelivery = req.delivery
 	s.currentPromptMeta = req.meta.Normalize()
 	s.currentSkillInvocations = cloneSkillInvocations(req.skillInvocations)
 	s.currentPromptCancel = cancel
@@ -215,4 +216,20 @@ func (s *Session) clearCurrentTurnSource() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentTurnSource = ""
+}
+
+// CurrentPromptDelivery reports the active prompt's context-delivery policy.
+func (s *Session) CurrentPromptDelivery() PromptDelivery {
+	if s == nil {
+		return PromptDeliveryNormal
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentPromptDelivery
+}
+
+func (s *Session) setCurrentPromptDelivery(delivery PromptDelivery) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentPromptDelivery = delivery
 }
