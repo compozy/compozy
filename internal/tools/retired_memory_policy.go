@@ -49,9 +49,6 @@ var RetiredMemoryToolIDs = []ToolID{
 
 var RetiredMemoryToolsetIDs = []ToolsetID{"compozy__memory", "compozy__memory_admin"}
 
-// RetiredInternalSpawnRoles never expire in v0.6.0: retained directories make this recovery boundary permanent.
-var RetiredInternalSpawnRoles = []string{"memory-extractor", "checkpoint-summary"}
-
 // ToolPolicy retains authored references until boundary validation resolves them.
 type ToolPolicy struct {
 	Tools     []string

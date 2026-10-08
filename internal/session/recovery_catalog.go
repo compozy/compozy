@@ -8,8 +8,12 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 )
+
+// retiredInternalSpawnRoles names spawn roles of internal sessions removed with the memory
+// feature. Their directories are never deleted, so this recovery boundary is permanent and
+// does not expire with the v0.6.0 shims.
+var retiredInternalSpawnRoles = []string{"memory-extractor", "checkpoint-summary"}
 
 // ErrRecoveryPersistence prevents admission against an incompletely recovered session inventory.
 var ErrRecoveryPersistence = errors.New("session: recovery persistence failed")
@@ -25,7 +29,7 @@ func RecoveryMetadataSkipReason(meta *store.SessionMeta) string {
 	}
 	if meta.Lineage != nil {
 		role := strings.TrimSpace(meta.Lineage.SpawnRole)
-		if slices.Contains(toolspkg.RetiredInternalSpawnRoles, role) {
+		if slices.Contains(retiredInternalSpawnRoles, role) {
 			return "retired_spawn_role"
 		}
 	}
