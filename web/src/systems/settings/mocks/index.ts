@@ -15,7 +15,6 @@ export {
   settingsMCPServersCollectionFixture,
   settingsMCPServerFixtures,
   settingsMarketplaceSectionFixture,
-  settingsMemorySectionFixture,
   settingsObservabilitySectionFixture,
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,

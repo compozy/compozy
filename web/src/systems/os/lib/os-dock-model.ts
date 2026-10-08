@@ -12,7 +12,6 @@ const DOCK_ICON_IDS = [
   "jobs",
   "triggers",
   "marketplace",
-  "knowledge",
   "vault",
 ] as const;
 
@@ -28,7 +27,6 @@ const DOCK_ICON_BY_APP = {
   jobs: "jobs",
   triggers: "triggers",
   marketplace: "marketplace",
-  knowledge: "knowledge",
   vault: "vault",
 } as const satisfies Record<Exclude<OsAppId, "new-tab" | "settings">, DockIconId>;
 

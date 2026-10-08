@@ -320,7 +320,6 @@ describe("buildHomeSystemModel", () => {
       "daemon",
       "providers",
       "scheduler",
-      "memory",
       "hooks",
       "retention",
     ]);

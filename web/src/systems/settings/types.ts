@@ -9,7 +9,6 @@ export type SettingsPersonaSection = OperationResponse<"getSettingsPersona", 200
 export type SettingsPersonaFilter = NonNullable<OperationQuery<"getSettingsPersona">>;
 export type SettingsLayeredScope = SettingsPersonaFilter["scope"];
 export type SettingsUpdatePersonaRequest = OperationRequestBody<"updateSettingsPersona">;
-export type SettingsMemorySection = OperationResponse<"getSettingsMemory", 200>;
 export type SettingsSkillsSection = OperationResponse<"getSettingsSkills", 200>;
 export type SettingsAutomationSection = OperationResponse<"getSettingsAutomation", 200>;
 export type SettingsAttentionSection = OperationResponse<"getSettingsAttention", 200>;
@@ -33,7 +32,7 @@ export type SettingsHooksExtensionsInstalled = NonNullable<
 export type SettingsRolesSection = OperationResponse<"getSettingsRoles", 200>;
 export type SettingsRolesConfig = SettingsRolesSection["config"];
 export type RoleName = keyof SettingsRolesConfig;
-export type RoleFallbackEntry = SettingsRolesConfig["dream"]["fallback_chain"][number];
+export type RoleFallbackEntry = SettingsRolesConfig["coordinator"]["fallback_chain"][number];
 
 export type RolesStatusResponse = OperationResponse<"listRoles", 200>;
 export type RoleStatus = RolesStatusResponse["roles"][number];
@@ -119,7 +118,6 @@ export type SettingsMCPAuthExchangeRequest = OperationRequestBody<"exchangeSetti
 export type SettingsMCPAuthStatusResponse = OperationResponse<"exchangeSettingsMCPAuth", 200>;
 
 export type SettingsUpdateGeneralRequest = OperationRequestBody<"updateSettingsGeneral">;
-export type SettingsUpdateMemoryRequest = OperationRequestBody<"updateSettingsMemory">;
 export type SettingsUpdateRolesRequest = OperationRequestBody<"updateSettingsRoles">;
 export type SettingsUpdateSkillsRequest = OperationRequestBody<"updateSettingsSkills">;
 export type SettingsSkillsFilter = NonNullable<OperationQuery<"getSettingsSkills">>;
@@ -181,7 +179,6 @@ export type SettingsApplyRecordsFilter = NonNullable<OperationQuery<"listSetting
 export type SettingsMutationResult =
   | OperationResponse<"updateSettingsPersona", 200>
   | OperationResponse<"updateSettingsGeneral", 200>
-  | OperationResponse<"updateSettingsMemory", 200>
   | OperationResponse<"updateSettingsSkills", 200>
   | OperationResponse<"updateSettingsMarketplace", 200>
   | OperationResponse<"updateSettingsAutomation", 200>
@@ -201,7 +198,6 @@ export type SettingsWriteTarget = NonNullable<SettingsMutationResult["write_targ
 export type SettingsSectionName =
   | SettingsGeneralSection["section"]
   | SettingsPersonaSection["section"]
-  | SettingsMemorySection["section"]
   | SettingsRolesSection["section"]
   | SettingsSkillsSection["section"]
   | SettingsMarketplaceSection["section"]
@@ -239,7 +235,6 @@ export type SettingsSectionSlug =
   | "palette"
   | "profiles"
   | "providers"
-  | "memory"
   | "roles"
   | "skills"
   | "mcp"

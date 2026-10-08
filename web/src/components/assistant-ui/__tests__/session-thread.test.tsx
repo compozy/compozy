@@ -2659,7 +2659,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-native-artifact",
             state: "output-available",
             turn_id: "turn-native-artifact",
@@ -2693,7 +2693,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-acp-artifact",
             state: "output-available",
             turn_id: "turn-acp-artifact",
@@ -2701,7 +2701,7 @@ describe("SessionThread transcript states", () => {
             input: { query: "release evidence" },
             output: {
               type: "tool_result",
-              title: "Recall memory",
+              title: "Search sessions",
               raw: {
                 preview: "ACP bounded preview",
                 truncated: true,
@@ -2731,7 +2731,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "tool-compozy__memory_recall",
+            type: "tool-compozy__session_search",
             toolCallId: "tool-persisted-artifact",
             state: "output-available",
             turn_id: "turn-persisted-artifact",
@@ -2739,7 +2739,7 @@ describe("SessionThread transcript states", () => {
             input: { query: "release evidence" },
             output: {
               type: "tool_result",
-              title: "Recall memory",
+              title: "Search sessions",
               raw: {
                 content: "persisted bounded preview",
                 raw_output: {

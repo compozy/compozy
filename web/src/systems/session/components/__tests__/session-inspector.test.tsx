@@ -258,7 +258,6 @@ describe("Session context", () => {
         ...sessionContextFixture,
         state: "estimated_size",
         size_source: "catalog",
-        pressure_threshold: undefined,
       } as SessionContextPayload,
       label: "Context 35% used",
       copy: "Size from the model's specs.",
@@ -280,7 +279,7 @@ describe("Session context", () => {
     }
   );
 
-  it("Should retain raw over-capacity values, mark stale, and expose the eligible threshold", async () => {
+  it("Should retain raw over-capacity values and mark stale", async () => {
     const user = userEvent.setup();
     const context = deriveSessionContext({
       ...sessionContextFixture,
@@ -296,14 +295,12 @@ describe("Session context", () => {
     await user.hover(screen.getByRole("button"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent("110% · 281.6K / 256K");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Updated a while ago");
-    expect(screen.getByRole("tooltip")).toHaveTextContent(
-      "CompozyOS summarizes older messages at 85% full"
-    );
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent("summarizes older messages");
     expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
       "stroke-dasharray",
       "1 1"
     );
-    // Freshness is shape (dotted mask), pressure is hue: both survive on one arc.
+    // Freshness is shape: the dotted mask rides the arc and its fill stays the truth.
     expect(screen.getByRole("button")).toHaveAttribute("data-state", "stale");
     expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
       "mask",
@@ -311,7 +308,7 @@ describe("Session context", () => {
     );
     expect(screen.getByRole("button").querySelectorAll("circle")[1]).toHaveAttribute(
       "stroke",
-      "var(--color-warning)"
+      "var(--color-subtle)"
     );
   });
 
@@ -463,7 +460,7 @@ describe("Session context", () => {
   });
 });
 
-// Invariant: loading is not a report, eligible pressure is visible, and per-turn costs preserve absence/currency.
+// Invariant: loading is not a report, a nearly full window shows its fill without a warning state, and per-turn costs preserve absence/currency.
 // Owner: session domain surfaces; canonical suite: SessionInspector.
 describe("Fable context surface corrections", () => {
   it("Should reserve the loading control without asserting that the agent has not reported", async () => {
@@ -482,7 +479,7 @@ describe("Fable context surface corrections", () => {
     expect(button).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
   });
 
-  it("Should use the meter empty copy and show almost full only with eligible pressure", () => {
+  it("Should use the meter empty copy and keep a nearly full window free of warning copy", () => {
     const { rerender } = render(<SessionInspector />);
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent("No context report yet");
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent(
@@ -493,22 +490,11 @@ describe("Fable context surface corrections", () => {
         context={deriveSessionContext({ ...sessionContextFixture, ratio: 0.88, used: 225_280 })}
       />
     );
-    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("almost full");
+    expect(screen.getByTestId("session-context-meter")).toHaveTextContent("88%");
+    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("almost full");
     expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent(
       "summarizes older messages"
     );
-    rerender(
-      <SessionInspector
-        context={deriveSessionContext({
-          ...sessionContextFixture,
-          state: "estimated_size",
-          ratio: 0.88,
-          size_source: "catalog",
-          pressure_threshold: undefined,
-        })}
-      />
-    );
-    expect(screen.getByTestId("session-context-meter")).not.toHaveTextContent("almost full");
   });
 
   it("Should show reported per-turn cost and currency while preserving the empty cost cell", () => {

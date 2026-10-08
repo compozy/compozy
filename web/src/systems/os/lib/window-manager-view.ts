@@ -1,8 +1,8 @@
 import {
   getOsAppDescriptor,
   getOsAppMinimum,
-  OS_APP_DESCRIPTORS,
   OS_WINDOW_CONSERVATIVE_MINIMUM,
+  osAppId,
 } from "./app-catalog";
 import { applyFrameSeamPreviewToDesktop } from "./frame-seams";
 import { buildDesktopFrames, type OsWindowFrameModel } from "./group-projection";
@@ -167,10 +167,6 @@ function normalizedRectToPixels(rect: NormalizedRect, area: PixelRect): OsRect {
     w: Math.max(1, Math.round(rect.w * area.w)),
     h: Math.max(1, Math.round(rect.h * area.h)),
   };
-}
-
-function osAppId(value: string): OsAppId | null {
-  return Object.hasOwn(OS_APP_DESCRIPTORS, value) ? (value as OsAppId) : null;
 }
 
 export interface OsDesktopRuntimeViewInput {

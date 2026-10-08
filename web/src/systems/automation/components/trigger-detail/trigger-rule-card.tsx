@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { CircleDot, Database, Filter, Puzzle, Unplug, Webhook } from "lucide-react";
+import { CircleDot, Filter, Puzzle, Unplug, Webhook } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { Eyebrow, Pill, cn } from "@compozy/ui";
@@ -18,7 +18,6 @@ import { TriggerWebhookEndpoint } from "./trigger-webhook-endpoint";
 const EVENT_ICONS: Record<EventIconKey, LucideIcon> = {
   "session-start": CircleDot,
   "session-stop": CircleDot,
-  memory: Database,
   hook: Unplug,
   webhook: Webhook,
   extension: Puzzle,

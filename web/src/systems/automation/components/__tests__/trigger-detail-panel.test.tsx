@@ -632,11 +632,6 @@ describe("TriggerDetailPanel", () => {
 
   it.each([
     {
-      event: "memory.consolidated",
-      headline: "Memory consolidated",
-      phrase: "memory is consolidated",
-    },
-    {
       event: "hook.release.completed",
       headline: "Hook release completed",
       phrase: "the release hook completes",

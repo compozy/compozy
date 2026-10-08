@@ -35,7 +35,7 @@ describe("storybook msw helpers", () => {
       },
     });
     expect(mergedGroups.agent).toEqual(composeStorybookHandlerGroup("agent", agentsOverride));
-    expect(mergedGroups.knowledge).toBe(storybookSystemHandlerGroups.knowledge);
+    expect(mergedGroups.loops).toBe(storybookSystemHandlerGroups.loops);
     expect(mergedGroups.settings).toBe(storybookSystemHandlerGroups.settings);
     expect(mergedGroups.tasks).toBe(storybookSystemHandlerGroups.tasks);
   });

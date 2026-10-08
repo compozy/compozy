@@ -97,6 +97,9 @@ test.use({
  * prefixed `Herdr ` because this suite's physical numbering already claims the
  * same digits: Herdr E2E-016 (⌘E → Sessions view → land) and Herdr E2E-019
  * (nested view push, pop, and reopen-at-root).
+ *
+ * Memory removal contract coverage (`.compozy/tasks/memory-removal/_tests.md`) is
+ * prefixed `Memory removal ` for the same reason.
  */
 
 interface NormalizedRect {
@@ -2957,6 +2960,68 @@ test("E2E-044 (logical E2E-015): daemon restart preserves frame membership, pin,
   );
 });
 
+test("Memory removal E2E-008: a saved layout holding a retired knowledge window opens with its session window and stays stable on reload", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const session = await createNamedSession(runtime, workspace.id, "Layout upgrade session");
+  const sessionWindowID = await openSessionWindowInAuthority(runtime, workspace.id, session);
+  // The window manager stores app IDs as plain strings, so this persists the shape
+  // an earlier release left behind.
+  const [knowledgeID] = await openDeckFixtureWindows(runtime, workspace.id, ["knowledge"]);
+  if (!knowledgeID) throw new Error("layout upgrade fixture must open the knowledge window");
+  await moveWindowToNormalizedRect(runtime, workspace.id, sessionWindowID, {
+    x: 0.01,
+    y: 0.06,
+    width: 0.48,
+    height: 0.7,
+  });
+  await moveWindowToNormalizedRect(runtime, workspace.id, knowledgeID, {
+    x: 0.51,
+    y: 0.06,
+    width: 0.48,
+    height: 0.7,
+  });
+  const seeded = await windowManagerSnapshot(runtime, workspace.id);
+  expect(seeded.windows[knowledgeID]?.app).toBe("knowledge");
+  expect(seeded.windows[sessionWindowID]?.app).toBe("session");
+
+  // Restart so the daemon loads the stored layout from disk, then open the desktop
+  // on a fresh page so only the loaded layout can produce console output.
+  await appPage.goto("about:blank");
+  const restart = await runtime.requestJSON<SettingsRestartAction>(
+    "/api/settings/actions/restart",
+    {
+      method: "POST",
+      body: "{}",
+    }
+  );
+  await expect
+    .poll(() => pollRestartStatus(runtime, restart.status_url), { timeout: 45_000 })
+    .toBe("ready");
+  const consoleErrors: string[] = [];
+  appPage.on("console", message => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  appPage.on("pageerror", error => {
+    consoleErrors.push(error.message);
+  });
+  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+
+  const restoredSession = sessionWindow(appPage, session.id);
+  await expect(restoredSession).toBeVisible();
+  const loaded = await windowManagerSnapshot(runtime, workspace.id);
+  const loadedRect = loaded.windows[sessionWindowID]?.floating_rect;
+  expect(loadedRect).toBeDefined();
+
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(restoredSession).toBeVisible();
+  const reloaded = await windowManagerSnapshot(runtime, workspace.id);
+  expect(reloaded.windows[sessionWindowID]?.floating_rect).toEqual(loadedRect);
+  expect(consoleErrors).toEqual([]);
+});
+
 test("E2E-045 (logical E2E-018): Tasks views and Marketplace search stay in their window strips", async ({
   appPage,
   runtime,
@@ -3028,12 +3093,11 @@ const PERF_APPS = [
   "triggers",
   "marketplace",
   "terminal",
-  "knowledge",
   "settings",
   "vault",
 ] as const;
 
-test("E2E-023: the 12-window envelope holds for drag frames, restore, and convergence", async ({
+test("E2E-023: the 11-window envelope holds for drag frames, restore, and convergence", async ({
   appPage,
   browser,
   runtime,
@@ -3074,7 +3138,7 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
     const placed = () => {
       if (perf.windowsPlaced !== null) return;
       const count = document.querySelectorAll('[data-slot="os-window-surface"]').length;
-      if (count >= 12) perf.windowsPlaced = performance.now();
+      if (count >= 11) perf.windowsPlaced = performance.now();
     };
     // Init scripts run at document start — observe `document` itself so the
     // hook works before <html>/<body> exist.
@@ -3110,7 +3174,7 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
   expect(restore).toBeLessThan(500);
 
   // The envelope measures steady-state pointer fluidity: wait until the main
-  // thread has been long-task quiet so the 12 window bodies' initial content
+  // thread has been long-task quiet so the 11 window bodies' initial content
   // burst can't masquerade as drag jank. (networkidle never settles here — the
   // shell keeps WebSocket/SSE connections open by design.)
   await installLongTaskQuietProbe(appPage);

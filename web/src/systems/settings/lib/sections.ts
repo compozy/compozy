@@ -1,7 +1,6 @@
 import {
   Activity,
   Bell,
-  Brain,
   Cable,
   Command,
   Cpu,
@@ -85,19 +84,11 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     keywords: "models catalog auth claude codex openclaw hermes sign-in",
   },
   {
-    slug: "memory",
-    label: "Memory",
-    icon: Brain,
-    group: "runtime",
-    keywords: "recall dream ledger persistence daily logs extractor",
-  },
-  {
     slug: "roles",
     label: "Roles",
     icon: Route,
     group: "runtime",
-    keywords:
-      "background agents coordinator dream checkpoint auto-title memory controller routing model provider fallback",
+    keywords: "background agents coordinator auto-title routing model provider fallback",
   },
   {
     slug: "skills",

@@ -31,7 +31,7 @@ export const EXPOSURE_ROW_COPY: Record<GatewayExposureRowId, { title: string; ri
  * line names something that actually becomes reachable — no summaries.
  */
 export const PUBLIC_OPERATOR_CONSENT_DISCLOSURE: readonly string[] = [
-  "Your public address starts serving the operator UI and the whole management API — sessions, tasks, loops, memory, settings and extensions.",
+  "Your public address starts serving the operator UI and the whole management API — sessions, tasks, loops, settings and extensions.",
   "Anyone who reaches that address sees the pairing gate. Only a device you paired from the private overlay or this machine gets past it.",
   "Pairing codes are never minted or redeemed on the public address.",
   "Turning this off takes effect immediately, and a restart never turns it back on.",

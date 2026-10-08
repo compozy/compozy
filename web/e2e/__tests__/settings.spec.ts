@@ -65,7 +65,6 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Palette",
       "Notifications",
       "Diagnostics",
-      "Memory",
       "Roles",
       "Skills",
       "MCP servers",
@@ -628,7 +627,6 @@ test("operator routes a background role, persists it across reload, and keeps bu
   await expect(appPage.getByTestId("agent-fleet-empty")).toHaveCount(0);
   await expect(sessionUI.agentRow("general")).toBeVisible();
   await expect(sessionUI.agentRow("coordinator")).toHaveCount(0);
-  await expect(sessionUI.agentRow("dreaming-curator")).toHaveCount(0);
   await browserArtifacts.captureScreenshot("e2e-006-agents-fleet-no-builtins", appPage);
 });
 

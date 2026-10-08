@@ -52,12 +52,10 @@ vi.mock("../../adapters/session-api", () => ({
   fetchSession: vi.fn(),
   fetchSessionEvents: vi.fn(),
   fetchSessionHistory: vi.fn(),
-  fetchSessionLedger: vi.fn(),
   fetchSessionRecap: vi.fn(),
   fetchSessionTranscript: vi.fn(),
   fetchSessions: vi.fn(),
   SessionApiError: class SessionApiError extends Error {},
-  SessionLedgerUnavailableError: class SessionLedgerUnavailableError extends Error {},
   SessionNotFoundError: class SessionNotFoundError extends Error {},
 }));
 

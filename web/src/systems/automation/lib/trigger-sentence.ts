@@ -70,8 +70,6 @@ function eventClause(
       return [{ text: "a session starts" }];
     case "session.stopped":
       return [{ text: "a session stops" }];
-    case "memory.consolidated":
-      return [{ text: "memory is consolidated" }];
     case "hook.completed":
       return [
         { text: "the " },
@@ -164,8 +162,6 @@ export function describeTriggerWhen(
       return { icon, headline: "A session starts", eventId: trigger.event, sub: workspaceSub };
     case "session.stopped":
       return { icon, headline: "A session stops", eventId: trigger.event, sub: workspaceSub };
-    case "memory.consolidated":
-      return { icon, headline: "Memory consolidated", eventId: trigger.event, sub: workspaceSub };
     case "hook.completed":
       return {
         icon,

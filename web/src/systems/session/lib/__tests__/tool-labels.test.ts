@@ -7,12 +7,12 @@ import {
   resolveRegisteredToolName,
 } from "../tool-labels";
 import {
-  Brain,
   FileEdit,
   FileText,
   FolderSearch,
   Globe,
   Search,
+  SlidersHorizontal,
   Terminal,
   Wrench,
 } from "lucide-react";
@@ -37,8 +37,7 @@ describe("getToolIcon", () => {
 
   it("Should map CompozyOS native tool families from the compozy__ taxonomy", () => {
     expect(getToolIcon("compozy__edit")).toBe(FileEdit);
-    expect(getToolIcon("compozy__memory_note")).toBe(Brain);
-    expect(getToolIcon("compozy__memory_search")).toBe(Brain);
+    expect(getToolIcon("compozy__config_set")).toBe(SlidersHorizontal);
     // Unmapped native family falls through to the generic tool glyph.
     expect(getToolIcon("compozy__deny_native")).toBe(Wrench);
     expect(getToolIcon("compozy__terminal_exec")).toBe(Terminal);
@@ -98,14 +97,20 @@ describe("getToolLabel", () => {
 
 describe("humanizeToolId", () => {
   it("Should read an uncatalogued tool id as plain words, never the raw id", () => {
-    expect(humanizeToolId("compozy__memory_write")).toBe("memory write");
+    expect(humanizeToolId("compozy__config_set")).toBe("config set");
     expect(humanizeToolId("mcp__github__create_issue")).toBe("create issue (Github)");
-    expect(humanizeToolId("mcp__compozy__compozy__memory_write")).toBe("memory write");
+    expect(humanizeToolId("mcp__compozy__compozy__config_set")).toBe("config set");
     expect(humanizeToolId("CustomTool")).toBe("CustomTool");
-    expect(getToolLabel("compozy__memory_write", "past")).toBe("Used memory write");
+    expect(getToolLabel("compozy__config_set", "past")).toBe("Used config set");
     expect(getToolLabel("mcp__github__create_issue", "active")).toBe(
       "Running create issue (Github)…"
     );
+  });
+
+  it("Should render a retired native tool id from an old session with the generic glyph and a humanized label", () => {
+    expect(getToolIcon("compozy__memory_note")).toBe(Wrench);
+    expect(humanizeToolId("compozy__memory_note")).toBe("memory note");
+    expect(getToolLabel("compozy__memory_note", "past")).toBe("Used memory note");
   });
 });
 

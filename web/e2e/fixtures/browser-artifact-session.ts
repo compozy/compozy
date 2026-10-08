@@ -274,19 +274,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       document.querySelector('[data-testid="tasks-run-detail-content"]') !== null ||
       document.querySelector('[data-testid="task-editor-surface"]') !== null;
     const tasksReviewCount = countByPrefix("tasks-run-review-");
-    const knowledgeScope = document.querySelector(
-      '[data-testid="tab-profile"][aria-pressed="true"]'
-    )
-      ? "profile"
-      : document.querySelector('[data-testid="tab-workspace"][aria-pressed="true"]')
-        ? "workspace"
-        : document.querySelector('[data-testid="tab-agent"][aria-pressed="true"]')
-          ? "agent"
-          : undefined;
-    const knowledgeSelectedItem =
-      document
-        .querySelector<HTMLElement>('[data-testid^="memory-item-"][data-state="selected"]')
-        ?.textContent?.trim() || undefined;
     const skillsDetailRouteItem = readPathContainerId(/\/marketplace\/skill\/([^/?#]+)/);
     const skillsSelectedItem = skillsDetailRouteItem;
     const skillsEnabledText = document
@@ -361,22 +348,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       home_usage_value: readHomeMetricValue("Usage"),
       home_view_visible: document.querySelector('[data-testid="home-body"]') !== null,
       home_working_now_value: readHomeMetricValue("Working now"),
-      knowledge_create_dialog_open:
-        document.querySelector('[data-testid="knowledge-create-dialog"]') !== null,
-      knowledge_decisions_count: countByPrefix("knowledge-decision-"),
-      knowledge_delete_dialog_open:
-        document.querySelector('[data-testid="knowledge-delete-dialog"]') !== null,
-      knowledge_detail_visible:
-        document.querySelector('[data-testid="knowledge-detail-panel"]') !== null,
-      knowledge_edit_dialog_open:
-        document.querySelector('[data-testid="knowledge-edit-dialog"]') !== null,
-      knowledge_item_count: countByPrefix("memory-item-"),
-      knowledge_revert_button_count: countByPrefix("revert-memory-decision-"),
-      knowledge_scope: knowledgeScope,
-      knowledge_search_active:
-        document.querySelector('[data-testid="knowledge-search-info"]') !== null,
-      knowledge_selected_item: knowledgeSelectedItem,
-      knowledge_view_visible: document.querySelector('[data-testid="knowledge-shell"]') !== null,
       skills_content_visible: document.querySelector('[data-testid="content-body"]') !== null,
       skills_detail_visible:
         skillsDetailRouteItem !== undefined &&

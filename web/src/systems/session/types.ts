@@ -166,10 +166,6 @@ export type SessionGoalContext = SessionGoalSnapshot["context"];
 export type SessionGoalStatus = SessionGoalSnapshot["status"];
 export type GoalPromptMeta = NonNullable<SessionEventPayload["goal"]>;
 
-export type SessionLedgerResponse = OperationResponse<"getMemorySessionLedger", 200>;
-export type SessionLedgerMeta = SessionLedgerResponse["meta"];
-export type SessionLedgerEvent = SessionLedgerResponse["events"][number];
-
 export type CreateSessionParams = OperationRequestBody<"createSession">;
 export type ForkSessionToWorktreeParams = OperationRequestBody<"forkSessionToWorktree">;
 export type SessionApprovalResponse = OperationResponse<"approveSession", 200>;

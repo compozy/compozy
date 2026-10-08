@@ -66,7 +66,6 @@ export function useOsPaletteDomainSearch({
     profile,
     workspaceIds,
     loopsEnabled: paletteDomainEnabled(context, "Loops") && scope === "global",
-    knowledgeEnabled: paletteDomainEnabled(context, "Knowledge") && scope === "global",
     agentsEnabled: paletteDomainEnabled(context, "Agents") && scope === "global",
     extensionsEnabled: paletteDomainEnabled(context, "Extensions") && scope === "global",
     worktreesEnabled: open && targetDomain === "Worktrees" && scope === "global",

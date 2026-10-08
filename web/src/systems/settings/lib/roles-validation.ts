@@ -7,13 +7,13 @@ export interface RoleFieldError {
   message: string;
 }
 
-/** Stable id for a scalar role field control (`dream.model`). */
+/** Stable id for a scalar role field control (`coordinator.ttl`). */
 export function roleFieldId(role: RoleName, field: string): string {
   return `${role}.${field}`;
 }
 
 /**
- * Stable id for one fallback route (`dream.fallback.0`). A route is a single
+ * Stable id for one fallback route (`coordinator.fallback.0`). A route is a single
  * decision made through one runtime selector, so it carries a single id.
  */
 export function fallbackFieldId(role: RoleName, index: number): string {
@@ -40,8 +40,6 @@ export function collectRoleValidationErrors(config: SettingsRolesConfig): RoleFi
       "max_active_sessions_per_workspace",
       config.coordinator.max_active_sessions_per_workspace,
     ],
-    ["memory_controller", "top_k", config.memory_controller.top_k],
-    ["memory_controller", "max_tokens_out", config.memory_controller.max_tokens_out],
   ] as const;
   for (const [role, field, value] of numericFields) {
     const id = roleFieldId(role, field);

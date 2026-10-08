@@ -17,7 +17,6 @@ import {
 const mocks = vi.hoisted(() => ({
   inspectorOpen: false,
   sessionCommands: vi.fn(),
-  sessionLedger: vi.fn(),
   sessionTopbar: vi.fn(),
   sessionUsage: vi.fn(),
   usageTurns: vi.fn(),
@@ -87,10 +86,6 @@ vi.mock("@/systems/session", () => ({
     snapshot: null,
   }),
   useSessionInspectorState: () => ({ open: mocks.inspectorOpen, toggle: vi.fn() }),
-  useSessionLedger: (...args: unknown[]) => {
-    mocks.sessionLedger(...args);
-    return { data: undefined, error: null, isLoading: false };
-  },
   useSessionPromptRuntimeContext: () => mocks.promptRuntimeStore,
   useSessionTopbarSlot: (...args: unknown[]) => mocks.sessionTopbar(...args),
   useSessionWorktreeBinding: () => mocks.worktreeBinding,
@@ -123,7 +118,6 @@ const session: SessionPayload = {
 describe("useSessionWindowController", () => {
   beforeEach(() => {
     mocks.inspectorOpen = false;
-    mocks.sessionLedger.mockReset();
     mocks.sessionCommands.mockReset();
     mocks.sessionTopbar.mockReset();
     mocks.sessionUsage.mockReset();
@@ -145,7 +139,7 @@ describe("useSessionWindowController", () => {
     mocks.worktreeBinding.bound = false;
   });
 
-  it("Should admit context reads while live or open and never read ledger or vault", () => {
+  it("Should admit context reads while live or open and never read vault", () => {
     const input = {
       windowId: "window:sess-1",
       sessionId: "sess-1",
@@ -174,7 +168,6 @@ describe("useSessionWindowController", () => {
     expect(mocks.usageTurns).toHaveBeenLastCalledWith("sess-1", "ws-1", "stopped", {
       enabled: true,
     });
-    expect(mocks.sessionLedger).not.toHaveBeenCalled();
     expect(mocks.sessionVault).not.toHaveBeenCalled();
   });
 

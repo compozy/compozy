@@ -6,7 +6,6 @@ import {
   getSettingsAutomation,
   getSettingsGeneral,
   getSettingsHooksExtensions,
-  getSettingsMemory,
   getSettingsMarketplace,
   getSettingsObservability,
   getSettingsPersona,
@@ -97,16 +96,6 @@ export function settingsUpdateOptions() {
     // feed, so it tightens to 2s until the operation clears.
     refetchInterval: query =>
       query.state.data?.operation ? UPDATE_OPERATION_POLL_INTERVAL : SECTION_REFETCH_INTERVAL,
-    retry: shouldRetrySettingsQuery,
-  });
-}
-
-export function settingsMemoryOptions() {
-  return queryOptions({
-    queryKey: settingsKeys.section("memory"),
-    queryFn: ({ signal }) => getSettingsMemory(signal),
-    staleTime: SECTION_STALE_TIME,
-    refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
   });
 }
