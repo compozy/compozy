@@ -102,56 +102,51 @@ export const automationOperatorTestIds = {
   osDesktop: sessionLifecycleTestIds.osDesktop,
   automationDetailPanel: "automation-detail-panel",
   automationEditorDialog: "automation-editor-dialog",
-  automationJobScheduler: "automation-job-scheduler",
-  automationJobForm: "automation-job-form",
-  automationRunHistory: "automation-run-history",
+  automationForm: "automation-form",
+  automationRunList: "automation-run-list",
   automationSuggestionsCard: "automation-suggestions-card",
   automationDeleteDialog: "automation-delete-dialog",
   automationDeleteConfirmTyping: "automation-delete-confirm-typing",
   confirmDeleteAutomationButton: "confirm-delete-automation-btn",
-  createJobButton: "create-job-btn",
-  createTriggerButton: "create-trigger-btn",
-  deleteAutomationButton: "delete-automation-btn",
+  automationsCreate: "automations-create",
+  automationsListRows: "automations-list-rows",
+  automationsShell: "automations-shell",
+  automationStartViews: "automation-start-views",
+  deleteAutomationButton: "automation-delete-btn",
   detailOverflow: "automation-detail-overflow",
-  editAutomationButton: "edit-automation-btn",
-  jobAgentInput: "job-agent-input",
-  jobEnabledToggle: "job-enabled-toggle",
-  jobFireLimitMax: "job-fire-limit-max",
-  jobFireLimitWindow: "job-fire-limit-window",
-  jobGovernanceToggle: "job-governance-toggle",
-  jobsListRows: "jobs-list-rows",
-  jobsShell: "jobs-shell",
-  jobNameInput: "job-name-input",
-  jobPromptInput: "job-prompt-input",
-  jobScheduleInterval: "job-schedule-interval",
-  jobScheduleModeAt: "job-schedule-mode-at",
-  jobScheduleModeCron: "job-schedule-mode-cron",
-  jobScheduleModeEvery: "job-schedule-mode-every",
-  jobScheduleTime: "job-schedule-time",
-  submitJobForm: "submit-job-form",
-  submitTriggerForm: "submit-trigger-form",
-  triggerAgentInput: "trigger-agent-input",
-  triggerEnabledToggle: "trigger-enabled-toggle",
-  triggerEndpointSlugInput: "trigger-endpoint-slug-input",
-  triggerFireLimitMax: "trigger-fire-limit-max",
-  triggerFireLimitWindow: "trigger-fire-limit-window",
-  triggersListRows: "triggers-list-rows",
-  triggersShell: "triggers-shell",
-  triggerPromptInput: "trigger-prompt-input",
-  triggerRetryMax: "trigger-retry-max",
-  triggerRetryStrategyBackoff: "trigger-retry-strategy-backoff",
-  triggerRetryStrategyNone: "trigger-retry-strategy-none",
-  triggerWebhookIDInput: "trigger-webhook-id-input",
-  triggerWebhookSecretValueInput: "trigger-webhook-secret-value-input",
-  toggleAutomationButton: "toggle-automation-btn",
-  triggerJobButton: "trigger-job-btn",
-  triggerNameInput: "trigger-name-input",
-  triggerEnableSwitch: "trigger-enable-switch",
-  triggerEnableLabel: "trigger-enable-label",
-  triggerInspectButton: "trigger-inspect-btn",
-  triggerRailReliability: "trigger-rail-reliability",
-  triggerDetailRail: "trigger-detail-rail",
-  editTriggerButton: "edit-trigger-btn",
+  editAutomationButton: "automation-edit-btn",
+  // Editor (one form for jobs and triggers).
+  agentInput: "automation-agent-input",
+  conditionAdd: "automation-condition-add",
+  enabledToggle: "automation-enabled-toggle",
+  fireLimitMax: "automation-fire-limit-max",
+  fireLimitWindow: "automation-fire-limit-window",
+  formSubmit: "automation-form-submit",
+  nameInput: "automation-name-input",
+  optionsToggle: "automation-options-toggle",
+  previewToggle: "automation-preview-toggle",
+  promptInput: "automation-prompt-input",
+  retryBackoff: "automation-retry-backoff",
+  retryMax: "automation-retry-max",
+  retryNone: "automation-retry-none",
+  scheduleModeAt: "automation-schedule-mode-at",
+  scheduleModeCron: "automation-schedule-mode-cron",
+  scheduleModeEvery: "automation-schedule-mode-every",
+  webhookId: "automation-webhook-id",
+  webhookSecret: "automation-webhook-secret",
+  webhookSlug: "automation-webhook-slug",
+  // Detail page (one grammar for jobs and triggers).
+  detailRunNow: "automation-run-now-btn",
+  detailSentence: "automation-detail-sentence",
+  detailSubhead: "automation-detail-subhead",
+  enableLabel: "automation-enable-label",
+  enableSwitch: "automation-enable-switch",
+  inspectButton: "automation-inspect-btn",
+  inspectSheet: "automation-inspect-sheet",
+  rail: "automation-rail",
+  railReliability: "automation-rail-reliability",
+  ruleStarts: "automation-rule-starts",
+  ruleOnlyIf: "automation-rule-only-if",
 } as const;
 
 export const knowledgeOperatorTestIds = {
@@ -220,8 +215,14 @@ export interface AutomationOperatorSelectors {
   automationDeleteConfirmTyping: Locator;
   automationDeleteDialog: Locator;
   confirmDeleteAutomationButton: Locator;
-  createJobButton: Locator;
-  createTriggerButton: Locator;
+  automationsCreate: Locator;
+  automationsListRows: Locator;
+  automationsShell: Locator;
+  /** Start view pill: `all` · `schedule` · `event`. */
+  automationStartView(start: "all" | "schedule" | "event"): Locator;
+  /** Listing row by automation name (unique per kind; both kinds match when names collide). */
+  automationRow(name: string): Locator;
+  automationSwitch(id: string): Locator;
   deleteAutomationButton: Locator;
   detailOverflow: Locator;
   detailPanel: Locator;
@@ -229,57 +230,53 @@ export interface AutomationOperatorSelectors {
   item(id: string): Locator;
   suggestion(id: string): Locator;
   editorDialog: Locator;
-  jobForm: Locator;
-  jobAgentInput: Locator;
-  jobEnabledToggle: Locator;
-  jobFireLimitMax: Locator;
-  jobFireLimitWindow: Locator;
-  jobGovernanceToggle: Locator;
-  jobNameInput: Locator;
-  jobPromptInput: Locator;
-  jobScheduleCustom: Locator;
-  jobScheduleExpr: Locator;
-  jobScheduleInterval: Locator;
-  jobScheduleModeAt: Locator;
-  jobScheduleModeCron: Locator;
-  jobScheduleModeEvery: Locator;
-  jobScheduleTime: Locator;
-  jobsListRows: Locator;
-  jobsShell: Locator;
+  form: Locator;
+  agentInput: Locator;
+  conditionAdd: Locator;
+  conditionField(index: number): Locator;
+  conditionValue(index: number): Locator;
+  doesChoice(does: "agent" | "loop" | "task"): Locator;
+  enabledToggle: Locator;
+  eventOption(eventId: string): Locator;
+  fireLimitMax: Locator;
+  fireLimitWindow: Locator;
+  formSubmit: Locator;
+  nameInput: Locator;
+  optionsToggle: Locator;
+  previewToggle: Locator;
+  promptInput: Locator;
+  retryBackoff: Locator;
+  retryMax: Locator;
+  retryNone: Locator;
+  scheduleExpr: Locator;
+  scheduleExpressionToggle: Locator;
+  scheduleInterval: Locator;
+  scheduleModeAt: Locator;
+  scheduleModeCron: Locator;
+  scheduleModeEvery: Locator;
+  scheduleTime: Locator;
+  /** Editor Starts card, scoped to the dialog (the listing's Start views share the prefix). */
+  startChoice(start: "schedule" | "event" | "webhook"): Locator;
+  webhookId: Locator;
+  webhookSecret: Locator;
+  webhookSlug: Locator;
   itemLink(id: string): Locator;
   run(id: string): Locator;
-  runHistory: Locator;
+  runList: Locator;
   runNow(id: string): Locator;
-  runSessionLink(runId: string): Locator;
-  submitJobForm: Locator;
-  submitTriggerForm: Locator;
-  triggerAgentInput: Locator;
-  triggerEnabledToggle: Locator;
-  triggerEndpointSlugInput: Locator;
-  triggerEventOption(eventId: string): Locator;
-  triggerFilterAdd: Locator;
-  triggerFilterKey(index: number): Locator;
-  triggerFilterValue(index: number): Locator;
-  triggerFireLimitMax: Locator;
-  triggerFireLimitWindow: Locator;
-  triggersListRows: Locator;
-  triggersShell: Locator;
-  triggerPromptInput: Locator;
-  triggerRetryMax: Locator;
-  triggerRetryStrategyBackoff: Locator;
-  triggerRetryStrategyNone: Locator;
-  triggerWebhookIDInput: Locator;
-  triggerWebhookSecretValueInput: Locator;
-  toggleAutomationButton: Locator;
-  triggerJobButton: Locator;
-  triggerNameInput: Locator;
-  triggerDetailRail: Locator;
-  triggerEnableLabel: Locator;
-  triggerEnableSwitch: Locator;
-  triggerInspectButton: Locator;
-  triggerRailReliability: Locator;
-  editTriggerButton: Locator;
+  detailRunNow: Locator;
+  detailSentence: Locator;
+  detailSubhead: Locator;
+  enableLabel: Locator;
+  enableSwitch: Locator;
+  inspectButton: Locator;
+  inspectSheet: Locator;
+  rail: Locator;
+  railReliability: Locator;
+  ruleStarts: Locator;
+  ruleOnlyIf: Locator;
   runDrawer(runId: string): Locator;
+  runRetries(runId: string): Locator;
   runOpenLink(runId: string): Locator;
 }
 
@@ -999,6 +996,11 @@ export function marketplaceOperatorSelectors(
   };
 }
 
+/** Listing row of either daemon entity for an automation id. */
+function automationRowTestId(id: string): RegExp {
+  return new RegExp(`^automation-row-(job|trigger)-${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+}
+
 export function automationOperatorSelectors(
   page: Pick<Page, "getByLabel" | "getByRole" | "getByTestId">,
   portalRoot: Pick<Page, "getByTestId"> = page
@@ -1017,8 +1019,15 @@ export function automationOperatorSelectors(
     confirmDeleteAutomationButton: page.getByTestId(
       automationOperatorTestIds.confirmDeleteAutomationButton
     ),
-    createJobButton: page.getByTestId(automationOperatorTestIds.createJobButton),
-    createTriggerButton: page.getByTestId(automationOperatorTestIds.createTriggerButton),
+    automationsCreate: page.getByTestId(automationOperatorTestIds.automationsCreate),
+    automationsListRows: page.getByTestId(automationOperatorTestIds.automationsListRows),
+    automationsShell: page.getByTestId(automationOperatorTestIds.automationsShell),
+    automationStartView: start => page.getByTestId(`automation-start-${start}`),
+    automationRow: name =>
+      page
+        .getByTestId(/^automation-row-(job|trigger)-/)
+        .filter({ has: page.getByRole("link", { name: `Open ${name}`, exact: true }) }),
+    automationSwitch: id => page.getByTestId(`automation-switch-${id}`),
     deleteAutomationButton: portalRoot.getByTestId(
       automationOperatorTestIds.deleteAutomationButton
     ),
@@ -1026,68 +1035,57 @@ export function automationOperatorSelectors(
     detailPanel: page.getByTestId(automationOperatorTestIds.automationDetailPanel),
     editAutomationButton: portalRoot.getByTestId(automationOperatorTestIds.editAutomationButton),
     editorDialog,
-    item: (id: string) => page.getByTestId(`automation-item-${id}`),
-    itemLink: (id: string) => page.getByTestId(`automation-item-${id}`).getByRole("link"),
-    jobAgentInput: page.getByTestId(automationOperatorTestIds.jobAgentInput),
-    jobEnabledToggle: page.getByTestId(automationOperatorTestIds.jobEnabledToggle),
-    jobFireLimitMax: page.getByTestId(automationOperatorTestIds.jobFireLimitMax),
-    jobFireLimitWindow: page.getByTestId(automationOperatorTestIds.jobFireLimitWindow),
-    jobForm: page.getByTestId(automationOperatorTestIds.automationJobForm),
-    jobGovernanceToggle: page.getByTestId(automationOperatorTestIds.jobGovernanceToggle),
-    jobNameInput: page.getByTestId(automationOperatorTestIds.jobNameInput),
-    jobPromptInput: page.getByTestId(automationOperatorTestIds.jobPromptInput),
-    jobScheduleCustom: editorDialog.getByRole("button", { name: "Custom" }),
-    jobScheduleExpr: editorDialog.getByLabel("Cron expression"),
-    jobScheduleInterval: page.getByTestId(automationOperatorTestIds.jobScheduleInterval),
-    jobScheduleModeAt: page.getByTestId(automationOperatorTestIds.jobScheduleModeAt),
-    jobScheduleModeCron: page.getByTestId(automationOperatorTestIds.jobScheduleModeCron),
-    jobScheduleModeEvery: page.getByTestId(automationOperatorTestIds.jobScheduleModeEvery),
-    jobScheduleTime: page.getByTestId(automationOperatorTestIds.jobScheduleTime),
-    jobsListRows: page.getByTestId(automationOperatorTestIds.jobsListRows),
-    jobsShell: page.getByTestId(automationOperatorTestIds.jobsShell),
+    item: (id: string) => page.getByTestId(automationRowTestId(id)),
+    itemLink: (id: string) => page.getByTestId(automationRowTestId(id)).getByRole("link"),
+    form: page.getByTestId(automationOperatorTestIds.automationForm),
+    agentInput: page.getByTestId(automationOperatorTestIds.agentInput),
+    conditionAdd: page.getByTestId(automationOperatorTestIds.conditionAdd),
+    conditionField: (index: number) => page.getByTestId(`automation-condition-field-${index}`),
+    conditionValue: (index: number) => page.getByTestId(`automation-condition-value-${index}`),
+    doesChoice: does => editorDialog.getByTestId(`automation-does-${does}`),
+    enabledToggle: page.getByTestId(automationOperatorTestIds.enabledToggle),
+    eventOption: (eventId: string) => page.getByTestId(`automation-event-${eventId}`),
+    fireLimitMax: page.getByTestId(automationOperatorTestIds.fireLimitMax),
+    fireLimitWindow: page.getByTestId(automationOperatorTestIds.fireLimitWindow),
+    formSubmit: page.getByTestId(automationOperatorTestIds.formSubmit),
+    nameInput: page.getByTestId(automationOperatorTestIds.nameInput),
+    optionsToggle: page.getByTestId(automationOperatorTestIds.optionsToggle),
+    previewToggle: page.getByTestId(automationOperatorTestIds.previewToggle),
+    promptInput: page.getByTestId(automationOperatorTestIds.promptInput),
+    retryBackoff: page.getByTestId(automationOperatorTestIds.retryBackoff),
+    retryMax: page.getByTestId(automationOperatorTestIds.retryMax),
+    retryNone: page.getByTestId(automationOperatorTestIds.retryNone),
+    scheduleExpr: editorDialog.getByLabel("Cron expression"),
+    scheduleExpressionToggle: editorDialog.getByRole("button", { name: "Edit expression" }),
+    scheduleInterval: editorDialog.getByLabel("Interval"),
+    scheduleModeAt: page.getByTestId(automationOperatorTestIds.scheduleModeAt),
+    scheduleModeCron: page.getByTestId(automationOperatorTestIds.scheduleModeCron),
+    scheduleModeEvery: page.getByTestId(automationOperatorTestIds.scheduleModeEvery),
+    scheduleTime: editorDialog.getByLabel("Date and time"),
+    startChoice: start => editorDialog.getByTestId(`automation-start-${start}`),
+    webhookId: page.getByTestId(automationOperatorTestIds.webhookId),
+    webhookSecret: page.getByTestId(automationOperatorTestIds.webhookSecret),
+    webhookSlug: page.getByTestId(automationOperatorTestIds.webhookSlug),
     run: (id: string) => page.getByTestId(`automation-run-${id}`),
-    runDrawer: (runId: string) => page.getByTestId(`trigger-run-drawer-${runId}`),
-    runHistory: page.getByTestId(automationOperatorTestIds.automationRunHistory),
+    runDrawer: (runId: string) => page.getByTestId(`automation-run-drawer-${runId}`),
+    runList: page.getByTestId(automationOperatorTestIds.automationRunList),
     runNow: (id: string) => page.getByTestId(`automation-run-now-${id}`),
-    // Trigger runs open from the expanded drawer; a link exists only when the daemon
-    // recorded the id it points at.
-    runOpenLink: (runId: string) => page.getByTestId(`trigger-run-open-${runId}`),
-    runSessionLink: (runId: string) => page.getByTestId(`automation-run-${runId}`),
-    submitJobForm: page.getByTestId(automationOperatorTestIds.submitJobForm),
-    submitTriggerForm: page.getByTestId(automationOperatorTestIds.submitTriggerForm),
     suggestion: (id: string) => page.getByTestId(`automation-suggestion-${id}`),
-    triggerAgentInput: page.getByTestId(automationOperatorTestIds.triggerAgentInput),
-    triggerEnabledToggle: page.getByTestId(automationOperatorTestIds.triggerEnabledToggle),
-    triggerEndpointSlugInput: page.getByTestId(automationOperatorTestIds.triggerEndpointSlugInput),
-    triggerEventOption: (eventId: string) => page.getByTestId(`trigger-event-${eventId}`),
-    triggerFilterAdd: page.getByRole("button", { name: "Add condition" }),
-    triggerFilterKey: (index: number) => page.getByTestId(`trigger-filter-key-${index}`),
-    triggerFilterValue: (index: number) => page.getByTestId(`trigger-filter-value-${index}`),
-    triggerFireLimitMax: page.getByTestId(automationOperatorTestIds.triggerFireLimitMax),
-    triggerFireLimitWindow: page.getByTestId(automationOperatorTestIds.triggerFireLimitWindow),
-    triggersListRows: page.getByTestId(automationOperatorTestIds.triggersListRows),
-    triggersShell: page.getByTestId(automationOperatorTestIds.triggersShell),
-    triggerPromptInput: page.getByTestId(automationOperatorTestIds.triggerPromptInput),
-    triggerRetryMax: page.getByTestId(automationOperatorTestIds.triggerRetryMax),
-    triggerRetryStrategyBackoff: page.getByTestId(
-      automationOperatorTestIds.triggerRetryStrategyBackoff
-    ),
-    triggerRetryStrategyNone: page.getByTestId(automationOperatorTestIds.triggerRetryStrategyNone),
-    triggerWebhookIDInput: page.getByTestId(automationOperatorTestIds.triggerWebhookIDInput),
-    triggerWebhookSecretValueInput: page.getByTestId(
-      automationOperatorTestIds.triggerWebhookSecretValueInput
-    ),
-    toggleAutomationButton: portalRoot.getByTestId(
-      automationOperatorTestIds.toggleAutomationButton
-    ),
-    triggerJobButton: page.getByTestId(automationOperatorTestIds.triggerJobButton),
-    triggerNameInput: page.getByTestId(automationOperatorTestIds.triggerNameInput),
-    triggerDetailRail: page.getByTestId(automationOperatorTestIds.triggerDetailRail),
-    triggerEnableLabel: page.getByTestId(automationOperatorTestIds.triggerEnableLabel),
-    triggerEnableSwitch: page.getByTestId(automationOperatorTestIds.triggerEnableSwitch),
-    triggerInspectButton: page.getByTestId(automationOperatorTestIds.triggerInspectButton),
-    triggerRailReliability: page.getByTestId(automationOperatorTestIds.triggerRailReliability),
-    editTriggerButton: page.getByTestId(automationOperatorTestIds.editTriggerButton),
+    // Runs open from the expanded drawer; a link exists only when the daemon recorded
+    // the id it points at.
+    runOpenLink: (runId: string) => page.getByTestId(`automation-run-open-${runId}`),
+    runRetries: (runId: string) => page.getByTestId(`automation-run-retries-${runId}`),
+    detailRunNow: page.getByTestId(automationOperatorTestIds.detailRunNow),
+    detailSentence: page.getByTestId(automationOperatorTestIds.detailSentence),
+    detailSubhead: page.getByTestId(automationOperatorTestIds.detailSubhead),
+    enableLabel: page.getByTestId(automationOperatorTestIds.enableLabel),
+    enableSwitch: page.getByTestId(automationOperatorTestIds.enableSwitch),
+    inspectButton: page.getByTestId(automationOperatorTestIds.inspectButton),
+    inspectSheet: portalRoot.getByTestId(automationOperatorTestIds.inspectSheet),
+    rail: page.getByTestId(automationOperatorTestIds.rail),
+    railReliability: page.getByTestId(automationOperatorTestIds.railReliability),
+    ruleStarts: page.getByTestId(automationOperatorTestIds.ruleStarts),
+    ruleOnlyIf: page.getByTestId(automationOperatorTestIds.ruleOnlyIf),
   };
 }
 export function settingsOperatorSelectors(

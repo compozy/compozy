@@ -24,8 +24,11 @@ export function automationMatchesActiveWorkspace(
   );
 }
 
+export const AUTOMATION_ELSEWHERE_MESSAGE =
+  "This automation belongs to another project. Switch to it to open this page.";
+
+/** A definition owned by another project than the selected one; null when it is readable here. */
 export function automationWorkspaceAccessError(
-  kind: "job" | "trigger",
   item: WorkspaceBoundAutomation | null | undefined,
   activeWorkspaceId: string | null | undefined,
   workspaceLoading: boolean
@@ -33,5 +36,5 @@ export function automationWorkspaceAccessError(
   if (workspaceLoading || !item || automationMatchesActiveWorkspace(item, activeWorkspaceId)) {
     return null;
   }
-  return new Error(`This ${kind} belongs to another project.`);
+  return new Error(AUTOMATION_ELSEWHERE_MESSAGE);
 }

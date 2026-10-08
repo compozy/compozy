@@ -1,9 +1,10 @@
 export type LoopBindingKind = "schedule" | "webhook" | "trigger";
 
+/** Plain kind words (board VC-04, COPY.md Automations aliases): schedule · event · link. */
 const BINDING_KIND_LABEL: Record<LoopBindingKind, string> = {
   schedule: "schedule",
-  webhook: "webhook",
-  trigger: "trigger",
+  webhook: "link",
+  trigger: "event",
 };
 
 /**
@@ -73,4 +74,17 @@ export function countLoopBindings(
 export function bindingsGist(total: number): string {
   if (total === 0) return "Manual only";
   return `${total} ${total === 1 ? "automation" : "automations"}`;
+}
+
+/** How an automation can start this Loop; the editor's Starts preselection. */
+export type LoopAutomateStart = "schedule" | "event";
+
+const EVENT_START_KINDS = new Set(["trigger", "webhook"]);
+
+/** The Automate menu items the Loop's `start[]` allowlist permits, schedule first. */
+export function loopAutomateStarts(declaredKinds: readonly string[]): LoopAutomateStart[] {
+  const starts: LoopAutomateStart[] = [];
+  if (declaredKinds.includes("schedule")) starts.push("schedule");
+  if (declaredKinds.some(kind => EVENT_START_KINDS.has(kind))) starts.push("event");
+  return starts;
 }

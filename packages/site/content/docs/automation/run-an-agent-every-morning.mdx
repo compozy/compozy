@@ -1,0 +1,203 @@
+---
+title: Run an agent every morning
+description: Create your first scheduled automation — an agent that runs every weekday at 9:00 — run it once by hand, and check its last run.
+---
+
+At the end of this page you will have an automation that reads "Every weekday at 09:00 UTC, ask
+summarizer." It runs on its own every weekday morning, and you will have run it once already to see
+that it works.
+
+The steps use the Web UI. [Do the same from the CLI](#do-the-same-from-the-cli) shows the commands
+for scripts and agents.
+
+## Before you start
+
+- CompozyOS is running (`compozy status`) and the Web UI is open on a project. This page uses a
+  project named `checkout-api`.
+- The project has an agent you can run. This page uses one named `summarizer`; use any agent from the
+  agent picker, or check one from the terminal:
+
+  ```bash
+  compozy agent info summarizer --workspace checkout-api
+  ```
+
+- Automations are turned on (they are by default). If the Automations window says "Automations aren't
+  available right now", choose **Open Settings**, turn on **Run automation**, and restart CompozyOS.
+
+## Step 1: Open Automations
+
+In the dock, choose **Automations** (the lightning bolt). On a project with no automations yet, the
+window reads (the first line names your profile, `default` unless you created others):
+
+```text
+No automations in default yet
+An automation runs an agent, a Loop or a task on a schedule, or when something happens.
+```
+
+Below it are two buttons, **On a schedule** and **When something happens**, and sometimes a list of
+**Suggested automations** for this project. If the project already has automations, choose **New
+automation** in the window head instead.
+
+## Step 2: Choose when it starts
+
+Choose **On a schedule**. The **New automation** dialog opens with **Starts → On a schedule**
+already selected.
+
+In **Name**, type `morning-digest`.
+
+In the schedule box, keep **Repeats** and choose the quick pick **Weekdays 9am**. The line under it
+reads:
+
+```text
+Every weekday at 09:00 UTC · next in 14h · 0 9 * * 1-5
+```
+
+"next in" counts from now, so your number will differ. The last part is the same schedule written as
+a cron expression; you never have to type it. Times use the time zone from **Settings → Automation**
+(UTC unless you changed it).
+
+## Step 3: Choose what it does
+
+Under **Does**, choose **Ask an agent**. Pick `summarizer` as the **Agent**, and type the **Message**
+it receives each morning:
+
+```text
+Summarize what changed in this project since yesterday and list anything that needs a decision today.
+```
+
+A scheduled automation sends the message word for word. The sentence bar at the top of the dialog
+now reads:
+
+```text
+Every weekday at 09:00 UTC, ask summarizer.   Ready
+```
+
+If it reads **Needs a fix**, the missing part is shown with a dashed underline — for example "ask an
+agent" means no agent is selected yet.
+
+## Step 4: Create it
+
+Choose **Create automation**. A toast reads "Created morning-digest." and the automation's page
+opens. Its head is the same sentence with an **On** switch opposite it, and the line under it reads:
+
+```text
+On a schedule · Project checkout-api · Next run in 14h · Updated …
+```
+
+**How it works** lists the next three run times. **Runs** says "No runs yet".
+
+## Step 5: Run it once now
+
+You don't have to wait until tomorrow. Choose **Run now**. The button reads "Starting…" until
+CompozyOS accepts the run, then a toast reads "Queued run run\_…", and the run appears at the top of
+**Runs**.
+
+Select the run to open its details. When it finishes, it reads **Completed**, and **Open session**
+takes you to the session where `summarizer` did the work.
+
+Run now works even while the automation is turned off, so you can test one without letting it run on
+its schedule.
+
+## Step 6: Check it from the list
+
+Choose **Back**. The listing shows one row for `morning-digest`:
+
+- the name, with the sentence "Every weekday at 09:00 UTC, ask summarizer." under it;
+- "Last run completed 2m ago" in the row details;
+- the next run ("In 14h") and the **On** switch at the end of the row.
+
+The **Scheduled** view counts 1 and **On events** counts 0.
+
+From now on, this row is where you see whether the automation worked. If a run fails, the row reads
+"Last run failed …" in red, and you can open it to see why.
+
+To pause it, turn the switch off. The switch waits for CompozyOS to confirm before it changes, and
+an Off automation keeps its runs and settings until you turn it back on.
+
+## Do the same from the CLI
+
+Scripts and agents use the canonical name for a scheduled automation: a **job**. This creates the same
+automation, runs it once, and reads its last run.
+
+```bash
+job_id="$(
+  compozy automation jobs create \
+    --name morning-digest \
+    --scope workspace \
+    --workspace checkout-api \
+    --schedule "0 9 * * 1-5" \
+    --agent summarizer \
+    --prompt "Summarize what changed in this project since yesterday and list anything that needs a decision today." \
+    -o json | jq -er '.id'
+)"
+compozy automation jobs trigger "$job_id"
+```
+
+After the run finishes, read it back from the list:
+
+```bash
+compozy automation jobs --workspace checkout-api -o json \
+  | jq '.jobs[] | select(.name == "morning-digest") | {name, enabled, next_run, last_run}'
+```
+
+```json
+{
+  "name": "morning-digest",
+  "enabled": true,
+  "next_run": "2026-10-08T09:00:00Z",
+  "last_run": {
+    "id": "run_…",
+    "status": "completed",
+    "started_at": "2026-10-07T18:12:02Z",
+    "ended_at": "2026-10-07T18:12:44Z"
+  }
+}
+```
+
+Your ids and times will differ. `last_run` is missing until the first run exists. Agents get the same
+data from `compozy__automation_jobs_list`.
+
+Turn it off and on again:
+
+```bash
+compozy automation jobs update "$job_id" --enabled=false
+compozy automation jobs update "$job_id" --enabled=true
+```
+
+## If something goes wrong
+
+| What you see                                                          | What to do                                                                                                              |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| "Needs a fix" and **Create automation** is disabled                   | Fill the part shown with a dashed underline in the sentence bar (a missing agent, day, or message).                     |
+| "An automation named morning-digest already exists."                  | Choose another name, or open the existing one from the listing.                                                         |
+| "Automations aren't available right now"                              | Choose **Open Settings**, turn on **Run automation**, and restart CompozyOS.                                            |
+| The row reads "Last run failed …"                                     | Open the automation and select the failed run to read the cause. **Set up retries** opens the editor at Options.        |
+| The row reads "Last run skipped — the one before was still going"     | The previous run was still going at the start time. It runs again at the next time.                                     |
+| The row reads "Last run missed — CompozyOS was off at the start time" | Leave CompozyOS running, or choose **Run once to catch up** under **Options → If CompozyOS was off at the start time**. |
+| The run starts at the wrong hour                                      | Set the time zone in **Settings → Automation**. Every scheduled automation uses it.                                     |
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/automation/react-when-a-session-fails"
+    label="Tutorial"
+    title="React when a session fails"
+    description="The event version: start an agent when something happens instead of at a time."
+    meta="When something happens"
+  />
+  <GuideCard
+    href="/docs/automation/schedules"
+    label="Reference"
+    title="Scheduled automations (jobs)"
+    description="Every schedule mode, catch-up after downtime, retries, run limits, and run history."
+    meta="On a schedule"
+  />
+  <GuideCard
+    href="/docs/cli/automation/jobs"
+    label="Reference"
+    title="compozy automation jobs"
+    description="Generated reference for every flag on the jobs command."
+    meta="CLI"
+  />
+</GuideGrid>

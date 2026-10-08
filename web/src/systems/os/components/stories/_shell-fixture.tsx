@@ -52,7 +52,7 @@ const CONFIG: WindowManagerConfig = {
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 4,
+  version: 5,
   workspaceId: "workspace-compozy",
   revision: 12,
   desktops: [],

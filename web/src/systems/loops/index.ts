@@ -107,7 +107,7 @@ export {
 } from "./lib/loops-route-search";
 
 // Start-binding helpers
-export type { LoopBindingKind, LoopBindingRow } from "./lib/loop-bindings";
+export type { LoopAutomateStart, LoopBindingKind, LoopBindingRow } from "./lib/loop-bindings";
 export { bindingKindLabel, summarizeBindingKinds } from "./lib/loop-bindings";
 export type { LoopStartKinds } from "./lib/loop-start-kinds";
 export { describeStartKinds, RUN_FORM_START_KIND } from "./lib/loop-start-kinds";

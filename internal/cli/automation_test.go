@@ -702,6 +702,7 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 		"--source", "package",
 		"--enabled=false",
 		"--loop", "triage",
+		"--target", "loop",
 		"--query", "digest",
 		"--cursor", jobCursor,
 		"--limit", "3",
@@ -719,7 +720,7 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 		listQuery.WorkspaceID != "ws-alpha" ||
 		listQuery.Source != automationpkg.JobSourcePackage ||
 		listQuery.Enabled == nil || *listQuery.Enabled ||
-		listQuery.LoopName != "triage" ||
+		listQuery.LoopName != "triage" || listQuery.Target != "loop" ||
 		listQuery.Search != "digest" ||
 		listQuery.Cursor != jobCursor ||
 		listQuery.Limit != 3 {
@@ -789,7 +790,7 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		jobsToon,
-		"automation_jobs[1]{id,profile_name,name,scope,workspace_id,schedule,agent_name,enabled,source,next_run}:",
+		"automation_jobs[1]{id,profile_name,name,scope,workspace_id,schedule,agent_name,enabled,source,next_run,last_run_status,last_run_started_at}:",
 	) || !strings.Contains(jobsToon, "default") {
 		t.Fatalf("jobs toon output = %q, want automation_jobs TOON array", jobsToon)
 	}
@@ -800,7 +801,7 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		triggerToon,
-		"automation_trigger{id,profile_name,name,scope,workspace_id,agent_name,event,enabled,source,retry,fire_limit,webhook_id,endpoint_slug,webhook_path,created_at,updated_at,prompt}:",
+		"automation_trigger{id,profile_name,name,scope,workspace_id,agent_name,event,enabled,source,retry,fire_limit,webhook_id,endpoint_slug,webhook_path,created_at,updated_at,prompt,last_run_status,last_run_started_at}:",
 	) || !strings.Contains(triggerToon, "default") {
 		t.Fatalf("trigger toon output = %q, want automation_trigger TOON object", triggerToon)
 	}
@@ -1147,7 +1148,7 @@ func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	triggerListHuman, err := automationTriggerListBundle(AutomationTriggerListRecord{
 		Triggers: []TriggerRecord{sampleAutomationTriggerRecord()},
 		Page:     contract.CountedCursorPagePayload{Total: 1, Limit: automationpkg.DefaultListLimit},
-	}).human()
+	}, nil).human()
 	if err != nil {
 		t.Fatalf("automationTriggerListBundle().human() error = %v", err)
 	}
@@ -1324,4 +1325,80 @@ func sampleAutomationRunRecord() RunRecord {
 		StartedAt:   &started,
 		EndedAt:     &ended,
 	}
+}
+
+func TestAutomationListLastRunOutput(t *testing.T) {
+	t.Parallel()
+	t.Run("Should render latest runs consistently in both automation lists", func(t *testing.T) {
+		t.Parallel()
+		fixed := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+		for _, tc := range []struct {
+			name  string
+			run   *contract.AutomationLastRunPayload
+			human string
+		}{
+			{name: "Should show failed run age", run: &contract.AutomationLastRunPayload{ID: "run-failed", Status: automationpkg.RunFailed, StartedAt: new(fixed.Add(-7 * time.Hour))}, human: "failed 7h ago"},
+			{name: "Should describe skipped cancellations", run: &contract.AutomationLastRunPayload{ID: "run-skipped", Status: automationpkg.RunCancelled, SkipReason: "self_overlap", StartedAt: new(fixed.Add(-30 * time.Minute))}, human: "skipped 30m ago"},
+			{name: "Should describe misfired fires as missed", run: &contract.AutomationLastRunPayload{ID: "run-missed", Status: automationpkg.RunCancelled, SkipReason: automationpkg.SchedulerSkipReasonGraceExceeded, StartedAt: new(fixed.Add(-30 * time.Minute))}, human: "missed 30m ago"},
+			{name: "Should show a dash for an automation without runs", human: "—"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				job := sampleAutomationJobRecord()
+				job.LastRun = tc.run
+				trigger := sampleAutomationTriggerRecord()
+				trigger.LastRun = tc.run
+				bundles := []outputBundle{
+					automationJobListBundle(
+						AutomationJobListRecord{Jobs: []JobRecord{job}},
+						func() time.Time { return fixed },
+					),
+					automationTriggerListBundle(
+						AutomationTriggerListRecord{Triggers: []TriggerRecord{trigger}},
+						func() time.Time { return fixed },
+					),
+				}
+				for _, bundle := range []outputBundle{automationJobBundle(job), automationTriggerBundle(trigger)} {
+					toon, err := bundle.toon()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !strings.Contains(toon, "last_run_status,last_run_started_at") {
+						t.Fatalf("missing detail latest run fields: %s", toon)
+					}
+					if tc.run != nil &&
+						!strings.Contains(toon, string(tc.run.Status)+","+formatOptionalTime(tc.run.StartedAt)) {
+						t.Fatalf("missing detail latest run values: %s", toon)
+					}
+				}
+				for _, bundle := range bundles {
+					human, err := bundle.human()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !strings.Contains(strings.ToUpper(human), "LAST RUN") || !strings.Contains(human, tc.human) {
+						t.Fatalf("human output = %q, want latest run %q", human, tc.human)
+					}
+					encoded, err := json.Marshal(bundle.jsonValue)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if tc.run == nil {
+						if strings.Contains(string(encoded), "last_run") {
+							t.Fatalf("unexpected last_run: %s", encoded)
+						}
+					} else if !strings.Contains(string(encoded), tc.run.ID) {
+						t.Fatalf("missing last_run: %s", encoded)
+					}
+					toon, err := bundle.toon()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !strings.Contains(toon, "last_run_status,last_run_started_at") {
+						t.Fatalf("missing last run toon fields: %s", toon)
+					}
+				}
+			})
+		}
+	})
 }

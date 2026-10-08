@@ -246,7 +246,7 @@ const densityTabs: Record<string, OsWindow> = {
   "w-session": storyWindow("w-session", "session", { instanceKey: polishCheckoutSession.id }),
   "w-run": storyWindow("w-run", "session", { instanceKey: refactorBillingSession.id }),
   "w-attention": storyWindow("w-attention", "session", { instanceKey: needsInputSession.id }),
-  "w-jobs": storyWindow("w-jobs", "jobs"),
+  "w-jobs": storyWindow("w-jobs", "automations"),
   "w-agents": storyWindow("w-agents", "agents"),
   "w-marketplace": storyWindow("w-marketplace", "marketplace"),
 };

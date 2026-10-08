@@ -19,6 +19,7 @@ type managerOptions struct {
 	clientObserver         ClientUnregisteredObserver
 	globalShortcutObserver GlobalShortcutFailureObserver
 	workspaceConfig        WorkspaceConfigResolver
+	appDeprecationObserver AppDeprecationObserver
 	lifecycleContext       context.Context
 }
 

@@ -1,0 +1,268 @@
+[
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "start": "schedule"
+            }
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs/morning-digest",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations/jobs/morning-digest",
+            "search": {}
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs/morning-digest",
+            "search": {
+                "q": "digest",
+                "source": "dynamic"
+            }
+        },
+        "expected": {
+            "pathname": "/automations/jobs/morning-digest",
+            "search": {
+                "q": "digest",
+                "source": "dynamic"
+            }
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs",
+            "search": {
+                "create": "loop",
+                "loop": "software-delivery"
+            }
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "create": "loop",
+                "loop": "software-delivery",
+                "start": "schedule"
+            }
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs",
+            "search": {
+                "enabled": true,
+                "scope": "workspace",
+                "source": "dynamic",
+                "loop": "delivery",
+                "q": "nightly",
+                "view": "cards"
+            }
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "enabled": true,
+                "scope": "workspace",
+                "source": "dynamic",
+                "loop": "delivery",
+                "q": "nightly",
+                "view": "cards",
+                "start": "schedule"
+            }
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "start": "event"
+            }
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers/morning-digest",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations/triggers/morning-digest",
+            "search": {}
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers",
+            "search": {
+                "create": "loop",
+                "loop": "software-delivery"
+            }
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "create": "loop",
+                "loop": "software-delivery",
+                "start": "event"
+            }
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers",
+            "search": {
+                "enabled": true,
+                "scope": "workspace",
+                "source": "dynamic",
+                "loop": "delivery",
+                "q": "nightly",
+                "view": "cards"
+            }
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "enabled": true,
+                "scope": "workspace",
+                "source": "dynamic",
+                "loop": "delivery",
+                "q": "nightly",
+                "view": "cards",
+                "start": "event"
+            }
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers",
+            "search": {
+                "event": "session.stopped",
+                "source": "dynamic"
+            }
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "start": "event",
+                "q": "session.stopped",
+                "source": "dynamic"
+            }
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers/rerun-delivery",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations/triggers/rerun-delivery",
+            "search": {}
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs",
+            "search": {
+                "enabled": true,
+                "q": "nightly"
+            }
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "start": "schedule",
+                "enabled": true,
+                "q": "nightly"
+            }
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers",
+            "search": {
+                "q": "deploy",
+                "event": "session.stopped"
+            }
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "q": "deploy",
+                "start": "event"
+            }
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs/",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations",
+            "search": {
+                "start": "schedule"
+            }
+        }
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs/x/runs",
+            "search": {}
+        },
+        "expected": null
+    },
+    {
+        "app": "jobs",
+        "input": {
+            "pathname": "/jobs/x/",
+            "search": {}
+        },
+        "expected": {
+            "pathname": "/automations/jobs/x",
+            "search": {}
+        }
+    },
+    {
+        "app": "triggers",
+        "input": {
+            "pathname": "/triggers/deploy-webhook",
+            "search": {
+                "enabled": true,
+                "view": "cards"
+            }
+        },
+        "expected": {
+            "pathname": "/automations/triggers/deploy-webhook",
+            "search": {
+                "enabled": true,
+                "view": "cards"
+            }
+        }
+    }
+]

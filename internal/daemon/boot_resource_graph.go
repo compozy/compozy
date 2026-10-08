@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -42,13 +43,17 @@ func (d *Daemon) buildResourceKernel(registry Registry) (*resources.Kernel, erro
 
 func (d *Daemon) buildResourceCodecs() (*resources.CodecRegistry, error) {
 	registry := resources.NewCodecRegistry()
-	if err := registerDaemonResourceCodecs(registry); err != nil {
+	if err := registerDaemonResourceCodecs(registry, d.logger); err != nil {
 		return nil, err
 	}
 	return registry, nil
 }
 
-func registerDaemonResourceCodecs(registry *resources.CodecRegistry) error {
+func registerDaemonResourceCodecs(registry *resources.CodecRegistry, loggers ...*slog.Logger) error {
+	logger := slog.Default()
+	if len(loggers) > 0 && loggers[0] != nil {
+		logger = loggers[0]
+	}
 	if err := registerDaemonResourceCodec(registry, "hook binding", newHookBindingCodec); err != nil {
 		return err
 	}
@@ -76,7 +81,11 @@ func registerDaemonResourceCodecs(registry *resources.CodecRegistry) error {
 	if err := registerDaemonResourceCodec(
 		registry,
 		"window layout",
-		windowmanager.NewLayoutResourceCodec,
+		func() (resources.KindCodec[windowmanager.LayoutResource], error) {
+			return windowmanager.NewLayoutResourceCodec(
+				windowManagerAppDeprecationLogger(logger, &deprecatedWindowApps),
+			)
+		},
 	); err != nil {
 		return err
 	}

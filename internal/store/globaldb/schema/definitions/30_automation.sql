@@ -7,6 +7,7 @@ CREATE TABLE automation_job_catalog_entries (
 			name                     TEXT NOT NULL,
 			loop_name                TEXT NOT NULL DEFAULT '',
 			enabled                  BOOLEAN NOT NULL,
+			target                   TEXT NOT NULL DEFAULT '',
 			search_name              TEXT NOT NULL,
 			search_agent_name        TEXT NOT NULL,
 			search_prompt            TEXT NOT NULL,
@@ -113,6 +114,7 @@ CREATE TABLE automation_trigger_catalog_entries (
 			name                 TEXT NOT NULL,
 			loop_name            TEXT NOT NULL DEFAULT '',
 			enabled              BOOLEAN NOT NULL,
+			target               TEXT NOT NULL DEFAULT '',
 			search_name          TEXT NOT NULL,
 			search_agent_name    TEXT NOT NULL,
 			search_prompt        TEXT NOT NULL,
@@ -322,3 +324,7 @@ BEGIN
 		)
 	);
 END;
+
+CREATE INDEX idx_automation_runs_job_latest ON automation_runs(job_id, started_at DESC, id DESC) WHERE job_id IS NOT NULL;
+
+CREATE INDEX idx_automation_runs_trigger_latest ON automation_runs(trigger_id, started_at DESC, id DESC) WHERE trigger_id IS NOT NULL;

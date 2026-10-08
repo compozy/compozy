@@ -172,6 +172,14 @@ type AutomationJobsResult struct {
 	Page CountedCursorPagePayload `json:"page"`
 }
 
+type AutomationLastRunPayload struct {
+	ID         string              `json:"id"`
+	Status     RunStatus           `json:"status"`
+	StartedAt  *time.Time          `json:"started_at,omitzero"`
+	EndedAt    *time.Time          `json:"ended_at,omitzero"`
+	SkipReason SchedulerSkipReason `json:"skip_reason,omitempty"`
+}
+
 type AutomationObservationPatch struct{}
 
 type AutomationRunCompletedPayload struct {
@@ -184,17 +192,4 @@ type AutomationRunCompletedPayload struct {
 	SessionID   string `json:"session_id,omitempty"`
 	Attempt     int    `json:"attempt,omitempty"`
 	DurationMS  int64  `json:"duration_ms,omitempty"`
-}
-
-type AutomationRunFailedPayload struct {
-	ProfileID   string `json:"profile_id,omitempty"`
-	RunID       string `json:"run_id"`
-	JobID       string `json:"job_id,omitempty"`
-	TriggerID   string `json:"trigger_id,omitempty"`
-	AgentName   string `json:"agent_name,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	SessionID   string `json:"session_id,omitempty"`
-	Error       string `json:"error,omitempty"`
-	Attempt     int    `json:"attempt,omitempty"`
-	WillRetry   bool   `json:"will_retry,omitempty"`
 }

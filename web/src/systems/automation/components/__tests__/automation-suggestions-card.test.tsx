@@ -81,7 +81,7 @@ describe("AutomationSuggestionsCard", () => {
     expect(screen.getByText(/agent reviewer/)).toBeVisible();
     expect(screen.getByText(/starts enabled/)).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Create job" }));
+    await user.click(screen.getByRole("button", { name: "Create automation" }));
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(onAccept).toHaveBeenCalledWith(suggestion.id);
     expect(onDismiss).toHaveBeenCalledWith(suggestion.id);
@@ -102,7 +102,7 @@ describe("AutomationSuggestionsCard", () => {
 
     expect(screen.getByTestId(`automation-suggestion-${suggestion.id}`)).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't create this job");
-    fireEvent.click(screen.getByRole("button", { name: "Create job" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create automation" }));
     expect(onAccept).toHaveBeenCalledWith(suggestion.id);
   });
 
@@ -118,7 +118,7 @@ describe("AutomationSuggestionsCard", () => {
     );
 
     render(<AutomationSuggestionsPanel workspaceID="ws_alpha" />);
-    fireEvent.click(screen.getByRole("button", { name: "Create job" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create automation" }));
 
     expect(
       await screen.findByText("An automation lifecycle command is already running.")
@@ -136,7 +136,7 @@ describe("AutomationSuggestionsCard", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "Create job" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create automation" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeDisabled();
     expect(screen.getByTestId(`automation-suggestion-${suggestion.id}`)).toHaveAttribute(
       "aria-busy",

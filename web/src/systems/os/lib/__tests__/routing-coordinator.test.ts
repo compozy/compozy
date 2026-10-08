@@ -353,6 +353,20 @@ describe("RoutingCoordinator", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it("Should carry a same-window link's search into the window location (Automations create link)", () => {
+    // The Automations empty state links to `/automations?create=1&start=schedule`
+    // from inside its own window; the editor seed is read from the WM location.
+    const automations = windowFixture("automations", "/automations");
+    const { coordinator, store } = createCoordinator([automations]);
+    coordinator.completeHydration();
+
+    coordinator.reportRouteMatch(route("/automations", { create: "1", start: "schedule" }));
+
+    expect(store.getState().windows[automations.id]?.route).toEqual(
+      route("/automations", { create: "1", start: "schedule" })
+    );
+  });
+
   it("[UT-042] Should reconcile a Tasks deep link through the most-recently-focused instance", () => {
     const older = windowFixture("tasks", "/tasks", null, "w-tasks-older");
     const mostRecent = windowFixture("tasks", "/tasks", null, "w-tasks-most-recent");

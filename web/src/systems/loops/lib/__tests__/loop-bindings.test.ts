@@ -17,8 +17,8 @@ const rows: LoopBindingRow[] = [
 describe("loop-bindings", () => {
   it("Should label each binding kind", () => {
     expect(bindingKindLabel("schedule")).toBe("schedule");
-    expect(bindingKindLabel("webhook")).toBe("webhook");
-    expect(bindingKindLabel("trigger")).toBe("trigger");
+    expect(bindingKindLabel("webhook")).toBe("link");
+    expect(bindingKindLabel("trigger")).toBe("event");
   });
 
   it("Should summarize the distinct binding kinds, sorted and deduplicated", () => {

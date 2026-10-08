@@ -76,7 +76,7 @@ class FakeSocket implements WindowManagerSocket {
 
 function snapshot(revision: number): WindowManagerSnapshot {
   return {
-    version: 4,
+    version: 5,
     workspaceId: "workspace:test",
     revision,
     desktops: [
@@ -172,7 +172,7 @@ function rawSnapshotFrame(revision: number) {
     workspace_id: "workspace:test",
     revision,
     snapshot: {
-      version: 4,
+      version: 5,
       workspace_id: "workspace:test",
       revision,
       desktops: [

@@ -156,6 +156,7 @@ type AutomationJobCatalogEntry struct {
 	Name                   string `json:"name"`
 	LoopName               string `json:"loop_name"`
 	Enabled                bool   `json:"enabled"`
+	Target                 string `json:"target"`
 	SearchName             string `json:"search_name"`
 	SearchAgentName        string `json:"search_agent_name"`
 	SearchPrompt           string `json:"search_prompt"`
@@ -258,6 +259,7 @@ type AutomationTriggerCatalogEntry struct {
 	Name               string `json:"name"`
 	LoopName           string `json:"loop_name"`
 	Enabled            bool   `json:"enabled"`
+	Target             string `json:"target"`
 	SearchName         string `json:"search_name"`
 	SearchAgentName    string `json:"search_agent_name"`
 	SearchPrompt       string `json:"search_prompt"`

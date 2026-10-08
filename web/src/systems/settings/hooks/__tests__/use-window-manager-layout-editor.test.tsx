@@ -21,7 +21,7 @@ import type {
 
 function documentWith(desktopName: string): WindowManagerLayoutDocument {
   return {
-    version: 4,
+    version: 5,
     workspaceId: "workspace-a",
     desktops: [
       {

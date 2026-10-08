@@ -5,7 +5,6 @@ export type {
   AutomationJobListFilter,
   AutomationJobsListResponse,
   AutomationJobStableFilter,
-  AutomationKind,
   AutomationRetry,
   AutomationRun,
   AutomationRunHistoryFilter,
@@ -99,20 +98,13 @@ export { projectAutomationTarget, type AutomationTargetProjection } from "./lib/
 export {
   automationSourceLabel,
   automationScopeLabel,
-  automationScopeTone,
-  automationSourceTone,
+  automationLastRunLabel,
+  automationLastRunMeta,
   automationRunStateGlyph,
   describeFireLimit,
-  describeRetry,
-  describeSchedule,
-  describeTrigger,
-  formatAutomationListSummary,
-  formatDate,
-  formatDateTime,
   formatPromptPreview,
   formatRelativeTime,
   formatRunDuration,
-  formatRunTitle,
 } from "./lib/automation-formatters";
 export {
   applyAutomationFilterChips,
@@ -125,10 +117,45 @@ export {
   parseAutomationEnabled,
   parseAutomationScope,
   parseAutomationSource,
-  validateJobsSearch,
-  validateTriggersSearch,
-  type AutomationRouteSearch,
+  automationEditorSeed,
+  automationsStartView,
+  automationDetailSearchFrom,
+  automationListingSearch,
+  parseAutomationTarget,
+  validateAutomationDetailSearch,
+  type AutomationEditorSeed,
+  canonicalAutomationsSearch,
+  validateAutomationsSearch,
+  type AutomationDetailRouteSearch,
+  type AutomationsRouteSearch,
 } from "./lib/automation-route-search";
+export { parseAutomationDetailPath, redirectLegacyAutomationURL } from "./lib/automation-redirects";
+export { AUTOMATION_START_ICON } from "./lib/automation-start-icon";
+export type { AutomationEditorSection } from "./lib/automation-form-draft";
+export {
+  automationLocationLabel,
+  automationTimeStat,
+  compareAutomationViews,
+  toAutomationView,
+  type AutomationDoes,
+  type AutomationEntityKind,
+  type AutomationLastRun,
+  type AutomationStart,
+  type AutomationView,
+  type AutomationViewContext,
+} from "./lib/automation-view";
+export {
+  automationSentenceIsIncomplete,
+  automationSentenceText,
+  describeAutomation,
+  describeSchedule,
+  type AutomationDraft,
+  type AutomationSentence,
+  type AutomationSentenceSegment,
+  type SentenceContext,
+} from "./lib/automation-sentence";
+export { automationLastRanAt } from "./lib/automation-detail";
+export type { AutomationEntity } from "./lib/automation-entity";
 export {
   automationEditorWorkspaceId,
   automationMatchesActiveWorkspace,
@@ -139,6 +166,7 @@ export type {
   AutomationFilterState,
 } from "./lib/automation-list-filters";
 // Hooks
+export { useAutomationTimeZone } from "./hooks/use-automation-time-zone";
 export {
   useAutomationJob,
   useAutomationJobs,
@@ -157,7 +185,11 @@ export {
   useUpdateAutomationJob,
   useUpdateAutomationTrigger,
 } from "./hooks/use-automation-actions";
-export { useAutomationJobEditor, useAutomationTriggerEditor } from "./hooks/use-automation-editor";
+export {
+  useAutomationEditor,
+  type AutomationEditorCreateOptions,
+  type AutomationSaveResult,
+} from "./hooks/use-automation-editor";
 export {
   useAcceptAutomationSuggestion,
   useDismissAutomationSuggestion,
@@ -165,19 +197,21 @@ export {
 export { useAutomationSuggestions } from "./hooks/use-automation-suggestions";
 
 // Components
-export { AutomationDetailPanel } from "./components/automation-detail-panel";
-export { TriggerDetailPanel } from "./components/trigger-detail/trigger-detail-panel";
-export type { TriggerDetailPanelProps } from "./components/trigger-detail/trigger-detail-panel";
+export {
+  AutomationDetailPanel,
+  type AutomationDetailPanelProps,
+  type AutomationDetailStatus,
+} from "./components/automation-detail/automation-detail-panel";
+export { AutomationDeleteAction } from "./components/automation-delete-action";
 export { AutomationEditorDialog } from "./components/automation-editor-dialog";
-export { AutomationJobForm } from "./components/automation-job-form";
 export { AutomationListFilters } from "./components/automation-list-filters";
-export { AutomationJobsCatalog } from "./components/automation-jobs-catalog";
-export { AutomationTriggersCatalog } from "./components/automation-triggers-catalog";
-export { AutomationRunHistory } from "./components/automation-run-history";
+export { AutomationCatalogShell } from "./components/automation-catalog-shell";
+export { AutomationRow, type AutomationItemControls } from "./components/automation-row";
+export { AutomationCard } from "./components/automation-card";
+export { AutomationStartViews } from "./components/automation-start-views";
 export {
   AutomationSuggestionsCard,
   type AutomationSuggestionsCardProps,
   type AutomationSuggestionPendingAction,
 } from "./components/automation-suggestions-card";
 export { AutomationSuggestionsPanel } from "./components/automation-suggestions-panel";
-export { AutomationTriggerForm } from "./components/automation-trigger-form";

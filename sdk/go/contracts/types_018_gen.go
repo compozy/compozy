@@ -4,6 +4,58 @@ package contracts
 
 import "time"
 
+type SessionRuntimeRecoveryStartedPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	TurnID         string    `json:"turn_id,omitempty"`
+	RunID          string    `json:"run_id"`
+	Attempt        int       `json:"attempt"`
+	MaxAttempts    int       `json:"max_attempts"`
+	Generation     int64     `json:"generation"`
+	FailureKind    string    `json:"failure_kind,omitempty"`
+	FailureDetail  string    `json:"failure_detail,omitempty"`
+}
+
+type SessionRuntimeRecoverySucceededPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	TurnID         string    `json:"turn_id,omitempty"`
+	RunID          string    `json:"run_id"`
+	Attempt        int       `json:"attempt"`
+	MaxAttempts    int       `json:"max_attempts"`
+	Generation     int64     `json:"generation"`
+	FailureKind    string    `json:"failure_kind,omitempty"`
+	FailureDetail  string    `json:"failure_detail,omitempty"`
+}
+
 type SessionRuntimeSelectionPayload struct {
 	Provider        string                    `json:"provider"`
 	Model           string                    `json:"model,omitempty"`
@@ -153,22 +205,3 @@ type SkillsListParams struct {
 }
 
 type SourceKind string
-
-type SourceRef struct {
-	Kind            SourceKind `json:"kind"`
-	Owner           string     `json:"owner"`
-	RawServerName   string     `json:"raw_server_name,omitempty"`
-	RawToolName     string     `json:"raw_tool_name,omitempty"`
-	ResourceID      string     `json:"resource_id,omitempty"`
-	ResourceVersion string     `json:"resource_version,omitempty"`
-	ProfileID       string     `json:"profile_id,omitempty"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	Scope           string     `json:"scope,omitempty"`
-}
-
-type SpawnBudgetPayload struct {
-	MaxChildren           int   `json:"max_children"`
-	MaxDepth              int   `json:"max_depth"`
-	TTLSeconds            int64 `json:"ttl_seconds"`
-	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
-}

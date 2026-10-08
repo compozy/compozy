@@ -174,6 +174,10 @@ func windowOpenSpec(
 	if err != nil {
 		return contract.WindowManagerWindowSpecPayload{}, err
 	}
+	// Public --app aliases are removed in v0.5.0; the daemon rewrites the command.
+	if replacement, retired := windowmanager.RetiredApp(app); retired {
+		cmd.PrintErrf("warning: app %q is deprecated and will be removed in v0.5.0; use %q\n", app, replacement)
+	}
 	return contract.WindowManagerWindowSpecPayload{
 		ID:                  windowmanager.WindowID(strings.TrimSpace(values.windowID)),
 		App:                 app,

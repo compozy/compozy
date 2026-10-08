@@ -261,6 +261,11 @@ type ToolApprovalGrantService interface {
 
 // AutomationManager exposes automation state and control surfaces to the API layer.
 type AutomationManager interface {
+	LatestRunsByOwner(
+		ctx context.Context,
+		owner automationpkg.RunOwnerKind,
+		ids []string,
+	) (map[string]automationpkg.Run, error)
 	ListSuggestions(
 		ctx context.Context,
 		readScope store.ReadScope,

@@ -129,7 +129,7 @@ let deck: OsWindowDeckModel;
 beforeEach(() => {
   windows = {
     "window:tasks": windowFixture("window:tasks"),
-    "window:catalog": windowFixture("window:catalog", { app: "jobs" }),
+    "window:catalog": windowFixture("window:catalog", { app: "automations" }),
   };
   deck = deckModel();
   vi.mocked(useDesktop).mockImplementation(selector =>
@@ -238,7 +238,10 @@ describe("OsWindowDeck", () => {
   });
 
   it("Should keep bulk-close controls disabled when every eligible peer is pinned (UT-088)", async () => {
-    windows["window:catalog"] = windowFixture("window:catalog", { app: "jobs", pinned: true });
+    windows["window:catalog"] = windowFixture("window:catalog", {
+      app: "automations",
+      pinned: true,
+    });
     renderDeck();
 
     fireEvent.contextMenu(screen.getByTestId("os-window-tab-menu-window:tasks"));
@@ -364,7 +367,7 @@ describe("OsWindowDeck", () => {
   it("Should render independently addressable deck rows for separate tiled panes (UT-102)", () => {
     const secondaryMembers = ["window:catalog", "window:jobs"];
     windows["window:jobs"] = windowFixture("window:jobs", {
-      app: "jobs",
+      app: "automations",
       stackId: "stack:secondary",
     });
     render(

@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+type SourceRef struct {
+	Kind            SourceKind `json:"kind"`
+	Owner           string     `json:"owner"`
+	RawServerName   string     `json:"raw_server_name,omitempty"`
+	RawToolName     string     `json:"raw_tool_name,omitempty"`
+	ResourceID      string     `json:"resource_id,omitempty"`
+	ResourceVersion string     `json:"resource_version,omitempty"`
+	ProfileID       string     `json:"profile_id,omitempty"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	Scope           string     `json:"scope,omitempty"`
+}
+
+type SpawnBudgetPayload struct {
+	MaxChildren           int   `json:"max_children"`
+	MaxDepth              int   `json:"max_depth"`
+	TTLSeconds            int64 `json:"ttl_seconds"`
+	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
+}
+
 type SpawnContext struct {
 	ProfileID        string `json:"profile_id,omitempty"`
 	ParentSessionID  string `json:"parent_session_id,omitempty"`
@@ -350,32 +369,4 @@ type TaskCatalogItemPayload struct {
 	ActiveRun            *TaskCatalogRunPayload `json:"active_run,omitempty"`
 	LastActivityAt       *time.Time             `json:"last_activity_at,omitempty"`
 	Loop                 *LoopProvenance        `json:"loop,omitempty"`
-}
-
-type TaskCatalogOwnerFacetPayload struct {
-	Owner Ownership `json:"owner"`
-	Count int       `json:"count"`
-}
-
-type TaskCatalogRunPayload struct {
-	ID                   string               `json:"id"`
-	TaskID               string               `json:"task_id"`
-	Status               TaskRunStatus        `json:"status"`
-	Attempt              int                  `json:"attempt"`
-	RecoveryCount        int                  `json:"recovery_count"`
-	PreviousRunID        string               `json:"previous_run_id,omitempty"`
-	FailureKind          string               `json:"failure_kind,omitempty"`
-	MaxAttempts          int                  `json:"max_attempts"`
-	SessionID            string               `json:"session_id,omitempty"`
-	WorktreeID           string               `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode ResolvedWorktreeMode `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef  string               `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
-	LeaseUntil           *time.Time           `json:"lease_until,omitempty"`
-	HeartbeatAt          *time.Time           `json:"heartbeat_at,omitempty"`
-	QueuedAt             time.Time            `json:"queued_at"`
-	ClaimedAt            *time.Time           `json:"claimed_at,omitempty"`
-	StartedAt            *time.Time           `json:"started_at,omitempty"`
-	EndedAt              *time.Time           `json:"ended_at,omitempty"`
-	Error                string               `json:"error,omitempty"`
 }

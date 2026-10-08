@@ -1,13 +1,17 @@
 import { useState } from "react";
 import {
   ArrowRight,
+  ChevronDown,
+  Clock3,
   Copy,
   History,
   PencilLine,
   Play,
+  Radio,
   SlidersHorizontal,
   Trash2,
   Workflow,
+  Zap,
 } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 
@@ -29,7 +33,11 @@ import {
 import { LoopPageLede } from "../loop-page-lede";
 import { LoopSection } from "../loop-section";
 
-import type { LoopBindingRow } from "../../lib/loop-bindings";
+import {
+  loopAutomateStarts,
+  type LoopAutomateStart,
+  type LoopBindingRow,
+} from "../../lib/loop-bindings";
 import { loopMonthActivity, loopSourceLabel } from "../../lib/loop-catalog";
 import type { LoopGraph } from "../../lib/loop-graph";
 import type {
@@ -64,8 +72,8 @@ interface LoopDetailProps {
   onDeleteReset: () => void;
   deletePending: boolean;
   deleteError: string | null;
-  onAddTrigger: () => void;
-  onAddSchedule: () => void;
+  /** Opens the Automations editor locked to this Loop with the chosen start. */
+  onAutomate: (start: LoopAutomateStart) => void;
 }
 
 export function LoopDetailView({
@@ -86,8 +94,7 @@ export function LoopDetailView({
   onDeleteReset,
   deletePending,
   deleteError,
-  onAddTrigger,
-  onAddSchedule,
+  onAutomate,
 }: LoopDetailProps) {
   const definition = loop.definition;
   const category = loop.catalog?.category;
@@ -104,7 +111,7 @@ export function LoopDetailView({
     crumbs: [{ id: "loops", label: "Loops", onSelect: backToLoops }],
     crumb: loop.name,
     actions: (
-      <div className="flex items-center" data-testid="loop-detail-actions">
+      <div className="flex items-center gap-1.5" data-testid="loop-detail-actions">
         <Button
           type="button"
           variant="secondary"
@@ -115,6 +122,7 @@ export function LoopDetailView({
           <Play aria-hidden="true" className="size-3.5" />
           Run loop
         </Button>
+        <LoopAutomateMenu starts={loopAutomateStarts(declaredKinds)} onAutomate={onAutomate} />
       </div>
     ),
     overflow: (
@@ -236,12 +244,11 @@ export function LoopDetailView({
             <aside className="flex flex-col gap-6">
               <LoopDeclaredInputs inputs={definition.inputs} />
               <LoopStartBindingsPanel
+                loopName={loop.name}
                 declaredKinds={declaredKinds}
                 bindings={bindings}
                 jobs={bindingJobs}
                 isLoading={bindingsLoading}
-                onAddTrigger={onAddTrigger}
-                onAddSchedule={onAddSchedule}
                 triggers={bindingTriggers}
               />
               <LoopLimitsPanel effectiveConfig={effectiveConfig} />
@@ -250,6 +257,49 @@ export function LoopDetailView({
         </div>
       </div>
     </div>
+  );
+}
+
+const AUTOMATE_ITEMS = {
+  schedule: { icon: Clock3, label: "On a schedule" },
+  event: { icon: Radio, label: "When something happens" },
+} as const;
+
+/** One "Automate ▾" menu with the starts the Loop's allowlist permits; absent when none. */
+function LoopAutomateMenu({
+  starts,
+  onAutomate,
+}: {
+  starts: readonly LoopAutomateStart[];
+  onAutomate: (start: LoopAutomateStart) => void;
+}) {
+  if (starts.length === 0) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        data-testid="loop-automate-action"
+        render={<Button type="button" variant="ghost" size="sm" />}
+      >
+        <Zap aria-hidden="true" className="size-3.5" />
+        Automate
+        <ChevronDown aria-hidden="true" className="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" data-testid="loop-automate-menu">
+        {starts.map(start => {
+          const { icon: Icon, label } = AUTOMATE_ITEMS[start];
+          return (
+            <DropdownMenuItem
+              data-testid={`loop-automate-${start}`}
+              key={start}
+              onClick={() => onAutomate(start)}
+            >
+              <Icon aria-hidden="true" className="size-3.5" />
+              {label}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

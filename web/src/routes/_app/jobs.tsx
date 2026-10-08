@@ -1,23 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { automationListLoopFilter, validateJobsSearch } from "@/systems/automation";
+import { redirectLegacyAutomationRoute } from "./-legacy-automation-redirect";
 
-import type { TopbarRouteContext } from "@/types/topbar";
-import { createOsRouteSync } from "@/systems/os";
-
+// Shim: legacy URL redirect stub; remove in v0.5.0.
 export const Route = createFileRoute("/_app/jobs")({
-  validateSearch: validateJobsSearch,
-  beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { crumb: { label: "Jobs", to: "/jobs" } },
-  }),
-  loaderDeps: ({ search }) => ({
-    enabled: search.enabled,
-    loop: automationListLoopFilter(search),
-    q: search.q,
-    scope: search.scope,
-    source: search.source,
-  }),
-  loader: async ({ context, deps }) =>
-    (await import("./-automation-preload")).preloadAutomationJobsRoute(context.queryClient, deps),
-  component: createOsRouteSync("jobs"),
+  validateSearch: (search: Record<string, unknown>) => search,
+  beforeLoad: ({ location, search }) =>
+    redirectLegacyAutomationRoute({ pathname: location.pathname, search }),
 });

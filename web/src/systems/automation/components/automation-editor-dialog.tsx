@@ -1,38 +1,26 @@
-import type { LucideIcon } from "lucide-react";
-import { CalendarClock, Zap } from "lucide-react";
-import type { ReactNode } from "react";
+import { Zap } from "lucide-react";
 
 import { Dialog, DialogContent, EntityDialogHeader, dialogShellClass } from "@compozy/ui";
 
 import type { AutomationDialogHandle } from "../lib/dialog-handle";
+import type { AutomationEditorSection, AutomationFormDraft } from "../lib/automation-form-draft";
 import type { WorkspaceOption } from "../lib/trigger-preview";
-import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
-
-import { AutomationJobForm } from "./automation-job-form";
-import { AutomationTriggerForm } from "./automation-trigger-form";
+import { AutomationForm } from "./automation-form/automation-form";
 import type { AgentPayload } from "@/systems/agent";
 import { useAggregateDestination } from "@/systems/profiles";
 
-type AutomationDialogEditorState =
-  | {
-      draft: CreateAutomationJobRequest;
-      isPending: boolean;
-      kind: "jobs";
-      mode: "create" | "edit";
-      onCancel: () => void;
-      onChange: (draft: CreateAutomationJobRequest) => void;
-      onSubmit: () => void;
-    }
-  | {
-      draft: CreateAutomationTriggerRequest;
-      isPending: boolean;
-      kind: "triggers";
-      mode: "create" | "edit";
-      onCancel: () => void;
-      onChange: (draft: CreateAutomationTriggerRequest) => void;
-      onSubmit: () => void;
-      submitError?: string | null;
-    };
+export interface AutomationEditorDialogState {
+  draft: AutomationFormDraft;
+  isPending: boolean;
+  lockedLoop?: string;
+  mode: "create" | "edit";
+  onCancel: () => void;
+  onChange: (draft: AutomationFormDraft) => void;
+  onSubmit: () => void;
+  section?: AutomationEditorSection;
+  submitError?: string | null;
+  submitErrorField?: "name" | null;
+}
 
 interface AutomationEditorDialogProps {
   activeWorkspaceId?: string | null;
@@ -42,50 +30,16 @@ interface AutomationEditorDialogProps {
   agentsLoading?: boolean;
   /** Agent target catalog failure, preserved by the selector. */
   agentsError?: string | null;
-  editor: AutomationDialogEditorState | null;
+  editor: AutomationEditorDialogState | null;
   handle?: AutomationDialogHandle;
   workspaces?: ReadonlyArray<WorkspaceOption>;
-}
-
-interface AutomationHeaderCopy {
-  icon: LucideIcon;
-  eyebrow: string;
-  title: string;
-  description: ReactNode;
-}
-
-function jobHeaderCopy(mode: "create" | "edit"): AutomationHeaderCopy {
-  return {
-    icon: CalendarClock,
-    eyebrow: "Automation · Job",
-    title: mode === "create" ? "Create job" : "Edit job",
-    description: (
-      <>
-        A job runs an agent, creates a task, or starts a Loop on a schedule.{" "}
-        <b className="font-medium text-muted">Choose the target and when it should run.</b>
-      </>
-    ),
-  };
-}
-
-function triggerHeaderCopy(mode: "create" | "edit"): AutomationHeaderCopy {
-  return {
-    icon: Zap,
-    eyebrow: "Automation · Trigger",
-    title: mode === "create" ? "Create trigger" : "Edit trigger",
-    description: (
-      <>
-        A trigger waits for something to happen, then runs an agent or starts a Loop.{" "}
-        <b className="font-medium text-muted">When this happens → run that.</b>
-      </>
-    ),
-  };
 }
 
 const WIDE_CONTENT_CLASS = `text-fg grid-rows-[auto_minmax(0,1fr)] ${dialogShellClass("lg", {
   fill: true,
 })}`;
 
+/** One create/edit dialog for every automation; Starts decides job vs trigger. */
 export function AutomationEditorDialog({
   activeWorkspaceId,
   agents,
@@ -95,15 +49,14 @@ export function AutomationEditorDialog({
   handle,
   workspaces,
 }: AutomationEditorDialogProps) {
-  const isEditorOpen = editor !== null;
   const aggregateDestination = useAggregateDestination();
-  const profileDestination = editor?.mode === "create" ? aggregateDestination : null;
+  const isEdit = editor?.mode === "edit";
 
   return (
     <Dialog
       disablePointerDismissal
       handle={handle}
-      open={isEditorOpen}
+      open={editor !== null}
       onOpenChange={open => {
         if (!open) editor?.onCancel();
       }}
@@ -115,42 +68,38 @@ export function AutomationEditorDialog({
           data-testid="automation-editor-dialog"
         >
           <EntityDialogHeader
-            {...(editor.kind === "jobs"
-              ? jobHeaderCopy(editor.mode)
-              : triggerHeaderCopy(editor.mode))}
+            description={
+              isEdit ? (
+                "Changes apply from the next run."
+              ) : (
+                <>
+                  Choose <b className="font-medium text-fg">when it starts</b> and{" "}
+                  <b className="font-medium text-fg">what it does</b>. You can turn it off any time.
+                </>
+              )
+            }
+            eyebrow="Automation"
+            icon={Zap}
+            title={isEdit ? "Edit automation" : "New automation"}
           />
-          {editor.kind === "jobs" ? (
-            <AutomationJobForm
-              activeWorkspaceId={activeWorkspaceId}
-              agents={agents}
-              agentsError={agentsError}
-              agentsLoading={agentsLoading}
-              draft={editor.draft}
-              isPending={editor.isPending}
-              mode={editor.mode}
-              onCancel={editor.onCancel}
-              onChange={editor.onChange}
-              onSubmit={editor.onSubmit}
-              profileDestination={profileDestination}
-              workspaces={workspaces}
-            />
-          ) : (
-            <AutomationTriggerForm
-              activeWorkspaceId={activeWorkspaceId}
-              agents={agents}
-              agentsError={agentsError}
-              agentsLoading={agentsLoading}
-              draft={editor.draft}
-              isPending={editor.isPending}
-              mode={editor.mode}
-              onCancel={editor.onCancel}
-              onChange={editor.onChange}
-              onSubmit={editor.onSubmit}
-              profileDestination={profileDestination}
-              submitError={editor.submitError}
-              workspaces={workspaces}
-            />
-          )}
+          <AutomationForm
+            activeWorkspaceId={activeWorkspaceId}
+            agents={agents}
+            agentsError={agentsError}
+            agentsLoading={agentsLoading}
+            draft={editor.draft}
+            isPending={editor.isPending}
+            lockedLoop={editor.lockedLoop}
+            mode={editor.mode}
+            onCancel={editor.onCancel}
+            onChange={editor.onChange}
+            onSubmit={editor.onSubmit}
+            profileDestination={isEdit ? null : aggregateDestination}
+            section={editor.section}
+            submitError={editor.submitError}
+            submitErrorField={editor.submitErrorField}
+            workspaces={workspaces}
+          />
         </DialogContent>
       ) : null}
     </Dialog>

@@ -132,7 +132,7 @@ export const settingsWindowManagerDesktopIds = {
  * review capture.
  */
 export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
-  version: 4,
+  version: 5,
   workspace_id: storyDefaultWorkspaceId,
   revision: 41,
   desktops: [
@@ -200,7 +200,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         {
           id: "group-bottom",
           frame: { x: 0, y: 0.56, width: 1, height: 0.44 },
-          root: { id: "leaf-jobs", kind: "leaf", window_id: "app:jobs" },
+          root: { id: "leaf-automations", kind: "leaf", window_id: "app:automations" },
         },
       ],
       floating: ["app:agents"],
@@ -262,7 +262,12 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       "/marketplace",
       settingsWindowManagerDesktopIds.review
     ),
-    "app:jobs": tiled("app:jobs", "jobs", "/jobs", settingsWindowManagerDesktopIds.review),
+    "app:automations": tiled(
+      "app:automations",
+      "automations",
+      "/automations",
+      settingsWindowManagerDesktopIds.review
+    ),
     "app:agents": {
       ...tiled("app:agents", "agents", "/agents", settingsWindowManagerDesktopIds.review),
       placement: "floating",
@@ -302,7 +307,7 @@ function tiled(
 }
 
 export const windowManagerLayoutDocumentFixture: WindowManagerLayoutDocumentWire = {
-  version: 4,
+  version: 5,
   workspace_id: storyDefaultWorkspaceId,
   desktops: settingsWindowManagerSnapshotFixture.desktops,
   windows: settingsWindowManagerSnapshotFixture.windows,

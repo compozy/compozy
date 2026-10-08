@@ -2,6 +2,19 @@
 
 package contracts
 
+type AutomationRunFailedPayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
+	RunID       string `json:"run_id"`
+	JobID       string `json:"job_id,omitempty"`
+	TriggerID   string `json:"trigger_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	Error       string `json:"error,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
+	WillRetry   bool   `json:"will_retry,omitempty"`
+}
+
 type AutomationRunsParams struct {
 	JobID     string    `json:"job_id,omitempty"`
 	TriggerID string    `json:"trigger_id,omitempty"`
@@ -165,10 +178,4 @@ type ClarifyAnswer struct {
 	Choice   *int   `json:"choice"`
 	Text     string `json:"text"`
 	Fallback bool   `json:"fallback"`
-}
-
-type ClarifyAskParams struct {
-	InvocationID string   `json:"invocation_id"`
-	Question     string   `json:"question"`
-	Choices      []string `json:"choices,omitempty"`
 }

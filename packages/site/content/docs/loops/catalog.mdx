@@ -61,9 +61,11 @@ Opening a row shows everything about one Loop — its contract, its body, and it
 - **Declared inputs** — name, required marker, type badge, description, and default.
 - **Start bindings** — the declared `start[]` kinds as read-only chips, plus one row per attached
   automation (schedule, webhook, or trigger) with its enabled state and a kind-specific detail line.
-  Jobs and triggers continue independently, so loading another jobs page never resets triggers (or
-  vice versa). **Add trigger** and **Add schedule** open the existing
-  [automation](/docs/automation) sheets pre-targeted at this Loop.
+  Scheduled and event automations page independently, so loading another page of one never resets
+  the other. The **Automations** row reads "Manual only", or the number of automations that start
+  this Loop with a link to the Automations listing filtered to it. **Automate ▾** offers the starts
+  the Loop allows (on a schedule, when something happens) and opens the
+  [automation](/docs/automation) editor with **Start a Loop** locked to this Loop.
 - **Limits & budget** — every stop limit as `default / ceiling`, so the hard daemon
   [ceiling](/docs/loops/guardrails#limits-budgets-and-ceilings) is always visible.
 - **Versions** and a 30-day stat grid.

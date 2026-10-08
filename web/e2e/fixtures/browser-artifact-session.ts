@@ -223,30 +223,15 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
     const countAutomationRunCards = () =>
       [...document.querySelectorAll<HTMLElement>("[data-testid]")]
         .map(element => element.dataset.testid || "")
-        .filter(
-          testId =>
-            testId.startsWith("automation-run-") &&
-            testId !== "automation-run-history" &&
-            testId !== "automation-run-history-loading" &&
-            testId !== "automation-run-history-error" &&
-            testId !== "automation-run-history-empty" &&
-            testId !== "automation-run-history-rows" &&
-            !testId.startsWith("automation-run-session-link-")
-        ).length;
-    const automationPathTab = window.location.pathname.match(/^\/(jobs|triggers)(?:\/|$)/)?.[1] as
-      | "jobs"
-      | "triggers"
-      | undefined;
-    const automationActiveTab =
-      automationPathTab ??
-      (document.querySelector('[data-testid="jobs-shell"]')
-        ? "jobs"
-        : document.querySelector('[data-testid="triggers-shell"]')
-          ? "triggers"
-          : undefined);
+        .filter(testId => /^automation-run-(?!list|now-|drawer-|open-|retries-)/.test(testId))
+        .length;
+    // The merged Automations app has no tabs; detail routes still name the daemon entity.
+    const automationActiveTab = window.location.pathname.match(
+      /^\/automations\/(jobs|triggers)(?:\/|$)/
+    )?.[1] as "jobs" | "triggers" | undefined;
     // Catalog scope now lives in the list route URL (`?scope=`); absent means "all".
     const automationScopeParam = new URLSearchParams(window.location.search).get("scope");
-    const automationScopeFilter = /^\/(jobs|triggers)$/.test(window.location.pathname)
+    const automationScopeFilter = /^\/automations\/?$/.test(window.location.pathname)
       ? automationScopeParam === "global" || automationScopeParam === "workspace"
         ? automationScopeParam
         : ("all" as const)
@@ -255,10 +240,13 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
     const automationSelectedItem = document.querySelector('[data-testid="automation-detail-panel"]')
       ? topbarTitle
       : undefined;
-    const automationEditorKind = document.querySelector('[data-testid="automation-job-form"]')
-      ? "job"
-      : document.querySelector('[data-testid="automation-trigger-form"]')
-        ? "trigger"
+    // The one editor form names the daemon entity its Starts choice saves as.
+    const automationEditorEntity = document
+      .querySelector('[data-testid="automation-form"]')
+      ?.getAttribute("data-entity");
+    const automationEditorKind =
+      automationEditorEntity === "job" || automationEditorEntity === "trigger"
+        ? automationEditorEntity
         : undefined;
     const tasksActiveMode = (["dashboard", "inbox", "kanban", "list"] as const).find(
       mode =>
@@ -306,34 +294,37 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       title: document.title,
       automation_active_tab: automationActiveTab,
       automation_delete_visible:
-        document.querySelector('[data-testid="delete-automation-btn"]') !== null,
+        document.querySelector('[data-testid="automation-delete-btn"]') !== null,
       automation_detail_overflow_visible:
         document.querySelector('[data-testid="automation-detail-overflow"]') !== null,
       automation_enabled_toggle_visible:
-        document.querySelector('[data-testid="toggle-automation-btn"]') !== null,
+        document.querySelector('[data-testid="automation-enable-switch"]') !== null,
       automation_editor_kind: automationEditorKind,
       automation_editor_open:
         document.querySelector('[data-testid="automation-editor-dialog"]') !== null,
-      automation_item_count: countByPrefix("automation-item-"),
+      automation_item_count:
+        countByPrefix("automation-row-job-") +
+        countByPrefix("automation-row-trigger-") +
+        countByPrefix("automation-card-job-") +
+        countByPrefix("automation-card-trigger-"),
       automation_run_count: countAutomationRunCards(),
-      automation_run_history_visible:
-        document.querySelector('[data-testid="automation-run-history"]') !== null,
-      automation_scheduler_visible:
-        document.querySelector('[data-testid="automation-job-scheduler"]') !== null,
+      automation_inspect_visible:
+        document.querySelector('[data-testid="automation-inspect-btn"]') !== null,
+      automation_run_list_visible:
+        document.querySelector('[data-testid="automation-run-list"]') !== null,
       automation_scope_filter: automationScopeFilter,
       automation_selected_item: automationSelectedItem,
-      // Job run rows link straight to the session; trigger runs expose the link inside the
-      // expanded drawer, and only when the daemon recorded a session id.
+      automation_run_now_visible:
+        document.querySelector('[data-testid="automation-run-now-btn"]') !== null,
+      // Runs expose their session link inside the expanded drawer, and only when the
+      // daemon recorded a session id.
       automation_session_link_count: [
         ...document.querySelectorAll<HTMLAnchorElement>(
-          'a[data-testid^="automation-run-"][href^="/session/"], a[data-testid^="trigger-run-open-"][href^="/session/"]'
+          'a[data-testid^="automation-run-open-"][href^="/session/"]'
         ),
       ].filter(link => link.closest("[hidden]") === null).length,
-      automation_trigger_visible:
-        document.querySelector('[data-testid="trigger-job-btn"]') !== null,
       automation_view_visible:
-        document.querySelector('[data-testid="jobs-shell"]') !== null ||
-        document.querySelector('[data-testid="triggers-shell"]') !== null ||
+        document.querySelector('[data-testid="automations-shell"]') !== null ||
         document.querySelector('[data-testid="automation-detail-panel"]') !== null,
       chat_view_visible: document.querySelector('[data-testid="chat-view"]') !== null,
       composer_clear_button_enabled:

@@ -89,7 +89,7 @@ afterEach(() => {
 });
 
 describe("listAutomationJobs", () => {
-  it("forwards every stable job filter, package source, enabled state, and cursor", async () => {
+  it("forwards every stable job filter, package source, target, enabled state, and cursor", async () => {
     mockJsonResponse({
       jobs: [jobFixture],
       page: { has_more: true, limit: 10, next_cursor: "job-cursor-2", total: 12 },
@@ -105,13 +105,14 @@ describe("listAutomationJobs", () => {
       profile: " marketing ",
       all_profiles: false,
       source: "package",
+      target: "task",
       limit: 10,
     });
 
     expect(result.jobs).toEqual([jobFixture]);
     expect(result.page.total).toBe(12);
     await expectFetchRequest({
-      path: "/api/automation/jobs?scope=workspace&workspace_id=ws_alpha&source=package&enabled=false&q=review&cursor=job-cursor-1&limit=10&loop=release-loop&profile=marketing&all_profiles=false",
+      path: "/api/automation/jobs?scope=workspace&workspace_id=ws_alpha&source=package&target=task&enabled=false&q=review&cursor=job-cursor-1&limit=10&loop=release-loop&profile=marketing&all_profiles=false",
     });
   });
 

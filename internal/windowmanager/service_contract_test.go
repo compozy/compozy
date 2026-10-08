@@ -15,6 +15,48 @@ import (
 )
 
 func TestLayoutDocumentContract(t *testing.T) {
+	// Invariant: exported v4 layouts remain importable without mutating input; this contract suite owns it.
+	t.Run("Should validate and replace an exported v4 layout with canonical apps", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		snapshot := validThreeWindowSnapshot()
+		document := LayoutDocument{
+			Version:     PreviousSnapshotVersion,
+			WorkspaceID: "workspace-a",
+			Desktops:    snapshot.Desktops,
+			Windows:     snapshot.Windows,
+		}
+		for id, window := range document.Windows {
+			window.App = "jobs"
+			window.Route = testRoute("/jobs/morning-digest")
+			document.Windows[id] = window
+		}
+		validation, err := environment.manager.ValidateLayout(t.Context(), "workspace-a", document)
+		if err != nil || !validation.Valid {
+			t.Fatalf("validation=%+v err=%v", validation, err)
+		}
+		got, err := environment.manager.ReplaceLayout(
+			t.Context(),
+			ReplaceLayoutRequest{WorkspaceID: "workspace-a", ExpectedRevision: 0, Document: document},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Snapshot.Version != SnapshotVersion || len(got.Snapshot.Windows) != len(document.Windows) {
+			t.Fatalf("import=%+v", got.Snapshot)
+		}
+		for id, window := range got.Snapshot.Windows {
+			if window.App != "automations" || window.Route.Pathname != "/automations/jobs/morning-digest" {
+				t.Fatalf("window=%+v", window)
+			}
+			if document.Windows[id].App != "jobs" || document.Windows[id].Route.Pathname != "/jobs/morning-digest" {
+				t.Fatal("input document mutated")
+			}
+		}
+		if document.Version != PreviousSnapshotVersion {
+			t.Fatal("input version mutated")
+		}
+	})
 	t.Run(
 		"Should export immutable documents, validate diagnostics, and replace through normal revision CAS",
 		func(t *testing.T) {

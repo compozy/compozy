@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type MemoryStoreParams struct {
+	Key       string      `json:"key"`
+	Content   string      `json:"content"`
+	Scope     MemoryScope `json:"scope,omitempty"`
+	Workspace string      `json:"workspace,omitempty"`
+	Tags      []string    `json:"tags,omitempty"`
+}
+
 type MessageDeltaPatch struct {
 	Deny       bool    `json:"deny,omitempty"`
 	DenyReason string  `json:"deny_reason,omitempty"`
@@ -272,20 +280,4 @@ type ModelsRefreshParams struct {
 
 type ModelsStatusParams struct {
 	ProviderID string `json:"provider_id,omitempty"`
-}
-
-type ObserveHealth struct {
-	Status             string                  `json:"status"`
-	UptimeSeconds      int64                   `json:"uptime_seconds"`
-	ActiveSessions     int                     `json:"active_sessions"`
-	ActiveAgents       int                     `json:"active_agents"`
-	GlobalDBSizeBytes  int64                   `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                   `json:"session_db_size_bytes"`
-	Persistence        PersistenceHealth       `json:"persistence"`
-	Retention          RetentionHealth         `json:"retention"`
-	Failures           FailureHealth           `json:"failures"`
-	AgentProbes        []ProbeResult           `json:"agent_probes,omitempty"`
-	Tasks              TaskHealth              `json:"tasks"`
-	Activities         []SessionActivityHealth `json:"activities,omitempty"`
-	Version            string                  `json:"version"`
 }

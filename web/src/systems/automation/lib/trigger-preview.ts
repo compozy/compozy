@@ -1,9 +1,9 @@
 /**
  * Pure derivation of the trigger live-preview view-model from the form draft.
  *
- * Everything the right-hand preview pane shows — the plain-language summary, the
- * sample-event JSON with matched filter keys, the selected target, displayed
- * request, match badge, and webhook endpoint/curl — is computed from `draft`.
+ * Everything the event preview shows — the sample-event JSON with matched
+ * filter keys, the selected target, displayed request, match badge, and
+ * webhook endpoint/curl — is computed from `draft`.
  * No React, no side effects: the orchestrator wraps a single call in `useMemo`.
  */
 
@@ -43,13 +43,6 @@ export interface WorkspaceOption {
 export interface TriggerPreviewContext {
   mode?: AutomationEditorMode;
   targetIssue?: string | null;
-  workspaces?: ReadonlyArray<WorkspaceOption>;
-}
-
-export type SummaryTone = "plain" | "weak" | "strong" | "accent" | "event";
-export interface SummarySegment {
-  tone: SummaryTone;
-  text: string;
 }
 
 export type MatchState = "all" | "match" | "nomatch";
@@ -80,13 +73,13 @@ export interface WebhookPreview {
 
 export interface TriggerPreviewModel {
   eventKind: string;
-  summary: SummarySegment[];
   json: JsonRow[];
   matchState: MatchState;
   matchLabel: string;
+  /** The first condition the sample fails, for "Stop reason must be error." */
+  failingCondition: { key: string; value: string } | null;
   rendered: RenderToken[];
   templateTokens: TemplateToken[];
-  reliabilityBadge: string;
   request: AutomationRequestProjection<
     CreateAutomationTriggerRequest | UpdateAutomationTriggerRequest
   >;
@@ -149,13 +142,17 @@ function resolveField(env: TriggerEnvelope, key: string): string | undefined {
   }
 }
 
-function matchesFilter(env: TriggerEnvelope, filter: Filter): boolean {
+/** The first active condition the sample envelope fails, or `null` when all match. */
+function firstFailingCondition(
+  env: TriggerEnvelope,
+  filter: Filter
+): { key: string; value: string } | null {
   for (const [key, value] of activeFilterEntries(filter)) {
     if (String(resolveField(env, key)) !== String(value)) {
-      return false;
+      return { key, value: String(value) };
     }
   }
-  return true;
+  return null;
 }
 
 function appendObject(
@@ -206,68 +203,6 @@ function buildJsonRows(env: TriggerEnvelope, filteredKeys: ReadonlySet<string>):
   return rows;
 }
 
-function workspaceName(workspaces: ReadonlyArray<WorkspaceOption>, id: string | undefined): string {
-  if (!id) return "this project";
-  return workspaces.find(workspace => workspace.id === id)?.name ?? id;
-}
-
-function buildSummary(
-  draft: Draft,
-  def: EventDef | undefined,
-  selection: EventSelection,
-  workspaces: ReadonlyArray<WorkspaceOption>
-): SummarySegment[] {
-  const segments: SummarySegment[] = [
-    { tone: "weak", text: "When " },
-    { tone: "event", text: formatEventKind(selection) },
-    { tone: "plain", text: " happens " },
-  ];
-
-  if (def?.family === "webhook") {
-    segments.push({ tone: "weak", text: "globally" });
-  } else if (draft.scope === "workspace") {
-    segments.push({ tone: "plain", text: "in " });
-    segments.push({ tone: "strong", text: workspaceName(workspaces, draft.workspace_id) });
-  } else {
-    segments.push({ tone: "weak", text: "in any project" });
-  }
-
-  const active = activeFilterEntries(getFilter(draft));
-  if (active.length > 0) {
-    segments.push({ tone: "plain", text: ", " });
-    segments.push({ tone: "weak", text: "if " });
-    active.forEach(([key, value], index) => {
-      if (index > 0) segments.push({ tone: "weak", text: " and " });
-      segments.push({ tone: "strong", text: key.replace(/^data\./, "") });
-      segments.push({ tone: "plain", text: " = " });
-      segments.push({ tone: "strong", text: value });
-    });
-  }
-
-  const target = projectAutomationTarget(draft);
-  segments.push({ tone: "plain", text: ", " });
-  if (target.kind === "loop") {
-    segments.push({ tone: "weak", text: "start Loop " });
-    segments.push({ tone: "accent", text: target.loopName || "not selected" });
-  } else {
-    segments.push({ tone: "weak", text: "run " });
-    segments.push({ tone: "accent", text: target.agentName.trim() || "an agent" });
-  }
-  segments.push({ tone: "plain", text: "." });
-  return segments;
-}
-
-function buildReliabilityBadge(draft: Draft): string {
-  const parts: string[] = [];
-  const retry = draft.retry;
-  parts.push(retry?.strategy === "backoff" ? `Backoff ×${retry.max_retries}` : "No retry");
-  const max = draft.fire_limit?.max ?? "?";
-  const windowValue = draft.fire_limit?.window ?? "?";
-  parts.push(`${max}/${windowValue}`);
-  parts.push((draft.enabled ?? true) ? "enabled" : "disabled");
-  return parts.join(" · ");
-}
-
 /** Real webhook endpoint path — webhooks are always global. */
 export function webhookUrl(draft: Draft): string {
   const slug = draft.endpoint_slug?.trim() || "slug";
@@ -314,7 +249,6 @@ export function buildTriggerPreview(
   draft: Draft,
   context: TriggerPreviewContext = {}
 ): TriggerPreviewModel {
-  const workspaces = context.workspaces ?? [];
   const request = projectAutomationTriggerRequest(draft, context.mode ?? "create");
   const normalizedDraft = buildAutomationTriggerRequest(draft);
   const target = projectAutomationTarget(normalizedDraft);
@@ -325,30 +259,30 @@ export function buildTriggerPreview(
   const filteredKeys = new Set(Object.keys(filter).filter(key => key.trim() !== ""));
   const active = activeFilterEntries(filter);
 
+  const failingCondition = active.length === 0 ? null : firstFailingCondition(env, filter);
   let matchState: MatchState;
   let matchLabel: string;
   if (active.length === 0) {
     matchState = "all";
-    matchLabel = "fires on every event";
-  } else if (matchesFilter(env, filter)) {
+    matchLabel = "starts on every event";
+  } else if (failingCondition === null) {
     matchState = "match";
     matchLabel = "matches this sample";
   } else {
     matchState = "nomatch";
-    matchLabel = "won't fire on this sample";
+    matchLabel = "won't start on this sample";
   }
 
   const url = def?.family === "webhook" ? webhookUrl(normalizedDraft) : null;
 
   return {
     eventKind: formatEventKind(selection),
-    summary: buildSummary(normalizedDraft, def, selection, workspaces),
     json: buildJsonRows(env, filteredKeys),
     matchState,
     matchLabel,
+    failingCondition,
     rendered: renderTemplate(normalizedDraft.prompt ?? "", env),
     templateTokens: tokenizeTemplate(normalizedDraft.prompt ?? ""),
-    reliabilityBadge: buildReliabilityBadge(normalizedDraft),
     request,
     target,
     targetIssue: context.targetIssue ?? null,

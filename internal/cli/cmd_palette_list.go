@@ -69,6 +69,7 @@ func newCmdPaletteInspectCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			commandID = canonicalCmdPaletteCommandID(cmd, commandID)
 			command, ok := findCmdPaletteCommand(catalog.Commands, commandID)
 			if !ok {
 				return cmdPaletteCommandNotFoundError(commandID)

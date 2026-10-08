@@ -38,11 +38,12 @@ normalizes, and commits the complete topology atomically.
   was zoomed comes back zoomed on the desktop it minimized from, and a zoomed frame stays zoomed when
   its zoomed tab closes.
 - Preview, validation, rejected commands, and no-ops do not persist or emit topology events.
-- Snapshots and layout documents are version 4. The wire snapshot carries no `history` body; undo and
+- Snapshots and layout documents are version 5. The wire snapshot carries no `history` body; undo and
   redo stay daemon-internal, and the snapshot reports `closed_entry_count` instead of reopen bodies.
-  The daemon migrates a stored version 3 arrangement on load and persists it once under the next
+  The daemon migrates a stored version 3 or 4 arrangement on load and persists it once under the next
   revision, so caches keyed by revision refetch: a former focus desktop becomes a regular desktop whose
-  owner stays zoomed on it with its return anchor; layout history resets.
+  owner stays zoomed on it with its return anchor, retired `jobs`/`triggers` windows become
+  `automations` windows on the matching route, and layout history resets.
 
 Read the current revision before mutating:
 
@@ -148,6 +149,11 @@ compozy window swap --workspace <workspace-id> --revision <revision> \
 compozy window close --workspace <workspace-id> --revision <revision> --id <window-id> --minimize
 compozy window open --workspace <workspace-id> --revision <revision> --restore <window-id>
 ```
+
+Open jobs and triggers with `--app automations` (`--pathname /automations/jobs/<job-id>` or
+`/automations/triggers/<trigger-id>`). The retired app ids `jobs` and `triggers` still open
+Automations in v0.4.0 with a deprecation warning and fail like unknown ids from v0.5.0; never emit
+them in commands or `window_layout` resources.
 
 Where a new window lands follows `new_window_policy`: `tab` (default) joins the client's focused
 window as a tab when that window is visible on the open's desktop, else it falls back to
@@ -328,9 +334,10 @@ compozy layout validate --workspace <workspace-id> --file layout.json -o json
 compozy layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
 ```
 
-Documents are version 4 and round-trip `floating_stacks`, `nav_stack`, and `pinned`. Export omits
-history and closed entries, so a raw round trip never restores reopen history. A version other than 4
-fails validation with `window_manager_invalid_topology` and the `topology.unsupported_version`
+Documents are version 5 and round-trip `floating_stacks`, `nav_stack`, and `pinned`. Export omits
+history and closed entries, so a raw round trip never restores reopen history. A version 4 document is
+still accepted and upgraded (its retired `jobs`/`triggers` windows become `automations`); any other
+version fails validation with `window_manager_invalid_topology` and the `topology.unsupported_version`
 diagnostic. This interface currently has no legacy-document converter. Preserve the original
 document and current state, and report the missing lossless upgrade path; manually rebuilding
 a layout is not a migration of the original data.

@@ -1017,6 +1017,16 @@ export interface GatewayIngressPayload {
   enable_path?: string;
 }
 
+export type SchedulerSkipReason = string;
+
+export interface AutomationLastRunPayload {
+  id: string;
+  status: RunStatus;
+  started_at?: ISODateTime;
+  ended_at?: ISODateTime;
+  skip_reason?: SchedulerSkipReason;
+}
+
 export interface Trigger {
   id: string;
   profile_id: string;
@@ -1043,6 +1053,7 @@ export interface Trigger {
   ingress?: GatewayIngressPayload;
   created_at: ISODateTime;
   updated_at: ISODateTime;
+  last_run?: AutomationLastRunPayload;
 }
 
 export interface AutomationTriggersResult {
