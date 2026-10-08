@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Compozy Real-Scenario QA Playbook",
-  "description": "Self-contained startup playbook consumed by eng-real-scenario-qa. The bootstrap helper materializes workspaces, knowledge files, agents, and an open task tree from this spec; the operator kickoff is the only QA-controlled prompt. Auditor reads required_deliverables and required_collaboration.",
+  "description": "Self-contained startup playbook consumed by eng-real-scenario-qa. The bootstrap helper materializes workspaces, agents, and an open task tree from this spec; the operator kickoff is the only QA-controlled prompt. Auditor reads required_deliverables and required_collaboration.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -12,7 +12,6 @@
     "kickoff_brief",
     "workspaces",
     "agents",
-    "knowledge_files",
     "open_tasks",
     "required_deliverables",
     "required_collaboration"
@@ -69,11 +68,7 @@
         "properties": {
           "id": { "type": "string", "pattern": "^ws_[a-z0-9_]+$" },
           "name": { "type": "string", "minLength": 1 },
-          "purpose": { "type": "string", "minLength": 1 },
-          "knowledge_files": {
-            "type": "array",
-            "items": { "type": "string" }
-          }
+          "purpose": { "type": "string", "minLength": 1 }
         }
       }
     },
@@ -98,23 +93,6 @@
             "type": "array",
             "items": { "type": "string" }
           }
-        }
-      }
-    },
-    "knowledge_files": {
-      "type": "array",
-      "minItems": 3,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["path", "content"],
-        "properties": {
-          "path": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Relative canonical path under WORKSPACE_PATH/knowledge/. global/ paths project into every agent workspace; other paths must be assigned by workspaces[].knowledge_files."
-          },
-          "content": { "type": "string", "minLength": 1 }
         }
       }
     },
@@ -178,7 +156,7 @@
           "seed_at_minute": { "type": "integer", "minimum": 0 },
           "delivery": {
             "type": "string",
-            "enum": ["knowledge_file", "task_event", "config_change"],
+            "enum": ["task_event", "config_change"],
             "description": "How the disruption is introduced into the runtime state. Never as a direct prompt to an agent."
           },
           "expected_recovery": { "type": "string", "minLength": 1 }

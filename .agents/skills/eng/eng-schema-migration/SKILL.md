@@ -1,6 +1,6 @@
 ---
 name: eng-schema-migration
-description: "Change Compozy SQLite tables, columns, indexes, constraints, triggers, or seed data under internal/store or internal/memory using append-only Goose migrations and owning generators. Excludes in-memory structures, Markdown memory, and non-SQLite caches."
+description: "Change Compozy SQLite tables, columns, indexes, constraints, triggers, or seed data under internal/store using append-only Goose migrations and owning generators. Excludes in-memory structures and non-SQLite caches."
 trigger: implicit
 ---
 
@@ -8,11 +8,11 @@ trigger: implicit
 
 ## Procedure
 
-1. Read `references/migration-decision.md` and classify the changed datum and owning stream: `global` and `memory` share `compozy.db`; `session` owns each `events.db`; `workspace` owns workspace observability databases.
+1. Read `references/migration-decision.md` and classify the changed datum and owning stream: `global` owns `compozy.db`; `session` owns each `events.db`; `workspace` owns workspace observability databases.
 2. Inspect the owner's declarative schema source (`schema/schema.sql` or `schema/definitions/*.sql`), `schema/migrations/`, `schema/migrations/atlas.sum`, `migration_stream.go`, sqlc query catalog, and canonical migration/open tests. Select the next gap-free five-digit version. Never edit, rename, renumber, reorder, or delete an existing migration or its checksum entry.
 3. Read `references/migration-template.md`. Edit the owning declarative source, then run `make codegen`. Inspect the newly appended Goose SQL, Atlas sqlcheck result, refreshed `atlas.sum`, and regenerated sqlc output. If the generated tail is wrong, correct the declarative schema and regenerate; add bounded data transformation SQL only to the unpublished tail, then rerun `make codegen`.
 4. Update affected static queries in the owning sqlc catalog. Keep generated `sqlcgen` types inside the owner package and map them to domain types at the repository boundary.
-5. Read `references/migration-test-patterns.md`. Run the canonical suites that own fresh apply, reopen/data preservation, ahead-version refusal, integrity, sequential history, and schema equivalence. Extend cases only for a new transformation or failure mode not already covered. Global/memory changes also retain shared-file table ownership checks; do not duplicate those invariants for every appended migration.
+5. Read `references/migration-test-patterns.md`. Run the canonical suites that own fresh apply, reopen/data preservation, ahead-version refusal, integrity, sequential history, and schema equivalence. Extend cases only for a new transformation or failure mode not already covered.
 6. If recovery or refusal guidance changes, move the whole stopped SQLite family (`.db`, `-wal`, `-shm`, and sibling databases) to cold storage; never move or edit one live file. Prefer a newer compatible binary for `schema_ahead` when state must be preserved.
 7. Run the owning scoped race-enabled migration checks and `make codegen-check`. Reuse their current evidence and the affected lint lane; root `make gate` applies before commit/push and required current-head CI before PR completion.
 

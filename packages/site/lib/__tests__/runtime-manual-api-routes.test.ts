@@ -20,6 +20,10 @@ type APIRoute = {
 
 const ignoredExternalPrefixes = ["/api/v1"];
 
+// Routes the memory removal retired. Only the migration guide may still name them.
+const retiredMemoryRoutes =
+  /^\/api\/(?:memory|settings\/memory|workspaces\/\{[^}]+\}\/memory)(?:\/|$)/;
+
 function readRepoFile(...parts: string[]): string {
   return readFileSync(resolve(repoRoot, ...parts), "utf8");
 }
@@ -231,6 +235,9 @@ func registerSessionReadRoutes(reads gin.IRouter, handlers *Handlers) {
     const violations = listManualDocs(contentRoot).flatMap(doc =>
       extractDocumentedAPIRoutes(doc.content)
         .filter(route => !isCoveredByRegisteredRoute(route, registeredRoutes))
+        .filter(
+          route => !(doc.path.startsWith("docs/migration/") && retiredMemoryRoutes.test(route))
+        )
         .map(route => `${doc.path} -> ${route}`)
     );
 

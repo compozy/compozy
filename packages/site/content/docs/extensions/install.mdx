@@ -5,7 +5,7 @@ description: Install extensions from curated, GitHub, git, or local sources; und
 
 Extensions are installable packages that add static resources or runtime behavior to CompozyOS. An
 extension can ship skills, agent definitions with authored-context sidecars, automation, layouts,
-hooks, loops, MCP servers, memory backends, model sources, and subprocess tools.
+hooks, loops, MCP servers, model sources, and subprocess tools.
 
 CompozyOS stores installed extensions in the global registry and copies managed installs into
 `<COMPOZY_HOME>/extensions/<name>`.
@@ -240,8 +240,7 @@ Registry tier and digest verification are provenance signals, not safety guarant
 ## Permission ceilings
 
 Published installs (`curated`, `github`, `git`) run under the marketplace tier, whose Host API grants
-are limited to `logs.read`, `memory.read`, `observe.read`, `session.read`, `skills.read`, and
-`tool.read`. A published extension may declare more; anything outside the ceiling is dropped at grant
+are limited to `logs.read`, `observe.read`, `session.read`, `skills.read`, and `tool.read`. A published extension may declare more; anything outside the ceiling is dropped at grant
 time with a recorded diagnostic instead of silently succeeding.
 
 Local-path installs and dev links carry no ceiling. Full detail:

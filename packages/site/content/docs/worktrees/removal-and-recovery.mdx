@@ -98,7 +98,7 @@ compozy worktree dismiss feature-auth --workspace . -o json
 ```
 
 Expected result reports `action: "dismissed"`. Dismiss does not delete a filesystem path, a branch,
-session history, task history, or workspace memory. The retained record remains readable by its ID,
+session history, or task history. The retained record remains readable by its ID,
 but its name becomes available for a new Worktree. Every non-dismissed record, including `removed`,
 continues to reserve its name.
 

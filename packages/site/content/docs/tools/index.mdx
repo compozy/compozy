@@ -23,7 +23,7 @@ and an audit trail.
 ## Why CompozyOS has tools
 
 Agent sessions need more than text prompts. They need to inspect runtime state, claim work, extend
-leases, read memory, search skills, inspect hooks, and report progress without scraping prose or
+leases, search skills, inspect hooks, and report progress without scraping prose or
 calling private Go functions.
 
 The registry gives those actions one shape:
@@ -42,7 +42,7 @@ The registry gives those actions one shape:
 
     ```bash
     compozy tool list -o json
-    compozy tool search memory --limit 5 -o json
+    compozy tool search session --limit 5 -o json
     ```
 
     What happened: CompozyOS returned operator-visible descriptors and availability diagnostics for the
@@ -142,8 +142,6 @@ Good tool candidates:
 
 - runtime state inspection
 - task claim, heartbeat, completion, failure, and release
-- memory show/search/write operations
-- Memory v2 operational/admin actions that already exist on CLI/API surfaces
 - provider model catalog list/curation/refresh/status
 - skill and capability discovery
 - hook, automation, and extension lifecycle operations

@@ -7,7 +7,7 @@ type ApiSection = { label: string; ids: string[] };
 export const API_SECTIONS: ApiSection[] = [
   {
     label: "Workspace",
-    ids: ["sessions", "workspaces", "worktrees", "agents", "profiles", "memory", "skills"],
+    ids: ["sessions", "workspaces", "worktrees", "agents", "profiles", "skills"],
   },
   {
     label: "Tools & automation",

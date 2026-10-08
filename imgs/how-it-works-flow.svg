@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1100" viewBox="0 0 1800 1100" role="img" aria-labelledby="title description">
   <title id="title">CompozyOS local runtime map</title>
-  <desc id="description">A calm architecture diagram showing people and agents using CLI, Web, HTTP plus SSE, UDS, and native tools to operate a local Compozy daemon. The daemon owns durable sessions, tasks, loops, and memory, persists runtime state in SQLite, and exposes extension surfaces including extensions, hooks, skills, capabilities, SDKs, and MCP.</desc>
+  <desc id="description">A calm architecture diagram showing people and agents using CLI, Web, HTTP plus SSE, UDS, and native tools to operate a local Compozy daemon. The daemon owns durable sessions, tasks, loops, and automation, persists runtime state in SQLite, and exposes extension surfaces including extensions, hooks, skills, capabilities, SDKs, and MCP.</desc>
   <defs>
     <style>
       .canvas { fill: #131211; }
@@ -87,8 +87,8 @@
       <text class="body" x="608" y="61">repeatable coordination</text>
 
       <rect class="elevated" x="876" width="344" height="82" rx="9"/>
-      <text class="label" x="900" y="35">Memory</text>
-      <text class="body" x="900" y="61">scoped, inspectable context</text>
+      <text class="label" x="900" y="35">Automation</text>
+      <text class="body" x="900" y="61">scheduled and triggered work</text>
     </g>
   </g>
 

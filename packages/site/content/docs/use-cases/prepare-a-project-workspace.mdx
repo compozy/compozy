@@ -1,6 +1,6 @@
 ---
 title: Prepare a project workspace
-description: Turn an existing repository into a CompozyOS workspace that agents can inspect, remember, and operate through durable sessions.
+description: Turn an existing repository into a CompozyOS workspace that agents can inspect and operate through durable sessions.
 ---
 
 This flow is for a maintainer who already has a repository and wants CompozyOS to run repeatable agent
@@ -9,9 +9,9 @@ give the agent a local operating brief, and leave evidence that the runtime is u
 workspace.
 
 <OperatorNote label="What this creates">
-  A registered workspace, one workspace-local agent definition, one workspace memory entry, and one
-  smoke-test session. The files stay in the repository under `.compozy/`; the daemon stores runtime
-  session state under `COMPOZY_HOME`.
+  A registered workspace, one workspace-local agent definition, and one smoke-test session. The
+  files stay in the repository under `.compozy/`; the daemon stores runtime session state under
+  `COMPOZY_HOME`.
 </OperatorNote>
 
 ## Setup
@@ -32,11 +32,10 @@ built-in provider key, not because the workspace model depends on that provider.
   chart={`flowchart TD
     Repo[Existing repository] --> Register[Register workspace]
     Register --> Agent[Add .compozy/agents/reviewer/AGENT.md]
-    Agent --> Memory[Write workspace memory]
-    Memory --> Inspect[Inspect resolved workspace and agent]
+    Agent --> Inspect[Inspect resolved workspace and agent]
     Inspect --> Session[Start smoke-test session]
     Session --> Evidence[Keep status, events, and history]`}
-  caption="A project workspace becomes useful when registration, local agent instructions, memory, and session evidence all point at the same root."
+  caption="A project workspace becomes useful when registration, local agent instructions, and session evidence all point at the same root."
 />
 
 <Workflow>
@@ -50,7 +49,7 @@ built-in provider key, not because the workspace model depends on that provider.
     ```
 
     What happened: CompozyOS registered the current directory and will resolve workspace-scoped agents,
-    skills, memory, and config overlays from this root.
+    skills, and config overlays from this root.
 
   </WorkflowStep>
 
@@ -88,34 +87,13 @@ built-in provider key, not because the workspace model depends on that provider.
 
   </WorkflowStep>
 
-  <WorkflowStep title="Write the first workspace memory">
-    Add durable project context that should be visible beyond this session. Keep it short and
-    factual; do not paste a full architecture document into memory.
-
-    ```bash
-    compozy memory write \
-      --scope workspace \
-      --workspace checkout-api \
-      --type project \
-      --name "Project map" \
-      --description "Where agents should start in this repository" \
-      --content "Start with README.md, then inspect packages/site for docs and internal/ for runtime code."
-
-    compozy memory list --scope workspace --workspace checkout-api -o json
-    ```
-
-    What happened: CompozyOS wrote a workspace-scoped Markdown memory and refreshed the index so future
-    sessions can discover it.
-
-  </WorkflowStep>
-
   <WorkflowStep title="Run a smoke-test session">
     Start the default agent for this workspace and ask it to prove that it can see the intended
-    root, local instructions, and memory.
+    root and local instructions.
 
     ```bash
     compozy session new --workspace checkout-api --agent reviewer --name workspace-smoke -o json
-    compozy session prompt sess_1234 "Inspect this workspace setup. Confirm the repository root, agent definition, and workspace memory you can see."
+    compozy session prompt sess_1234 "Inspect this workspace setup. Confirm the repository root and the agent definition you can see."
     compozy session events sess_1234 --follow
     ```
 
@@ -127,13 +105,12 @@ built-in provider key, not because the workspace model depends on that provider.
 
 ## Evidence to keep
 
-| Evidence              | Command                                                                  | What it proves                                                    |
-| --------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Workspace resolution  | `compozy workspace info checkout-api -o json`                            | The registered root, default agent, and additional roots.         |
-| Agent visibility      | `compozy agent info reviewer --workspace checkout-api -o json`           | The workspace-local `AGENT.md` parses and wins discovery.         |
-| Memory indexing       | `compozy memory list --scope workspace --workspace checkout-api -o json` | The project note is visible to workspace-scoped sessions.         |
-| Session runtime state | `compozy session status sess_1234 -o json`                               | The live session is attached to the intended workspace and agent. |
-| Session transcript    | `compozy session history sess_1234`                                      | The smoke-test answer is durable after the terminal closes.       |
+| Evidence              | Command                                                        | What it proves                                                    |
+| --------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Workspace resolution  | `compozy workspace info checkout-api -o json`                  | The registered root, default agent, and additional roots.         |
+| Agent visibility      | `compozy agent info reviewer --workspace checkout-api -o json` | The workspace-local `AGENT.md` parses and wins discovery.         |
+| Session runtime state | `compozy session status sess_1234 -o json`                     | The live session is attached to the intended workspace and agent. |
+| Session transcript    | `compozy session history sess_1234`                            | The smoke-test answer is durable after the terminal closes.       |
 
 ## Failure path
 
@@ -142,7 +119,6 @@ built-in provider key, not because the workspace model depends on that provider.
 | Workspace resolves a different root      | `compozy workspace info checkout-api -o json`                  | [Workspace Resolver](/docs/workspaces/resolver)               |
 | Agent is not found                       | `compozy agent info reviewer --workspace checkout-api -o json` | [AGENT.md](/docs/configuration/agent-md)                      |
 | Agent uses the wrong provider            | `compozy agent info reviewer --workspace checkout-api -o json` | [Agent Providers](/docs/agents/providers)                     |
-| Memory does not appear in the index      | `compozy memory health -o json`                                | [Memory System](/docs/memory/system)                          |
 | Session starts but never produces output | `compozy session status sess_1234 -o json`                     | [Debug a Failed Session](/docs/guides/debug-a-failed-session) |
 
 ## Next
@@ -150,5 +126,5 @@ built-in provider key, not because the workspace model depends on that provider.
 - Use [Your First Custom Agent](/docs/getting-started/first-agent) for a tutorial version
   of agent authoring.
 - Use [Workspace Config Overlays](/docs/workspaces/config-overlays) when this project needs
-  provider, MCP, or memory settings that should not apply globally.
+  provider or MCP settings that should not apply globally.
 - Use [Review a Change](/docs/use-cases/review-a-change) once the workspace smoke test passes.

@@ -4,8 +4,8 @@ description: Complete reference for CompozyOS hook events, payload schemas, patc
 ---
 
 CompozyOS hooks fire at named runtime points such as session creation, prompt assembly, tool execution,
-permission decisions, automation runs, and context compaction. Each event has a fixed payload type
-and a fixed patch type. A hook reads the payload from stdin, decides whether it applies, and writes a
+permission decisions, automation runs, and the agent's own context compaction. Each event has a fixed
+payload type and a fixed patch type. A hook reads the payload from stdin, decides whether it applies, and writes a
 JSON patch to stdout.
 
 <OperatorNote>
@@ -239,16 +239,26 @@ request. CompozyOS rejects escalation patches that try to turn a blocked, denied
 into an allow decision; those hook runs are recorded as `rejected`. Request and resolved payloads
 include `tool_input`; denied payloads omit it so rejected input is not exposed to async hooks.
 
-## Context Events
+## Context Events (experimental)
 
-| Event                  | Sync | Payload                     | Patch                     | Fires when                                      |
-| ---------------------- | ---- | --------------------------- | ------------------------- | ----------------------------------------------- |
-| `context.pre_compact`  | yes  | `ContextPreCompactPayload`  | `ContextPreCompactPatch`  | Before CompozyOS compacts conversation context. |
-| `context.post_compact` | yes  | `ContextPostCompactPayload` | `ContextPostCompactPatch` | After CompozyOS compacts conversation context.  |
+| Event                  | Sync | Payload                    | Patch                    | Fires when                                                            |
+| ---------------------- | ---- | -------------------------- | ------------------------ | --------------------------------------------------------------------- |
+| `context.pre_compact`  | yes  | `ContextCompactionPayload` | `ContextCompactionPatch` | On the first update of an agent compaction CompozyOS observes.        |
+| `context.post_compact` | yes  | `ContextCompactionPayload` | `ContextCompactionPatch` | At the first terminal status (`completed`, `failed`, or `cancelled`). |
 
-Context compaction payloads include `reason`, `strategy`, `summary`, and `context_blocks`. Patches
-can replace `reason`, `strategy`, or `context_blocks`. A pre-compact deny blocks compaction; a
-post-compact deny only stops the remaining hook chain because compaction has already happened.
+Context events are observation-only and experimental: they follow the unstable ACP compaction
+contract and may change. CompozyOS never compacts a session itself; the agent owns its context
+window. These hooks fire only when the agent honors the ACP compaction capability, once per
+compaction id (`post_compact` at most once), whether a person requested the compaction with
+[Compact now](/docs/sessions/compaction#compact-now-experimental) or the agent started it on its own.
+They never fire for an agent that does not honor the capability.
+
+The payload carries `event`, `session_id`, `turn_id`, `compaction_id`, and `trigger` (`requested`
+when the compaction happened during a turn started for a compact request, otherwise `agent`).
+`context.post_compact` adds `status`, `summary`, and `error` when the agent sent them. The patch can
+only set `labels`, a map of string keys to string values. A patch with `deny`, `deny_reason`,
+`summary`, or `context_blocks` is an invalid patch: a hook cannot veto, delay, or rewrite an agent's
+compaction.
 
 ## Example Payloads And Patches
 

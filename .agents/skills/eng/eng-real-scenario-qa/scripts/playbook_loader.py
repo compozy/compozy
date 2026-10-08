@@ -43,7 +43,6 @@ REQUIRED_TOP_LEVEL = {
     "kickoff_brief",
     "workspaces",
     "agents",
-    "knowledge_files",
     "open_tasks",
     "required_deliverables",
     "required_collaboration",
@@ -169,7 +168,6 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
 
     workspaces = _as_list(data, "workspaces", "playbook", errors)
     agents = _as_list(data, "agents", "playbook", errors)
-    knowledge_files = _as_list(data, "knowledge_files", "playbook", errors)
     open_tasks = _as_list(data, "open_tasks", "playbook", errors)
     required_deliverables = _as_dict(data, "required_deliverables", "playbook", errors)
     required_collaboration = _as_dict(data, "required_collaboration", "playbook", errors)
@@ -178,8 +176,6 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
         errors.append("playbook.workspaces must contain at least 3 entries")
     if len(agents) < 6:
         errors.append("playbook.agents must contain at least 6 entries")
-    if len(knowledge_files) < 3:
-        errors.append("playbook.knowledge_files must contain at least 3 entries")
     if len(open_tasks) < 4:
         errors.append("playbook.open_tasks must contain at least 4 entries")
 
@@ -219,49 +215,6 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
             _scan_forbidden(f"playbook.agents[{index}].system_prompt", system_prompt, rules, errors)
         else:
             errors.append(f"playbook.agents[{index}].system_prompt must be a string")
-
-    knowledge_paths: set[str] = set()
-    for index, entry in enumerate(knowledge_files):
-        if not isinstance(entry, dict):
-            errors.append(f"playbook.knowledge_files[{index}] must be an object")
-            continue
-        _require_keys(entry, {"path", "content"}, f"playbook.knowledge_files[{index}]", errors)
-        path = entry.get("path")
-        if isinstance(path, str):
-            _validate_relative_path(f"playbook.knowledge_files[{index}].path", path, errors)
-            if path in knowledge_paths:
-                errors.append(f"playbook.knowledge_files contains duplicate path {path!r}")
-            knowledge_paths.add(path)
-
-    assigned_scoped_paths: set[str] = set()
-    for index, workspace in enumerate(workspaces):
-        if not isinstance(workspace, dict):
-            continue
-        refs = workspace.get("knowledge_files", [])
-        if refs is None:
-            refs = []
-        if not isinstance(refs, list):
-            errors.append(f"playbook.workspaces[{index}].knowledge_files must be an array")
-            continue
-        for ref in refs:
-            if not isinstance(ref, str) or not ref.strip():
-                errors.append(
-                    f"playbook.workspaces[{index}].knowledge_files entries must be non-empty strings"
-                )
-                continue
-            if ref not in knowledge_paths:
-                errors.append(
-                    f"playbook.workspaces[{index}].knowledge_files references unknown path {ref!r}"
-                )
-            assigned_scoped_paths.add(ref)
-    unassigned_scoped = sorted(
-        path for path in knowledge_paths if not path.startswith("global/") and path not in assigned_scoped_paths
-    )
-    if unassigned_scoped:
-        errors.append(
-            "playbook workspace-scoped knowledge must be assigned: "
-            + ", ".join(unassigned_scoped)
-        )
 
     for index, task in enumerate(open_tasks):
         if not isinstance(task, dict):
@@ -304,8 +257,8 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
             errors.append(f"playbook.disruption_probe_seeds[{index}] must be an object")
             continue
         _require_keys(seed, {"type", "seed_at_minute", "expected_recovery"}, f"playbook.disruption_probe_seeds[{index}]", errors)
-        delivery = seed.get("delivery", "knowledge_file")
-        if delivery not in {"knowledge_file", "task_event", "config_change"}:
+        delivery = seed.get("delivery", "task_event")
+        if delivery not in {"task_event", "config_change"}:
             errors.append(f"playbook.disruption_probe_seeds[{index}].delivery is invalid: {delivery!r}")
 
     if errors:

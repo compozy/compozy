@@ -6,7 +6,7 @@ persona: Cora
 journey: J-evaluate-compozy-beta
 expected: The locked hero pair, static shell capture, six ordered sections, and sourced proof make the product claim understandable without a generic dashboard or unsupported competitor assertion.
 entry_points: Local site render (canonical origin declaration: https://compozy.com)
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status: 
 retest_status: 
@@ -44,3 +44,5 @@ and the locked headline now sets in the display serif, matching the deck cover. 
 tiles, and section order are untouched. Status stays untested pending the same fresh landing walk.
 
 2026-09-27 hero refresh: the landing uses the isolated-lab 2580×1654 capture with one queued Task and the two built-in Loops. The screenshot receipt belongs to the current retirement QA report.
+
+QA impact 2026-10-07 (memory removal): the landing's Memory & Dream section was deleted, the bento is two cards, and the positioning and comparison copy no longer name memory (the Hero Lock is unchanged). Count the ordered sections from the rendered page when walking; do not expect a memory or Dream proof. Stale pass verdict reset to untested; historical evidence preserved; no QA session ran.

@@ -16,8 +16,8 @@ charter:
   time_box_minutes: 30
   guidance:
     must_try:
-      - "Open Knowledge, task, session, and MCP creation from project scope, abandon, switch Global, and reopen."
-      - "Create one Knowledge item and confirm the visible list switches to and selects its destination."
+      - "Open task, session, and MCP creation from project scope, abandon, switch Global, and reopen."
+      - "Create one task and confirm the visible list switches to and selects its destination."
       - "Refresh after creation and confirm the destination and resource remain truthful."
     must_avoid:
       - "Do not use internal cache or store inspection as confirmation."

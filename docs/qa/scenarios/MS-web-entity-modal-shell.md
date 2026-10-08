@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 6aec02734; baec8d019
 evidence: docs/qa/evidence/2026-10-02-untested/settings-vault-final-commit-identity.json; docs/qa/evidence/2026-10-02-untested/settings-vault-final-delivery-gate.json; docs/qa/reports/2026-10-02-untested.md; docs/qa/evidence/2026-10-02-untested/qa/visual-contract/entity-modal-shell/contract.json
 last_report: docs/qa/reports/2026-10-02-untested.md
-overlaps: ET-web-vault-opendesign-listing; TA-task-template-preserves-draft; MS-provider-detail-modal; MS-web-session-simple-advanced-launch; MS-web-workspace-add-directory-browser; MS-web-knowledge-edit-immutable-identity; ET-web-vault-overwrite-confirmation; MS-web-task-editor-window-modal
+overlaps: ET-web-vault-opendesign-listing; TA-task-template-preserves-draft; MS-provider-detail-modal; MS-web-session-simple-advanced-launch; MS-web-workspace-add-directory-browser; ET-web-vault-overwrite-confirmation; MS-web-task-editor-window-modal
 ---
 
 story: As a person running agent work I configure runtime entities through modals that look and behave the same everywhere, so I can predict where the title, the disclosure toggle, the derived destination statement, and the one primary action will be.
@@ -22,7 +22,7 @@ Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.
 
 Coverage in task_01 is the foundation plus three surfaces: the task editor (R1 header restored, in-body description paragraph removed), the automation job/trigger editor (local `EditorHeader` deleted in favour of the shared primitive), and `SettingsEditorDialog` (vault create chrome). The marketplace MCP install dialog now consumes the shared `SecretField` after its local copy was deleted.
 
-task_02 (implemented 2026-07-25) extended the same shell to start session, add workspace (the `split` body host), knowledge create/edit and the vault create body. Behaviour specific to those surfaces lives in its own scenario — see `overlaps` — while this scenario stays the shared-chrome contract.
+task_02 (implemented 2026-07-25) extended the same shell to start session, add workspace (the `split` body host), and the vault create body (the knowledge create/edit dialogs it also covered were removed with Knowledge). Behaviour specific to those surfaces lives in its own scenario — see `overlaps` — while this scenario stays the shared-chrome contract.
 
 The remaining surfaces migrate in tasks 03-04; this scenario should be re-scoped, not duplicated, as they land.
 

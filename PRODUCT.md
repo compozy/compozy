@@ -20,9 +20,9 @@ product
 
 ## Product Purpose
 
-CompozyOS is one complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks. Loops, triggers, memory, permissions, automation, and supervision come built in rather than assembled. Why it holds: one runtime, one state model; loops, approvals, and memory are core objects, not plugins. Web, CLI, HTTP/SSE, UDS, and native tools let people and agents operate that same system.
+CompozyOS is one complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks. Loops, triggers, permissions, automation, and supervision come built in rather than assembled. Why it holds: one runtime, one state model; loops and approvals are core objects, not plugins. Web, CLI, HTTP/SSE, UDS, and native tools let people and agents operate that same system.
 
-The runtime UI's job is to make agent work legible and controllable at a glance: what is running, what needs you, what finished, and what it produced. Depth — events, tools, memory, runtime diagnostics — stays one step away for whoever wants it, and no one is asked to decode runtime internals to understand their own work. Success looks like: a person supervises several concurrent agents, understands the state of each in seconds, and acts on it (resume, approve, inspect, route) without ever being shown a control or metric the runtime does not actually support.
+The runtime UI's job is to make agent work legible and controllable at a glance: what is running, what needs you, what finished, and what it produced. Depth — events, tools, runtime diagnostics — stays one step away for whoever wants it, and no one is asked to decode runtime internals to understand their own work. Success looks like: a person supervises several concurrent agents, understands the state of each in seconds, and acts on it (resume, approve, inspect, route) without ever being shown a control or metric the runtime does not actually support.
 
 ## Brand Personality
 

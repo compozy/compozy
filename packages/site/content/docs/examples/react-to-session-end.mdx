@@ -60,8 +60,8 @@ compozy automation runs -o json
 <Workflow>
   <WorkflowStep title="The observer publishes the activation">
     The session lifecycle observer emits `session.stopped` with the session's own data. Alongside
-    it the runtime publishes `session.created` and `memory.consolidated`; hook completions arrive
-    as `hook.<hook_name>.completed`, and extensions publish their own `ext.*` families.
+    it the runtime publishes `session.created`; hook completions arrive as
+    `hook.<hook_name>.completed`, and extensions publish their own `ext.*` families.
   </WorkflowStep>
   <WorkflowStep title="Five things must line up before it fires">
     The trigger is enabled, its event equals the activation event, its scope matches, a workspace

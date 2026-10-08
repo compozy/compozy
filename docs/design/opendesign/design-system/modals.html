@@ -149,27 +149,27 @@
     raised it, so the rest of the desktop stays live and readable. Only a shell-level dialog scrims the desktop.</p>
     <div class="mdl-win" data-od-id="demo-scrim">
       <div class="mdl-win__head" data-od-id="demo-scrim-head">
-        <span class="w2-glyph"><i data-lucide="database"></i></span>
-        <span class="mdl-win__title">Knowledge</span><span class="w2-count">·4·</span>
+        <span class="w2-glyph"><i data-lucide="key-round"></i></span>
+        <span class="mdl-win__title">Vault</span><span class="w2-count">·4·</span>
       </div>
       <div class="mdl-win__body">
         <div class="mdl-win__ghost"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
         <div class="dlg-scrim" data-od-id="demo-scrim-layer">
           <div class="dialog dialog--sm" style="max-height:none;grid-template-rows:auto auto" data-od-id="demo-scrim-dialog">
             <div class="dialog__head">
-              <span class="dialog__head-icon"><i data-lucide="database"></i></span>
+              <span class="dialog__head-icon"><i data-lucide="key-round"></i></span>
               <div class="dialog__head-main">
-                <span class="eyebrow">Catalog · Knowledge</span>
-                <h3 class="dialog__title">Add a knowledge base</h3>
-                <p class="dialog__desc">Agents in this workspace can search it during a session.
-                <b>Indexing starts as soon as you save.</b></p>
+                <span class="eyebrow">System · Vault</span>
+                <h3 class="dialog__title">Add a secret</h3>
+                <p class="dialog__desc">Providers and MCP servers point at it by reference.
+                <b>The value is write-only — it is never shown again.</b></p>
               </div>
               <button class="dialog__close" aria-label="Close"><i data-lucide="x"></i></button>
             </div>
             <div class="dialog__foot">
-              <span class="dialog__foot-note"><i data-lucide="info"></i><span>Creates one knowledge base in <b>compozy</b>.</span></span>
+              <span class="dialog__foot-note"><i data-lucide="info"></i><span>Stored in the <b>Compozy</b> vault.</span></span>
               <button class="btn">Cancel</button>
-              <button class="btn btn--primary">Add knowledge base</button>
+              <button class="btn btn--primary">Add secret</button>
             </div>
           </div>
         </div>
@@ -239,7 +239,7 @@
     <table class="spec">
       <tr><th>Element</th><th>Spec</th></tr>
       <tr><td>Icon well</td><td>36×36, radius 12, <code>--accent-tint</code> fill + <code>--accent-strong</code> 16px glyph + <code>inset 0 0 0 1px var(--accent-dim)</code> ring.</td></tr>
-      <tr><td>Eyebrow</td><td>“Domain · Object” — <code>Catalog · Knowledge</code>, <code>Providers · Anthropic</code>. Sentence case, 12 / 510. It orients; it never repeats the title.</td></tr>
+      <tr><td>Eyebrow</td><td>“Domain · Object” — <code>Catalog · Agent</code>, <code>Providers · Anthropic</code>. Sentence case, 12 / 510. It orients; it never repeats the title.</td></tr>
       <tr><td>Title</td><td>16 / 510 / <code>-.014em</code>, line-height 1.3. A question for confirmations, an imperative for creation.</td></tr>
       <tr><td>Description</td><td>13.5 / 1.45 <code>--muted</code>, max 66ch. One <code>b</code> clause carries the load-bearing consequence at <code>--fg</code> 510 — never bold for emphasis alone.</td></tr>
       <tr><td>Close</td><td>26×26 ghost square, 14px glyph, <code>--row-hover</code> plate. Esc does the same thing; the button is for pointers.</td></tr>

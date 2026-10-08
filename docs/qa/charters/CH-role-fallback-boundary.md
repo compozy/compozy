@@ -22,7 +22,7 @@ charter:
       - "The fence: force a failure after acceptance (kill the provider once the session is accepted) — the failure follows the normal session lifecycle and produces zero fallback attempts and zero new fallback events."
       - "Empty chain: no fallback_chain → single attempt, no event."
     must_avoid:
-      - "Treating memory_controller as a live fallback surface — the current runtime makes no controller LLM call (config-only seam); record that branch as skipped with this reasoning."
+      - "Treating a retired role (dream, checkpoint_summary, memory_extractor, memory_controller) as a fallback surface — the roster is coordinator and auto_title only."
       - "Chronic-fallback masking questions (provider health diagnosis) beyond confirming events make the pattern visible — that is an observability concern, not this boundary."
   coverage:
     surfaces:

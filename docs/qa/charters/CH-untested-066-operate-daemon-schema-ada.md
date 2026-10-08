@@ -11,7 +11,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-operate-daemon-schema
-  scenarios: [RT-dev-bootstrap-ready, RT-migrate-memory-stream-when-disabled, RT-observe-overview-cli]
+  scenarios: [RT-dev-bootstrap-ready, RT-observe-overview-cli]
   tour: Garbage Tour
   time_box_minutes: 60
   guidance:
@@ -19,7 +19,7 @@ charter:
       - "Execute every assigned scenario from its named entry point; capture command, timestamp, output, and end state."
       - "Exercise one recovery or abandonment branch and prove that it leaves no partial or duplicate side effect."
       - "Compare the owning public surfaces wherever the scenario promises Web, CLI, HTTP, UDS, or native parity."
-      - "Prioritize these representative observables first: Start the development UI only after daemon readiness; Migrate the shared memory stream while the memory runtime is disabled; compozy observe overview parity across output modes and transports."
+      - "Prioritize these representative observables first: Start the development UI only after daemon readiness; compozy observe overview parity across output modes and transports."
     must_avoid:
       - "Do not infer a pass from source, mocks, historical evidence, or an automated suite alone."
       - "Do not perform live publication or mutate scenarios outside this charter."

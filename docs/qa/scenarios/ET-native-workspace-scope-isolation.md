@@ -4,8 +4,8 @@ area: ET
 title: Bind native tool calls to the caller workspace before policy
 persona: Ada
 journey: J-operate-workspace-context
-expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before memory, automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write, and global/all scope remains operator-only for workspace-bound sessions.
-entry_points: compozy__workspace_info; compozy__memory_*; compozy__automation_*; compozy__hooks_*; compozy__task_run_claim_next
+expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write, and global/all scope remains operator-only for workspace-bound sessions.
+entry_points: compozy__workspace_info; compozy__automation_*; compozy__hooks_*; compozy__task_run_claim_next
 qa_status: pass
 bug_ids: BUG-20261003-task-catalog-replaces-authorized-workspace; BUG-20260729-nearest-workspace-case-alias; BUG-20261002-native-approval-input-mismatch; BUG-20261002-hook-tool-matcher-docs; BUG-20261002-native-workspace-identity-boundaries; BUG-20261002-native-hook-dispatch-missing; BUG-20261002-native-task-filter-error
 fix_status: fixed
@@ -49,7 +49,7 @@ fixed and retested in the same canary.
 QA impact 2026-07-29 (deep-review remediation): reset to `untested` after the generic tool envelope
 began resolving aliases and paths before policy evaluation and workspace-bound sessions regained the
 pre-handler denial for `scope=global` and `scope=all`. Recheck representative config, hook,
-automation and memory tools; operator global scope must remain available.
+and automation tools; operator global scope must remain available.
 
 
 2026-09-27 scope update: current coverage follows the surviving product surfaces; a fresh walk is required.
@@ -95,3 +95,5 @@ and denied foreign reads/mutations; operator-only global/all; and executed hook 
 have linked receipts in the dated report. Task target repair returns Editorial's correct empty page
 and preserves Studio's three tasks. All affected gates pass. The empty claim proves boundary
 invocation only, not acquisition of a nonempty queue; dedicated task-lease journeys own that invariant.
+
+QA impact 2026-10-07 (memory removal): the `compozy__memory_*` family was removed, so the memory legs in the dated receipts above (reference-memory save, memory read-back, own-project memory mutation refusal, public memory catalogs) are historical; the remaining families (workspace, automation, hook, task claim) and the operator-only global/all rule are unchanged. No verdict change.

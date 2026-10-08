@@ -83,10 +83,6 @@
   background: var(--site-bento-overlay-runtime);
 }
 
-.site-bento-overlay-memory {
-  background: var(--site-bento-overlay-memory);
-}
-
 .site-bento-overlay-extensibility {
   background: var(--site-bento-overlay-extensibility);
 }

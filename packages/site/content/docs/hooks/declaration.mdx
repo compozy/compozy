@@ -112,13 +112,20 @@ Each event family accepts only its own matcher fields:
 | `tool`        | `agent_name`, `workspace_id`, `workspace_root`, `worktree_id`, `tool_id`, `tool_read_only`                                                                                                                                                                                          |
 | `permission`  | `tool_name`, `decision_class`                                                                                                                                                                                                                                                       |
 | `message`     | `message_role`, `message_delta_type`                                                                                                                                                                                                                                                |
-| `context`     | `compaction_reason`, `compaction_strategy`                                                                                                                                                                                                                                          |
+| `context`     | `compaction_trigger`                                                                                                                                                                                                                                                                |
 | `coordinator` | `agent_name`, `workspace_id`, `workspace_root`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.coordinator_session_id`                                                                                                    |
 | `task.run`    | `agent_name`, `workspace_id`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.release_reason`                                                                                                                              |
 | `spawn`       | `agent_name`, `workspace_id`, `workspace_root`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.parent_session_id`, `matcher.autonomy.root_session_id`, `matcher.autonomy.child_session_id`, `matcher.autonomy.spawn_role` |
 
 `agent_type` exists in the internal matcher struct, but no current event family accepts it. Setting
 it in a declaration fails validation.
+
+`compaction_trigger` accepts `requested` or `agent` and narrows a `context.pre_compact` or
+`context.post_compact` hook to compactions CompozyOS asked for (Compact now, a native tool call, or a
+Goal) or to compactions the agent started on its own. An empty value matches both. It replaces the
+earlier `compaction_reason` and `compaction_strategy` matchers: a `config.toml` declaration that still
+carries them has them archived on load, a manifest declaration ignores them with a warning, and in
+both cases the hook keeps running and observes every agent compaction.
 
 Autonomy correlation fields are nested under `matcher.autonomy` in config, agent, skill, and
 extension declarations. They use the same exact or wildcard string matching as other string

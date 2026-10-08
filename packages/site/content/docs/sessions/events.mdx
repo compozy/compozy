@@ -142,7 +142,8 @@ The persisted event `type` values currently emitted by CompozyOS are:
 | `usage`                      | Token or context usage update                                                                     | `usage` with token counts, context counts, cost fields, and `timestamp`                                       |
 | `runtime_progress`           | Low-frequency long-running prompt progress update                                                 | `text`, `runtime` activity payload                                                                            |
 | `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                          | `text`, `runtime` activity payload, optional `raw`                                                            |
-| `session.compaction_fired`   | Pressure compaction admitted for a complete prior-turn sequence span                              | `raw` with workspace/session/turn IDs, sequence bounds, usage, pressure, strategy                             |
+| `compaction`                 | Snapshot of one observed agent compaction (experimental)                                          | `compaction_id`, `status`, optional `summary`, optional `error`                                               |
+| `session.compaction_fired`   | First observation of an agent compaction id (experimental)                                        | `raw` with `compaction_id`, `trigger`, `context_used`, `context_size`                                         |
 | `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                  | marker kind, summary, occurrence time, and optional evidence                                                  |
 | `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                             | marker kind, summary, occurrence time, and redaction metadata                                                 |
 | `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                     | `title`, optional `raw`                                                                                       |
@@ -237,14 +238,16 @@ The usage response includes nullable cache totals and a `context` object. `conte
 model catalog, `unknown` before any context report, and `unavailable` when the ledger cannot be read.
 An unavailable context does not discard the aggregate token and cost totals. Context selects the latest
 ledger observation; it never sums context-window usage. `stale` marks an observation from a different
-turn that precedes the latest settled turn. `pressure_threshold` appears only for an agent-reported
-window when pressure compaction is enabled.
+turn that precedes the latest settled turn. After an agent compaction reaches a terminal status,
+`context.used` is `null` with `state: "unknown"` until the agent sends a later usage report. CompozyOS
+has no usage threshold of its own, so the context object carries none.
 
 Use `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns` or
 `compozy session usage <session-id> --turns` for the union of usage-bearing and delivery-bearing turns.
-The response returns ordered `turns` and separate `compactions`. Each compaction marker reports
-`span_archived`, meaning all events in its replay span are archived now; it does not claim that the
-agent's context window shrank or that a particular compaction attempt completed. The turns endpoint
+The response returns ordered `turns` and separate `compactions`. Each marker describes one compaction
+the agent performed and CompozyOS observed (experimental): `{turn_id, sequence, at, compaction_id,
+trigger, status, context_used, context_size}`. Markers come only from observed compactions; see
+[Context compaction](/docs/sessions/compaction#usage-markers-and-the-context-meter). The turns endpoint
 returns an error if its ledger reads fail.
 
 A transcript stream emits `session_usage_changed` with `{sequence, turn_id, kind}` for new `usage`,
@@ -308,7 +311,7 @@ agent's private instructions, tool results, or conversation history.
 owner and reports the last-seen turn. When a hook replaces the startup prompt, its final text becomes
 one opaque System prompt row; deduplicated sections say they are included in that startup prompt.
 A row may have been summarized only after an agent-reported context drop following its send time.
-A full delivery refreshes that row. Replay-compaction markers alone do not make rows stale.
+A full delivery refreshes that row.
 
 The per-turn route and `compozy session usage --turns` retain each receipt's actual bytes and estimates.
 `compozy session events` exposes the same typed `delivery` object, including `sent_at`, `startup_dedup`,
@@ -479,10 +482,6 @@ the retained cursor and projection fences. A missing acknowledgment retains the 
 for reconciliation. Brief reconnects stay quiet for two seconds; longer interruptions show
 connection state, and exhausted retries offer **Try again** without discarding the draft.
 
-Compaction archives only prior completed turns and cuts their transcript projection in the
-same transaction. The generation changes while a surviving active assistant keeps its message
-identity. Archived events remain available with `archive=all`.
-
 Log streaming uses a monotonic `event_summaries.seq` cursor. Upgrades preserve existing numeric
 log cursors, and retention, VACUUM and reopen never reuse a retired sequence.
 
@@ -558,10 +557,10 @@ The `events` table stores:
 - `timestamp`
 - `archived`
 
-`archived` is a replay-projection flag, not deletion. Operator event and history reads default to
+`archived` is a replay-projection flag, not deletion. A rewind marks the removed suffix archived;
+CompozyOS does not archive events for any other reason. Operator event and history reads default to
 active rows. Pass `archive=archived` to inspect only a discarded suffix or `archive=all` to include
-both archived and active rows. Daemon degraded replay requests only active rows after the workspace
-checkpoint has durably covered the archived sequence range.
+both archived and active rows. A bounded replay into a new agent session reads active rows only.
 
 Queries are returned in ascending sequence order. If you request `limit`, CompozyOS selects the newest
 matching rows first and then re-sorts them ascending before returning them.
@@ -576,19 +575,28 @@ The [resume attach and replay](/docs/sessions/resume) path depends on this store
 - `GET /api/workspaces/:workspace_id/sessions/:session_id/recap` returns a bounded, redacted reorientation snapshot
 - `transcript_marker.created` and `transcript_marker.redacted` rows preserve interrupts, timeouts, unhealthy state, MCP auth prompts, and unresolved file-mutation verification as durable marker evidence
 
-### Pressure compaction ordering
+### Observed compaction ordering (experimental)
 
-At context pressure, `context.pre_compact` runs before checkpoint coverage. If it allows the work,
-CompozyOS writes idempotent checkpoint coverage before marking the selected event range archived, then
-runs `context.post_compact`. A summary, provider, archive, or pre-hook failure leaves the original
-rows available for replay and arms the configured failure cooldown. `session.compaction_fired`
-provides durable correlation for the admitted attempt and its exact sequence bounds; it does not
-mean the later archive transition succeeded.
+CompozyOS never compacts a session. When the agent compacts its own context and honors the ACP
+compaction capability, each compaction id is recorded once:
+
+- the first accepted update records one `session.compaction_fired` event and runs
+  `context.pre_compact`;
+- the first terminal status (`completed`, `failed`, or `cancelled`) runs `context.post_compact` at most
+  once; a terminal-first observation runs pre, then post;
+- later corrections (a new summary, a cleared error, a different terminal status) update the
+  `compaction` item in place and fire nothing again;
+- a hook cannot deny or alter the compaction: both hooks are observation-only.
+
+No event rows are archived, and a failed or cancelled compaction leaves the stored history untouched.
+See [Context compaction](/docs/sessions/compaction#observed-native-compaction-experimental) for the
+payloads.
 
 ## Next steps
 
 - Use [Session Lifecycle](/docs/sessions/lifecycle) to understand how stop, attach, and repair interact with the state machine.
 - Use [Permissions](/docs/sessions/permissions) to understand the approval events you will see in this stream.
+- Use [Context compaction](/docs/sessions/compaction) for the `compaction` item, the `session.compaction_fired` payload, and usage markers.
 
 The canonical `session.queue_cleared` event accompanies each removed entry. Its payload identifies
 `workspace_id`, `session_id`, `turn_id`, `queue_entry_id`, `count`, `actor_kind`, and `actor_id`.

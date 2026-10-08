@@ -48,8 +48,7 @@ The current built-in default configuration is:
 mode = "approve-all"
 ```
 
-That global mode can be overridden by an agent definition. Dream sessions are forced to
-`approve-all` regardless of the configured mode.
+That global mode can be overridden by an agent definition.
 
 If a session somehow reaches startup with no resolved permission string at all, the session manager
 falls back to `approve-reads` instead of launching with an empty policy.

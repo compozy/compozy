@@ -7,12 +7,12 @@ A session is the durable logical unit CompozyOS manages. Creation returns it `ac
 it has a workspace, permission policy, event store, and attach record under one stable CompozyOS
 session ID, but no ACP process. The first prompt binds a provider runtime snapshot and starts ACP.
 
-Live session events are written to `events.db` while the session runs. After the session stops,
-CompozyOS materializes a read-only forensic JSONL ledger at
-`$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` (or
-`$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl` when no workspace is resolved). The ledger
-is content-addressed and idempotent on rerun, never accepted as a memory scope, and never read by
-the recall pipeline — it is operator-readable history only.
+Live session events are written to `events.db` while the session runs, and that store stays the
+durable record after the session stops. Read it with
+[`compozy session events`](/docs/cli/session/events) and
+[`compozy session history`](/docs/cli/session/history). The agent owns its own context window:
+CompozyOS never summarizes or archives a session's history, and
+[Context compaction](/docs/sessions/compaction) describes what it does observe and bound.
 
 Session-scoped Vault refs use `vault:sessions/<session_id>/<name>`. They are ordinary encrypted
 Vault records filtered by the session prefix, and the session inspector shows only redacted metadata
@@ -158,6 +158,13 @@ permissions for the two most common operator questions: "can I re-enter this liv
     title="Attach to live sessions and replay stored work"
     description="Use this page to understand explicit resume attach, deterministic recap, transcript markers, and replay reconstruction."
     meta="Recovery"
+  />
+  <RouteRow
+    href="/docs/sessions/compaction"
+    label="Compaction"
+    title="Bounded rebuilds and the agent's own context compaction"
+    description="Use this page to understand how rebuilt sessions replay a bounded transcript, how CompozyOS observes native agent compaction, and how to request Compact now."
+    meta="Context"
   />
   <RouteRow
     href="/docs/sessions/events"

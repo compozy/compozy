@@ -9,9 +9,9 @@ lands under a layer something else overrides says so instead of claiming success
 flowchart TD
   A1[Entry: drop a folder under ~/.compozy/profiles/<p>/ or <ws>/.compozy/profiles/<p>/] --> B[Next catalog read composes four additive layers]
   A2[Entry: compozy config set / config get / agent list / skill list] --> B
-  A3[Entry: Settings Persona, Hooks, Command palette, Memory pages] --> B
+  A3[Entry: Settings Persona, Hooks, Command palette pages] --> B
   A4[Entry: compozy secret set|rm and provider inspect] --> S1
-  A5[Entry: agent memory read or native config tool] --> B
+  A5[Entry: native config tool] --> B
   B --> C{Layer named a profile that exists?}
   C -->|no| C1[Dormant: content does not apply and a diagnostic names the path and the create action]
   C -->|yes| D[Most specific layer wins; the winner and what it shadowed are both inspectable]
@@ -33,17 +33,12 @@ flowchart TD
   S4 --> S5[Provider inspect names the source: profile override or user default; native logins say machine-level plainly]
   S5 --> S6{Override removed?}
   S6 -->|yes| S7[Acknowledged removal; new work falls back to the user credential]
-  S6 -->|no| H
-  S7 --> H
-  S3 --> H
-  G --> H[Read memory in the profile tier]
-  H --> I{Memory maintenance move still pending?}
-  I -->|yes| I1[Profile-tier reads refuse fail-closed rather than reading the old path]
-  I -->|no| I2[Profile-tier entries stay inside their owner; the aggregate is refused for memory]
-  I1 --> J
-  I2 --> J[Rename the profile]
+  S6 -->|no| J
+  S7 --> J
+  S3 --> J
+  G --> J[Rename the profile]
   J --> K[Side effect: machine folders and vault refs rewrite in the rename transaction; repo folders are offered as pending edits; extension placements go dormant]
-  K --> Z[True end: effective config, resource shadow order, credential source, MCP entries, and memory tier all agree across CLI, HTTP, UDS, Web, and native reads, and repository files are byte-identical unless the operator accepted and committed a rename]
+  K --> Z[True end: effective config, resource shadow order, credential source, and MCP entries all agree across CLI, HTTP, UDS, Web, and native reads, and repository files are byte-identical unless the operator accepted and committed a rename]
   E -.->|operator abandons the write mid-flow| X1[Abandon: no partial file and no apply record; the previous good value stands]
   C1 -.->|operator ignores the dormant hint| X2[Resume: nothing nags; the content wakes the moment the name exists]
 ```
@@ -52,7 +47,7 @@ flowchart TD
 journey:
   id: J-layer-profile-resources
   name: "Give one context its own agents, settings, and keys without forking anything"
-  value_statement: "I can specialise one context's agents, settings, MCP servers, memory, and provider keys, share the repository half with my team, and always see which layer won."
+  value_statement: "I can specialise one context's agents, settings, MCP servers, and provider keys, share the repository half with my team, and always see which layer won."
   personas: [Dora, Bruno, Ada]
   entry_points:
     - url: "Folders: ~/.compozy/agents|skills, ~/.compozy/profiles/<p>/, <ws>/.compozy/, <ws>/.compozy/profiles/<p>/"
@@ -63,9 +58,9 @@ journey:
       origin: direct
     - url: "HTTP and UDS: /api/settings and its sections, vault and provider status routes"
       origin: direct
-    - url: "Web Settings: Persona, Hooks, Command palette, Memory, and source badges"
+    - url: "Web Settings: Persona, Hooks, Command palette, and source badges"
       origin: in-app-nav
-    - url: "Native: compozy__config_get|set|unset and memory projections inside a session"
+    - url: "Native: compozy__config_get|set|unset inside a session"
       origin: agent
   actions:
     - step: 1
@@ -87,15 +82,12 @@ journey:
       verb: "Remove the override after doing work with it"
       expected_observable: "Removal is acknowledged with its consequence, later work falls back to the user credential, and usage still attributes to the owning profile."
     - step: 7
-      verb: "Read and write memory in the profile tier"
-      expected_observable: "Entries stay inside their owning profile, an aggregate memory read is refused, and profile-tier reads fail closed while the directory move is still pending."
-    - step: 8
       verb: "Rename the profile"
       expected_observable: "Machine folders and vault references rewrite inside the rename transaction, repository folders are only offered as pending edits, extension placements go dormant with hints, and selections are untouched."
   goal:
-    observable: "Effective resources, config, MCP entries, credentials, and memory resolve through one documented precedence, and every surface reports the same winning layer."
-    side_effects: [config-file-written-in-one-layer, apply-record-naming-the-layer, vault-secret-stored-under-the-owner-prefix, mcp-sidecar-merged-in-its-slot, memory-entry-written-in-the-profile-tier, dormancy-diagnostic-emitted]
-  true_end_state: "A fresh read of config, agents, skills, MCP servers, credentials, and memory agrees on every surface; repository files are byte-identical unless the operator accepted a rename and committed it themselves."
+    observable: "Effective resources, config, MCP entries, and credentials resolve through one documented precedence, and every surface reports the same winning layer."
+    side_effects: [config-file-written-in-one-layer, apply-record-naming-the-layer, vault-secret-stored-under-the-owner-prefix, mcp-sidecar-merged-in-its-slot, dormancy-diagnostic-emitted]
+  true_end_state: "A fresh read of config, agents, skills, MCP servers, and credentials agree on every surface; repository files are byte-identical unless the operator accepted a rename and committed it themselves."
   exit:
     natural: "The operator keeps working with a context that has its own material without any of it leaking into another profile or into the repository."
   abandonment:
@@ -108,5 +100,5 @@ journey:
     - at_step: 5
       how: "The operator cancels the credential removal at its confirmation."
       resume: "The override stays in place and work continues to resolve it."
-  crosses: [J-operate-profiles, J-adopt-extension-profiles, J-administer-runtime-settings, config-overlay, resource-discovery-roots, vault, providers-prestart-cache, MCP sidecars, memory-store, CLI, HTTP, UDS, Web settings, native-tools]
+  crosses: [J-operate-profiles, J-adopt-extension-profiles, J-administer-runtime-settings, config-overlay, resource-discovery-roots, vault, providers-prestart-cache, MCP sidecars, CLI, HTTP, UDS, Web settings, native-tools]
 ```

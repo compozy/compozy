@@ -1,5 +1,53 @@
 # Compozy Change Impact
 
+## Memory removal — 2026-10-07
+
+Owning decision: `.compozy/tasks/memory-removal/_spec.md` with ADR-001 (hard cut that never blocks
+the user), ADR-002 (CompozyOS-side compaction removed; every replay bounded), ADR-003 (workspace
+knowledge augmenter removed), and ADR-004 (native ACP compaction observed and requested,
+experimental). Release: the release after v0.3.0 (assumed v0.4.0); guide anchor `#memory-removal`.
+This is the user's recorded exception to the SD-013 public-surface window for the memory family;
+leftovers in user-owned files are retired without blocking the user.
+
+- **Native tools / CLI / HTTP / UDS / MCP / SDK:** the `compozy memory` tree, 40 `/api/memory*`,
+  settings, and workspace-ledger operations, the 35 `compozy__memory_*` tools with the
+  `compozy__memory` and `compozy__memory_admin` toolsets, MCP `compozy_host__memory__*`, the Host API
+  `memory/*`, `memory.backend`, consent `memory:read|write`, the `memory-backend-ts` scaffold, and the
+  SDK members are deleted; tool IDs are retired permanently. Added, all `experimental`:
+  `compozy session compact`, `compactSession`, and `compozy__session_compact` (toolset
+  `compozy__sessions`, risk `write`). Changed: `session.compaction_fired`, usage `compactions[]`
+  markers (no `pressure_threshold`), the session `type` enum (no `dream`), the roles roster
+  (`coordinator`, `auto_title`), and `StatusSchemaVersion` `2026-10-07` without `memory`.
+- **Extensibility / hooks / config:** `context.pre_compact` / `context.post_compact` become
+  observation-only (`labels` patch only) with a `compaction_trigger` matcher replacing
+  `compaction_reason` / `compaction_strategy`. `[memory]`, `[session.compaction]`, four roles, and the
+  `memory.consolidated` trigger event are removed; `[session.derive]` bounds every replay.
+  **v0.6.0 shim deletion list** (one shim generation, regime: public surface / user state):
+  the `archiveRetiredMemorySettings` config archive (global, profile, workspace overlays), the SOUL
+  `memory_policy` ignore rule, the retired tool-ID filter (`RetiredMemoryToolIDs`,
+  `RetiredMemoryToolsetIDs`, `DropRetiredToolReferences`), and the extension manifest retired-entry
+  filter (`dropRetiredMemoryManifestEntries`). Session migration `00009` and global migration
+  `00128` stay as migrations.
+- **Workspace data isolation:** no workspace or profile boundary changes. Migration `00128` drops the
+  memory stream tables, `memory.consolidated` triggers and their dependents, and legacy `dream` /
+  `memory-extractor` sessions; session migration `00009` restores events archived by the removed
+  compaction (never inside a rewind receipt range). No file is deleted or rewritten: Markdown
+  memory, `knowledge/` directories, and `ledger.jsonl` files stay on disk, unread. `<workspace>/knowledge/`
+  is no longer injected into prompts.
+- **Official skill / Web / docs:** `skills/compozy/references/memory.md` is deleted and every memory
+  or CompozyOS-compaction mention is removed; `compozy__session_compact` and Compact now are
+  documented. Web drops the Knowledge app, Settings → Memory, the Home Memory tile, memory role
+  panels, and the context-meter threshold warning, and gains the Compact now action and the
+  Compaction timeline item. Site: memory docs, the `cli/memory` subtree, landing Memory/Dream
+  content, and the `defining-agent-sessions-compozyos` memory section are removed; new
+  `sessions/compaction.mdx`; migration guide (root and site) and a breaking release note ship.
+  COPY, README, PRODUCT, and the glossary drop memory vocabulary and gain a Compaction entry. Dated
+  history (release notes, QA reports, `_done` boards, lessons) stays untouched.
+- **QA / verification:** memory-only scenarios, journeys, and charters are deleted; compaction
+  scenarios are rewritten; the retirement canary `ET-retired-product-surfaces-absent` covers memory,
+  Dream, Knowledge, and CompozyOS-side compaction, including an upgrade leg. The upgraded-home lab
+  walk, Compact now, and the real-adapter Goal compaction walk own the user-visible journeys.
+
 ## Modern Go adoption across module boundaries (#482) — 2026-10-06
 
 Owner: this refactor PR (branch `modern-go-482`; issue #482). Behavior-preserving migration of

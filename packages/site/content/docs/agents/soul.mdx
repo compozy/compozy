@@ -4,7 +4,7 @@ description: Optional SOUL.md authored persona artifact that CompozyOS resolves,
 ---
 
 `SOUL.md` is an optional authored persona file beside an agent's `AGENT.md`. It tells CompozyOS how an
-agent should think, communicate, collaborate, apply principles, and relate to memory. CompozyOS resolves
+agent should think, communicate, collaborate, and apply principles. CompozyOS resolves
 the file at session start, snapshots the result, and includes a bounded persona block in the agent
 prompt and a compact projection in `/agent/context`.
 
@@ -44,8 +44,6 @@ constraints:
   - "Do not propose silent rewrites."
 collaboration:
   - "Ask before expanding scope."
-memory_policy:
-  - "Prefer durable lessons over per-session notes."
 tags:
   - reviewer
 ---
@@ -62,12 +60,17 @@ Surface blocking findings first, then suggestions, then nits.
 | `principles`    | string array | optional | Authored values the agent should bias toward.                                             |
 | `constraints`   | string array | optional | Boundaries the agent should respect.                                                      |
 | `collaboration` | string array | optional | How this agent works with humans and other agents.                                        |
-| `memory_policy` | string array | optional | Posture toward memory, lessons, and notes.                                                |
 | `tags`          | string array | optional | Free-form labels.                                                                         |
 | Body            | Markdown     | optional | Bounded narrative persona prose. Truncated at `[agents.soul].max_body_bytes` for prompts. |
 
 The parser is strict. Any unknown frontmatter key fails validation with a typed
 `SoulDiagnostic`. Forbidden operational fields are listed below.
+
+A retired memory frontmatter key is the one exception the parser still recognizes. A `SOUL.md` that
+declares it stays valid: the key is ignored, so it is not rendered into the `Agent Soul` prompt block
+and is not returned in the parsed frontmatter. CompozyOS does not rewrite the file; saving the Soul
+from the Web editor writes it back without the key. See
+[Memory removal](/docs/migration#memory-removal).
 
 ## Forbidden fields and sections
 
@@ -82,7 +85,7 @@ the correct surface.
 | `capabilities`                                                           | `capabilities.toml` or `capabilities/*` |
 | `tasks`, `task_runs`, `scheduler`, `lease`                               | Runtime task APIs                       |
 | `heartbeat`                                                              | `HEARTBEAT.md` and `[agents.heartbeat]` |
-| `spawn`, `env`, `config`, operational memory-store fields                | Runtime config                          |
+| `spawn`, `env`, `config`                                                 | Runtime config                          |
 
 A `SOUL.md` that contains any of these fields is invalid; new sessions for the affected agent fail
 to start until the file is fixed or removed.

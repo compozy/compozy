@@ -32,7 +32,7 @@ Applies to `internal/` and `cmd/compozy`. Root `CLAUDE.md` owns compatibility, d
 
 ## Security
 
-- Raw claim tokens, MCP auth tokens, OAuth codes, PKCE verifiers, and bound secrets stay out of logs, status/error payloads, SSE, UI, and memory. Expose hash forms.
+- Raw claim tokens, MCP auth tokens, OAuth codes, PKCE verifiers, and bound secrets stay out of logs, status/error payloads, SSE, and UI. Expose hash forms.
 - Resolve symlinks and enforce approved-root containment for skill/extension paths, including canonicalized macOS temporary roots. User/agent-controlled paths use the existing sanitization and deepest-existing-realpath helpers.
 - Outbound calls use explicit timeouts. Non-bundled skills run `internal/skills.VerifyContent` on load; preserve the configured severity decisions and bundled immutability exception.
 - Provider authentication ownership is explicit: `native_cli` uses native login without Compozy credential slots; `bound_secret` injects only declared resolved secrets; `none` injects neither. Preserve filtered/isolated environment policies and provider-home isolation without copying operator credentials. Public config changes follow SD-013 boundary translation.
@@ -41,4 +41,4 @@ Applies to `internal/` and `cmd/compozy`. Root `CLAUDE.md` owns compatibility, d
 
 Read current skill-loader/config code when changing precedence: Bundled → Marketplace → User → Profile → Additional → Workspace → Workspace-Profile → Agent-local; configured overlay roots replace hardcoded paths. Preserve shadow audit trails.
 
-For memory changes, preserve `user|feedback|project|reference` types, `agent|workspace|global` scopes, per-agent write scope, and the Time → Sessions → Lock consolidation gate order. For lifecycle hooks, preserve hierarchy/alphabetical order, configurable timeout, JSON stdin, and fail-open error reporting.
+For lifecycle hooks, preserve hierarchy/alphabetical order, configurable timeout, JSON stdin, and fail-open error reporting.

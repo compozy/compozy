@@ -4,6 +4,10 @@ Prototype of the redesigned `compozy.com` homepage, rebuilt 2026-09-01 after the
 
 Reference discipline applied on top of the Compozy authorities: `taste-skill` (Leonxlnx) sections 4, 9 and 14 (hero stack discipline, eyebrow budget, zero em-dashes, real imagery over div-screenshots, section-layout variety, zigzag cap), `imagegen-frontend-web` (composition anchors and background modes vary across sections; two full-bleed moments; rich sections alternate with calm ones), `impeccable` craft floor, `ui-craft` anti-defaults.
 
+## Revision 2026-10-07 — Memory feature tab removed
+
+Memory was removed from the product, so the Features strip drops its Memory tab and panel (`data-od-id="feature-memory"`): seven tabs remain (Sessions, Tasks, Automation, Desktops, Profiles, Gateway, Workspaces) and `ft-N` / `fp-N` were renumbered. "Memory" also leaves the pain-stack list (the animation placeholder now collapses eight pieces), the features lead, the comparison caption, the closer body and the Profiles and Workspaces diagrams, following COPY.md. The Capture · Knowledge slot and its `feature-memory.webp` stand-in are gone from the asset map. The dated revisions below describe the board as it was then.
+
 ## Revision 2026-09-10 — every raster pulled for regeneration
 
 Operator feedback: the current images are not good enough; all of them will be generated again. Locked responses:
@@ -81,10 +85,10 @@ Scene: a senior engineer at 11pm, laptop at 60% brightness, tabs full of agent C
 | --- | --- | --- | --- | --- |
 | 1 | Hero | `hero` | left-led copy + full-width plate | wave terrain (`hero-wave.webp`, real site asset) + CSS ember; six demo tabs over the real shell capture; `Loop editor` and `Tasks inbox` pan the plate onto their window |
 | 2 | Providers | `providers` | stacked head + gapless logo grid | 26 real logos from the sprite as a 13×2 hairline grid at desktop (tile wrap below 1024px) |
-| 3 | The DIY agent stack | `pain` | split copy / stage | nine dashed "parts" in a tray collapse into one CompozyOS block (the one authored motion); reduced motion: static parts → arrow → block |
+| 3 | The DIY agent stack | `pain` | split copy / stage | eight dashed "parts" in a tray collapse into one CompozyOS block (the one authored motion); reduced motion: static parts → arrow → block |
 | 4 | Use cases | `use-cases` | bento 3 + 2 | five spot images (stand-ins, see asset map) |
 | 5 | Community | `community` | centered head + quote wall (three drifting columns) + proof strip | the page's one marquee; photo and source slots are stand-ins; live counts are skeleton bars |
-| 6 | Features | `features` | tab chips + split panel | eight window frames: 3 illustrations, 2 real captures, 3 SVG diagrams |
+| 6 | Features | `features` | tab chips + split panel | seven window frames: 2 illustrations, 2 real captures, 3 SVG diagrams |
 | 7 | Loops | `loops` | spotlight: full-width plate + five-column proof strip | the real Loops window crop + Needs-you strip; orbit backdrop |
 | 8 | Extensibility | `extensibility` | tall image + content column | cartridge illustration; real `extension.json` (trimmed); catalog chips; SDK row |
 | 10 | Comparison | `comparison` | table | CompozyOS column on `--elevated` with the symbol; `✓` / `Partial` / hairline dash |
@@ -103,7 +107,6 @@ Rule from the operator: placeholders only for images that will be generated; reu
 | Hero plate poster | `hero-poster.webp` (real capture, margins cropped) | stand-in for the six demo clips + posters; one poster serves all six tabs, two tabs pan it |
 | Use-case spots ×5 | `spot-implement.webp`, `spot-review.webp`, `spot-briefing.webp`, `spot-release.webp`, `spot-gate.webp` (generated 2026-09-10, one family, two Dribbble style references; floor re-rendered to the card color #1f1e1c) | final for the prototype; 1536×1024 each, the two wide cards crop to 21:9, no frame around the art |
 | Features · Sessions | `feature-sessions.webp` (site `everything/` session timeline, own chrome cropped) | stand-in for the `/agents/$name/sessions/$id` capture |
-| Features · Memory | `feature-memory.webp` (`bento/memory-v1.png`) | stand-in for the `/knowledge` capture |
 | Features · Tasks | `capture-tasks-window.webp` (real) | stand-in for `/tasks?mode=kanban` (list view shown) |
 | Features · Automation | `feature-automation.webp` (site `everything/` trace + events) | stand-in for the `/jobs` capture |
 | Features · Desktops | `hero-poster.webp` (real) | final-grade: the live shell |
@@ -116,7 +119,7 @@ Rejected for reuse: anything carrying the legacy `agh` name (`bento_grid.png`, `
 
 ## Authorized deltas from the copy deck
 
-- **Em-dashes and en-dashes removed from visible text** (taste-skill 9.G). `[draft]` strings were re-punctuated with periods, colons or parentheses; `[lock]` and `[kept]` strings were untouched except `Memory, automation, … — core objects…` (kept-trimmed) which now uses a colon. The `<title>` keeps the canonical dash.
+- **Em-dashes and en-dashes removed from visible text** (taste-skill 9.G). `[draft]` strings were re-punctuated with periods, colons or parentheses; `[lock]` and `[kept]` strings were untouched except `Automation, permissions, … — core objects…` (kept-trimmed) which now uses a colon. The `<title>` keeps the canonical dash.
 - **Hero stack held to four text elements**: category label, headline, subhead, actions (Download + docs + the one-liner chip). The beta pill (the nav already shows Beta), the installer caption and the platform microcopy left the hero; the platform line lives in the install section.
 - **Eyebrows budgeted to three** (PRODUCT.md anti-reference: eyebrow-on-every-section scaffolding). `The problem`, `Use cases`, `Community`, `Loops`, `Side by side`, `Getting started`, `CompozyOS beta` are not rendered; their headings carry the sections.
 - **Community provenance** reads `Beta program, Dec 2025 to Feb 2026` (open item 1 still decides the public wording).

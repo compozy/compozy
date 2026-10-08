@@ -212,12 +212,12 @@
     <div class="pain__copy" data-reveal>
       <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-wrench"/></svg></span>
       <h2 class="title title--feature" id="pain-title">Anyone can prompt an agent. Keeping one working is still an engineering project.</h2>
-      <p class="lead">Continuous agent work today means assembling loops, triggers, cron and webhooks, memory files, permission wrappers, approval gates, observability, and the glue scripts that hold them together. Every builder assembles that stack alone, and the process never repeats. CompozyOS replaces the pile, not one tool in it.</p>
+      <p class="lead">Continuous agent work today means assembling loops, triggers, cron and webhooks, permission wrappers, approval gates, observability, and the glue scripts that hold them together. Every builder assembles that stack alone, and the process never repeats. CompozyOS replaces the pile, not one tool in it.</p>
       <p class="kicker">The models are broadly available. The repeatable process is not.</p>
       <p style="margin-top:24px"><a class="link link--down" href="#comparison" data-od-id="pain-link">See every piece, side by side<svg class="ic ic--xs"><use href="#i-arrow-down"/></svg></a></p>
     </div>
     <div class="pain__stage pain__stage--ph" data-od-id="pain-visual" data-reveal style="--d:1" data-stand-in="animation: the DIY stack collapses into one CompozyOS block (to be rebuilt)">
-      <div class="ph ph--motion" role="img" aria-label="Placeholder: animation — the hand-assembled stack collapses into CompozyOS"><span class="ph__l"><b>Animation · DIY stack → CompozyOS</b>6 columns × 440px · nine hand-assembled pieces (agent CLI, loops, triggers, cron and webhooks, memory, permissions, approvals, observability, glue scripts) collapse into one CompozyOS block · loops once on enter, Replay control, static end-frame under reduced motion<i>was the CSS/JS collapse (.parts → .core)</i></span></div>
+      <div class="ph ph--motion" role="img" aria-label="Placeholder: animation — the hand-assembled stack collapses into CompozyOS"><span class="ph__l"><b>Animation · DIY stack → CompozyOS</b>6 columns × 440px · eight hand-assembled pieces (agent CLI, loops, triggers, cron and webhooks, permissions, approvals, observability, glue scripts) collapse into one CompozyOS block · loops once on enter, Replay control, static end-frame under reduced motion<i>was the CSS/JS collapse (.parts → .core)</i></span></div>
     </div>
   </div>
 </section>
@@ -366,41 +366,36 @@
       <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-blocks"/></svg></span>
       <p class="eyebrow">Built in <span class="rule" aria-hidden="true"></span> Batteries included.</p>
       <h2 class="title" id="features-title">Comes with what you would otherwise build.</h2>
-      <p class="lead">Memory, automation, permissions, approvals, and run history: core objects in one runtime, reachable from CLI, HTTP, and UDS.</p>
+      <p class="lead">Automation, permissions, approvals, and run history: core objects in one runtime, reachable from CLI, HTTP, and UDS.</p>
     </div>
 
     <div class="tablist tablist--scroll seg ftabs" role="tablist" aria-label="Built-in features" data-od-id="features-tabs" data-reveal style="--d:1">
       <button class="chip" role="tab" id="ft-1" aria-controls="fp-1" aria-selected="true">Sessions</button>
-      <button class="chip" role="tab" id="ft-2" aria-controls="fp-2" aria-selected="false" tabindex="-1">Memory</button>
-      <button class="chip" role="tab" id="ft-3" aria-controls="fp-3" aria-selected="false" tabindex="-1">Tasks</button>
-      <button class="chip" role="tab" id="ft-4" aria-controls="fp-4" aria-selected="false" tabindex="-1">Automation</button>
-      <button class="chip" role="tab" id="ft-5" aria-controls="fp-5" aria-selected="false" tabindex="-1">Desktops</button>
-      <button class="chip" role="tab" id="ft-6" aria-controls="fp-6" aria-selected="false" tabindex="-1">Profiles</button>
-      <button class="chip" role="tab" id="ft-7" aria-controls="fp-7" aria-selected="false" tabindex="-1">Gateway</button>
-      <button class="chip" role="tab" id="ft-8" aria-controls="fp-8" aria-selected="false" tabindex="-1">Workspaces</button>
+      <button class="chip" role="tab" id="ft-2" aria-controls="fp-2" aria-selected="false" tabindex="-1">Tasks</button>
+      <button class="chip" role="tab" id="ft-3" aria-controls="fp-3" aria-selected="false" tabindex="-1">Automation</button>
+      <button class="chip" role="tab" id="ft-4" aria-controls="fp-4" aria-selected="false" tabindex="-1">Desktops</button>
+      <button class="chip" role="tab" id="ft-5" aria-controls="fp-5" aria-selected="false" tabindex="-1">Profiles</button>
+      <button class="chip" role="tab" id="ft-6" aria-controls="fp-6" aria-selected="false" tabindex="-1">Gateway</button>
+      <button class="chip" role="tab" id="ft-7" aria-controls="fp-7" aria-selected="false" tabindex="-1">Workspaces</button>
     </div>
 
     <div class="fpanel" id="fp-1" role="tabpanel" aria-labelledby="ft-1" data-od-id="feature-sessions" data-reveal style="--d:2">
       <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-message-square"/></svg></span><span>Agent work that outlives the terminal</span></h3><p class="fpanel__desc">CompozyOS keeps the timeline, the edits, and the runs in a durable session. Pause one, resume it, and the record is still there.</p><p class="fpanel__cap">Sessions open as windows in the OS shell. Every window managed.</p></div>
       <div class="win" data-stand-in="capture: /agents/$name/sessions/$id on a seeded lab"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-message-square"/></svg>Session</span><span class="win__route">/agents/$name/sessions/$id</span></div><div class="win__body" style="--pos:50% 74%;--zoom:1.26"><div class="ph" role="img" aria-label="Placeholder: Capture · Session"><span class="ph__l"><b>Capture · Session</b>16:10 · /agents/$name/sessions/$id on a seeded lab — timeline with a file edit, tests, commit, pause, beside its diff<i>was feature-sessions.webp · 1495×1052</i></span></div></div></div>
     </div>
-    <div class="fpanel" id="fp-2" role="tabpanel" aria-labelledby="ft-2" hidden data-od-id="feature-memory">
-      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-book-open"/></svg></span><span>Context that survives restarts</span></h3><p class="fpanel__desc">Typed Markdown memory (user, feedback, project, reference) with one index per scope. Agents read it on session start and update it through the same CLI.</p><p class="fpanel__cap">When the gates pass, CompozyOS starts an ephemeral session that promotes recalled facts into durable memory. No surprise compute.</p></div>
-      <div class="win" data-stand-in="capture: /knowledge seeded with real files"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-book-open"/></svg>Knowledge</span><span class="win__route">/knowledge</span></div><div class="win__body" style="--pos:50% 44%;--zoom:1.12"><div class="ph" role="img" aria-label="Placeholder: Capture · Knowledge"><span class="ph__l"><b>Capture · Knowledge</b>16:10 · /knowledge seeded with real files<i>was feature-memory.webp · 1254×1254</i></span></div></div></div>
-    </div>
-    <div class="fpanel" id="fp-3" role="tabpanel" aria-labelledby="ft-3" hidden data-od-id="feature-tasks">
+    <div class="fpanel" id="fp-2" role="tabpanel" aria-labelledby="ft-2" hidden data-od-id="feature-tasks">
       <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-kanban"/></svg></span><span>Work that stays claimed until it closes</span></h3><p class="fpanel__desc">Durable tasks a session claims, heartbeats, and closes: on a board, in an inbox, with history.</p><p class="fpanel__cap">Every run has one owner; crashed work returns to the queue.</p></div>
       <div class="frame"><div class="win win--bare" data-stand-in="capture: /tasks?mode=kanban (list view shown until the board is captured)"><div class="win__body"><div class="ph" role="img" aria-label="Placeholder: Capture · Tasks"><span class="ph__l"><b>Capture · Tasks</b>16:10 · /tasks?mode=kanban — blocked, queued and done groups with owners and priorities<i>was capture-tasks-window.webp · 1450×906</i></span></div></div></div><code class="win__cap">/tasks?mode=kanban</code></div>
     </div>
-    <div class="fpanel" id="fp-4" role="tabpanel" aria-labelledby="ft-4" hidden data-od-id="feature-automation">
+    <div class="fpanel" id="fp-3" role="tabpanel" aria-labelledby="ft-3" hidden data-od-id="feature-automation">
       <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-clock"/></svg></span><span>Schedules and webhooks, durable</span></h3><p class="fpanel__desc">CompozyOS owns clock jobs, runtime triggers, and signed webhooks. Every fire writes an inspectable run.</p><p class="fpanel__cap">Run history comes from the records the runtime already writes. Nothing extra to instrument.</p></div>
       <div class="win" data-stand-in="capture: /jobs with run history"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-clock"/></svg>Jobs</span><span class="win__route">/jobs</span></div><div class="win__body" style="--pos:50% 50%;--zoom:1.04"><div class="ph" role="img" aria-label="Placeholder: Capture · Jobs"><span class="ph__l"><b>Capture · Jobs</b>16:10 · /jobs with run history — a run trace beside the events-per-day chart<i>was feature-automation.webp · 1586×992</i></span></div></div></div>
     </div>
-    <div class="fpanel" id="fp-5" role="tabpanel" aria-labelledby="ft-5" hidden data-od-id="feature-desktops">
+    <div class="fpanel" id="fp-4" role="tabpanel" aria-labelledby="ft-4" hidden data-od-id="feature-desktops">
       <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-app-window"/></svg></span><span>Every window managed</span></h3><p class="fpanel__desc">Persistent desktops, tiled groups, and floating windows. Layout is workspace state the daemon owns, not browser tabs.</p><p class="fpanel__cap"><code>⌘K</code> runs the same commands the CLI exposes.</p></div>
       <div class="frame"><div class="win win--bare"><div class="win__body" style="--pos:50% 50%;--zoom:1"><div class="ph" role="img" aria-label="Placeholder: Capture · Desktop shell"><span class="ph__l"><b>Capture · Desktop shell</b>16:10 · menubar, two tiled windows and the dock (DesktopShell · dock · DesktopPager)<i>was hero-poster.webp · 2960×1826</i></span></div></div></div><code class="win__cap">DesktopShell · dock · DesktopPager</code></div>
     </div>
-    <div class="fpanel" id="fp-6" role="tabpanel" aria-labelledby="ft-6" hidden data-od-id="feature-profiles">
+    <div class="fpanel" id="fp-5" role="tabpanel" aria-labelledby="ft-5" hidden data-od-id="feature-profiles">
       <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-users"/></svg></span><span>Separate work on one install</span></h3><p class="fpanel__desc">Each session, task, and automation files under a named profile. Switch, and the lists follow.</p><p class="fpanel__cap">Profiles organize work; they are not a security boundary.</p></div>
       <div class="win" data-stand-in="capture: /settings/profiles with default + one real profile"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-settings"/></svg>Settings</span><span class="win__route">/settings/profiles</span></div>
         <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:left bottom;--img:url(assets/backdrop-orbit.webp)"></div>
@@ -417,7 +412,7 @@
             <rect class="bar" x="200" y="246" width="34" height="8" rx="4"/><rect class="bar" x="242" y="246" width="34" height="8" rx="4"/><rect class="bar" x="284" y="246" width="34" height="8" rx="4"/><rect class="bar" x="326" y="246" width="34" height="8" rx="4"/>
             <text class="m" x="104" y="316">automations</text>
             <rect class="bar" x="200" y="306" width="34" height="8" rx="4"/><rect class="bar" x="242" y="306" width="34" height="8" rx="4"/>
-            <text class="m m--faint" x="104" y="372">memory and config follow the profile</text>
+            <text class="m m--faint" x="104" y="372">config follows the profile</text>
             <rect class="plate-fill" x="420" y="96" width="300" height="308" rx="16"/>
             <use href="#i-users" class="ico" x="444" y="118" width="18" height="18"/>
             <text class="t t--dim" x="472" y="132">client-work</text>
@@ -432,7 +427,7 @@
             <use href="#i-arrow-right" class="ico ico--fg" x="391" y="241" width="18" height="18"/>
           </svg></div></div></div>
     </div>
-    <div class="fpanel" id="fp-7" role="tabpanel" aria-labelledby="ft-7" hidden data-od-id="feature-gateway">
+    <div class="fpanel" id="fp-6" role="tabpanel" aria-labelledby="ft-6" hidden data-od-id="feature-gateway">
       <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-globe-lock"/></svg></span><span>Local until you turn remote on</span></h3><p class="fpanel__desc">The daemon starts reachable only on this machine. Remote access is three switches, all off by default.</p><p class="fpanel__cap">Private overlay, public delivery, public operator access: each is its own switch.</p></div>
       <div class="win" data-stand-in="capture: /settings/gateway in the default-off state"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-globe-lock"/></svg>Remote access</span><span class="win__route">/settings/gateway</span></div>
         <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:right center;--img:url(assets/backdrop-radar.webp)"></div>
@@ -453,8 +448,8 @@
             <rect class="track" x="640" y="338" width="46" height="24" rx="12"/><circle class="knob" cx="652" cy="350" r="8"/><text class="m" x="700" y="354">off</text>
           </svg></div></div></div>
     </div>
-    <div class="fpanel" id="fp-8" role="tabpanel" aria-labelledby="ft-8" hidden data-od-id="feature-workspaces">
-      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-folder-git-2"/></svg></span><span>One project, registered once</span></h3><p class="fpanel__desc">Sessions, memory, tasks, and config attach to a workspace with a stable ID.</p><p class="fpanel__cap">Worktrees give parallel agents their own checkout of the same repo.</p></div>
+    <div class="fpanel" id="fp-7" role="tabpanel" aria-labelledby="ft-7" hidden data-od-id="feature-workspaces">
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-folder-git-2"/></svg></span><span>One project, registered once</span></h3><p class="fpanel__desc">Sessions, tasks, and config attach to a workspace with a stable ID.</p><p class="fpanel__cap">Worktrees give parallel agents their own checkout of the same repo.</p></div>
       <div class="win" data-stand-in="capture: menubar workspace switcher + worktree dialog"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-folder-git-2"/></svg>Workspaces</span><span class="win__route">menubar switcher</span></div>
         <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:center;--img:url(assets/backdrop-traces.webp)"></div>
           <svg viewBox="0 0 800 500" role="img" aria-labelledby="dg-ws-t"><title id="dg-ws-t">One workspace with a stable ID, and three worktrees that give parallel agents their own checkout.</title>
@@ -465,7 +460,7 @@
             <text class="m" x="94" y="236">registered once</text>
             <rect class="bar" x="94" y="252" width="202" height="30" rx="6"/>
             <text class="m" x="106" y="271">stable ID</text>
-            <text class="m m--faint" x="94" y="316">sessions, memory, tasks, config</text>
+            <text class="m m--faint" x="94" y="316">sessions, tasks, config</text>
             <path class="hair" d="M320 250 C 400 250, 400 130, 468 130"/>
             <path class="hair" d="M320 250 C 400 250, 400 250, 468 250"/>
             <path class="hair" d="M320 250 C 400 250, 400 370, 468 370"/>
@@ -586,7 +581,7 @@
       </table>
     </div>
     <p class="cmp__strip" data-od-id="comparison-strip" aria-label="Switching cost" data-reveal style="--d:2"><span>workflows</span><svg class="ic"><use href="#i-arrow-right"/></svg><span>policies</span><svg class="ic"><use href="#i-arrow-right"/></svg><span>history</span><svg class="ic"><use href="#i-arrow-right"/></svg><span>integrations</span><svg class="ic"><use href="#i-arrow-right"/></svg><span>switching cost</span></p>
-    <p class="caption cmp__why" data-reveal style="--d:2">Why it holds: one runtime, one state model. Loops, approvals, and memory are core objects, so replacing CompozyOS means rebuilding all of it.</p>
+    <p class="caption cmp__why" data-reveal style="--d:2">Why it holds: one runtime, one state model. Loops and approvals are core objects, so replacing CompozyOS means rebuilding all of it.</p>
     <p class="micro" data-reveal style="margin-top:12px;--d:2">Checked against each product's public documentation on &lt;date&gt;.</p>
   </div>
 </section>
@@ -638,7 +633,7 @@
   <div class="wrap">
     <div class="cta__inner" data-reveal>
       <h2 class="cta__title" id="cta-title">Put agents to work continuously.</h2>
-      <p class="cta__body">One complete environment, batteries included: loops, triggers, memory, permissions, approvals, and history. No scripts or orchestration frameworks to maintain.</p>
+      <p class="cta__body">One complete environment, batteries included: loops, triggers, permissions, approvals, and history. No scripts or orchestration frameworks to maintain.</p>
       <div class="cta__row">
         <a class="btn btn--primary btn--lg" href="#" data-download="final" data-od-id="cta-download"><span data-label>Download CompozyOS</span><span class="btn__ico btn__ico--down" aria-hidden="true"><svg class="ic"><use href="#i-arrow-down-to-line"/></svg></span></a>
         <div class="cmd"><code class="cmd__text">curl -fsSL https://compozy.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://compozy.com/install.sh | sh" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div>
