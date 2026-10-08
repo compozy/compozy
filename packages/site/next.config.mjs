@@ -40,6 +40,16 @@ const config = {
         destination: "/blog/cursor-vs-claude-code/",
         permanent: true,
       },
+      {
+        source: "/docs/automation/jobs/",
+        destination: "/docs/automation/schedules/",
+        permanent: true,
+      },
+      {
+        source: "/docs/automation/triggers/",
+        destination: "/docs/automation/events/",
+        permanent: true,
+      },
     ];
   },
   turbopack: {

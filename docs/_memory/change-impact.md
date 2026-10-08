@@ -1,5 +1,40 @@
 # Compozy Change Impact
 
+## Automations — Jobs and Triggers merged in the Web UI — 2026-10-08
+
+Owner: spec `.compozy/tasks/automations/` (ADR-001..004); one PR from branch `automations`.
+The Web UI's Jobs and Triggers apps become one `automations` app (listing, detail, editor, dock,
+palette, Settings › Automation row, Loop "Automate ▾"); the daemon keeps both entities and every
+canonical noun (`job`, `trigger`). Native tools: ids unchanged;
+`compozy__automation_{jobs,triggers}_{list,get}` results gain `last_run`, the two list tools gain an optional `target` input
+(`agent|loop|task`) and one description clause naming the UI noun; `native-tool-catalog.json`
+regenerates. Extensibility/hooks/config: hooks, trigger events, extension manifests and SDK types
+unchanged; `window_layout` resources naming `jobs`/`triggers` are aliased to `automations` with
+WARN `windowmanager.app_id_deprecated` until v0.5.0 (none in-repo); `config.toml` keys unchanged,
+only Settings labels change. Public inputs on the one-release ladder (removal v0.5.0): web routes
+`/jobs*`, `/triggers*` (redirect stubs), CLI `--app jobs|triggers` (stderr warning), window commands,
+palette ids `app.open.{jobs,triggers}` / `palette.view.{jobs,triggers}` (WARN
+`cmdpalette.command_id_deprecated`). User state: saved desktops migrate permanently through snapshot
+v5 (no window closed); palette pins/recents/usage merge through Goose `00130`; `00129` adds the
+latest-run indexes and the catalog `target` column. Workspace data isolation: `last_run` is computed
+per owner column (`job_id` / `trigger_id`) inside the existing scoped list query; workspace/profile
+filters and the other-project detail state are unchanged. Official skill: `SKILL.md` routing row
+("Automations (jobs and triggers)"), `references/native-tools.md` (UI noun mapping, `last_run`,
+`target`), `references/window-management.md` (retired app ids). Docs: site category
+`automation/` retitled **Automations** with tutorials `run-an-agent-every-morning` and
+`react-when-a-session-fails`; `jobs.mdx` → `schedules.mdx`, `triggers.mdx` → `events.mdx` (permanent
+redirects in `packages/site/next.config.mjs`); inbound links, `loops/catalog.mdx` Automate menu and
+`workspaces/window-management.mdx` deprecation note updated; generated CLI reference regenerates from
+Cobra. COPY.md and glossary close the pending "Jobs / Triggers" alias row (Automations) and add a
+glossary `Automation` entry. Release note `.release-notes/one-automations-window-*.md` carries the
+migration block. QA: `TA-web-automations-listing`, `TA-web-automations-first-run`,
+`TA-web-automation-detail`, `TA-web-automation-editor`, `TA-web-automations-shell-entry`,
+`TA-web-automations-upgrade`, `TA-automation-last-run-agent` replace `ET-web-jobs-triggers-catalog`,
+`ET-web-trigger-detail-rule-page`, `TA-web-jobs-zero-inventory-suggestions`,
+`TA-web-triggers-zero-inventory-intro`, and `TA-web-automation-preview-toggle`; entry points of
+`TA-automation-crud-loop-target`, `TA-scheduled-session-restart-recovery`, `ET-palette-domain-views`,
+and `ET-web-ui-resilience` were flagged.
+
 ## Modern Go adoption across module boundaries (#482) — 2026-10-06
 
 Owner: this refactor PR (branch `modern-go-482`; issue #482). Behavior-preserving migration of

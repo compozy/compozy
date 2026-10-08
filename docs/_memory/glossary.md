@@ -131,6 +131,18 @@ Loops ride CompozyOS's existing durable foundations (work queue, sessions, autom
 
 ---
 
+### Automation
+
+Unattended work that **starts on its own** — on a schedule, when something happens inside CompozyOS, or when another app calls a link — and **does one thing**: ask an agent, start a Loop, or (schedules only) create a task. Every automation reads as one sentence: Starts → Only if → Does.
+
+The daemon keeps two entities: a **job** (`[[automation.jobs]]`, `compozy automation jobs`, `compozy__automation_jobs_*`) starts on a schedule; a **trigger** (`[[automation.triggers]]`, `compozy automation triggers`, `compozy__automation_triggers_*`) starts on an event, and a webhook trigger (`event = "webhook"`) starts when another app calls its link. The start decides the entity; neither converts into the other.
+
+**UI label:** "Automations" for the one window, dock launcher, palette view, and Settings row. `job` and `trigger` stay canonical in code, payloads, CLI verbs, tool ids, config tables, and reference docs (see the Surface Names table).
+
+**Not to be conflated with:** a [Loop](#loop) (the program an automation may start) or a hook (typed dispatch around a runtime event, not unattended work).
+
+---
+
 ### Skill
 
 A **bundled procedural instruction** that a CompozyOS session can activate before doing work. Skills are local to CompozyOS (loaded via `internal/skills`), governed by `metadata.compozy.*` frontmatter, scanned via `VerifyContent`, and may declare MCP servers and lifecycle hooks.
@@ -428,7 +440,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | `session` | keep + gloss on first use | Already everyday English. |
 | `terminal` | "Terminal" | First-class product surface. Never label it "console" or "shell pane". |
 | `Loop` | — pending owner decision | Do not alias. `workflow` is released as a forbidden synonym for `capability`, but the historical "workflow" positioning is still warned off (see [Loop](#loop)). |
-| `Jobs` / `Triggers` (dock titles) | — pending owner decision | Do not rename. |
+| `job` / `trigger` (automation entities) | "Automations"; "scheduled automation" (job), "automation on an event" (trigger), "link" (webhook trigger) | One UI noun for both; `job` and `trigger` stay canonical in code, payloads, CLI, tool ids, config tables, and reference docs, one step deeper (Inspect). Never "rule", "workflow", or "recipe". See [Automation](#automation). |
 | settings group `Operator` | "Personal" | Group label only. |
 | settings section `Observability` | "Diagnostics" | Section label only. |
 | settings section `Attention` | "Notifications" | Section label only. |

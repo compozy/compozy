@@ -149,6 +149,11 @@ compozy window close --workspace <workspace-id> --revision <revision> --id <wind
 compozy window open --workspace <workspace-id> --revision <revision> --restore <window-id>
 ```
 
+Open jobs and triggers with `--app automations` (`--pathname /automations/jobs/<job-id>` or
+`/automations/triggers/<trigger-id>`). The retired app ids `jobs` and `triggers` still open
+Automations in v0.4.0 with a deprecation warning and fail like unknown ids from v0.5.0; never emit
+them in commands or `window_layout` resources.
+
 Where a new window lands follows `new_window_policy`: `tab` (default) joins the client's focused
 window as a tab when that window is visible on the open's desktop, else it falls back to
 `beside_focus` placement (an empty desktop gets one full pane); `beside_focus` tiles beside the

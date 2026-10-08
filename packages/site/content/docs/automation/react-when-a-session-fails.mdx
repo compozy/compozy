@@ -1,0 +1,184 @@
+---
+title: React when a session fails
+description: Create an automation that starts an agent whenever a session stops with an error, check the match before saving, and read the run it produced.
+---
+
+At the end of this page you will have an automation that reads "When a session stops in checkout-api
+with stop reason error, ask summarizer." Each time a session in the project fails, `summarizer` reads
+what happened and writes it down, so the failure is explained by the time you look.
+
+This is the event version of [Run an agent every morning](/docs/automation/run-an-agent-every-morning):
+instead of a time, something that happens inside CompozyOS starts the work.
+
+## Before you start
+
+- CompozyOS is running (`compozy status`) and the Web UI is open on a project. This page uses a
+  project named `checkout-api`.
+- The project has an agent you can run. This page uses one named `summarizer`; any agent from the
+  agent picker works.
+
+## Step 1: Start a new automation on an event
+
+Open **Automations** from the dock and choose **New automation** (or **When something happens** if
+the project has no automations yet). You can also press ⌘K and choose **New automation on an
+event**.
+
+Under **Starts**, choose **When something happens**. Four event cards appear:
+
+- A session starts
+- A session stops
+- A hook finishes
+- An extension sends an event
+
+Choose **A session stops**. In **Name**, type `summarize-failures`.
+
+## Step 2: Only react to failures
+
+Without a condition, every session that stops — including every clean one — would start a run. Under
+**Only if**, choose **Add condition**, pick **Stop reason (data.stop_reason)** as the field, and type
+`error` as the value.
+
+Every condition must match. The sentence bar now reads:
+
+```text
+When a session stops in checkout-api with stop reason error, ask an agent.   Needs a fix
+```
+
+"ask an agent" is still a placeholder because nothing is chosen under **Does** yet.
+
+## Step 3: Choose what it does
+
+Under **Does**, choose **Ask an agent** and pick `summarizer`. Type a **Message**, and use the
+**Add details from the event** chips under it to insert parts of the event. With the **session_id**
+and **stop_reason** chips, the message reads:
+
+```text
+Summarize session {{ .Data.session_id }}. It stopped with {{ .Data.stop_reason }}; explain the most likely cause.
+```
+
+Each run fills the chips in from the event that started it. The sentence bar reads:
+
+```text
+When a session stops in checkout-api with stop reason error, ask summarizer.   Ready
+```
+
+**Create a task** is disabled here with the reason "Only scheduled automations can create tasks".
+
+## Step 4: Check the match before saving
+
+Choose **Show preview**. The form swaps to a preview with a sample `session.stopped` event and the
+verdict **matches this sample**. Change the condition value to something else and the verdict turns
+to **won't start on this sample**, naming the condition that failed. Change it back to `error` and
+choose **Back to form**; every value you typed is kept.
+
+## Step 5: Create it
+
+Choose **Create automation**. A toast reads "Created summarize-failures." and its page opens.
+**How it works** shows three parts:
+
+- **Starts**: A session stops
+- **Only if**: Stop reason is error (`data.stop_reason`)
+- **Does**: ask `summarizer`, with your message and the inserted details shown as chips
+
+**Runs** reads "No runs yet". There is no **Run now** button: an event automation only runs when its
+event happens.
+
+## Step 6: See it run
+
+The next session in `checkout-api` that stops with an error starts the automation. Open it again
+from the listing: the newest run is at the top of **Runs**, and selecting it shows **Open session**
+for the summary `summarizer` wrote.
+
+On the listing, the row shows when it last ran ("2m ago") and the result ("Last run completed 2m
+ago"). The **On events** view counts it; the **Scheduled** view does not.
+
+To stop reacting for a while, turn the switch off. Matching events won't start it until you turn it
+on again.
+
+## Do the same from the CLI
+
+Scripts and agents use the canonical name for an event automation: a **trigger**.
+
+```bash
+compozy automation triggers create \
+  --name summarize-failures \
+  --scope workspace \
+  --workspace checkout-api \
+  --event session.stopped \
+  --filter data.stop_reason=error \
+  --agent summarizer \
+  --prompt 'Summarize session {{ .Data.session_id }}. It stopped with {{ .Data.stop_reason }}; explain the most likely cause.'
+```
+
+After a failing session, read the last run back:
+
+```bash
+compozy automation triggers --workspace checkout-api -o json \
+  | jq '.triggers[] | select(.name == "summarize-failures") | {name, event, enabled, last_run}'
+```
+
+```json
+{
+  "name": "summarize-failures",
+  "event": "session.stopped",
+  "enabled": true,
+  "last_run": {
+    "id": "run_…",
+    "status": "completed",
+    "started_at": "2026-10-07T19:41:10Z",
+    "ended_at": "2026-10-07T19:41:52Z"
+  }
+}
+```
+
+Your ids and times will differ, and `last_run` is missing until the first matching event. Agents get
+the same data from `compozy__automation_triggers_list`.
+
+## Start a Loop instead
+
+To run a whole [Loop](/docs/loops) when a session fails, open the Loop's page and choose **Automate ▾
+→ When something happens**. The same dialog opens with **Does → Start this Loop** already set to that
+Loop. Static inputs are filled the same every time; **Fill from the event** maps an event detail,
+such as the session id, into a Loop input.
+
+If the Loop can't be started by an event, the dialog says so and reads **Needs a fix** — choose a Loop
+that allows event starts, or start it on a schedule.
+
+To react to a request from another app instead, such as a CI run or a deploy, choose **When another
+app calls a link**; see [Link automations (webhooks)](/docs/automation/webhooks).
+
+## If something goes wrong
+
+| What you see                                              | What to do                                                                                                                    |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| The preview says **won't start on this sample**           | Read the condition it names; the value must match exactly, including case.                                                    |
+| "Add a value or remove this condition." under a condition | Type a value or remove the empty condition.                                                                                   |
+| No runs after a failed session                            | Check the switch is **On** and the failed session belongs to `checkout-api` — a project automation only sees its own project. |
+| Too many runs                                             | Add another condition, or lower **Run limit** under **Options**.                                                              |
+| The row reads "Last run failed …"                         | Open the automation and select the failed run to read the cause.                                                              |
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/automation/events"
+    label="Reference"
+    title="Automations on events (triggers)"
+    description="Every event name, condition path, message template value, and Loop input mapping."
+    meta="When something happens"
+  />
+  <GuideCard
+    href="/docs/automation/webhooks"
+    label="Reference"
+    title="Link automations (webhooks)"
+    description="Let another app start an automation with a signed request."
+    meta="When another app calls a link"
+  />
+  <GuideCard
+    href="/docs/cli/automation/triggers"
+    label="Reference"
+    title="compozy automation triggers"
+    description="Generated reference for every flag on the triggers command."
+    meta="CLI"
+  />
+</GuideGrid>

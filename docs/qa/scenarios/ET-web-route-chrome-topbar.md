@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-10-02-untested.md
-overlaps: ET-web-catalog-navigation; ET-web-tasks-mode-url; ET-web-jobs-triggers-catalog
+overlaps: ET-web-catalog-navigation; ET-web-tasks-mode-url; TA-web-automations-listing
 ---
 
 Added by Route Chrome alignment (2026-07-17). Flag only — retest in the next QA cycle.

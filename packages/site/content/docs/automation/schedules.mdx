@@ -1,7 +1,11 @@
 ---
-title: Jobs and Scheduling
-description: Define scheduled CompozyOS automation jobs with cron, interval, and one-time schedules, then monitor runs and retries.
+title: Scheduled automations (jobs)
+description: Define scheduled CompozyOS automations — jobs — with cron, interval, and one-time schedules, then monitor runs, last-run results, and retries.
 ---
+
+A scheduled automation is what the Web UI shows as **Starts → On a schedule**. Its canonical name in
+the CLI, the API, the native tools, and `config.toml` is a **job**, and this page uses that name. To
+create your first one step by step, follow [Run an agent every morning](/docs/automation/run-an-agent-every-morning).
 
 Jobs start unattended work without an interactive operator. A job answers three questions:
 
@@ -23,12 +27,22 @@ created, updated, and deleted through the automation API.
 
 `compozy automation jobs -o json` returns one counted catalog page. The daemon applies `scope`,
 `workspace`, definition `source` (`config`, `package`, or `dynamic`), enabled state, Loop target,
-and text query filters before it cuts the page. The response keeps the rows under `jobs` and reports
-the exact `total`, applied `limit`, `has_more`, and `next_cursor` values under `page`.
+target kind, and text query filters before it cuts the page. The response keeps the rows under `jobs`
+and reports the exact `total`, applied `limit`, `has_more`, and `next_cursor` values under `page`.
+
+`--target agent|loop|task` filters by what the job does: ask an agent, start a Loop, or create a
+task. The HTTP route takes the same `target` query parameter, and `compozy__automation_jobs_list`
+takes it as an input.
 
 Use `--limit` to bound each read and pass `--cursor` to continue. A cursor is tied to the filter set
 that created it; restart from the first page when any filter changes. See the generated
 [`compozy automation jobs`](/docs/cli/automation/jobs) reference for every flag.
+
+Every job in the list, and the single job from `get`, carries its most recent run as `last_run`
+(`id`, `status`, `started_at`, `ended_at`, and `skip_reason` for a skipped fire). It is absent when
+the job has never run. The human table shows it as the **Last run** column, for example
+`failed 7h ago`; skipped fires read `skipped` and fires missed during downtime read `missed`. See
+[Check whether an automation worked](/docs/automation#check-whether-an-automation-worked).
 
 ## Execution flow
 
@@ -406,24 +420,29 @@ The HTTP API exposes the same history:
 curl -sS "http://localhost:2123/api/automation/jobs/<job-id>/runs?limit=20"
 ```
 
-Job responses include scheduler metadata such as `next_run` when a job is currently registered.
+Job responses include scheduler metadata such as `next_run` when a job is currently registered, and
+`last_run` always equals the first run of `…/runs?limit=1`.
+
+The Web UI uses friendlier words for the same statuses: Scheduled, Running, Handed off (`delegated`),
+Completed, Failed, and Canceled, with **Skipped** for a `self_overlap` skip and **Missed** for a
+`misfire_grace_exceeded` skip.
 
 ## Related pages
 
 <RouteList>
   <RouteRow
-    href="/docs/automation/triggers"
-    label="Automation"
-    title="Triggers"
-    description="Run agents when CompozyOS receives runtime events."
-    meta="Event-driven"
+    href="/docs/automation/events"
+    label="Automations"
+    title="Automations on events (triggers)"
+    description="Run agents or Loops when CompozyOS receives runtime events."
+    meta="When something happens"
   />
   <RouteRow
     href="/docs/automation/webhooks"
-    label="Automation"
-    title="Webhooks"
-    description="Accept signed HTTP calls from external systems."
-    meta="External ingress"
+    label="Automations"
+    title="Link automations (webhooks)"
+    description="Accept signed HTTP calls from other apps."
+    meta="When another app calls a link"
   />
   <RouteRow
     href="/docs/cli/automation/jobs/create"

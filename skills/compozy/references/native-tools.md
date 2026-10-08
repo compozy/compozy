@@ -390,12 +390,19 @@ memory-controller call bounds. Fallback chains are structured arrays and must be
 live descriptor before any mutation; successful role writes report the `live` lifecycle and affect
 later invocations.
 
+Automations (jobs and triggers): the Web UI shows both in one Automations window — a job is a
+scheduled automation, a trigger an automation on an event, a webhook trigger a link automation.
+Tools, CLI verbs, routes, and config keep `job`/`trigger`; never send `automations` to them.
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
-Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, search, and event;
+Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, `target`
+(`agent`|`loop`|`task`; `task` matches no trigger), search, and event;
 run history stays uncounted and must be bounded. Continue with the returned opaque cursor under
 unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
-deleted; dynamic definitions are fully mutable.
+deleted; dynamic definitions are fully mutable. List and get items carry `last_run` (`id`, `status`,
+`started_at`, `ended_at`, `skip_reason` for a skipped fire stored as `canceled`), equal to the first
+run of the owner's history and absent when it never ran; read it to answer "did it work?" without a
+history call.
 
 `compozy__automation_suggestions_{list,accept,dismiss}` accepts optional `workspace`; list, accept, or
 dismiss; retry CAS conflicts.
