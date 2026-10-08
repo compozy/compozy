@@ -1531,6 +1531,29 @@ func TestAccessorsAndValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should isolate Goal metadata across event copies and preserve unrelated payloads", func(t *testing.T) {
+		t.Parallel()
+		source := &GoalPromptMeta{Kind: GoalPromptKindWork, RunID: "run-goal", NodeID: "node-goal",
+			Generation: 1, Turn: new(2), PromptID: "prompt-goal"}
+		original := (AgentEvent{}).WithGoalPromptMeta(source)
+		source.RunID = "changed"
+		*source.Turn = 3
+		copied := original.WithResolvedBy("owner")
+		goal := copied.GoalPromptMeta()
+		if goal == nil || goal.RunID != "run-goal" || *goal.Turn != 2 {
+			t.Fatalf("copied Goal metadata = %#v", goal)
+		}
+		goal.RunID = "reader-change"
+		*goal.Turn = 4
+		if retained := original.GoalPromptMeta(); retained.RunID != "run-goal" || *retained.Turn != 2 {
+			t.Fatalf("original Goal metadata = %#v", retained)
+		}
+		cleared := copied.WithGoalPromptMeta(nil)
+		if cleared.GoalPromptMeta() != nil || cleared.ResolvedByValue() != "owner" || original.GoalPromptMeta() == nil {
+			t.Fatal("clearing one event changed its unrelated payload or the original Goal")
+		}
+	})
+
 	proc := &AgentProcess{stderr: &lockedBuffer{}}
 	if _, err := proc.stderr.Write([]byte("boom")); err != nil {
 		t.Fatalf("stderr.Write() error = %v", err)

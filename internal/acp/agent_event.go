@@ -49,7 +49,6 @@ type AgentEvent struct {
 	Failure          *store.SessionFailure
 	ProviderError    *ProviderErrorDiagnostic
 	Synthetic        *PromptSyntheticMeta
-	Goal             *GoalPromptMeta
 	Usage            *TokenUsage
 	Compaction       *CompactionObservation
 	Runtime          *RuntimeActivity

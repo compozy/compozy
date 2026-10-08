@@ -78,7 +78,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Failure:           store.CloneSessionFailure(event.Failure),
 		ProviderError:     acp.CloneProviderErrorDiagnostic(event.ProviderError),
 		Synthetic:         clonePromptSyntheticMeta(event.Synthetic),
-		Goal:              acp.CloneGoalPromptMeta(event.Goal),
+		Goal:              event.GoalPromptMeta(),
 		AvailableCommands: event.AvailableCommandSet().Values(),
 		SkillInvocations:  event.SkillInvocations(),
 		Attachments:       event.Attachments(),
@@ -163,11 +163,10 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Failure:          store.CloneSessionFailure(decoded.Failure),
 		ProviderError:    acp.CloneProviderErrorDiagnostic(decoded.ProviderError),
 		Synthetic:        clonePromptSyntheticMeta(decoded.Synthetic),
-		Goal:             acp.CloneGoalPromptMeta(decoded.Goal),
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
-	}.WithRequestID(decoded.RequestID).WithResolvedBy(decoded.ResolvedBy).WithDelivery(decoded.Delivery)
+	}.WithGoalPromptMeta(decoded.Goal).WithRequestID(decoded.RequestID).WithResolvedBy(decoded.ResolvedBy).WithDelivery(decoded.Delivery)
 	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)
