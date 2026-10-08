@@ -33,7 +33,7 @@ migration block. QA: `TA-web-automations-listing`, `TA-web-automations-first-run
 `ET-web-trigger-detail-rule-page`, `TA-web-jobs-zero-inventory-suggestions`,
 `TA-web-triggers-zero-inventory-intro`, and `TA-web-automation-preview-toggle`; entry points of
 `TA-automation-crud-loop-target`, `TA-scheduled-session-restart-recovery`, `ET-palette-domain-views`,
-and `ET-web-ui-resilience` were flagged.
+`ET-web-ui-resilience`, `ET-web-catalog-navigation`, and `TA-056` were flagged.
 
 ## Modern Go adoption across module boundaries (#482) — 2026-10-06
 
