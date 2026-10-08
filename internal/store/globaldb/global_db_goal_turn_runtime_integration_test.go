@@ -1114,16 +1114,45 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		t.Parallel()
 		db, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-native-compact")
 		seq := int64(52)
-		if _, err := db.RecordContextUsage(t.Context(), goal.RecordContextUsageRequest{Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1, ExpectedPhase: "idle", SessionID: "session-goal-runtime", BindingHandle: "goal:runtime", Usage: goal.ContextUsage{Known: true, Used: 9, Size: 10, Sequence: seq, ReportedAt: now}}); err != nil {
+		if _, err := db.RecordContextUsage(
+			t.Context(),
+			goal.RecordContextUsageRequest{
+				Key:                  key,
+				ExpectedControlEpoch: 1,
+				ExpectedBindingEpoch: 1,
+				ExpectedPhase:        "idle",
+				SessionID:            "session-goal-runtime",
+				BindingHandle:        "goal:runtime",
+				Usage:                goal.ContextUsage{Known: true, Used: 9, Size: 10, Sequence: seq, ReportedAt: now},
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
 		ticket, terminal := finalizeGoalRuntimeCompaction(t, db, key, taskRunID, "goal-native-compact", seq, now)
 		terminal.Compaction = &looppkg.ActionCompactionOutcome{CompactionID: "c1", Status: "completed"}
-		checkpoint, err := db.CompleteCompaction(t.Context(), goal.CompleteCompactionRequest{Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1, TaskRunID: taskRunID, QueueEntryID: ticket.QueueEntryID, PromptID: ticket.PromptID, Result: goal.CompactionResult{PromptResult: terminal, Outcome: goal.CompactionSucceeded, UsageSequence: &seq, UsageBaselineUsed: new(int64(9))}})
+		checkpoint, err := db.CompleteCompaction(
+			t.Context(),
+			goal.CompleteCompactionRequest{
+				Key:                  key,
+				ExpectedControlEpoch: 1,
+				ExpectedBindingEpoch: 1,
+				TaskRunID:            taskRunID,
+				QueueEntryID:         ticket.QueueEntryID,
+				PromptID:             ticket.PromptID,
+				Result: goal.CompactionResult{
+					PromptResult:      terminal,
+					Outcome:           goal.CompactionSucceeded,
+					UsageSequence:     &seq,
+					UsageBaselineUsed: new(int64(9)),
+				},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if checkpoint.ContextState != "unknown" || checkpoint.CompactionBaselineUsed != nil || checkpoint.UsagePendingAfterSequence != nil || checkpoint.CompactionRecoveryRequired {
+		if checkpoint.ContextState != "unknown" || checkpoint.CompactionBaselineUsed != nil ||
+			checkpoint.UsagePendingAfterSequence != nil ||
+			checkpoint.CompactionRecoveryRequired {
 			t.Fatalf("native checkpoint=%#v", checkpoint)
 		}
 	})

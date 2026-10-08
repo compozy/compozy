@@ -114,7 +114,10 @@ func goalContextUsageFromEvent(event store.SessionEvent) (goalpkg.ContextUsage, 
 	}, true, nil
 }
 
-func (r *loopGoalContextRuntime) CompactionCommand(ctx context.Context, binding looppkg.ActionSessionBinding) (string, bool, error) {
+func (r *loopGoalContextRuntime) CompactionCommand(
+	ctx context.Context,
+	binding looppkg.ActionSessionBinding,
+) (string, bool, error) {
 	if r == nil || r.sessions == nil {
 		return "", false, errors.New("daemon: Goal command event reader is unavailable")
 	}

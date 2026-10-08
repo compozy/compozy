@@ -42,5 +42,10 @@ func (h *BaseHandlers) CompactSession(c *gin.Context) {
 
 // SessionCompactPayload maps the acceptance receipt shared by transports and tools.
 func SessionCompactPayload(result session.CompactionRequestResult) contract.SessionCompactResponse {
-	return contract.SessionCompactResponse{SessionID: result.SessionID, PromptID: result.PromptID, Command: result.Command, Status: "accepted"}
+	return contract.SessionCompactResponse{
+		SessionID: result.SessionID,
+		PromptID:  result.PromptID,
+		Command:   result.Command,
+		Status:    "accepted",
+	}
 }

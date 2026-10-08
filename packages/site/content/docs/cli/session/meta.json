@@ -5,6 +5,7 @@
         "approve",
         "archive",
         "commands",
+        "compact",
         "continue",
         "events",
         "fork",

@@ -183,11 +183,17 @@ func managedGoalPromptKey(
 		strings.TrimSpace(req.Message) == "" || req.Owner.Turn < 0 || req.Owner.PromptAttempt < 0 ||
 		(req.Kind == loopManagedPromptKindCompact) != (req.Delivery == looppkg.ActionPromptDeliveryMaintenance) ||
 		req.UsageBaseTokens < 0 || (!req.UsageBaseReported && req.UsageBaseTokens != 0) ||
-		(req.ContextUsageSequence == nil) != (req.ContextUsageUsed == nil) ||
-		(req.ContextUsageSequence != nil && (*req.ContextUsageSequence < 0 || *req.ContextUsageUsed < 0)) {
+		!managedGoalContextUsageValid(req) {
 		return goalpkg.TurnKey{}, fmt.Errorf("%w: managed Goal prompt identity is incomplete", looppkg.ErrValidation)
 	}
 	return key, nil
+}
+
+func managedGoalContextUsageValid(req looppkg.ActionPromptRequest) bool {
+	if (req.ContextUsageSequence == nil) != (req.ContextUsageUsed == nil) {
+		return false
+	}
+	return req.ContextUsageSequence == nil || (*req.ContextUsageSequence >= 0 && *req.ContextUsageUsed >= 0)
 }
 
 func managedGoalQueueEntryID(key goalpkg.TurnKey, promptID string) string {

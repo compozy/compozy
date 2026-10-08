@@ -175,7 +175,11 @@ func recoveredCompactionBaseline(checkpoint Checkpoint) (*int64, *int64) {
 	return new(*checkpoint.UsageSequence), new(*checkpoint.CompactionBaselineUsed)
 }
 
-func (e *Executor) recoveryPromptMessage(ctx context.Context, segment *segmentState, checkpoint Checkpoint) (string, error) {
+func (e *Executor) recoveryPromptMessage(
+	ctx context.Context,
+	segment *segmentState,
+	checkpoint Checkpoint,
+) (string, error) {
 	if checkpoint.PromptKind == promptKindCompact {
 		command, ok, err := e.context.CompactionCommand(ctx, segment.binding)
 		if err != nil {

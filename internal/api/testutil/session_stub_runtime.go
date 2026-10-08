@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+
 	"github.com/compozy/compozy/internal/acp"
 
 	"github.com/compozy/compozy/internal/session"
@@ -30,7 +31,10 @@ func (s StubSessionManager) ClearRuntimeSelection(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) RequestCompaction(ctx context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
+func (s StubSessionManager) RequestCompaction(
+	ctx context.Context,
+	id string,
+) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
 	if s.RequestCompactionFn != nil {
 		return s.RequestCompactionFn(ctx, id)
 	}

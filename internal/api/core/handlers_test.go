@@ -112,7 +112,7 @@ func (sessionProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts,
 	}, nil
 }
 
-func (s sessionCommandCatalogManagerStub) CommandCatalog(
+func (s *sessionCommandCatalogManagerStub) CommandCatalog(
 	ctx context.Context,
 	id string,
 ) (commandpkg.Catalog, error) {
@@ -151,7 +151,7 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 			"Wait for the current turn to finish.",
 		)
 		var calls atomic.Int32
-		manager := sessionCommandCatalogManagerStub{
+		manager := &sessionCommandCatalogManagerStub{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{ID: id, WorkspaceID: "ws-command", AgentName: "coder"}, nil
 			},

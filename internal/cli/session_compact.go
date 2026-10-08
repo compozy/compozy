@@ -58,7 +58,12 @@ func newSessionCompactCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if mode == OutputHuman {
-				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Compaction requested: /%s (prompt %s)\n", accepted.Command, accepted.PromptID); err != nil {
+				if _, err := fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"Compaction requested: /%s (prompt %s)\n",
+					accepted.Command,
+					accepted.PromptID,
+				); err != nil {
 					return err
 				}
 			}
@@ -66,63 +71,83 @@ func newSessionCompactCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			value := sessionCompactOutcome{SessionID: accepted.SessionID, PromptID: accepted.PromptID, Command: accepted.Command, Outcome: outcome}
+			value := sessionCompactOutcome{
+				SessionID: accepted.SessionID,
+				PromptID:  accepted.PromptID,
+				Command:   accepted.Command,
+				Outcome:   outcome,
+			}
 			if mode == OutputJSONL {
-				return writeJSONLine(cmd, value)
+				return writeJSONLineWithoutWorkspaceResolution(cmd, value)
 			}
 			return writeCommandOutput(cmd, outputBundle{
 				jsonValue: value,
+				json:      func(cmd *cobra.Command) error { return writeJSONWithoutWorkspaceResolution(cmd, value) },
 				human:     func() (string, error) { return "Compaction " + outcome, nil },
 				toon: func() (string, error) {
-					return renderToonObject("session_compact", []string{"session_id", "prompt_id", "command", "outcome"}, []string{value.SessionID, value.PromptID, value.Command, value.Outcome}), nil
+					return renderToonObject(
+						"session_compact",
+						[]string{automationSessionIDKey, "prompt_id", "command", cliOutcomeKey},
+						[]string{value.SessionID, value.PromptID, value.Command, value.Outcome},
+					), nil
 				},
 			})
 		},
 	}
 }
 
-func waitSessionCompaction(ctx context.Context, client sessionEventStreamClient, accepted contract.SessionCompactResponse) (string, error) {
+func waitSessionCompaction(
+	ctx context.Context,
+	client sessionEventStreamClient,
+	accepted contract.SessionCompactResponse,
+) (string, error) {
 	if accepted.PromptID == "" {
 		return "", errors.New("cli: compaction request did not return prompt_id")
 	}
 	terminal := errors.New("compaction turn ended")
 	outcome := ""
-	err := client.StreamSessionEvents(ctx, accepted.SessionID, SessionEventQuery{Forward: true, TurnID: accepted.PromptID}, "", func(frame SSEEvent) error {
-		var event SessionEventRecord
-		if len(frame.Data) == 0 {
-			return nil
-		}
-		if err := json.Unmarshal(frame.Data, &event); err != nil {
-			return fmt.Errorf("cli: decode compaction turn event: %w", err)
-		}
-		if event.TurnID != accepted.PromptID {
-			return nil
-		}
-		switch event.Type {
-		case acp.EventTypeCompaction:
-			payload, err := transcript.UnmarshalAgentEvent(string(event.Content))
-			if err != nil {
-				return fmt.Errorf("cli: decode compaction snapshot: %w", err)
+	err := client.StreamSessionEvents(
+		ctx,
+		accepted.SessionID,
+		SessionEventQuery{Forward: true, TurnID: accepted.PromptID},
+		"",
+		func(frame SSEEvent) error {
+			var event SessionEventRecord
+			if len(frame.Data) == 0 {
+				return nil
 			}
-			if payload.Compaction != nil && outcome == "" {
-				switch payload.Compaction.Status {
-				case "completed", "failed", "cancelled": //nolint:misspell // ACP wire spelling.
-					outcome = payload.Compaction.Status
+			if err := json.Unmarshal(frame.Data, &event); err != nil {
+				return fmt.Errorf("cli: decode compaction turn event: %w", err)
+			}
+			if event.TurnID != accepted.PromptID {
+				return nil
+			}
+			switch event.Type {
+			case acp.EventTypeCompaction:
+				payload, err := transcript.UnmarshalAgentEvent(string(event.Content))
+				if err != nil {
+					return fmt.Errorf("cli: decode compaction snapshot: %w", err)
 				}
+				if payload.Compaction != nil && outcome == "" {
+					switch payload.Compaction.Status {
+					case "completed", string(bootstrapPhaseFailed), "cancelled": //nolint:misspell // ACP wire spelling.
+						outcome = payload.Compaction.Status
+					}
+				}
+			case acp.EventTypeDone:
+				if outcome == "" {
+					outcome = "turn_completed"
+				}
+				return terminal
+			case acp.EventTypeError:
+				if outcome == "" {
+					outcome = "turn_failed"
+				}
+				return terminal
 			}
-		case acp.EventTypeDone:
-			if outcome == "" {
-				outcome = "turn_completed"
-			}
-			return terminal
-		case acp.EventTypeError:
-			if outcome == "" {
-				outcome = "turn_failed"
-			}
-			return terminal
-		}
-		return nil
-	})
+			return nil
+		},
+	)
 	if errors.Is(err, terminal) {
 		return outcome, nil
 	}

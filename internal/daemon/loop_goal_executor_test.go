@@ -118,14 +118,31 @@ func TestLoopGoalContextRuntimeShouldUseLatestTypedSessionEvidence(t *testing.T)
 		if ok || command != "" {
 			t.Fatalf("command=%q/%v", command, ok)
 		}
-
 	})
 	t.Run("Should invalidate occupancy until newer usage after the terminal boundary", func(t *testing.T) {
 		t.Parallel()
 		reader := staticLoopSessionEventReader{events: []store.SessionEvent{
-			managedGoalContextEvent(t, 10, acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: new(int64(190000)), ContextSize: new(int64(200000))}}),
-			managedGoalContextEvent(t, 12, acp.AgentEvent{Type: acp.EventTypeCompaction, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true}}),
-			managedGoalContextEvent(t, 13, acp.AgentEvent{Type: acp.EventTypeDone, Usage: &acp.TokenUsage{InputTokens: new(int64(100))}}),
+			managedGoalContextEvent(
+				t,
+				10,
+				acp.AgentEvent{
+					Type:  acp.EventTypeUsage,
+					Usage: &acp.TokenUsage{ContextUsed: new(int64(190000)), ContextSize: new(int64(200000))},
+				},
+			),
+			managedGoalContextEvent(
+				t,
+				12,
+				acp.AgentEvent{
+					Type:       acp.EventTypeCompaction,
+					Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true},
+				},
+			),
+			managedGoalContextEvent(
+				t,
+				13,
+				acp.AgentEvent{Type: acp.EventTypeDone, Usage: &acp.TokenUsage{InputTokens: new(int64(100))}},
+			),
 		}}
 		runtime := loopGoalContextRuntime{sessions: reader}
 		binding := looppkg.ActionSessionBinding{SessionID: "session-context"}
@@ -141,21 +158,60 @@ func TestLoopGoalContextRuntimeShouldUseLatestTypedSessionEvidence(t *testing.T)
 			t.Fatalf("stale pinned=%#v %v", pinned, err)
 		}
 		service := daemonLoopAPIService{goalContext: &runtime}
-		snapshot, err := service.goalContextSnapshot(t.Context(), "workspace", goalpkg.SessionProjection{Checkpoint: &goalpkg.Checkpoint{SessionID: binding.SessionID, ContextState: "known", UsageSequence: new(int64(10)), ContextNudgeRatio: 0.8}})
-		if err != nil || snapshot.State != "unknown" || snapshot.Used != nil || snapshot.Size != nil || snapshot.Ratio != nil {
+		snapshot, err := service.goalContextSnapshot(
+			t.Context(),
+			"workspace",
+			goalpkg.SessionProjection{
+				Checkpoint: &goalpkg.Checkpoint{
+					SessionID:         binding.SessionID,
+					ContextState:      "known",
+					UsageSequence:     new(int64(10)),
+					ContextNudgeRatio: 0.8,
+				},
+			},
+		)
+		if err != nil || snapshot.State != "unknown" || snapshot.Used != nil || snapshot.Size != nil ||
+			snapshot.Ratio != nil {
 			t.Fatalf("stale Goal snapshot=%#v %v", snapshot, err)
 		}
 
-		reader.events = append(reader.events, managedGoalContextEvent(t, 14, acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: new(int64(40000)), ContextSize: new(int64(200000))}}))
+		reader.events = append(
+			reader.events,
+			managedGoalContextEvent(
+				t,
+				14,
+				acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: new(int64(40000))}},
+			),
+		)
+		runtime.sessions = reader
+		usage, err = runtime.Usage(t.Context(), binding)
+		if err != nil || usage.Known {
+			t.Fatalf("used-only occupancy=%#v err=%v", usage, err)
+		}
+		pinned, err = runtime.UsageAtSequence(t.Context(), binding, 14)
+		if err != nil || pinned.Known {
+			t.Fatalf("used-only pinned occupancy=%#v err=%v", pinned, err)
+		}
+		reader.events = append(
+			reader.events,
+			managedGoalContextEvent(
+				t,
+				15,
+				acp.AgentEvent{
+					Type:  acp.EventTypeUsage,
+					Usage: &acp.TokenUsage{ContextUsed: new(int64(40000)), ContextSize: new(int64(200000))},
+				},
+			),
+		)
 		runtime.sessions = reader
 		usage, err = runtime.Usage(t.Context(), binding)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !usage.Known || usage.Used != 40000 || usage.Sequence != 14 {
+		if !usage.Known || usage.Used != 40000 || usage.Sequence != 15 {
 			t.Fatalf("usage=%#v", usage)
 		}
-		pinned, err = runtime.UsageAtSequence(t.Context(), binding, 14)
+		pinned, err = runtime.UsageAtSequence(t.Context(), binding, 15)
 		if err != nil || !pinned.Known || pinned.Used != 40000 {
 			t.Fatalf("fresh pinned=%#v %v", pinned, err)
 		}
@@ -163,7 +219,19 @@ func TestLoopGoalContextRuntimeShouldUseLatestTypedSessionEvidence(t *testing.T)
 	for _, commands := range [][]store.SessionAdvertisedCommand{{{Name: "compress"}}, {{Name: "compress"}, {Name: "compact"}}, {{Name: "Compact"}}, {{Name: "review"}}} {
 		t.Run("Should share compaction command resolution for "+commands[0].Name, func(t *testing.T) {
 			t.Parallel()
-			runtime := loopGoalContextRuntime{sessions: staticLoopSessionEventReader{events: []store.SessionEvent{managedGoalContextEvent(t, 1, (acp.AgentEvent{Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate}).WithAvailableCommands(commands))}}}
+			runtime := loopGoalContextRuntime{
+				sessions: staticLoopSessionEventReader{
+					events: []store.SessionEvent{
+						managedGoalContextEvent(
+							t,
+							1,
+							(acp.AgentEvent{Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate}).WithAvailableCommands(
+								commands,
+							),
+						),
+					},
+				},
+			}
 			got, ok, err := runtime.CompactionCommand(t.Context(), looppkg.ActionSessionBinding{})
 			if err != nil {
 				t.Fatal(err)
@@ -174,7 +242,6 @@ func TestLoopGoalContextRuntimeShouldUseLatestTypedSessionEvidence(t *testing.T)
 			}
 		})
 	}
-
 }
 
 func TestReconstructManagedGoalPromptResultShouldRequireExactOrderedTerminalWindow(t *testing.T) {

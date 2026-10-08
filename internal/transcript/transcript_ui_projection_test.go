@@ -709,10 +709,30 @@ func TestCompactionProjection(t *testing.T) {
 	t.Run("Should fold duplicate and corrective snapshots [UT-030]", func(t *testing.T) {
 		t.Parallel()
 		at := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-		observations := []acp.CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Summary: strings.Repeat("a", 20*1024), Terminal: true}, {CompactionID: "c1", Status: "completed", Summary: strings.Repeat("a", 20*1024)}, {CompactionID: "c1", Status: "failed", Summary: strings.Repeat("a", 20*1024), Error: "corrected"}}
+		observations := []acp.CompactionObservation{
+			{CompactionID: "c1", Status: "in_progress"},
+			{CompactionID: "c1", Status: "completed", Summary: strings.Repeat("a", 20*1024), Terminal: true},
+			{CompactionID: "c1", Status: "completed", Summary: strings.Repeat("a", 20*1024)},
+			{CompactionID: "c1", Status: "failed", Summary: strings.Repeat("a", 20*1024), Error: "corrected"},
+		}
 		events := make([]store.SessionEvent, 0, len(observations))
 		for i, observation := range observations {
-			events = append(events, mustUIAgentSessionEvent(t, fmt.Sprintf("c-%d", i), int64(i+1), at.Add(time.Duration(i)*time.Second), acp.AgentEvent{Type: acp.EventTypeCompaction, SessionID: "s1", TurnID: "t1", Timestamp: at.Add(time.Duration(i) * time.Second), Compaction: &observation}))
+			events = append(
+				events,
+				mustUIAgentSessionEvent(
+					t,
+					fmt.Sprintf("c-%d", i),
+					int64(i+1),
+					at.Add(time.Duration(i)*time.Second),
+					acp.AgentEvent{
+						Type:       acp.EventTypeCompaction,
+						SessionID:  "s1",
+						TurnID:     "t1",
+						Timestamp:  at.Add(time.Duration(i) * time.Second),
+						Compaction: &observation,
+					},
+				),
+			)
 		}
 		messages, err := ToUIMessages(events)
 		if err != nil {
@@ -725,7 +745,12 @@ func TestCompactionProjection(t *testing.T) {
 		if err := json.Unmarshal(messages[0].Parts[0].Data, &item); err != nil {
 			t.Fatal(err)
 		}
-		if item.Kind != "compaction" || item.CompactionID != "c1" || item.Status != "failed" || item.Error != "corrected" || len(item.Summary) != 16*1024 || !strings.HasSuffix(item.Summary, " [summary truncated]") || item.EndedAt == nil || !item.EndedAt.Equal(at.Add(time.Second)) {
+		if item.Kind != "compaction" || item.CompactionID != "c1" || item.Status != "failed" ||
+			item.Error != "corrected" ||
+			len(item.Summary) != 16*1024 ||
+			!strings.HasSuffix(item.Summary, " [summary truncated]") ||
+			item.EndedAt == nil ||
+			!item.EndedAt.Equal(at.Add(time.Second)) {
 			t.Fatalf("item = %#v", item)
 		}
 	})

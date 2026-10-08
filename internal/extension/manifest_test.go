@@ -2510,12 +2510,23 @@ func TestManifestRetiredMemoryEntries(t *testing.T) {
 		t.Parallel()
 		manifest := expectedManifest()
 		manifest.Capabilities.Provides = []string{"memory.backend", "tool.provider"}
-		manifest.Permissions.Requires = []string{"memory/recall", "sessions/list", "memory.read", "memory/store", "memory/forget", "memory.write"}
+		manifest.Permissions.Requires = []string{
+			"memory/recall",
+			"sessions/list",
+			"memory.read",
+			"memory/store",
+			"memory/forget",
+			"memory.write",
+		}
 		dropped := dropRetiredMemoryManifestEntries(&manifest)
-		if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"tool.provider"}) || !reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) || len(dropped) != 6 {
+		if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"tool.provider"}) ||
+			!reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) ||
+			len(dropped) != 6 {
 			t.Fatalf("filtered manifest = %#v, dropped = %#v", manifest, dropped)
 		}
-		if !slices.Contains(dropped, "capabilities.provides=memory.backend") || !slices.Contains(dropped, "permissions.requires=memory/recall") || !slices.Contains(dropped, "permissions.requires=memory.read") {
+		if !slices.Contains(dropped, "capabilities.provides=memory.backend") ||
+			!slices.Contains(dropped, "permissions.requires=memory/recall") ||
+			!slices.Contains(dropped, "permissions.requires=memory.read") {
 			t.Fatalf("dropped = %#v", dropped)
 		}
 		if err := manifest.Validate(); err != nil {
@@ -2555,7 +2566,8 @@ func TestManifestRetiredMemoryEntries(t *testing.T) {
 			if err != nil {
 				t.Fatalf("LoadManifest() = %v", err)
 			}
-			if len(loaded.Capabilities.Provides) != 0 || !reflect.DeepEqual(loaded.Permissions.Requires, []string{"sessions/list"}) {
+			if len(loaded.Capabilities.Provides) != 0 ||
+				!reflect.DeepEqual(loaded.Permissions.Requires, []string{"sessions/list"}) {
 				t.Fatalf("loaded manifest = %#v", loaded)
 			}
 		})
@@ -2570,7 +2582,15 @@ func TestManifestCompactionMatcher(t *testing.T) {
 			t.Parallel()
 			manifest := expectedManifest()
 			manifest.Resources.Tools = nil
-			manifest.Resources.Hooks = []HookConfig{{Name: "compaction", Event: "context.pre_compact", Mode: "sync", Command: "echo", Matcher: HookMatcherConfig{CompactionReason: "token_limit", CompactionStrategy: "summary"}}}
+			manifest.Resources.Hooks = []HookConfig{
+				{
+					Name:    "compaction",
+					Event:   "context.pre_compact",
+					Mode:    "sync",
+					Command: "echo",
+					Matcher: HookMatcherConfig{CompactionReason: "token_limit", CompactionStrategy: "summary"},
+				},
+			}
 			var content []byte
 			var err error
 			if format == "toml" {

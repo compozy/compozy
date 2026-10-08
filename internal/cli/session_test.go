@@ -4445,7 +4445,13 @@ type compactEventStreamClient struct {
 	stream func(context.Context, string, SessionEventQuery, string, SSEHandler) error
 }
 
-func (c compactEventStreamClient) StreamSessionEvents(ctx context.Context, id string, query SessionEventQuery, lastID string, handler SSEHandler) error {
+func (c compactEventStreamClient) StreamSessionEvents(
+	ctx context.Context,
+	id string,
+	query SessionEventQuery,
+	lastID string,
+	handler SSEHandler,
+) error {
 	return c.stream(ctx, id, query, lastID, handler)
 }
 
@@ -4462,37 +4468,49 @@ func TestWaitSessionCompaction(t *testing.T) {
 		t.Run(test.outcome, func(t *testing.T) {
 			t.Parallel()
 			terminalSeen := false
-			client := compactEventStreamClient{stream: func(_ context.Context, id string, query SessionEventQuery, _ string, handler SSEHandler) error {
-				if id != "sess-1" || query.TurnID != "turn-1" || !query.Forward {
-					t.Fatalf("stream scope: %s %#v", id, query)
-				}
-				send := func(turnID, kind, status string) error {
-					event := acp.AgentEvent{Type: kind}
-					if status != "" {
-						event.Compaction = &acp.CompactionObservation{CompactionID: "c1", Status: status, Terminal: true}
+			client := compactEventStreamClient{
+				stream: func(_ context.Context, id string, query SessionEventQuery, _ string, handler SSEHandler) error {
+					if id != "sess-1" || query.TurnID != "turn-1" || !query.Forward {
+						t.Fatalf("stream scope: %s %#v", id, query)
 					}
-					content, err := transcript.MarshalAgentEvent(event)
-					if err != nil {
-						t.Fatal(err)
+					send := func(turnID, kind, status string) error {
+						event := acp.AgentEvent{Type: kind}
+						if status != "" {
+							event.Compaction = &acp.CompactionObservation{
+								CompactionID: "c1",
+								Status:       status,
+								Terminal:     true,
+							}
+						}
+						content, err := transcript.MarshalAgentEvent(event)
+						if err != nil {
+							t.Fatal(err)
+						}
+						frame, err := json.Marshal(
+							SessionEventRecord{TurnID: turnID, Type: kind, Content: json.RawMessage(content)},
+						)
+						if err != nil {
+							t.Fatal(err)
+						}
+						return handler(SSEEvent{Data: frame})
 					}
-					frame, err := json.Marshal(SessionEventRecord{TurnID: turnID, Type: kind, Content: json.RawMessage(content)})
-					if err != nil {
-						t.Fatal(err)
+					if err := send("other-turn", acp.EventTypeError, ""); err != nil {
+						t.Fatalf("unrelated turn ended wait: %v", err)
 					}
-					return handler(SSEEvent{Data: frame})
-				}
-				if err := send("other-turn", acp.EventTypeError, ""); err != nil {
-					t.Fatalf("unrelated turn ended wait: %v", err)
-				}
-				if test.status != "" {
-					if err := send("turn-1", acp.EventTypeCompaction, test.status); err != nil {
-						t.Fatalf("compaction frame ended turn wait: %v", err)
+					if test.status != "" {
+						if err := send("turn-1", acp.EventTypeCompaction, test.status); err != nil {
+							t.Fatalf("compaction frame ended turn wait: %v", err)
+						}
 					}
-				}
-				terminalSeen = true
-				return send("turn-1", test.terminal, "")
-			}}
-			outcome, err := waitSessionCompaction(t.Context(), client, contract.SessionCompactResponse{SessionID: "sess-1", PromptID: "turn-1"})
+					terminalSeen = true
+					return send("turn-1", test.terminal, "")
+				},
+			}
+			outcome, err := waitSessionCompaction(
+				t.Context(),
+				client,
+				contract.SessionCompactResponse{SessionID: "sess-1", PromptID: "turn-1"},
+			)
 			if err != nil || outcome != test.outcome || !terminalSeen {
 				t.Fatalf("wait = %q, %v, terminal=%v", outcome, err, terminalSeen)
 			}

@@ -148,9 +148,6 @@ func (m *Manager) recordEventWithWriter(
 		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
 	}
 
-	if err := m.dispatchObservedCompaction(ctx, session, event, compaction); err != nil {
-		return err
-	}
 	m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
 	if err := m.persistAdvertisedCommandsFromEvent(ctx, session, event); err != nil {
 		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
@@ -163,7 +160,7 @@ func (m *Manager) recordEventWithWriter(
 		m.publishSessionCatalogWakeForEvent(session, event)
 	}
 
-	return nil
+	return m.dispatchObservedCompaction(ctx, session, event, compaction)
 }
 
 func (m *Manager) handleAttentionTranscriptFailure(

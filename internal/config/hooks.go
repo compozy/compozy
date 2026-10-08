@@ -55,7 +55,7 @@ type parsedHookMatcher struct {
 	DecisionClass     string `yaml:"decision_class,omitempty"         toml:"decision_class,omitempty"`
 	MessageRole       string `yaml:"message_role,omitempty"           toml:"message_role,omitempty"`
 	MessageDeltaType  string `yaml:"message_delta_type,omitempty"     toml:"message_delta_type,omitempty"`
-	CompactionTrigger string `yaml:"compaction_trigger,omitempty" toml:"compaction_trigger,omitempty"`
+	CompactionTrigger string `yaml:"compaction_trigger,omitempty"     toml:"compaction_trigger,omitempty"`
 	TaskID            string `yaml:"task_id,omitempty"                toml:"task_id,omitempty"`
 	RunID             string `yaml:"run_id,omitempty"                 toml:"run_id,omitempty"`
 	WorkflowID        string `yaml:"workflow_id,omitempty"            toml:"workflow_id,omitempty"`

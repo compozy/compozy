@@ -3885,14 +3885,26 @@ func TestCompactSessionHandler(t *testing.T) {
 		{"Unsupported", session.ErrCompactionUnsupported, http.StatusConflict, "compaction_unsupported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			manager := stubSessionManager{RequestCompactionFn: func(_ context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
-				if id != "sess-123" {
-					t.Fatalf("request target=%q", id)
-				}
-				return session.CompactionRequestResult{SessionID: id, PromptID: "prompt-compact", Command: "compact"}, nil, tc.err
-			}}
+			manager := stubSessionManager{
+				RequestCompactionFn: func(_ context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
+					if id != "sess-123" {
+						t.Fatalf("request target=%q", id)
+					}
+					return session.CompactionRequestResult{
+						SessionID: id,
+						PromptID:  "prompt-compact",
+						Command:   "compact",
+					}, nil, tc.err
+				},
+			}
 			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
-			response := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/compact", []byte("{}"))
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/compact",
+				[]byte("{}"),
+			)
 			if response.Code != tc.status {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 			}
@@ -3906,7 +3918,9 @@ func TestCompactSessionHandler(t *testing.T) {
 			}
 			var payload contract.SessionCompactResponse
 			decodeJSONResponse(t, response, &payload)
-			if payload.SessionID != "sess-123" || payload.PromptID != "prompt-compact" || payload.Command != "compact" || payload.Status != "accepted" {
+			if payload.SessionID != "sess-123" || payload.PromptID != "prompt-compact" ||
+				payload.Command != "compact" ||
+				payload.Status != "accepted" {
 				t.Fatalf("receipt=%#v", payload)
 			}
 		})

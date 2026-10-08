@@ -14,7 +14,6 @@ import (
 	"time"
 
 	contract "github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -39,25 +38,9 @@ func TestDaemonNativeCompaction(t *testing.T) {
 						AgentName:    agent,
 					},
 				},
-				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
-					for _, event := range []hookspkg.HookEvent{hookspkg.HookContextPreCompact, hookspkg.HookContextPostCompact} {
-						cfg.Hooks.Declarations = append(cfg.Hooks.Declarations, hookspkg.HookDecl{
-							Name: string(
-								event,
-							),
-							Event:        event,
-							Source:       hookspkg.HookSourceConfig,
-							Mode:         hookspkg.HookModeSync,
-							ExecutorKind: hookspkg.HookExecutorSubprocess,
-							Command:      "/bin/sh",
-							Args: []string{
-								"-c",
-								`payload=$(cat); printf '%s\n' "$payload" >> "$HOOK_CAPTURE"; printf '{}'`,
-							},
-							Env: map[string]string{"HOOK_CAPTURE": capture},
-						})
-					}
-				}},
+				Workspace: e2etest.WorkspaceSeedOptions{
+					Files: map[string]string{".compozy/config.toml": nativeCompactionHookOverlay(t, capture)},
+				},
 			})
 			ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 			defer cancel()
@@ -66,18 +49,18 @@ func TestDaemonNativeCompaction(t *testing.T) {
 			if _, err := harness.PromptSession(ctx, active.ID, "baseline"); err != nil {
 				t.Fatal(err)
 			}
-			assertNativeContextReading(t, ctx, harness, base, new(int64(95)))
+			assertNativeContextReading(ctx, t, harness, base, new(int64(95)))
 			if _, err := harness.PromptSession(ctx, active.ID, "observe compaction"); err != nil {
 				t.Fatal(err)
 			}
-			assertNativeCompactionReads(t, ctx, harness, base, adapter)
-			assertNativeContextReading(t, ctx, harness, base, nil)
+			assertNativeCompactionReads(ctx, t, harness, base, adapter)
+			assertNativeContextReading(ctx, t, harness, base, nil)
 			// Reopening the persisted database must not restore the pre-terminal reading.
 			if err := harness.StopSession(ctx, active.ID); err != nil {
 				t.Fatal(err)
 			}
-			assertNativeContextReading(t, ctx, harness, base, nil)
-			assertNativeCompactionReads(t, ctx, harness, base, adapter)
+			assertNativeContextReading(ctx, t, harness, base, nil)
+			assertNativeCompactionReads(ctx, t, harness, base, adapter)
 			raw, err := os.ReadFile(capture)
 			if err != nil {
 				t.Fatal(err)
@@ -104,14 +87,14 @@ func TestDaemonNativeCompaction(t *testing.T) {
 			if _, err := harness.PromptSession(ctx, active.ID, "ordinary continuation"); err != nil {
 				t.Fatal(err)
 			}
-			assertNativeContextReading(t, ctx, harness, base, new(int64(30)))
+			assertNativeContextReading(ctx, t, harness, base, new(int64(30)))
 		})
 	}
 }
 
 func assertNativeContextReading(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	h *e2etest.RuntimeHarness,
 	base string,
 	want *int64,
@@ -130,8 +113,9 @@ func assertNativeContextReading(
 	}
 }
 
-func assertNativeCompactionReads(t *testing.T, ctx context.Context, h *e2etest.RuntimeHarness, base, adapter string) {
+func assertNativeCompactionReads(ctx context.Context, t *testing.T, h *e2etest.RuntimeHarness, base, adapter string) {
 	t.Helper()
+	assertNativeCompactionHistory(ctx, t, h, base)
 	var usage contract.SessionUsageTurnsResponse
 	if err := h.HTTPJSON(ctx, http.MethodGet, base+"/usage/turns", nil, &usage); err != nil {
 		t.Fatal(err)
@@ -225,7 +209,22 @@ func TestDaemonLegacyCompactionReadPath(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		seedNativeCompactionUpgrade(t, ctx, harness, active.ID, string(canonical))
+		if err := harness.Stop(ctx); err != nil {
+			t.Fatal(err)
+		}
+		seedNativeCompactionUpgrade(ctx, t, harness, active.ID, string(canonical))
+		harness = e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			BinaryPath: harness.BinaryPath,
+			HomePaths:  harness.HomePaths,
+			Workspace:  e2etest.WorkspaceSeedOptions{Root: harness.WorkspaceRoot},
+			MockAgents: []e2etest.MockAgentSpec{
+				{
+					FixturePath:  mockFixturePath(t, "native_compaction_fixture.json"),
+					FixtureAgent: agent,
+					AgentName:    agent,
+				},
+			},
+		})
 		if _, err := harness.PromptSession(ctx, active.ID, "baseline"); err != nil {
 			t.Fatal(err)
 		}
@@ -256,6 +255,26 @@ func TestDaemonLegacyCompactionReadPath(t *testing.T) {
 		if !found {
 			t.Fatal("legacy ledger row disappeared")
 		}
+		var history contract.SessionHistoryResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/history?limit=1000", nil, &history); err != nil {
+			t.Fatal(err)
+		}
+		found = false
+		for _, turn := range history.History {
+			for _, event := range turn.Events {
+				if event.ID == "legacy-fired" {
+					found = true
+					if string(event.Content) != string(canonical) {
+						t.Fatalf("legacy grouped history changed: %s", event.Content)
+					}
+				}
+			}
+		}
+		if !found {
+			t.Fatal("legacy row missing from grouped raw history")
+		}
+		assertNativeCompactionHistory(ctx, t, harness, base)
+
 		var page contract.SessionTranscriptResponse
 		if err := harness.HTTPJSON(ctx, http.MethodGet, base+"/transcript?limit=1000", nil, &page); err != nil {
 			t.Fatal(err)
@@ -298,8 +317,7 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 							pause := acpmock.Step{
 								Kind: acpmock.StepKindDriverControl,
 								DriverControl: &acpmock.DriverControlStep{
-									Action:  acpmock.DriverControlDelay,
-									DelayMS: 1000,
+									Action: acpmock.DriverControlBlockUntilCancel,
 								},
 							}
 							turn.Steps = append(turn.Steps[:1], append([]acpmock.Step{pause}, turn.Steps[1:]...)...)
@@ -328,7 +346,7 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			seedBoundedRebuildTurns(t, home, active)
+			seedMaintenanceCompactionReplay(t, home, active)
 			promptBoundedRebuild(t, manager, active.ID, "baseline")
 			if _, err := manager.SetRuntimeSelection(
 				t.Context(),
@@ -356,6 +374,7 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 					if pid <= 0 {
 						t.Fatal("missing owned mock subprocess PID")
 					}
+					restoreRecoveryCompactionFixture(t, fixturePath)
 					if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
 						t.Fatal(err)
 					}
@@ -412,30 +431,37 @@ func TestDaemonCompactEndpointReachesACP(t *testing.T) {
 		)
 		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 		defer cancel()
-		active := createFixtureBackedSession(t, ctx, harness, agent, "compact endpoint")
-		if _, err := harness.PromptSession(ctx, active.ID, "baseline"); err != nil {
-			t.Fatal(err)
-		}
-		base := "/api/workspaces/" + harness.WorkspaceID + "/sessions/" + active.ID
 		for _, transport := range []struct {
 			name   string
 			client *http.Client
-			url    string
+			url    func(string) string
 		}{
-			{"HTTP", harness.HTTPClient, harness.HTTPURL(base + "/compact")},
-			{"UDS", harness.UDSClient, harness.UDSURL(base + "/compact")},
+			{"HTTP", harness.HTTPClient, harness.HTTPURL},
+			{"UDS", harness.UDSClient, harness.UDSURL},
 		} {
-			request, err := http.NewRequestWithContext(ctx, http.MethodPost, transport.url, strings.NewReader("{}"))
+			active := createFixtureBackedSession(t, ctx, harness, agent, "compact endpoint "+transport.name)
+			if _, err := harness.PromptSession(ctx, active.ID, "baseline"); err != nil {
+				t.Fatal(err)
+			}
+			base := "/api/workspaces/" + harness.WorkspaceID + "/sessions/" + active.ID
+			request, err := http.NewRequestWithContext(
+				ctx,
+				http.MethodPost,
+				transport.url(base+"/compact"),
+				strings.NewReader("{}"),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			request.Header.Set("Content-Type", "application/json")
-			response, err := transport.client.Do(request)
-			if err != nil {
-				t.Fatal(err)
-			}
-			status := response.StatusCode
-			receipt := decodeSessionHTTPResponse[contract.SessionCompactResponse](t, response)
+			status, receipt := func() (int, contract.SessionCompactResponse) {
+				response, err := transport.client.Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer response.Body.Close()
+				return response.StatusCode, decodeSessionHTTPResponse[contract.SessionCompactResponse](t, response)
+			}()
 			if status != http.StatusAccepted {
 				t.Fatalf("%s status = %d, want 202; receipt = %#v", transport.name, status, receipt)
 			}
@@ -465,7 +491,7 @@ func TestDaemonCompactEndpointReachesACP(t *testing.T) {
 			t.Fatal(err)
 		}
 		prompts := acpmock.PromptDiagnostics(records)
-		if len(prompts) != 3 || prompts[1].Prompt != "/compact" || prompts[2].Prompt != "/compact" {
+		if len(prompts) != 4 || prompts[1].Prompt != "/compact" || prompts[3].Prompt != "/compact" {
 			t.Fatalf("received prompts = %#v, want two literal compact commands", prompts)
 		}
 	})

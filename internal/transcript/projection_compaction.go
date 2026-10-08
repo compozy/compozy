@@ -42,8 +42,17 @@ func projectCompactionEntry(events []store.SessionEvent, identity EntryIdentity)
 	if err != nil {
 		return nil, fmt.Errorf("transcript: encode compaction item: %w", err)
 	}
-	message := UIMessage{ID: fallbackMessageID(identity.MessageID, identity.BaseMessageID), Role: UIRoleSystem, Parts: []UIMessagePart{{Type: "data-compozy-compaction", ID: item.CompactionID, Data: data}}}
-	return &Entry{Message: message, StartSequence: identity.StartSequence, Sequence: identity.UpdatedSequence, EventType: "compaction"}, nil
+	message := UIMessage{
+		ID:    fallbackMessageID(identity.MessageID, identity.BaseMessageID),
+		Role:  UIRoleSystem,
+		Parts: []UIMessagePart{{Type: "data-compozy-compaction", ID: item.CompactionID, Data: data}},
+	}
+	return &Entry{
+		Message:       message,
+		StartSequence: identity.StartSequence,
+		Sequence:      identity.UpdatedSequence,
+		EventType:     "compaction",
+	}, nil
 }
 
 func boundedCompactionSummary(summary string) string {

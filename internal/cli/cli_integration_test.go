@@ -4731,7 +4731,18 @@ func TestSessionCompactIntegration(t *testing.T) {
 			if _, _, err := executeRootCommand(t, h.deps, "daemon", "start", "-o", "json"); err != nil {
 				t.Fatal(err)
 			}
-			createdJSON, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--cwd", h.workspace, "-o", "json")
+			createdJSON, _, err := executeRootCommand(
+				t,
+				h.deps,
+				"session",
+				"new",
+				"--agent",
+				"coder",
+				"--cwd",
+				h.workspace,
+				"-o",
+				"json",
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -4739,28 +4750,36 @@ func TestSessionCompactIntegration(t *testing.T) {
 			if err := json.Unmarshal([]byte(createdJSON), &created); err != nil {
 				t.Fatal(err)
 			}
-			primed, _, err := executeRootCommand(t, h.deps, "session", "prompt", created.ID, "__advertise_compact__", "-o", "jsonl")
-			if err != nil {
+			if _, _, err := executeRootCommand(
+				t,
+				h.deps,
+				"session",
+				"prompt",
+				created.ID,
+				"__advertise_compact__",
+				"-o",
+				"json",
+			); err != nil {
 				t.Fatal(err)
-			}
-			var primeTurn string
-			for line := range strings.SplitSeq(strings.TrimSpace(primed), "\n") {
-				var event AgentEventRecord
-				if err := json.Unmarshal([]byte(line), &event); err != nil {
-					t.Fatal(err)
-				}
-				if event.TurnID != "" {
-					primeTurn = event.TurnID
-				}
 			}
 			h.runner.mu.Lock()
 			driver := h.runner.driver
 			manager := h.runner.manager
 			h.runner.mu.Unlock()
+			settled, err := manager.LatestSettledTurn(t.Context(), created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			primeTurn := settled.TurnID
 			if primeTurn == "" {
 				t.Fatal("advertising prompt did not return a turn")
 			}
-			if _, err := manager.AwaitTurnQuiesced(t.Context(), created.ID, primeTurn); err != nil {
+			if _, err := manager.AwaitTurnQuiesced(
+				t.Context(),
+				created.ID,
+				primeTurn,
+			); err != nil &&
+				!errors.Is(err, session.ErrPromptNotInProgress) {
 				t.Fatal(err)
 			}
 			driver.mu.Lock()
@@ -4774,7 +4793,9 @@ func TestSessionCompactIntegration(t *testing.T) {
 			if err := json.Unmarshal([]byte(output), &got); err != nil {
 				t.Fatal(err)
 			}
-			if len(got) != 4 || got["session_id"] != created.ID || got["prompt_id"] == "" || got["command"] != "compact" || got["outcome"] != test.outcome {
+			if len(got) != 4 || got["session_id"] != created.ID || got["prompt_id"] == "" ||
+				got["command"] != "compact" ||
+				got["outcome"] != test.outcome {
 				t.Fatalf("compact result = %s", output)
 			}
 		})

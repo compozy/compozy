@@ -177,9 +177,18 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
-	}.WithGoalPromptMeta(decoded.Goal).WithRequestID(decoded.RequestID).WithResolvedBy(decoded.ResolvedBy).WithDelivery(decoded.Delivery)
+	}.WithGoalPromptMeta(decoded.Goal).
+		WithRequestID(decoded.RequestID).
+		WithResolvedBy(decoded.ResolvedBy).
+		WithDelivery(decoded.Delivery)
 	if event.Type == acp.EventTypeCompaction {
-		event.Compaction = &acp.CompactionObservation{CompactionID: decoded.CompactionID, Status: decoded.Status, Summary: decoded.Summary, Error: decoded.Error, Terminal: decoded.CompactionTerminal}
+		event.Compaction = &acp.CompactionObservation{
+			CompactionID: decoded.CompactionID,
+			Status:       decoded.Status,
+			Summary:      decoded.Summary,
+			Error:        decoded.Error,
+			Terminal:     decoded.CompactionTerminal,
+		}
 	}
 	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)

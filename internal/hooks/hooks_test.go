@@ -1728,7 +1728,10 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 
 	t.Run("Should annotate matching observed compaction [UT-040]", func(t *testing.T) {
 		t.Parallel()
-		payload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{Event: HookContextPreCompact, CompactionID: "c1", Trigger: "agent"})
+		payload, err := hooks.DispatchContextPreCompact(
+			t.Context(),
+			ContextPreCompactPayload{Event: HookContextPreCompact, CompactionID: "c1", Trigger: "agent"},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1738,7 +1741,10 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 	})
 	t.Run("Should leave unmatched compaction unchanged", func(t *testing.T) {
 		t.Parallel()
-		payload, err := hooks.DispatchContextPreCompact(t.Context(), ContextPreCompactPayload{Event: HookContextPreCompact, CompactionID: "c1", Trigger: "requested"})
+		payload, err := hooks.DispatchContextPreCompact(
+			t.Context(),
+			ContextPreCompactPayload{Event: HookContextPreCompact, CompactionID: "c1", Trigger: "requested"},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2035,7 +2041,28 @@ func TestDispatchCompactionObservationPatches(t *testing.T) {
 	for _, raw := range []string{`{"deny":true}`, `{"deny_reason":"x"}`, `{"summary":"x"}`, `{"context_blocks":[]}`, `{"labels":{"k":"v"}}`} {
 		t.Run("Should validate observation patch "+raw, func(t *testing.T) {
 			t.Parallel()
-			hooks := newTestHooks(t, WithNativeDeclarations([]HookDecl{{Name: "observation", Event: HookContextPreCompact, Mode: HookModeSync, ExecutorKind: HookExecutorNative}}), WithExecutorResolver(testExecutorResolver(map[string]Executor{"observation": NewNativeExecutor(func(context.Context, RegisteredHook, []byte) ([]byte, error) { return []byte(raw), nil })})))
+			hooks := newTestHooks(
+				t,
+				WithNativeDeclarations(
+					[]HookDecl{
+						{
+							Name:         "observation",
+							Event:        HookContextPreCompact,
+							Mode:         HookModeSync,
+							ExecutorKind: HookExecutorNative,
+						},
+					},
+				),
+				WithExecutorResolver(
+					testExecutorResolver(
+						map[string]Executor{
+							"observation": NewNativeExecutor(
+								func(context.Context, RegisteredHook, []byte) ([]byte, error) { return []byte(raw), nil },
+							),
+						},
+					),
+				),
+			)
 			if err := hooks.Rebuild(t.Context()); err != nil {
 				t.Fatal(err)
 			}
@@ -2058,7 +2085,6 @@ func TestDispatchCompactionObservationPatches(t *testing.T) {
 				if !strings.Contains(record.Error, "unknown field") {
 					t.Fatalf("record = %#v", record)
 				}
-
 			}
 		})
 	}

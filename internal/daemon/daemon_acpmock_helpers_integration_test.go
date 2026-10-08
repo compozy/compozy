@@ -8,16 +8,21 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 
 	atlasmigrate "ariga.io/atlas/sql/migrate"
 	"github.com/compozy/compozy/internal/store"
@@ -248,7 +253,7 @@ func mustSessionEvents(
 	return events
 }
 
-func seedNativeCompactionUpgrade(t *testing.T, ctx context.Context, h *e2etest.RuntimeHarness, id, canonical string) {
+func seedNativeCompactionUpgrade(ctx context.Context, t *testing.T, h *e2etest.RuntimeHarness, id, canonical string) {
 	t.Helper()
 	stream := sessiondb.MigrationStream()
 	entries, err := fs.ReadDir(stream.FS, stream.Dir)
@@ -286,6 +291,13 @@ func seedNativeCompactionUpgrade(t *testing.T, ctx context.Context, h *e2etest.R
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}
+	// The first daemon is stopped; replace only this test-owned current database
+	// with the preceding-release fixture before the second real daemon boots.
+	for _, file := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		t.Fatal(err)
@@ -312,6 +324,117 @@ func seedNativeCompactionUpgrade(t *testing.T, ctx context.Context, h *e2etest.R
 		canonical,
 		time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano),
 	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// History retains grouped raw ledger snapshots; folding belongs to transcript.
+func assertNativeCompactionHistory(ctx context.Context, t *testing.T, h *e2etest.RuntimeHarness, base string) {
+	t.Helper()
+	var history compozycontract.SessionHistoryResponse
+	if err := h.HTTPJSON(ctx, http.MethodGet, base+"/history?limit=1000", nil, &history); err != nil {
+		t.Fatal(err)
+	}
+	snapshots := 0
+	lastStatus := ""
+	for _, turn := range history.History {
+		for _, event := range turn.Events {
+			if event.Type != "compaction" {
+				continue
+			}
+			decoded, err := transcript.UnmarshalAgentEvent(string(event.Content))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decoded.Compaction == nil || decoded.Compaction.CompactionID != "native-1" {
+				t.Fatalf("raw history snapshot = %#v", decoded)
+			}
+			snapshots++
+			lastStatus = decoded.Compaction.Status
+		}
+	}
+	if snapshots < 2 || lastStatus != "completed" {
+		t.Fatalf("raw snapshots = %d, latest = %q, want lifecycle rows ending completed", snapshots, lastStatus)
+	}
+}
+
+func nativeCompactionHookOverlay(t *testing.T, capture string) string {
+	t.Helper()
+	var overlay strings.Builder
+	command := `payload=$(cat); printf '%s\n' "$payload" >> "$HOOK_CAPTURE"; printf '{}'`
+	for _, event := range []string{"context.pre_compact", "context.post_compact"} {
+		_, err := fmt.Fprintf(
+			&overlay,
+			"[[hooks.declarations]]\nname = %s\nevent = %s\nmode = \"sync\"\n[hooks.declarations.executor]\ncommand = \"/bin/sh\"\nargs = [\"-c\", %s]\nenv = { HOOK_CAPTURE = %s }\n",
+			strconv.Quote(event),
+			strconv.Quote(event),
+			strconv.Quote(command),
+			strconv.Quote(capture),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	return overlay.String()
+}
+
+// Twenty real turns exceed the replay budget while keeping integration setup small.
+func seedMaintenanceCompactionReplay(t *testing.T, home compozyconfig.HomePaths, active *session.Session) {
+	t.Helper()
+	meta := active.Meta()
+	owner, err := meta.DatabaseOwner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sessiondb.OpenSessionDB(
+		t.Context(),
+		owner,
+		store.SessionDBFile(filepath.Join(home.SessionsDir, active.ID)),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	}()
+	rows := make([]store.SessionEvent, 0, 40)
+	at := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	for turn := range 20 {
+		user := fmt.Sprintf("persisted user turn %d", turn)
+		if turn == 0 {
+			user = rebuildFirstUser
+		}
+		for index, message := range []struct{ kind, text string }{{"user_message", user}, {"agent_message", strings.Repeat("x", 10000)}} {
+			rows = append(
+				rows,
+				store.SessionEvent{
+					ID:        fmt.Sprintf("maintenance-%d-%d", turn, index),
+					SessionID: active.ID,
+					TurnID:    fmt.Sprintf("maintenance-turn-%d", turn),
+					Type:      message.kind,
+					AgentName: "compaction-claude",
+					Content:   message.text,
+					Timestamp: at.Add(time.Duration(turn) * time.Second),
+				},
+			)
+		}
+	}
+	if _, err := db.RecordPersistedBatch(t.Context(), rows); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The first process has already loaded the blocking fixture. Its replacement
+// receives the same native frames without the fault gate after SIGKILL.
+func restoreRecoveryCompactionFixture(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(mockFixturePath(t, "native_compaction_fixture.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

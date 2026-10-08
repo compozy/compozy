@@ -594,8 +594,30 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Labels: map[string]string{"source": "test"},
 	})
 
-	assertJSONRoundTrip(t, "ContextPreCompactPayload", ContextPreCompactPayload{PayloadBase: samplePayloadBase(HookContextPreCompact), SessionContext: sampleSession, TurnContext: sampleTurn, CompactionID: "c1", Trigger: "agent"})
-	assertJSONRoundTrip(t, "ContextPostCompactPayload", ContextPostCompactPayload{PayloadBase: samplePayloadBase(HookContextPostCompact), SessionContext: sampleSession, TurnContext: sampleTurn, CompactionID: "c1", Trigger: "agent", Status: "completed", Summary: "after"})
+	assertJSONRoundTrip(
+		t,
+		"ContextPreCompactPayload",
+		ContextPreCompactPayload{
+			PayloadBase:    samplePayloadBase(HookContextPreCompact),
+			SessionContext: sampleSession,
+			TurnContext:    sampleTurn,
+			CompactionID:   "c1",
+			Trigger:        "agent",
+		},
+	)
+	assertJSONRoundTrip(
+		t,
+		"ContextPostCompactPayload",
+		ContextPostCompactPayload{
+			PayloadBase:    samplePayloadBase(HookContextPostCompact),
+			SessionContext: sampleSession,
+			TurnContext:    sampleTurn,
+			CompactionID:   "c1",
+			Trigger:        "agent",
+			Status:         "completed",
+			Summary:        "after",
+		},
+	)
 	assertJSONRoundTrip(t, "ContextPreCompactPatch", ContextPreCompactPatch{Labels: map[string]string{"k": "v"}})
 	assertJSONRoundTrip(t, "ContextPostCompactPatch", ContextPostCompactPatch{Labels: map[string]string{"k": "v"}})
 	assertJSONRoundTrip(

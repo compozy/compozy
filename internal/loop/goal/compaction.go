@@ -320,7 +320,7 @@ func classifyCompactionResult(
 			return CompactionSucceeded, ""
 		case "failed":
 			return CompactionFailed, ""
-		case "cancelled":
+		case "cancelled": //nolint:misspell // ACP wire spelling.
 			return CompactionCancelled, ""
 		}
 	}
