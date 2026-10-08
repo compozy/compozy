@@ -195,6 +195,25 @@ describe("AutomationTriggerForm", () => {
     expect(requestPayload).toHaveTextContent("write-only values redacted");
   });
 
+  it("Should filter the event picker by search and keep Session stopped selectable", () => {
+    const { onChange } = renderTriggerForm();
+    fillIdentity();
+    fireEvent.click(screen.getByTestId("trigger-event-webhook"));
+
+    const search = screen.getByLabelText("Search events");
+    fireEvent.change(search, { target: { value: "memory" } });
+    expect(screen.getByText("No events match “memory”.")).toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-event-session.stopped")).toBeNull();
+
+    fireEvent.change(search, { target: { value: "stopped" } });
+    fireEvent.click(screen.getByTestId("trigger-event-session.stopped"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ event: "session.stopped" })
+    );
+    expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+  });
+
   it("composes a hook event id from the inline sub-config", () => {
     const { onChange } = renderTriggerForm();
 

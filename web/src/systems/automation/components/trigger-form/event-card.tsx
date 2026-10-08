@@ -1,4 +1,4 @@
-import { Brain, Check, CircleStop, Play, Puzzle, Webhook, Workflow } from "lucide-react";
+import { Check, CircleStop, Play, Puzzle, Webhook, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@compozy/ui";
@@ -8,7 +8,6 @@ import type { EventIconKey } from "../../lib/trigger-catalog";
 const EVENT_ICONS: Record<EventIconKey, LucideIcon> = {
   "session-start": Play,
   "session-stop": CircleStop,
-  memory: Brain,
   hook: Workflow,
   webhook: Webhook,
   extension: Puzzle,

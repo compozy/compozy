@@ -1,4 +1,4 @@
-import { AppWindow, Bell, Blocks, Trash2, TriangleAlert, UserRound, Wrench } from "lucide-react";
+import { AppWindow, Blocks, Trash2, TriangleAlert, UserRound, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { ConfirmDialog } from "@compozy/ui";
@@ -34,7 +34,6 @@ const REMOVAL_ROWS: readonly RemovalRow[] = [
   { key: "mcp_servers", label: "MCP servers", icon: Blocks },
   { key: "config_keys", label: "Config overrides", icon: Wrench },
   { key: "credential_overrides", label: "Credential overrides", icon: Wrench },
-  { key: "memory_entries", label: "Memory entries", icon: Bell },
   { key: "desktop_partitions", label: "Saved desktops", icon: AppWindow },
 ];
 
