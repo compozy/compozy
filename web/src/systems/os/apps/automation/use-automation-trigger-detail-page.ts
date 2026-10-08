@@ -7,7 +7,8 @@ import {
   automationWorkspaceAccessError,
   projectAutomationTarget,
   useAutomationTrigger,
-  useAutomationTriggerEditor,
+  useAutomationEditor,
+  type AutomationEditorSection,
   useAutomationTriggerRuns,
   useDeleteAutomationTrigger,
   useUpdateAutomationTrigger,
@@ -37,7 +38,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
   const updateMutation = useUpdateAutomationTrigger();
   const deleteMutation = useDeleteAutomationTrigger();
 
-  const editor = useAutomationTriggerEditor({
+  const editor = useAutomationEditor({
     activeWorkspaceId: automationEditorWorkspaceId(trigger, activeWorkspaceId),
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
@@ -75,8 +76,9 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
     error,
     handleBack: () => void navigate({ to: "/automations" }),
     handleDelete,
-    handleEdit: () => {
-      if (trigger) editor.openEdit(trigger);
+    handleEdit: (section?: AutomationEditorSection) => {
+      if (trigger)
+        editor.openEdit(trigger, { section: section === "options" ? section : undefined });
     },
     handleRetryRuns: () => {
       void triggerRunsQuery.refetch();

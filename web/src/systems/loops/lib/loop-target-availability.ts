@@ -74,6 +74,16 @@ export function projectLoopTargetCatalog({
   };
 }
 
+/** Plain words for each automation start a Loop may allow. */
+const START_KIND_COPY: Record<
+  LoopAutomationStartKind,
+  { by: string; noun: string; fallback: string }
+> = {
+  schedule: { by: "on a schedule", noun: "scheduled", fallback: "" },
+  trigger: { by: "by an event", noun: "event", fallback: ", or start it on a schedule" },
+  webhook: { by: "by a link", noun: "link", fallback: ", or start it on a schedule" },
+};
+
 export function loopTargetAvailabilityMessage(
   catalog: LoopTargetCatalog,
   mode: "create" | "edit"
@@ -82,11 +92,12 @@ export function loopTargetAvailabilityMessage(
     return `Checking whether ${catalog.selectedName} declares the ${catalog.requiredStartKind} start kind.`;
   }
   if (catalog.status === "incompatible") {
+    const start = START_KIND_COPY[catalog.requiredStartKind];
     const recovery =
       mode === "edit"
-        ? `Update this Loop to allow ${catalog.requiredStartKind} starts before saving.`
-        : "Choose a compatible Loop before saving.";
-    return `${catalog.selectedName} does not declare the ${catalog.requiredStartKind} start kind. ${recovery}`;
+        ? `Update this Loop to allow ${start.noun} starts before saving.`
+        : `Choose a Loop that allows ${start.noun} starts${start.fallback}.`;
+    return `${catalog.selectedName} can't be started ${start.by}. ${recovery}`;
   }
   if (catalog.status === "unavailable") {
     const recovery =

@@ -3,7 +3,7 @@ import { Clock } from "lucide-react";
 import { cn } from "@compozy/ui";
 
 import type { JobNextRun } from "../../../lib/job-preview";
-import { PreviewCard } from "../../trigger-form/preview/preview-card";
+import { PreviewCard } from "../../automation-form/preview/preview-card";
 
 const WONT_REGISTER_PREFIX = "Won't register";
 

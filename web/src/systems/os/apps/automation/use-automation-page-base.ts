@@ -12,6 +12,7 @@ import {
   automationRouteHasActiveFilters,
   automationsStartView,
   type AutomationDoes,
+  type AutomationEditorSeed,
   type AutomationScope,
   type AutomationSource,
   type AutomationsRouteSearch,
@@ -20,12 +21,6 @@ import {
 import { automationCreateSeedLogic } from "./automation-create-seed-store";
 import { type SettingsAutomationSection, useSettingsAutomation } from "@/systems/settings";
 import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
-
-/** Pre-target seed for opening the create sheet aimed at one Loop (§9.14 CTAs). */
-export interface AutomationCreateSeed {
-  /** When set, the page opens the create sheet in Run-loop mode for this Loop. */
-  loop?: string;
-}
 
 const UNAVAILABLE_OFF =
   "Automations are turned off. Turn on automations in Settings, then restart CompozyOS.";
@@ -45,24 +40,24 @@ export function automationUnavailableMessage(
 }
 
 /**
- * Consumes the one-shot `?create=loop&loop=` deep link. Waits for the active
- * workspace before opening the create editor (the loop-target draft binds
- * workspace scope), then strips the consumed params so a cancel or reload does
- * not re-open the dialog and the list is not silently filtered by `loop`.
+ * Consumes the one-shot `?create=1|loop` deep link. Waits for the active
+ * workspace before opening the create editor (the draft binds workspace scope),
+ * then strips the consumed params so a cancel or reload does not re-open the
+ * dialog and the list is not silently filtered by `loop` or `start`.
  */
 export function useAutomationCreateSeed(
-  seed: AutomationCreateSeed,
+  seed: AutomationEditorSeed | null,
   activeWorkspaceId: string | null | undefined,
-  openLoopCreate: (loop: string) => void
+  openCreate: (seed: AutomationEditorSeed) => void
 ): void {
   const navigate = useNavigate();
   const store = useStore(automationCreateSeedLogic);
   useEffect(() => {
     store.trigger.seedObserved({
       activeWorkspaceId,
-      loop: seed.loop ?? null,
-      consume: loop => {
-        openLoopCreate(loop);
+      seed,
+      consume: consumed => {
+        openCreate(consumed);
         void navigate({
           replace: true,
           search: current => ({
@@ -75,7 +70,7 @@ export function useAutomationCreateSeed(
         });
       },
     });
-  }, [activeWorkspaceId, navigate, openLoopCreate, seed.loop, store]);
+  }, [activeWorkspaceId, navigate, openCreate, seed, store]);
 }
 
 /**

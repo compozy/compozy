@@ -9,7 +9,8 @@ import {
   type AutomationRun,
   automationWorkspaceAccessError,
   useAutomationJob,
-  useAutomationJobEditor,
+  useAutomationEditor,
+  type AutomationEditorSection,
   useAutomationJobRuns,
   useDeleteAutomationJob,
   useTriggerAutomationJob,
@@ -54,7 +55,7 @@ export function useAutomationJobDetailPage(jobId: string) {
       ? [queuedRun, ...persistedRuns]
       : persistedRuns;
 
-  const editor = useAutomationJobEditor({
+  const editor = useAutomationEditor({
     activeWorkspaceId: automationEditorWorkspaceId(job, activeWorkspaceId),
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
@@ -96,8 +97,8 @@ export function useAutomationJobDetailPage(jobId: string) {
     error,
     handleBack: () => void navigate({ to: "/automations" }),
     handleDelete,
-    handleEdit: () => {
-      if (job) editor.openEdit(job);
+    handleEdit: (section?: AutomationEditorSection) => {
+      if (job) editor.openEdit(job, { section: section === "options" ? section : undefined });
     },
     handleToggleEnabled: (enabled: boolean) => {
       void handleToggleEnabled(enabled);

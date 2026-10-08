@@ -45,7 +45,7 @@ vi.mock("@/systems/automation", async importOriginal => {
   return {
     ...actual,
     useAutomationTrigger: () => ({ data: queryState.trigger, error: null, isLoading: false }),
-    useAutomationTriggerEditor: () => ({ editorDialogProps: {}, openEdit: vi.fn() }),
+    useAutomationEditor: () => ({ editorDialogProps: {}, openEdit: vi.fn() }),
     useAutomationTriggerRuns: () => ({
       data: [],
       error: null,

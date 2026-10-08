@@ -1,14 +1,16 @@
 import { createStoreLogic } from "@xstate/store";
 
+import type { AutomationEditorSeed } from "@/systems/automation";
+
 interface AutomationCreateSeedState {
-  consumedLoop: string | null;
+  consumedKey: string | null;
 }
 
 type AutomationCreateSeedEvents = {
   seedObserved: {
     activeWorkspaceId: string | null | undefined;
-    consume: (loop: string) => void;
-    loop: string | null;
+    consume: (seed: AutomationEditorSeed) => void;
+    seed: AutomationEditorSeed | null;
   };
 };
 
@@ -17,16 +19,16 @@ export const automationCreateSeedLogic = createStoreLogic<
   AutomationCreateSeedState,
   AutomationCreateSeedEvents
 >({
-  context: { consumedLoop: null },
+  context: { consumedKey: null },
   on: {
     seedObserved: (context, event, enqueue) => {
-      const loop = event.loop;
-      if (loop === null) {
-        return context.consumedLoop === null ? undefined : { consumedLoop: null };
+      const seed = event.seed;
+      if (seed === null) {
+        return context.consumedKey === null ? undefined : { consumedKey: null };
       }
-      if (!event.activeWorkspaceId || context.consumedLoop === loop) return;
-      enqueue.effect(() => event.consume(loop));
-      return { consumedLoop: loop };
+      if (!event.activeWorkspaceId || context.consumedKey === seed.key) return;
+      enqueue.effect(() => event.consume(seed));
+      return { consumedKey: seed.key };
     },
   },
 });
