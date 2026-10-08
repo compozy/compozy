@@ -1086,159 +1086,213 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 }
 
 func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
+	t.Run("Should expose the latest completed trigger run over UDS", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
 
-	resolveResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		"http://unix/api/workspaces/resolve",
-		[]byte(`{"path":"`+runtime.workspace+`"}`),
-		nil,
-	)
-	if resolveResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, resolveResp)
-		t.Fatalf("resolve workspace status = %d, want %d; body=%s", resolveResp.StatusCode, http.StatusOK, string(body))
-	}
-	var resolved contract.WorkspaceResponse
-	decodeHTTPJSON(t, resolveResp, &resolved)
-	if resolved.Workspace.ID == "" {
-		t.Fatal("expected resolved workspace id")
-	}
-	createdSession := createIntegrationSessionPayload(t, runtime)
-	if createdSession.WorkspaceID != resolved.Workspace.ID {
-		t.Fatalf(
-			"created session workspace_id = %q, want resolved workspace id %q",
-			createdSession.WorkspaceID,
-			resolved.Workspace.ID,
+		resolveResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			"http://unix/api/workspaces/resolve",
+			[]byte(`{"path":"`+runtime.workspace+`"}`),
+			nil,
 		)
-	}
+		if resolveResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, resolveResp)
+			t.Fatalf(
+				"resolve workspace status = %d, want %d; body=%s",
+				resolveResp.StatusCode,
+				http.StatusOK,
+				string(body),
+			)
+		}
+		var resolved contract.WorkspaceResponse
+		decodeHTTPJSON(t, resolveResp, &resolved)
+		if resolved.Workspace.ID == "" {
+			t.Fatal("expected resolved workspace id")
+		}
+		createdSession := createIntegrationSessionPayload(t, runtime)
+		if createdSession.WorkspaceID != resolved.Workspace.ID {
+			t.Fatalf(
+				"created session workspace_id = %q, want resolved workspace id %q",
+				createdSession.WorkspaceID,
+				resolved.Workspace.ID,
+			)
+		}
 
-	createResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		"http://unix/api/automation/triggers",
-		[]byte(
-			`{"scope":"workspace","workspace_id":"`+createdSession.WorkspaceID+`","name":"session-stop-review","agent_name":"coder","prompt":"review {{ index .Data \"session_id\" }}","event":"session.stopped","filter":{"data.session_type":"user"}}`,
-		),
-		nil,
-	)
-	if createResp.StatusCode != http.StatusCreated {
-		body := readAndCloseHTTPBody(t, createResp)
-		t.Fatalf(
-			"create trigger status = %d, want %d; body=%s",
-			createResp.StatusCode,
-			http.StatusCreated,
-			string(body),
+		createResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			"http://unix/api/automation/triggers",
+			[]byte(
+				`{"scope":"workspace","workspace_id":"`+createdSession.WorkspaceID+`","name":"session-stop-review","agent_name":"coder","prompt":"review {{ index .Data \"session_id\" }}","event":"session.stopped","filter":{"data.session_type":"user"}}`,
+			),
+			nil,
 		)
-	}
-	var created contract.TriggerResponse
-	decodeHTTPJSON(t, createResp, &created)
-	if created.Trigger.ID == "" {
-		t.Fatal("expected created automation trigger id")
-	}
+		if createResp.StatusCode != http.StatusCreated {
+			body := readAndCloseHTTPBody(t, createResp)
+			t.Fatalf(
+				"create trigger status = %d, want %d; body=%s",
+				createResp.StatusCode,
+				http.StatusCreated,
+				string(body),
+			)
+		}
+		var created contract.TriggerResponse
+		decodeHTTPJSON(t, createResp, &created)
+		if created.Trigger.ID == "" {
+			t.Fatal("expected created automation trigger id")
+		}
 
-	updateResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPatch,
-		"http://unix/api/automation/triggers/"+created.Trigger.ID,
-		[]byte(`{"prompt":"inspect {{ index .Data \"session_id\" }}"}`),
-		nil,
-	)
-	if updateResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, updateResp)
-		t.Fatalf("update trigger status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
-	}
-	var updated contract.TriggerResponse
-	decodeHTTPJSON(t, updateResp, &updated)
-	if updated.Trigger.Prompt != `inspect {{ index .Data "session_id" }}` {
-		t.Fatalf("updated trigger prompt = %q", updated.Trigger.Prompt)
-	}
+		updateResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPatch,
+			"http://unix/api/automation/triggers/"+created.Trigger.ID,
+			[]byte(`{"prompt":"inspect {{ index .Data \"session_id\" }}"}`),
+			nil,
+		)
+		if updateResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, updateResp)
+			t.Fatalf("update trigger status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+		}
+		var updated contract.TriggerResponse
+		decodeHTTPJSON(t, updateResp, &updated)
+		if updated.Trigger.Prompt != `inspect {{ index .Data "session_id" }}` {
+			t.Fatalf("updated trigger prompt = %q", updated.Trigger.Prompt)
+		}
 
-	stopIntegrationSession(t, runtime, createdSession.WorkspaceID, createdSession.ID)
+		for _, path := range []string{"/api/automation/triggers", "/api/automation/triggers/" + created.Trigger.ID} {
+			response := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix"+path, nil, nil)
+			if response.StatusCode != http.StatusOK {
+				body := readAndCloseHTTPBody(t, response)
+				t.Fatalf("never-run trigger status = %d; body=%s", response.StatusCode, body)
+			}
+			body := readAndCloseHTTPBody(t, response)
+			if strings.Contains(string(body), `"last_run"`) {
+				t.Fatalf("never-run trigger must omit last_run: %s", body)
+			}
+		}
 
-	var runs contract.RunsResponse
-	deadline := time.After(2 * time.Second)
-	ticker := time.NewTicker(25 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		runsResp := mustUnixRequest(
+		stopIntegrationSession(t, runtime, createdSession.WorkspaceID, createdSession.ID)
+
+		var runs contract.RunsResponse
+		deadline := time.After(2 * time.Second)
+		ticker := time.NewTicker(25 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			runsResp := mustUnixRequest(
+				t,
+				runtime.client,
+				http.MethodGet,
+				"http://unix/api/automation/triggers/"+created.Trigger.ID+"/runs?limit=1",
+				nil,
+				nil,
+			)
+			if runsResp.StatusCode != http.StatusOK {
+				body := readAndCloseHTTPBody(t, runsResp)
+				t.Fatalf("trigger runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
+			}
+
+			runs = contract.RunsResponse{}
+			decodeHTTPJSON(t, runsResp, &runs)
+			if len(runs.Runs) == 1 && runs.Runs[0].Status == automationpkg.RunCompleted {
+				break
+			}
+
+			select {
+			case <-deadline:
+				t.Fatalf("expected trigger run history, got %#v", runs.Runs)
+			case <-ticker.C:
+			}
+		}
+		runID := runs.Runs[0].ID
+
+		runResp := mustUnixRequest(
 			t,
 			runtime.client,
 			http.MethodGet,
-			"http://unix/api/automation/triggers/"+created.Trigger.ID+"/runs",
+			"http://unix/api/automation/runs/"+runID,
 			nil,
 			nil,
 		)
-		if runsResp.StatusCode != http.StatusOK {
-			body := readAndCloseHTTPBody(t, runsResp)
-			t.Fatalf("trigger runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
+		if runResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, runResp)
+			t.Fatalf("get trigger run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
+		}
+		var run contract.RunResponse
+		decodeHTTPJSON(t, runResp, &run)
+		if run.Run.TriggerID != created.Trigger.ID {
+			t.Fatalf("trigger run = %#v, want trigger_id %q", run.Run, created.Trigger.ID)
 		}
 
-		runs = contract.RunsResponse{}
-		decodeHTTPJSON(t, runsResp, &runs)
-		if len(runs.Runs) > 0 {
-			break
+		for _, path := range []string{"/api/automation/triggers", "/api/automation/triggers/" + created.Trigger.ID} {
+			response := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix"+path, nil, nil)
+			if response.StatusCode != http.StatusOK {
+				body := readAndCloseHTTPBody(t, response)
+				t.Fatalf("trigger summary status = %d; body=%s", response.StatusCode, body)
+			}
+			var summary *contract.AutomationLastRunPayload
+			if path == "/api/automation/triggers" {
+				var result contract.TriggersResponse
+				decodeHTTPJSON(t, response, &result)
+				if len(result.Triggers) != 1 {
+					t.Fatalf("listed triggers = %#v", result.Triggers)
+				}
+				summary = result.Triggers[0].LastRun
+			} else {
+				var result contract.TriggerResponse
+				decodeHTTPJSON(t, response, &result)
+				summary = result.Trigger.LastRun
+			}
+			latest := runs.Runs[0]
+			if summary == nil || summary.ID != latest.ID || summary.Status != latest.Status ||
+				summary.StartedAt == nil || latest.StartedAt == nil || !summary.StartedAt.Equal(*latest.StartedAt) ||
+				summary.EndedAt == nil || latest.EndedAt == nil || !summary.EndedAt.Equal(*latest.EndedAt) || summary.SkipReason != "" {
+				t.Fatalf("%s last_run = %#v, latest run = %#v", path, summary, latest)
+			}
 		}
 
-		select {
-		case <-deadline:
-			t.Fatalf("expected trigger run history, got %#v", runs.Runs)
-		case <-ticker.C:
-		}
-	}
-	runID := runs.Runs[0].ID
-
-	runResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/runs/"+runID, nil, nil)
-	if runResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, runResp)
-		t.Fatalf("get trigger run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
-	}
-	var run contract.RunResponse
-	decodeHTTPJSON(t, runResp, &run)
-	if run.Run.TriggerID != created.Trigger.ID {
-		t.Fatalf("trigger run = %#v, want trigger_id %q", run.Run, created.Trigger.ID)
-	}
-
-	webhookResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		"http://unix/api/webhooks/global/deploy-review--wbh_test",
-		[]byte(`{"payload":"deploy"}`),
-		nil,
-	)
-	if webhookResp.StatusCode != http.StatusNotFound {
-		body := readAndCloseHTTPBody(t, webhookResp)
-		t.Fatalf(
-			"webhook route status = %d, want %d; body=%s",
-			webhookResp.StatusCode,
-			http.StatusNotFound,
-			string(body),
+		webhookResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			"http://unix/api/webhooks/global/deploy-review--wbh_test",
+			[]byte(`{"payload":"deploy"}`),
+			nil,
 		)
-	}
-	closeHTTPBody(t, webhookResp.Body)
+		if webhookResp.StatusCode != http.StatusNotFound {
+			body := readAndCloseHTTPBody(t, webhookResp)
+			t.Fatalf(
+				"webhook route status = %d, want %d; body=%s",
+				webhookResp.StatusCode,
+				http.StatusNotFound,
+				string(body),
+			)
+		}
+		closeHTTPBody(t, webhookResp.Body)
 
-	deleteResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodDelete,
-		"http://unix/api/automation/triggers/"+created.Trigger.ID,
-		nil,
-		nil,
-	)
-	if deleteResp.StatusCode != http.StatusNoContent {
-		body := readAndCloseHTTPBody(t, deleteResp)
-		t.Fatalf(
-			"delete trigger status = %d, want %d; body=%s",
-			deleteResp.StatusCode,
-			http.StatusNoContent,
-			string(body),
+		deleteResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodDelete,
+			"http://unix/api/automation/triggers/"+created.Trigger.ID,
+			nil,
+			nil,
 		)
-	}
-	closeHTTPBody(t, deleteResp.Body)
+		if deleteResp.StatusCode != http.StatusNoContent {
+			body := readAndCloseHTTPBody(t, deleteResp)
+			t.Fatalf(
+				"delete trigger status = %d, want %d; body=%s",
+				deleteResp.StatusCode,
+				http.StatusNoContent,
+				string(body),
+			)
+		}
+		closeHTTPBody(t, deleteResp.Body)
+	})
 }
 
 func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {

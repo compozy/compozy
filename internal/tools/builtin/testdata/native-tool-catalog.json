@@ -140,7 +140,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "570b863dccad1cf22e14d3b5bb7002267fc50b52c42bd7e6fec7306918aca0d7",
+    "input_schema_digest": "5b9997741063289ecd8f0e82f6254ad4b7ac7169570fbf860fd404a955546548",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -322,7 +322,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "75ccddb96f313635c76b59c27499ae13b8da8cb0864a49e14cb79ce4fde73f10",
+    "input_schema_digest": "d6d2f5fc39729ff6e736ad197097dc7177cd15125413ac984a39995b44e8f1bd",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

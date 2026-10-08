@@ -70,7 +70,10 @@ func (n *daemonNativeTools) automationTriggersList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	payload := core.TriggerPayloadsFromTriggers(page.Triggers)
+	payload, err := n.automationTriggerPayloads(ctx, page.Triggers)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
+	}
 	response := contract.TriggersResponse{
 		Triggers: payload,
 		Page: contract.CountedCursorPagePayload{
@@ -88,6 +91,7 @@ type automationJobsListInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	Source      string `json:"source,omitempty"`
 	Enabled     *bool  `json:"enabled,omitzero"`
+	Target      string `json:"target,omitempty"`
 	LoopName    string `json:"loop,omitempty"`
 	Query       string `json:"q,omitempty"`
 	Cursor      string `json:"cursor,omitempty"`
@@ -101,6 +105,7 @@ func (i automationJobsListInput) query(
 	query := automationpkg.JobListQuery{
 		ReadScope:   readScope,
 		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
+		Target:      strings.TrimSpace(i.Target),
 		LoopName:    strings.TrimSpace(i.LoopName),
 		Enabled:     i.Enabled,
 		Search:      strings.TrimSpace(i.Query),
@@ -128,6 +133,7 @@ type automationTriggersListInput struct {
 	Event       string `json:"event,omitempty"`
 	Source      string `json:"source,omitempty"`
 	Enabled     *bool  `json:"enabled,omitzero"`
+	Target      string `json:"target,omitempty"`
 	LoopName    string `json:"loop,omitempty"`
 	Query       string `json:"q,omitempty"`
 	Cursor      string `json:"cursor,omitempty"`
@@ -142,6 +148,7 @@ func (i automationTriggersListInput) query(
 		ReadScope:   readScope,
 		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
 		Event:       strings.TrimSpace(i.Event),
+		Target:      strings.TrimSpace(i.Target),
 		LoopName:    strings.TrimSpace(i.LoopName),
 		Enabled:     i.Enabled,
 		Search:      strings.TrimSpace(i.Query),
@@ -161,4 +168,25 @@ func (i automationTriggersListInput) query(
 		return automationpkg.TriggerListQuery{}, nativeAutomationValidationError(id, err)
 	}
 	return query, nil
+}
+
+func (n *daemonNativeTools) automationTriggerPayloads(
+	ctx context.Context,
+	triggers []automationpkg.Trigger,
+) ([]contract.TriggerPayload, error) {
+	ids := make([]string, len(triggers))
+	for i, trigger := range triggers {
+		ids[i] = trigger.ID
+	}
+	runs, err := n.automationManager().LatestRunsByOwner(ctx, automationpkg.RunOwnerTrigger, ids)
+	if err != nil {
+		return nil, err
+	}
+	payloads := core.TriggerPayloadsFromTriggers(triggers)
+	for i := range payloads {
+		if run, ok := runs[payloads[i].ID]; ok {
+			payloads[i].LastRun = core.AutomationLastRunPayloadFromRun(run)
+		}
+	}
+	return payloads, nil
 }

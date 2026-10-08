@@ -15,6 +15,7 @@ func parseAutomationJobListQuery(
 	scopeRaw string,
 	workspaceRef string,
 	sourceRaw string,
+	targetRaw string,
 	enabled *bool,
 	loopName string,
 	search string,
@@ -49,6 +50,7 @@ func parseAutomationJobListQuery(
 	if err != nil {
 		return AutomationJobQuery{}, err
 	}
+	query.Target = strings.TrimSpace(targetRaw)
 	query.Source = source
 	query.Enabled = enabled
 	query.LoopName = strings.TrimSpace(loopName)
@@ -66,6 +68,7 @@ func parseAutomationTriggerListQuery(
 	workspaceRef string,
 	eventRaw string,
 	sourceRaw string,
+	targetRaw string,
 	enabled *bool,
 	loopName string,
 	search string,
@@ -102,6 +105,7 @@ func parseAutomationTriggerListQuery(
 	if err != nil {
 		return AutomationTriggerQuery{}, err
 	}
+	query.Target = strings.TrimSpace(targetRaw)
 	query.Source = source
 	query.Enabled = enabled
 	query.LoopName = strings.TrimSpace(loopName)

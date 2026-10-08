@@ -1,4 +1,5 @@
 CREATE TABLE automation_job_catalog_entries (
+			target                   TEXT NOT NULL DEFAULT '',
 			job_id                   TEXT PRIMARY KEY REFERENCES automation_jobs(id) ON DELETE CASCADE,
 			scope                    TEXT NOT NULL,
 			workspace_id             TEXT NOT NULL DEFAULT '',
@@ -104,6 +105,7 @@ CREATE TABLE "automation_scheduler_state" (
 		);
 
 CREATE TABLE automation_trigger_catalog_entries (
+			target                   TEXT NOT NULL DEFAULT '',
 			trigger_id           TEXT PRIMARY KEY REFERENCES automation_triggers(id) ON DELETE CASCADE,
 			scope                TEXT NOT NULL,
 			workspace_id         TEXT NOT NULL DEFAULT '',
@@ -322,3 +324,7 @@ BEGIN
 		)
 	);
 END;
+
+CREATE INDEX idx_automation_runs_job_latest ON automation_runs(job_id, started_at DESC, id DESC) WHERE job_id IS NOT NULL;
+
+CREATE INDEX idx_automation_runs_trigger_latest ON automation_runs(trigger_id, started_at DESC, id DESC) WHERE trigger_id IS NOT NULL;

@@ -1,6 +1,9 @@
 package cli
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
 
 func automationTriggerBundle(item TriggerRecord) outputBundle {
 	return outputBundle{
@@ -61,6 +64,7 @@ func automationTriggerToonFields() []string {
 		automationAgentNameKey, automationEventKey, automationEnabledKey, automationSourceKey, automationRetryKey,
 		"fire_limit", "webhook_id", "endpoint_slug", cliOutputSetupWebhookPathKey, automationCreatedAtKey,
 		automationUpdatedAtKey, automationPromptKey,
+		lastRunStatusKey, lastRunStartedAtKey,
 	}
 }
 
@@ -70,10 +74,11 @@ func automationTriggerToonValues(item TriggerRecord) []string {
 		strconv.FormatBool(item.Enabled), string(item.Source), formatAutomationRetry(item.Retry),
 		formatAutomationFireLimit(item.FireLimit), item.WebhookID, item.EndpointSlug, displayTriggerEndpoint(item),
 		formatTime(item.CreatedAt), formatTime(item.UpdatedAt), item.Prompt,
+		automationLastRunStatus(item.LastRun), automationLastRunStartedAt(item.LastRun),
 	}
 }
 
-func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle {
+func automationTriggerListBundle(page AutomationTriggerListRecord, now func() time.Time) outputBundle {
 	items := page.Triggers
 	return listBundle(
 		page,
@@ -89,6 +94,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 			automationAgentValue,
 			automationEnabledValue,
 			automationSourceValue,
+			lastRunLabel,
 		},
 		"automation_triggers",
 		[]string{
@@ -101,6 +107,8 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 			automationAgentNameKey,
 			automationEnabledKey,
 			automationSourceKey,
+			lastRunStatusKey,
+			lastRunStartedAtKey,
 		},
 		func(item TriggerRecord) []string {
 			return []string{
@@ -113,6 +121,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 				stringOrDash(item.AgentName),
 				strconv.FormatBool(item.Enabled),
 				stringOrDash(string(item.Source)),
+				formatAutomationLastRun(item.LastRun, now),
 			}
 		},
 		func(item TriggerRecord) []string {
@@ -126,6 +135,8 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 				item.AgentName,
 				strconv.FormatBool(item.Enabled),
 				string(item.Source),
+				automationLastRunStatus(item.LastRun),
+				automationLastRunStartedAt(item.LastRun),
 			}
 		},
 	)
