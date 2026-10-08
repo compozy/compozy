@@ -182,7 +182,9 @@ function contextTurn(id: string, sequence: number, used: number): UsageTurn {
 
 /**
  * Every compaction marker state: agent and requested triggers across each status.
- * Each marker carries the occupancy it was observed at; the in-progress request has none.
+ * Each marker carries the occupancy it was observed at (the in-progress request has none);
+ * agent markers also carry the daemon's first post-compaction reading (`context_after`),
+ * requested ones stop at the reading they were observed at.
  */
 export const sessionContextCompactionStatesFixture: SessionUsageTurnsResponse = (() => {
   const turns: UsageTurn[] = [];
@@ -192,6 +194,8 @@ export const sessionContextCompactionStatesFixture: SessionUsageTurnsResponse = 
       const base = (statusIndex * 2 + triggerIndex + 1) * 100;
       const turnId = `turn-${base}`;
       const observed = trigger === "requested" && status === "in_progress" ? undefined : 200_000;
+      // Only an ended agent compaction has a reading after it; the daemon omits it until then.
+      const ended = status === "completed" || status === "failed" || status === "cancelled";
       turns.push(contextTurn(turnId, base + 10, 200_000));
       compactions.push({
         sequence: base + 20,
@@ -202,6 +206,10 @@ export const sessionContextCompactionStatesFixture: SessionUsageTurnsResponse = 
         status,
         context_used: observed,
         context_size: observed == null ? undefined : 256_000,
+        context_after:
+          trigger === "agent" && ended
+            ? { used: 41_000, size: 256_000, sequence: base + 40 }
+            : undefined,
       });
     });
   });

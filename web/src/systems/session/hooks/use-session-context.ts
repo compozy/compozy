@@ -11,19 +11,14 @@ import {
   retainSessionUsage,
   type RetainedSessionUsage,
 } from "../lib/session-context";
-import { isAwaitingUsageAfterCompaction } from "../lib/session-context-view";
-import type { SessionState, SessionUsagePayload, SessionUsageTurnsResponse } from "../types";
+import type { SessionState, SessionUsagePayload } from "../types";
 
 /** A window owns the retention lifetime. Transcript content never supplies usage values. */
 export function useSessionContext(
   sessionId: string,
   workspaceId: string,
   sessionState?: SessionState,
-  options: {
-    enabled?: boolean;
-    /** The session's turn/marker read; a compaction in it newer than any report explains an empty reading. */
-    usageTurns?: SessionUsageTurnsResponse;
-  } = {}
+  options: { enabled?: boolean } = {}
 ) {
   const query = useQuery({
     ...sessionUsageOptions(workspaceId, sessionId, sessionState),
@@ -54,7 +49,6 @@ export function useSessionContext(
       unavailable: query.isError || query.data?.context.state === "unavailable",
       loading: query.isLoading,
       stopped: sessionState === "stopped",
-      awaitingUsageAfterCompaction: isAwaitingUsageAfterCompaction(options.usageTurns),
     }),
   };
 }

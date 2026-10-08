@@ -76,12 +76,16 @@ function SessionContextTurnRow({ turn }: { turn: Turn }) {
   );
 }
 
-/** The occupancy the daemon recorded when it observed the compaction, when it recorded one. */
-function compactionTokens({ before }: SessionCompactionMarkerView): string | undefined {
-  return before != null ? formatContextTokens(before) : undefined;
+/** Only the figures the daemon recorded: before and after, before alone, or nothing. */
+function compactionTokens({ before, after }: SessionCompactionMarkerView): string | undefined {
+  const from = before != null ? formatContextTokens(before) : undefined;
+  const to = after != null ? formatContextTokens(after) : undefined;
+  if (from && to) return `${from} → ${to}`;
+  if (from) return from;
+  return to ? `→ ${to}` : undefined;
 }
 
-/** An observed agent compaction: who started it, how it ended, and the window it held. */
+/** An observed agent compaction: who started it, how it ended, and the window before and after. */
 function SessionContextCompactionMarker({ marker }: { marker: SessionCompactionMarkerView }) {
   const tokens = compactionTokens(marker);
   return (

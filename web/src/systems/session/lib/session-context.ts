@@ -5,11 +5,17 @@ export interface SessionContextView extends SessionContextPayload {
   stopped: boolean;
   display?: { compozy: number; agent: number; free: number; total: number };
   estimateExceedsReported: boolean;
-  /**
-   * The reading is empty because the agent compacted and has not reported usage since,
-   * not because it never reported. Only ever true for an unknown reading.
-   */
-  clearedByCompaction: boolean;
+}
+
+/**
+ * The compaction the daemon says emptied this reading (`context.cleared_by`), present only
+ * while the occupancy is unknown and awaiting the agent's next report. A reading that is
+ * empty for any other reason (never reported) has no cause.
+ */
+export function contextClearedBy(
+  context: SessionContextPayload
+): NonNullable<SessionContextPayload["cleared_by"]> | null {
+  return context.state === "unknown" && context.used == null ? (context.cleared_by ?? null) : null;
 }
 
 /** The usage reading a window keeps across reads, plus what the daemon invalidated. */
@@ -27,8 +33,9 @@ export interface RetainedSessionUsage {
  *
  * An `unknown` read is the daemon's answer, not a gap: after a terminal compaction it clears
  * the reading until the agent's next usage report, so the previous one is never restored. The
- * cleared reading's sequence becomes the floor below which a late report is stale, so a
- * response that predates the boundary cannot bring the old ratio back either.
+ * boundary becomes the floor below which a late report is stale, so a response that predates
+ * it cannot bring the old ratio back either: the daemon names the boundary
+ * (`cleared_by.sequence`), and the cleared reading's own sequence covers any other clearing.
  */
 export function retainSessionUsage(
   previous: RetainedSessionUsage | undefined,
@@ -41,7 +48,11 @@ export function retainSessionUsage(
     return { ...kept, usage: kept.usage ? { ...incoming, context: kept.usage.context } : incoming };
   }
   if (incoming.context.state === "unknown") {
-    const invalidatedThrough = Math.max(kept.invalidatedThrough ?? 0, old?.sequence ?? 0);
+    const invalidatedThrough = Math.max(
+      kept.invalidatedThrough ?? 0,
+      old?.sequence ?? 0,
+      incoming.context.cleared_by?.sequence ?? 0
+    );
     return {
       usage: incoming,
       invalidatedThrough: invalidatedThrough > 0 ? invalidatedThrough : undefined,
@@ -73,12 +84,7 @@ export function retainSessionUsage(
 
 export function deriveSessionContext(
   context?: SessionContextPayload,
-  options: {
-    unavailable?: boolean;
-    loading?: boolean;
-    stopped?: boolean;
-    awaitingUsageAfterCompaction?: boolean;
-  } = {}
+  options: { unavailable?: boolean; loading?: boolean; stopped?: boolean } = {}
 ): SessionContextView {
   const value = context ?? { state: "unknown" };
   const used = value.used;
@@ -96,11 +102,6 @@ export function deriveSessionContext(
         ? { compozy, agent: boundedUsed - compozy, free: size - boundedUsed, total: size }
         : undefined,
     estimateExceedsReported: used != null && injected > used,
-    clearedByCompaction:
-      options.awaitingUsageAfterCompaction === true &&
-      used == null &&
-      value.state === "unknown" &&
-      !options.unavailable,
   };
 }
 
