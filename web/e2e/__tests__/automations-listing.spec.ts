@@ -216,7 +216,7 @@ test("Automations E2E-007: retired Jobs and Triggers windows reopen as Automatio
     await expect
       .poll(async () => await restartStatus(runtime, restart.status_url), { timeout: 45_000 })
       .toBe("ready");
-    await reloadDaemonServedPage(appPage, runtime, "/", {});
+    await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "os-desktop" });
 
     const after = await windowManagerSnapshot(runtime, workspaceId);
     expect(after.version).toBe(5);
