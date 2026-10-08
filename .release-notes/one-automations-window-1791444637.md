@@ -18,6 +18,7 @@ compozy automation triggers --workspace checkout-api --target loop
 Migration notes:
 
 - Saved desktops migrate permanently (window-manager snapshot v5): every Jobs or Triggers window, tab, and recently closed entry reopens as an Automations window on the matching `/automations/…` path, in the same place. No window is closed.
+- Exported layout documents and `window_layout` resources at version 4 keep loading: the daemon upgrades them to version 5 and rewrites their Jobs and Triggers windows the same way. Snapshots and layout documents are version 5 from now on.
 - Command palette pins, recents, and usage for the Jobs and Triggers commands merge into "Open Automations" and the Automations view; usage counts add up and no pin is dropped.
 - Old web links `/jobs`, `/jobs/<id>`, `/triggers`, and `/triggers/<id>` redirect to `/automations`, `/automations/jobs/<id>`, and `/automations/triggers/<id>`, carrying their filters. The redirects are removed in v0.5.0.
 - The app ids `jobs` and `triggers` (`compozy window open --app`, window commands, `window_layout` resources) and the palette ids `app.open.jobs`, `app.open.triggers`, `palette.view.jobs`, and `palette.view.triggers` are accepted as `automations` with a deprecation warning (CLI stderr; WARN logs `windowmanager.app_id_deprecated` and `cmdpalette.command_id_deprecated`). They are removed in v0.5.0 and then fail like any unknown id. Use `automations`, `app.open.automations`, and `palette.view.automations`.

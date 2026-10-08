@@ -32,7 +32,7 @@ partition ID. Workspace Query data and daemon window-manager partitions remain a
 Global data reads stay unscoped and profile binding is unchanged. Native tool IDs, CLI/HTTP/UDS
 contracts, hooks, extension SDKs, configuration, and `skills/compozy/` are unaffected because
 their operations and inputs do not change. Web impact is limited to workspace resolution and
-browser preference persistence; this scenario and the Jobs catalog scenario own documentation.
+browser preference persistence; this scenario and `TA-web-automations-listing` own documentation.
 
 Introduced 2026-08-12 by menubar-owned Global scope. Persist key `compozy:active-workspace:v3` stores `scope` plus `selectedWorkspaceId`. Empty v3 hydrates as Global. `$HOME` is not a UI row.
 
