@@ -63,6 +63,9 @@ type AgentProcess struct {
 	providerFailures  map[string]ProviderErrorDiagnostic
 
 	logger            *slog.Logger
+	compactionMu      sync.Mutex
+	compactions       map[string]*compactionState
+	unknownUpdates    map[string]struct{}
 	usageAliasWarning sync.Once
 	usageRangeWarning sync.Once
 	promptMu          sync.RWMutex

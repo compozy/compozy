@@ -54,7 +54,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted.Failure = redactSessionFailure(event.Failure)
 	redacted.ProviderError = redactProviderError(event.ProviderError)
 	redacted.Synthetic = redactPromptSyntheticMeta(event.Synthetic)
-	redacted.Goal = redactGoalPromptMeta(event.Goal)
+	redacted = redacted.WithGoalPromptMeta(redactGoalPromptMeta(event.GoalPromptMeta()))
 	if commands := event.AvailableCommandSet(); commands != nil {
 		redacted = redacted.WithAvailableCommands(commands.Values())
 	}
@@ -63,6 +63,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted = redacted.WithAttachments(redactEventAttachments(event.Attachments()))
 	redacted = redacted.WithDelivery(redactDeliveryManifest(event.DeliveryManifest()))
 	redacted.Usage = redactTokenUsage(event.Usage)
+	redacted.Compaction = redactCompactionObservation(event.Compaction)
 	redacted.Raw = redactRawMessage(event.Raw)
 	return redacted
 }
@@ -71,6 +72,9 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	if payload == nil {
 		return
 	}
+	payload.CompactionID = redactStructuralString(payload.CompactionID)
+	payload.Status = redactStructuralString(payload.Status)
+	payload.Summary = redactDisplayString(payload.Summary)
 	payload.Text = redactDisplayString(payload.Text)
 	payload.AuthoredText = redactDisplayString(payload.AuthoredText)
 	payload.Title = redactDisplayString(payload.Title)
@@ -201,7 +205,7 @@ func redactRawMessage(raw json.RawMessage) json.RawMessage {
 	}
 	if json.Valid(raw) {
 		engine := redactpkg.New(redactpkg.Options{Disabled: !redactpkg.Enabled()})
-		return acp.CloneRawMessage(engine.RedactJSON(raw, displayJSONFields))
+		return acp.CloneRawMessage(engine.RedactJSON(redactpkg.ClaimTokensJSON(raw), displayJSONFields))
 	}
 	redacted := diagnostics.Redact(string(raw))
 	if json.Valid([]byte(redacted)) {
@@ -246,5 +250,17 @@ func redactDeliveryManifest(manifest *acp.DeliveryManifest) *acp.DeliveryManifes
 	for index := range redacted.Spans {
 		redacted.Spans[index].Name = redactDisplayString(redacted.Spans[index].Name)
 	}
+	return &redacted
+}
+
+func redactCompactionObservation(observation *acp.CompactionObservation) *acp.CompactionObservation {
+	if observation == nil {
+		return nil
+	}
+	redacted := *observation
+	redacted.CompactionID = redactStructuralString(redacted.CompactionID)
+	redacted.Status = redactStructuralString(redacted.Status)
+	redacted.Summary = redactDisplayString(redacted.Summary)
+	redacted.Error = redactDisplayString(redacted.Error)
 	return &redacted
 }

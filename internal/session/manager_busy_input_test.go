@@ -2828,7 +2828,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 					if unmarshalErr != nil {
 						t.Fatalf("UnmarshalAgentEvent() error = %v", unmarshalErr)
 					}
-					assertGoalPromptMeta(t, event.Goal, tc.publicKind, &entry, tc.turn)
+					assertGoalPromptMeta(t, event.GoalPromptMeta(), tc.publicKind, &entry, tc.turn)
 					matched++
 				}
 				if matched < 3 {

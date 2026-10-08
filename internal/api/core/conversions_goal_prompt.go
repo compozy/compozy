@@ -15,5 +15,5 @@ func sessionEventGoalPromptMeta(content string) *contract.GoalPromptMeta {
 	if err != nil {
 		return nil
 	}
-	return goalPromptMetaPayload(event.Goal)
+	return goalPromptMetaPayload(event.GoalPromptMeta())
 }

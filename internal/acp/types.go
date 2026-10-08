@@ -192,6 +192,7 @@ type PromptRequest struct {
 	RunID                     string
 	Generation                int64
 	Message                   string
+	Maintenance               bool
 	Sections                  []PromptSection
 	Attachments               []PromptAttachment
 	Meta                      PromptMeta

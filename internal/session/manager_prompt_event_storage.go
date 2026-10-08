@@ -55,7 +55,7 @@ func ackPromptPumpRuntimeEvent(loop *promptPumpLoopState, normalized acp.AgentEv
 
 func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.AgentEvent) acp.AgentEvent {
 	normalized := event
-	normalized.Goal = acp.CloneGoalPromptMeta(event.Goal)
+	normalized = normalized.WithGoalPromptMeta(event.GoalPromptMeta())
 	normalized = promptRuntimeFallbackForEvent(session, normalized)
 	if strings.TrimSpace(normalized.TurnID) == "" {
 		normalized.TurnID = turnID
@@ -64,8 +64,8 @@ func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.Agen
 		normalized.Timestamp = m.now()
 	}
 	if session != nil {
-		if normalized.Goal == nil {
-			normalized.Goal = goalPromptMetaFromPromptMeta(session.CurrentPromptMeta())
+		if normalized.GoalPromptMeta() == nil {
+			normalized = normalized.WithGoalPromptMeta(goalPromptMetaFromPromptMeta(session.CurrentPromptMeta()))
 		}
 		info := session.Info()
 		if strings.TrimSpace(normalized.SessionID) == "" {
@@ -258,10 +258,10 @@ func (m *Manager) enrichRecordedAgentEvent(session *Session, event acp.AgentEven
 	}
 
 	enriched := promptRuntimeFallbackForEvent(session, event)
-	if enriched.Goal == nil {
-		enriched.Goal = goalPromptMetaFromPromptMeta(session.CurrentPromptMeta())
+	if enriched.GoalPromptMeta() == nil {
+		enriched = enriched.WithGoalPromptMeta(goalPromptMetaFromPromptMeta(session.CurrentPromptMeta()))
 	} else {
-		enriched.Goal = acp.CloneGoalPromptMeta(enriched.Goal)
+		enriched = enriched.WithGoalPromptMeta(enriched.GoalPromptMeta())
 	}
 	correlation := enriched.Normalize()
 	if identity, ok := m.activePromptRunSnapshot(session.ID); ok {

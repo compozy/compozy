@@ -1531,6 +1531,29 @@ func TestAccessorsAndValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should isolate Goal metadata across event copies and preserve unrelated payloads", func(t *testing.T) {
+		t.Parallel()
+		source := &GoalPromptMeta{Kind: GoalPromptKindWork, RunID: "run-goal", NodeID: "node-goal",
+			Generation: 1, Turn: new(2), PromptID: "prompt-goal"}
+		original := (AgentEvent{}).WithGoalPromptMeta(source)
+		source.RunID = "changed"
+		*source.Turn = 3
+		copied := original.WithResolvedBy("owner")
+		goal := copied.GoalPromptMeta()
+		if goal == nil || goal.RunID != "run-goal" || *goal.Turn != 2 {
+			t.Fatalf("copied Goal metadata = %#v", goal)
+		}
+		goal.RunID = "reader-change"
+		*goal.Turn = 4
+		if retained := original.GoalPromptMeta(); retained.RunID != "run-goal" || *retained.Turn != 2 {
+			t.Fatalf("original Goal metadata = %#v", retained)
+		}
+		cleared := copied.WithGoalPromptMeta(nil)
+		if cleared.GoalPromptMeta() != nil || cleared.ResolvedByValue() != "owner" || original.GoalPromptMeta() == nil {
+			t.Fatal("clearing one event changed its unrelated payload or the original Goal")
+		}
+	})
+
 	proc := &AgentProcess{stderr: &lockedBuffer{}}
 	if _, err := proc.stderr.Write([]byte("boom")); err != nil {
 		t.Fatalf("stderr.Write() error = %v", err)
@@ -1893,4 +1916,319 @@ func collectEventsUntilCount(t *testing.T, eventsCh <-chan AgentEvent, want int)
 		}
 	}
 	return events
+}
+
+func TestInitializeCompactionCapability(t *testing.T) {
+	t.Run("Should advertise compaction alongside filesystem and terminal capabilities", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		capture := filepath.Join(t.TempDir(), "initialize.jsonl")
+		proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
+			Env: helperEnvWithCapture("initialize_contract", "", capture),
+		})
+		defer stopProcess(t, driver, proc)
+		params := captureRequestParams(t, capture, acpsdk.AgentMethodInitialize)
+		var caps struct {
+			Fs struct {
+				Read  bool `json:"readTextFile"`
+				Write bool `json:"writeTextFile"`
+			} `json:"fs"`
+			Terminal bool `json:"terminal"`
+			Session  struct {
+				Compaction json.RawMessage `json:"compaction"`
+			} `json:"session"`
+		}
+		if err := json.Unmarshal(params["clientCapabilities"], &caps); err != nil {
+			t.Fatal(err)
+		}
+		if string(caps.Session.Compaction) != "{}" || !caps.Terminal || !caps.Fs.Read || !caps.Fs.Write {
+			t.Fatalf("initialize capabilities = %s", params["clientCapabilities"])
+		}
+	})
+}
+
+func TestCompactionAdapterFixtures(t *testing.T) {
+	for _, tc := range []struct{ name, fixture, summary string }{
+		{"Should materialize Claude cleaned summary", "claude-compaction.json", "Clean user-visible summary"},
+		{"Should retain Codex lifecycle without summary", "codex-compaction.json", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := os.ReadFile(filepath.Join("testdata", tc.fixture))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var frames []json.RawMessage
+			if err := json.Unmarshal(data, &frames); err != nil {
+				t.Fatal(err)
+			}
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+			active, err := proc.beginPrompt("turn-fixture", 16)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			for _, frame := range frames {
+				if err := proc.handleSessionUpdate(frame); err != nil {
+					t.Fatal(err)
+				}
+			}
+			events := drainCompactionTestEvents(t, proc, active)
+			if len(events) != 2 {
+				t.Fatalf("snapshots = %#v, want exactly two", events)
+			}
+			for _, event := range events {
+				if event.Type != EventTypeCompaction || event.Compaction == nil {
+					t.Fatalf("event = %#v", event)
+				}
+			}
+			final := events[1].Compaction
+			if final.Status != "completed" || final.Summary != tc.summary || !final.Terminal {
+				t.Fatalf("final snapshot = %#v", final)
+			}
+		})
+	}
+}
+
+//nolint:misspell // ACP fixes the spelling of terminal status values.
+func TestCompactionAssembler(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		updates []string
+		want    []CompactionObservation
+	}{
+		{"Should use buffered chunks on terminal omission", []string{
+			`{"status":"in_progress"}`, `{"chunk":"A"}`, `{"chunk":"B"}`, `{"status":"completed"}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Summary: "AB", Terminal: true}}},
+		{"Should replace chunks with a terminal summary", []string{
+			`{"status":"in_progress"}`, `{"chunk":"A"}`, `{"chunk":"B"}`, `{"status":"completed","summary":[{"type":"text","text":"clean"}]}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Summary: "clean", Terminal: true}}},
+		{"Should clear chunks with an empty terminal summary", []string{
+			`{"status":"in_progress"}`, `{"chunk":"A"}`, `{"status":"completed","summary":[]}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Terminal: true}}},
+		{"Should drop late chunks and identical terminal repeats", []string{
+			`{"status":"in_progress"}`, `{"chunk":"A"}`, `{"status":"completed"}`, `{"chunk":"late"}`, `{"status":"completed"}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Summary: "A", Terminal: true}}},
+		{"Should carry failure and preserve omitted error until explicit clear", []string{
+			`{"status":"in_progress"}`, `{"status":"failed","error":"x"}`, `{"status":"failed","summary":[{"type":"text","text":"correction"}]}`, `{"status":"failed","summary":null,"error":null}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "failed", Error: "x", Terminal: true}, {CompactionID: "c1", Status: "failed", Summary: "correction", Error: "x"}, {CompactionID: "c1", Status: "failed"}}},
+		{"Should emit corrections without another terminal transition", []string{
+			`{"status":"completed"}`, `{"status":"completed","summary":[{"type":"text","text":"new"}]}`, `{"status":"failed","error":"failure"}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "completed", Terminal: true}, {CompactionID: "c1", Status: "completed", Summary: "new"}, {CompactionID: "c1", Status: "failed", Summary: "new", Error: "failure"}}},
+		{"Should retain intermediate vendor status without treating it as terminal", []string{
+			`{"status":"in_progress"}`, `{"status":"_paused"}`, `{"status":"in_progress"}`, `{"status":"completed"}`,
+		}, []CompactionObservation{{CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "_paused"}, {CompactionID: "c1", Status: "in_progress"}, {CompactionID: "c1", Status: "completed", Terminal: true}}},
+		{"Should apply canceled terminal first", []string{`{"status":"cancelled"}`}, []CompactionObservation{{CompactionID: "c1", Status: "cancelled", Terminal: true}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+			active, err := proc.beginPrompt("turn-assembly", 32)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			for _, update := range tc.updates {
+				sendCompactionTestUpdate(t, proc, "c1", update)
+			}
+			events := drainCompactionTestEvents(t, proc, active)
+			if len(events) != len(tc.want) {
+				t.Fatalf("events = %#v, want %d snapshots", events, len(tc.want))
+			}
+			for i, want := range tc.want {
+				if events[i].Type != EventTypeCompaction || events[i].Compaction == nil ||
+					*events[i].Compaction != want {
+					t.Fatalf("snapshot %d = %#v, want %#v", i, events[i].Compaction, want)
+				}
+			}
+		})
+	}
+	t.Run("Should cap assembled summaries and scrub split claim tokens before emission", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-scrub", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"in_progress"}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"COMPOZY_CLAIM_sec"}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"ret-value"}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"failed","error":"COMPOZY_CLAIM_secret-value"}`)
+		large := mustMarshalJSON(
+			map[string]any{
+				"status":  "completed",
+				"summary": []map[string]any{{"type": "text", "text": strings.Repeat("x", 20*1024)}},
+			},
+		)
+		sendCompactionTestUpdate(t, proc, "c2", string(large))
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 3 {
+			t.Fatalf("snapshots = %d, want 3", len(events))
+		}
+		if got := events[1].Compaction; got.Summary != "compozy_claim_[REDACTED]" ||
+			got.Error != "compozy_claim_[REDACTED]" {
+			t.Fatalf("scrubbed snapshot = %#v", got)
+		}
+		if got := events[2].Compaction.Summary; len(got) > 16*1024 || !strings.HasSuffix(got, " [summary truncated]") {
+			t.Fatalf(
+				"capped summary length = %d, suffix missing = %v",
+				len(got),
+				!strings.HasSuffix(got, " [summary truncated]"),
+			)
+		}
+	})
+}
+
+func TestSessionUpdateDefensiveDiscriminator(t *testing.T) {
+	t.Run("Should classify chunk first as compaction and preserve unknown updates as system", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-discriminator", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		sendCompactionTestUpdate(t, proc, "c1", `{"chunk":"x"}`)
+		unknown := json.RawMessage(`{"sessionUpdate":"_vendor_thing","content":{"type":"text","text":"y"},"vendor":42}`)
+		err = proc.handleSessionUpdate(
+			mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: unknown}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 2 || events[0].Type != EventTypeCompaction || events[1].Type != EventTypeSystem {
+			t.Fatalf("discriminator events = %#v", events)
+		}
+		var got, want map[string]any
+		err = json.Unmarshal(events[1].Raw, &got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = json.Unmarshal(unknown, &want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Fatalf("unknown raw = %s, want %s", events[1].Raw, unknown)
+		}
+	})
+
+	t.Run("Should log each unknown kind once per process while retaining every event", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		var logs lockedBuffer
+		proc.logger = slog.New(slog.NewTextHandler(&logs, nil))
+		active, err := proc.beginPrompt("turn-unknown", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for _, kind := range []string{"_vendor_one", "_vendor_one", "_vendor_two"} {
+			update := mustMarshalJSON(
+				map[string]any{"sessionUpdate": kind, "content": map[string]any{"type": "text", "text": "payload"}},
+			)
+			err = proc.handleSessionUpdate(
+				mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: update}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 3 {
+			t.Fatalf("unknown events = %d, want 3", len(events))
+		}
+		for _, event := range events {
+			if event.Type != EventTypeSystem {
+				t.Fatalf("event = %#v, want system", event)
+			}
+		}
+		if got := strings.Count(logs.String(), "acp.session_update.unknown"); got != 2 {
+			t.Fatalf("unknown warnings = %d, want 2; logs=%s", got, logs.String())
+		}
+	})
+	t.Run("Should tolerate vendor fields and malformed optional scalar fields", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-tolerant", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"_paused","vendor":{"data":1},"_meta":{"source":"vendor"}}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":42,"error":{"unexpected":true}}`)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"completed","summary":"vendor summary"}`)
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 2 || events[0].Compaction.Status != "_paused" || events[0].Compaction.Terminal ||
+			events[1].Compaction.Summary != "vendor summary" ||
+			!events[1].Compaction.Terminal {
+			t.Fatalf("tolerant snapshots = %#v", events)
+		}
+	})
+
+	t.Run("Should retain legacy Compact conversation as an ordinary tool event", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile(filepath.Join("testdata", "legacy-compaction-tool.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-legacy", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		err = proc.handleSessionUpdate(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 1 || events[0].Type != EventTypeToolCall || events[0].Title != "Compact conversation" ||
+			events[0].Compaction != nil {
+			t.Fatalf("legacy event = %#v", events)
+		}
+	})
+}
+
+func sendCompactionTestUpdate(t *testing.T, proc *AgentProcess, id, fields string) {
+	t.Helper()
+	var update map[string]any
+	err := json.Unmarshal([]byte(fields), &update)
+	if err != nil {
+		t.Fatal(err)
+	}
+	update["sessionUpdate"] = "compaction_update"
+	update["compactionId"] = id
+	if chunk, ok := update["chunk"]; ok {
+		delete(update, "chunk")
+		update["sessionUpdate"] = "compaction_summary_chunk"
+		update["content"] = map[string]any{"type": "text", "text": chunk}
+	}
+	err = proc.handleSessionUpdate(
+		mustMarshalJSON(wireSessionNotification{SessionID: "sess-direct", Update: mustMarshalJSON(update)}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func drainCompactionTestEvents(t *testing.T, proc *AgentProcess, active *activePromptState) []AgentEvent {
+	t.Helper()
+	proc.endPrompt(active)
+	var result []AgentEvent
+	timeout := time.NewTimer(2 * time.Second)
+	defer timeout.Stop()
+	for {
+		select {
+		case event, ok := <-active.events:
+			if !ok {
+				return result
+			}
+			result = append(result, event)
+		case <-timeout.C:
+			t.Fatalf("timeout draining compaction events: %#v", result)
+		}
+	}
 }

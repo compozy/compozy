@@ -145,7 +145,10 @@ func (p *AgentProcess) cancelCurrentPrompt() bool {
 	return true
 }
 
-func (p *AgentProcess) nextPromptText(message string) (string, bool, SystemPromptDeliveryMode) {
+func (p *AgentProcess) nextPromptText(message string, maintenance bool) (string, bool, SystemPromptDeliveryMode) {
+	if maintenance {
+		return message, false, ""
+	}
 	userMessage := strings.TrimSpace(message)
 
 	p.systemPromptMu.Lock()

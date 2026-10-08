@@ -45,7 +45,7 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 		Decision: event.Decision, ResolvedBy: event.ResolvedByValue(),
 		Error: event.Error, Failure: store.CloneSessionFailure(event.Failure),
 		ProviderError: acp.CloneProviderErrorDiagnostic(event.ProviderError),
-		Goal:          acp.CloneGoalPromptMeta(event.Goal),
+		Goal:          event.GoalPromptMeta(),
 		Delivery:      event.DeliveryManifest(),
 		Usage:         uiTokenUsagePayloadFromUsage(event.Usage), Runtime: cloneRuntimeActivity(event.Runtime),
 		Raw: payloadJSONBytes(event.Raw),

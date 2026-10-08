@@ -2,11 +2,14 @@ package transcript
 
 import (
 	"encoding/json"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/diagnostics"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -260,4 +263,93 @@ func TestTranscriptRuntimeMarkers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTranscriptCompactionRedaction(t *testing.T) {
+	const helperEnv = "COMPOZY_TEST_COMPACTION_REDACTION_DISABLED"
+	if os.Getenv(helperEnv) == "1" {
+		redactpkg.SnapshotEnabled(false)
+	} else {
+		t.Run("Should protect compaction with additive redaction disabled", func(t *testing.T) {
+			t.Parallel()
+			cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestTranscriptCompactionRedaction$")
+			cmd.Env = append(os.Environ(), helperEnv+"=1")
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("disabled redaction subprocess: %v\n%s", err, output)
+			}
+		})
+	}
+
+	t.Run("Should redact snapshot fields without mutating the source event", func(t *testing.T) {
+		t.Parallel()
+		observation := &acp.CompactionObservation{
+			CompactionID: "c1 COMPOZY_CLAIM_id-secret",
+			Status:       "_paused COMPOZY_CLAIM_status-secret",
+			Summary:      "preserved summary COMPOZY_CLAIM_secret-value token=summary-secret",
+			Error:        "preserved error COMPOZY_CLAIM_error-value token=error-secret",
+			Terminal:     true,
+		}
+		original := *observation
+		redacted := RedactAgentEvent(acp.AgentEvent{Type: acp.EventTypeCompaction, Compaction: observation})
+		assertNoDisplayLeaks(t, redacted, []string{
+			"COMPOZY_CLAIM_id-secret", "COMPOZY_CLAIM_status-secret", "COMPOZY_CLAIM_secret-value",
+			"COMPOZY_CLAIM_error-value", "summary-secret", "error-secret",
+		})
+		if redacted.Compaction == observation || *observation != original {
+			t.Fatal("RedactAgentEvent mutated or retained the source compaction pointer")
+		}
+		if redacted.Compaction.CompactionID != "c1 compozy_claim_[REDACTED]" ||
+			redacted.Compaction.Status != "_paused compozy_claim_[REDACTED]" || !redacted.Compaction.Terminal {
+			t.Fatalf(
+				"redacted compaction = %#v, want retained structural values and terminal state",
+				redacted.Compaction,
+			)
+		}
+		payload := canonicalEventPayload{
+			CompactionID: original.CompactionID, Status: original.Status,
+			Summary: original.Summary, Error: original.Error,
+		}
+		redactCanonicalPayload(&payload)
+		assertNoDisplayLeaks(t, payload, []string{
+			"COMPOZY_CLAIM_id-secret", "COMPOZY_CLAIM_status-secret", "COMPOZY_CLAIM_secret-value",
+			"COMPOZY_CLAIM_error-value", "summary-secret", "error-secret",
+		})
+	})
+
+	t.Run("Should protect raw unknown updates while retaining their JSON shape", func(t *testing.T) {
+		t.Parallel()
+		raw := json.RawMessage(
+			`{"sessionUpdate":"vendor_update","opaque":"COMPOZY_CLAIM_raw-value","compaction_id":"COMPOZY_CLAIM_raw-id-value","detail":{"summary":"token=summary-secret","apiKey":"raw-key-secret","count":3}}`,
+		)
+		event := RedactAgentEvent(acp.AgentEvent{Type: acp.EventTypeSystem, Raw: raw})
+		assertNoDisplayLeaks(
+			t,
+			event,
+			[]string{"COMPOZY_CLAIM_raw-value", "COMPOZY_CLAIM_raw-id-value", "summary-secret", "raw-key-secret"},
+		)
+		payload := canonicalEventPayload{Raw: raw}
+		redactCanonicalPayload(&payload)
+		assertNoDisplayLeaks(
+			t,
+			payload,
+			[]string{"COMPOZY_CLAIM_raw-value", "COMPOZY_CLAIM_raw-id-value", "summary-secret", "raw-key-secret"},
+		)
+		var decoded struct {
+			SessionUpdate string `json:"sessionUpdate"`
+			Detail        struct {
+				Count int `json:"count"`
+			} `json:"detail"`
+		}
+		if err := json.Unmarshal(event.Raw, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(redacted.Raw): %v", err)
+		}
+		if event.Type != acp.EventTypeSystem || decoded.SessionUpdate != "vendor_update" || decoded.Detail.Count != 3 {
+			t.Fatalf("redacted unknown update = %#v, want retained discriminator and count", decoded)
+		}
+		if string(
+			raw,
+		) != `{"sessionUpdate":"vendor_update","opaque":"COMPOZY_CLAIM_raw-value","compaction_id":"COMPOZY_CLAIM_raw-id-value","detail":{"summary":"token=summary-secret","apiKey":"raw-key-secret","count":3}}` {
+			t.Fatal("RedactAgentEvent mutated original raw JSON")
+		}
+	})
 }

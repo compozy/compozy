@@ -215,12 +215,11 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 			InputTokens: &usageValue,
 			Timestamp:   time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
 		},
-		Goal: &acp.GoalPromptMeta{
-			Kind: "goal-continuation", RunID: "run-goal", NodeID: "converge", Generation: 3,
-			ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
-		},
 		Raw: []byte(`{"ok":true}`),
-	}.WithMessageID(messageID)
+	}.WithMessageID(messageID).WithGoalPromptMeta(&acp.GoalPromptMeta{
+		Kind: "goal-continuation", RunID: "run-goal", NodeID: "converge", Generation: 3,
+		ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
+	})
 	agentEvent := core.AgentEventPayloadFromEvent(event)
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
 		t.Fatalf("agent event payload = %#v", agentEvent)
@@ -235,10 +234,10 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 		agentEvent.Goal.RunID != "run-goal" || agentEvent.Goal.Turn == nil || *agentEvent.Goal.Turn != goalTurn {
 		t.Fatalf("agent event Goal metadata = %#v", agentEvent.Goal)
 	}
-	storedGoalEvent, err := transcript.MarshalAgentEvent(acp.AgentEvent{Goal: &acp.GoalPromptMeta{
+	storedGoalEvent, err := transcript.MarshalAgentEvent(acp.AgentEvent{}.WithGoalPromptMeta(&acp.GoalPromptMeta{
 		Kind: "goal-continuation", RunID: "run-goal", NodeID: "converge", Generation: 3,
 		ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
-	}})
+	}))
 	if err != nil {
 		t.Fatalf("MarshalAgentEvent(Goal) error = %v", err)
 	}
