@@ -11,6 +11,7 @@ import type { LoopTargetProjection } from "../../lib/automation-target";
 import { tokenizeTemplate } from "../../lib/trigger-template";
 import type { AutomationView } from "../../lib/automation-view";
 import type { AutomationJob } from "../../types";
+import { useClampOverflow } from "../../hooks/use-clamp-overflow";
 import { AutomationValueBadge } from "./automation-value-badge";
 
 type TargetChipProps = Omit<ComponentProps<"span">, "children"> & { children: ReactNode };
@@ -37,6 +38,8 @@ function RuleSub({ children }: { children: ReactNode }) {
 /** Message clamped to three lines; event templates mark their variables. */
 function PromptPreview({ prompt, templated }: { prompt: string; templated: boolean }) {
   const [open, setOpen] = useState(false);
+  // The toggle exists only when the clamp hides something (or the full prompt is showing).
+  const { observe, overflowing } = useClampOverflow<HTMLDivElement>();
   return (
     <>
       <div className="mt-2 rounded-lg border border-line-soft bg-sunken px-3 py-2.5 font-mono text-form-hint leading-relaxed whitespace-pre-wrap text-fg-2">
@@ -44,6 +47,7 @@ function PromptPreview({ prompt, templated }: { prompt: string; templated: boole
           className={cn(!open && "line-clamp-3")}
           data-expanded={open}
           data-testid="automation-prompt-preview"
+          ref={observe}
         >
           {templated
             ? tokenizeTemplate(prompt).map(token =>
@@ -56,15 +60,17 @@ function PromptPreview({ prompt, templated }: { prompt: string; templated: boole
             : prompt}
         </div>
       </div>
-      <button
-        aria-expanded={open}
-        className="mt-1.5 self-start rounded-xs text-form-label font-medium text-muted transition-colors duration-base ease-out hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
-        data-testid="automation-prompt-toggle"
-        onClick={() => setOpen(previous => !previous)}
-        type="button"
-      >
-        {open ? "Hide prompt" : "Show full prompt"}
-      </button>
+      {open || overflowing ? (
+        <button
+          aria-expanded={open}
+          className="mt-1.5 self-start rounded-xs text-form-label font-medium text-muted transition-colors duration-base ease-out hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
+          data-testid="automation-prompt-toggle"
+          onClick={() => setOpen(previous => !previous)}
+          type="button"
+        >
+          {open ? "Hide prompt" : "Show full prompt"}
+        </button>
+      ) : null}
     </>
   );
 }

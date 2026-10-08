@@ -109,6 +109,17 @@ function renderPanel(
   };
 }
 
+function mockClampMeasurements({
+  scrollHeight,
+  clientHeight,
+}: {
+  scrollHeight: number;
+  clientHeight: number;
+}) {
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(scrollHeight);
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(clientHeight);
+}
+
 describe("AutomationDetailPanel", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -116,6 +127,7 @@ describe("AutomationDetailPanel", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -134,6 +146,18 @@ describe("AutomationDetailPanel", () => {
       expect(subhead).toHaveTextContent("Project checkout-api");
       expect(subhead).toHaveTextContent("Next run in 14h");
       expect(subhead).toHaveTextContent("Updated");
+    });
+
+    it("Should keep panel-only props off the DOM (F10)", () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      renderPanel(morningDigestJob);
+
+      expect(screen.getByTestId("automation-detail-panel")).not.toHaveAttribute("statusmessage");
+      expect(
+        consoleError.mock.calls.some(([message]) =>
+          String(message).includes("React does not recognize")
+        )
+      ).toBe(false);
     });
 
     it("Should date an event by when it last ran instead of a next run (UT-060)", () => {
@@ -230,6 +254,8 @@ describe("AutomationDetailPanel", () => {
     });
 
     it("Should show a schedule's message word for word and an event's message as a template (UT-066)", () => {
+      // The clamp hides lines: content is taller than the three-line box.
+      mockClampMeasurements({ scrollHeight: 96, clientHeight: 54 });
       const { rerenderPanel } = renderPanel(morningDigestJob);
 
       const does = screen.getByTestId("automation-rule-does");
@@ -250,6 +276,16 @@ describe("AutomationDetailPanel", () => {
         "The message is filled in from each event."
       );
       expect(screen.getByText("{{ .Data.session_id }}")).toHaveAttribute("data-tone", "variable");
+    });
+
+    it("Should offer Show full prompt only when the three-line clamp truncates (F11)", () => {
+      mockClampMeasurements({ scrollHeight: 18, clientHeight: 18 });
+      renderPanel(makeDetailJob({ prompt: "Summarize yesterday's sessions." }));
+
+      expect(screen.getByTestId("automation-prompt-preview")).toHaveTextContent(
+        "Summarize yesterday's sessions."
+      );
+      expect(screen.queryByRole("button", { name: "Show full prompt" })).not.toBeInTheDocument();
     });
 
     it("Should list a Loop's inputs as from-the-event and always rows with a linked Loop (UT-067)", () => {
