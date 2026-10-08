@@ -24,6 +24,16 @@ import {
   incompleteConditionRows,
 } from "../lib/automation-form-readiness";
 import {
+  automationFormDestination,
+  canSwitchDoes,
+  canSwitchStart,
+  optionsOpenByDefault,
+  resolveWorkspaceOptions,
+  savedOneShotTime,
+  scheduleForMode,
+  taskOwnerFor,
+} from "../lib/automation-form-edits";
+import {
   scheduleReadout,
   setScheduleTime,
   toggleScheduleDay,
@@ -34,7 +44,7 @@ import {
   type AutomationDoes,
   type AutomationStart,
 } from "../lib/automation-sentence";
-import { defaultAtLocal, localInputToDate, parseCron, parseDuration } from "../lib/cron-engine";
+import { localInputToDate, parseCron, parseDuration } from "../lib/cron-engine";
 import { composeEventId, parseEventSelection } from "../lib/trigger-event-id";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type {
@@ -52,10 +62,10 @@ import {
 type JobTask = NonNullable<AutomationFormDraft["task"]>;
 type JobOwnerKind = NonNullable<JobTask["owner"]>["kind"];
 
-const DEFAULT_CRON_EXPR = "0 9 * * *";
-const DEFAULT_EVERY_INTERVAL = "30m";
 const SECOND_MS = 1_000;
 const MINUTE_MS = 60_000;
+
+const EMPTY_LOOP_TARGET: LoopTargetDraft = { loop_name: "", inputs: {}, input_mapping: {} };
 
 const LOOP_START_KIND: Record<AutomationStart, LoopAutomationStartKind> = {
   schedule: "schedule",
@@ -94,6 +104,38 @@ function scheduleClockDelay(draft: AutomationFormDraft, now: number): number | n
   return date && date.getTime() > now ? delayToBoundary(now, SECOND_MS) : null;
 }
 
+/** The clock relative labels read, refreshed when "next in 14h" would next change. */
+function useScheduleClock(draft: AutomationFormDraft) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const delay = scheduleClockDelay(draft, Date.now());
+    if (delay === null) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [draft, now]);
+  return { now, touch: () => setNow(Date.now()) };
+}
+
+/** The Loop target, its workspace and whether that Loop allows this start. */
+function useFormLoopTarget(
+  draft: AutomationFormDraft,
+  activeWorkspaceId: string | null | undefined,
+  does: AutomationDoes
+) {
+  const effectiveScope = draft.start === "webhook" ? "global" : draft.scope;
+  const loopWorkspaceId = loopTargetWorkspaceId(
+    { ...draft, scope: effectiveScope },
+    activeWorkspaceId
+  );
+  const loopTarget: LoopTargetDraft = draft.loop_target ?? EMPTY_LOOP_TARGET;
+  const loopCatalog = useLoopTargetCatalog(
+    loopWorkspaceId,
+    does === "loop" ? loopTarget.loop_name : "",
+    LOOP_START_KIND[draft.start]
+  );
+  return { effectiveScope, loopCatalog, loopTarget, loopWorkspaceId };
+}
+
 /** View-model for the one automation form: derived sentence, readiness and every patch. */
 export function useAutomationForm({
   activeWorkspaceId,
@@ -108,42 +150,20 @@ export function useAutomationForm({
   const [daysCleared, setDaysCleared] = useState(false);
   const [agentTouched, setAgentTouched] = useState(false);
   // An edit may keep a one-shot time that has already passed; only a changed time must be ahead.
-  const [savedAtTime] = useState(() =>
-    mode === "edit" && draft.schedule.mode === "at" ? draft.schedule.time : undefined
-  );
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const delay = scheduleClockDelay(draft, Date.now());
-    if (delay === null) return;
-    const timer = window.setTimeout(() => setNow(Date.now()), delay);
-    return () => window.clearTimeout(timer);
-  }, [draft, now]);
+  const [savedAtTime] = useState(() => savedOneShotTime(draft, mode));
+  const clock = useScheduleClock(draft);
+  const now = clock.now;
 
-  const resolvedWorkspaces: WorkspaceOption[] =
-    workspaces && workspaces.length > 0
-      ? [...workspaces]
-      : activeWorkspaceId
-        ? [{ id: activeWorkspaceId, name: activeWorkspaceId }]
-        : [];
+  const resolvedWorkspaces = resolveWorkspaceOptions(workspaces, activeWorkspaceId);
   const workspaceName = (id: string) => resolvedWorkspaces.find(item => item.id === id)?.name;
 
   const timeZone = useAutomationTimeZone();
   const does = automationFormDoes(draft);
   const isWebhook = draft.start === "webhook";
-  const effectiveScope = isWebhook ? "global" : draft.scope;
-  const loopWorkspaceId = loopTargetWorkspaceId(
-    { ...draft, scope: effectiveScope },
-    activeWorkspaceId
-  );
-  const loopTarget: LoopTargetDraft = draft.loop_target ?? {
-    loop_name: "",
-    inputs: {},
-    input_mapping: {},
-  };
-  const loopCatalog = useLoopTargetCatalog(
-    loopWorkspaceId,
-    does === "loop" ? loopTarget.loop_name : "",
-    LOOP_START_KIND[draft.start]
+  const { effectiveScope, loopCatalog, loopTarget, loopWorkspaceId } = useFormLoopTarget(
+    draft,
+    activeWorkspaceId,
+    does
   );
 
   const sentence = describeAutomation(automationFormSentenceDraft(draft, { daysCleared }), {
@@ -168,40 +188,24 @@ export function useAutomationForm({
 
   const patch = (next: Partial<AutomationFormDraft>) => onChange({ ...draft, ...next });
   const patchSchedule = (next: Partial<AutomationFormDraft["schedule"]>) => {
-    setNow(Date.now());
+    clock.touch();
     patch({ schedule: { ...draft.schedule, ...next } });
   };
   const patchTask = (next: Partial<JobTask>) => patch({ task: { ...draft.task, ...next } });
 
   const handleStart = (start: AutomationStart) => {
-    if (mode === "edit" || start === draft.start) return;
-    onChange(setAutomationFormStart(draft, start));
+    if (canSwitchStart(mode, draft.start, start)) onChange(setAutomationFormStart(draft, start));
   };
 
   const handleDoes = (next: AutomationDoes) => {
-    if (mode === "edit" || lockedLoop || next === does) return;
-    if (next === "task" && draft.start !== "schedule") return;
-    onChange(setAutomationFormDoes(draft, next, loopWorkspaceId));
+    if (canSwitchDoes(draft, { mode, lockedLoop, current: does }, next)) {
+      onChange(setAutomationFormDoes(draft, next, loopWorkspaceId));
+    }
   };
 
   const handleScheduleMode = (next: AutomationScheduleMode) => {
-    setNow(Date.now());
-    // Carry the recurring reliability fields across every switch so a round
-    // trip keeps them; the request normalizer drops them for one-shot `at`.
-    const { catch_up_policy, misfire_grace_seconds } = draft.schedule;
-    const recurring = { catch_up_policy, misfire_grace_seconds };
-    if (next === "cron") {
-      patch({
-        schedule: { mode: "cron", expr: draft.schedule.expr || DEFAULT_CRON_EXPR, ...recurring },
-      });
-    } else if (next === "every") {
-      const interval = draft.schedule.interval ?? DEFAULT_EVERY_INTERVAL;
-      patch({ schedule: { mode: "every", interval, ...recurring } });
-    } else {
-      patch({
-        schedule: { mode: "at", time: draft.schedule.time ?? defaultAtLocal(), ...recurring },
-      });
-    }
+    clock.touch();
+    patch({ schedule: scheduleForMode(draft.schedule, next) });
   };
 
   const handleCronExpr = (expr: string) => {
@@ -225,7 +229,7 @@ export function useAutomationForm({
   };
 
   const handleOwnerKind = (kind: JobOwnerKind | "") => {
-    patchTask({ owner: kind === "" ? null : { kind, ref: draft.task?.owner?.ref ?? "" } });
+    patchTask({ owner: taskOwnerFor(kind, draft.task?.owner?.ref ?? "") });
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -244,10 +248,7 @@ export function useAutomationForm({
     isWebhook,
     effectiveScope,
     /** Project the automation lives in, or `null` for Global. */
-    destination:
-      effectiveScope === "global"
-        ? null
-        : (workspaceName(draft.workspace_id ?? "") ?? draft.workspace_id ?? "project"),
+    destination: automationFormDestination(effectiveScope, draft.workspace_id, workspaceName),
     sentence,
     ready,
     readout,
@@ -262,7 +263,7 @@ export function useAutomationForm({
     optionsSummary: automationOptionsSummary(draft),
     conditionProblems: incompleteConditionRows(draft.conditions),
     agentMissing: agentTouched && draft.agent_name.trim() === "",
-    optionsDefaultOpen: mode === "edit" || retry.strategy === "backoff" || draft.enabled === false,
+    optionsDefaultOpen: optionsOpenByDefault(draft, mode, retry.strategy),
 
     onName: (name: string) => patch({ name }),
     onStart: handleStart,
