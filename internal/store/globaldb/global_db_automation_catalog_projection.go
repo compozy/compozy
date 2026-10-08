@@ -28,7 +28,8 @@ func upsertAutomationJobCatalog(ctx context.Context, exec globalSQLExecutor, job
 	search := automationJobCatalogSearch(job)
 	loopName := automationJobCatalogLoopName(job)
 	if err := sqlcgen.New(exec).UpsertAutomationJobCatalog(ctx, sqlcgen.UpsertAutomationJobCatalogParams{
-		JobID: job.ID, Scope: string(job.Scope), WorkspaceID: strings.TrimSpace(job.WorkspaceID),
+		Target: automation.JobListTarget(job),
+		JobID:  job.ID, Scope: string(job.Scope), WorkspaceID: strings.TrimSpace(job.WorkspaceID),
 		Source: string(job.Source), SourceRank: int64(automation.ListSourceRank(job.Source)),
 		Name: job.Name, LoopName: loopName, Enabled: job.Enabled, SearchName: search.name,
 		SearchAgentName: search.agentName, SearchPrompt: search.prompt, SearchScope: search.scope,
@@ -47,6 +48,7 @@ func upsertAutomationTriggerCatalog(ctx context.Context, exec globalSQLExecutor,
 	queries := sqlcgen.New(exec)
 	if err := queries.UpsertAutomationTriggerCatalog(ctx, sqlcgen.UpsertAutomationTriggerCatalogParams{
 		TriggerID:          trigger.ID,
+		Target:             string(trigger.TargetKind),
 		Scope:              string(trigger.Scope),
 		WorkspaceID:        strings.TrimSpace(trigger.WorkspaceID),
 		Event:              trigger.Event,

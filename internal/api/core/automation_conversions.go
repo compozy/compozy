@@ -170,3 +170,15 @@ func cloneAutomationLoopTarget(source *automationpkg.LoopTarget) *automationpkg.
 	}
 	return &cloned
 }
+
+func AutomationLastRunPayloadFromRun(run automationpkg.Run) *contract.AutomationLastRunPayload {
+	payload := &contract.AutomationLastRunPayload{
+		ID: run.ID, Status: run.Status, StartedAt: run.StartedAt, EndedAt: run.EndedAt,
+	}
+	if run.Status == automationpkg.RunCancelled {
+		if reason, ok := run.Metadata[automationpkg.SchedulerSkipReasonMetadataKey].(string); ok {
+			payload.SkipReason = automationpkg.SchedulerSkipReason(reason)
+		}
+	}
+	return payload
+}

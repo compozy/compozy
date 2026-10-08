@@ -40,6 +40,7 @@ func normalizeJobListQuery(query JobListQuery) JobListQuery {
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
 	query.Source = JobSource(strings.TrimSpace(string(query.Source)))
 	query.LoopName = strings.TrimSpace(query.LoopName)
+	query.Target = strings.TrimSpace(query.Target)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Cursor = strings.TrimSpace(query.Cursor)
 	return query
@@ -52,6 +53,7 @@ func normalizeTriggerListQuery(query TriggerListQuery) TriggerListQuery {
 	query.Event = strings.TrimSpace(query.Event)
 	query.Source = JobSource(strings.TrimSpace(string(query.Source)))
 	query.LoopName = strings.TrimSpace(query.LoopName)
+	query.Target = strings.TrimSpace(query.Target)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Cursor = strings.TrimSpace(query.Cursor)
 	return query
@@ -71,6 +73,9 @@ func jobMatchesListQuery(job Job, query JobListQuery) bool {
 		return false
 	}
 	if query.LoopName != "" && !jobMatchesLoopName(job, query.LoopName) {
+		return false
+	}
+	if query.Target != "" && query.Target != JobListTarget(job) {
 		return false
 	}
 	if query.Enabled != nil && job.Enabled != *query.Enabled {
@@ -120,6 +125,9 @@ func triggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
 		return false
 	}
 	if query.LoopName != "" && !triggerMatchesLoopName(trigger, query.LoopName) {
+		return false
+	}
+	if query.Target != "" && query.Target != string(normalizedTargetKind(trigger.TargetKind, trigger.LoopTarget)) {
 		return false
 	}
 	if query.Enabled != nil && trigger.Enabled != *query.Enabled {
@@ -203,4 +211,12 @@ func listSourceRank(source JobSource) int {
 // ListSourceRank returns the stable source precedence used by every automation catalog.
 func ListSourceRank(source JobSource) int {
 	return listSourceRank(source)
+}
+
+// JobListTarget includes task delegation, which shares the agent target kind in stored jobs.
+func JobListTarget(job Job) string {
+	if job.Task != nil {
+		return "task"
+	}
+	return string(normalizedTargetKind(job.TargetKind, job.LoopTarget))
 }

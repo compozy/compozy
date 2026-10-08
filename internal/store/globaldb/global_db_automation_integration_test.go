@@ -3,8 +3,11 @@
 package globaldb
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -399,6 +402,70 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 		}
 		if got, want := activated.Status, automation.RunRunning; got != want {
 			t.Fatalf("activated.Status = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestGlobalDBAutomationLatestRunsBatch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should load fifty latest runs in one indexed query from two thousand runs", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		base := time.Date(2026, 10, 8, 1, 0, 0, 0, time.UTC)
+		for index := range 200 {
+			job := automationJobForTest(
+				automation.AutomationScopeGlobal,
+				fmt.Sprintf("batch-%03d", index),
+				"",
+				automation.JobSourceDynamic,
+			)
+			job, err := db.CreateJob(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for attempt := range 10 {
+				run := automationRunForJob(
+					job.ID,
+					automation.RunCompleted,
+					attempt+1,
+					base.Add(time.Duration(attempt)*time.Minute),
+				)
+				if _, err := db.CreateRun(ctx, run); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		page, err := db.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles, Limit: 50})
+		if err != nil || len(page.Jobs) != 50 {
+			t.Fatalf("page: %#v, %v", page, err)
+		}
+		ids := make([]string, 0, len(page.Jobs))
+		for _, job := range page.Jobs {
+			ids = append(ids, job.ID)
+		}
+		encoded, err := json.Marshal(ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query, err := automationLatestRunsSQL(automation.RunOwnerJob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		executor := &countingAutomationCatalogExecutor{automationCatalogExecutor: db.db}
+		latest, err := readLatestAutomationRuns(ctx, executor, query, automation.RunOwnerJob, string(encoded))
+		if err != nil || len(latest) != 50 || executor.reads != 1 {
+			t.Fatalf("latest count/reads/error = %d/%d/%v", len(latest), executor.reads, err)
+		}
+		for _, id := range ids {
+			if latest[id].Attempt != 10 {
+				t.Fatalf("latest attempt for %q = %d", id, latest[id].Attempt)
+			}
+		}
+		plan := automationCatalogQueryPlan(t, db.db, query, string(encoded))
+		if !strings.Contains(plan, "idx_automation_runs_job_latest") ||
+			strings.Contains(plan, "USE TEMP B-TREE FOR ORDER BY") {
+			t.Fatalf("latest run plan must use ordered index: %s", plan)
 		}
 	})
 }

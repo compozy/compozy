@@ -371,18 +371,18 @@ func (q *Queries) SetAutomationScheduledDeferral(ctx context.Context, arg SetAut
 
 const upsertAutomationJobCatalog = `-- name: UpsertAutomationJobCatalog :exec
 INSERT INTO automation_job_catalog_entries (
-  job_id, scope, workspace_id, source, source_rank, name, loop_name, enabled,
+  job_id, target, scope, workspace_id, source, source_rank, name, loop_name, enabled,
   search_name, search_agent_name, search_prompt, search_scope, search_source,
   search_schedule_mode, search_schedule_expr, search_schedule_interval, search_schedule_time
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11,
-  ?12, ?13, ?14,
-  ?15, ?16, ?17
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12,
+  ?13, ?14, ?15,
+  ?16, ?17, ?18
 )
 ON CONFLICT(job_id) DO UPDATE SET
-  scope = excluded.scope, workspace_id = excluded.workspace_id, source = excluded.source,
+  target = excluded.target, scope = excluded.scope, workspace_id = excluded.workspace_id, source = excluded.source,
   source_rank = excluded.source_rank, name = excluded.name, loop_name = excluded.loop_name,
   enabled = excluded.enabled, search_name = excluded.search_name,
   search_agent_name = excluded.search_agent_name, search_prompt = excluded.search_prompt,
@@ -395,6 +395,7 @@ ON CONFLICT(job_id) DO UPDATE SET
 
 type UpsertAutomationJobCatalogParams struct {
 	JobID                  string `json:"job_id"`
+	Target                 string `json:"target"`
 	Scope                  string `json:"scope"`
 	WorkspaceID            string `json:"workspace_id"`
 	Source                 string `json:"source"`
@@ -416,6 +417,7 @@ type UpsertAutomationJobCatalogParams struct {
 func (q *Queries) UpsertAutomationJobCatalog(ctx context.Context, arg UpsertAutomationJobCatalogParams) error {
 	_, err := q.db.ExecContext(ctx, upsertAutomationJobCatalog,
 		arg.JobID,
+		arg.Target,
 		arg.Scope,
 		arg.WorkspaceID,
 		arg.Source,
@@ -495,18 +497,18 @@ func (q *Queries) UpsertAutomationSchedulerState(ctx context.Context, arg Upsert
 
 const upsertAutomationTriggerCatalog = `-- name: UpsertAutomationTriggerCatalog :exec
 INSERT INTO automation_trigger_catalog_entries (
-  trigger_id, scope, workspace_id, event, source, source_rank, name, loop_name, enabled,
+  trigger_id, target, scope, workspace_id, event, source, source_rank, name, loop_name, enabled,
   search_name, search_agent_name, search_prompt, search_scope, search_source,
   search_event, search_endpoint_slug, search_webhook_id
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11,
-  ?12, ?13, ?14,
-  ?15, ?16, ?17
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12,
+  ?13, ?14, ?15,
+  ?16, ?17, ?18
 )
 ON CONFLICT(trigger_id) DO UPDATE SET
-  scope = excluded.scope, workspace_id = excluded.workspace_id, event = excluded.event,
+  target = excluded.target, scope = excluded.scope, workspace_id = excluded.workspace_id, event = excluded.event,
   source = excluded.source, source_rank = excluded.source_rank, name = excluded.name,
   loop_name = excluded.loop_name, enabled = excluded.enabled, search_name = excluded.search_name,
   search_agent_name = excluded.search_agent_name, search_prompt = excluded.search_prompt,
@@ -517,6 +519,7 @@ ON CONFLICT(trigger_id) DO UPDATE SET
 
 type UpsertAutomationTriggerCatalogParams struct {
 	TriggerID          string `json:"trigger_id"`
+	Target             string `json:"target"`
 	Scope              string `json:"scope"`
 	WorkspaceID        string `json:"workspace_id"`
 	Event              string `json:"event"`
@@ -538,6 +541,7 @@ type UpsertAutomationTriggerCatalogParams struct {
 func (q *Queries) UpsertAutomationTriggerCatalog(ctx context.Context, arg UpsertAutomationTriggerCatalogParams) error {
 	_, err := q.db.ExecContext(ctx, upsertAutomationTriggerCatalog,
 		arg.TriggerID,
+		arg.Target,
 		arg.Scope,
 		arg.WorkspaceID,
 		arg.Event,

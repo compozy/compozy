@@ -1,6 +1,9 @@
 package cli
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
 
 func automationJobBundle(item JobRecord) outputBundle {
 	return outputBundle{
@@ -49,6 +52,7 @@ func automationJobToonFields() []string {
 		automationAgentNameKey, automationEnabledKey, automationSourceKey, automationScheduleKey,
 		automationRetryKey, "fire_limit", "next_run", "last_scheduled_at", "last_fire_id", "catch_up_policy",
 		"misfire_count", automationCreatedAtKey, automationUpdatedAtKey, automationPromptKey,
+		lastRunStatusKey, lastRunStartedAtKey,
 	}
 }
 
@@ -60,10 +64,11 @@ func automationJobToonValues(item JobRecord) []string {
 		formatOptionalTime(automationJobLastScheduledAt(item)), automationJobLastFireID(item),
 		automationJobCatchUpPolicy(item), strconv.Itoa(automationJobMisfireCount(item)), formatTime(item.CreatedAt),
 		formatTime(item.UpdatedAt), item.Prompt,
+		automationLastRunStatus(item.LastRun), automationLastRunStartedAt(item.LastRun),
 	}
 }
 
-func automationJobListBundle(page AutomationJobListRecord) outputBundle {
+func automationJobListBundle(page AutomationJobListRecord, now func() time.Time) outputBundle {
 	items := page.Jobs
 	return listBundle(
 		page,
@@ -80,6 +85,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 			automationEnabledValue,
 			automationSourceValue,
 			"Next Run",
+			lastRunLabel,
 		},
 		"automation_jobs",
 		[]string{
@@ -93,6 +99,8 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 			automationEnabledKey,
 			automationSourceKey,
 			"next_run",
+			lastRunStatusKey,
+			lastRunStartedAtKey,
 		},
 		func(item JobRecord) []string {
 			return []string{
@@ -106,6 +114,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 				strconv.FormatBool(item.Enabled),
 				stringOrDash(string(item.Source)),
 				stringOrDash(formatOptionalTime(item.NextRun)),
+				formatAutomationLastRun(item.LastRun, now),
 			}
 		},
 		func(item JobRecord) []string {
@@ -120,6 +129,8 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 				strconv.FormatBool(item.Enabled),
 				string(item.Source),
 				formatOptionalTime(item.NextRun),
+				automationLastRunStatus(item.LastRun),
+				automationLastRunStartedAt(item.LastRun),
 			}
 		},
 	)

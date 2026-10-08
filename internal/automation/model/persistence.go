@@ -36,6 +36,14 @@ var (
 	ErrTriggerOverlayNotFound = errors.New("automation: trigger enabled overlay not found")
 )
 
+// RunOwnerKind selects the independent automation run owner namespace.
+type RunOwnerKind string
+
+const (
+	RunOwnerJob     RunOwnerKind = "job"
+	RunOwnerTrigger RunOwnerKind = "trigger"
+)
+
 // JobListQuery filters persisted automation job listings.
 type JobListQuery struct {
 	ReadScope   store.ReadScope `json:"read_scope"`
@@ -43,6 +51,7 @@ type JobListQuery struct {
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 	Source      JobSource       `json:"source,omitempty"`
 	LoopName    string          `json:"loop_name,omitempty"`
+	Target      string          `json:"target,omitempty"`
 	Enabled     *bool           `json:"enabled,omitzero"`
 	Search      string          `json:"q,omitempty"`
 	Cursor      string          `json:"cursor,omitempty"`
@@ -57,6 +66,7 @@ type TriggerListQuery struct {
 	Event       string          `json:"event,omitempty"`
 	Source      JobSource       `json:"source,omitempty"`
 	LoopName    string          `json:"loop_name,omitempty"`
+	Target      string          `json:"target,omitempty"`
 	Enabled     *bool           `json:"enabled,omitzero"`
 	Search      string          `json:"q,omitempty"`
 	Cursor      string          `json:"cursor,omitempty"`

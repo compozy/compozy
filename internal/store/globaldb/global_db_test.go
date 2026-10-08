@@ -406,6 +406,124 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should backfill automation catalog targets and preserve run history across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00129_automation_latest_runs.sql"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		priorClosed := false
+		t.Cleanup(func() {
+			if !priorClosed {
+				if err := prior.Close(); err != nil {
+					t.Errorf("close prior: %v", err)
+				}
+			}
+		})
+		for _, target := range []string{"agent", "loop", "task"} {
+			kind := target
+			var task any
+			if target == "task" {
+				kind = "agent"
+				task = `{"title":"Retained task"}`
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_jobs
+    (id, profile_id, scope, name, agent_name, prompt, task, retry, fire_limit, target_kind, created_at, updated_at)
+    VALUES (?, ?, 'global', ?, 'agent', 'Retained prompt', ?, '{}', '{}', ?, '2026-10-08T00:00:00Z', '2026-10-08T00:00:00Z')`, target, store.DefaultProfileID, target, task, kind); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_job_catalog_entries
+    (job_id, scope, source, source_rank, name, enabled, search_name, search_agent_name, search_prompt, search_scope,
+    search_source, search_schedule_mode, search_schedule_expr, search_schedule_interval, search_schedule_time)
+    VALUES (?, 'global', 'dynamic', 2, ?, 1, '', '', '', '', '', '', '', '', '')`, target, target); err != nil {
+				t.Fatal(err)
+			}
+			if target == "task" {
+				continue
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_triggers
+    (id, profile_id, scope, name, agent_name, prompt, event, retry, fire_limit, target_kind, created_at, updated_at)
+    VALUES (?, ?, 'global', ?, 'agent', 'Retained trigger prompt', 'session.stopped', '{}', '{}', ?, '2026-10-08T00:00:00Z', '2026-10-08T00:00:00Z')`, target, store.DefaultProfileID, target, kind); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_trigger_catalog_entries
+    (trigger_id, scope, event, source, source_rank, name, enabled, search_name, search_agent_name, search_prompt,
+    search_scope, search_source, search_event, search_endpoint_slug, search_webhook_id)
+    VALUES (?, 'global', 'session.stopped', 'dynamic', 2, ?, 1, '', '', '', '', '', '', '', '')`, target, target); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := prior.ExecContext(
+			ctx,
+			`INSERT INTO automation_runs (id, profile_id, job_id, status, started_at, metadata_json)
+    VALUES ('retained', ?, 'task', 'canceled', '2026-10-08T00:00:00Z', '{"reason":"self_overlap"}')`,
+			store.DefaultProfileID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		priorClosed = true
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			closed := false
+			t.Cleanup(func() {
+				if !closed {
+					if err := upgraded.Close(ctx); err != nil {
+						t.Errorf("close upgraded: %v", err)
+					}
+				}
+			})
+			for _, target := range []string{"agent", "loop", "task"} {
+				var projected, prompt string
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT c.target, j.prompt FROM automation_job_catalog_entries c JOIN automation_jobs j ON j.id=c.job_id WHERE c.job_id=?`, target).
+					Scan(&projected, &prompt); err != nil {
+					t.Fatal(err)
+				}
+				if projected != target || prompt != "Retained prompt" {
+					t.Fatalf("job %s = %q/%q", target, projected, prompt)
+				}
+				if target == "task" {
+					continue
+				}
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT target FROM automation_trigger_catalog_entries WHERE trigger_id=?`, target).
+					Scan(&projected); err != nil {
+					t.Fatal(err)
+				}
+				if projected != target {
+					t.Fatalf("trigger %s = %q", target, projected)
+				}
+			}
+			var reason string
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT json_extract(metadata_json, '$.reason') FROM automation_runs WHERE id='retained'`).
+				Scan(&reason); err != nil {
+				t.Fatal(err)
+			}
+			if reason != "self_overlap" {
+				t.Fatalf("retained run reason = %q", reason)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			closed = true
+		}
+	})
+
 	// Invariant: reconciliation indexes upgrade existing task history losslessly; the reopen suite owns it.
 	t.Run("Should preserve settled task history while adding reconciliation indexes", func(t *testing.T) {
 		t.Parallel()

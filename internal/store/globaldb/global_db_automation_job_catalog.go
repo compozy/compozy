@@ -102,6 +102,10 @@ func automationJobCatalogWhere(query automation.JobListQuery) (string, []any) {
 		clauses = append(clauses, "c.workspace_id = ?")
 		args = append(args, query.WorkspaceID)
 	}
+	if query.Target != "" {
+		clauses = append(clauses, "c.target = ?")
+		args = append(args, query.Target)
+	}
 	if query.Source != "" {
 		clauses = append(clauses, "c.source = ?")
 		args = append(args, query.Source)
