@@ -240,6 +240,32 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 			t.Fatal("UI lost receipt or redaction mutated source")
 		}
 	})
+	t.Run("Should keep an empty delivery span list as an array", func(t *testing.T) {
+		t.Parallel()
+		original := acp.AgentEvent{
+			Type:   acp.EventTypePromptDelivery,
+			TurnID: "turn-maintenance",
+		}.WithDelivery(&acp.DeliveryManifest{
+			TurnID:   "turn-maintenance",
+			SentAt:   time.Date(2026, 10, 8, 1, 2, 3, 0, time.UTC),
+			Estimate: acp.TextEstimateMethod,
+			Spans:    []acp.DeliveredSpan{},
+		})
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(content, `"spans":[]`) {
+			t.Fatalf("canonical delivery = %s, want an empty spans array", content)
+		}
+		ui, err := json.Marshal(UIAgentEventPayloadFromEvent(original))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(ui), `"spans":[]`) {
+			t.Fatalf("UI delivery = %s, want an empty spans array", ui)
+		}
+	})
 	t.Run("Should sanitize and round-trip usage metadata with the carrying ledger sequence", func(t *testing.T) {
 		t.Parallel()
 		usage := &acp.TokenUsage{TurnID: "turn-usage", CacheReadTokens: new(int64(4)), Meta: map[string]any{

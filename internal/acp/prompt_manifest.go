@@ -1,6 +1,9 @@
 package acp
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 const EventTypePromptDelivery = "prompt_delivery"
 const TextEstimateMethod = "bytes_div_4"
@@ -55,9 +58,11 @@ func OpaqueStartupManifest(prompt string, hookModified bool) StartupManifest {
 	return manifest
 }
 
-// CloneStartupManifest returns an independent startup measurement snapshot.
+// CloneStartupManifest returns an independent startup measurement snapshot. An
+// empty span list stays an empty list so a delivery with no sections (a literal
+// maintenance command) still serializes "spans" as [].
 func CloneStartupManifest(manifest StartupManifest) StartupManifest {
-	manifest.Spans = append([]DeliveredSpan(nil), manifest.Spans...)
+	manifest.Spans = slices.Clone(manifest.Spans)
 	for i := range manifest.Spans {
 		if tokens := manifest.Spans[i].Tokens; tokens != nil {
 			manifest.Spans[i].Tokens = new(*tokens)

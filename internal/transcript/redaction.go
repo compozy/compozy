@@ -2,6 +2,7 @@ package transcript
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -249,7 +250,7 @@ func redactDeliveryManifest(manifest *acp.DeliveryManifest) *acp.DeliveryManifes
 		return nil
 	}
 	redacted := *manifest
-	redacted.Spans = append([]acp.DeliveredSpan(nil), manifest.Spans...)
+	redacted.Spans = slices.Clone(manifest.Spans)
 	for index := range redacted.Spans {
 		redacted.Spans[index].Name = redactDisplayString(redacted.Spans[index].Name)
 	}
