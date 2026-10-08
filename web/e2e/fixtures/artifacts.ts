@@ -61,6 +61,7 @@ export interface BrowserRouteState {
   url: string;
   pathname: string;
   title: string;
+  /** Daemon entity of the open `/automations/{jobs,triggers}/:id` detail route. */
   automation_active_tab?: "jobs" | "triggers";
   automation_delete_visible?: boolean;
   automation_detail_overflow_visible?: boolean;
@@ -69,12 +70,12 @@ export interface BrowserRouteState {
   automation_editor_open?: boolean;
   automation_item_count?: number;
   automation_run_count?: number;
-  automation_run_history_visible?: boolean;
-  automation_scheduler_visible?: boolean;
+  automation_inspect_visible?: boolean;
+  automation_run_list_visible?: boolean;
   automation_scope_filter?: "all" | "global" | "workspace";
   automation_selected_item?: string;
   automation_session_link_count?: number;
-  automation_trigger_visible?: boolean;
+  automation_run_now_visible?: boolean;
   automation_view_visible?: boolean;
   chat_view_visible: boolean;
   composer_clear_button_enabled?: boolean;

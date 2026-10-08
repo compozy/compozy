@@ -239,6 +239,41 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve retired automation palette IDs with a deprecation warning", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.commands.Commands = []contract.CmdPaletteCommand{
+			{ID: "app.open.automations", Source: "core", Available: true},
+		}
+		client.invokeResult = contract.CmdPaletteInvokeResult{Status: cmdpalette.InvokeStatusOK}
+		_, stderr, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "invoke", "app.open.jobs", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette invoke error = %v", err)
+		}
+		if client.invokeCommand != "app.open.automations" {
+			t.Fatalf("invoke command = %q, want app.open.automations", client.invokeCommand)
+		}
+		want := `warning: command "app.open.jobs" is deprecated and will be removed in v0.5.0; use "app.open.automations"`
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("stderr = %q, want %q", stderr, want)
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "inspect", "app.open.triggers", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette inspect error = %v", err)
+		}
+		if !strings.Contains(stdout, `"app.open.automations"`) {
+			t.Fatalf("inspect output = %q, want the automations command", stdout)
+		}
+	})
+
 	t.Run("Should map invocation validation failures to exit code two", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()

@@ -30,6 +30,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
 vi.mock("@/systems/automation", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/automation")>()),
   useAutomationJobs: mocks.useAutomationJobs,
+  useAutomationTimeZone: () => undefined,
   useAutomationTriggers: mocks.useAutomationTriggers,
 }));
 
@@ -129,6 +130,28 @@ describe("useLoopDetail", () => {
       to: "/loops/$name/editor",
       params: { name: "review-and-fix" },
     });
+  });
+
+  it("Should open the Automations editor locked to this Loop [UT-114]", () => {
+    const { result } = renderHook(() => useLoopDetail("software-delivery"));
+
+    act(() => result.current.handlers.onAutomate("schedule"));
+    act(() => result.current.handlers.onAutomate("event"));
+
+    expect(mocks.navigate.mock.calls).toEqual([
+      [
+        {
+          to: "/automations",
+          search: { create: "loop", start: "schedule", loop: "software-delivery" },
+        },
+      ],
+      [
+        {
+          to: "/automations",
+          search: { create: "loop", start: "event", loop: "software-delivery" },
+        },
+      ],
+    ]);
   });
 
   it("Should await workspace deletion before replacing detail with the catalog", async () => {

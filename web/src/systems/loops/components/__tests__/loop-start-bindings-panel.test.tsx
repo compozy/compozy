@@ -1,5 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    to,
+    search,
+    children,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string; search?: Record<string, string> }) => (
+    <a href={search ? `${to}?${new URLSearchParams(search).toString()}` : to} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 import { LoopStartBindingsPanel } from "../detail/loop-start-bindings-panel";
 import type { LoopBindingRow } from "../../lib/loop-bindings";
@@ -22,7 +36,13 @@ function openStart() {
 
 describe("LoopStartBindingsPanel", () => {
   it("Should render attached automation rows without the raw declared start kinds", () => {
-    render(<LoopStartBindingsPanel declaredKinds={DECLARED} bindings={BINDINGS} />);
+    render(
+      <LoopStartBindingsPanel
+        loopName="implement-tasks"
+        declaredKinds={DECLARED}
+        bindings={BINDINGS}
+      />
+    );
     openStart();
     expect(screen.queryByTestId("loop-declared-kind")).not.toBeInTheDocument();
     expect(screen.queryByText(DECLARED.join(" · "))).not.toBeInTheDocument();
@@ -33,7 +53,9 @@ describe("LoopStartBindingsPanel", () => {
   });
 
   it("Should show the empty state when no automations are attached", () => {
-    render(<LoopStartBindingsPanel declaredKinds={DECLARED} bindings={[]} />);
+    render(
+      <LoopStartBindingsPanel loopName="implement-tasks" declaredKinds={DECLARED} bindings={[]} />
+    );
     openStart();
     expect(screen.getByTestId("loop-bindings-empty")).toHaveTextContent(
       "Runs only when you start it."
@@ -41,34 +63,36 @@ describe("LoopStartBindingsPanel", () => {
     expect(screen.queryByTestId("loop-binding-row")).not.toBeInTheDocument();
   });
 
-  it("Should gate the Add CTAs to the kinds the allowlist permits", () => {
-    const onAddSchedule = vi.fn();
+  it("Should link the automation count to the Loop's Automations list [UT-114]", () => {
     render(
       <LoopStartBindingsPanel
+        loopName="implement-tasks"
         declaredKinds={DECLARED}
-        bindings={[]}
-        onAddSchedule={onAddSchedule}
+        bindings={[...BINDINGS, { ...BINDINGS[0]!, id: "trg_review", kind: "trigger" }]}
       />
     );
+    expect(screen.getByRole("button", { name: /Automations/ })).toHaveTextContent("2 automations");
     openStart();
-    // implement-tasks declares schedule but not trigger/webhook.
-    expect(screen.getByTestId("loop-add-schedule")).toBeInTheDocument();
-    expect(screen.queryByTestId("loop-add-trigger")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("loop-add-schedule"));
-    expect(onAddSchedule).toHaveBeenCalledTimes(1);
+    const link = screen.getByTestId("loop-bindings-open-automations");
+    expect(link).toHaveTextContent("2 automations");
+    expect(link).toHaveAttribute("href", "/automations?loop=implement-tasks");
   });
 
-  it("Should offer Add trigger when the loop declares a trigger or webhook start", () => {
-    render(<LoopStartBindingsPanel declaredKinds={["manual", "webhook"]} bindings={[]} />);
+  it("Should read Manual only with no link when nothing starts the Loop", () => {
+    render(
+      <LoopStartBindingsPanel loopName="implement-tasks" declaredKinds={["manual"]} bindings={[]} />
+    );
+    expect(screen.getByRole("button", { name: /Automations/ })).toHaveTextContent("Manual only");
     openStart();
-    expect(screen.getByTestId("loop-add-trigger")).toBeInTheDocument();
-    expect(screen.queryByTestId("loop-add-schedule")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-bindings-open-automations")).not.toBeInTheDocument();
+    expect(screen.getByText("This Loop can only be started by hand.")).toBeInTheDocument();
   });
 
   it("Should disclose partial binding totals and page each automation kind explicitly", () => {
     const loadMoreJobs = vi.fn();
     const { rerender } = render(
       <LoopStartBindingsPanel
+        loopName="implement-tasks"
         bindings={BINDINGS}
         declaredKinds={DECLARED}
         jobs={{
@@ -97,6 +121,7 @@ describe("LoopStartBindingsPanel", () => {
 
     rerender(
       <LoopStartBindingsPanel
+        loopName="implement-tasks"
         bindings={BINDINGS}
         declaredKinds={DECLARED}
         jobs={{

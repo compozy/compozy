@@ -9362,6 +9362,32 @@ func (f *fakeAutomationManager) ListRuns(_ context.Context, query automationpkg.
 	return runs, nil
 }
 
+func (f *fakeAutomationManager) LatestRunsByOwner(
+	_ context.Context,
+	owner automationpkg.RunOwnerKind,
+	ids []string,
+) (map[string]automationpkg.Run, error) {
+	result := make(map[string]automationpkg.Run)
+	for _, id := range ids {
+		for _, run := range f.runs {
+			ownerID := run.JobID
+			if owner == automationpkg.RunOwnerTrigger {
+				ownerID = run.TriggerID
+			}
+			if ownerID != id {
+				continue
+			}
+			previous, exists := result[id]
+			if !exists ||
+				(run.StartedAt != nil && (previous.StartedAt == nil || run.StartedAt.After(*previous.StartedAt))) ||
+				(run.StartedAt != nil && previous.StartedAt != nil && run.StartedAt.Equal(*previous.StartedAt) && run.ID > previous.ID) {
+				result[id] = run
+			}
+		}
+	}
+	return result, nil
+}
+
 func (f *fakeAutomationManager) GetRun(_ context.Context, id string) (automationpkg.Run, error) {
 	for _, run := range f.runs {
 		if run.ID == strings.TrimSpace(id) {

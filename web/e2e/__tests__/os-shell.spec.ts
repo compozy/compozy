@@ -238,7 +238,7 @@ test("E2E-001 / E2E-002 / E2E-014: fresh boot stays empty before pointer and CLI
     ).toHaveAttribute("aria-current", "page");
 
     const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-    expect(snapshot.version).toBe(4);
+    expect(snapshot.version).toBe(5);
     expect(snapshot.revision).toBe(0);
     expect(snapshot.desktops.map(desktop => [desktop.id, desktop.name])).toEqual([
       ["desktop-default", "Desktop 1"],
@@ -3089,8 +3089,7 @@ const PERF_APPS = [
   "agents",
   "new-tab",
   "loops",
-  "jobs",
-  "triggers",
+  "automations",
   "marketplace",
   "terminal",
   "settings",
@@ -3120,6 +3119,11 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
     );
     perfWindowIDs.set(app, id);
   }
+  // Jobs and Triggers merged into one Automations app; a second Tasks window keeps
+  // the envelope at 12 windows.
+  const [extraTasksID] = await openDeckFixtureWindows(runtime, workspace.id, ["tasks"]);
+  if (!extraTasksID) throw new Error("performance fixture must open the second tasks window");
+  perfWindowIDs.set("tasks#2", extraTasksID);
 
   await appPage.addInitScript(() => {
     const perf = {
@@ -3146,9 +3150,8 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
     document.addEventListener("DOMContentLoaded", placed, { once: true });
   });
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  for (const app of PERF_APPS) {
-    const id = perfWindowIDs.get(app);
-    if (!id) throw new Error(`performance fixture must retain the ${app} window ID`);
+  expect(perfWindowIDs.size).toBe(12);
+  for (const id of perfWindowIDs.values()) {
     await expect(osShellSelectors(appPage).window(id)).toBeAttached();
   }
   await expect
@@ -3267,9 +3270,7 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
   let worstPeerTask = 0;
   try {
     for (const peer of [peerA, peerB]) {
-      for (const app of PERF_APPS) {
-        const id = perfWindowIDs.get(app);
-        if (!id) throw new Error(`performance fixture must retain the ${app} window ID`);
+      for (const id of perfWindowIDs.values()) {
         await expect(osShellSelectors(peer).window(id)).toBeAttached();
       }
       await installLongTaskQuietProbe(peer);

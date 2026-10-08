@@ -1,5 +1,5 @@
 import type { AutomationJob, AutomationTrigger } from "@/systems/automation";
-import { describeSchedule, formatRelativeTime } from "@/systems/automation";
+import { describeSchedule, formatRelativeTime, type SentenceContext } from "@/systems/automation";
 import type { LoopBindingKind, LoopBindingRow } from "@/systems/loops";
 
 /** The active workspace's attached loop-target automations, keyed by loop name. */
@@ -8,8 +8,8 @@ export interface LoopBindingIndexEntry {
   rows: LoopBindingRow[];
 }
 
-function scheduleMeta(job: AutomationJob): string {
-  const cadence = describeSchedule(job.schedule);
+function scheduleMeta(job: AutomationJob, ctx: SentenceContext): string {
+  const cadence = describeSchedule(job.schedule, ctx);
   const nextRun = job.next_run ?? job.scheduler?.next_run_at ?? null;
   return nextRun ? `${cadence} · next ${formatRelativeTime(nextRun)}` : cadence;
 }
@@ -19,14 +19,18 @@ function scheduleMeta(job: AutomationJob): string {
  * loop-target binding kind is always `schedule`, TechSpec §9.14). Returns null for
  * agent-target jobs or jobs whose `loop_target` names a different workspace.
  */
-export function jobToBindingRow(job: AutomationJob, workspaceId: string): LoopBindingRow | null {
+export function jobToBindingRow(
+  job: AutomationJob,
+  workspaceId: string,
+  ctx: SentenceContext = {}
+): LoopBindingRow | null {
   if (!job.loop_target || job.loop_target.workspace_id !== workspaceId) return null;
   return {
     id: job.id,
     name: job.name,
     kind: "schedule",
     enabled: job.enabled,
-    meta: scheduleMeta(job),
+    meta: scheduleMeta(job, ctx),
   };
 }
 
@@ -79,7 +83,8 @@ function targetLoopName(
 export function buildLoopBindingIndex(
   triggers: readonly AutomationTrigger[],
   jobs: readonly AutomationJob[],
-  workspaceId: string
+  workspaceId: string,
+  ctx: SentenceContext = {}
 ): Map<string, LoopBindingIndexEntry> {
   const index = new Map<string, LoopBindingIndexEntry>();
   const add = (loopName: string, row: LoopBindingRow) => {
@@ -95,7 +100,7 @@ export function buildLoopBindingIndex(
   }
   for (const job of jobs) {
     const loopName = targetLoopName(job, workspaceId);
-    const row = loopName ? jobToBindingRow(job, workspaceId) : null;
+    const row = loopName ? jobToBindingRow(job, workspaceId, ctx) : null;
     if (loopName && row) add(loopName, row);
   }
   for (const entry of index.values()) entry.kinds.sort((a, b) => a.localeCompare(b));

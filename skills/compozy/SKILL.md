@@ -38,7 +38,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Author, configure, run, observe, approve, or stop a CompozyOS Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                   |
 | Install, enable, update, dev-link, build, publish, or remove an extension; manage extension kits, secrets, or hooks            | references/extensions.md + references/native-tools.md              |
 | Write or scaffold extension code: manifests, permissions, provide surfaces, contributed commands, or command palette entries   | references/extension-authoring.md + references/extensions.md       |
-| Create or manage automation jobs, triggers, schedules, or suggestions                                                          | references/native-tools.md + references/configuration.md           |
+| Create or manage Automations (jobs and triggers), read their last run, or review suggestions                                   | references/native-tools.md + references/configuration.md           |
 | Create, inspect, bind sessions to, exit, publish, remove, or recover workspace worktrees                                       | references/worktrees.md + references/native-tools.md               |
 | Inspect or manage Gateway posture, tier surfaces, device pairing, connection profiles, SSH forwards, or stream tickets         | references/runtime-operations.md + references/configuration.md     |
 | List, select, create, update, rename, archive, unarchive, delete, or retry profile lifecycle operations                        | references/profiles.md + references/native-tools.md                |

@@ -352,3 +352,12 @@ type Preview struct {
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
 	Client      *ClientView  `json:"client,omitzero"`
 }
+
+// Public app aliases are removed in v0.5.0.
+func (spec WindowSpec) canonicalApp() WindowSpec {
+	if replacement, retired := RetiredApp(spec.App); retired {
+		spec.Route = RewriteRetiredAppRoute(spec.App, spec.Route)
+		spec.App = replacement
+	}
+	return spec
+}

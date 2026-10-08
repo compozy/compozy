@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Surfaces · Automations · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="automations.css">
+<style>
+  .sf-rail{display:flex;gap:28px;align-items:flex-start}
+  .sf-rail .rail{position:relative;height:auto;width:var(--w-rail-dock);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .sf-rail .rail-nav{overflow:visible}
+  .sf-cap{font-size:11px;color:var(--subtle);margin-top:8px;text-align:center}
+  .sf-arrow{align-self:center;color:var(--faint)}
+  .sf-arrow svg{width:18px;height:18px}
+  .sf-tip{position:absolute;left:calc(100% + 10px);top:50%;translate:0 -50%;white-space:nowrap;padding:4px 8px;border-radius:var(--radius-sm);background:var(--elevated);box-shadow:var(--shadow-pop);font-size:12px;color:var(--fg-strong)}
+  .sf-strike{text-decoration:line-through;text-decoration-color:var(--faint);color:var(--subtle)}
+</style>
+<!--
+  automations-surfaces · S4 — everything outside the window that names Jobs or Triggers.
+  Contract: DESIGN-NOTES.md. Provenance per section in the notes.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="sf-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Automations</a><span class="w2-sep">/</span><h1 class="w2-title">S4 · Surfaces</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="automations-editor.html">← Editor</a><a class="btn btn--sm" href="index.html">Overview</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="au-contract" data-od-id="sf-contract" aria-label="What this board is">
+      <div class="au-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="au-contract__what"><b>S4 — every other place that said "Jobs" or "Triggers".</b> The merge only works if the name changes everywhere at once: the dock, the command palette, Settings, the Loop page shortcuts, old links, and the desktops people already saved. Each change below names the file that owns it and its compatibility regime.</p>
+        <p class="au-contract__file">automations-surfaces.html · S4 · dock · palette · settings · loops · routes · layouts · copy</p>
+      </div>
+      <div class="au-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="au-mods">
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>app-catalog.ts · os-types.ts · os-dock-model.ts · os-dock-icons.tsx</b><i>systems/os/lib · components</i>jobs + triggers → automations (bolt glyph)</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>palette-view-registry · use-os-palette-entity-sections · os-palette-domain-search</b><i>systems/os</i>one view, one entity section, new deep links</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>-automation-settings-page.tsx</b><i>routes/_app/settings</i>one Manage row; copy</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>use-loop-detail.ts</b><i>systems/os/apps/loops</i>"Add trigger" + "Add schedule" → "Automate ▾"</span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>layout decoder: app id migration</b><i>systems/os persisted desktops loader</i>user state · jobs/triggers → automations</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>jobs*.tsx · triggers*.tsx</b><i>routes/_app</i>redirect stubs for one release, then delete</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>COPY.md · docs/_memory/glossary.md</b><i>alias tables</i>close the "pending owner decision" row</span></li>
+        </ul>
+      </div>
+      <div class="au-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="au-states">
+          <li><a href="#sf-dock">Dock</a><code>surfaces VC-01</code></li>
+          <li><a href="#sf-palette">Command palette</a><code>surfaces VC-02</code></li>
+          <li><a href="#sf-settings">Settings › Automation</a><code>surfaces VC-03</code></li>
+          <li><a href="#sf-loop">Loop page shortcuts</a><code>surfaces VC-04</code></li>
+          <li><a href="#sf-routes">Old links + saved desktops</a><code>surfaces VC-05</code></li>
+          <li><a href="#sf-copy">Copy and glossary</a><code>surfaces VC-06</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="lab-sec" id="sf-dock" data-od-id="sf-dock">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Dock — two launchers become one</h2><span class="lab-sec__gist">surfaces VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One fewer icon in group 2.</b> Tasks · Loops · Automations. The bolt (the old trigger glyph) becomes the Automations mark and is used for nothing else. It is the common sign for "this runs on its own". Inside the window the start kinds get their own glyphs: the clock for schedules, <code>radio</code> for events, <code>webhook</code> for links, so a row never repeats the app mark. The open-window dot follows the single window.</div>
+        <div class="spec__demo">
+          <div class="plain sf-rail">
+            <div><aside class="rail"><nav class="rail-nav" aria-label="Dock before"><button class="rail-item" aria-label="Tasks"><svg data-lucide="list-checks"></svg><span class="run-dot"></span></button><button class="rail-item" aria-label="Loops"><svg data-lucide="repeat"></svg><span class="run-dot"></span></button><button class="rail-item is-open" aria-label="Jobs"><svg data-lucide="clock-3"></svg><span class="run-dot"></span></button><button class="rail-item" aria-label="Triggers"><svg data-lucide="zap"></svg><span class="run-dot"></span></button></nav></aside><p class="sf-cap">before</p></div>
+            <span class="sf-arrow"><svg data-lucide="arrow-right"></svg></span>
+            <div><aside class="rail"><nav class="rail-nav" aria-label="Dock after"><button class="rail-item" aria-label="Tasks"><svg data-lucide="list-checks"></svg><span class="run-dot"></span></button><button class="rail-item" aria-label="Loops"><svg data-lucide="repeat"></svg><span class="run-dot"></span></button><button class="rail-item is-open is-active" aria-label="Automations" style="position:relative"><svg data-lucide="zap"></svg><span class="run-dot"></span><span class="sf-tip">Automations</span></button></nav></aside><p class="sf-cap">after</p></div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>app id</b>automations · paths ["/automations"]</span><span class="au-tag"><b>regime</b>internal (ids) · user state (saved layouts, see 05)</span><span class="au-tag"><b>VC</b>surfaces/VC-01</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" id="sf-palette" data-od-id="sf-palette">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Command palette — one view, one section</h2><span class="lab-sec__gist">surfaces VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Search finds both kinds.</b> The "Jobs" and "Triggers" domain views merge into <b>Automations</b>. Entity results show the kind glyph and the sentence as the subtitle. Two creation verbs keep the shortcut into each start: "New scheduled automation" and "New automation on an event".</div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:560px">
+            <div class="menu" role="listbox" style="position:static;width:100%">
+              <p class="menu-label">Automations</p>
+              <button class="menu-item is-active"><svg data-lucide="clock-3"></svg><span style="flex:1;min-width:0">morning-digest <span style="color:var(--subtle);font-size:12px">· Every weekday at 09:00 UTC, ask summarizer</span></span></button>
+              <button class="menu-item"><svg data-lucide="radio"></svg><span style="flex:1;min-width:0">summarize-failures <span style="color:var(--subtle);font-size:12px">· When a session stops with an error…</span></span></button>
+              <button class="menu-item"><svg data-lucide="webhook"></svg><span style="flex:1;min-width:0">deploy-webhook <span style="color:var(--subtle);font-size:12px">· When another app calls the deploy link…</span></span></button>
+              <div class="menu-sep"></div>
+              <p class="menu-label">Actions</p>
+              <button class="menu-item"><svg data-lucide="plus"></svg>New scheduled automation</button>
+              <button class="menu-item"><svg data-lucide="plus"></svg>New automation on an event</button>
+              <button class="menu-item"><svg data-lucide="zap"></svg>Open Automations</button>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>deep links</b>/automations/jobs/{id} · /automations/triggers/{id}</span><span class="au-tag"><b>VC</b>surfaces/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" id="sf-settings" data-od-id="sf-settings">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Settings › Automation — one Manage row, plainer copy</h2><span class="lab-sec__gist">surfaces VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same settings, one destination.</b> The Manage group links to the one window with combined counts. "Max jobs at once" becomes "Scheduled automations at once": the cap (<code>max_concurrent_jobs</code>) only applies to schedules, so the label says so. The config keys don't change.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><span class="lab-cell__t">before</span><div class="plain plain--canvas"><div class="sgroup"><p class="sgroup__t">Manage</p></div><div class="panelbox"><div class="srow srow--link"><div class="srow__main"><div class="srow__label">Jobs</div><div class="srow__desc">4 defined, 3 enabled</div></div><div class="srow__ctl"><svg class="chev" data-lucide="chevron-right"></svg></div></div><div class="srow srow--link"><div class="srow__main"><div class="srow__label">Triggers</div><div class="srow__desc">3 defined, 3 enabled</div></div><div class="srow__ctl"><svg class="chev" data-lucide="chevron-right"></svg></div></div></div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">after</span><div class="plain plain--canvas"><div class="sgroup"><p class="sgroup__t">Manage</p></div><div class="panelbox"><div class="srow srow--link"><div class="srow__main"><div class="srow__label"><svg data-lucide="zap" style="width:14px;height:14px;color:var(--muted)"></svg>Automations</div><div class="srow__desc">7 automations, 6 on · 4 scheduled, 3 on events</div></div><div class="srow__ctl"><svg class="chev" data-lucide="chevron-right"></svg></div></div></div></div></div>
+          </div>
+          <div class="lab-del" style="margin-top:12px">
+            <div>Before</div><div>Key</div><div>After</div>
+            <div>"Turn on Run automation and restart CompozyOS. Jobs and triggers wait until then."</div><div class="reg">unavailable alert</div><div>"Turn on Run automation and restart CompozyOS. Your automations wait until then."</div>
+            <div>"Scheduled jobs run on this time zone"</div><div class="reg">time zone field</div><div>"Scheduled automations use this time zone"</div>
+            <div>"Max jobs at once" · "Caps the number of jobs running simultaneously"</div><div class="reg"><code>max_concurrent_jobs</code></div><div>"Scheduled automations at once" · "How many scheduled automations can run at the same time"</div>
+            <div>"Default fire limit" · "How often a new trigger can start work"</div><div class="reg"><code>default_fire_limit</code></div><div>"Default run limit" · "How often a new automation can start work"</div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>-automation-settings-page.tsx (SettingsLinkRow)</span><span class="au-tag"><b>VC</b>surfaces/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" id="sf-loop" data-od-id="sf-loop">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Loop page — "Automate ▾"</h2><span class="lab-sec__gist">surfaces VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Two buttons that meant one thing.</b> "Add trigger" and "Add schedule" become one <b>Automate</b> menu with the two ways to start. Each opens S3 with Starts chosen and Does = Start this Loop, locked to it (<code>?create=loop&amp;start=…&amp;loop=</code>). The Loop's Start panel counts the automations that start it ("Manual only" / "2 automations"), as ui-normie-pass planned.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><span class="lab-cell__t">head actions</span><div class="plain plain--canvas" style="min-height:190px"><div style="display:flex;gap:6px;justify-content:flex-end"><button class="btn btn--sm" type="button"><svg data-lucide="play"></svg>Run</button><div class="au-menu-host is-open"><button class="btn btn--ghost btn--sm" type="button" aria-haspopup="menu" aria-expanded="true"><svg data-lucide="zap"></svg>Automate<svg data-lucide="chevron-down"></svg></button><div class="menu" role="menu"><a class="menu-item" role="menuitem" href="automations-editor.html#ed-schedule"><svg data-lucide="clock-3"></svg>On a schedule</a><a class="menu-item" role="menuitem" href="automations-editor.html#ed-event"><svg data-lucide="radio"></svg>When something happens</a></div></div></div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">Start panel</span><div class="plain plain--canvas"><div class="rail-sec" style="padding:0"><p class="rail-sec__t">Starts</p><div class="prow"><span class="prow__k">By hand</span><span class="prow__v">Run button</span></div><div class="prow"><span class="prow__k">Automations</span><span class="prow__v"><a href="automations-list.html" style="color:var(--fg);text-decoration:underline;text-underline-offset:2px">2 automations</a></span></div></div><p class="fhint">Opens /automations?loop=software-delivery</p></div></div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>use-loop-detail.ts · loop Start panel</span><span class="au-tag"><b>VC</b>surfaces/VC-04</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" id="sf-routes" data-od-id="sf-routes">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Old links + saved desktops</h2><span class="lab-sec__gist">surfaces VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing a user saved breaks.</b> Bookmarks, notification links and open windows in saved desktops keep working. Routes redirect for one release (public regime). Saved layouts are user state: a stored-layout migration rewrites the app id and the route, and if both windows were open both stay, as two Automations windows. Closing one would lose its path.</div>
+        <div class="spec__demo">
+          <div class="lab-del">
+            <div>Old</div><div>Regime</div><div>New</div>
+            <div><code>/jobs</code> · <code>/jobs?enabled=…&amp;q=…</code></div><div class="reg">public · 1 release</div><div><code>/automations?start=schedule</code> (filters carried over)</div>
+            <div><code>/jobs/:jobId</code></div><div class="reg">public · 1 release</div><div><code>/automations/jobs/:jobId</code></div>
+            <div><code>/triggers</code> · <code>?event=…</code></div><div class="reg">public · 1 release</div><div><code>/automations?start=event</code> (<code>event</code> → <code>q</code>)</div>
+            <div><code>/triggers/:triggerId</code></div><div class="reg">public · 1 release</div><div><code>/automations/triggers/:triggerId</code></div>
+            <div><code>?create=loop&amp;loop=</code> on either</div><div class="reg">public · kept</div><div><code>/automations?create=loop&amp;start=schedule|event&amp;loop=</code></div>
+            <div>saved desktop window <code>{app:"jobs"}</code> / <code>{app:"triggers"}</code></div><div class="reg">user state · migrate</div><div><code>{app:"automations", path}</code>; both open → both stay, each on its own path</div>
+            <div>CLI <code>compozy automation jobs|triggers</code> · <code>/api/automation/*</code> · <code>compozy__automation_*</code></div><div class="reg">public · unchanged</div><div>same. These are the canonical nouns one step deeper</div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>SD-013</b>one shim generation · removal release named in the spec</span><span class="au-tag"><b>VC</b>surfaces/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" id="sf-copy" data-od-id="sf-copy">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Copy and glossary</h2><span class="lab-sec__gist">surfaces VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Closes an open row.</b> COPY.md:259 and glossary:431 kept "Jobs / Triggers — pending owner decision". This set is that decision. Both tables are edited together (COPY.md rule).</div>
+        <div class="spec__demo">
+          <div class="lab-del">
+            <div>Surface alias</div><div>Canonical</div><div>Rule</div>
+            <div><span class="sf-strike">Jobs / Triggers (dock titles)</span> → <b>Automations</b></div><div class="reg">job · trigger</div><div>UI only. Inspect, CLI and API keep job / trigger.</div>
+            <div>Starts · Only if · Does</div><div class="reg">schedule|event · filter · target</div><div>One rule grammar for detail, editor and sentence.</div>
+            <div>On / Off</div><div class="reg">enabled</div><div>Switch label everywhere for automations.</div>
+            <div>Handed off</div><div class="reg">delegated</div><div>Run status label on every surface.</div>
+            <div>Link (webhook automation)</div><div class="reg">webhook endpoint</div><div>"When another app calls a link"; "webhook" stays in the eyebrow and Inspect.</div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>files</b>COPY.md · docs/_memory/glossary.md</span><span class="au-tag"><b>VC</b>surfaces/VC-06</span></div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="automations.js"></script>
+</body>
+</html>

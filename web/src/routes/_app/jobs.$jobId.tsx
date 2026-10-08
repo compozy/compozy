@@ -1,17 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import type { TopbarRouteContext } from "@/types/topbar";
-import { createOsRouteSync } from "@/systems/os";
+import { redirectLegacyAutomationRoute } from "./-legacy-automation-redirect";
 
+// Shim: legacy URL redirect stub; remove in v0.5.0.
 export const Route = createFileRoute("/_app/jobs/$jobId")({
-  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    // Parent `/jobs` crumb already supplies the Jobs link — do not re-add parentCrumb.
-    topbar: { crumb: { label: params.jobId } },
-  }),
-  loader: async ({ context, params }) =>
-    (await import("./-automation-preload")).preloadAutomationJobDetailRoute(
-      context.queryClient,
-      params.jobId
-    ),
-  component: createOsRouteSync("jobs"),
+  beforeLoad: ({ location }) =>
+    redirectLegacyAutomationRoute({ pathname: location.pathname, search: {} }),
 });

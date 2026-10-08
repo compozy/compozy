@@ -49,9 +49,9 @@ const sensitivePattern =
 async function addWebhookBranchFilter(
   ui: ReturnType<typeof automationOperatorSelectors>
 ): Promise<void> {
-  await ui.triggerFilterAdd.click();
-  await ui.triggerFilterKey(0).fill("data.branch");
-  await ui.triggerFilterValue(0).fill("main");
+  await ui.conditionAdd.click();
+  await ui.conditionField(0).fill("data.branch");
+  await ui.conditionValue(0).fill("main");
 }
 
 interface AutomationTrigger {
@@ -166,15 +166,15 @@ test("operator manages a webhook trigger and verifies authentication replay and 
   const parityEvidence: Record<string, unknown> = {};
 
   await test.step("operator creates updates fires disables re-enables and deletes a webhook trigger with parity evidence", async () => {
-    const triggersWin = appWindow(appPage, "triggers");
+    const triggersWin = appWindow(appPage, "automations");
     const ui = automationOperatorSelectors(triggersWin, appPage);
     const shellUI = automationOperatorSelectors(appPage);
     await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(shellUI);
 
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-    await expect(ui.triggersShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+    await expect(ui.automationsShell).toBeVisible();
 
     const initialName = uniqueName("triggers-lifecycle");
     const editedName = `${initialName}-edited`;
@@ -184,27 +184,27 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     const prompt = browserAutomationOperatorFlowScenario.trigger.prompt;
     const editedPrompt = `{{ printf "Review payload %s for %s" (index .Data "payload") (index .Data "branch") }}`;
 
-    await ui.createTriggerButton.click();
+    await ui.automationsCreate.click();
     await expect(ui.editorDialog).toBeVisible();
-    await expect(ui.submitTriggerForm).toBeDisabled();
-    await ui.triggerNameInput.fill(initialName);
-    await ui.triggerAgentInput.click();
+    await expect(ui.formSubmit).toBeDisabled();
+    await ui.nameInput.fill(initialName);
+    await ui.agentInput.click();
     await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
-    await ui.triggerEventOption("webhook").click();
-    await expect(ui.triggerEndpointSlugInput).toBeVisible();
-    await ui.triggerPromptInput.fill(prompt);
+    await ui.startChoice("webhook").click();
+    await expect(ui.webhookSlug).toBeVisible();
+    await ui.promptInput.fill(prompt);
     await addWebhookBranchFilter(ui);
-    await ui.triggerEndpointSlugInput.fill(initialEndpointSlug);
-    await ui.triggerWebhookIDInput.fill(webhookID);
-    await ui.triggerWebhookSecretValueInput.fill(webhookSecret);
-    await expect(ui.submitTriggerForm).toBeEnabled();
+    await ui.webhookSlug.fill(initialEndpointSlug);
+    await ui.webhookId.fill(webhookID);
+    await ui.webhookSecret.fill(webhookSecret);
+    await expect(ui.formSubmit).toBeEnabled();
 
     const createResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/automation/triggers"
     );
-    await ui.submitTriggerForm.click();
+    await ui.formSubmit.click();
     const createBody = await (await createResponse).text();
     expect(createBody).not.toMatch(sensitivePattern);
     await expect(ui.editorDialog).toBeHidden();
@@ -212,23 +212,25 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     const created = await waitForTriggerByName(runtime, initialName);
     expect(created.webhook_secret_present).toBe(true);
     // Saving from the editor navigates straight to the new trigger's detail route.
-    await expect(appPage).toHaveURL(new RegExp(`/triggers/${created.id}$`), { timeout: 20_000 });
+    await expect(appPage).toHaveURL(new RegExp(`/automations/triggers/${created.id}(?:\\?.*)?$`), {
+      timeout: 20_000,
+    });
     await expect(windowTitle(triggersWin)).toContainText(initialName);
     await expect(ui.detailPanel).toContainText(webhookID);
     await expect(ui.detailPanel).not.toContainText(webhookSecret);
 
-    await ui.editTriggerButton.click();
+    await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
-    await ui.triggerNameInput.fill(editedName);
-    await ui.triggerPromptInput.fill(editedPrompt);
-    await ui.triggerEndpointSlugInput.fill(editedEndpointSlug);
+    await ui.nameInput.fill(editedName);
+    await ui.promptInput.fill(editedPrompt);
+    await ui.webhookSlug.fill(editedEndpointSlug);
     const updateResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "PATCH" &&
         new URL(response.url()).pathname ===
           `/api/automation/triggers/${encodeURIComponent(created.id)}`
     );
-    await ui.submitTriggerForm.click();
+    await ui.formSubmit.click();
     const updateBody = await (await updateResponse).text();
     expect(updateBody).not.toMatch(sensitivePattern);
     await expect(ui.editorDialog).toBeHidden();
@@ -292,11 +294,11 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     await ui.run(firstRun.id).click();
     await expect(ui.runOpenLink(firstRun.id)).toBeVisible();
 
-    await ui.triggerEnableSwitch.click();
+    await ui.enableSwitch.click();
     await expect
       .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
       .toBe(false);
-    await expect(ui.triggerEnableLabel).toContainText("Disabled");
+    await expect(ui.enableLabel).toHaveText("Off");
     const disabledDelivery = await deliverWebhook(runtime, {
       deliveryID: uniqueName("delivery-disabled"),
       endpoint,
@@ -307,11 +309,11 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     expect(disabledDelivery.body).toMatch(/disabled/i);
     expect(await triggerRunCount(runtime, updated.id)).toBe(1);
 
-    await ui.triggerEnableSwitch.click();
+    await ui.enableSwitch.click();
     await expect
       .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
       .toBe(true);
-    await expect(ui.triggerEnableLabel).toContainText("Enabled");
+    await expect(ui.enableLabel).toHaveText("On");
     const reenabledDelivery = await deliverWebhook(runtime, {
       deliveryID: uniqueName("delivery-reenabled"),
       endpoint,
@@ -370,7 +372,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
       automation_active_tab: "triggers",
       automation_detail_overflow_visible: true,
       automation_run_count: expect.any(Number),
-      automation_run_history_visible: true,
+      automation_run_list_visible: true,
       automation_selected_item: editedName,
       // One open drawer at a time: the accordion never shows two session links at once.
       automation_session_link_count: 1,
@@ -393,7 +395,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
       browserAutomationOperatorFlowScenario.transcript.assistant
     );
 
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
     await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(updated.id).click();
     await ui.detailOverflow.click();
@@ -435,7 +437,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
   });
 
   await test.step("operator sees fire-limit rejection across browser and runtime surfaces", async () => {
-    const triggersWin = appWindow(appPage, "triggers");
+    const triggersWin = appWindow(appPage, "automations");
     const ui = automationOperatorSelectors(triggersWin, appPage);
     const shellUI = automationOperatorSelectors(appPage);
     const trigger = await createTrigger(
@@ -451,11 +453,12 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(shellUI);
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-    await expect(ui.triggersShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(trigger.id).click();
-    await expect(ui.detailPanel).toContainText("No retry · 1 / hour");
+    await expect(ui.railReliability).toContainText("No retries");
+    await expect(ui.railReliability).toContainText("Up to 1 run per hour");
 
     const accepted = await deliverWebhook(runtime, {
       deliveryID: uniqueName("delivery-fire-limit-first"),
@@ -495,7 +498,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     );
     await expect(ui.run(limitedRun?.id ?? "")).toBeVisible();
     await expect(ui.run(limitedRun?.id ?? "")).toContainText("Failed");
-    await expect(ui.runHistory).toContainText("Completed");
+    await expect(ui.runList).toContainText("Completed");
     const acceptedWorkspaceID = await resolveAutomationWorkspaceID(
       runtime,
       acceptedRun.workspace_id
@@ -527,7 +530,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   browserArtifacts,
   runtime,
 }) => {
-  const triggersWin = appWindow(appPage, "triggers");
+  const triggersWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const trigger = await createTrigger(
@@ -544,12 +547,11 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await ensureProjectWorkspace(appPage, runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(shellUI);
-  await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-  await expect(ui.triggersShell).toBeVisible();
+  await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+  await expect(ui.automationsShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
   await ui.itemLink(trigger.id).click();
-  await ui.triggerRailReliability.click();
-  await expect(ui.triggerDetailRail).toContainText("Backoff · 1 time");
+  await expect(ui.railReliability).toContainText("Up to 1, waiting longer each time");
 
   const delivery = await deliverWebhook(runtime, {
     deliveryID: uniqueName("delivery-failure"),
@@ -603,7 +605,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   expect(routeState).toMatchObject({
     automation_active_tab: "triggers",
     automation_run_count: expect.any(Number),
-    automation_run_history_visible: true,
+    automation_run_list_visible: true,
     automation_selected_item: trigger.name,
     automation_view_visible: true,
   });
@@ -949,24 +951,23 @@ async function assertTriggersViewportMatrix(
   runtime: BrowserRuntime,
   triggerID: string
 ): Promise<void> {
-  const triggersWin = appWindow(appPage, "triggers");
+  const triggersWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-    await expect(ui.triggersShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(triggerID).click();
-    await expect(ui.runHistory).toBeVisible();
+    await expect(ui.runList).toBeVisible();
     await browserArtifacts.captureScreenshot(
       `triggers-lifecycle-history-viewport-${width}`,
       appPage
     );
-    await ui.detailOverflow.click();
-    await appPage.getByTestId("edit-automation-btn").click();
+    await ui.editAutomationButton.click();
     await expect(ui.editorDialog).toBeVisible();
-    await expect(ui.triggerEndpointSlugInput).toBeVisible();
-    await expect(ui.submitTriggerForm).toBeEnabled();
+    await expect(ui.webhookSlug).toBeVisible();
+    await expect(ui.formSubmit).toBeEnabled();
     await browserArtifacts.captureScreenshot(
       `triggers-lifecycle-editor-viewport-${width}`,
       appPage
@@ -984,15 +985,15 @@ async function assertTriggerRunViewportMatrix(
   runID: string,
   prefix: string
 ): Promise<void> {
-  const triggersWin = appWindow(appPage, "triggers");
+  const triggersWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-    await expect(ui.triggersShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(triggerID).click();
-    await expect(ui.runHistory).toBeVisible();
+    await expect(ui.runList).toBeVisible();
     await expect(ui.run(runID)).toBeVisible();
     await browserArtifacts.captureScreenshot(`${prefix}-viewport-${width}`, appPage);
   }

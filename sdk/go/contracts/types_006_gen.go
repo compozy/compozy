@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type ContextPostCompactPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type ContextPostCompactPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -258,9 +262,4 @@ type DescribeProfile struct {
 type DescribeProfileCredential struct {
 	Provider string `json:"provider"`
 	Slot     string `json:"slot"`
-}
-
-type DescribeProfileDefaults struct {
-	Agent    string `json:"agent,omitempty"`
-	Provider string `json:"provider,omitempty"`
 }

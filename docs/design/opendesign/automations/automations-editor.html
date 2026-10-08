@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Editor · Automations · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="automations.css">
+<!--
+  automations-editor · S3 — one create/edit dialog for every automation.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — AutomationEditorDialog (dialogShellClass lg, EntityDialogHeader/Body/Footer,
+                 disablePointerDismissal), job form (cron presets + rhythm builder, every chips, at
+                 datetime, agent/task/Loop targets, reliability incl. missed runs), trigger form (event
+                 catalog + sub-config, conditions = exact match AND, prompt template variables, webhook
+                 slug/id/secret, Loop mapping), preview swap ("Show live preview"), destination statement.
+    delta      — Starts / Only if / Does / Options as one numbered form; three start cards decide job vs
+                 trigger; Create a task disabled for events; live sentence in the modebar (shape B);
+                 one Options fold with a mono summary; edit-mode locks say why.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ed-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Automations</a><span class="w2-sep">/</span><h1 class="w2-title">S3 · Editor</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="automations-detail.html">← Detail</a><a class="btn btn--sm" href="automations-surfaces.html">Next: Surfaces →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="au-contract" data-od-id="ed-contract" aria-label="What this board is">
+      <div class="au-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="au-contract__what"><b>S3 — one dialog makes any automation.</b> You answer two questions in plain words: <b>when does it start</b> (on a schedule, when something happens, or when another app calls a link) and <b>what does it do</b> (ask an agent, start a Loop, or create a task). The first answer decides, out of sight, whether the daemon stores a job or a trigger. A sentence at the top rewrites itself as you go, so you can read what you are about to create before you create it.</p>
+        <p class="au-contract__file">automations-editor.html · S3 · /automations?create=1&amp;start=schedule|event|webhook · ?create=loop&amp;loop=</p>
+      </div>
+      <div class="au-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="au-mods">
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>AutomationEditorDialog</b><i>systems/automation/components/automation-editor-dialog.tsx</i>one head ("New automation"), the sentence bar, routes the save to jobs or triggers</span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>AutomationForm</b><i>components/automation-form/</i>merges automation-job-form + automation-trigger-form; <code>starts/</code> · <code>does/</code> · options</span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>useAutomationForm</b><i>hooks/use-automation-form.ts</i>merges use-automation-job-form + use-automation-trigger-form; validation + draft → request</span></li>
+          <li><span class="au-mod au-mod--new">new</span><span><b>AutomationEditorSentenceBar</b><i>automation-form/sentence-bar.tsx</i>describeAutomation(draft) + Ready / Needs a fix</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>cron-builder · schedule-every · schedule-at · event-catalog · event-sub-config · filter-conditions · agent steps · task-run-step</b><i>job-form/* · trigger-form/*</i>move under starts/ and does/; copy rewritten</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>reliability-section ×2 → automation-options</b><i>reliability-controls.tsx</i>one fold; missed runs only for schedules</span></li>
+          <li><span class="au-mod au-mod--modify">modify</span><span><b>job-preview + trigger-preview → automation-preview</b><i>preview/*</i>same swap behavior; cards per kind</span></li>
+          <li><span class="au-mod au-mod--reuse">reuse</span><span><b>Dialog · EntityDialog* · FormSection · Field · RadioCard · PillGroup · Input · Textarea · NativeSelect · Switch · Collapsible · JsonViewer · AgentCommandSelect · LoopTargetFields · CreateDestinationStatement</b><i>unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="au-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="au-states">
+          <li><a href="#ed-new">New automation — interactive</a><code>editor VC-01</code></li>
+          <li><a href="#ed-preview">Preview</a><code>editor VC-02</code></li>
+          <li><a href="#ed-options">Options open</a><code>editor VC-03</code></li>
+          <li><a href="#ed-edit">Edit — what is locked and why</a><code>editor VC-04</code></li>
+          <li><a href="#ed-fix">Needs a fix</a><code>editor VC-05</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · NEW (interactive) ===== -->
+    <section class="lab-sec" id="ed-new" data-od-id="ed-new">
+      <span id="ed-schedule"></span><span id="ed-event"></span><span id="ed-webhook"></span>
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">New automation — Starts → Only if → Does → Options</h2><span class="lab-sec__gist">editor VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Click through it.</b> Pick a start, a schedule preset or weekdays, an event, a target. Clear the agent to see "Needs a fix". The sentence bar, the readout and the footer button follow the same draft. <b>Create a task</b> greys out for events, because only jobs can create tasks. Webhook forces Global. The footer statement says where the automation will be created.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad stage--auto" style="padding:28px 20px 40px">
+            <div class="dialog dialog--lg au-dialog" role="dialog" aria-modal="true" aria-labelledby="ed-title" style="grid-template-rows:auto auto auto auto" data-od-id="ed-dialog">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="zap"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow">Automation</span><h3 class="dialog__title" id="ed-title">New automation</h3><p class="dialog__desc">Choose <b>when it starts</b> and <b>what it does</b>. You can turn it off any time.</p></div>
+                <button class="dialog__close" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div><i class="au-n au-n--abs" style="right:52px;top:22px">1</i>
+              <div class="dialog__modebar au-sbar" data-od-id="ed-sentence">
+                <p class="au-sbar__s" id="ed-s" aria-live="polite"></p>
+                <span class="pill" id="ed-status"></span><i class="au-n">2</i>
+              </div>
+
+              <div class="dialog__body" id="ed-form">
+                <div class="dialog__sec">
+                  <div class="dialog__sec-head"><span class="dialog__sec-num">01</span><span class="dialog__sec-title">Name</span><span class="dialog__sec-sub">How you'll find it in the list</span></div>
+                  <div class="ffield"><input class="input input--mono" id="ed-name" value="morning-digest" placeholder="morning-digest" aria-label="Automation name"></div>
+                </div>
+
+                <div class="dialog__sec">
+                  <div class="dialog__sec-head"><span class="dialog__sec-num">02</span><span class="dialog__sec-title">Starts</span><span class="dialog__sec-sub">When should it run?</span><i class="au-n">3</i></div>
+                  <div class="au-start-grid" role="radiogroup" aria-label="When it starts">
+                    <button class="choice" type="button" role="radio" aria-checked="true" data-start="schedule"><span class="choice__ic"><svg data-lucide="clock-3"></svg></span><span class="choice__name">On a schedule</span><span class="choice__desc">Every morning, every hour, or once at a set time.</span></button>
+                    <button class="choice" type="button" role="radio" aria-checked="false" data-start="event"><span class="choice__ic"><svg data-lucide="radio"></svg></span><span class="choice__name">When something happens</span><span class="choice__desc">A session starts or stops, a hook finishes, an extension sends an event.</span></button>
+                    <button class="choice" type="button" role="radio" aria-checked="false" data-start="webhook"><span class="choice__ic"><svg data-lucide="webhook"></svg></span><span class="choice__name">When another app calls a link</span><span class="choice__desc">GitHub, CI or any service sends a signed request.</span></button>
+                  </div>
+
+                  <!-- schedule · job.schedule {mode cron|every|at} -->
+                  <div class="au-inset" data-for-start="schedule">
+                    <div class="pill-group pill-group--sm" role="group" aria-label="Schedule type">
+                      <button class="pill-group__item is-on" type="button" data-mode="cron"><svg data-lucide="repeat"></svg>Repeats</button>
+                      <button class="pill-group__item" type="button" data-mode="every"><svg data-lucide="timer"></svg>Every…</button>
+                      <button class="pill-group__item" type="button" data-mode="at"><svg data-lucide="calendar-check"></svg>Once</button>
+                    </div><i class="au-n au-n--abs" style="right:14px;top:16px">4</i>
+                    <div data-for-mode="cron" style="display:flex;flex-direction:column;gap:12px">
+                      <div class="au-chips" role="group" aria-label="Quick picks">
+                        <button class="au-chip" type="button" data-preset="weekdays" aria-pressed="true">Weekdays 9am</button>
+                        <button class="au-chip" type="button" data-preset="daily" aria-pressed="false">Every day 9am</button>
+                        <button class="au-chip" type="button" data-preset="monday" aria-pressed="false">Mondays 8am</button>
+                        <button class="au-chip" type="button" data-preset="hourly" aria-pressed="false">Every hour</button>
+                        <button class="au-chip" type="button" data-preset="midnight" aria-pressed="false">Midnight</button>
+                      </div>
+                      <div class="au-inline" id="ed-daysrow"><span>On</span><span class="au-days" role="group" aria-label="Days">
+                        <button class="au-day" type="button" data-day="0">Su</button><button class="au-day" type="button" data-day="1">Mo</button><button class="au-day" type="button" data-day="2">Tu</button><button class="au-day" type="button" data-day="3">We</button><button class="au-day" type="button" data-day="4">Th</button><button class="au-day" type="button" data-day="5">Fr</button><button class="au-day" type="button" data-day="6">Sa</button>
+                      </span><span>at</span><input class="input" type="time" id="ed-time" value="09:00" aria-label="Time"></div>
+                      <div class="au-readout" data-ok="true" id="ed-cron-readout"><svg data-lucide="circle-check"></svg><span></span><span class="tz">UTC</span></div>
+                      <details><summary class="au-linkbtn" style="list-style:none;cursor:pointer">Edit expression</summary><div class="ffield" style="margin-top:8px"><input class="input input--mono" id="ed-cron" value="0 9 * * 1-5" aria-label="Cron expression"><p class="fhint">min · hour · day · month · weekday</p></div></details>
+                    </div>
+                    <div data-for-mode="every" hidden style="display:flex;flex-direction:column;gap:12px">
+                      <div class="au-chips"><button class="au-chip" type="button" data-every="5m" aria-pressed="false">5m</button><button class="au-chip" type="button" data-every="15m" aria-pressed="false">15m</button><button class="au-chip" type="button" data-every="30m" aria-pressed="true">30m</button><button class="au-chip" type="button" data-every="1h" aria-pressed="false">1h</button><button class="au-chip" type="button" data-every="4h" aria-pressed="false">4h</button><button class="au-chip" type="button" data-every="24h" aria-pressed="false">24h</button></div>
+                      <div class="au-readout" data-ok="true"><svg data-lucide="circle-check"></svg><span id="ed-every-readout">Runs every 30 minutes, starting right after you save.</span></div>
+                    </div>
+                    <div data-for-mode="at" hidden style="display:flex;flex-direction:column;gap:12px">
+                      <div class="au-inline"><input class="input" type="datetime-local" id="ed-at" value="2026-10-08T09:00" aria-label="Date and time"><span class="au-micro">2026-10-08T09:00:00Z</span></div>
+                      <div class="au-readout" data-ok="true"><svg data-lucide="circle-check"></svg><span>Runs once, in 14h (Thu Oct 8, 09:00 UTC), then stops.</span></div>
+                    </div>
+                  </div>
+
+                  <!-- event · trigger.event (memory.consolidated intentionally absent — memory-removal) -->
+                  <div class="au-inset" data-for-start="event" hidden>
+                    <div class="au-events" role="radiogroup" aria-label="What happens">
+                      <button class="choice" type="button" role="radio" aria-checked="false" data-event="session.created"><span class="choice__ic"><svg data-lucide="circle-play"></svg></span><div><span class="choice__name">A session starts</span><span class="choice__desc">An agent session begins in this project.</span></div></button>
+                      <button class="choice is-on" type="button" role="radio" aria-checked="true" data-event="session.stopped"><span class="choice__ic"><svg data-lucide="circle-stop"></svg></span><div><span class="choice__name">A session stops</span><span class="choice__desc">It finished, was canceled, or failed.</span></div></button>
+                      <button class="choice" type="button" role="radio" aria-checked="false" data-event="hook"><span class="choice__ic"><svg data-lucide="anchor"></svg></span><div><span class="choice__name">A hook finishes</span><span class="choice__desc">A named hook succeeds or fails.</span></div></button>
+                      <button class="choice" type="button" role="radio" aria-checked="false" data-event="ext"><span class="choice__ic"><svg data-lucide="puzzle"></svg></span><div><span class="choice__name">An extension sends an event</span><span class="choice__desc">A custom event from an installed extension.</span></div></button>
+                    </div>
+                    <div class="ffield" data-for-event="hook" hidden><label class="flabel" for="ed-hook">Hook name</label><input class="input input--mono" id="ed-hook" placeholder="transform"><p class="fhint">Runs when <span class="au-micro">hook.&lt;name&gt;.completed</span> fires.</p></div>
+                    <div class="fgrid-2" data-for-event="ext" hidden><div class="ffield"><label class="flabel" for="ed-ext">Extension</label><input class="input input--mono" id="ed-ext" placeholder="release"></div><div class="ffield"><label class="flabel" for="ed-extev">Event</label><input class="input input--mono" id="ed-extev" placeholder="deploy-started"></div></div>
+                  </div>
+
+                  <!-- webhook · trigger.event=webhook · endpoint_slug, webhook_id, webhook_secret_value (write-only) -->
+                  <div class="au-inset" data-for-start="webhook" hidden>
+                    <div class="notice notice--info"><svg data-lucide="info"></svg><div>Link automations are always <b>Global</b>. They aren't tied to one project.</div></div>
+                    <div class="fgrid-2"><div class="ffield"><label class="flabel" for="ed-slug">Link name</label><input class="input input--mono" id="ed-slug" value="deploy" placeholder="ci-deploys"></div><div class="ffield"><label class="flabel" for="ed-wid">Webhook id</label><input class="input input--mono" id="ed-wid" value="wbh_abc123" placeholder="wbh_…"></div></div>
+                    <div class="ffield"><label class="flabel" for="ed-secret">Signing secret <span class="opt">write-only</span></label><input class="input input--mono" id="ed-secret" type="password" value="whsec_demo" placeholder="whsec_…"><p class="fhint">The other app signs each request with this. CompozyOS never shows it again.</p></div>
+                  </div>
+                </div>
+
+                <div class="dialog__sec" data-for-start="event webhook" hidden>
+                  <div class="dialog__sec-head"><span class="dialog__sec-num">03</span><span class="dialog__sec-title">Only if</span><span class="dialog__sec-sub">Optional. Every condition must match.</span><i class="au-n">5</i></div>
+                  <div style="display:flex;flex-direction:column;gap:8px" id="ed-conds">
+                    <div class="au-cond"><select class="input" aria-label="Field"><option>Stop reason (data.stop_reason)</option><option>Agent (data.agent_name)</option><option>Session type (data.session_type)</option></select><span class="eq">=</span><input class="input input--mono" value="error" aria-label="Value" id="ed-cond-v"><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="Remove condition"><svg data-lucide="x"></svg></button></div>
+                  </div>
+                  <button class="btn btn--ghost btn--sm" type="button" style="margin-top:8px"><svg data-lucide="plus"></svg>Add condition</button>
+                  <p class="fhint">With no conditions, every event of this kind starts it.</p>
+                </div>
+
+                <div class="dialog__sec">
+                  <div class="dialog__sec-head"><span class="dialog__sec-num" id="ed-does-num">03</span><span class="dialog__sec-title">Does</span><span class="dialog__sec-sub">What should happen?</span><i class="au-n">6</i></div>
+                  <div class="au-start-grid" role="radiogroup" aria-label="What it does">
+                    <button class="choice" type="button" role="radio" aria-checked="true" data-does="agent"><span class="choice__ic"><svg data-lucide="bot"></svg></span><span class="choice__name">Ask an agent</span><span class="choice__desc">Send a message to an agent in a new session.</span></button>
+                    <button class="choice" type="button" role="radio" aria-checked="false" data-does="loop"><span class="choice__ic"><svg data-lucide="repeat-2"></svg></span><span class="choice__name">Start a Loop</span><span class="choice__desc">Run one of your Loops with set inputs.</span></button>
+                    <button class="choice" type="button" role="radio" aria-checked="false" data-does="task"><span class="choice__ic"><svg data-lucide="square-check"></svg></span><span class="choice__name">Create a task</span><span class="choice__desc">Add a task for an agent pool or a person.</span><span class="lockline" hidden><svg data-lucide="lock"></svg>Only scheduled automations can create tasks</span></button>
+                  </div>
+                  <div class="au-inset" data-for-does="agent">
+                    <div class="ffield"><label class="flabel" for="ed-agent">Agent</label><select class="input" id="ed-agent"><option value="summarizer">summarizer</option><option value="reviewer">reviewer</option><option value="deployer">deployer</option><option value="">Choose an agent…</option></select></div>
+                    <div class="ffield"><label class="flabel" for="ed-prompt">Message</label><textarea class="textarea" id="ed-prompt">Summarize yesterday's sessions in checkout-api for the team channel.</textarea>
+                      <p class="fhint" data-for-start="schedule">Sent as written.</p>
+                      <div data-for-start="event webhook" hidden><p class="fhint">Add details from the event:</p><div class="au-chips" style="margin-top:6px"><button class="au-chip" type="button" data-var="{{ .Data.session_id }}"><span class="mono">session_id</span></button><button class="au-chip" type="button" data-var="{{ .Data.agent_name }}"><span class="mono">agent_name</span></button><button class="au-chip" type="button" data-var="{{ .Data.stop_reason }}"><span class="mono">stop_reason</span></button><button class="au-chip" type="button" data-var="{{ .WorkspaceID }}"><span class="mono">workspace</span></button></div></div>
+                    </div>
+                  </div>
+                  <div class="au-inset" data-for-does="loop" hidden>
+                    <div class="ffield"><label class="flabel" for="ed-loop">Loop</label><select class="input" id="ed-loop"><option>software-delivery</option><option>release-train</option></select></div>
+                    <div class="fgrid-2"><div class="ffield"><label class="flabel">target_branch</label><input class="input input--mono" value="main"></div><div class="ffield"><label class="flabel">implementer</label><input class="input input--mono" value="code_implementer"></div></div>
+                    <div class="ffield" data-for-start="event webhook" hidden><label class="flabel">Fill from the event <span class="opt">optional</span></label><div class="au-cond" style="grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr)"><input class="input input--mono" value="slug" aria-label="Loop input"><span class="eq">←</span><input class="input input--mono" value="data.session_name" aria-label="Event field"></div></div>
+                  </div>
+                  <div class="au-inset" data-for-does="task" hidden>
+                    <div class="ffield"><label class="flabel" for="ed-task">Task title</label><input class="input" id="ed-task" value="Review dependency updates"></div>
+                    <div class="fgrid-2"><div class="ffield"><label class="flabel">For</label><select class="input"><option>Agent pool</option><option>Person</option><option>Anyone available</option></select></div><div class="ffield"><label class="flabel">Name</label><input class="input input--mono" value="reviewers"></div></div>
+                    <p class="fhint">Each run creates a new task. The task handles its own retries.</p>
+                  </div>
+                </div>
+
+                <div class="dialog__sec" id="ed-options">
+                  <button class="adv-toggle" type="button" aria-expanded="false" id="ed-opt-t" aria-controls="ed-opt-b"><svg class="chev" data-lucide="chevron-right"></svg>Options<span class="au-sum" id="ed-opt-sum">No retries · up to 12/hour · skip missed · on</span><i class="au-n" style="margin-right:0">7</i></button>
+                  <div class="au-opts" id="ed-opt-b" hidden>
+                    <div class="au-opt"><div><div class="au-opt__l">Retry if it fails</div><div class="au-opt__d">Try again, waiting longer each time.</div></div><div class="au-opt__c"><div class="pill-group pill-group--sm"><button class="pill-group__item is-on" type="button">No</button><button class="pill-group__item" type="button">Up to 3 times</button></div></div></div>
+                    <div class="au-opt"><div><div class="au-opt__l">Run limit</div><div class="au-opt__d">Stops a runaway automation.</div></div><div class="au-opt__c"><input class="input input--mono" value="12" aria-label="Max runs"><span class="au-micro">per</span><input class="input input--mono" value="1h" aria-label="Window"></div></div>
+                    <div class="au-opt" data-for-start="schedule"><div><div class="au-opt__l">If CompozyOS was off at the start time</div><div class="au-opt__d">What to do with runs it missed.</div></div><div class="au-opt__c"><select class="input" style="width:200px" aria-label="Missed runs"><option>Skip them</option><option>Run once to catch up</option><option>Run every missed time</option></select></div></div>
+                    <div class="au-opt"><div><div class="au-opt__l">Turn on after saving</div><div class="au-opt__d">Off keeps it saved without running.</div></div><div class="au-opt__c"><button class="switch" type="button" role="switch" aria-checked="true" aria-label="Turn on after saving" onclick="this.setAttribute('aria-checked',this.getAttribute('aria-checked')!=='true')"><span class="knob"></span></button></div></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dialog__body" id="ed-preview" hidden>
+                <div class="au-preview">
+                  <div class="au-pcard"><span class="eyebrow"><svg data-lucide="text"></svg>Summary</span><p class="au-sbar__s" id="ed-pv-s"></p></div>
+                  <div class="au-pcard" data-for-start="schedule"><span class="eyebrow"><svg data-lucide="clock-3"></svg>Next runs<span class="r">UTC</span></span><ol class="au-next"><li><span class="i">1</span><span class="rel">in 14h</span><span class="abs">Thu Oct 8, 09:00</span></li><li><span class="i">2</span><span class="rel">in 1d 14h</span><span class="abs">Fri Oct 9, 09:00</span></li><li><span class="i">3</span><span class="rel">in 4d 14h</span><span class="abs">Mon Oct 12, 09:00</span></li></ol></div>
+                  <div class="au-pcard" data-for-start="event webhook" hidden><span class="eyebrow"><svg data-lucide="braces"></svg>Sample event<span class="r" style="color:var(--success)">matches this sample</span></span><div class="au-code">{ "kind": "session.stopped", "workspace_id": "ws_checkout_api",
+  "data": { "session_id": "sess_9f2a1c", "agent_name": "reviewer", "stop_reason": "error" } }</div></div>
+                  <div class="au-pcard"><span class="eyebrow"><svg data-lucide="code"></svg>Request<span class="r" id="ed-pv-route">POST /api/automation/jobs</span></span><p class="fhint" style="margin:0">Write-only values are redacted.</p></div>
+                </div>
+              </div>
+
+              <div class="dialog__foot">
+                <button class="btn btn--ghost btn--sm" type="button" id="ed-pv-t" aria-pressed="false"><svg data-lucide="eye"></svg><span>Show preview</span></button>
+                <span class="dialog__foot-note"><svg data-lucide="info"></svg><span id="ed-dest">Creates in <b>checkout-api</b>.</span></span>
+                <button class="btn" type="button">Cancel</button>
+                <button class="btn btn--primary" type="button" id="ed-save"><svg data-lucide="check"></svg>Create automation</button><i class="au-n">8</i>
+              </div>
+            </div>
+          </div>
+          <ul class="au-legend">
+            <li><i class="au-n">1</i><span><b>One head</b> <em>neutral bolt well (the app mark, never accent) · eyebrow "Automation" · "New automation" / "Edit automation". Replaces "Automation · Job / Create job" and "Automation · Trigger / Create trigger".</em></span></li>
+            <li><i class="au-n">2</i><span><b>Sentence bar</b> <em>modebar shape B: describeAutomation(draft), with the same grammar as the detail page head. Missing parts render dashed ("an agent"). Pill: success "Ready" or warning "Needs a fix".</em></span></li>
+            <li><i class="au-n">3</i><span><b>Starts decides the entity</b> <em>schedule → <code>POST /api/automation/jobs</code>; event or link → <code>POST /api/automation/triggers</code>. RadioCards with neutral selection.</em></span></li>
+            <li><i class="au-n">4</i><span><b>Schedule</b> <em>Repeats / Every… / Once (cron / every / at). Quick picks, then days plus time. The custom expression hides behind "Edit expression". The readout states the zone.</em></span></li>
+            <li><i class="au-n">5</i><span><b>Only if</b> <em>events and links only. Exact match, AND. The field picker shows the friendly name with its path. Switching events drops conditions that no longer fit (production).</em></span></li>
+            <li><i class="au-n">6</i><span><b>Does</b> <em>Ask an agent / Start a Loop / Create a task. Task is locked for events with a visible reason. Event messages offer click-to-insert details (Go template chips).</em></span></li>
+            <li><i class="au-n">7</i><span><b>Options</b> <em>one fold with a mono summary: retries, run limit, missed runs (schedules only), turn on after saving. It opens itself when editing, when retries are on, or when the automation is off.</em></span></li>
+            <li><i class="au-n">8</i><span><b>Footer</b> <em>production order: preview toggle · destination statement · Cancel · primary. "Create automation" / "Save changes" / "Saving…". Disabled until Ready.</em></span></li>
+          </ul>
+          <div class="au-tags"><span class="au-tag"><b>state</b>draft · schedule · weekdays 09:00 · agent summarizer</span><span class="au-tag"><b>component</b>AutomationEditorDialog · AutomationForm</span><span class="au-tag"><b>VC</b>editor/VC-01</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · PREVIEW ===== -->
+    <section class="lab-sec" id="ed-preview-sec" data-od-id="ed-preview-sec">
+      <span id="ed-preview-anchor"></span>
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Preview — what will happen, before it does</h2><span class="lab-sec__gist">editor VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same swap as production.</b> "Show preview" replaces the form body and keeps every value. Schedules show the next runs. Events show a sample event and whether it would match. Both end with the request, values redacted. Press "Show preview" in 01 to see it live.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas"><div class="lab-grid lab-grid--2">
+            <div class="au-pcard"><span class="eyebrow"><svg data-lucide="clock-3"></svg>Next runs<span class="r">UTC</span></span><ol class="au-next"><li><span class="i">1</span><span class="rel">in 14h</span><span class="abs">Thu Oct 8, 09:00</span></li><li><span class="i">2</span><span class="rel">in 1d 14h</span><span class="abs">Fri Oct 9, 09:00</span></li><li><span class="i">3</span><span class="rel">in 4d 14h</span><span class="abs">Mon Oct 12, 09:00</span></li><li><span class="i">4</span><span class="rel">in 5d 14h</span><span class="abs">Tue Oct 13, 09:00</span></li></ol></div>
+            <div class="au-pcard"><span class="eyebrow"><svg data-lucide="braces"></svg>Sample event<span class="r" style="color:var(--warning)">won't start on this sample</span></span><div class="au-code">{ "kind": "session.stopped",
+  "data": { "stop_reason": <span style="color:var(--warning)">"completed"</span> } }</div><p class="fhint" style="margin-top:8px">Stop reason must be <span class="au-val">error</span>.</p></div>
+          </div></div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>AutomationPreview (job-preview + trigger-preview)</span><span class="au-tag"><b>VC</b>editor/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · OPTIONS OPEN ===== -->
+    <section class="lab-sec" id="ed-options-sec" data-od-id="ed-options-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Options open — retries on</h2><span class="lab-sec__gist">editor VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Plain questions, real fields.</b> Each line maps to the daemon. "Retry if it fails" is <code>retry.strategy</code>, with <code>max_retries</code> and <code>base_delay</code> shown once it is on. "Run limit" is <code>fire_limit</code>. The "CompozyOS was off" line is <code>catch_up_policy</code>, and "Wait up to" is <code>misfire_grace_seconds</code>, shown only with "Skip them". For a task target, retries are locked: the task owns them.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" style="max-width:720px">
+            <div class="au-opts">
+              <div class="au-opt"><div><div class="au-opt__l">Retry if it fails</div><div class="au-opt__d">Up to 3 times, first after 2s, then longer.</div></div><div class="au-opt__c"><div class="pill-group pill-group--sm"><button class="pill-group__item" type="button">No</button><button class="pill-group__item is-on" type="button">Up to 3 times</button></div></div></div>
+              <div class="au-opt"><div><div class="au-opt__l">First wait</div><div class="au-opt__d">How long before the first retry.</div></div><div class="au-opt__c"><input class="input input--mono" value="2s" aria-label="Base delay"></div></div>
+              <div class="au-opt"><div><div class="au-opt__l">Run limit</div><div class="au-opt__d">Stops a runaway automation.</div></div><div class="au-opt__c"><input class="input input--mono" value="12" aria-label="Max runs"><span class="au-micro">per</span><input class="input input--mono" value="1h" aria-label="Window"></div></div>
+              <div class="au-opt"><div><div class="au-opt__l">If CompozyOS was off at the start time</div><div class="au-opt__d">Skip them · wait up to 30s before giving up.</div></div><div class="au-opt__c"><select class="input" style="width:170px" aria-label="Missed runs"><option>Skip them</option></select><input class="input input--mono" value="30" aria-label="Late start limit, seconds" style="width:64px"><span class="au-micro">s</span></div></div>
+              <div class="au-opt"><div><div class="au-opt__l">Turn on after saving</div></div><div class="au-opt__c"><span class="switch" aria-checked="true" aria-hidden="true"><span class="knob"></span></span></div></div>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>component</b>AutomationOptions (reliability-controls)</span><span class="au-tag"><b>summary</b>Up to 3 retries · 12/hour · skip missed · on</span><span class="au-tag"><b>VC</b>editor/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · EDIT ===== -->
+    <section class="lab-sec" id="ed-edit" data-od-id="ed-edit">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Edit — what is locked and why</h2><span class="lab-sec__gist">editor VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Locks explain themselves.</b> The daemon can't change a target kind, an agent, a location, or turn a job into a trigger. So in edit mode the unchosen Starts and Does cards read disabled, with one reason line. The chosen ones keep their settings editable. Production disabled the controls silently.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad stage--auto">
+            <div class="dialog dialog--lg" style="grid-template-rows:auto auto auto;max-height:none">
+              <div class="dialog__head"><span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="zap"></svg></span><div class="dialog__head-main"><span class="eyebrow">Automation</span><h3 class="dialog__title">Edit automation</h3><p class="dialog__desc">Changes apply from the next run.</p></div><button class="dialog__close" type="button" aria-label="Close"><svg data-lucide="x"></svg></button></div>
+              <div class="dialog__body">
+                <div class="dialog__sec"><div class="dialog__sec-head"><span class="dialog__sec-num">02</span><span class="dialog__sec-title">Starts</span><span class="dialog__sec-sub">Can't change after creating. Make a new automation instead.</span></div>
+                  <div class="au-start-grid">
+                    <div class="choice is-on" aria-checked="true"><span class="choice__ic"><svg data-lucide="clock-3"></svg></span><span class="choice__name">On a schedule</span><span class="choice__desc">Every weekday at 09:00 UTC</span></div>
+                    <div class="choice" aria-disabled="true"><span class="choice__ic"><svg data-lucide="radio"></svg></span><span class="choice__name">When something happens</span><span class="lockline"><svg data-lucide="lock"></svg>Locked</span></div>
+                    <div class="choice" aria-disabled="true"><span class="choice__ic"><svg data-lucide="webhook"></svg></span><span class="choice__name">When another app calls a link</span><span class="lockline"><svg data-lucide="lock"></svg>Locked</span></div>
+                  </div>
+                </div>
+                <div class="dialog__sec"><div class="dialog__sec-head"><span class="dialog__sec-num">03</span><span class="dialog__sec-title">Does</span><span class="dialog__sec-sub">The agent and the kind of target stay. The message can change.</span></div>
+                  <div class="au-start-grid">
+                    <div class="choice is-on" aria-checked="true"><span class="choice__ic"><svg data-lucide="bot"></svg></span><span class="choice__name">Ask an agent</span><span class="choice__desc au-locked">summarizer<svg data-lucide="lock" aria-label="Can't change"></svg></span></div>
+                    <div class="choice" aria-disabled="true"><span class="choice__ic"><svg data-lucide="repeat-2"></svg></span><span class="choice__name">Start a Loop</span><span class="lockline"><svg data-lucide="lock"></svg>Locked</span></div>
+                    <div class="choice" aria-disabled="true"><span class="choice__ic"><svg data-lucide="square-check"></svg></span><span class="choice__name">Create a task</span><span class="lockline"><svg data-lucide="lock"></svg>Locked</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="dialog__foot"><button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="eye"></svg>Show preview</button><span class="dialog__foot-note"><svg data-lucide="info"></svg><span>Saves to <b>checkout-api</b>.</span></span><button class="btn" type="button">Cancel</button><button class="btn btn--primary" type="button"><svg data-lucide="check"></svg>Save changes</button></div>
+            </div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>gate</b>immutable: target_kind · agent_name · scope · workspace_id · entity</span><span class="au-tag"><b>VC</b>editor/VC-04</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · NEEDS A FIX ===== -->
+    <section class="lab-sec" id="ed-fix" data-od-id="ed-fix">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Needs a fix — say what, at the spot</h2><span class="lab-sec__gist">editor VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No silent disabled button.</b> Production only disabled Save. Now the sentence bar says "Needs a fix", the missing part shows dashed in the sentence, and the field says why. The copy is production's readout and Loop-availability text, shortened.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><span class="lab-cell__t">no agent</span><div class="plain plain--flush"><div class="dialog__modebar au-sbar"><p class="au-sbar__s">Every weekday at <em>09:00 UTC</em>, ask <span class="miss">an agent</span>.</p><span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>Needs a fix</span></div><div style="padding:14px 16px"><div class="ffield"><label class="flabel">Agent</label><select class="input" aria-invalid="true" style="border-color:var(--danger)"><option>Choose an agent…</option></select><p class="ferr">Choose which agent should get the message.</p></div></div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">time already passed</span><div class="plain"><div class="au-readout" data-ok="false"><svg data-lucide="triangle-alert"></svg><span>That time is in the past. It would never run.</span></div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">bad expression</span><div class="plain"><input class="input input--mono" value="0 9 * *" aria-invalid="true" style="border-color:var(--danger)"><div class="au-readout" data-ok="false" style="margin-top:8px"><svg data-lucide="triangle-alert"></svg><span>Needs 5 parts: min · hour · day · month · weekday.</span></div></div></div>
+            <div class="lab-cell"><span class="lab-cell__t">Loop can't start this way</span><div class="plain"><div class="notice"><svg data-lucide="triangle-alert"></svg><div><b>release-train can't be started by an event.</b> Choose a Loop that allows event starts, or start it on a schedule.</div></div></div></div>
+          </div>
+          <div class="au-tags"><span class="au-tag"><b>source</b>job-preview.ts:151-179 · loop-target-availability.ts:77-99</span><span class="au-tag"><b>VC</b>editor/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: automation-editor-dialog.tsx · automation-job-form.tsx + job-form/* · automation-trigger-form.tsx + trigger-form/* · reliability-controls.tsx · automation-drafts.ts · use-automation-job-form.ts / use-automation-trigger-form.ts. Dialog grammar: design-system/modals.html.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="automations.js"></script>
+<script>
+(function () {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const dlg = $("[data-od-id=ed-dialog]");
+  const st = { start: "schedule", mode: "cron", days: [1, 2, 3, 4, 5], time: "09:00", hourly: false, every: "30m", event: "session.stopped", does: "agent" };
+  const DAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const EVENT = { "session.created": "a session starts", "session.stopped": "a session stops", hook: "the hook finishes", ext: "the extension sends its event" };
+  const EVERY = { "5m": "5 minutes", "15m": "15 minutes", "30m": "30 minutes", "1h": "hour", "4h": "4 hours", "24h": "24 hours" };
+
+  function scheduleText() {
+    if (st.mode === "every") return `Every ${EVERY[st.every]}`;
+    if (st.mode === "at") return `Once on Thu Oct 8 at <em>09:00 UTC</em>`;
+    if (st.hourly) return "Every hour, on the hour";
+    const d = [...st.days].sort();
+    const t = `<em>${st.time} UTC</em>`;
+    if (!d.length) return null;
+    if (d.length === 7) return `Every day at ${t}`;
+    if (d.join() === "1,2,3,4,5") return `Every weekday at ${t}`;
+    if (d.length === 1) return `Every ${DAY[d[0]]} at ${t}`;
+    return `Every ${d.map((x) => SHORT[x]).join(", ")} at ${t}`;
+  }
+  function cronExpr() {
+    if (st.hourly) return "0 * * * *";
+    const [h, m] = st.time.split(":").map(Number);
+    const d = [...st.days].sort();
+    const dow = d.length === 7 ? "*" : d.join() === "1,2,3,4,5" ? "1-5" : d.join(",");
+    return `${m} ${h} * * ${dow || "?"}`;
+  }
+  function render() {
+    // visibility
+    $$("[data-for-start]", dlg).forEach((el) => (el.hidden = !el.dataset.forStart.split(" ").includes(st.start)));
+    $$("[data-for-mode]", dlg).forEach((el) => (el.hidden = el.dataset.forMode !== st.mode));
+    $$("[data-for-does]", dlg).forEach((el) => (el.hidden = el.dataset.forDoes !== st.does));
+    $$("[data-for-event]", dlg).forEach((el) => (el.hidden = st.start !== "event" || el.dataset.forEvent !== st.event));
+    $$("[data-start]", dlg).forEach((b) => { const on = b.dataset.start === st.start; b.classList.toggle("is-on", on); b.setAttribute("aria-checked", on); });
+    $$("[data-does]", dlg).forEach((b) => { const on = b.dataset.does === st.does; b.classList.toggle("is-on", on); b.setAttribute("aria-checked", on); });
+    $$("[data-mode]", dlg).forEach((b) => b.classList.toggle("is-on", b.dataset.mode === st.mode));
+    $$("[data-event]", dlg).forEach((b) => { const on = b.dataset.event === st.event; b.classList.toggle("is-on", on); b.setAttribute("aria-checked", on); });
+    $$(".au-day", dlg).forEach((b) => b.setAttribute("aria-pressed", st.days.includes(+b.dataset.day) && !st.hourly));
+    $$("[data-every]", dlg).forEach((b) => b.setAttribute("aria-pressed", b.dataset.every === st.every));
+    $("#ed-daysrow").style.opacity = st.hourly ? ".5" : "1";
+    const task = $("[data-does=task]", dlg);
+    const taskLocked = st.start !== "schedule";
+    task.setAttribute("aria-disabled", taskLocked);
+    $(".lockline", task).hidden = !taskLocked;
+    $(".choice__desc", task).hidden = taskLocked;
+    if (taskLocked && st.does === "task") { st.does = "agent"; return render(); }
+    $("#ed-does-num").textContent = st.start === "schedule" ? "03" : "04";
+
+    // sentence
+    let missing = false;
+    let when;
+    if (st.start === "schedule") {
+      when = scheduleText();
+      if (!when) { when = '<span class="miss">on some days</span>'; missing = true; }
+    } else if (st.start === "event") {
+      const v = $("#ed-cond-v").value.trim();
+      when = `When ${EVENT[st.event]} in <em>checkout-api</em>${v ? ` with stop reason <em>${v}</em>` : ""}`;
+      if (st.event === "hook" && !$("#ed-hook").value.trim()) { when = 'When <span class="miss">a hook</span> finishes'; missing = true; }
+    } else {
+      const slug = $("#ed-slug").value.trim();
+      when = slug ? `When another app calls the <em>${slug}</em> link` : 'When another app calls <span class="miss">a link</span>';
+      if (!slug) missing = true;
+    }
+    let what;
+    if (st.does === "agent") {
+      const a = $("#ed-agent").value;
+      what = a ? `ask <em>${a}</em>` : '<span class="miss">ask an agent</span>';
+      if (!a || !$("#ed-prompt").value.trim()) missing = true;
+    } else if (st.does === "loop") what = `start the Loop <em>${$("#ed-loop").value}</em>`;
+    else what = `create a task <em>${$("#ed-task").value || "…"}</em>`;
+    if (!$("#ed-name").value.trim()) missing = true;
+    const s = `${when}, ${what}.`;
+    $("#ed-s").innerHTML = s;
+    $("#ed-pv-s").innerHTML = s;
+    const pill = $("#ed-status");
+    pill.dataset.tone = missing ? "warning" : "success";
+    pill.innerHTML = missing ? '<svg data-lucide="triangle-alert"></svg>Needs a fix' : '<svg data-lucide="check"></svg>Ready';
+    $("#ed-save").disabled = missing;
+    $("#ed-pv-route").textContent = st.start === "schedule" ? "POST /api/automation/jobs" : "POST /api/automation/triggers";
+    $("#ed-dest").innerHTML = st.start === "webhook" ? "Creates a <b>Global</b> automation." : "Creates in <b>checkout-api</b>.";
+    const ro = $("#ed-cron-readout span");
+    ro.innerHTML = `${(scheduleText() || "Pick at least one day").replace(/<\/?em>/g, "")} · next in 14h · <span class="au-micro">${cronExpr()}</span>`;
+    $("#ed-cron-readout").dataset.ok = String(!!scheduleText());
+    $("#ed-cron").value = cronExpr();
+    $("#ed-every-readout").textContent = `Runs every ${EVERY[st.every]}, starting right after you save.`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  $$("[data-start]", dlg).forEach((b) => b.addEventListener("click", () => { st.start = b.dataset.start; render(); }));
+  $$("[data-does]", dlg).forEach((b) => b.addEventListener("click", () => { if (b.getAttribute("aria-disabled") === "true") return; st.does = b.dataset.does; render(); }));
+  $$("[data-mode]", dlg).forEach((b) => b.addEventListener("click", () => { st.mode = b.dataset.mode; render(); }));
+  $$("[data-event]", dlg).forEach((b) => b.addEventListener("click", () => { st.event = b.dataset.event; render(); }));
+  $$(".au-day", dlg).forEach((b) => b.addEventListener("click", () => {
+    const d = +b.dataset.day; st.hourly = false;
+    st.days = st.days.includes(d) ? st.days.filter((x) => x !== d) : [...st.days, d];
+    $$("[data-preset]", dlg).forEach((p) => p.setAttribute("aria-pressed", "false"));
+    render();
+  }));
+  const PRESET = { weekdays: [[1, 2, 3, 4, 5], "09:00"], daily: [[0, 1, 2, 3, 4, 5, 6], "09:00"], monday: [[1], "08:00"], midnight: [[0, 1, 2, 3, 4, 5, 6], "00:00"] };
+  $$("[data-preset]", dlg).forEach((b) => b.addEventListener("click", () => {
+    $$("[data-preset]", dlg).forEach((p) => p.setAttribute("aria-pressed", String(p === b)));
+    if (b.dataset.preset === "hourly") st.hourly = true;
+    else { st.hourly = false; [st.days, st.time] = [PRESET[b.dataset.preset][0].slice(), PRESET[b.dataset.preset][1]]; $("#ed-time").value = st.time; }
+    render();
+  }));
+  $$("[data-every]", dlg).forEach((b) => b.addEventListener("click", () => { st.every = b.dataset.every; render(); }));
+  $("#ed-time").addEventListener("input", (e) => { st.time = e.target.value || "09:00"; st.hourly = false; render(); });
+  ["#ed-name", "#ed-agent", "#ed-prompt", "#ed-loop", "#ed-task", "#ed-slug", "#ed-hook", "#ed-cond-v"].forEach((id) => $(id).addEventListener("input", render));
+  $$("[data-var]", dlg).forEach((b) => b.addEventListener("click", () => { const t = $("#ed-prompt"); t.value += " " + b.dataset.var; render(); }));
+  $("#ed-opt-t").addEventListener("click", (e) => { const b = e.currentTarget; const open = b.getAttribute("aria-expanded") !== "true"; b.setAttribute("aria-expanded", open); $("#ed-opt-b").hidden = !open; });
+  $("#ed-pv-t").addEventListener("click", (e) => {
+    const b = e.currentTarget; const on = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", on); $("span", b).textContent = on ? "Back to form" : "Show preview";
+    $("#ed-form").hidden = on; $("#ed-preview").hidden = !on;
+  });
+  $("#ed-save").addEventListener("click", () => window.auToast && window.auToast(`Created ${$("#ed-name").value}.`));
+
+  const h = location.hash.replace("#ed-", "");
+  if (["schedule", "event", "webhook"].includes(h)) st.start = h;
+  if (h === "options") { $("#ed-opt-t").click(); }
+  render();
+})();
+</script>
+</body>
+</html>

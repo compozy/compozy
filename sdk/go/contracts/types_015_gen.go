@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type ResourceSourceKind string
+
 type ResourcesListParams struct {
 	Kind  ResourceKind   `json:"kind,omitempty"`
 	Scope *ResourceScope `json:"scope,omitempty"`
@@ -120,6 +122,8 @@ type ScheduleSpec struct {
 
 type SchedulerCatchUpPolicy string
 
+type SchedulerSkipReason string
+
 type Scope string
 
 type Section struct {
@@ -181,29 +185,4 @@ type SessionConfigOptionPayload struct {
 	CurrentValueID string                            `json:"current_value_id,omitempty"`
 	CurrentBool    *bool                             `json:"current_bool,omitempty"`
 	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
-}
-
-type SessionConfigOptionValuePayload struct {
-	Value       string `json:"value"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	GroupID     string `json:"group_id,omitempty"`
-	GroupLabel  string `json:"group_label,omitempty"`
-}
-
-type SessionContext struct {
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
 }

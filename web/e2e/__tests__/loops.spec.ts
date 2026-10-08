@@ -689,14 +689,17 @@ test("scoped Loop windows preserve later Global scope choices", async ({ appPage
     "aria-pressed",
     "true"
   );
-  await openAppWindow(appPage, "Jobs", "jobs");
-  await expect(appPage).toHaveURL(runtime.url("/jobs"));
+  await openAppWindow(appPage, "Automations", "automations");
+  await expect(appPage).toHaveURL(runtime.url("/automations"));
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
     "aria-pressed",
     "true"
   );
-  await expect(appPage.getByRole("searchbox", { name: "Search jobs" })).toBeVisible();
+  // The Automations window renders after the reload under Global scope. With no
+  // automations it opens on the first-run state, which has no search toolbar (UT-051).
+  await expect(appPage.getByTestId("automations-shell")).toBeVisible();
+  await expect(appPage.getByTestId("automations-list-empty")).toContainText("No automations in");
 });
 
 test("CompozyOS migration E2E-015: run page lifecycle controls and node inventories", async ({

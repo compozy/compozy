@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type MessagePatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
+}
+
 type MessagePayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
@@ -230,5 +238,3 @@ type Origin struct {
 }
 
 type OriginKind string
-
-type OwnerKind string

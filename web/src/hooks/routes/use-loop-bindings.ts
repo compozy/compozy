@@ -1,4 +1,8 @@
-import { useAutomationJobs, useAutomationTriggers } from "@/systems/automation";
+import {
+  useAutomationJobs,
+  useAutomationTimeZone,
+  useAutomationTriggers,
+} from "@/systems/automation";
 import type { LoopBindingRow } from "@/systems/loops";
 
 import { buildLoopBindingIndex } from "./loop-bindings-map";
@@ -47,11 +51,13 @@ export function useLoopBindings(workspaceId: string, loopName: string): LoopBind
     },
     { enabled }
   );
+  const timeZone = useAutomationTimeZone();
   const triggers = triggersQuery.triggers;
   const jobs = jobsQuery.jobs;
   const rows =
     workspaceId && loopName
-      ? (buildLoopBindingIndex(triggers, jobs, workspaceId).get(loopName)?.rows ?? EMPTY_ROWS)
+      ? (buildLoopBindingIndex(triggers, jobs, workspaceId, { timeZone }).get(loopName)?.rows ??
+        EMPTY_ROWS)
       : EMPTY_ROWS;
   return {
     rows,

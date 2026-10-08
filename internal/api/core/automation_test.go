@@ -2191,7 +2191,8 @@ func decodeAutomationCoreJSON(t *testing.T, recorder *httptest.ResponseRecorder,
 }
 
 type stubAutomationManager struct {
-	ListSuggestionsFn func(
+	LatestRunsByOwnerFn func(context.Context, automationpkg.RunOwnerKind, []string) (map[string]automationpkg.Run, error)
+	ListSuggestionsFn   func(
 		context.Context,
 		store.ReadScope,
 		string,
@@ -2431,4 +2432,175 @@ func (s stubAutomationManager) HandleWebhook(
 		return automationpkg.TriggerResult{}, nil
 	}
 	return s.HandleWebhookFn(ctx, request)
+}
+
+func (s stubAutomationManager) LatestRunsByOwner(
+	ctx context.Context,
+	owner automationpkg.RunOwnerKind,
+	ids []string,
+) (map[string]automationpkg.Run, error) {
+	if s.LatestRunsByOwnerFn == nil {
+		return nil, nil
+	}
+	return s.LatestRunsByOwnerFn(ctx, owner, ids)
+}
+
+func TestAutomationLastRunPayload(t *testing.T) {
+	t.Parallel()
+	started := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name       string
+		status     automationpkg.RunStatus
+		reason     string
+		wantReason automationpkg.SchedulerSkipReason
+	}{
+		{"Should lift canceled skip metadata", automationpkg.RunCancelled, "self_overlap", automationpkg.SchedulerSkipReason("self_overlap")},
+		{"Should omit skip metadata on failed runs", automationpkg.RunFailed, "self_overlap", ""},
+		{"Should leave a running run unfinished", automationpkg.RunRunning, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			payload := AutomationLastRunPayloadFromRun(automationpkg.Run{
+				ID: "run-1", Status: tc.status, StartedAt: &started, Metadata: map[string]any{"reason": tc.reason},
+			})
+			if payload.ID != "run-1" || payload.Status != tc.status || payload.SkipReason != tc.wantReason ||
+				payload.StartedAt != &started ||
+				payload.EndedAt != nil {
+				t.Fatalf("last run = %#v", payload)
+			}
+			data, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "ended_at") {
+				t.Fatalf("unfinished run = %s", data)
+			}
+		})
+	}
+}
+
+func TestAutomationLastRunReads(t *testing.T) {
+	t.Parallel()
+	for _, owner := range []automationpkg.RunOwnerKind{automationpkg.RunOwnerJob, automationpkg.RunOwnerTrigger} {
+		for _, detail := range []bool{false, true} {
+			for _, fail := range []bool{false, true} {
+				name := "Should enrich " + string(owner) + " list"
+				if detail {
+					name = "Should enrich " + string(owner) + " detail"
+				}
+				if fail {
+					name += " or fail on lookup error"
+				}
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+					calls := 0
+					manager := stubAutomationManager{
+						ListJobsFn: func(context.Context, automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
+							return automationpkg.JobListPage{
+								Jobs: []automationpkg.Job{
+									{ID: "digest", ProfileID: store.DefaultProfileID},
+									{ID: "never", ProfileID: store.DefaultProfileID},
+								},
+								Total: 2,
+							}, nil
+						},
+						ListTriggersFn: func(context.Context, automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error) {
+							return automationpkg.TriggerListPage{
+								Triggers: []automationpkg.Trigger{
+									{ID: "digest", ProfileID: store.DefaultProfileID},
+									{ID: "never", ProfileID: store.DefaultProfileID},
+								},
+								Total: 2,
+							}, nil
+						},
+						GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
+							return automationpkg.Job{ID: "digest", ProfileID: store.DefaultProfileID}, nil
+						},
+						GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
+							return automationpkg.Trigger{ID: "digest", ProfileID: store.DefaultProfileID}, nil
+						},
+						LatestRunsByOwnerFn: func(_ context.Context, got automationpkg.RunOwnerKind, ids []string) (map[string]automationpkg.Run, error) {
+							calls++
+							wantCount := 2
+							if detail {
+								wantCount = 1
+							}
+							if got != owner || len(ids) != wantCount || ids[0] != "digest" {
+								t.Fatalf("lookup = %q %v", got, ids)
+							}
+							if fail {
+								return nil, errors.New("latest lookup failed")
+							}
+							return map[string]automationpkg.Run{
+								"digest": {ID: "run-latest", Status: automationpkg.RunFailed},
+							}, nil
+						},
+					}
+					router := newAutomationCoreTestRouter(t, manager)
+					path := "/automation/" + string(owner) + "s"
+					if detail {
+						path += "/digest"
+					}
+					rec := performAutomationCoreRequest(t, router, http.MethodGet, path, nil, nil)
+					if calls != 1 {
+						t.Fatalf("lookup calls = %d; body=%s", calls, rec.Body.String())
+					}
+					if fail {
+						if rec.Code != http.StatusInternalServerError ||
+							!strings.Contains(rec.Body.String(), "latest lookup failed") {
+							t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+						}
+						return
+					}
+					if rec.Code != http.StatusOK {
+						t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+					}
+					var body map[string]json.RawMessage
+					decodeAutomationCoreJSON(t, rec, &body)
+					var items []map[string]json.RawMessage
+					if detail {
+						var item map[string]json.RawMessage
+						if err := json.Unmarshal(body[string(owner)], &item); err != nil {
+							t.Fatal(err)
+						}
+						items = append(items, item)
+					} else if err := json.Unmarshal(body[string(owner)+"s"], &items); err != nil {
+						t.Fatal(err)
+					}
+					var latest contract.AutomationLastRunPayload
+					if err := json.Unmarshal(items[0]["last_run"], &latest); err != nil {
+						t.Fatal(err)
+					}
+					if latest.ID != "run-latest" || latest.Status != automationpkg.RunFailed {
+						t.Fatalf("last_run = %#v", latest)
+					}
+					if !detail {
+						if _, exists := items[1]["last_run"]; exists {
+							t.Fatalf("never-run item = %v", items[1])
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestAutomationTargetQueryValidation(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"jobs", "triggers"} {
+		t.Run("Should reject invalid target for "+kind, func(t *testing.T) {
+			t.Parallel()
+			rec := performAutomationCoreRequest(
+				t,
+				newAutomationCoreTestRouter(t, stubAutomationManager{}),
+				http.MethodGet,
+				"/automation/"+kind+"?target=bogus",
+				nil,
+				nil,
+			)
+			if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "target") {
+				t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
 }

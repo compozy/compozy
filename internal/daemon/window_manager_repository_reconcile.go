@@ -17,11 +17,16 @@ func (r *windowManagerRepository) reconcileLoadedSnapshot(
 	snapshot windowmanager.Snapshot,
 	entry clientstate.Entry,
 ) (windowmanager.Snapshot, error) {
-	migrated := storedWindowManagerSnapshotVersion(entry.Value) == windowmanager.LegacySnapshotVersion
+	// Decoding already applied any snapshot-version migration, so reconciliation
+	// sees retired app ids only after they were rewritten to their replacements.
+	version := storedWindowManagerSnapshotVersion(entry.Value)
+	migrated := version == windowmanager.LegacySnapshotVersion || version == windowmanager.PreviousSnapshotVersion
 	reconciled, changed := windowmanager.ReconcileRegisteredApps(snapshot, corecmds.RegisteredApp)
 	if !changed {
 		if migrated {
-			return snapshot, r.persistMigratedSnapshot(ctx, workspaceID, snapshot, entry.Rev)
+			return snapshot, r.persistMigratedSnapshot(
+				ctx, workspaceID, snapshot, entry.Rev, version, retiredSnapshotWindows(entry.Value),
+			)
 		}
 		return snapshot, nil
 	}
@@ -45,6 +50,12 @@ func (r *windowManagerRepository) reconcileLoadedSnapshot(
 		clientstate.ApplyOptions{Origin: "window-manager.snapshot.reconcile"})
 	if err != nil {
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("persist reconciled snapshot", err)
+	}
+	if migrated {
+		r.logger.Info("migrated window-manager snapshot", "workspace_id", workspaceID,
+			"event", "windowmanager.snapshot_migrated", "from_version", version,
+			"windows_rewritten", retiredSnapshotWindows(entry.Value),
+			"to_version", reconciled.Version, "revision", reconciled.Revision)
 	}
 	droppedApps, rewrittenRoutes := windowManagerReconciliationAudit(snapshot)
 	r.logger.Info("windowmanager.snapshot_reconciled", "workspace_id", workspaceID,

@@ -15,7 +15,7 @@ Back up `compozy.db` and the daemon state before upgrading, and export any memor
 need (index, decisions, Dream history) with the previous release first. Nothing needs editing by hand
 after the upgrade; the daemon starts normally:
 
-- Migration `00128_retire_memory.sql` permanently drops the memory tables and
+- Migration `00130_retire_memory.sql` permanently drops the memory tables and
   `goose_db_version_memory`, deletes `memory.consolidated` automation triggers (run history stays),
   and deletes legacy `dream` and `memory-extractor` sessions. Migration `00009_unarchive_compaction_spans.sql`
   restores history that the removed CompozyOS compaction had archived, so old compacted sessions show

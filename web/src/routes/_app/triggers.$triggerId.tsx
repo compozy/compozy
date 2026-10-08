@@ -1,17 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import type { TopbarRouteContext } from "@/types/topbar";
-import { createOsRouteSync } from "@/systems/os";
+import { redirectLegacyAutomationRoute } from "./-legacy-automation-redirect";
 
+// Shim: legacy URL redirect stub; remove in v0.5.0.
 export const Route = createFileRoute("/_app/triggers/$triggerId")({
-  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    // Parent `/triggers` crumb already supplies the Triggers link — do not re-add parentCrumb.
-    topbar: { crumb: { label: params.triggerId } },
-  }),
-  loader: async ({ context, params }) =>
-    (await import("./-automation-preload")).preloadAutomationTriggerDetailRoute(
-      context.queryClient,
-      params.triggerId
-    ),
-  component: createOsRouteSync("triggers"),
+  beforeLoad: ({ location }) =>
+    redirectLegacyAutomationRoute({ pathname: location.pathname, search: {} }),
 });

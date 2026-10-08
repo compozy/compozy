@@ -4,11 +4,8 @@ import type { ComponentProps, ReactNode } from "react";
 import { CatalogEmptyPanel } from "@/components/catalog-empty-state";
 import { Button, CatalogEmptyDisclosureRow, Pill, Skeleton, Spinner } from "@compozy/ui";
 
-import {
-  describeFireLimit,
-  describeSchedule,
-  formatPromptPreview,
-} from "../lib/automation-formatters";
+import { describeFireLimit, formatPromptPreview } from "../lib/automation-formatters";
+import { describeSchedule } from "../lib/automation-sentence";
 import { projectAutomationTarget } from "../lib/automation-target";
 import type { AutomationSuggestion } from "../types";
 
@@ -24,6 +21,8 @@ export interface AutomationSuggestionsCardProps {
   onRetry?: () => void;
   pendingActions?: Partial<Record<string, AutomationSuggestionPendingAction>>;
   suggestions: AutomationSuggestion[];
+  /** The global automation time zone the schedule phrases read in. */
+  timeZone?: string;
 }
 
 function SuggestionsShell({
@@ -37,12 +36,12 @@ function SuggestionsShell({
 }) {
   return (
     <CatalogEmptyPanel
-      aria-label="Suggested jobs"
+      aria-label="Suggested automations"
       className={className}
       count={count}
       data-testid="automation-suggestions-card"
-      label="Suggested jobs"
-      note="Review each suggestion before creating the job."
+      label="Suggested automations"
+      note="Review each suggestion before creating it."
     >
       {children}
     </CatalogEmptyPanel>
@@ -54,7 +53,7 @@ function AutomationSuggestionsLoading({ className }: { className?: string }) {
     <SuggestionsShell className={className}>
       <div
         aria-busy="true"
-        aria-label="Loading suggested jobs"
+        aria-label="Loading suggested automations"
         data-testid="automation-suggestions-loading"
       >
         {["first", "second"].map(row => (
@@ -151,6 +150,7 @@ export function AutomationSuggestionsCard({
   onRetry,
   pendingActions = {},
   suggestions,
+  timeZone,
 }: AutomationSuggestionsCardProps) {
   if (isLoading && suggestions.length === 0) {
     return <AutomationSuggestionsLoading className={className} />;
@@ -177,7 +177,7 @@ export function AutomationSuggestionsCard({
           const pendingAction = pendingActions[suggestion.id];
           const actionError = actionErrors[suggestion.id];
           const payload = suggestion.payload;
-          const schedule = describeSchedule(payload.schedule);
+          const schedule = describeSchedule(payload.schedule, { timeZone });
           const target = projectAutomationTarget(payload);
 
           return (
@@ -193,7 +193,7 @@ export function AutomationSuggestionsCard({
                     type="button"
                     variant="neutral"
                   >
-                    Create job
+                    Create automation
                   </AutomationSuggestionActionButton>
                   <AutomationSuggestionActionButton
                     disabled={Boolean(pendingAction)}

@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type PromptPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Prompt        *string        `json:"prompt,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
 type PromptPayload struct {
 	Event          HookEvent      `json:"event"`
 	Timestamp      time.Time      `json:"timestamp"`
@@ -153,5 +160,3 @@ type ResourceSource struct {
 	Kind ResourceSourceKind `json:"kind"`
 	ID   string             `json:"id"`
 }
-
-type ResourceSourceKind string

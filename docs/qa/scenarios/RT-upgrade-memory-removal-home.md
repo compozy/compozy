@@ -46,7 +46,7 @@ bytes; stop the daemon cleanly; back up the home.
 
 **Upgrade (new build, same home).** Start the daemon with no manual step and check:
 
-1. The daemon reaches readiness. Global migration `00128` and session migration `00009` apply once; a second
+1. The daemon reaches readiness. Global migration `00130` and session migration `00009` apply once; a second
    restart changes nothing and `PRAGMA foreign_key_check` is empty.
 2. Each retired table found in the global, profile, and workspace `config.toml` is removed and appended,
    commented, under `# Archived retired memory and compaction settings; these values are inactive.` with its old

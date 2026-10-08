@@ -15,7 +15,7 @@ leftovers in user-owned files are retired without blocking the user.
   `memory/*`, `memory.backend`, consent `memory:read|write`, the `memory-backend-ts` scaffold, and the
   SDK members are deleted; tool IDs are retired permanently. Added, all `experimental`:
   `compozy session compact`, `compactSession`, and `compozy__session_compact` (toolset
-  `compozy__sessions`, risk `write`). Changed: `session.compaction_fired`, usage `compactions[]`
+  `compozy__sessions`, risk `mutating`). Changed: `session.compaction_fired`, usage `compactions[]`
   markers (no `pressure_threshold`; `context_used`/`context_size` are omitted when unknown), the
   session `type` enum (no `dream`), the roles roster (`coordinator`, `auto_title`), and
   `StatusSchemaVersion` `2026-10-07` without `memory`. `GET …/history` and `compozy session history`
@@ -36,10 +36,10 @@ leftovers in user-owned files are retired without blocking the user.
   filters (`ignoreRetiredAgentHookMatchers`, `ignoreRetiredSkillHookMatchers`) for
   `compaction_reason` / `compaction_strategy`, warning once per owner. All of those boundary
   filters expire in v0.6.0. Session migration `00009` and global migration
-  `00128` stay as migrations. Alongside the retired-ID tombstones, `RetiredInternalSpawnRoles` records exactly
+  `00130` stay as migrations. Alongside the retired-ID tombstones, the session recovery list `retiredInternalSpawnRoles` records exactly
   `memory-extractor` and `checkpoint-summary`. Its recovery boundary is permanent and does not expire in
   v0.6.0 because retained session directories are never deleted.
-- **Workspace data isolation:** no workspace or profile boundary changes. Migration `00128` drops the
+- **Workspace data isolation:** no workspace or profile boundary changes. Migration `00130` drops the
   memory stream tables, `memory.consolidated` triggers and their dependents, and legacy `dream` /
   `memory-extractor` sessions; session migration `00009` restores events archived by the removed
   compaction (never inside a rewind receipt range). No file is deleted or rewritten: Markdown
@@ -58,7 +58,7 @@ leftovers in user-owned files are retired without blocking the user.
   derive carries inherited omission evidence so the available history tool points to the immediate
   source session. Archive publication guards and permission failures warn with path/reason and leave
   retired settings inactive in the validated in-memory overlay; the next load retries publication.
-  Existing explicit retired-key config writes remain refused. Migration `00128` also removes persisted
+  Existing explicit retired-key config writes remain refused. Migration `00130` also removes persisted
   `checkpoint-summary` roles while preserving advisory roles. The oldest-first suffix policy protects
   the last eight replay messages while framing and the first-user pin fit; its unused `KeepRecent` field
   is removed without changing the drop order. Layout reconciliation logs the profile, dropped app IDs and rewritten route count
@@ -78,6 +78,45 @@ leftovers in user-owned files are retired without blocking the user.
   scenarios are rewritten; the retirement canary `ET-retired-product-surfaces-absent` covers memory,
   Dream, Knowledge, and CompozyOS-side compaction, including an upgrade leg. The upgraded-home lab
   walk, Compact now, and the real-adapter Goal compaction walk own the user-visible journeys.
+
+## Automations — Jobs and Triggers merged in the Web UI — 2026-10-08
+
+Owner: spec `.compozy/tasks/automations/` (ADR-001..004); one PR from branch `automations`.
+The Web UI's Jobs and Triggers apps become one `automations` app (listing, detail, editor, dock,
+palette, Settings › Automation row, Loop "Automate ▾"); the daemon keeps both entities and every
+canonical noun (`job`, `trigger`). Native tools: ids unchanged;
+`compozy__automation_{jobs,triggers}_{list,get}` results gain `last_run`, the two list tools gain an optional `target` input
+(`agent|loop|task`) and one description clause naming the UI noun; `native-tool-catalog.json`
+regenerates. Extensibility/hooks/config: hooks, trigger events, extension manifests and SDK types
+unchanged; `window_layout` resources naming `jobs`/`triggers` are aliased to `automations` with
+WARN `windowmanager.app_id_deprecated` until v0.5.0 (none in-repo); `config.toml` keys unchanged,
+only Settings labels change. Public inputs on the one-release ladder (removal v0.5.0): web routes
+`/jobs*`, `/triggers*` (redirect stubs), CLI `--app jobs|triggers` (stderr warning), window commands,
+palette ids `app.open.{jobs,triggers}` / `palette.view.{jobs,triggers}` (WARN
+`cmdpalette.command_id_deprecated`). User state: saved desktops migrate permanently through snapshot
+v5 (no window closed); palette pins/recents/usage merge through Goose `00129`; `00128` adds the
+latest-run indexes and the catalog `target` column. Workspace data isolation: `last_run` is computed
+per owner column (`job_id` / `trigger_id`) inside the existing scoped list query; workspace/profile
+filters and the other-project detail state are unchanged. Official skill: `SKILL.md` routing row
+("Automations (jobs and triggers)"), `references/native-tools.md` (UI noun mapping, `last_run`,
+`target`), `references/window-management.md` (retired app ids). Docs: site category
+`automation/` retitled **Automations** with tutorials `run-an-agent-every-morning` and
+`react-when-a-session-fails`; `jobs.mdx` → `schedules.mdx`, `triggers.mdx` → `events.mdx` (permanent
+redirects in `packages/site/next.config.mjs`); inbound links, `loops/catalog.mdx` Automate menu and
+`workspaces/window-management.mdx` deprecation note updated; generated CLI reference regenerates from
+Cobra. COPY.md and glossary close the pending "Jobs / Triggers" alias row (Automations) and add a
+glossary `Automation` entry. Release note `.release-notes/one-automations-window-*.md` carries the
+migration block. QA: `TA-web-automations-listing`, `TA-web-automations-first-run`,
+`TA-web-automation-detail`, `TA-web-automation-editor`, `TA-web-automations-shell-entry`,
+`TA-web-automations-upgrade`, `TA-automation-last-run-agent` replace `ET-web-jobs-triggers-catalog`,
+`ET-web-trigger-detail-rule-page`, `TA-web-jobs-zero-inventory-suggestions`,
+`TA-web-triggers-zero-inventory-intro`, and `TA-web-automation-preview-toggle`; entry points of
+`TA-automation-crud-loop-target`, `TA-scheduled-session-restart-recovery`, `ET-palette-domain-views`,
+`ET-web-ui-resilience`, `ET-web-catalog-navigation`, and `TA-056` were flagged.
+
+Fix round 1: native list descriptions preserve the canonical job/trigger nouns and UI mapping.
+Shared retired-route vectors preserve explicit queries and leave nested detail paths unchanged.
+No wire, config, hook, workspace isolation, or official skill contract changes.
 
 ## Modern Go adoption across module boundaries (#482) — 2026-10-06
 

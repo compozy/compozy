@@ -5,7 +5,7 @@ title: Recover a scheduled session during daemon restart
 persona: Bruno
 journey: J-recover-scheduled-job-restart
 expected: Restarting near a recurring job fire reaches a ready replacement daemon, preserves the registered job, and produces unique post-restart fire ids whose linked sessions remain readable across browser, HTTP, UDS, and CLI views.
-entry_points: web /jobs; POST /api/settings/actions/restart; automation CLI and UDS reads
+entry_points: web /automations; POST /api/settings/actions/restart; automation CLI and UDS reads
 qa_status: pass
 bug_ids:
 fix_status:
@@ -25,3 +25,5 @@ metadata may exist before the first event database. The replacement daemon must 
 that never-bound session, upgrade any retained histories, and still reject a missing database for a
 previously bound session even if it is now unbound. The existing `jobs-hardening.spec.ts` browser journey exercises the restart while
 the manager query suite owns the database distinction.
+
+QA impact 2026-10-08 (Automations spec task 07): the Jobs and Triggers web apps merged into one Automations window. Web entry points moved to `/automations` (old `/jobs*` and `/triggers*` links redirect until v0.5.0); walk through the new route. Daemon, CLI and API behavior in this scenario is unchanged.

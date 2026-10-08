@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-const SnapshotVersion uint32 = 4
+const SnapshotVersion uint32 = 5
+
+const PreviousSnapshotVersion uint32 = 4
 
 const (
 	absoluteNavStackLimit    = 200

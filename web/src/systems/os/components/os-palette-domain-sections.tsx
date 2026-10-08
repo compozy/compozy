@@ -56,7 +56,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
           </CommandItem>
         )}
         {section.rows.map(row => {
-          const Icon = getOsAppDescriptor(row.app).icon;
+          const Icon = row.icon ?? getOsAppDescriptor(row.app).icon;
           return (
             <CommandItem
               className={paletteRowClass}

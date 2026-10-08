@@ -225,13 +225,13 @@ export const e2eScenarioContracts: ScenarioContract[] = [
   ),
   webScenario(
     "TC-JOBS-001",
-    "jobs",
+    "automations",
     "operator creates edits runs disables re-enables and deletes a workspace job with parity evidence",
     "web/e2e/__tests__/jobs-hardening.spec.ts"
   ),
   webScenario(
     "TC-TRIGGERS-001",
-    "triggers",
+    "automations",
     "operator creates edits fires and deletes a webhook trigger with parity evidence",
     "web/e2e/__tests__/triggers-hardening.spec.ts"
   ),
@@ -335,8 +335,6 @@ export const defaultModuleCoverageRequirements: ModuleCoverageRequirement[] = [
   "dashboard",
   "sessions",
   "tasks",
-  "jobs",
-  "triggers",
   "skills",
   "settings",
   "extensibility-tools-resources",

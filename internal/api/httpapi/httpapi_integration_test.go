@@ -1744,188 +1744,288 @@ func TestHTTPApprovePermissionTimeout(t *testing.T) {
 }
 
 func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
+	t.Run("Should round trip jobs with the latest failed run", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
 
-	createResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
-		[]byte(
-			`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"}}`,
-		),
-		nil,
-	)
-	if createResp.StatusCode != http.StatusCreated {
-		body := readAndCloseHTTPBody(t, createResp)
-		t.Fatalf("create job status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
-	}
-	var created contract.JobResponse
-	decodeHTTPJSON(t, createResp, &created)
-	if created.Job.ID == "" {
-		t.Fatal("expected created automation job id")
-	}
-	if created.Job.Source != automationpkg.JobSourceDynamic {
-		t.Fatalf("created job source = %q, want %q", created.Job.Source, automationpkg.JobSourceDynamic)
-	}
+		createResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
+			[]byte(
+				`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"}}`,
+			),
+			nil,
+		)
+		if createResp.StatusCode != http.StatusCreated {
+			body := readAndCloseHTTPBody(t, createResp)
+			t.Fatalf(
+				"create job status = %d, want %d; body=%s",
+				createResp.StatusCode,
+				http.StatusCreated,
+				string(body),
+			)
+		}
+		var created contract.JobResponse
+		decodeHTTPJSON(t, createResp, &created)
+		if created.Job.ID == "" {
+			t.Fatal("expected created automation job id")
+		}
+		if created.Job.Source != automationpkg.JobSourceDynamic {
+			t.Fatalf("created job source = %q, want %q", created.Job.Source, automationpkg.JobSourceDynamic)
+		}
 
-	getResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
-		nil,
-		nil,
-	)
-	if getResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, getResp)
-		t.Fatalf("get job status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
-	}
-	var fetched contract.JobResponse
-	decodeHTTPJSON(t, getResp, &fetched)
-	if fetched.Job.NextRun == nil {
-		t.Fatalf("expected next_run for fetched job: %#v", fetched.Job)
-	}
+		getResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+			nil,
+			nil,
+		)
+		if getResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, getResp)
+			t.Fatalf("get job status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
+		}
+		var fetched contract.JobResponse
+		decodeHTTPJSON(t, getResp, &fetched)
+		if fetched.Job.LastRun != nil {
+			t.Fatalf("never-run job last_run = %#v, want absent", fetched.Job.LastRun)
+		}
+		if fetched.Job.NextRun == nil {
+			t.Fatalf("expected next_run for fetched job: %#v", fetched.Job)
+		}
 
-	listResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs?scope=global&source=dynamic"),
-		nil,
-		nil,
-	)
-	if listResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, listResp)
-		t.Fatalf("list jobs status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
-	}
-	var listed contract.JobsResponse
-	decodeHTTPJSON(t, listResp, &listed)
-	if len(listed.Jobs) != 1 || listed.Jobs[0].ID != created.Job.ID {
-		t.Fatalf("listed jobs = %#v", listed.Jobs)
-	}
+		listResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs?scope=global&source=dynamic"),
+			nil,
+			nil,
+		)
+		if listResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, listResp)
+			t.Fatalf("list jobs status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
+		}
+		var listed contract.JobsResponse
+		decodeHTTPJSON(t, listResp, &listed)
+		if len(listed.Jobs) != 1 || listed.Jobs[0].ID != created.Job.ID {
+			t.Fatalf("listed jobs = %#v", listed.Jobs)
+		}
 
-	updateResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPatch,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
-		[]byte(`{"prompt":"review repo now"}`),
-		nil,
-	)
-	if updateResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, updateResp)
-		t.Fatalf("update job status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
-	}
-	var updated contract.JobResponse
-	decodeHTTPJSON(t, updateResp, &updated)
-	if updated.Job.Prompt != "review repo now" {
-		t.Fatalf("updated job prompt = %q, want %q", updated.Job.Prompt, "review repo now")
-	}
+		if listed.Jobs[0].LastRun != nil {
+			t.Fatalf("never-run listed job last_run = %#v, want absent", listed.Jobs[0].LastRun)
+		}
 
-	triggerResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/trigger"),
-		nil,
-		nil,
-	)
-	if triggerResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, triggerResp)
-		t.Fatalf("trigger job status = %d, want %d; body=%s", triggerResp.StatusCode, http.StatusOK, string(body))
-	}
-	var run contract.RunResponse
-	decodeHTTPJSON(t, triggerResp, &run)
-	if run.Run.ID == "" || run.Run.JobID != created.Job.ID {
-		t.Fatalf("trigger run = %#v", run.Run)
-	}
+		updateResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPatch,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+			[]byte(`{"prompt":"review repo now"}`),
+			nil,
+		)
+		if updateResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, updateResp)
+			t.Fatalf("update job status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+		}
+		var updated contract.JobResponse
+		decodeHTTPJSON(t, updateResp, &updated)
+		if updated.Job.Prompt != "review repo now" {
+			t.Fatalf("updated job prompt = %q, want %q", updated.Job.Prompt, "review repo now")
+		}
 
-	jobRunsResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/runs"),
-		nil,
-		nil,
-	)
-	if jobRunsResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, jobRunsResp)
-		t.Fatalf("job runs status = %d, want %d; body=%s", jobRunsResp.StatusCode, http.StatusOK, string(body))
-	}
-	var jobRuns contract.RunsResponse
-	decodeHTTPJSON(t, jobRunsResp, &jobRuns)
-	if !containsAutomationRun(jobRuns.Runs, run.Run.ID) {
-		t.Fatalf("job run history missing %q: %#v", run.Run.ID, jobRuns.Runs)
-	}
+		triggerResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/trigger"),
+			nil,
+			nil,
+		)
+		if triggerResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, triggerResp)
+			t.Fatalf("trigger job status = %d, want %d; body=%s", triggerResp.StatusCode, http.StatusOK, string(body))
+		}
+		var run contract.RunResponse
+		decodeHTTPJSON(t, triggerResp, &run)
+		if run.Run.ID == "" || run.Run.JobID != created.Job.ID {
+			t.Fatalf("trigger run = %#v", run.Run)
+		}
 
-	runsResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/runs?job_id="+created.Job.ID),
-		nil,
-		nil,
-	)
-	if runsResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, runsResp)
-		t.Fatalf("list runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
-	}
-	var runs contract.RunsResponse
-	decodeHTTPJSON(t, runsResp, &runs)
-	if !containsAutomationRun(runs.Runs, run.Run.ID) {
-		t.Fatalf("runs list missing %q: %#v", run.Run.ID, runs.Runs)
-	}
+		jobRunsResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/runs"),
+			nil,
+			nil,
+		)
+		if jobRunsResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, jobRunsResp)
+			t.Fatalf("job runs status = %d, want %d; body=%s", jobRunsResp.StatusCode, http.StatusOK, string(body))
+		}
+		var jobRuns contract.RunsResponse
+		decodeHTTPJSON(t, jobRunsResp, &jobRuns)
+		if !containsAutomationRun(jobRuns.Runs, run.Run.ID) {
+			t.Fatalf("job run history missing %q: %#v", run.Run.ID, jobRuns.Runs)
+		}
 
-	runResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/runs/"+run.Run.ID),
-		nil,
-		nil,
-	)
-	if runResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, runResp)
-		t.Fatalf("get run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
-	}
-	var fetchedRun contract.RunResponse
-	decodeHTTPJSON(t, runResp, &fetchedRun)
-	if fetchedRun.Run.ID != run.Run.ID || fetchedRun.Run.JobID != created.Job.ID {
-		t.Fatalf("fetched run = %#v", fetchedRun.Run)
-	}
+		runsResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/runs?job_id="+created.Job.ID),
+			nil,
+			nil,
+		)
+		if runsResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, runsResp)
+			t.Fatalf("list runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
+		}
+		var runs contract.RunsResponse
+		decodeHTTPJSON(t, runsResp, &runs)
+		if !containsAutomationRun(runs.Runs, run.Run.ID) {
+			t.Fatalf("runs list missing %q: %#v", run.Run.ID, runs.Runs)
+		}
 
-	deleteResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodDelete,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
-		nil,
-		nil,
-	)
-	if deleteResp.StatusCode != http.StatusNoContent {
-		body := readAndCloseHTTPBody(t, deleteResp)
-		t.Fatalf("delete job status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNoContent, string(body))
-	}
-	closeHTTPBody(t, deleteResp.Body)
+		runResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/runs/"+run.Run.ID),
+			nil,
+			nil,
+		)
+		if runResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, runResp)
+			t.Fatalf("get run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
+		}
+		var fetchedRun contract.RunResponse
+		decodeHTTPJSON(t, runResp, &fetchedRun)
+		if fetchedRun.Run.ID != run.Run.ID || fetchedRun.Run.JobID != created.Job.ID {
+			t.Fatalf("fetched run = %#v", fetchedRun.Run)
+		}
 
-	emptyResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
-		nil,
-		nil,
-	)
-	if emptyResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, emptyResp)
-		t.Fatalf("final list jobs status = %d, want %d; body=%s", emptyResp.StatusCode, http.StatusOK, string(body))
-	}
-	var empty contract.JobsResponse
-	decodeHTTPJSON(t, emptyResp, &empty)
-	if len(empty.Jobs) != 0 {
-		t.Fatalf("expected no remaining jobs, got %#v", empty.Jobs)
-	}
+		waitForRun := func(id string, status automationpkg.RunStatus) contract.RunPayload {
+			t.Helper()
+			deadline := time.After(2 * time.Second)
+			ticker := time.NewTicker(25 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				response := mustHTTPRequest(
+					t,
+					runtime.client,
+					http.MethodGet,
+					mustURL(
+						runtime.host,
+						runtime.port,
+						"/api/automation/jobs/"+created.Job.ID+"/runs?limit=1",
+					),
+					nil,
+					nil,
+				)
+				if response.StatusCode != http.StatusOK {
+					body := readAndCloseHTTPBody(t, response)
+					t.Fatalf("latest job run status = %d; body=%s", response.StatusCode, body)
+				}
+				var latest contract.RunsResponse
+				decodeHTTPJSON(t, response, &latest)
+				if len(latest.Runs) == 1 && (id == "" || latest.Runs[0].ID == id) && latest.Runs[0].Status == status {
+					return latest.Runs[0]
+				}
+				select {
+				case <-deadline:
+					t.Fatalf("expected latest run %q with status %q, got %#v", id, status, latest.Runs)
+				case <-ticker.C:
+				}
+			}
+		}
+		waitForRun(run.Run.ID, automationpkg.RunCompleted)
+		if err := os.Remove(filepath.Join(runtime.server.homePaths.AgentsDir, "coder", "AGENT.md")); err != nil {
+			t.Fatalf("remove agent definition before the second run: %v", err)
+		}
+		failedResp := mustHTTPRequest(t, runtime.client, http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/trigger"), nil, nil)
+		if failedResp.StatusCode != http.StatusInternalServerError {
+			body := readAndCloseHTTPBody(t, failedResp)
+			t.Fatalf("trigger unavailable agent status = %d; body=%s", failedResp.StatusCode, body)
+		}
+		var failure contract.ErrorPayload
+		decodeHTTPJSON(t, failedResp, &failure)
+		if failure.Error == "" {
+			t.Fatal("expected unavailable agent failure message")
+		}
+		latest := waitForRun("", automationpkg.RunFailed)
+		if latest.ID == "" || latest.ID == run.Run.ID {
+			t.Fatalf("expected a new failed run, got %#v", latest)
+		}
+		for _, path := range []string{"/api/automation/jobs", "/api/automation/jobs/" + created.Job.ID} {
+			response := mustHTTPRequest(t, runtime.client, http.MethodGet,
+				mustURL(runtime.host, runtime.port, path), nil, nil)
+			if response.StatusCode != http.StatusOK {
+				body := readAndCloseHTTPBody(t, response)
+				t.Fatalf("job summary status = %d; body=%s", response.StatusCode, body)
+			}
+			var summary *contract.AutomationLastRunPayload
+			if path == "/api/automation/jobs" {
+				var result contract.JobsResponse
+				decodeHTTPJSON(t, response, &result)
+				if len(result.Jobs) != 1 {
+					t.Fatalf("listed jobs = %#v", result.Jobs)
+				}
+				summary = result.Jobs[0].LastRun
+			} else {
+				var result contract.JobResponse
+				decodeHTTPJSON(t, response, &result)
+				summary = result.Job.LastRun
+			}
+			if summary == nil || summary.ID != latest.ID || summary.Status != latest.Status ||
+				summary.StartedAt == nil || latest.StartedAt == nil || !summary.StartedAt.Equal(*latest.StartedAt) ||
+				summary.EndedAt == nil || latest.EndedAt == nil || !summary.EndedAt.Equal(*latest.EndedAt) || summary.SkipReason != "" {
+				t.Fatalf("%s last_run = %#v, latest run = %#v", path, summary, latest)
+			}
+		}
+
+		deleteResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodDelete,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+			nil,
+			nil,
+		)
+		if deleteResp.StatusCode != http.StatusNoContent {
+			body := readAndCloseHTTPBody(t, deleteResp)
+			t.Fatalf(
+				"delete job status = %d, want %d; body=%s",
+				deleteResp.StatusCode,
+				http.StatusNoContent,
+				string(body),
+			)
+		}
+		closeHTTPBody(t, deleteResp.Body)
+
+		emptyResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
+			nil,
+			nil,
+		)
+		if emptyResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, emptyResp)
+			t.Fatalf("final list jobs status = %d, want %d; body=%s", emptyResp.StatusCode, http.StatusOK, string(body))
+		}
+		var empty contract.JobsResponse
+		decodeHTTPJSON(t, emptyResp, &empty)
+		if len(empty.Jobs) != 0 {
+			t.Fatalf("expected no remaining jobs, got %#v", empty.Jobs)
+		}
+	})
 }
 
 func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {

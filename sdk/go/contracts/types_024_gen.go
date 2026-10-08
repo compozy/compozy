@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+type ToastEffect struct {
+	Tone    string `json:"tone"`
+	Message string `json:"message"`
+}
+
+type Tool struct {
+	ID                  ToolID          `json:"id"`
+	Backend             BackendRef      `json:"backend"`
+	DisplayTitle        string          `json:"display_title,omitempty"`
+	FriendlyVerb        string          `json:"friendly_verb,omitempty"`
+	Preview             string          `json:"preview,omitempty"`
+	Description         string          `json:"description"`
+	InputSchema         json.RawMessage `json:"input_schema"`
+	OutputSchema        json.RawMessage `json:"output_schema,omitempty"`
+	InputSchemaDigest   string          `json:"input_schema_digest"`
+	OutputSchemaDigest  string          `json:"output_schema_digest,omitempty"`
+	Source              SourceRef       `json:"source"`
+	Visibility          Visibility      `json:"visibility"`
+	Risk                RiskClass       `json:"risk"`
+	ReadOnly            bool            `json:"read_only"`
+	Destructive         bool            `json:"destructive"`
+	OpenWorld           bool            `json:"open_world"`
+	RequiresInteraction bool            `json:"requires_interaction"`
+	ConcurrencySafe     bool            `json:"concurrency_safe"`
+	MaxResultBytes      int64           `json:"max_result_bytes,omitempty"`
+	Toolsets            []ToolsetID     `json:"toolsets,omitempty"`
+	Tags                []string        `json:"tags,omitempty"`
+	SearchHints         []string        `json:"search_hints,omitempty"`
+}
+
 type ToolCallPatch struct {
 	Deny       bool            `json:"deny,omitempty"`
 	DenyReason string          `json:"deny_reason,omitempty"`
@@ -145,31 +175,32 @@ type ToolResultPatch struct {
 type ToolsetID string
 
 type Trigger struct {
-	ID                   string                 `json:"id"`
-	ProfileID            string                 `json:"profile_id"`
-	ProfileName          string                 `json:"profile_name"`
-	ProfileColor         string                 `json:"profile_color,omitempty"`
-	ProfileIcon          string                 `json:"profile_icon,omitempty"`
-	Scope                Scope                  `json:"scope"`
-	Name                 string                 `json:"name"`
-	TargetKind           TargetKind             `json:"target_kind"`
-	AgentName            string                 `json:"agent_name"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	Prompt               string                 `json:"prompt"`
-	Event                string                 `json:"event"`
-	Filter               map[string]string      `json:"filter,omitempty"`
-	LoopTarget           *LoopTarget            `json:"loop_target,omitempty"`
-	Enabled              bool                   `json:"enabled"`
-	Retry                RetryConfig            `json:"retry"`
-	FireLimit            FireLimitConfig        `json:"fire_limit"`
-	Source               JobSource              `json:"source"`
-	WebhookID            string                 `json:"webhook_id,omitempty"`
-	EndpointSlug         string                 `json:"endpoint_slug,omitempty"`
-	WebhookSecretPresent bool                   `json:"webhook_secret_present"`
-	WebhookSecretHash    string                 `json:"webhook_secret_hash,omitempty"`
-	Ingress              *GatewayIngressPayload `json:"ingress,omitempty"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
+	ID                   string                    `json:"id"`
+	ProfileID            string                    `json:"profile_id"`
+	ProfileName          string                    `json:"profile_name"`
+	ProfileColor         string                    `json:"profile_color,omitempty"`
+	ProfileIcon          string                    `json:"profile_icon,omitempty"`
+	Scope                Scope                     `json:"scope"`
+	Name                 string                    `json:"name"`
+	TargetKind           TargetKind                `json:"target_kind"`
+	AgentName            string                    `json:"agent_name"`
+	WorkspaceID          string                    `json:"workspace_id,omitempty"`
+	Prompt               string                    `json:"prompt"`
+	Event                string                    `json:"event"`
+	Filter               map[string]string         `json:"filter,omitempty"`
+	LoopTarget           *LoopTarget               `json:"loop_target,omitempty"`
+	Enabled              bool                      `json:"enabled"`
+	Retry                RetryConfig               `json:"retry"`
+	FireLimit            FireLimitConfig           `json:"fire_limit"`
+	Source               JobSource                 `json:"source"`
+	WebhookID            string                    `json:"webhook_id,omitempty"`
+	EndpointSlug         string                    `json:"endpoint_slug,omitempty"`
+	WebhookSecretPresent bool                      `json:"webhook_secret_present"`
+	WebhookSecretHash    string                    `json:"webhook_secret_hash,omitempty"`
+	Ingress              *GatewayIngressPayload    `json:"ingress,omitempty"`
+	CreatedAt            time.Time                 `json:"created_at"`
+	UpdatedAt            time.Time                 `json:"updated_at"`
+	LastRun              *AutomationLastRunPayload `json:"last_run,omitzero"`
 }
 
 type TriggerResult struct {
@@ -273,26 +304,4 @@ type ValidationIssue struct {
 	Field    string        `json:"field,omitempty"`
 	Message  string        `json:"message"`
 	Severity IssueSeverity `json:"severity"`
-}
-
-type ViewBadge struct {
-	Label string `json:"label"`
-	Tone  string `json:"tone"`
-}
-
-type ViewChrome struct {
-	IsLoading   bool        `json:"is_loading,omitempty"`
-	SearchText  *string     `json:"search_text,omitempty"`
-	EventCount  int64       `json:"event_count,omitempty"`
-	Placeholder string      `json:"search_placeholder,omitempty"`
-	ThrottleMs  int         `json:"throttle_ms,omitempty"`
-	Filtering   *bool       `json:"filtering,omitempty"`
-	Complete    bool        `json:"complete,omitempty"`
-	ActiveChip  string      `json:"active_chip,omitempty"`
-	Columns     int         `json:"columns,omitempty"`
-	Pagination  *Pagination `json:"pagination,omitempty"`
-	OnSearch    string      `json:"on_search,omitempty"`
-	OnChip      string      `json:"on_chip,omitempty"`
-	OnSelection string      `json:"on_selection,omitempty"`
-	OnLoadMore  string      `json:"on_load_more,omitempty"`
 }

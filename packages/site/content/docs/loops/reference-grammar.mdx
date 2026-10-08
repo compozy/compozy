@@ -228,7 +228,7 @@ stream. For loop events, it is shared across runs and is separate from the per-r
 Start bindings map an activation payload into inputs with the same grammar, restricted in v1 to a
 flat `{{ .trigger.payload.<field> }}` per input. Scheduled starts are static-inputs-only — a
 mapping is rejected — because a clock fire has no payload. See
-[automation](/docs/automation/triggers) for how triggers carry the payload.
+[automation](/docs/automation/events) for how triggers carry the payload.
 
 `run-loop.params.inputs.reviewed_worktree` is an optional reserved JSON string input containing
 `{worktree_id: string, include_paths: string[], fingerprint: string}`. It carries the original

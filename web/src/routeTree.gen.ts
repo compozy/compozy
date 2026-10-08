@@ -13,6 +13,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAgentsRouteImport } from './routes/_app/agents'
+import { Route as AppAutomationsRouteImport } from './routes/_app/automations'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
 import { Route as AppLoopRunsRouteImport } from './routes/_app/loop-runs'
 import { Route as AppLoopsRouteImport } from './routes/_app/loops'
@@ -59,6 +60,8 @@ import { Route as AppTerminalTerminalIdRouteImport } from './routes/_app/termina
 import { Route as AppTriggersTriggerIdRouteImport } from './routes/_app/triggers.$triggerId'
 import { Route as AppAgentsNameIndexRouteImport } from './routes/_app/agents.$name.index'
 import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
+import { Route as AppAutomationsJobsJobIdRouteImport } from './routes/_app/automations.jobs.$jobId'
+import { Route as AppAutomationsTriggersTriggerIdRouteImport } from './routes/_app/automations.triggers.$triggerId'
 import { Route as AppLoopRunsRunIdDiffRouteImport } from './routes/_app/loop-runs.$runId.diff'
 import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
 import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
@@ -84,6 +87,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppAgentsRoute = AppAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAutomationsRoute = AppAutomationsRouteImport.update({
+  id: '/automations',
+  path: '/automations',
   getParentRoute: () => AppRoute,
 } as any)
 const AppJobsRoute = AppJobsRouteImport.update({
@@ -317,6 +325,17 @@ const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppAgentsNameRoute,
 } as any)
+const AppAutomationsJobsJobIdRoute = AppAutomationsJobsJobIdRouteImport.update({
+  id: '/jobs/$jobId',
+  path: '/jobs/$jobId',
+  getParentRoute: () => AppAutomationsRoute,
+} as any)
+const AppAutomationsTriggersTriggerIdRoute =
+  AppAutomationsTriggersTriggerIdRouteImport.update({
+    id: '/triggers/$triggerId',
+    path: '/triggers/$triggerId',
+    getParentRoute: () => AppAutomationsRoute,
+  } as any)
 const AppLoopRunsRunIdDiffRoute = AppLoopRunsRunIdDiffRouteImport.update({
   id: '/diff',
   path: '/diff',
@@ -357,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
   '/agents': typeof AppAgentsRouteWithChildren
+  '/automations': typeof AppAutomationsRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
@@ -402,6 +422,8 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AppSettingsIndexRoute
   '/terminal/': typeof AppTerminalIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
+  '/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
   '/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
@@ -413,6 +435,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
+  '/automations': typeof AppAutomationsRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
@@ -455,6 +478,8 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsIndexRoute
   '/terminal': typeof AppTerminalIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
+  '/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
   '/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
@@ -469,6 +494,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
   '/_app/agents': typeof AppAgentsRouteWithChildren
+  '/_app/automations': typeof AppAutomationsRouteWithChildren
   '/_app/jobs': typeof AppJobsRouteWithChildren
   '/_app/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/_app/loops': typeof AppLoopsRouteWithChildren
@@ -515,6 +541,8 @@ export interface FileRoutesById {
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/terminal/': typeof AppTerminalIndexRoute
   '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/_app/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
+  '/_app/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
   '/_app/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/_app/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/_app/loops/$name/editor': typeof AppLoopsNameEditorRoute
@@ -530,6 +558,7 @@ export interface FileRouteTypes {
     | '/'
     | '/design-system'
     | '/agents'
+    | '/automations'
     | '/jobs'
     | '/loop-runs'
     | '/loops'
@@ -575,6 +604,8 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/terminal/'
     | '/agents/$name/settings'
+    | '/automations/jobs/$jobId'
+    | '/automations/triggers/$triggerId'
     | '/loop-runs/$runId/diff'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
@@ -586,6 +617,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
+    | '/automations'
     | '/jobs'
     | '/loop-runs'
     | '/loops'
@@ -628,6 +660,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terminal'
     | '/agents/$name/settings'
+    | '/automations/jobs/$jobId'
+    | '/automations/triggers/$triggerId'
     | '/loop-runs/$runId/diff'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
@@ -641,6 +675,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/design-system'
     | '/_app/agents'
+    | '/_app/automations'
     | '/_app/jobs'
     | '/_app/loop-runs'
     | '/_app/loops'
@@ -687,6 +722,8 @@ export interface FileRouteTypes {
     | '/_app/settings/'
     | '/_app/terminal/'
     | '/_app/agents/$name/settings'
+    | '/_app/automations/jobs/$jobId'
+    | '/_app/automations/triggers/$triggerId'
     | '/_app/loop-runs/$runId/diff'
     | '/_app/loops/$name/configure'
     | '/_app/loops/$name/editor'
@@ -730,6 +767,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents'
       preLoaderRoute: typeof AppAgentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/automations': {
+      id: '/_app/automations'
+      path: '/automations'
+      fullPath: '/automations'
+      preLoaderRoute: typeof AppAutomationsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/jobs': {
@@ -1054,6 +1098,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsNameSettingsRouteImport
       parentRoute: typeof AppAgentsNameRoute
     }
+    '/_app/automations/jobs/$jobId': {
+      id: '/_app/automations/jobs/$jobId'
+      path: '/jobs/$jobId'
+      fullPath: '/automations/jobs/$jobId'
+      preLoaderRoute: typeof AppAutomationsJobsJobIdRouteImport
+      parentRoute: typeof AppAutomationsRoute
+    }
+    '/_app/automations/triggers/$triggerId': {
+      id: '/_app/automations/triggers/$triggerId'
+      path: '/triggers/$triggerId'
+      fullPath: '/automations/triggers/$triggerId'
+      preLoaderRoute: typeof AppAutomationsTriggersTriggerIdRouteImport
+      parentRoute: typeof AppAutomationsRoute
+    }
     '/_app/loop-runs/$runId/diff': {
       id: '/_app/loop-runs/$runId/diff'
       path: '/diff'
@@ -1134,6 +1192,20 @@ const AppAgentsRouteChildren: AppAgentsRouteChildren = {
 
 const AppAgentsRouteWithChildren = AppAgentsRoute._addFileChildren(
   AppAgentsRouteChildren,
+)
+
+interface AppAutomationsRouteChildren {
+  AppAutomationsJobsJobIdRoute: typeof AppAutomationsJobsJobIdRoute
+  AppAutomationsTriggersTriggerIdRoute: typeof AppAutomationsTriggersTriggerIdRoute
+}
+
+const AppAutomationsRouteChildren: AppAutomationsRouteChildren = {
+  AppAutomationsJobsJobIdRoute: AppAutomationsJobsJobIdRoute,
+  AppAutomationsTriggersTriggerIdRoute: AppAutomationsTriggersTriggerIdRoute,
+}
+
+const AppAutomationsRouteWithChildren = AppAutomationsRoute._addFileChildren(
+  AppAutomationsRouteChildren,
 )
 
 interface AppJobsRouteChildren {
@@ -1318,6 +1390,7 @@ const AppTriggersRouteWithChildren = AppTriggersRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRouteWithChildren
+  AppAutomationsRoute: typeof AppAutomationsRouteWithChildren
   AppJobsRoute: typeof AppJobsRouteWithChildren
   AppLoopRunsRoute: typeof AppLoopRunsRouteWithChildren
   AppLoopsRoute: typeof AppLoopsRouteWithChildren
@@ -1335,6 +1408,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRouteWithChildren,
+  AppAutomationsRoute: AppAutomationsRouteWithChildren,
   AppJobsRoute: AppJobsRouteWithChildren,
   AppLoopRunsRoute: AppLoopRunsRouteWithChildren,
   AppLoopsRoute: AppLoopsRouteWithChildren,

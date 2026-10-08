@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type OwnerKind string
+
 type Ownership struct {
 	Kind OwnerKind `json:"kind"`
 	Ref  string    `json:"ref"`
@@ -219,10 +221,3 @@ type ProfileLensID string
 type PromptDelivery string
 
 type PromptMode string
-
-type PromptPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Prompt        *string        `json:"prompt,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}

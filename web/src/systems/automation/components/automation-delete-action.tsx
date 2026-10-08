@@ -6,8 +6,9 @@ import { automationDeleteLogic } from "./automation-delete-store";
 
 interface AutomationDeleteActionProps {
   isPending: boolean;
-  kind: "jobs" | "triggers";
   name: string;
+  /** What stops happening, e.g. "Its schedule will stop asking summarizer. Past runs stay in the log." */
+  consequence: string;
   onConfirm: () => void | Promise<void>;
   /** Controlled open — use with `hideTrigger` when opened from a menu item. */
   open?: boolean;
@@ -18,8 +19,8 @@ interface AutomationDeleteActionProps {
 
 export function AutomationDeleteAction({
   isPending,
-  kind,
   name,
+  consequence,
   onConfirm,
   open: openProp,
   onOpenChange,
@@ -27,7 +28,6 @@ export function AutomationDeleteAction({
 }: AutomationDeleteActionProps) {
   const store = useStore(automationDeleteLogic);
   const state = useSelector(store, snapshot => snapshot.context);
-  const noun = kind === "jobs" ? "job" : "trigger";
   const pending = isPending || state.phase === "submitting";
   const controlled = openProp !== undefined;
   const open = controlled ? openProp : state.open;
@@ -42,7 +42,7 @@ export function AutomationDeleteAction({
   const handleConfirm = () => {
     store.trigger.submissionRequested({
       execute: onConfirm,
-      fallbackError: `Failed to delete automation ${noun}`,
+      fallbackError: "Failed to delete the automation.",
       permitted: !isPending,
       onSucceeded: () => onOpenChange?.(false),
     });
@@ -58,15 +58,12 @@ export function AutomationDeleteAction({
       confirmButtonProps={{ "data-testid": "confirm-delete-automation-btn" }}
       confirmIcon={Trash2}
       confirmInputProps={{ "data-testid": "automation-delete-confirm-typing" }}
-      confirmLabel={pending ? `Deleting ${noun}…` : `Delete ${noun}`}
+      confirmLabel={pending ? "Deleting…" : "Delete automation"}
       confirmTyping={name}
       contentProps={{ "data-testid": "automation-delete-dialog" }}
       description={
         <>
-          This permanently deletes <span className="font-mono text-fg">{name}</span>.{" "}
-          {kind === "jobs"
-            ? "Its schedule will no longer start the configured target."
-            : "Matching events will no longer start the configured target."}
+          This permanently deletes <span className="font-mono text-fg">{name}</span>. {consequence}
         </>
       }
       error={state.error}
@@ -77,14 +74,14 @@ export function AutomationDeleteAction({
         setOpen(next);
       }}
       open={open}
-      title={`Delete ${noun}?`}
+      title="Delete automation?"
       tone="danger"
     >
       {hideTrigger ? null : (
         <DialogTrigger
           render={
             <Button
-              data-testid="delete-automation-btn"
+              data-testid="automation-delete-btn"
               disabled={pending}
               size="sm"
               type="button"
@@ -93,7 +90,7 @@ export function AutomationDeleteAction({
           }
         >
           <Trash2 />
-          Delete {noun}
+          Delete automation
         </DialogTrigger>
       )}
     </ConfirmDialog>

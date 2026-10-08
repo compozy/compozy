@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type ClarifyAskParams struct {
+	InvocationID string   `json:"invocation_id"`
+	Question     string   `json:"question"`
+	Choices      []string `json:"choices,omitempty"`
+}
+
 type ClientID string
 
 type CmdPaletteAction struct {
@@ -175,8 +181,4 @@ type ContextCompactionPayload struct {
 	Status         string    `json:"status,omitempty"`
 	Summary        string    `json:"summary,omitempty"`
 	Error          string    `json:"error,omitempty"`
-}
-
-type ContextPostCompactPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

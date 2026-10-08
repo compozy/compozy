@@ -4,6 +4,28 @@ package contracts
 
 import "time"
 
+type ViewBadge struct {
+	Label string `json:"label"`
+	Tone  string `json:"tone"`
+}
+
+type ViewChrome struct {
+	IsLoading   bool        `json:"is_loading,omitempty"`
+	SearchText  *string     `json:"search_text,omitempty"`
+	EventCount  int64       `json:"event_count,omitempty"`
+	Placeholder string      `json:"search_placeholder,omitempty"`
+	ThrottleMs  int         `json:"throttle_ms,omitempty"`
+	Filtering   *bool       `json:"filtering,omitempty"`
+	Complete    bool        `json:"complete,omitempty"`
+	ActiveChip  string      `json:"active_chip,omitempty"`
+	Columns     int         `json:"columns,omitempty"`
+	Pagination  *Pagination `json:"pagination,omitempty"`
+	OnSearch    string      `json:"on_search,omitempty"`
+	OnChip      string      `json:"on_chip,omitempty"`
+	OnSelection string      `json:"on_selection,omitempty"`
+	OnLoadMore  string      `json:"on_load_more,omitempty"`
+}
+
 type ViewCloseRequest struct {
 	ViewSession string      `json:"view_session"`
 	ProfileLens ProfileLens `json:"profile_lens"`
@@ -194,20 +216,4 @@ type WorktreeContext struct {
 type WorktreeControlPatch struct {
 	Deny       bool   `json:"deny,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`
-}
-
-type WorktreeObservationPatch struct{}
-
-type WorktreeObservationPayload struct {
-	Event         HookEvent `json:"event"`
-	Timestamp     time.Time `json:"timestamp"`
-	ProfileID     string    `json:"profile_id,omitempty"`
-	WorktreeID    string    `json:"worktree_id"`
-	WorkspaceID   string    `json:"workspace_id"`
-	WorkspaceRoot string    `json:"workspace_root,omitempty"`
-	Name          string    `json:"name"`
-	Branch        string    `json:"branch"`
-	Path          string    `json:"path"`
-	Origin        string    `json:"origin"`
-	RunID         string    `json:"run_id,omitempty"`
 }

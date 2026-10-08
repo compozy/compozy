@@ -1,26 +1,31 @@
 // Suite: palette domain search projection
 // Invariant: domain rows honor workspace scope filters, per-domain landing
-// routes, server catalog totals, and an optional visible cap without a numeric
+// routes, automation rows of both kinds, server catalog totals, and an optional visible cap without a numeric
 // sentinel for uncapped pushed views.
 // Owning layer: unit — the domain-search helpers.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { Clock3, Radio } from "lucide-react";
 import { describe, expect, it } from "vitest";
+
+import type { AutomationView } from "@/systems/automation";
+import { automationStoryJobs, automationStoryTriggers } from "@/systems/automation/mocks";
+import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 
 import type { CmdPaletteRankSignals } from "../cmd-palette-types";
 import {
   agentRoute,
-  jobRoute,
   loopRoute,
   marketplaceEntryRoute,
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
+  projectAutomationRows,
   section,
   taskRoute,
   terminalRoute,
-  triggerRoute,
   vaultRoute,
   workspaceLabel,
+  paletteAutomationViews,
 } from "../os-palette-domain-search";
 
 const TEST_WEIGHTS = JSON.parse(
@@ -62,8 +67,6 @@ describe("os-palette-domain-search helpers", () => {
       pathname: "/loops/Release%20%2F%20Ops",
       search: { workspace: "ws-a" },
     });
-    expect(jobRoute("job-42")).toEqual({ pathname: "/jobs/job-42", search: {} });
-    expect(triggerRoute("trigger-42")).toEqual({ pathname: "/triggers/trigger-42", search: {} });
     expect(agentRoute("agent/ops")).toEqual({ pathname: "/agents/agent%2Fops", search: {} });
     expect(terminalRoute("term/4f21")).toEqual({
       pathname: "/terminal/term%2F4f21",
@@ -153,5 +156,21 @@ describe("os-palette-domain-search helpers", () => {
     );
     expect(projected.rows).toHaveLength(4);
     expect(projected.total).toBe(4);
+  });
+});
+
+describe("paletteAutomationViews", () => {
+  it("Should name the project in the sentence even without the Global label index", () => {
+    const views = paletteAutomationViews(automationStoryJobs, automationStoryTriggers, {
+      names: new Map(),
+      projects: [{ id: storyWorkspaceIds.hq, name: "checkout-api" }],
+    });
+    const rows = projectAutomationRows(views, "workspace", new Map());
+    const rerun = rows.find(row => row.label === "rerun-delivery");
+    expect(rerun?.detail).toBe(
+      "When a session stops in checkout-api with an error, start the Loop software-delivery."
+    );
+    expect(rerun?.workspaceLabel).toBeUndefined();
+    expect(rows.map(row => row.label)).toEqual(views.map(view => view.name));
   });
 });

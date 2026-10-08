@@ -17,8 +17,7 @@ const DOCK_DEFS = [
   { id: "agents", name: "Agents", icon: "agents" },
   { id: "tasks", name: "Tasks", icon: "tasks" },
   { id: "loops", name: "Loops", icon: "loops" },
-  { id: "jobs", name: "Jobs", icon: "jobs" },
-  { id: "triggers", name: "Triggers", icon: "triggers" },
+  { id: "automations", name: "Automations", icon: "automations" },
   { id: "marketplace", name: "Marketplace", icon: "marketplace" },
   { id: "vault", name: "Vault", icon: "vault" },
 ] as const;

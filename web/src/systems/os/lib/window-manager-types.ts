@@ -238,7 +238,7 @@ export interface WindowManagerConflictPayload {
 }
 
 export interface WindowManagerSnapshot {
-  version: 4;
+  version: 5;
   workspaceId: string;
   revision: LayoutRevision;
   desktops: readonly LayoutDesktop[];

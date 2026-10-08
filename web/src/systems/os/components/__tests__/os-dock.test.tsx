@@ -86,7 +86,7 @@ vi.mock("@/systems/profiles", async importOriginal => ({
 }));
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 4,
+  version: 5,
   workspaceId: "workspace:test",
   revision: 1,
   desktops: [],
@@ -424,7 +424,7 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should list every launcher in catalog order with no group separators", () => {
+  it("Should list every launcher in catalog order with no group separators [UT-110]", () => {
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
 
     expect(result.current.entries.map(entry => entry.id)).toEqual([
@@ -434,11 +434,14 @@ describe("OsDock", () => {
       "agents",
       "tasks",
       "loops",
-      "jobs",
-      "triggers",
+      "automations",
       "marketplace",
       "vault",
     ]);
+    expect(result.current.entries.find(entry => entry.id === "automations")).toMatchObject({
+      name: "Automations",
+      icon: "automations",
+    });
   });
 
   it("Should resolve the Sessions launch catalog across every workspace in Global scope", async () => {

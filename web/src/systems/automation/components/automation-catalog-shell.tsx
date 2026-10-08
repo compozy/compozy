@@ -1,10 +1,9 @@
-import { AlertCircle, Clock3, Zap, type LucideIcon } from "lucide-react";
+import { AlertCircle, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CatalogEmptyState } from "@/components/catalog-empty-state";
 import { Button, Empty, Skeleton, SkeletonRows, type ListingViewMode } from "@compozy/ui";
 
-import type { AutomationKind } from "../types";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 
 /** Load-more state for the catalog shell, grouped to avoid boolean-prop sprawl. */
@@ -15,213 +14,150 @@ export interface AutomationCatalogPagination {
   onLoadMore?: () => void;
 }
 
+export interface AutomationCatalogLoadError {
+  message: string;
+  onRetry: () => void;
+}
+
 export interface AutomationCatalogShellProps {
-  /** Names the selected listing scope in the zero-inventory state (US-009.EC-3). */
+  /** Names the selected listing scope in the first-run state. */
   profileScope: ProfileListingScope;
-  kind: AutomationKind;
   view: ListingViewMode;
   itemCount: number;
   isLoading: boolean;
-  errorMessage: string | null;
+  /** Both lists failed (or the only requested one): the load error state. */
+  loadError: AutomationCatalogLoadError | null;
+  /** Any search, facet or Start view: zero rows read as filtered empty. */
   hasActiveFilters: boolean;
   pagination: AutomationCatalogPagination;
   onClearFilters: () => void;
-  onCreate: () => void;
-  /** Zero-inventory extra, such as live job suggestions. Filtered empty never receives it. */
+  /** First-run starts ("On a schedule" · "When something happens"). */
+  firstRunActions: ReactNode;
+  /** First-run extra, such as live suggestions. Filtered empty never receives it. */
   unfilteredEmptyPanel?: ReactNode;
   children: ReactNode;
 }
 
 /**
- * Shared state envelope for the Jobs/Triggers catalogs: loading, error, empty
- * (zero vs filtered), rows/cards wrapper, page-level error, and load-more.
+ * State envelope for the Automations listing: loading, load error, first-run
+ * vs filtered empty, rows/cards wrapper and load-more.
  */
 export function AutomationCatalogShell({
-  kind,
   view,
   itemCount,
   isLoading,
-  errorMessage,
+  loadError,
   hasActiveFilters,
   pagination,
   onClearFilters,
-  onCreate,
+  firstRunActions,
   profileScope,
   unfilteredEmptyPanel,
   children,
 }: AutomationCatalogShellProps) {
-  const noun = kind === "jobs" ? "jobs" : "triggers";
-  const EmptyIcon = kind === "jobs" ? Clock3 : Zap;
   const isEmpty = itemCount === 0;
 
   if (isLoading && isEmpty) {
-    return <AutomationCatalogSkeleton noun={noun} view={view} />;
+    return <AutomationCatalogSkeleton view={view} />;
   }
 
-  if (errorMessage && isEmpty) {
-    return <AutomationCatalogError errorMessage={errorMessage} kind={kind} noun={noun} />;
+  if (loadError && isEmpty) {
+    return (
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center p-4"
+        data-testid="automations-list-error"
+      >
+        <Empty
+          action={
+            <Button
+              data-testid="automations-list-retry"
+              onClick={loadError.onRetry}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Try again
+            </Button>
+          }
+          className="max-w-sm"
+          description={loadError.message}
+          icon={AlertCircle}
+          title="Unable to load automations"
+        />
+      </div>
+    );
   }
 
   if (isEmpty && hasActiveFilters) {
     return (
-      <AutomationCatalogFilteredEmpty
-        icon={EmptyIcon}
-        noun={noun}
-        onClearFilters={onClearFilters}
-      />
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center p-4"
+        data-testid="automations-list-filtered-empty"
+      >
+        <Empty
+          action={
+            <Button
+              data-testid="automations-list-clear-filters"
+              onClick={onClearFilters}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Clear filters
+            </Button>
+          }
+          className="max-w-sm"
+          description="Try clearing search or filters."
+          icon={Zap}
+          title="No automations match"
+        />
+      </div>
     );
   }
 
   if (isEmpty) {
     return (
       <CatalogEmptyState
-        action={
-          <Button
-            data-testid={`${noun}-list-create`}
-            onClick={onCreate}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            Create from scratch
-          </Button>
-        }
-        data-testid={`${noun}-list-empty`}
-        icon={EmptyIcon}
+        action={firstRunActions}
+        data-testid="automations-list-empty"
+        icon={Zap}
         panel={unfilteredEmptyPanel}
-        support={
-          kind === "jobs"
-            ? "A job runs an agent or a loop on a schedule."
-            : "A trigger runs something when an event happens."
-        }
-        title={emptyForScope(noun, profileScope.scopeLabel)}
+        support="An automation runs an agent, a Loop or a task on a schedule, or when something happens."
+        title={emptyForScope("automations", profileScope.scopeLabel)}
       />
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <AutomationCatalogItems noun={noun} view={view}>
-        {children}
-      </AutomationCatalogItems>
-
-      {errorMessage ? (
-        <p
-          className="px-1 text-caption text-danger"
-          data-testid={`${noun}-list-page-error`}
-          role="alert"
+      {view === "cards" ? (
+        <div
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+          data-testid="automations-list-card-grid"
         >
-          {errorMessage}
-        </p>
-      ) : null}
-
-      <AutomationCatalogLoadMore noun={noun} pagination={pagination} />
+          {children}
+        </div>
+      ) : (
+        <div
+          className="overflow-hidden rounded-lg bg-card shadow-card"
+          data-testid="automations-list-rows"
+        >
+          {children}
+        </div>
+      )}
+      <AutomationCatalogLoadMore pagination={pagination} />
     </div>
   );
 }
 
-function AutomationCatalogError({
-  errorMessage,
-  kind,
-  noun,
-}: {
-  errorMessage: string;
-  kind: AutomationKind;
-  noun: string;
-}) {
-  return (
-    <div
-      className="flex min-h-0 flex-1 items-center justify-center p-4"
-      data-testid={`${noun}-list-error`}
-    >
-      <Empty
-        className="max-w-sm"
-        description={errorMessage}
-        icon={AlertCircle}
-        title={kind === "jobs" ? "Unable to load jobs" : "Unable to load triggers"}
-      />
-    </div>
-  );
-}
-
-function AutomationCatalogFilteredEmpty({
-  icon,
-  noun,
-  onClearFilters,
-}: {
-  icon: LucideIcon;
-  noun: string;
-  onClearFilters: () => void;
-}) {
-  return (
-    <div
-      className="flex min-h-0 flex-1 items-center justify-center p-4"
-      data-testid={`${noun}-list-empty`}
-    >
-      <Empty
-        action={
-          <Button
-            data-testid={`${noun}-list-clear-filters`}
-            onClick={onClearFilters}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            Clear filters
-          </Button>
-        }
-        className="max-w-sm"
-        description="Try clearing search or filters."
-        icon={icon}
-        title={`No ${noun} match`}
-      />
-    </div>
-  );
-}
-
-function AutomationCatalogItems({
-  children,
-  noun,
-  view,
-}: {
-  children: ReactNode;
-  noun: string;
-  view: ListingViewMode;
-}) {
-  if (view === "cards") {
-    return (
-      <div
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-        data-testid={`${noun}-list-card-grid`}
-      >
-        {children}
-      </div>
-    );
-  }
-  return (
-    <div
-      className="overflow-hidden rounded-lg bg-card shadow-card"
-      data-testid={`${noun}-list-rows`}
-    >
-      {children}
-    </div>
-  );
-}
-
-function AutomationCatalogLoadMore({
-  noun,
-  pagination,
-}: {
-  noun: string;
-  pagination: AutomationCatalogPagination;
-}) {
+function AutomationCatalogLoadMore({ pagination }: { pagination: AutomationCatalogPagination }) {
   const { hasNextPage, isFetchingNextPage, isPaused, onLoadMore } = pagination;
   if (!hasNextPage || !onLoadMore) return null;
   return (
     <div className="flex justify-center">
       <Button
         aria-busy={isFetchingNextPage}
-        data-testid={`${noun}-list-load-more`}
+        data-testid="automations-list-load-more"
         disabled={isFetchingNextPage || isPaused}
         onClick={onLoadMore}
         size="sm"
@@ -231,19 +167,19 @@ function AutomationCatalogLoadMore({
         {isPaused
           ? "Waiting for connection…"
           : isFetchingNextPage
-            ? `Loading more ${noun}…`
-            : `Load more ${noun}`}
+            ? "Loading more automations…"
+            : "Load more automations"}
       </Button>
     </div>
   );
 }
 
-function AutomationCatalogSkeleton({ noun, view }: { noun: string; view: ListingViewMode }) {
+function AutomationCatalogSkeleton({ view }: { view: ListingViewMode }) {
   return (
     <div
       aria-busy="true"
-      aria-label={`Loading ${noun} as ${view}`}
-      data-testid={`${noun}-list-loading`}
+      aria-label={`Loading automations as ${view}`}
+      data-testid="automations-list-loading"
       role="status"
     >
       {view === "cards" ? (

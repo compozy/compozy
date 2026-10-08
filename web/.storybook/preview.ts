@@ -138,14 +138,19 @@ function createStubStorybookRouter(
     path: "session/$id",
     component: Story,
   });
-  const jobsRoute = createRoute({
+  const automationsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "jobs",
+    path: "automations",
     component: Story,
   });
-  const triggersRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "triggers",
+  const automationJobRoute = createRoute({
+    getParentRoute: () => automationsRoute,
+    path: "jobs/$jobId",
+    component: Story,
+  });
+  const automationTriggerRoute = createRoute({
+    getParentRoute: () => automationsRoute,
+    path: "triggers/$triggerId",
     component: Story,
   });
   const bridgesRoute = createRoute({
@@ -218,8 +223,7 @@ function createStubStorybookRouter(
     routeTree: rootRoute.addChildren([
       storyRoute,
       sessionRoute,
-      jobsRoute,
-      triggersRoute,
+      automationsRoute.addChildren([automationJobRoute, automationTriggerRoute]),
       bridgesRoute,
       networkRoute,
       skillsRoute,

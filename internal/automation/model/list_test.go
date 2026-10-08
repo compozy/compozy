@@ -229,3 +229,58 @@ func assertListJobIDs(t *testing.T, jobs []Job, want []string) {
 		}
 	}
 }
+
+func TestAutomationListTarget(t *testing.T) {
+	t.Parallel()
+	t.Run("Should filter task delegation and bind normalized target to cursors", func(t *testing.T) {
+		t.Parallel()
+		jobs := []Job{
+			listTestJob("agent", "Agent", JobSourceDynamic, "workspace-a"),
+			listTestJob("task-a", "Task A", JobSourceDynamic, "workspace-a"),
+			listTestJob("task-b", "Task B", JobSourceDynamic, "workspace-a"),
+		}
+		jobs[1].Task = &JobTaskConfig{Title: "Review"}
+		jobs[2].Task = &JobTaskConfig{Title: "Review"}
+		page, err := BuildJobListPage(jobs, JobListQuery{Target: " task ", Limit: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 2 || !page.HasMore {
+			t.Fatalf("page = %#v", page)
+		}
+		assertListJobIDs(t, page.Jobs, []string{"task-a"})
+		next, err := BuildJobListPage(jobs, JobListQuery{Target: "task", Limit: 1, Cursor: page.NextCursor})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertListJobIDs(t, next.Jobs, []string{"task-b"})
+		_, err = BuildJobListPage(jobs, JobListQuery{Target: "agent", Limit: 1, Cursor: page.NextCursor})
+		if !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("cross-target cursor error = %v", err)
+		}
+	})
+	t.Run("Should never match triggers with a task filter", func(t *testing.T) {
+		t.Parallel()
+		page, err := BuildTriggerListPage(
+			[]Trigger{{ID: "trigger-agent", TargetKind: TargetKindAgent}},
+			TriggerListQuery{Target: "task", Limit: 1},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 0 || len(page.Triggers) != 0 {
+			t.Fatalf("page = %#v", page)
+		}
+		cursor, err := EncodeTriggerListCursor(
+			TriggerListQuery{Target: "loop"},
+			ListCursorPosition{Source: JobSourceDynamic, Name: "loop", ID: "loop"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = ValidateTriggerListQuery(TriggerListQuery{Target: "agent", Cursor: cursor, Limit: 1})
+		if !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("cross-target cursor error = %v", err)
+		}
+	})
+}

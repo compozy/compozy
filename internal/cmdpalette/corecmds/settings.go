@@ -36,7 +36,7 @@ var settingsDestinations = []settingsDestination{
 		Slug:     "automation",
 		Title:    "Automation",
 		Icon:     coreIconZap,
-		Keywords: []string{coreAppJobs, coreAppTriggers, "scheduler", "cron"},
+		Keywords: []string{coreAppAutomations, "jobs", "triggers", "scheduler", "cron"},
 	},
 	{Slug: "gateway", Title: "Gateway", Icon: "radio", Keywords: []string{"remote", "pairing", "devices"}},
 	{Slug: "attention", Title: "Attention", Icon: "bell", Keywords: []string{"notifications", "sound", "mute"}},
@@ -46,7 +46,7 @@ var settingsDestinations = []settingsDestination{
 		Icon:     "activity",
 		Keywords: []string{"logs", "capture", "support bundle"},
 	},
-	{Slug: "hooks", Title: "Hooks", Icon: "webhook", Keywords: []string{"lifecycle", "events", "presets"}},
+	{Slug: "hooks", Title: "Hooks", Icon: coreKeywordWebhook, Keywords: []string{"lifecycle", "events", "presets"}},
 	{Slug: "palette", Title: "Palette", Icon: coreIconCommand, Keywords: []string{"commands", "shortcuts", "search"}},
 	{Slug: coreAppExtensions, Title: "Extensions", Icon: "puzzle", Keywords: []string{"policy", "registry", "trust"}},
 }
@@ -62,7 +62,7 @@ func settingsCommands() []cmdpalette.Descriptor {
 			cmdpalette.Action{
 				Kind: cmdpalette.ActionKindNavigate,
 				App:  coreSettingsKey,
-				Args: map[string]any{"pathname": "/settings/" + destination.Slug},
+				Args: map[string]any{coreArgPathname: "/settings/" + destination.Slug},
 			},
 		)
 		command.Keywords = append([]string(nil), destination.Keywords...)

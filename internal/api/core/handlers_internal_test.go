@@ -1,8 +1,12 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -79,6 +83,26 @@ func TestCreateAgentDefinitionPath(t *testing.T) {
 		})
 		if !errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
 			t.Fatalf("createAgentDefinitionPath() error = %v, want ErrWorkspaceRootMissing", err)
+		}
+	})
+}
+
+// Invariant: deprecated palette IDs emit one structured warning per process history; handler internals own warning deduplication.
+func TestPaletteDeprecationWarnings(t *testing.T) {
+	t.Parallel()
+	t.Run("Should warn once per retired command id [IT-013]", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		var seen sync.Map
+		logger := slog.New(slog.NewJSONHandler(&logs, nil))
+		for range 2 {
+			resolvePaletteCommandID(t.Context(), logger, &seen, "app.open.jobs")
+		}
+		if strings.Count(logs.String(), `"id":"app.open.jobs"`) != 1 ||
+			!strings.Contains(logs.String(), `"event":"cmdpalette.command_id_deprecated"`) ||
+			!strings.Contains(logs.String(), `"replacement":"app.open.automations"`) ||
+			!strings.Contains(logs.String(), `"removal":"v0.5.0"`) {
+			t.Fatalf("warnings=%s", logs.String())
 		}
 	})
 }

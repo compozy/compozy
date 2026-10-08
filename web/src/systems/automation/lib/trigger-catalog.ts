@@ -28,7 +28,6 @@ export interface TriggerEnvelope {
 export interface EventDef {
   /** Stable catalog key used for selection (not always the literal event id). */
   id: string;
-  group: EventGroup;
   family: EventFamily;
   icon: EventIconKey;
   label: string;
@@ -43,15 +42,6 @@ export interface EventDef {
    */
   openPayload?: boolean;
 }
-
-export type EventGroup = "Session lifecycle" | "Hooks" | "External" | "Extensions";
-
-export const EVENT_GROUP_ORDER: readonly EventGroup[] = [
-  "Session lifecycle",
-  "Hooks",
-  "External",
-  "Extensions",
-];
 
 /** Top-level envelope keys available to every filter and template. */
 export const ENVELOPE_KEYS = ["kind", "scope", "source", "workspace_id"] as const;
@@ -72,7 +62,6 @@ const SESSION_FIELDS = [
 export const EVENTS: readonly EventDef[] = [
   {
     id: "session.created",
-    group: "Session lifecycle",
     family: "fixed",
     icon: "session-start",
     label: "Session started",
@@ -99,7 +88,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "session.stopped",
-    group: "Session lifecycle",
     family: "fixed",
     icon: "session-stop",
     label: "Session stopped",
@@ -128,7 +116,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "hook.completed",
-    group: "Hooks",
     family: "hook",
     icon: "hook",
     label: "Hook completed",
@@ -172,7 +159,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "webhook",
-    group: "External",
     family: "webhook",
     icon: "webhook",
     label: "Incoming webhook",
@@ -201,7 +187,6 @@ export const EVENTS: readonly EventDef[] = [
   },
   {
     id: "ext",
-    group: "Extensions",
     family: "ext",
     icon: "extension",
     label: "Extension event",
@@ -226,26 +211,6 @@ const EVENTS_BY_ID = new Map<string, EventDef>(EVENTS.map(event => [event.id, ev
 
 export function getEventDef(id: string): EventDef | undefined {
   return EVENTS_BY_ID.get(id);
-}
-
-export interface EventGroupBucket {
-  group: EventGroup;
-  events: EventDef[];
-}
-
-/** Events filtered by `query` and bucketed into their groups, in canonical order. */
-export function listEventGroups(query = ""): EventGroupBucket[] {
-  const normalized = query.trim().toLowerCase();
-  const matches = (event: EventDef) => {
-    if (normalized === "") return true;
-    const haystack = `${event.id} ${event.label} ${event.description} ${event.group}`.toLowerCase();
-    return haystack.includes(normalized);
-  };
-
-  return EVENT_GROUP_ORDER.flatMap(group => {
-    const events = EVENTS.filter(event => event.group === group && matches(event));
-    return events.length > 0 ? [{ group, events }] : [];
-  });
 }
 
 /**

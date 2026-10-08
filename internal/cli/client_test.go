@@ -3681,6 +3681,9 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 					if got := req.URL.Query().Get("enabled"); got != "false" {
 						t.Fatalf("job enabled query = %q, want %q", got, "false")
 					}
+					if got := req.URL.Query().Get("target"); got != "loop" {
+						t.Fatalf("target query = %q, want loop", got)
+					}
 					if got := req.URL.Query().Get("loop"); got != "triage" {
 						t.Fatalf("job loop query = %q, want %q", got, "triage")
 					}
@@ -3767,6 +3770,9 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 					}
 					if got := req.URL.Query().Get("enabled"); got != "true" {
 						t.Fatalf("trigger enabled query = %q, want %q", got, "true")
+					}
+					if got := req.URL.Query().Get("target"); got != "loop" {
+						t.Fatalf("target query = %q, want loop", got)
 					}
 					if got := req.URL.Query().Get("loop"); got != "triage" {
 						t.Fatalf("trigger loop query = %q, want %q", got, "triage")
@@ -3894,6 +3900,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Source:      automationpkg.JobSourcePackage,
 			Enabled:     new(false),
 			LoopName:    "triage",
+			Target:      "loop",
 			Search:      "digest",
 			Cursor:      "job-cursor",
 			Limit:       3,
@@ -3970,6 +3977,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Source:      automationpkg.JobSourcePackage,
 			Enabled:     new(true),
 			LoopName:    "triage",
+			Target:      "loop",
 			Search:      "review",
 			Cursor:      "trigger-cursor",
 			Limit:       2,

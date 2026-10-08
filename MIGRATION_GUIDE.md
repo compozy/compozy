@@ -38,7 +38,7 @@ the upgraded databases; restore the complete pre-upgrade backup to roll back.
 
 Nothing needs editing by hand. On the first start:
 
-- **Global database migration 00128.** `00128_retire_memory.sql` drops the memory tables, their
+- **Global database migration 00130.** `00130_retire_memory.sql` drops the memory tables, their
   full-text indexes, and `goose_db_version_memory`; deletes `memory.consolidated` automation triggers
   together with their overlays, catalog rows, gateway ingress bindings, and owned secret refs (run
   history stays); and deletes legacy `dream` sessions and `memory-extractor` child sessions with their

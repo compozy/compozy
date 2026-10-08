@@ -42,11 +42,8 @@ const VaultWindow = lazy(() =>
 const LoopsWindow = lazy(() =>
   import("../apps/loops/loops-window").then(m => ({ default: m.LoopsWindow }))
 );
-const JobsWindow = lazy(() =>
-  import("../apps/jobs/jobs-window").then(m => ({ default: m.JobsWindow }))
-);
-const TriggersWindow = lazy(() =>
-  import("../apps/triggers/triggers-window").then(m => ({ default: m.TriggersWindow }))
+const AutomationsWindow = lazy(() =>
+  import("../apps/automations/automations-window").then(m => ({ default: m.AutomationsWindow }))
 );
 const MarketplaceWindow = lazy(() =>
   import("../apps/marketplace/marketplace-window").then(m => ({ default: m.MarketplaceWindow }))
@@ -84,14 +81,9 @@ async function preloadLoops(qc: QueryClient): Promise<void> {
   await preloadLoopsRoute(qc, { limit: 50, sort: "name" });
 }
 
-async function preloadJobs(qc: QueryClient): Promise<void> {
-  const { preloadAutomationJobsRoute } = await import("@/routes/_app/-automation-preload");
-  await preloadAutomationJobsRoute(qc, {});
-}
-
-async function preloadTriggers(qc: QueryClient): Promise<void> {
-  const { preloadAutomationTriggersRoute } = await import("@/routes/_app/-automation-preload");
-  await preloadAutomationTriggersRoute(qc, {});
+async function preloadAutomations(qc: QueryClient): Promise<void> {
+  const { preloadAutomationsRoute } = await import("@/routes/_app/-automation-preload");
+  await preloadAutomationsRoute(qc, {});
 }
 
 export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
@@ -127,15 +119,10 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     preload: preloadLoops,
     Controller: LoopsWindow,
   },
-  jobs: {
-    ...OS_APP_DESCRIPTORS.jobs,
-    preload: preloadJobs,
-    Controller: JobsWindow,
-  },
-  triggers: {
-    ...OS_APP_DESCRIPTORS.triggers,
-    preload: preloadTriggers,
-    Controller: TriggersWindow,
+  automations: {
+    ...OS_APP_DESCRIPTORS.automations,
+    preload: preloadAutomations,
+    Controller: AutomationsWindow,
   },
   marketplace: {
     ...OS_APP_DESCRIPTORS.marketplace,

@@ -2,7 +2,28 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type ExtensionToolRuntimeDescriptor struct {
+	Profile             string                `json:"profile,omitempty"`
+	ID                  ToolID                `json:"id"`
+	Handler             string                `json:"handler"`
+	Description         string                `json:"description,omitempty"`
+	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
+	Preview             string                `json:"preview,omitempty"`
+	InputSchema         json.RawMessage       `json:"input_schema,omitempty"`
+	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
+	InputSchemaDigest   string                `json:"input_schema_digest"`
+	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
+	ReadOnly            bool                  `json:"read_only"`
+	Risk                RiskClass             `json:"risk"`
+	RequiresInteraction bool                  `json:"requires_interaction"`
+	Capabilities        []string              `json:"capabilities,omitempty"`
+	Command             *ExtensionCommandSpec `json:"command,omitempty"`
+}
 
 type ExtensionToolWorkspaceScope struct {
 	ID   string `json:"id"`
@@ -184,10 +205,4 @@ type HeartbeatConfigSubsetPayload struct {
 
 type HeartbeatContextProjectionPayload struct {
 	Include []string `json:"include,omitempty"`
-}
-
-type HeartbeatDeleteRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	ExpectedDigest string `json:"expected_digest"`
 }

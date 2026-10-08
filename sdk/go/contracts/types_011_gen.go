@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type JobTaskConfig struct {
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Owner       *Ownership `json:"owner,omitempty"`
+}
+
 type LineageKind string
 
 type ListLogsParams struct {
@@ -404,12 +410,4 @@ type MessageEndPayload struct {
 	DeltaType      string          `json:"delta_type,omitempty"`
 	Text           string          `json:"text,omitempty"`
 	Raw            json.RawMessage `json:"raw,omitempty"`
-}
-
-type MessagePatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
 }

@@ -346,7 +346,7 @@ func TestGlobalDBMemoryTriggerRetirementMigration(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00128_retire_memory.sql"))
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00130_retire_memory.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

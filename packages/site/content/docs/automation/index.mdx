@@ -1,44 +1,159 @@
 ---
-title: Automation
-description: Run CompozyOS agents on schedules, in response to runtime events, or from signed external HTTP requests.
+title: Automations
+description: Make CompozyOS run an agent, a Loop, or a task on its own — on a schedule, when something happens, or when another app calls a link.
 ---
 
-Automation is the unattended-run surface around three primitives: schedules that fire on a clock,
-triggers that react to runtime events, and webhooks that accept signed HTTP from outside the daemon.
-All three resolve to the same dispatcher and produce the same audit trail as interactive sessions.
-Consent-first suggestions help operators create scheduled Jobs without authoring the initial prompt
-and cron expression from scratch.
+An automation is work that starts without you. You decide **when it starts** and **what it does**,
+and CompozyOS runs it, records every run, and shows you whether the last one worked.
 
-## In this section
+Every automation reads as one sentence with up to three parts:
+
+- **Starts** — on a schedule, when something happens inside CompozyOS, or when another app calls a
+  link.
+- **Only if** — optional conditions for event and link automations ("only if the stop reason is
+  `error`").
+- **Does** — ask an agent, start a Loop, or create a task.
+
+For example: "Every weekday at 09:00 UTC, ask summarizer." or "When a session stops in checkout-api
+with an error, start the Loop software-delivery."
+
+## Start with a tutorial
+
+Each tutorial ends with a working automation and a way to check that it ran.
 
 <RouteList>
+  <RouteRow
+    href="/docs/automation/run-an-agent-every-morning"
+    label="Tutorial"
+    title="Run an agent every morning"
+    description="Create a scheduled automation in the Web UI, run it once by hand, and read its last run from the list or the CLI."
+    meta="On a schedule"
+  />
+  <RouteRow
+    href="/docs/automation/react-when-a-session-fails"
+    label="Tutorial"
+    title="React when a session fails"
+    description="Start an agent whenever a session stops with an error, preview the match before saving, and confirm the run."
+    meta="When something happens"
+  />
+</RouteList>
+
+## How an automation starts
+
+| In the Web UI                 | What starts it                                                                                     | Canonical name (CLI, API, tools, config)                               |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| On a schedule                 | A time: a repeating calendar time, a fixed interval, or one moment                                 | **job** — `compozy automation jobs`, `[[automation.jobs]]`             |
+| When something happens        | An event inside CompozyOS: a session starts or stops, a hook finishes, an extension sends an event | **trigger** — `compozy automation triggers`, `[[automation.triggers]]` |
+| When another app calls a link | A signed HTTP request from CI, a deploy tool, or any other app                                     | **trigger** with `event = "webhook"`                                   |
+
+The Web UI shows both kinds together in one **Automations** window. The CLI, the HTTP and UDS API,
+the native tools, and `config.toml` keep the two canonical nouns, **job** and **trigger**, because
+they have different fields: only jobs have a schedule and Run now, and only triggers have an event
+and conditions. The start you choose decides which one CompozyOS creates, and it can't change after
+creating.
+
+What an automation does depends on how it starts:
+
+| Does          | On a schedule | When something happens             | When another app calls a link      |
+| ------------- | ------------- | ---------------------------------- | ---------------------------------- |
+| Ask an agent  | Yes           | Yes                                | Yes                                |
+| Start a Loop  | Yes           | Yes, if the Loop allows that start | Yes, if the Loop allows that start |
+| Create a task | Yes           | No                                 | No                                 |
+
+## Where to find them
+
+- **Dock → Automations** opens the listing at `/automations`. The **All · Scheduled · On events**
+  views split it by how each automation starts; link automations count as events.
+- **Command palette** (⌘K): "Open Automations", "New scheduled automation", and "New automation on
+  an event". Typing a name finds automations of both kinds.
+- **Loop page → Automate ▾** creates an automation that starts that Loop, on a schedule or when
+  something happens.
+- **Settings → Automation** holds the time zone for schedules, how many scheduled automations can run
+  at once, and the default run limit.
+
+Each row in the listing shows the sentence, the next run (schedules) or when it last ran (events),
+the last run's result, and an On/Off switch. A failed last run reads "Last run failed 7h ago" on the
+row, so you see it without opening anything.
+
+## Check whether an automation worked
+
+Every job and trigger carries its most recent run as `last_run`. It is the same run that the detail
+page lists first, and it is absent when the automation has never run.
+
+```bash
+compozy automation jobs --workspace checkout-api -o json | jq '.jobs[] | {name, enabled, next_run, last_run}'
+```
+
+```json
+{
+  "name": "nightly-delivery",
+  "enabled": true,
+  "next_run": "2026-10-08T02:00:00Z",
+  "last_run": {
+    "id": "run_nightly_delivery_042",
+    "status": "failed",
+    "started_at": "2026-10-07T02:00:01Z",
+    "ended_at": "2026-10-07T02:00:01Z"
+  }
+}
+```
+
+| `last_run` field | Meaning                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `id`             | Run id; the same run as the first item of `…/{id}/runs?limit=1`                                              |
+| `status`         | `scheduled`, `running`, `delegated`, `completed`, `failed`, or `canceled`                                    |
+| `started_at`     | When the run started, if it did                                                                              |
+| `ended_at`       | When it ended; absent while it is still running                                                              |
+| `skip_reason`    | `self_overlap` or `misfire_grace_exceeded`, only when the fire was skipped (the run is stored as `canceled`) |
+
+The human tables of `compozy automation jobs` and `compozy automation triggers` add a **Last Run**
+column: the status and how long ago it started ("failed 7h ago"), or `—` when it never ran. A
+skipped fire reads `skipped` (an overlap) or `missed` (CompozyOS was off at the start time), never
+`canceled`; `skip_reason` in the JSON carries the same distinction. `-o toon` adds `last_run_status` (the
+raw status) and `last_run_started_at`.
+
+Both list commands also take `--target agent|loop|task` to filter by what the automation does, and
+the HTTP routes and `compozy__automation_jobs_list` / `compozy__automation_triggers_list` accept the
+same `target` filter. `task` matches jobs that create a task; on triggers it matches nothing.
+
+```bash
+compozy automation jobs --workspace checkout-api --target loop -o json | jq -r '.jobs[].name'
+```
+
+```text
+nightly-delivery
+```
+
+## Reference
+
+<RouteList>
+  <RouteRow
+    href="/docs/automation/schedules"
+    label="Reference"
+    title="Scheduled automations (jobs)"
+    description="Every job field, the cron, interval, and one-time schedule modes, catch-up after downtime, retries, run limits, and run history."
+    meta="On a schedule"
+  />
+  <RouteRow
+    href="/docs/automation/events"
+    label="Reference"
+    title="Automations on events (triggers)"
+    description="Every trigger field, the event names, conditions, message templates, and Loop input mapping."
+    meta="When something happens"
+  />
+  <RouteRow
+    href="/docs/automation/webhooks"
+    label="Reference"
+    title="Link automations (webhooks)"
+    description="Accept signed HTTP requests from other apps and route them to an agent or a Loop."
+    meta="When another app calls a link"
+  />
   <RouteRow
     href="/docs/automation/suggestions"
     label="Consent"
     title="Automation suggestions"
-    description="Review workspace-scoped Job proposals, create the useful ones, and durably dismiss the rest."
-    meta="Suggested Jobs"
-  />
-  <RouteRow
-    href="/docs/automation/jobs"
-    label="Schedules"
-    title="Jobs and scheduling"
-    description="Use this page when you need cron, interval, or one-time scheduled agent runs with retry policy and run history."
-    meta="Schedules"
-  />
-  <RouteRow
-    href="/docs/automation/triggers"
-    label="Reactive"
-    title="Event triggers"
-    description="Use this page when the next run should react to runtime events such as session starts or stops."
-    meta="Event-driven"
-  />
-  <RouteRow
-    href="/docs/automation/webhooks"
-    label="Ingress"
-    title="Webhook activation"
-    description="Use this page to accept signed HTTP requests from external systems and route them as automation triggers."
-    meta="External"
+    description="Review suggested scheduled automations for a project, create the useful ones, and dismiss the rest."
+    meta="Suggested"
   />
 </RouteList>
 
@@ -56,8 +171,47 @@ common fields without replacing the target union. Read and lifecycle verbs opera
 | Triggers    | `compozy__automation_triggers_list`, `compozy__automation_triggers_get`, `compozy__automation_triggers_history` | `compozy__automation_triggers_create`, `compozy__automation_triggers_update`, `compozy__automation_triggers_delete`, `compozy__automation_triggers_enable`, `compozy__automation_triggers_disable`                 | Agent/Loop creation; common updates; all lifecycle |
 | Runs        | `compozy__automation_runs_list`, `compozy__automation_runs_get`                                                 | —                                                                                                                                                                                                                  | `compozy automation runs ...`                      |
 
+List and get results carry `last_run`. The list tools use the Web UI nouns in their descriptions:
+`compozy__automation_jobs_list` lists "scheduled automations" and
+`compozy__automation_triggers_list` lists "automations on events", so an agent can connect what a
+person sees to the canonical tool.
+
 Mutations require approval, run through the same domain validators as CLI/HTTP, and reject raw
 webhook secrets with deterministic codes including `AUTOMATION_SCOPE_FORBIDDEN`,
 `AUTOMATION_SECRET_INPUT_FORBIDDEN`, `AUTOMATION_VALIDATION_FAILED`, and
 `AUTOMATION_APPROVAL_REQUIRED`. Webhook secret material stays write-only on mutation surfaces and is
 referenced through `webhook_secret_ref`.
+
+## Upgrading from v0.3
+
+v0.4.0 replaced the separate **Jobs** and **Triggers** windows with one **Automations** window. Your
+automations, their runs, and every `config.toml` key are unchanged. What moved:
+
+- **Saved desktops** reopen with an Automations window wherever a Jobs or Triggers window was, on the
+  matching path and in the same place. Nothing you had open is closed, and the migration is permanent.
+- **Command palette** pins, recents, and usage for "Open Jobs" and "Open Triggers" merge into
+  "Open Automations".
+- **Old web links** redirect to the new location until v0.5.0:
+
+| Old link                            | Opens                                                 |
+| ----------------------------------- | ----------------------------------------------------- |
+| `/jobs?enabled=true&q=nightly`      | `/automations?start=schedule&enabled=true&q=nightly`  |
+| `/jobs/<job-id>`                    | `/automations/jobs/<job-id>`                          |
+| `/triggers?event=session.stopped`   | `/automations?start=event&q=session.stopped`          |
+| `/triggers/<trigger-id>`            | `/automations/triggers/<trigger-id>`                  |
+| `/jobs?create=loop&loop=<name>`     | `/automations?create=loop&start=schedule&loop=<name>` |
+| `/triggers?create=loop&loop=<name>` | `/automations?create=loop&start=event&loop=<name>`    |
+
+The app ids `jobs` and `triggers` became `automations`. During v0.4.0 the old ids still work and
+warn; **v0.5.0 removes them**, after which they fail like any unknown id:
+
+| Old input                                                                      | Replacement                | Warning in v0.4.0                                                                   |
+| ------------------------------------------------------------------------------ | -------------------------- | ----------------------------------------------------------------------------------- |
+| `compozy window open --app jobs` or `--app triggers`                           | `--app automations`        | stderr: `app "jobs" is deprecated and will be removed in v0.5.0; use "automations"` |
+| `app: "jobs"` or `"triggers"` in window commands and `window_layout` resources | `app: "automations"`       | log `windowmanager.app_id_deprecated`                                               |
+| Palette ids `app.open.jobs`, `app.open.triggers`                               | `app.open.automations`     | log `cmdpalette.command_id_deprecated`                                              |
+| Palette ids `palette.view.jobs`, `palette.view.triggers`                       | `palette.view.automations` | log `cmdpalette.command_id_deprecated`                                              |
+
+Scripts that use `compozy automation jobs|triggers`, `/api/automation/*`, or the
+`compozy__automation_*` tools need no change: their only difference is the added `last_run` field and
+the optional `target` filter.

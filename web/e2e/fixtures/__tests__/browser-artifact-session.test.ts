@@ -6,26 +6,33 @@ import { captureRouteState } from "../browser-artifact-session";
 
 describe("captureRouteState", () => {
   it("captures automation detail route context, topbar title, and session-link state", async () => {
-    window.history.replaceState({}, "", "/jobs/job_daily_review");
+    window.history.replaceState({}, "", "/automations/jobs/job_daily_review");
     document.title = "CompozyOS";
     document.body.innerHTML = `
       <header><h1 data-testid="topbar-title-text">deploy-review</h1></header>
       <section data-testid="automation-detail-panel">
         <div data-slot="page-head-title">deploy-review</div>
+        <button data-testid="automation-run-now-btn"></button>
         <button data-testid="automation-detail-overflow"></button>
-        <button data-testid="toggle-automation-btn"></button>
-        <button data-testid="trigger-job-btn"></button>
-        <button data-testid="delete-automation-btn"></button>
-        <div data-testid="automation-job-scheduler"></div>
+        <button data-testid="automation-enable-switch"></button>
+        <button data-testid="automation-delete-btn"></button>
+        <button data-testid="automation-inspect-btn"></button>
       </section>
-      <section data-testid="automation-run-history">
-        <a data-testid="automation-run-run_001" href="/session/sess_001"></a>
-        <article data-testid="automation-run-run_002"></article>
-        <div hidden>
-          <a data-testid="trigger-run-open-run_003" href="/session/sess_003"></a>
-        </div>
+      <section data-testid="automation-run-list">
+        <ul data-testid="automation-run-list-rows">
+          <li><button data-testid="automation-run-run_001"></button>
+            <div data-testid="automation-run-drawer-run_001">
+              <a data-testid="automation-run-open-run_001" href="/session/sess_001"></a>
+            </div>
+          </li>
+          <li><button data-testid="automation-run-run_002"></button>
+            <div data-testid="automation-run-drawer-run_002" hidden>
+              <a data-testid="automation-run-open-run_002" href="/session/sess_002"></a>
+            </div>
+          </li>
+        </ul>
       </section>
-      <form data-testid="automation-job-form"></form>
+      <form data-entity="job" data-testid="automation-form"></form>
     `;
 
     const routeState = await captureRouteState({
@@ -33,7 +40,7 @@ describe("captureRouteState", () => {
     });
 
     expect(routeState).toMatchObject({
-      pathname: "/jobs/job_daily_review",
+      pathname: "/automations/jobs/job_daily_review",
       title: "CompozyOS",
       automation_view_visible: true,
       automation_active_tab: "jobs",
@@ -44,12 +51,40 @@ describe("captureRouteState", () => {
       automation_editor_open: false,
       automation_item_count: 0,
       automation_run_count: 2,
-      automation_run_history_visible: true,
-      automation_scheduler_visible: true,
+      automation_inspect_visible: true,
+      automation_run_list_visible: true,
       automation_selected_item: "deploy-review",
       automation_session_link_count: 1,
-      automation_trigger_visible: true,
+      automation_run_now_visible: true,
     });
+  });
+
+  it("captures the merged automations listing without a detail tab", async () => {
+    window.history.replaceState({}, "", "/automations?start=schedule&scope=global");
+    document.title = "CompozyOS";
+    document.body.innerHTML = `
+      <main data-testid="automations-shell">
+        <div data-testid="automations-list-rows">
+          <div data-testid="automation-row-job-job_daily_review">
+            <p data-testid="automation-sentence-job_daily_review"></p>
+          </div>
+          <div data-testid="automation-row-trigger-trg_deploy"></div>
+        </div>
+      </main>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      pathname: "/automations",
+      automation_item_count: 2,
+      automation_scope_filter: "global",
+      automation_view_visible: true,
+    });
+    expect(routeState.automation_active_tab).toBeUndefined();
+    expect(routeState.automation_selected_item).toBeUndefined();
   });
 
   it("captures task route context, selected run, and graph/review counts", async () => {

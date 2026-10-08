@@ -1,16 +1,20 @@
-import { CalendarClock, Plus, Zap } from "lucide-react";
+import { ArrowRight, Plus, Zap } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
-import { Button, Pill, Spinner, StatusDot } from "@compozy/ui";
+import { Button, buttonVariants, Pill, Spinner, StatusDot } from "@compozy/ui";
 
 import {
   bindingKindLabel,
   bindingsGist,
   countLoopBindings,
+  loopAutomateStarts,
   type LoopBindingRow,
 } from "../../lib/loop-bindings";
 import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopStartBindingsPanelProps {
+  /** The Loop the automations start; the footer links to its filtered Automations list. */
+  loopName: string;
   /** The DSL `start[]` allowlist kinds, read-only (edited only in the definition). */
   declaredKinds: readonly string[];
   /** Attached loop-target automations for this Loop (via the `loop=<name>` filter). */
@@ -18,8 +22,6 @@ interface LoopStartBindingsPanelProps {
   jobs?: LoopBindingPagination;
   triggers?: LoopBindingPagination;
   isLoading?: boolean;
-  onAddTrigger?: () => void;
-  onAddSchedule?: () => void;
 }
 
 export interface LoopBindingPagination {
@@ -31,17 +33,13 @@ export interface LoopBindingPagination {
   total: number;
 }
 
-const SCHEDULE_KIND = "schedule";
-const TRIGGER_KINDS = new Set(["trigger", "webhook"]);
-
 export function LoopStartBindingsPanel({
+  loopName,
   declaredKinds,
   bindings,
   jobs,
   triggers,
   isLoading = false,
-  onAddTrigger,
-  onAddSchedule,
 }: LoopStartBindingsPanelProps) {
   const counts = countLoopBindings(bindings.length, jobs, triggers);
   return (
@@ -64,10 +62,10 @@ export function LoopStartBindingsPanel({
         <LoopBindingsPageError pagination={jobs} />
         <LoopBindingsPageError pagination={triggers} />
         <LoopBindingsLoadMore jobs={jobs} triggers={triggers} />
-        <LoopBindingsAddActions
+        <LoopBindingsFooter
           declaredKinds={declaredKinds}
-          onAddSchedule={onAddSchedule}
-          onAddTrigger={onAddTrigger}
+          loopName={loopName}
+          total={counts.total}
         />
       </div>
     </LoopRailSection>
@@ -160,8 +158,8 @@ function LoopBindingsLoadMore({
       ) : null}
       {triggers?.hasMore ? (
         <LoadMoreButton
-          idleLabel="Load more triggers"
-          loadingLabel="Loading triggers…"
+          idleLabel="Load more event automations"
+          loadingLabel="Loading event automations…"
           pagination={triggers}
           testId="loop-bindings-load-more-triggers"
         />
@@ -196,47 +194,36 @@ function LoadMoreButton({
   );
 }
 
-function LoopBindingsAddActions({
+/** Links the count to the Loop's automations, or says the Loop only starts by hand. */
+function LoopBindingsFooter({
   declaredKinds,
-  onAddTrigger,
-  onAddSchedule,
-}: Pick<LoopStartBindingsPanelProps, "declaredKinds" | "onAddTrigger" | "onAddSchedule">) {
-  const canAddSchedule = declaredKinds.includes(SCHEDULE_KIND);
-  const canAddTrigger = declaredKinds.some(kind => TRIGGER_KINDS.has(kind));
-  if (!canAddTrigger && !canAddSchedule) {
+  loopName,
+  total,
+}: {
+  declaredKinds: readonly string[];
+  loopName: string;
+  total: number;
+}) {
+  if (total > 0) {
     return (
-      <div className="flex items-center gap-1.5 border-t border-line-soft px-4 py-2.5 text-badge text-faint">
-        <Plus aria-hidden="true" className="size-3" />
-        This Loop can only be started by hand.
+      <div className="border-t border-line-soft px-2 py-1.5">
+        <Link
+          className={buttonVariants({ size: "sm", variant: "ghost" })}
+          data-testid="loop-bindings-open-automations"
+          search={{ loop: loopName }}
+          to="/automations"
+        >
+          {bindingsGist(total)}
+          <ArrowRight aria-hidden="true" className="size-3" />
+        </Link>
       </div>
     );
   }
+  if (loopAutomateStarts(declaredKinds).length > 0) return null;
   return (
-    <div className="flex gap-2 border-t border-line-soft px-4 py-2.5">
-      {canAddTrigger ? (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          data-testid="loop-add-trigger"
-          onClick={onAddTrigger}
-        >
-          <Zap aria-hidden="true" />
-          Add trigger
-        </Button>
-      ) : null}
-      {canAddSchedule ? (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          data-testid="loop-add-schedule"
-          onClick={onAddSchedule}
-        >
-          <CalendarClock aria-hidden="true" />
-          Add schedule
-        </Button>
-      ) : null}
+    <div className="flex items-center gap-1.5 border-t border-line-soft px-4 py-2.5 text-badge text-faint">
+      <Plus aria-hidden="true" className="size-3" />
+      This Loop can only be started by hand.
     </div>
   );
 }
