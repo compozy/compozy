@@ -464,6 +464,38 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 }
 
 func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
+	t.Run("Should retain legacy compaction calls as ordinary tool rows", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+		event := acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			SessionID:  "sess-legacy-compaction",
+			TurnID:     "turn-legacy-compaction",
+			Timestamp:  timestamp,
+			Title:      "Compact conversation",
+			ToolCallID: "legacy-compact-1",
+			Raw:        json.RawMessage(`{"sessionUpdate":"tool_call","toolCallId":"legacy-compact-1","title":"Compact conversation","kind":"think","rawInput":{}}`),
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{
+			mustUIAgentSessionEvent(t, "ev-legacy-compaction", 1, timestamp, event),
+		})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if len(messages) != 1 || messages[0].Role != UIRoleAssistant {
+			t.Fatalf("messages = %#v, want one assistant message", messages)
+		}
+		if got, want := uiVisiblePartSignatures(messages[0].Parts), []string{"tool-Compact conversation:legacy-compact-1:input-streaming"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("visible part signatures = %#v, want %#v", got, want)
+		}
+		part := messages[0].Parts[0]
+		if part.Type != "tool-Compact conversation" || part.ToolCallID != event.ToolCallID ||
+			part.Title != event.Title || part.State != uiToolStateStreaming {
+			t.Fatalf("part = %#v, want streaming legacy compaction tool row", part)
+		}
+	})
+
 	t.Run("ShouldPreserveFatalPromptErrorAsDataPart", func(t *testing.T) {
 		t.Parallel()
 
