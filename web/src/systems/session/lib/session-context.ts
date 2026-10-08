@@ -5,37 +5,80 @@ export interface SessionContextView extends SessionContextPayload {
   stopped: boolean;
   display?: { compozy: number; agent: number; free: number; total: number };
   estimateExceedsReported: boolean;
+  /**
+   * The reading is empty because the agent compacted and has not reported usage since,
+   * not because it never reported. Only ever true for an unknown reading.
+   */
+  clearedByCompaction: boolean;
 }
 
-/** Observation fields are sequenced; attribution and policy may change without a new report. */
+/** The usage reading a window keeps across reads, plus what the daemon invalidated. */
+export interface RetainedSessionUsage {
+  usage?: SessionUsagePayload;
+  /**
+   * Highest report sequence the daemon invalidated (a terminal compaction, a rebuilt context).
+   * A report at or below it was taken before that boundary, so it is stale, not fresh.
+   */
+  invalidatedThrough?: number;
+}
+
+/**
+ * Observation fields are sequenced; attribution and policy may change without a new report.
+ *
+ * An `unknown` read is the daemon's answer, not a gap: after a terminal compaction it clears
+ * the reading until the agent's next usage report, so the previous one is never restored. The
+ * cleared reading's sequence becomes the floor below which a late report is stale, so a
+ * response that predates the boundary cannot bring the old ratio back either.
+ */
 export function retainSessionUsage(
-  previous: SessionUsagePayload | undefined,
+  previous: RetainedSessionUsage | undefined,
   incoming: SessionUsagePayload | undefined
-): SessionUsagePayload | undefined {
-  if (!incoming) return previous;
+): RetainedSessionUsage {
+  const kept = previous ?? {};
+  if (!incoming) return kept;
+  const old = kept.usage?.context;
   if (incoming.context.state === "unavailable") {
-    return previous ? { ...incoming, context: previous.context } : incoming;
+    return { ...kept, usage: kept.usage ? { ...incoming, context: kept.usage.context } : incoming };
   }
-  if (!previous) return incoming;
-  const old = previous.context;
+  if (incoming.context.state === "unknown") {
+    const invalidatedThrough = Math.max(kept.invalidatedThrough ?? 0, old?.sequence ?? 0);
+    return {
+      usage: incoming,
+      invalidatedThrough: invalidatedThrough > 0 ? invalidatedThrough : undefined,
+    };
+  }
   const next = incoming.context;
+  const floor = kept.invalidatedThrough;
+  if (floor != null && next.sequence != null && next.sequence <= floor) {
+    // A report from before the invalidation: refresh attribution, keep the cleared reading.
+    return { ...kept, usage: kept.usage ? { ...incoming, context: kept.usage.context } : incoming };
+  }
+  if (!old) return { usage: incoming };
   if (old.sequence != null && (next.sequence == null || next.sequence <= old.sequence)) {
     return {
-      ...incoming,
-      context: {
-        ...old,
-        injected: next.injected,
-        // Freshness can change when a later turn settles without a new report.
-        stale: next.sequence === old.sequence ? (next.stale ?? old.stale) : old.stale,
+      ...kept,
+      usage: {
+        ...incoming,
+        context: {
+          ...old,
+          injected: next.injected,
+          // Freshness can change when a later turn settles without a new report.
+          stale: next.sequence === old.sequence ? (next.stale ?? old.stale) : old.stale,
+        },
       },
     };
   }
-  return incoming;
+  return { usage: incoming };
 }
 
 export function deriveSessionContext(
   context?: SessionContextPayload,
-  options: { unavailable?: boolean; loading?: boolean; stopped?: boolean } = {}
+  options: {
+    unavailable?: boolean;
+    loading?: boolean;
+    stopped?: boolean;
+    awaitingUsageAfterCompaction?: boolean;
+  } = {}
 ): SessionContextView {
   const value = context ?? { state: "unknown" };
   const used = value.used;
@@ -53,6 +96,11 @@ export function deriveSessionContext(
         ? { compozy, agent: boundedUsed - compozy, free: size - boundedUsed, total: size }
         : undefined,
     estimateExceedsReported: used != null && injected > used,
+    clearedByCompaction:
+      options.awaitingUsageAfterCompaction === true &&
+      used == null &&
+      value.state === "unknown" &&
+      !options.unavailable,
   };
 }
 

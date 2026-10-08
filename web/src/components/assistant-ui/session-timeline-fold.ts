@@ -182,6 +182,8 @@ function isPersistentTurnRow(row: SessionRow): boolean {
   }
   if (row.kind !== "data") return false;
   if (row.part.name === "data-compozy-permission") return true;
+  // An observed compaction is a state of the session, not intra-turn work.
+  if (row.part.name === "data-compozy-compaction") return true;
   if (row.part.name !== "data-compozy-event") return false;
   return row.parts.some(part => {
     const data = part.data;

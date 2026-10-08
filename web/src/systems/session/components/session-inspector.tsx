@@ -17,7 +17,10 @@ export interface SessionInspectorProps {
   turns?: SessionUsageTurnsResponse;
   turnsUnavailable?: boolean;
   activity?: SessionActivityView;
-  /** The inspected session; a continued or forked one gains its Origin rows. */
+  /**
+   * The inspected session; a continued or forked one gains its Origin rows, and
+   * an agent advertising `compact`/`compress` gains Compact now.
+   */
   session?: SessionPayload;
   injectedDefaultOpen?: boolean;
   turnsDefaultOpen?: boolean;
@@ -48,7 +51,7 @@ export function SessionInspector({
       open={drawerOpen}
     >
       <div className="flex flex-col gap-4.5 p-4" data-testid="session-inspector">
-        <SessionContextMeterSection context={context} />
+        <SessionContextMeterSection context={context} session={session} />
         <SessionContextInjectedSection
           injected={context.injected}
           showBars={context.used != null}

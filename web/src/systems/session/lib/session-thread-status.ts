@@ -9,7 +9,7 @@ import type {
   SessionStopAttribution,
 } from "@/systems/session/lib/session-working-status";
 import type { SessionPayload } from "@/systems/session/types";
-import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
+import { isAgentEventPayload, messageHasCompactionPart } from "@/systems/session/lib/message-parts";
 import { isSessionErrorEvent } from "@/systems/session/lib/runtime-activity-notice";
 import { providerErrorView } from "@/systems/session/lib/provider-error";
 
@@ -40,10 +40,17 @@ const INTERRUPT_STOP_REASONS = new Set([
 ]);
 const STEER_FALLBACK_MARKER = "transcript_marker.prompt_steered";
 
+// A compaction message (the item the agent's own compaction projects) is carried
+// as an assistant message but belongs to no turn: it is never the reply, never the
+// end of the last turn, and never splits a turn in two, so the scans step over it.
+function isCompactionMessage(message: ThreadStatusMessage | undefined): boolean {
+  return message !== undefined && messageHasCompactionPart(message.content);
+}
+
 function lastAssistant(messages: readonly ThreadStatusMessage[]): ThreadStatusMessage | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message?.role === "assistant") return message;
+    if (message?.role === "assistant" && !isCompactionMessage(message)) return message;
     if (message?.role === "user") return null;
   }
   return null;
@@ -214,12 +221,15 @@ function sessionStopAttribution(
 // operator's prompt: the authored segments plus a trailing terminal-only group,
 // which records how that turn ended. The prompt's own instant bounds the span.
 function lastTurnParts(messages: readonly ThreadStatusMessage[]) {
-  const last = messages.at(-1);
+  let lastIndex = messages.length - 1;
+  while (lastIndex >= 0 && isCompactionMessage(messages[lastIndex])) lastIndex -= 1;
+  const last = messages[lastIndex];
   if (!last || last.role !== "assistant") return null;
   const segments: { turnId: string; parts: SessionTimelinePart[] }[] = [];
   let sentAtMs: number | null = null;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
+  for (let index = lastIndex; index >= 0; index -= 1) {
     const message = messages[index];
+    if (isCompactionMessage(message)) continue;
     if (!message || message.role !== "assistant") {
       if (message?.role === "user") sentAtMs = userSentAtMs(message);
       break;

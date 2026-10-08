@@ -234,6 +234,16 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - `handoff`: reserved for Network; never a label for continue or fork. The API's `next_action: "handoff"` is a wire value — the UI says "Continue this session with another agent or route."
 - Never in this feature's copy: `branch` (git, worktrees, Loops), `chat`, "Handoff from X", a "Badge".
 
+### Session Compaction Terms
+
+The agent compacts its own context window. CompozyOS observes that compaction when the agent supports it and asks for it only through the command the agent advertises. The surfaces are experimental while the upstream ACP contract is unstable. The glossary entry **Compaction** is authoritative.
+
+- **Compact now**: the context-rail action that asks the agent to compact. It appears only when the agent advertises a `compact` or `compress` command, and it is disabled while a turn runs. A refused request (`session_busy`, `compaction_unsupported`) shows the server's message inline.
+- Timeline row, by status: "Compacting context…" (in progress), "Context compacted" (completed), "Context compaction failed" (failed, with the agent's error), "Context compaction cancelled" (cancelled). Any other status the agent reports is shown verbatim. An optional **Summary** disclosure shows the agent's own summary; agents that send none show no disclosure.
+- Context rail marker: "Agent compaction" when the agent compacted on its own, "Requested compaction" when it followed a Compact now request (or `compozy session compact`, a tool call, or a Goal). The marker adds the status and, when known, the tokens before → after.
+- Meter after a compaction: while the agent has not reported usage since a finished compaction, the context meter and its tooltip read "Context usage unknown" with the sentence "Context compacted. Waiting for the agent's next usage report." Before any report, and in every other empty case, the sentence stays "This agent hasn't reported context usage."
+- Never in this feature's copy: "CompozyOS compacts the session", "summarizes older messages", a "{threshold} full" warning, "pressure", or "archived". A rebuild into a new agent session is a bounded replay, not a compaction.
+
 ### Surface Aliases
 
 Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**

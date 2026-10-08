@@ -1,10 +1,19 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { HttpResponse, delay } from "msw";
+import { userEvent, within } from "storybook/test";
 import { Button } from "@compozy/ui";
+import { storybookMswParameters } from "@/storybook/msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { PanelSurface } from "@/storybook/story-layout";
 import { SessionInspector } from "../session-inspector";
 import { deriveSessionContext } from "../../lib/session-context";
-import { sessionContextFixture, sessionContextTurnsFixture } from "../../mocks/context-fixtures";
+import { deriveSourceSessionFixture } from "../../mocks/derive-fixtures";
+import {
+  sessionContextCompactionStatesFixture,
+  sessionContextFixture,
+  sessionContextTurnsFixture,
+} from "../../mocks/context-fixtures";
 
 const meta = {
   title: "systems/session/components/SessionInspector",
@@ -96,6 +105,24 @@ export const TurnsUnion: Story = {
     },
   },
 };
+/** Agent and requested markers across in progress, completed, failed, cancelled, and a vendor status. */
+export const CompactionMarkers: Story = {
+  args: { turnsDefaultOpen: true, turns: sessionContextCompactionStatesFixture },
+};
+/** Right after a terminal compaction the daemon clears the reading until the agent's next report. */
+export const UnknownAfterCompaction: Story = {
+  args: {
+    context: deriveSessionContext(
+      {
+        state: "unknown",
+        injected: { ...sessionContextFixture.injected!, stale: true },
+      },
+      { awaitingUsageAfterCompaction: true }
+    ),
+    turnsDefaultOpen: true,
+    turns: sessionContextTurnsFixture,
+  },
+};
 export const ManyTurns: Story = {
   args: {
     turnsDefaultOpen: true,
@@ -174,7 +201,7 @@ export const Drawer: Story = {
   parameters: { viewport: { defaultViewport: "tablet" } },
 };
 
-export const Warning: Story = {
+export const NearlyFull: Story = {
   args: { context: deriveSessionContext({ ...sessionContextFixture, used: 225_280, ratio: 0.88 }) },
 };
 export const IncludedWithoutCache: Story = {
@@ -188,4 +215,93 @@ export const IncludedWithoutCache: Story = {
       turnCount: 3,
     },
   },
+};
+
+// Compact now: the rail's action to ask the agent to compact. Offered only when the session
+// advertises `compact` or `compress`; the request itself is answered by the session MSW group.
+const COMPACT_PATH = "/api/workspaces/{workspace_id}/sessions/{session_id}/compact";
+const compactSessionFixture = {
+  ...deriveSourceSessionFixture,
+  available_commands: [{ name: "compact", description: "Compact the conversation" }],
+};
+const compactAccepted = compozyApiMock.post(COMPACT_PATH, ({ params }) =>
+  HttpResponse.json(
+    {
+      command: "compact",
+      prompt_id: "prompt-compact-1",
+      session_id: String(params.session_id),
+      status: "accepted",
+    },
+    { status: 202 }
+  )
+);
+
+async function clickCompactNow(canvasElement: HTMLElement) {
+  await userEvent.click(await within(canvasElement).findByTestId("session-context-compact-now"));
+}
+
+export const CompactNowAvailable: Story = {
+  args: { session: compactSessionFixture },
+  parameters: storybookMswParameters({ session: [compactAccepted] }),
+};
+export const CompactNowWithCompress: Story = {
+  args: {
+    session: {
+      ...compactSessionFixture,
+      available_commands: [{ name: "compress", description: "Compress the conversation" }],
+    },
+  },
+  parameters: storybookMswParameters({ session: [compactAccepted] }),
+};
+/** A turn is running: the action stays but is inert. */
+export const CompactNowDisabledWhileRunning: Story = {
+  args: { session: { ...compactSessionFixture, badge: "running" } },
+};
+/** The request is in flight: the button holds until the daemon answers. */
+export const CompactNowInFlight: Story = {
+  args: { session: compactSessionFixture },
+  parameters: storybookMswParameters({
+    session: [
+      compozyApiMock.post(COMPACT_PATH, async () => {
+        await delay("infinite");
+        return new HttpResponse(null, { status: 202 });
+      }),
+    ],
+  }),
+  play: ({ canvasElement }) => clickCompactNow(canvasElement),
+};
+export const CompactNowBusyRefusal: Story = {
+  args: { session: compactSessionFixture },
+  parameters: storybookMswParameters({
+    session: [
+      compozyApiMock.post(COMPACT_PATH, () =>
+        HttpResponse.json(
+          { code: "session_busy", error: "session: a prompt is already in progress" },
+          { status: 409 }
+        )
+      ),
+    ],
+  }),
+  play: ({ canvasElement }) => clickCompactNow(canvasElement),
+};
+export const CompactNowUnsupportedRefusal: Story = {
+  args: { session: compactSessionFixture },
+  parameters: storybookMswParameters({
+    session: [
+      compozyApiMock.post(COMPACT_PATH, () =>
+        HttpResponse.json(
+          {
+            code: "compaction_unsupported",
+            error: "session: agent does not advertise a compaction command (compact or compress)",
+          },
+          { status: 409 }
+        )
+      ),
+    ],
+  }),
+  play: ({ canvasElement }) => clickCompactNow(canvasElement),
+};
+/** The agent advertises no compaction command: no action is offered. */
+export const CompactNowAbsent: Story = {
+  args: { session: deriveSourceSessionFixture },
 };

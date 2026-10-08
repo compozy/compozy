@@ -14,6 +14,7 @@ import { useSessionContext, useSessionUsageTurns } from "../use-session-context"
 import { fetchSessionUsage, fetchSessionUsageTurns } from "../../adapters/session-api";
 import { sessionUsageOptions, sessionUsageTurnsOptions } from "../../lib/query-options";
 import {
+  sessionContextFixture,
   sessionContextUsageFixture,
   sessionContextTurnsFixture,
 } from "../../mocks/context-fixtures";
@@ -442,6 +443,99 @@ describe("Session context query projection", () => {
     });
     expect(result.current.context.used).toBe(225_280);
     expect(result.current.context.state).toBe("unavailable");
+    unmount();
+    client.clear();
+  });
+
+  it("Should clear the reading at a terminal compaction until the agent's next report", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = sessionKeys.usage("ws", "session");
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    vi.mocked(fetchSessionUsage).mockResolvedValue(sessionContextUsageFixture);
+    const { result, unmount } = renderHook(() => useSessionContext("session", "ws", "stopped"), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.context.used).toBe(89_700));
+    const update = async (usage: SessionUsagePayload) => {
+      await act(async () => {
+        client.setQueryData(key, usage);
+      });
+    };
+    // The daemon's answer after the compaction boundary: occupancy unknown, attribution kept.
+    await update({
+      ...sessionContextUsageFixture,
+      context: {
+        state: "unknown",
+        used: null,
+        size: null,
+        ratio: null,
+        injected: { ...sessionContextFixture.injected!, tokens: 999 },
+      },
+    });
+    await waitFor(() => expect(result.current.context.state).toBe("unknown"));
+    expect(result.current.context.used).toBeNull();
+    expect(result.current.context.sequence).toBeUndefined();
+    expect(result.current.context.injected?.tokens).toBe(999);
+    // A later failed read keeps the cleared reading rather than restoring the old one.
+    await update({ ...sessionContextUsageFixture, context: { state: "unavailable" } });
+    await waitFor(() => expect(result.current.context.state).toBe("unavailable"));
+    expect(result.current.context.used).toBeNull();
+    // A late response from before the boundary is stale: it refreshes attribution, not the ratio.
+    await update({
+      ...sessionContextUsageFixture,
+      cache_read_tokens: 4321,
+      context: { ...sessionContextUsageFixture.context, sequence: 412 },
+    });
+    await waitFor(() => expect(result.current.usage?.cache_read_tokens).toBe(4321));
+    expect(result.current.context.state).toBe("unknown");
+    expect(result.current.context.used).toBeNull();
+    // The next usage report after the boundary is the first reading shown again.
+    await update({
+      ...sessionContextUsageFixture,
+      context: { ...sessionContextUsageFixture.context, used: 31_000, ratio: 0.12, sequence: 520 },
+    });
+    await waitFor(() => expect(result.current.context.used).toBe(31_000));
+    expect(result.current.context.state).toBe("reported");
+    // After a fresh report the usual sequence rule governs again: an older read cannot regress it.
+    await update({
+      ...sessionContextUsageFixture,
+      context: { ...sessionContextUsageFixture.context, sequence: 519 },
+    });
+    await waitFor(() => expect(result.current.context.used).toBe(31_000));
+    unmount();
+    client.clear();
+  });
+
+  it("Should attribute an empty reading to the compaction only while the turns read shows one", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    vi.mocked(fetchSessionUsage).mockResolvedValue({
+      ...sessionContextUsageFixture,
+      context: { state: "unknown", used: null, size: null, ratio: null },
+    });
+    const compacted = {
+      turns: [],
+      compactions: [
+        {
+          compaction_id: "c1",
+          trigger: "agent",
+          status: "completed",
+          turn_id: "turn-1",
+          sequence: 20,
+          at: "2026-09-12T09:20:00Z",
+        },
+      ],
+    };
+    const { result, rerender, unmount } = renderHook(
+      ({ usageTurns }) => useSessionContext("session", "ws", "stopped", { usageTurns }),
+      { wrapper, initialProps: { usageTurns: compacted } }
+    );
+    await waitFor(() => expect(result.current.context.state).toBe("unknown"));
+    expect(result.current.context.clearedByCompaction).toBe(true);
+    rerender({ usageTurns: { turns: [], compactions: [] } });
+    expect(result.current.context.clearedByCompaction).toBe(false);
     unmount();
     client.clear();
   });

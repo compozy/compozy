@@ -651,6 +651,71 @@ describe("SessionThread transcript states", () => {
     }
   });
 
+  // Invariant (S18): an observed compaction is a `system` message the thread renders
+  // as one visible row per compaction id, and a later projection of the same id
+  // updates that row in place — never a second row, never a dropped one.
+  // Owner: thread rendering, canonical SessionThread transcript-state suite.
+  it("Should render a compaction message as one row and update it in place by id", async () => {
+    const compaction = (data: Record<string, unknown>): SessionMessage =>
+      ({
+        id: "compaction:c1",
+        role: "system",
+        parts: [
+          {
+            type: "data-compozy-compaction",
+            id: "c1",
+            data: {
+              kind: "compaction",
+              compaction_id: "c1",
+              started_at: "2026-10-08T14:02:11Z",
+              ...data,
+            },
+          },
+        ],
+      }) as SessionMessage;
+    const surrounding = (item: SessionMessage) =>
+      toReadonlyThreadMessages([
+        { id: "ask", role: "user", parts: [{ type: "text", text: "Wrap up." }] } as SessionMessage,
+        item,
+        {
+          id: "after",
+          role: "assistant",
+          parts: [{ type: "text", text: "Ready for more." }],
+        } as SessionMessage,
+      ]);
+
+    const { rerenderWith } = renderThreadState({
+      status: "success",
+      messages: surrounding(compaction({ status: "in_progress" })),
+    });
+    const row = await screen.findByTestId("session-compaction-item");
+    expect(row).toHaveAttribute("data-status", "in_progress");
+    expect(row).toHaveTextContent("Compacting context…");
+    expect(screen.getByText("Ready for more.")).toBeInTheDocument();
+
+    rerenderWith({
+      messages: surrounding(
+        compaction({
+          status: "completed",
+          summary: "Moved invoices to the ledger API.",
+          ended_at: "2026-10-08T14:02:39Z",
+        })
+      ),
+    });
+
+    const updated = await screen.findAllByTestId("session-compaction-item");
+    expect(updated).toHaveLength(1);
+    expect(updated[0]).toHaveAttribute("data-status", "completed");
+    expect(updated[0]).toHaveTextContent("Context compacted");
+    expect(updated[0]).not.toHaveTextContent("Compacting context…");
+    expect(within(updated[0]!).getByRole("button", { name: "Summary" })).toBeInTheDocument();
+    expect(
+      document.querySelectorAll(
+        '[data-testid="thread-message-row"][data-message-id="compaction:c1"]'
+      )
+    ).toHaveLength(1);
+  });
+
   it("Should render a retryable transcript error pane and call retry", async () => {
     const user = userEvent.setup();
     const retry = vi.fn();

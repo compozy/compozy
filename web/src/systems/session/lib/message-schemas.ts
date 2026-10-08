@@ -96,11 +96,24 @@ const compozyPermissionDataSchema = compozyEventDataSchema.extend({
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
+// `status` is a free string: the four known values or a vendor value passed through
+// verbatim, so an agent's own status never fails the whole transcript.
+const compozyCompactionDataSchema = z.looseObject({
+  kind: z.string(),
+  compaction_id: z.string(),
+  status: z.string(),
+  summary: z.string().optional(),
+  error: z.string().optional(),
+  started_at: z.string(),
+  ended_at: z.string().optional(),
+});
+
 const unknownDataSchema = z.unknown();
 
 const knownDataSchemas: Record<string, z.ZodType<unknown>> = {
   "compozy-event": compozyEventDataSchema,
   "compozy-permission": compozyPermissionDataSchema,
+  "compozy-compaction": compozyCompactionDataSchema,
 };
 
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];

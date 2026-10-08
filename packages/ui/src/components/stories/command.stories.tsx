@@ -44,7 +44,7 @@ const navigateItems = [
   { value: "sessions", label: "Go to sessions", icon: CircleDotIcon },
   { value: "agents", label: "Go to agents", icon: CpuIcon },
   { value: "skills", label: "Go to skills", icon: LayersIcon },
-  { value: "memory", label: "Go to memory", icon: DatabaseIcon },
+  { value: "vault", label: "Go to vault", icon: DatabaseIcon },
 ];
 
 const quickItems = [
@@ -177,7 +177,7 @@ export const KeyboardNavigation: Story = {
     await userEvent.click(search);
     await userEvent.type(search, "agents");
     await waitFor(() => expect(canvas.getByText("Go to agents")).toBeInTheDocument());
-    await expect(canvas.queryByText("Go to memory")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Go to vault")).not.toBeInTheDocument();
   },
 };
 

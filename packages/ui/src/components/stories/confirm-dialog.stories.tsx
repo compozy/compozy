@@ -28,14 +28,14 @@ export const Danger: Story = {
       defaultOpen
       description={
         <>
-          This removes <span className="font-mono">operator-style.md</span> from global knowledge.
+          This removes <span className="font-mono">operator-style.md</span> from global notes.
         </>
       }
-      eyebrow="Knowledge"
+      eyebrow="Notes"
       icon={Trash2}
       iconTone="danger"
       onConfirm={() => undefined}
-      title="Delete knowledge entry?"
+      title="Delete note?"
       tone="danger"
     />
   ),
@@ -107,7 +107,7 @@ export const TypingRequired: Story = {
       defaultOpen
       description="Confirm the filename before removing this entry."
       onConfirm={() => undefined}
-      title="Delete knowledge entry?"
+      title="Delete note?"
       tone="danger"
     />
   ),

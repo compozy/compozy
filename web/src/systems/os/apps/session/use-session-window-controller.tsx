@@ -88,11 +88,12 @@ export function useSessionWindowController(input: {
   });
   const inspector = useSessionInspectorState(sessionId);
   const usageEnabled = liveDataEnabled || inspector.open;
-  const sessionContext = useSessionContext(sessionId, workspaceId, session.state, {
-    enabled: usageEnabled,
-  });
   const sessionUsageTurns = useSessionUsageTurns(sessionId, workspaceId, session.state, {
     enabled: usageEnabled,
+  });
+  const sessionContext = useSessionContext(sessionId, workspaceId, session.state, {
+    enabled: usageEnabled,
+    usageTurns: sessionUsageTurns.data,
   });
   const sessionCommands = useSessionCommands(workspaceId, sessionId, { enabled: liveDataEnabled });
   const inspectorUsage = toInspectorUsage(sessionContext.usage);

@@ -95,6 +95,7 @@ export {
   type SendSessionPromptParams,
   type SessionPromptActionParams,
 } from "./use-session-actions";
+export { useCompactSession } from "./use-compact-session";
 export { useSessionRewind, type SessionRewindVariables } from "./use-session-rewind";
 export {
   useSessionLifecycleActions,

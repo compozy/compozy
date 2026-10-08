@@ -137,6 +137,12 @@ export type SessionStopResult =
  * finished when the stop arrived — US-009.EC-2).
  */
 export type SessionPromptCancelResult = OperationResponse<"cancelSessionPrompt", 200>;
+/**
+ * The 202 receipt for a compaction request (experimental). It only says the
+ * agent's compaction command was accepted; the outcome arrives as the session's
+ * Compaction item and usage markers.
+ */
+export type SessionCompactionReceipt = OperationResponse<"compactSession", 202>;
 type SessionPromptEnvelope = Extract<SessionPromptResponse, { prompt: unknown }>;
 export type SessionPromptPayload = SessionPromptEnvelope["prompt"];
 export type SessionGoalCommandResult = NonNullable<SessionPromptPayload["goal"]>;
@@ -317,9 +323,26 @@ export interface CompozyPermissionData extends AgentEventPayload {
   raw?: Record<string, unknown>;
 }
 
+/**
+ * One observed agent compaction, carried by a `data-compozy-compaction` transcript
+ * part (`internal/transcript/projection_compaction.go`). `status` is
+ * `in_progress | completed | failed | cancelled` or a vendor value passed through
+ * verbatim; the item updates in place under the same `compaction_id`.
+ */
+export interface SessionCompactionItemData {
+  kind: "compaction";
+  compaction_id: string;
+  status: string;
+  summary?: string;
+  error?: string;
+  started_at: string;
+  ended_at?: string;
+}
+
 export interface SessionDataParts extends Record<string, unknown> {
   "compozy-event": AgentEventPayload;
   "compozy-permission": CompozyPermissionData;
+  "compozy-compaction": SessionCompactionItemData;
 }
 
 export type SessionMessage = AIUIMessage<unknown, SessionDataParts>;
