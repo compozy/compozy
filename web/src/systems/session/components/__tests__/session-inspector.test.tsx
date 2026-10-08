@@ -834,8 +834,16 @@ describe("SessionInspector — Compact now", () => {
     }
   );
 
+  // A stalled prompt keeps its turn while the badge turns hung/unhealthy; the daemon still
+  // answers session_busy, so the control reads the turn, not the display badge.
+  const activeTurn = { turn_id: "turn_1" } as SessionPayload["activity"];
+  const stalled = (badge: "hung" | "unhealthy") => ({ badge, activity: activeTurn });
+
   it.each([
     { reason: "a turn is running", patch: { badge: "running" as const } },
+    { reason: "a prompt is running with its turn open", patch: { activity: activeTurn } },
+    { reason: "a prompt is stalled (hung)", patch: stalled("hung") },
+    { reason: "a prompt is stalled (unhealthy)", patch: stalled("unhealthy") },
     { reason: "the session is stopped", patch: { state: "stopped" as const } },
   ])("Should keep the action inert when $reason", async ({ patch }) => {
     renderRail({ ...advertising("compact"), ...patch });
@@ -895,25 +903,32 @@ describe("SessionInspector — Compact now", () => {
     }
   );
 
-  it("Should keep a busy refusal while the turn runs and drop it once the turn ends", async () => {
-    const session = advertising("compact");
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      respond(409, { code: "session_busy", error: "session: a prompt is already in progress" })
-    );
-    const { rerenderSession } = renderRail(session);
+  it.each([
+    { reason: "running", patch: { badge: "running" as const } },
+    { reason: "hung", patch: stalled("hung") },
+    { reason: "unhealthy", patch: stalled("unhealthy") },
+  ])(
+    "Should keep a busy refusal while the turn is $reason and drop it once it ends",
+    async ({ patch }) => {
+      const session = advertising("compact");
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+        respond(409, { code: "session_busy", error: "session: a prompt is already in progress" })
+      );
+      const { rerenderSession } = renderRail(session);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Compact now" }));
-    expect(await screen.findByTestId("session-context-compact-error")).toBeInTheDocument();
+      await userEvent.setup().click(screen.getByRole("button", { name: "Compact now" }));
+      expect(await screen.findByTestId("session-context-compact-error")).toBeInTheDocument();
 
-    rerenderSession({ ...session, badge: "running" });
-    expect(screen.getByTestId("session-context-compact-error")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Compact now" })).toBeDisabled();
+      rerenderSession({ ...session, ...patch });
+      expect(screen.getByTestId("session-context-compact-error")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Compact now" })).toBeDisabled();
 
-    rerenderSession(session);
-    await waitFor(() =>
-      expect(screen.queryByTestId("session-context-compact-error")).not.toBeInTheDocument()
-    );
-  });
+      rerenderSession(session);
+      await waitFor(() =>
+        expect(screen.queryByTestId("session-context-compact-error")).not.toBeInTheDocument()
+      );
+    }
+  );
 
   it("Should use a generic line for a failure the daemon did not classify", async () => {
     const session = advertising("compact");

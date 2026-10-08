@@ -19,12 +19,13 @@ function sessionHealthState(session: SessionPayload): string {
   return typeof health?.state === "string" ? health.state : "";
 }
 
-export function isSessionRunning(session: SessionPayload): boolean {
+/**
+ * A prompt is in flight, whatever the display badge says. A stalled prompt keeps its
+ * turn while the badge turns `hung` or `unhealthy`, and the daemon still refuses new
+ * work for it (`session_busy`), so work admission must not read the badge as "idle".
+ */
+export function hasActivePrompt(session: SessionPayload): boolean {
   if (NON_RUNNING_STATES.has(session.state)) {
-    return false;
-  }
-
-  if (NON_RUNNING_BADGES.has(session.badge)) {
     return false;
   }
 
@@ -37,6 +38,15 @@ export function isSessionRunning(session: SessionPayload): boolean {
   }
 
   return sessionHealthState(session) === "prompting";
+}
+
+/** Display predicate: a stalled or stopped badge reads as not running even with a prompt open. */
+export function isSessionRunning(session: SessionPayload): boolean {
+  if (NON_RUNNING_BADGES.has(session.badge)) {
+    return false;
+  }
+
+  return hasActivePrompt(session);
 }
 
 export function hasRunningSession(sessions: SessionPayload[] | undefined): boolean {
