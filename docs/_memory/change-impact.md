@@ -27,16 +27,19 @@ leftovers in user-owned files are retired without blocking the user.
   `memory_policy` ignore rule, the retired tool-ID filter (`RetiredMemoryToolIDs`,
   `RetiredMemoryToolsetIDs`, `DropRetiredToolReferences`), and the extension manifest retired-entry
   filter (`dropRetiredMemoryManifestEntries`). Session migration `00009` and global migration
-  `00128` stay as migrations.
+  `00128` stay as migrations. Alongside the retired-ID tombstones, `RetiredInternalSpawnRoles` records exactly
+  `memory-extractor` and `checkpoint-summary`. Its recovery boundary is permanent and does not expire in
+  v0.6.0 because retained session directories are never deleted.
 - **Workspace data isolation:** no workspace or profile boundary changes. Migration `00128` drops the
   memory stream tables, `memory.consolidated` triggers and their dependents, and legacy `dream` /
   `memory-extractor` sessions; session migration `00009` restores events archived by the removed
   compaction (never inside a rewind receipt range). No file is deleted or rewritten: Markdown
   memory, `knowledge/` directories, and `ledger.jsonl` files stay on disk, unread. `<workspace>/knowledge/`
-  is no longer injected into prompts. Disk recovery refuses non-empty unsupported session types or spawn
-  roles before durable-owner verification or metadata normalization, logs `observe.session_recovery_skipped`
-  once per session per observer lifetime, and leaves those session directories unchanged. This is a permanent
-  recovery boundary, not a retired-name shim; normal user sessions without catalog rows remain recoverable.
+  is no longer injected into prompts. Disk recovery refuses non-empty unsupported session types or
+  explicitly retired internal spawn roles before durable-owner verification or metadata normalization. It logs
+  `observe.session_recovery_skipped` once per session per observer lifetime, and leaves those session directories unchanged. This is a permanent
+  recovery boundary; ordinary user sessions and custom advisory roles such as `reviewer` remain recoverable
+  without catalog rows.
 - **Official skill / Web / docs:** `skills/compozy/references/memory.md` is deleted and every memory
   or CompozyOS-compaction mention is removed; `compozy__session_compact` and Compact now are
   documented. Web drops the Knowledge app, Settings → Memory, the Home Memory tile, memory role

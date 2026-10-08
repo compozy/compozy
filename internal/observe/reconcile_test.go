@@ -228,7 +228,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 					ParentSessionID:  parentID,
 					RootSessionID:    rootID,
 					SpawnDepth:       2,
-					SpawnRole:        session.DefaultSpawnRole,
+					SpawnRole:        "delegate_task",
 					Kind:             store.LineageKindSpawn,
 					TTLExpiresAt:     &ttl,
 					AutoStopOnParent: true,
@@ -319,7 +319,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 			indexed.Lineage.ParentSessionID != parentID ||
 			indexed.Lineage.RootSessionID != rootID ||
 			indexed.Lineage.SpawnDepth != 2 ||
-			indexed.Lineage.SpawnRole != session.DefaultSpawnRole ||
+			indexed.Lineage.SpawnRole != "delegate_task" ||
 			indexed.Lineage.TTLExpiresAt == nil ||
 			!indexed.Lineage.TTLExpiresAt.Equal(ttl) ||
 			!indexed.Lineage.AutoStopOnParent {
@@ -707,9 +707,11 @@ func TestReconciliationRecoveryMetadataBoundary(t *testing.T) {
 		reason      string
 	}{
 		{name: "Should leave a retired session type inert", sessionType: "dream", reason: "unknown_session_type"},
-		{name: "Should leave a retired spawn role inert", sessionType: "spawned", spawnRole: "memory-extractor", reason: "unknown_spawn_role"},
+		{name: "Should leave an extractor spawn role inert", sessionType: "spawned", spawnRole: "memory-extractor", reason: "retired_spawn_role"},
+		{name: "Should leave a checkpoint summary spawn role inert", sessionType: "spawned", spawnRole: "checkpoint-summary", reason: "retired_spawn_role"},
 		{name: "Should refuse any unsupported session type", sessionType: "future-type", reason: "unknown_session_type"},
-		{name: "Should refuse any unsupported spawn role", sessionType: "spawned", spawnRole: "future-role", reason: "unknown_spawn_role"},
+		{name: "Should recover an orphan with an arbitrary advisory spawn role", sessionType: "spawned", spawnRole: "future-role"},
+		{name: "Should recover an orphan with a reviewer spawn role", sessionType: "spawned", spawnRole: "reviewer"},
 		{name: "Should recover a normal user orphan", sessionType: "user"},
 		{name: "Should recover a system orphan", sessionType: "system"},
 		{name: "Should recover a coordinator orphan", sessionType: "coordinator", spawnRole: string(session.SessionTypeCoordinator)},
@@ -771,6 +773,9 @@ func TestReconciliationRecoveryMetadataBoundary(t *testing.T) {
 			if tc.reason == "" {
 				if len(rows) != 1 || rows[0].ID != sessionID {
 					t.Fatalf("recovered rows = %+v, want normal orphan", rows)
+				}
+				if tc.spawnRole != "" && (rows[0].Lineage == nil || rows[0].Lineage.SpawnRole != tc.spawnRole) {
+					t.Fatalf("recovered lineage = %+v, want spawn role %q", rows[0].Lineage, tc.spawnRole)
 				}
 				return
 			}

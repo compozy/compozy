@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ErrRecoveryPersistence prevents admission against an incompletely recovered session inventory.
@@ -23,8 +25,8 @@ func RecoveryMetadataSkipReason(meta *store.SessionMeta) string {
 	}
 	if meta.Lineage != nil {
 		role := strings.TrimSpace(meta.Lineage.SpawnRole)
-		if role != "" && role != DefaultSpawnRole && !IsInternalSpawnRole(role) && !isCoordinatorSpawnRole(role) {
-			return "unknown_spawn_role"
+		if slices.Contains(toolspkg.RetiredInternalSpawnRoles, role) {
+			return "retired_spawn_role"
 		}
 	}
 	return ""
