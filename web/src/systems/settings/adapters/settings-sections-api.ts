@@ -11,7 +11,6 @@ import type {
   SettingsAutomationSection,
   SettingsGeneralSection,
   SettingsHooksExtensionsSection,
-  SettingsMemorySection,
   SettingsMutationResult,
   SettingsObservabilitySection,
   SettingsShellSection,
@@ -22,7 +21,6 @@ import type {
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
-  SettingsUpdateMemoryRequest,
   SettingsUpdateObservabilityRequest,
   SettingsUpdateApplyRequest,
   SettingsUpdateApplyResult,
@@ -141,36 +139,6 @@ export async function cancelSettingsUpdate(
     );
   }
   return requireResponseData(data, response, "Failed to cancel the update");
-}
-
-export async function getSettingsMemory(signal?: AbortSignal): Promise<SettingsMemorySection> {
-  const { data, error, response } = await apiClient.GET("/api/settings/memory", { signal });
-  if (apiRequestFailed(response, error)) {
-    throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to load memory settings", response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, "Failed to load memory settings");
-}
-
-export async function updateSettingsMemory(
-  body: SettingsUpdateMemoryRequest,
-  signal?: AbortSignal
-): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient
-    .PATCH("/api/settings/memory", {
-      body,
-      signal,
-    })
-    .catch(throwSettingsSaveTransportError);
-  if (apiRequestFailed(response, error)) {
-    throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to update memory settings", response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, "Failed to update memory settings");
 }
 
 export async function getSettingsSkills(

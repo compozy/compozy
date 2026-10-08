@@ -7,33 +7,18 @@ import type { RoleFallbackEntry, RoleName, SettingsRolesConfig } from "../types"
  * Fixed product display order, independent of the API's lexical sort
  * (`GET /api/roles` returns roles sorted by name).
  */
-export const ROLE_ORDER: readonly RoleName[] = [
-  "coordinator",
-  "dream",
-  "checkpoint_summary",
-  "memory_extractor",
-  "auto_title",
-  "memory_controller",
-];
+export const ROLE_ORDER: readonly RoleName[] = ["coordinator", "auto_title"];
 
 /** Sentence-case role names for panel headers. */
 export const ROLE_LABELS: Record<RoleName, string> = {
   coordinator: "Coordinator",
-  dream: "Dream",
-  checkpoint_summary: "Checkpoint summary",
-  memory_extractor: "Memory extractor",
   auto_title: "Auto title",
-  memory_controller: "Memory controller",
 };
 
 /** One-line description of what each background role does. */
 export const ROLE_DESCRIPTIONS: Record<RoleName, string> = {
   coordinator: "Orchestrates managed sessions.",
-  dream: "Consolidates memory while sessions are idle.",
-  checkpoint_summary: "Summarizes session checkpoints.",
-  memory_extractor: "Extracts durable memories from turns.",
   auto_title: "Names new sessions from their first exchange.",
-  memory_controller: "In-process tie-breaker for memory writes.",
 };
 
 export type RoleFieldKind = "switch" | "text" | "select" | "number";
@@ -78,29 +63,6 @@ const COORDINATOR_FIELDS: readonly RoleFieldDescriptor[] = [
   },
 ];
 
-const MEMORY_CONTROLLER_FIELDS: readonly RoleFieldDescriptor[] = [
-  {
-    key: "timeout",
-    label: "Timeout",
-    description: "Wall-clock ceiling for the in-process call.",
-    kind: "text",
-    placeholder: "250ms",
-    mono: true,
-  },
-];
-
-const MEMORY_CONTROLLER_ADVANCED_FIELDS: readonly RoleFieldDescriptor[] = [
-  {
-    key: "top_k",
-    label: "Top K",
-    description: "Tie-breaker candidate count.",
-    kind: "number",
-    min: 1,
-  },
-  { key: "prompt_version", label: "Prompt version", kind: "text", placeholder: "v1", mono: true },
-  { key: "max_tokens_out", label: "Max output tokens", kind: "number", min: 1 },
-];
-
 /**
  * Editable policy fields per role. Routing (`enabled`, `agent`, `provider`,
  * `model`, `reasoning_effort`) is not listed here — it is owned by the role
@@ -108,31 +70,7 @@ const MEMORY_CONTROLLER_ADVANCED_FIELDS: readonly RoleFieldDescriptor[] = [
  */
 export const ROLE_FIELDS: Record<RoleName, readonly RoleFieldDescriptor[]> = {
   coordinator: COORDINATOR_FIELDS,
-  dream: NO_FIELDS,
-  checkpoint_summary: NO_FIELDS,
-  memory_extractor: NO_FIELDS,
   auto_title: NO_FIELDS,
-  memory_controller: MEMORY_CONTROLLER_FIELDS,
-};
-
-/** Operator-grade fields that live inside the role's Advanced fold. */
-export const ROLE_ADVANCED_FIELDS: Record<RoleName, readonly RoleFieldDescriptor[]> = {
-  coordinator: NO_FIELDS,
-  dream: NO_FIELDS,
-  checkpoint_summary: NO_FIELDS,
-  memory_extractor: NO_FIELDS,
-  auto_title: NO_FIELDS,
-  memory_controller: MEMORY_CONTROLLER_ADVANCED_FIELDS,
-};
-
-/** Roles that carry an `agent` key; the in-process controller has no session identity. */
-export const ROLE_SUPPORTS_AGENT: Record<RoleName, boolean> = {
-  coordinator: true,
-  dream: true,
-  checkpoint_summary: true,
-  memory_extractor: true,
-  auto_title: true,
-  memory_controller: false,
 };
 
 const REASONING_VALUES = [

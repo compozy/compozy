@@ -1,10 +1,7 @@
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";
 import type { RoleRuntimeValue } from "../lib/roles-config";
-import { roleFieldId } from "../lib/roles-validation";
 import type { RoleViewModel } from "../lib/roles-view-model";
-import type { RoleName } from "../types";
 import { RoleFallbackEditor } from "./role-fallback-editor";
-import { RoleFieldControl } from "./role-field-control";
 import { SettingsAdvancedFold, SettingsProvChip } from "./settings-advanced-fold";
 
 export interface RoleAdvancedDetailsProps {
@@ -14,10 +11,7 @@ export interface RoleAdvancedDetailsProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   disabled?: boolean;
-  draftRevision?: number;
   testId: string;
-  setRoleField: (role: RoleName, field: string, value: string | number | boolean) => void;
-  setNumberFieldValidity: (id: string) => (message: string | null) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
   onUpdate: (index: number, value: RoleRuntimeValue) => void;
@@ -25,9 +19,9 @@ export interface RoleAdvancedDetailsProps {
 }
 
 /**
- * The operator layer for one role: tuning knobs, the ordered fallback chain,
- * and the config provenance the daemon returned. Rendered bare so it does not
- * frame itself inside the role panel that already frames the row.
+ * The operator layer for one role: the ordered fallback chain and the config
+ * provenance the daemon returned. Rendered bare so it does not frame itself
+ * inside the role panel that already frames the row.
  */
 export function RoleAdvancedDetails({
   vm,
@@ -36,16 +30,13 @@ export function RoleAdvancedDetails({
   open,
   onOpenChange,
   disabled,
-  draftRevision,
   testId,
-  setRoleField,
-  setNumberFieldValidity,
   onAdd,
   onRemove,
   onUpdate,
   registerFieldRef,
 }: RoleAdvancedDetailsProps) {
-  const { role, advancedFields, values, status } = vm;
+  const { role, status } = vm;
   const provenanceKeys = Object.keys(status.provenance);
 
   return (
@@ -57,31 +48,6 @@ export function RoleAdvancedDetails({
       data-testid={testId}
     >
       <div className="flex flex-col gap-6 pt-4">
-        {advancedFields.length > 0 ? (
-          <div className="overflow-hidden rounded-lg border border-line-soft bg-sunken">
-            {advancedFields.map(field => {
-              const id = roleFieldId(role, field.key);
-              return (
-                <RoleFieldControl
-                  key={field.key}
-                  field={field}
-                  value={values[field.key]}
-                  hasEffective={false}
-                  effective={null}
-                  error={errors[id]}
-                  disabled={disabled}
-                  testId={`settings-page-roles-${role}-${field.key}`}
-                  resetRevision={draftRevision}
-                  fieldRef={field.kind === "number" ? registerFieldRef(id) : undefined}
-                  onValueChange={value => setRoleField(role, field.key, value)}
-                  onValidityChange={
-                    field.kind === "number" ? setNumberFieldValidity(id) : undefined
-                  }
-                />
-              );
-            })}
-          </div>
-        ) : null}
         <RoleFallbackEditor
           role={role}
           entries={vm.fallbackChain}

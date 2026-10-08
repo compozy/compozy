@@ -18,7 +18,6 @@ import {
   settingsMCPServerFixtures,
   settingsMCPServersCollectionFixture,
   settingsMarketplaceSectionFixture,
-  settingsMemorySectionFixture,
   settingsObservabilitySectionFixture,
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,
@@ -181,9 +180,6 @@ export const handlers: HttpHandler[] = [
       holder: null,
     })
   ),
-
-  compozyApiMock.get("/api/settings/memory", () => HttpResponse.json(settingsMemorySectionFixture)),
-  compozyApiMock.patch("/api/settings/memory", () => HttpResponse.json(mutationResult("memory"))),
 
   compozyApiMock.get("/api/roles", () => HttpResponse.json(rolesStatusFixture)),
   compozyApiMock.get("/api/settings/roles", () => HttpResponse.json(settingsRolesSectionFixture)),

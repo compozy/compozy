@@ -324,7 +324,7 @@ describe("useSettingsRestart", () => {
   it("Should reset the restart singleton to its exact initial snapshot", () => {
     settingsRestartStore.trigger.settingsMutationRecorded({
       mutation: {
-        section: "memory",
+        section: "roles",
         restartRequired: true,
         warnings: [],
         completedAt: "2026-04-17T10:05:00Z",
@@ -373,7 +373,7 @@ describe("useSettingsRestart", () => {
     act(() => {
       settingsRestartStore.trigger.settingsMutationRecorded({
         mutation: {
-          section: "memory",
+          section: "roles",
           restartRequired: true,
           warnings: [],
           completedAt: new Date().toISOString(),

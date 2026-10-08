@@ -23,7 +23,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Roles settings route stories covering the truthful projection: built-in/default-agent resolution lines, decided-when-it-runs affordances, the memory-controller timeout, resolution diagnostics, and the editable fallback chain.",
+          "Roles settings route stories covering the truthful projection: built-in/default-agent resolution lines, decided-when-it-runs affordances, resolution diagnostics, and the editable fallback chain.",
       },
     },
   },
@@ -32,20 +32,10 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Reveals the Dream panel (second in product order) so below-fold states capture cleanly. */
-async function scrollDreamIntoView(canvasElement: HTMLElement) {
-  const findDream = () =>
-    canvasElement.querySelector('[data-testid="settings-page-roles-group-dream"]');
-  for (let attempt = 0; attempt < 40 && !findDream(); attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  findDream()?.scrollIntoView({ block: "start" });
-}
-
 /**
- * Populated surface — all six roles in product order. Coordinator is OFF
- * (disabled); auto_title, memory_extractor, and memory_controller use the
- * default agent ("Decided when the role runs."); dream and checkpoint are built in.
+ * Populated surface — both roles in product order. Coordinator is OFF
+ * (disabled) and built in; auto_title uses the default agent ("Decided when
+ * the role runs.").
  */
 export const Populated: Story = {
   args: {},
@@ -54,7 +44,7 @@ export const Populated: Story = {
 };
 
 /**
- * Dream routed to a missing catalog agent — the row shows an inline warning
+ * Auto title routed to a missing catalog agent — the row shows an inline warning
  * (`role_agent_not_found`) with the agent as mono metadata.
  */
 export const Diagnostics: Story = {
@@ -67,12 +57,11 @@ export const Diagnostics: Story = {
       ],
     }),
   },
-  play: ({ canvasElement }) => scrollDreamIntoView(canvasElement),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 /**
- * Editable fallback chain: dream carries two routes, the second missing its
+ * Editable fallback chain: auto_title carries two routes, the second missing its
  * provider so the advanced fold opens with an inline validation error.
  */
 export const FallbackEditor: Story = {
@@ -86,8 +75,8 @@ export const FallbackEditor: Story = {
             ...settingsRolesSectionFixture,
             config: {
               ...settingsRolesConfigFixture,
-              dream: {
-                ...settingsRolesConfigFixture.dream,
+              auto_title: {
+                ...settingsRolesConfigFixture.auto_title,
                 fallback_chain: [
                   {
                     provider: "anthropic",
@@ -111,7 +100,6 @@ export const FallbackEditor: Story = {
       ],
     }),
   },
-  play: ({ canvasElement }) => scrollDreamIntoView(canvasElement),
   render: () => <StorybookWorkspaceSetup />,
 };
 

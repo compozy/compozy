@@ -97,14 +97,14 @@ describe("useSettingsRolesPage", () => {
     );
 
     expect(renderLengths.length).toBeGreaterThan(0);
-    expect(renderLengths.every(length => length === 6)).toBe(true);
-    expect(result.current.roles).toHaveLength(6);
+    expect(renderLengths.every(length => length === 2)).toBe(true);
+    expect(result.current.roles).toHaveLength(2);
   });
-  it("Should build the six role view-models in product order once both reads resolve", async () => {
+  it("Should build the role view-models in product order once both reads resolve", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.roles).toHaveLength(6));
+    await waitFor(() => expect(result.current.roles).toHaveLength(2));
     expect(result.current.roles[0].role).toBe("coordinator");
     expect(result.current.isEmpty).toBe(false);
   });
@@ -119,7 +119,7 @@ describe("useSettingsRolesPage", () => {
   });
 
   it("Should reject a partial closed-role projection", async () => {
-    vi.mocked(getRolesStatus).mockResolvedValue({ roles: rolesStatusFixture.roles.slice(0, 5) });
+    vi.mocked(getRolesStatus).mockResolvedValue({ roles: rolesStatusFixture.roles.slice(0, 1) });
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
 
@@ -131,7 +131,7 @@ describe("useSettingsRolesPage", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.roles).toHaveLength(6));
+    await waitFor(() => expect(result.current.roles).toHaveLength(2));
 
     act(() => result.current.setRoleField("auto_title", "model", "claude-haiku-4-5"));
     expect(result.current.isDirty).toBe(true);
@@ -147,10 +147,11 @@ describe("useSettingsRolesPage", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.roles).toHaveLength(6));
+    await waitFor(() => expect(result.current.roles).toHaveLength(2));
 
-    // Two events: the edit re-renders the draft, then the save submits it.
+    // Separate events: the edits re-render the draft, then the save submits it.
     act(() => result.current.setRoleField("auto_title", "model", "claude-haiku-4-5"));
+    act(() => result.current.setRoleField("coordinator", "max_children", 3));
     act(() => result.current.handleSave());
 
     await waitFor(() =>
@@ -158,13 +159,14 @@ describe("useSettingsRolesPage", () => {
     );
     const body = vi.mocked(updateSettingsRoles).mock.calls[0][0];
     expect(body.config.auto_title.model).toBe("claude-haiku-4-5");
+    expect(body.config.coordinator.max_children).toBe(3);
   });
 
   it("Should refetch both reads on retry", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.roles).toHaveLength(6));
+    await waitFor(() => expect(result.current.roles).toHaveLength(2));
     expect(getRolesStatus).toHaveBeenCalledTimes(1);
     expect(getSettingsRoles).toHaveBeenCalledTimes(1);
 
@@ -179,9 +181,9 @@ describe("useSettingsRolesPage", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.roles).toHaveLength(6));
+    await waitFor(() => expect(result.current.roles).toHaveLength(2));
 
-    act(() => result.current.addFallback("dream"));
+    act(() => result.current.addFallback("auto_title"));
     expect(result.current.isInvalid).toBe(true);
 
     act(() => result.current.handleSave());
@@ -193,7 +195,7 @@ describe("useSettingsRolesPage", () => {
     vi.mocked(updateSettingsRoles).mockResolvedValue(appliedMutation);
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
-    await waitFor(() => expect(result.current.roles).toHaveLength(6));
+    await waitFor(() => expect(result.current.roles).toHaveLength(2));
 
     const focus = vi.fn();
     act(() => {
@@ -209,9 +211,9 @@ describe("useSettingsRolesPage", () => {
   });
 
   it("Should preserve an edited roles draft when a newer baseline arrives", () => {
-    const baseline = { dream: { agent: "claude" } } as SettingsRolesConfig;
-    const edited = { dream: { agent: "codex" } } as SettingsRolesConfig;
-    const replacement = { dream: { agent: "hermes" } } as SettingsRolesConfig;
+    const baseline = { auto_title: { agent: "claude" } } as SettingsRolesConfig;
+    const edited = { auto_title: { agent: "codex" } } as SettingsRolesConfig;
+    const replacement = { auto_title: { agent: "hermes" } } as SettingsRolesConfig;
     const store = settingsRolesDraftLogic.createStore({ baseline, lastAppliedLabel: null });
 
     store.trigger.draftChanged({ draft: edited });
