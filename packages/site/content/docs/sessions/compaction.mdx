@@ -301,7 +301,7 @@ own turn, in **maintenance** delivery:
 - no pending resume replay or imported context: they are neither prepended nor consumed, so they ride
   the next ordinary prompt exactly once
 
-The turn is recorded like any other: an input row with the `/<command>` text, a request record with
+The turn is recorded like any other: an input row with the `/<command>` text, a `session.compaction.requested` event with
 `session_id`, `command`, and `requested_by` (`cli`, `http`, `tool`, or `goal`) that makes the resulting
 compaction report `trigger: "requested"`, and whatever compaction updates the agent sends.
 

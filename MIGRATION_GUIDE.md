@@ -53,8 +53,10 @@ Nothing needs editing by hand. On the first start:
   the daemon removes them and appends them, commented, at the end of the same file under
   `# Archived retired memory and compaction settings; these values are inactive.`. The rewrite is
   atomic and lossless, logged once as `config.retired_keys_archived`, and a second start changes
-  nothing. Explicitly setting a retired key (`compozy config set memory.enabled true`) is still
-  refused.
+  nothing. If the file changes while it is being rewritten, or the daemon cannot write it (for
+  example a read-only directory), the load stops with an error that names the file; make it writable
+  and start again, and the next load archives the current content. Explicitly setting a retired key
+  (`compozy config set memory.enabled true`) is still refused.
 - **Ignored leftovers.** `memory_policy` in a `SOUL.md` is ignored: it is not rendered, never raises a
   diagnostic, and the file is not rewritten (the Web editor drops it on the next save). Retired
   `compozy__memory*` tool and toolset IDs in an agent, profile, or session tool policy are dropped
@@ -132,7 +134,10 @@ Stop calling the removed commands, routes, tools, and SDK members; there are no 
 tool entries from `AGENT.md` `toolsets`/`tools` and from profile and session tool policies when
 convenient, delete `memory_policy` from `SOUL.md`, remove `memory.backend` and `memory/*` entries from
 extension manifests, and replace `compaction_reason` / `compaction_strategy` hook matchers with
-`compaction_trigger`. These leftovers are tolerated for now but not forever.
+`compaction_trigger`. Hook matchers in `AGENT.md` and `SKILL.md` files are neither archived nor
+ignored: remove those keys by hand or the agent or skill fails to load. Tool-policy wildcards such as
+`compozy__memory*` are not rewritten; they simply match nothing. The other leftovers are tolerated for
+now but not forever.
 
 ### Temporary compatibility
 

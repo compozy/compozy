@@ -264,7 +264,7 @@ describe("runtime docs truth", () => {
     // Retired memory, Dream, Knowledge, and CompozyOS-side compaction surfaces. Each pattern is
     // bounded so daemon.memory_report_interval, the runtime.memory doctor probe and its "[memory]"
     // log prefix, "in-memory" stores, spec-cycle workflow memory, and the kept
-    // session.compaction_fired event stay legal. "[memory]" only counts as a TOML table header.
+    // session.compaction_fired and session.compaction.requested events stay legal. "[memory]" only counts as a TOML table header.
     const retiredMemorySurfaces = [
       /\bcompozy memory\b/,
       /\/api\/memory\b/,
@@ -275,7 +275,7 @@ describe("runtime docs truth", () => {
       /\bmemory\.consolidated\b/,
       /\bdreaming-curator\b/,
       /checkpoint_summary/,
-      /\[session\.compaction\]|\bsession\.compaction\.[a-z_]/,
+      /\[session\.compaction\]|\bsession\.compaction\.(?!requested\b)[a-z_]/,
       /\bpressure_threshold\b/,
       /\/knowledge(?![\w-])/,
       /\bworkspace-knowledge\b/,

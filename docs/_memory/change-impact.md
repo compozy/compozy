@@ -21,8 +21,9 @@ leftovers in user-owned files are retired without blocking the user.
   `StatusSchemaVersion` `2026-10-07` without `memory`. `GET …/history` and `compozy session history`
   keep returning raw grouped ledger rows (`compaction` snapshot rows plus `session.compaction_fired`);
   only the transcript projection folds one Compaction item per `compaction_id`. After a native terminal
-  compaction, occupancy stays unknown until a later usage update carries both `used` and a positive
-  `size` (session usage API and Goal readers).
+  compaction, the session usage API reports occupancy `unknown` until a later usage update carries
+  `used`; the Goal context readers stay unknown until an update carries both `used` and a positive
+  `size`.
 - **Extensibility / hooks / config:** `context.pre_compact` / `context.post_compact` become
   observation-only (`labels` patch only) with a `compaction_trigger` matcher replacing
   `compaction_reason` / `compaction_strategy`. `[memory]`, `[session.compaction]`, four roles, and the

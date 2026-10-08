@@ -177,7 +177,8 @@ produces:
 
 - raw `compaction` snapshot rows in the session ledger, one per lifecycle change: `compaction_id`,
   `status` (`in_progress`, `completed`, `failed`, `cancelled`, or a vendor value passed through
-  verbatim), an optional `summary` capped at 16 KiB, and an `error` on failure;
+  verbatim), an optional `summary` capped at 16 KiB and redacted by the configured transcript redaction, and an
+  `error` on failure;
 - one `session.compaction_fired` row with `{compaction_id, trigger, context_used, context_size}`, where
   `trigger` is `requested` (CompozyOS started the compaction turn, from Compact now or a Goal) or
   `agent`, and both context fields are `null` when no earlier context reading existed;
