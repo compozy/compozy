@@ -26,6 +26,7 @@ type promptTurnDispatchState struct {
 type promptRecoveryState struct {
 	executionCtx      context.Context
 	request           acp.PromptRequest
+	originalMessage   string
 	attempts          int
 	exhaustedRecorded bool
 }

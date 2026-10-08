@@ -90,3 +90,5 @@ that replay the recorded Claude compaction frames; the real-adapter walk is RT-s
 QA impact 2026-10-07 (memory removal): new in this change; no prior verdict.
 
 Review round 2 transport check: invoke `compozy__session_compact` through `POST /api/tools/{id}/invoke` and hosted MCP for busy and unsupported sessions. Both return HTTP409 with the respective structural code, tool ID and safe message (`session is busy` / `session compaction is unsupported`); backend details must not escape. The generated `tools.ErrorCode` enum includes both values. Owning automated coverage is the existing tool transport parity and hosted MCP suites; no browser walkthrough is claimed.
+
+Review round 3 inactive-session contract: stopped and starting sessions return HTTP 400 `ErrorPayload` with `code: session_not_promptable`, without agent dispatch. The experimental `compactSession` OpenAPI response declares 400 using the shared error schema. Existing compact-handler matrix and schema suite own automated coverage; no additional browser or live-provider walkthrough is claimed.

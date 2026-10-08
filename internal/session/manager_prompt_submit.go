@@ -204,6 +204,7 @@ func (m *Manager) submitPromptInReservedSlot(
 			m.publishLifecycleAttentionTransition(ctx, running, session.Info())
 		}
 	}()
+	turnState.recovery = &promptRecoveryState{originalMessage: dispatchInput.message}
 	recoveryRequest := acp.PromptRequest{
 		Maintenance:               req.delivery == PromptDeliveryMaintenance,
 		TurnID:                    req.turnID,

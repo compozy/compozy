@@ -354,6 +354,26 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 	}{
 
 		{
+			name: "Should describe the inactive-session native compaction refusal",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+				compact := operationFor(
+					t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/compact", http.MethodPost,
+				)
+				refusal := jsonResponseSchema(t, compact, http.StatusBadRequest)
+				description := compact.Responses.Status(http.StatusBadRequest).Value.Description
+				if description == nil || !strings.Contains(*description, "session_not_promptable") {
+					t.Fatalf("inactive-session response description = %v", description)
+				}
+				assertRequired(t, refusal, "error")
+				code := propertySchema(t, refusal, "code")
+				if code.Type == nil || !code.Type.Is("string") {
+					t.Fatalf("refusal code schema = %#v, want string", code)
+				}
+			},
+		},
+
+		{
 			name: "Should describe optional experimental compaction occupancy fields",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
