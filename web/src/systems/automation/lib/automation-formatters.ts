@@ -115,28 +115,10 @@ export function humanizeFireWindow(window: string): string {
   return count === 1 ? unit : `${count} ${unit}s`;
 }
 
-function pluralizeTimes(count: number): string {
-  return count === 1 ? "1 time" : `${count} times`;
-}
-
-/** Rail Reliability row: `Backoff · 2 times` / `No retries`. */
-export function describeTriggerRetry(retry: AutomationRetry): string {
+/** Rail Reliability row: `No retries` / `Up to 2, waiting longer each time`. */
+export function describeRetryPlain(retry: AutomationRetry): string {
   if (retry.strategy === "none") return "No retries";
-  return `Backoff · ${pluralizeTimes(retry.max_retries)}`;
-}
-
-/** Rail Reliability row: `4 times / hour`. */
-export function describeTriggerFireLimit(limit: AutomationFireLimit): string {
-  return `${pluralizeTimes(limit.max)} / ${humanizeFireWindow(limit.window)}`;
-}
-
-/** Rail Reliability summary: `Backoff · 4 / hour`. */
-export function summarizeTriggerReliability(
-  retry: AutomationRetry,
-  limit: AutomationFireLimit
-): string {
-  const strategy = retry.strategy === "backoff" ? "Backoff" : "No retry";
-  return `${strategy} · ${limit.max} / ${humanizeFireWindow(limit.window)}`;
+  return `Up to ${retry.max_retries}, waiting longer each time`;
 }
 
 const AUTOMATION_RUN_STATUS_LABELS = {
@@ -234,27 +216,13 @@ export function catchUpPolicyLabel(policy?: AutomationCatchUpPolicy): string {
   return policy ? CATCH_UP_POLICY_LABELS[policy] : "Default";
 }
 
-interface AutomationSkipReasonInfo {
-  label: string;
-  tone: PillTone;
-  detail: string;
-}
-
 /** Durable skip reasons the daemon records on a canceled run's `metadata.reason`. */
-const AUTOMATION_SKIP_REASONS = {
-  self_overlap: {
-    label: "Skipped",
-    tone: "neutral",
-    detail: "Skipped because the previous run was still going.",
-  },
-  misfire_grace_exceeded: {
-    label: "Missed",
-    tone: "neutral",
-    detail: "Skipped because it missed its start window.",
-  },
-} as const satisfies Record<string, AutomationSkipReasonInfo>;
+const AUTOMATION_SKIP_REASON_LABELS = {
+  self_overlap: "Skipped",
+  misfire_grace_exceeded: "Missed",
+} as const;
 
-export type AutomationSkipReason = keyof typeof AUTOMATION_SKIP_REASONS;
+export type AutomationSkipReason = keyof typeof AUTOMATION_SKIP_REASON_LABELS;
 
 /**
  * Narrow a run's durable skip evidence to a known scheduler skip reason. The
@@ -274,15 +242,7 @@ export function automationRunSkipReason(run: AutomationRun): AutomationSkipReaso
 }
 
 export function automationSkipReasonLabel(reason: AutomationSkipReason): string {
-  return AUTOMATION_SKIP_REASONS[reason].label;
-}
-
-export function automationSkipReasonTone(reason: AutomationSkipReason): PillTone {
-  return AUTOMATION_SKIP_REASONS[reason].tone;
-}
-
-export function automationSkipReasonDetail(reason: AutomationSkipReason): string {
-  return AUTOMATION_SKIP_REASONS[reason].detail;
+  return AUTOMATION_SKIP_REASON_LABELS[reason];
 }
 
 export function automationSourceLabel(source: AutomationJob["source"]): string {

@@ -1,13 +1,12 @@
 /**
- * Detail-page rule descriptors for a persisted trigger (pause line, Starts /
- * Only if descriptors, webhook path). The sentence itself is
+ * Detail-page rule descriptors for a persisted trigger (Starts / Only if
+ * descriptors, webhook path). The sentence itself is
  * `describeAutomation()` in `automation-sentence.ts`. Pure derivation.
  */
 
 import { getEventDef, type EventIconKey } from "./trigger-catalog";
 import { parseEventSelection } from "./trigger-event-id";
 import { triggerFilterEntries } from "./trigger-filter";
-import { projectAutomationTarget } from "./automation-target";
 import type { AutomationTrigger } from "../types";
 
 export interface TriggerWhenDescriptor {
@@ -37,26 +36,8 @@ export interface TriggerIfDescriptor {
   note: TriggerIfPathNote | null;
 }
 
-/** Verb rule: agent targets run, loop targets start. */
-export function triggerVerb(trigger: AutomationTrigger): "run" | "start" {
-  return projectAutomationTarget(trigger).kind === "loop" ? "start" : "run";
-}
-
-/** Display name of the configured target (agent or loop). */
-export function triggerTargetName(trigger: AutomationTrigger): string {
-  const target = projectAutomationTarget(trigger);
-  return target.kind === "loop" ? target.loopName : target.agentName;
-}
-
 function humanizeFilterKey(key: string): string {
   return key.replace(/^data\./, "").replaceAll(/[._]/g, " ");
-}
-
-/** Shown under the sentence while the trigger is disabled. */
-export function triggerPauseLine(trigger: AutomationTrigger): string {
-  const noun = trigger.event === "webhook" ? "deliveries" : "events";
-  const action = triggerVerb(trigger) === "start" ? "start the loop" : "run the agent";
-  return `Matching ${noun} will not ${action} until this trigger is enabled.`;
 }
 
 /** Event display label for the subhead pill and the rail Event row. */
@@ -93,9 +74,9 @@ export function describeTriggerWhen(
     case "webhook":
       return {
         icon,
-        headline: "Incoming webhook",
+        headline: "Another app calls this link",
         eventId: trigger.event,
-        sub: `${trigger.scope === "workspace" ? "Project" : "Global"} address on this computer`,
+        sub: "Requests must be signed with the secret. Unsigned or older-than-5-minute requests are rejected.",
       };
     default:
       return {

@@ -1,386 +1,640 @@
-// Suite: Automation job detail panel
-// Invariant: A persisted job read renders its schedule, stored execution target, and run
-// history without agent-only loss; destructive deletion requires explicit confirmation.
-// Boundary IN: Job API read models and the job detail/run-history presentation.
-// Boundary OUT: trigger detail (trigger-detail-panel.test.tsx); persistence and dispatch,
-// owned by daemon/store suites.
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+// Suite: Automation detail panel
+// Invariant: One detail grammar serves schedules, events and links — the sentence with its
+// non-optimistic switch, "How it works" (Starts / Only if / Does), the shared run list, the
+// one-card rail, the lockbar, Inspect, delete by typing the name, and states with a way back —
+// and it renders only what the daemon can back (Run now for jobs, secret presence, recorded ids).
+// Boundary IN: AutomationDetailPanel and the pure detail/run/inspect models it renders.
+// Boundary OUT: data access, toasts and navigation (use-automation-detail-page.test.tsx);
+// dispatch and persistence (daemon/store suites).
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
-interface MockLinkParams {
-  id?: string;
-  runId?: string;
-}
-
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
-  params?: MockLinkParams;
+  params?: { id?: string; name?: string; runId?: string };
   search?: { workspace?: string };
   to?: string;
 }
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, params, search, to, ...props }: MockLinkProps) => (
-    <a
-      href={
-        to === "/loop-runs/$runId"
-          ? `/loop-runs/${params?.runId ?? ""}${search?.workspace ? `?workspace=${encodeURIComponent(search.workspace)}` : ""}`
-          : `/session/${params?.id ?? ""}`
-      }
-      {...props}
-    >
-      {children}
-    </a>
-  ),
+  Link: ({ children, params, search, to, ...props }: MockLinkProps) => {
+    const path = String(to)
+      .replace("$runId", params?.runId ?? "")
+      .replace("$name", params?.name ?? "")
+      .replace("$id", params?.id ?? "");
+    const href = search?.workspace ? `${path}?workspace=${search.workspace}` : path;
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  },
   useNavigate: () => vi.fn(),
 }));
 
-import { AutomationDetailPanel } from "../automation-detail-panel";
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const jobFixture = {
-  profile_id: "00000000000000000000000000",
-  profile_name: "default",
-  id: "job_daily_review",
-  name: "daily-review",
-  agent_name: "reviewer",
-  prompt: "Review recent changes.",
-  scope: "workspace" as const,
-  workspace_id: "ws_alpha",
-  source: "dynamic" as const,
-  target_kind: "agent",
-  enabled: true,
-  schedule: { mode: "cron" as const, expr: "0 9 * * *" },
-  retry: { strategy: "none" as const, max_retries: 3, base_delay: "2s" },
-  fire_limit: { max: 12, window: "1h" },
-  next_run: "2026-04-12T09:00:00Z",
-  scheduler: {
-    job_id: "job_daily_review",
-    registered: true,
-    next_run_at: "2026-04-12T09:00:00Z",
-    last_run_at: "2026-04-11T09:00:01Z",
-    last_scheduled_at: "2026-04-11T09:00:00Z",
-    last_fire_id: "fire_daily_review_001",
-    catch_up_policy: "skip_missed" as const,
-    misfire_grace_seconds: 30,
-    misfire_count: 1,
-    last_misfire_at: "2026-04-10T09:00:00Z",
-    updated_at: "2026-04-11T09:00:01Z",
-  },
-  created_at: "2026-04-11T09:00:00Z",
-  updated_at: "2026-04-11T09:05:00Z",
-};
+import {
+  AutomationDetailPanel,
+  type AutomationDetailPanelProps,
+} from "../automation-detail/automation-detail-panel";
+import type { AutomationEntity } from "../../lib/automation-detail";
+import { toAutomationView } from "../../lib/automation-view";
+import {
+  dependencyReviewJob,
+  deployWebhookTrigger,
+  makeDetailJob,
+  makeDetailRun,
+  makeDetailTrigger,
+  morningDigestJob,
+  morningDigestRuns,
+  releaseChecklistJob,
+  rerunDeliveryRuns,
+  rerunDeliveryTrigger,
+  summarizeFailuresTrigger,
+} from "../../mocks/detail-fixtures";
 
-const runFixture = {
-  profile_id: "00000000000000000000000000",
-  profile_name: "default",
-  id: "run_001",
-  status: "completed" as const,
-  attempt: 1,
-  job_id: "job_daily_review",
-  fire_id: "fire_daily_review_001",
-  session_id: "sess_001",
-  scheduled_at: "2026-04-11T09:00:00Z",
-  started_at: "2026-04-11T10:00:00Z",
-  ended_at: "2026-04-11T10:05:00Z",
-};
+const NOW = new Date("2026-10-07T19:00:00Z");
+const ctx = { workspaceName: (id: string) => (id === "ws_checkout_api" ? "checkout-api" : id) };
 
-function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>[0]> = {}) {
-  const onBack = vi.fn();
-  const onDelete = vi.fn();
-  const onEdit = vi.fn();
-  const onToggleEnabled = vi.fn();
-  const onTriggerNow = vi.fn();
-
-  renderWithTopbar(
+function renderPanel(
+  entity: AutomationEntity | undefined,
+  overrides: Partial<AutomationDetailPanelProps> = {}
+) {
+  const handlers = {
+    onBack: vi.fn(),
+    onDelete: vi.fn(),
+    onEdit: vi.fn(),
+    onRetryRuns: vi.fn(),
+    onRunNow: vi.fn(),
+    onSetUpRetries: vi.fn(),
+    onToggleEnabled: vi.fn(),
+  };
+  const build = (
+    next: AutomationEntity | undefined,
+    extra: Partial<AutomationDetailPanelProps>
+  ) => (
     <AutomationDetailPanel
-      error={null}
-      state={{
-        isDeleting: false,
-        isLoading: false,
-        isTogglePending: false,
-        isTriggerPending: false,
-        ...overrides.state,
-      }}
-      item={jobFixture}
-      onBack={onBack}
-      onDelete={onDelete}
-      onEdit={onEdit}
-      onToggleEnabled={onToggleEnabled}
-      onTriggerNow={onTriggerNow}
-      runs={[runFixture]}
+      entity={next}
+      lastRanAt={null}
+      loopMissing={false}
+      loopWorkspaceName="checkout-api"
+      runs={[]}
       runsError={null}
       runsLoading={false}
-      {...overrides}
+      sentenceContext={ctx}
+      state={{
+        isDeleting: false,
+        isRunNowDisabled: false,
+        isRunNowPending: false,
+        isTogglePending: false,
+      }}
+      status={next ? "ready" : "missing"}
+      statusMessage="This automation is no longer available."
+      view={next ? toAutomationView(next, ctx) : undefined}
+      {...handlers}
+      {...extra}
     />
   );
-
-  return { onBack, onDelete, onEdit, onToggleEnabled, onTriggerNow };
+  const view = renderWithTopbar(build(entity, overrides));
+  return {
+    ...handlers,
+    rerenderPanel: (next: AutomationEntity, extra: Partial<AutomationDetailPanelProps> = {}) =>
+      view.rerender(build(next, extra)),
+  };
 }
 
 describe("AutomationDetailPanel", () => {
-  it("renders loading state", () => {
-    renderPanel({
-      state: {
-        isDeleting: false,
-        isLoading: true,
-        isTogglePending: false,
-        isTriggerPending: false,
-      },
-      item: undefined,
-    });
-    expect(screen.getByTestId("automation-detail-loading")).toBeInTheDocument();
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
-  it("renders error state", () => {
-    renderPanel({ error: new Error("boom"), item: undefined });
-    expect(screen.getByTestId("automation-detail-error")).toBeInTheDocument();
-  });
+  describe("head", () => {
+    it("Should lead a schedule with its sentence, the On switch and a dated subhead (UT-060)", () => {
+      renderPanel(morningDigestJob);
 
-  it("renders the unavailable state when the routed item resolves to nothing", () => {
-    renderPanel({ item: undefined });
-    expect(screen.getByTestId("automation-detail-empty")).toBeInTheDocument();
-    expect(screen.getByText("Job unavailable")).toBeInTheDocument();
-  });
-
-  it("renders dynamic job details and dispatches non-destructive action callbacks", () => {
-    const { onBack, onDelete, onEdit, onToggleEnabled, onTriggerNow } = renderPanel();
-
-    expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("daily-review");
-    expect(screen.getByTestId("automation-detail-header")).toBeInTheDocument();
-    expect(screen.getByText("Review recent changes.")).toBeInTheDocument();
-    expect(screen.queryByTestId("automation-job-scheduler")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("automation-job-advanced-toggle"));
-    expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent("Skip missed");
-    expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent(
-      "fire_daily_review_001"
-    );
-    expect(screen.getByTestId("automation-run-run_001")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-run-run_001")).toHaveAttribute(
-      "href",
-      "/session/sess_001"
-    );
-
-    fireEvent.click(screen.getByTestId("trigger-job-btn"));
-    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
-    fireEvent.click(screen.getByTestId("edit-automation-btn"));
-    expect(screen.getByTestId("job-enable-label")).toHaveTextContent("Enabled");
-    fireEvent.click(screen.getByTestId("toggle-automation-btn"));
-    fireEvent.click(screen.getByRole("button", { name: "Back one level" }));
-
-    expect(onToggleEnabled).toHaveBeenCalledWith(false);
-    expect(onEdit).toHaveBeenCalledOnce();
-    expect(onTriggerNow).toHaveBeenCalledOnce();
-    expect(onBack).toHaveBeenCalledOnce();
-    expect(onDelete).not.toHaveBeenCalled();
-    expect(
-      screen.getByTestId("automation-detail-header").querySelector("[data-slot='page-head']")
-    ).toBeNull();
-  });
-
-  it("Should disable Run now when the automation runtime is unavailable", () => {
-    const { onTriggerNow } = renderPanel({
-      state: {
-        isDeleting: false,
-        isLoading: false,
-        isTogglePending: false,
-        isTriggerDisabled: true,
-        isTriggerPending: false,
-      },
+      expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("morning-digest");
+      expect(screen.getByTestId("automation-detail-sentence")).toHaveTextContent(
+        "Every weekday at 09:00 UTC, ask summarizer."
+      );
+      expect(screen.getByTestId("automation-enable-label")).toHaveTextContent("On");
+      expect(screen.getByRole("switch", { name: "Turn morning-digest on or off" })).toBeChecked();
+      const subhead = screen.getByTestId("automation-detail-subhead");
+      expect(subhead).toHaveTextContent("On a schedule");
+      expect(subhead).toHaveTextContent("Project checkout-api");
+      expect(subhead).toHaveTextContent("Next run in 14h");
+      expect(subhead).toHaveTextContent("Updated");
     });
 
-    const trigger = screen.getByTestId("trigger-job-btn");
-    expect(trigger).toBeDisabled();
-    fireEvent.click(trigger);
-    expect(onTriggerNow).not.toHaveBeenCalled();
-  });
+    it("Should date an event by when it last ran instead of a next run (UT-060)", () => {
+      renderPanel(rerunDeliveryTrigger, { lastRanAt: "2026-10-07T17:00:00Z" });
 
-  it("Should render the target-aware Default catch-up label when the scheduler omits a policy, never the removed skip value", () => {
-    renderPanel({
-      item: {
-        ...jobFixture,
-        scheduler: { ...jobFixture.scheduler, catch_up_policy: undefined },
-      },
+      const subhead = screen.getByTestId("automation-detail-subhead");
+      expect(subhead).toHaveTextContent("On an event");
+      expect(subhead).toHaveTextContent("Last ran 2h ago");
+      expect(subhead).not.toHaveTextContent("Next run");
     });
 
-    fireEvent.click(screen.getByTestId("automation-job-advanced-toggle"));
-    const scheduler = screen.getByTestId("automation-job-scheduler");
-    expect(scheduler).toHaveTextContent("Default");
-    expect(scheduler).not.toHaveTextContent("skip");
-  });
-
-  it("Should require explicit name confirmation before deleting a dynamic job", async () => {
-    const user = userEvent.setup();
-    const { onDelete } = renderPanel({ runs: [] });
-
-    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
-    fireEvent.click(screen.getByTestId("delete-automation-btn"));
-    expect(onDelete).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Delete job?" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(onDelete).not.toHaveBeenCalled();
-    expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
-    fireEvent.click(screen.getByTestId("delete-automation-btn"));
-    const confirmButton = screen.getByTestId("confirm-delete-automation-btn");
-    await user.click(screen.getByLabelText("Type to confirm"));
-    await user.paste(`${jobFixture.name}-wrong`);
-    expect(confirmButton).toBeDisabled();
-
-    await user.clear(screen.getByLabelText("Type to confirm"));
-    await user.click(screen.getByLabelText("Type to confirm"));
-    await user.paste(jobFixture.name);
-    expect(confirmButton).toBeEnabled();
-    await user.click(confirmButton);
-
-    expect(onDelete).toHaveBeenCalledOnce();
-  });
-
-  it("Should expose a failed delete and allow a second confirmed attempt", async () => {
-    const user = userEvent.setup();
-    const onDelete = vi
-      .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(new Error("Delete failed"))
-      .mockResolvedValueOnce(undefined);
-    renderPanel({ onDelete });
-
-    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
-    fireEvent.click(screen.getByTestId("delete-automation-btn"));
-    await user.click(screen.getByLabelText("Type to confirm"));
-    await user.paste(jobFixture.name);
-    await user.click(screen.getByTestId("confirm-delete-automation-btn"));
-
-    await waitFor(() =>
-      expect(screen.getByTestId("automation-delete-error")).toHaveTextContent("Delete failed")
-    );
-    expect(screen.getByTestId("confirm-delete-automation-btn")).toBeEnabled();
-
-    await user.click(screen.getByTestId("confirm-delete-automation-btn"));
-    await waitFor(() => expect(onDelete).toHaveBeenCalledTimes(2));
-  });
-
-  it("Should render a persisted Loop Job target, typed inputs, and delegated Loop correlation", () => {
-    renderPanel({
-      item: {
-        ...jobFixture,
-        agent_name: "",
-        prompt: "",
-        target_kind: "loop",
-        loop_target: {
-          workspace_id: "ws_alpha",
-          loop_name: "implement-tasks",
-          inputs: { slug: "helix-v1-launch", dry_run: false },
-          input_mapping: {},
+    it("Should announce the transition and keep the confirmed state while the switch saves (UT-061)", () => {
+      const { onToggleEnabled } = renderPanel(morningDigestJob, {
+        state: {
+          isDeleting: false,
+          isRunNowDisabled: false,
+          isRunNowPending: false,
+          isTogglePending: true,
         },
-      },
-      runs: [
-        {
-          ...runFixture,
-          id: "run_loop",
-          status: "delegated",
-          session_id: undefined,
-          loop_run_id: "looprun_aeb24d4f17cf1feb",
-        },
-      ],
+      });
+
+      const track = screen.getByTestId("automation-enable-switch");
+      expect(screen.getByTestId("automation-enable-label")).toHaveTextContent("Turning off…");
+      expect(track).toHaveAttribute("aria-checked", "true");
+      fireEvent.click(track);
+      expect(onToggleEnabled).not.toHaveBeenCalled();
     });
 
-    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent("Loop: implement-tasks");
-    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("implement-tasks");
-    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("helix-v1-launch");
-    expect(screen.queryByText("Prompt")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Agent:/)).not.toBeInTheDocument();
-    expect(screen.getByTestId("automation-run-run_loop")).toHaveAttribute(
-      "href",
-      "/loop-runs/looprun_aeb24d4f17cf1feb?workspace=ws_alpha"
+    it.each([
+      {
+        entity: dependencyReviewJob,
+        pause: "Off. It won't run on its schedule until you turn it on.",
+      },
+      {
+        entity: makeDetailTrigger({ enabled: false }),
+        pause: "Off. Matching events won't start it until you turn it on.",
+      },
+    ])("Should explain what Off means for $entity.name (UT-061)", ({ entity, pause }) => {
+      const { onToggleEnabled } = renderPanel(entity);
+
+      expect(screen.getByTestId("automation-enable-label")).toHaveTextContent("Off");
+      expect(screen.getByTestId("automation-pause-line")).toHaveTextContent(pause);
+      fireEvent.click(screen.getByTestId("automation-enable-switch"));
+      expect(onToggleEnabled).toHaveBeenCalledWith(true);
+    });
+
+    it("Should drop the next run everywhere while a schedule is Off (UT-061)", () => {
+      renderPanel(dependencyReviewJob);
+
+      expect(screen.getByTestId("automation-detail-subhead")).toHaveTextContent("No next run");
+      expect(screen.queryByTestId("automation-next-runs")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("how it works", () => {
+    it("Should read a cron schedule in words with its zone, expression and next 3 runs (UT-063)", () => {
+      renderPanel(morningDigestJob);
+
+      const starts = screen.getByTestId("automation-rule-starts");
+      expect(starts).toHaveTextContent("Every weekday at 09:00");
+      expect(starts).toHaveTextContent("Monday to Friday · times in UTC · 0 9 * * 1-5");
+      const nextRuns = within(screen.getByTestId("automation-next-runs")).getAllByRole("listitem");
+      expect(nextRuns).toHaveLength(3);
+      expect(nextRuns[0]).toHaveTextContent("in 14h");
+      expect(nextRuns[0]).toHaveTextContent("Thu Oct 8, 09:00");
+      expect(screen.queryByTestId("automation-rule-only-if")).not.toBeInTheDocument();
+    });
+
+    it("Should count an every schedule from turn-on and mark a past once as already ran (UT-064)", () => {
+      const { rerenderPanel } = renderPanel(releaseChecklistJob);
+
+      let starts = screen.getByTestId("automation-rule-starts");
+      expect(starts).toHaveTextContent("Every 30 minutes");
+      expect(starts).toHaveTextContent("Starts counting from when it was turned on");
+      expect(screen.queryByTestId("automation-next-runs")).not.toBeInTheDocument();
+
+      rerenderPanel(
+        makeDetailJob({ schedule: { mode: "at", time: "2026-10-01T09:00:00Z" }, scheduler: null })
+      );
+      starts = screen.getByTestId("automation-rule-starts");
+      expect(starts).toHaveTextContent("Once, on Thu Oct 1 at 09:00 UTC");
+      expect(starts).toHaveTextContent("Already ran");
+      expect(screen.queryByTestId("automation-next-runs")).not.toBeInTheDocument();
+    });
+
+    it("Should render one Only if clause per condition joined with and (UT-065)", () => {
+      renderPanel(deployWebhookTrigger);
+
+      const onlyIf = screen.getByTestId("automation-rule-only-if");
+      expect(onlyIf).toHaveTextContent("Action is");
+      expect(onlyIf).toHaveTextContent("and branch is");
+      expect(onlyIf).toHaveTextContent("data.action");
+      expect(onlyIf).toHaveTextContent("data.branch");
+    });
+
+    it("Should show a schedule's message word for word and an event's message as a template (UT-066)", () => {
+      const { rerenderPanel } = renderPanel(morningDigestJob);
+
+      const does = screen.getByTestId("automation-rule-does");
+      expect(does).toHaveTextContent("Ask summarizer");
+      expect(does).toHaveTextContent("word for word");
+      expect(screen.getByTestId("automation-prompt-preview")).toHaveClass("line-clamp-3");
+      fireEvent.click(screen.getByRole("button", { name: "Show full prompt" }));
+      expect(screen.getByTestId("automation-prompt-preview")).not.toHaveClass("line-clamp-3");
+
+      rerenderPanel(summarizeFailuresTrigger);
+      expect(screen.getByTestId("automation-rule-does")).toHaveTextContent(
+        "The message is filled in from each event."
+      );
+      expect(screen.getByText("{{ .Data.session_id }}")).toHaveClass("text-info");
+    });
+
+    it("Should list a Loop's inputs as from-the-event and always rows with a linked Loop (UT-067)", () => {
+      renderPanel(rerunDeliveryTrigger);
+
+      expect(screen.getByTestId("automation-loop-link")).toHaveAttribute(
+        "href",
+        "/loops/software-delivery?workspace=ws_checkout_api"
+      );
+      const inputs = screen.getByTestId("automation-loop-inputs");
+      expect(inputs).toHaveTextContent("slug←data.session_namefrom the event");
+      expect(inputs).toHaveTextContent("target_branch=mainalways");
+    });
+
+    it("Should name a task's title and owner, and give a link its endpoint and signed example (UT-068)", async () => {
+      const user = userEvent.setup();
+      const { rerenderPanel } = renderPanel(dependencyReviewJob);
+
+      const task = screen.getByTestId("automation-task-details");
+      expect(task).toHaveTextContent("TitleReview dependency updates");
+      expect(task).toHaveTextContent("ForAgent pool reviewers");
+
+      rerenderPanel(deployWebhookTrigger);
+      const endpoint = screen.getByTestId("automation-webhook-endpoint");
+      expect(endpoint).toHaveTextContent(
+        "POST/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123"
+      );
+      expect(within(endpoint).getByRole("button", { name: "Copy webhook path" })).toBeVisible();
+      await user.click(screen.getByTestId("automation-webhook-example-toggle"));
+      expect(endpoint).toHaveTextContent("X-Compozy-Webhook-Signature");
+    });
+
+    it("Should keep a deleted Loop's name unlinked and say it is gone (UT-069)", () => {
+      renderPanel(rerunDeliveryTrigger, { loopMissing: true });
+
+      expect(screen.queryByTestId("automation-loop-link")).not.toBeInTheDocument();
+      expect(screen.getByTestId("automation-loop-name")).toHaveTextContent("software-delivery");
+      expect(screen.getByTestId("automation-rule-does")).toHaveTextContent(
+        "This Loop no longer exists."
+      );
+    });
+  });
+
+  describe("runs", () => {
+    it("Should read each run as glyph + shared word, with one drawer open at a time (UT-070)", () => {
+      renderPanel(morningDigestJob, { runs: morningDigestRuns });
+
+      const completed = screen.getByTestId("automation-run-run_001");
+      expect(completed).toHaveTextContent("Completed");
+      expect(completed).toHaveTextContent("Sessionsess_9f2a1c");
+      expect(completed).toHaveTextContent("42s");
+      expect(completed.querySelector("[data-state='done']")).not.toBeNull();
+      expect(screen.getByTestId("automation-run-run_missed")).toHaveTextContent(
+        "MissedCompozyOS was off at the start time"
+      );
+
+      fireEvent.click(completed);
+      expect(screen.getByTestId("automation-run-drawer-run_001")).toBeVisible();
+      fireEvent.click(screen.getByTestId("automation-run-run_missed"));
+      expect(screen.getByTestId("automation-run-drawer-run_001")).not.toBeVisible();
+      expect(screen.getByTestId("automation-run-drawer-run_missed")).toHaveTextContent(
+        "CompozyOS was off at the start time."
+      );
+    });
+
+    it("Should keep a failure's cause muted on the row and red only in its drawer (UT-071)", () => {
+      const { onSetUpRetries } = renderPanel(morningDigestJob, { runs: morningDigestRuns });
+
+      const row = screen.getByTestId("automation-run-run_failed");
+      expect(within(row).getByText("Agent summarizer was not available")).not.toHaveClass(
+        "text-danger"
+      );
+      fireEvent.click(row);
+      const drawer = screen.getByTestId("automation-run-drawer-run_failed");
+      expect(within(drawer).getByText("Agent summarizer was not available")).toHaveClass(
+        "text-danger"
+      );
+      expect(drawer).toHaveTextContent("Attempt 2.");
+      fireEvent.click(within(drawer).getByRole("button", { name: "Set up retries" }));
+      expect(onSetUpRetries).toHaveBeenCalledOnce();
+      expect(screen.getByTestId("automation-run-run_manual")).toHaveTextContent(
+        "Run now · Sessionsess_4b80d2"
+      );
+    });
+
+    it("Should open what each run produced: session, loop run or task (UT-072)", () => {
+      const { rerenderPanel } = renderPanel(rerunDeliveryTrigger, { runs: rerunDeliveryRuns });
+
+      fireEvent.click(screen.getByTestId("automation-run-run_handed_off"));
+      expect(screen.getByTestId("automation-run-run_handed_off")).toHaveTextContent("Handed off");
+      expect(screen.getByTestId("automation-run-open-run_handed_off")).toHaveAttribute(
+        "href",
+        "/loop-runs/looprun_8f3a2bce41d07a55?workspace=ws_checkout_api"
+      );
+
+      rerenderPanel(dependencyReviewJob, {
+        runs: [
+          makeDetailRun({
+            id: "run_task",
+            status: "delegated",
+            session_id: undefined,
+            task_id: "task_42",
+          }),
+        ],
+      });
+      fireEvent.click(screen.getByTestId("automation-run-run_task"));
+      expect(screen.getByTestId("automation-run-open-run_task")).toHaveAttribute(
+        "href",
+        "/tasks/task_42"
+      );
+
+      rerenderPanel(morningDigestJob, { runs: morningDigestRuns });
+      fireEvent.click(screen.getByTestId("automation-run-run_001"));
+      expect(screen.getByTestId("automation-run-open-run_001")).toHaveAttribute(
+        "href",
+        "/session/sess_9f2a1c"
+      );
+    });
+
+    it("Should say no runs yet and, for a schedule that is on, when the next one is (UT-073)", () => {
+      const { rerenderPanel } = renderPanel(morningDigestJob);
+
+      expect(screen.getByTestId("automation-run-list-empty")).toHaveTextContent("No runs yet");
+      expect(screen.getByTestId("automation-run-list-empty")).toHaveTextContent("Next run in 14h");
+
+      rerenderPanel(rerunDeliveryTrigger);
+      expect(screen.getByTestId("automation-run-list-empty")).not.toHaveTextContent("Next run");
+    });
+
+    it("Should offer Try again when the runs cannot be read", () => {
+      const { onRetryRuns } = renderPanel(morningDigestJob, {
+        runsError: new Error("runs unavailable"),
+      });
+
+      expect(screen.getByTestId("automation-run-list-error")).toHaveTextContent("runs unavailable");
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(onRetryRuns).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("actions", () => {
+    it("Should offer Run now for schedules only, Starting… while pending, disabled when unavailable (UT-074)", () => {
+      const { onRunNow, rerenderPanel } = renderPanel(dependencyReviewJob);
+
+      fireEvent.click(screen.getByRole("button", { name: "Run now" }));
+      expect(onRunNow).toHaveBeenCalledOnce();
+
+      rerenderPanel(morningDigestJob, {
+        state: {
+          isDeleting: false,
+          isRunNowDisabled: false,
+          isRunNowPending: true,
+          isTogglePending: false,
+        },
+      });
+      expect(screen.getByTestId("automation-run-now-btn")).toHaveTextContent("Starting…");
+      expect(screen.getByTestId("automation-run-now-btn")).toBeDisabled();
+
+      rerenderPanel(morningDigestJob, {
+        state: {
+          isDeleting: false,
+          isRunNowDisabled: true,
+          isRunNowPending: false,
+          isTogglePending: false,
+        },
+      });
+      expect(screen.getByTestId("automation-run-now-btn")).toBeDisabled();
+
+      rerenderPanel(summarizeFailuresTrigger);
+      expect(screen.queryByTestId("automation-run-now-btn")).not.toBeInTheDocument();
+      expect(screen.queryByText("Run now")).not.toBeInTheDocument();
+    });
+
+    it("Should give config automations the lockbar and On/Off only, keeping Run now (UT-077)", () => {
+      renderPanel(releaseChecklistJob);
+
+      expect(screen.getByTestId("automation-lockbar")).toHaveTextContent(
+        'This automation is defined in configuration files. You can only turn it on or off here. Lives in config.toml — [[automation.jobs]] name = "release-checklist"'
+      );
+      expect(screen.queryByTestId("automation-edit-btn")).not.toBeInTheDocument();
+      expect(screen.getByTestId("automation-run-now-btn")).toBeEnabled();
+      expect(screen.getByTestId("automation-enable-switch")).toBeEnabled();
+      fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+      expect(screen.getByTestId("automation-edit-in-config")).toHaveAttribute(
+        "aria-disabled",
+        "true"
+      );
+      expect(screen.queryByTestId("automation-delete-btn")).not.toBeInTheDocument();
+    });
+
+    it("Should name the package for package automations and cite the trigger table for config triggers", () => {
+      const { rerenderPanel } = renderPanel(makeDetailTrigger({ source: "package" }));
+
+      expect(screen.getByTestId("automation-lockbar")).toHaveTextContent(
+        "This automation is provided by an installed package."
+      );
+      rerenderPanel(makeDetailTrigger({ source: "config" }));
+      expect(screen.getByTestId("automation-lockbar")).toHaveTextContent(
+        '[[automation.triggers]] name = "rerun-delivery"'
+      );
+    });
+
+    it("Should report a copy failure when the browser has no Clipboard API", () => {
+      const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+      try {
+        renderPanel(morningDigestJob);
+        fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+        fireEvent.click(screen.getByTestId("automation-copy-id-btn"));
+        expect(toast.error).toHaveBeenCalledWith("Could not copy the automation id.");
+      } finally {
+        if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor);
+        else Reflect.deleteProperty(navigator, "clipboard");
+      }
+    });
+
+    it("Should keep Delete disabled until the exact name is typed (UT-079)", async () => {
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      const { onDelete, onEdit } = renderPanel(morningDigestJob);
+
+      await user.click(screen.getByTestId("automation-edit-btn"));
+      expect(onEdit).toHaveBeenCalledOnce();
+      fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+      fireEvent.click(screen.getByTestId("automation-delete-btn"));
+      const dialog = screen.getByRole("dialog", { name: "Delete automation?" });
+      expect(dialog).toHaveTextContent(
+        "This permanently deletes morning-digest. Its schedule will stop asking summarizer. Past runs stay in the log."
+      );
+      const confirm = screen.getByTestId("confirm-delete-automation-btn");
+      await user.type(screen.getByLabelText("Type to confirm"), "morning-diges");
+      expect(confirm).toBeDisabled();
+      await user.type(screen.getByLabelText("Type to confirm"), "t");
+      await user.click(confirm);
+      expect(onDelete).toHaveBeenCalledOnce();
+    });
+
+    it("Should keep the dialog open with the daemon's error when delete fails (UT-079)", async () => {
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      renderPanel(rerunDeliveryTrigger, {
+        onDelete: () => Promise.reject(new Error("Internal server error")),
+      });
+
+      fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+      fireEvent.click(screen.getByTestId("automation-delete-btn"));
+      expect(screen.getByRole("dialog", { name: "Delete automation?" })).toHaveTextContent(
+        "Matching events will stop starting it. Past runs stay in the log."
+      );
+      await user.type(screen.getByLabelText("Type to confirm"), "rerun-delivery");
+      await user.click(screen.getByTestId("confirm-delete-automation-btn"));
+      expect(await screen.findByTestId("automation-delete-error")).toHaveTextContent(
+        "Internal server error"
+      );
+      expect(screen.getByRole("dialog", { name: "Delete automation?" })).toBeInTheDocument();
+    });
+  });
+
+  describe("rail and inspect", () => {
+    it("Should give a schedule one rail card with Details, Schedule, Reliability, Identity and the CLI hint (UT-076)", () => {
+      renderPanel(morningDigestJob, { lastRanAt: "2026-10-07T09:00:00Z" });
+
+      const rail = screen.getByTestId("automation-rail");
+      expect(within(rail).getByTestId("automation-rail-details")).toHaveTextContent(
+        "StartsOn a scheduleDoesAsk an agentAgentsummarizerLocationProject checkout-apiSourceYou created this"
+      );
+      const schedule = within(rail).getByTestId("automation-rail-schedule");
+      expect(schedule).toHaveTextContent("RepeatsEvery weekday at 09:00");
+      expect(schedule).toHaveTextContent("Time zoneUTC");
+      expect(schedule).toHaveTextContent("Missed runsSkip missed");
+      expect(within(rail).getByTestId("automation-rail-reliability")).toHaveTextContent(
+        "RetriesNo retriesRun limitUp to 12 runs per hour"
+      );
+      expect(within(rail).getByTestId("automation-rail-identity")).toHaveTextContent(
+        "morning-digest"
+      );
+      expect(screen.getByTestId("automation-rail-cli")).toHaveTextContent(
+        "compozy automation jobs get morning-digest"
+      );
+      expect(within(rail).queryByTestId("automation-rail-public-link")).not.toBeInTheDocument();
+    });
+
+    it("Should replace Schedule with Public link and Security for a link, never the secret (UT-076)", () => {
+      const { rerenderPanel } = renderPanel(deployWebhookTrigger);
+
+      expect(screen.queryByTestId("automation-rail-schedule")).not.toBeInTheDocument();
+      expect(screen.getByTestId("automation-rail-public-link")).toHaveTextContent("StatusLive");
+      expect(screen.getByTestId("automation-rail-security")).toHaveTextContent("Signing secretSet");
+
+      rerenderPanel(
+        makeDetailTrigger({
+          ...deployWebhookTrigger,
+          webhook_secret_present: false,
+          ingress: { ...deployWebhookTrigger.ingress!, reachability: "broken" },
+        })
+      );
+      expect(screen.getByText("Broken")).toHaveClass("text-danger");
+      expect(screen.getByTestId("automation-rail-security")).toHaveTextContent(
+        "Signing secretNot set"
+      );
+    });
+
+    it("Should show a job's machine truth and scheduler state in Inspect (UT-078)", async () => {
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      renderPanel(morningDigestJob);
+
+      await user.click(screen.getByTestId("automation-inspect-btn"));
+      const sheet = await screen.findByTestId("automation-inspect-sheet");
+      expect(sheet).toHaveTextContent("This is a job in the daemon's terms.");
+      expect(screen.getByTestId("automation-inspect-tile-kind")).toHaveTextContent("job · cron");
+      expect(screen.getByTestId("automation-inspect-tile-scheduler")).toHaveTextContent(
+        "Registered"
+      );
+      expect(screen.getByTestId("automation-inspect-tile-missed")).toHaveTextContent("1");
+      expect(screen.getByTestId("automation-inspect-tile-last-fire")).toHaveTextContent(
+        "fire_morning_digest_118"
+      );
+      expect(screen.getByTestId("automation-inspect-diagnostics")).toHaveTextContent(
+        "Expression 0 9 * * 1-5 · catch-up skip_missed · grace 30s · fire limit 12 / 1h."
+      );
+      await user.click(screen.getByRole("tab", { name: "Scheduler state" }));
+      await waitFor(() =>
+        expect(screen.getByTestId("automation-inspect-raw")).toHaveTextContent('"registered": true')
+      );
+    });
+
+    it("Should show a trigger's sample event in Inspect without its secret (UT-078)", async () => {
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      renderPanel(deployWebhookTrigger);
+
+      await user.click(screen.getByTestId("automation-inspect-btn"));
+      const sheet = await screen.findByTestId("automation-inspect-sheet");
+      expect(sheet).toHaveTextContent("a trigger in the daemon's terms");
+      expect(screen.getByTestId("automation-inspect-tile-kind")).toHaveTextContent(
+        "trigger · webhook"
+      );
+      expect(screen.getByTestId("automation-inspect-tile-secret")).toHaveTextContent("present");
+      await user.click(screen.getByRole("tab", { name: "Sample event" }));
+      await waitFor(() =>
+        expect(screen.getByTestId("automation-inspect-raw")).toHaveTextContent(
+          '"endpoint": "deploy--wbh_abc123"'
+        )
+      );
+    });
+
+    it("Should close overlays owned by one automation when the route changes automation", async () => {
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      const { rerenderPanel } = renderPanel(morningDigestJob);
+
+      await user.click(screen.getByTestId("automation-inspect-btn"));
+      expect(await screen.findByTestId("automation-inspect-sheet")).toBeInTheDocument();
+      rerenderPanel(rerunDeliveryTrigger);
+      await waitFor(() =>
+        expect(screen.queryByTestId("automation-inspect-sheet")).not.toBeInTheDocument()
+      );
+    });
+  });
+
+  describe("states", () => {
+    it.each([
+      {
+        status: "missing" as const,
+        message: "This automation is no longer available.",
+        testId: "automation-detail-empty",
+        title: "Automation unavailable",
+      },
+      {
+        status: "elsewhere" as const,
+        message: "This automation belongs to another project. Switch to it to open this page.",
+        testId: "automation-detail-elsewhere",
+        title: "Unable to load details",
+      },
+    ])(
+      "Should offer a way back from the $status state (UT-080)",
+      ({ status, message, testId, title }) => {
+        const { onBack } = renderPanel(undefined, { status, statusMessage: message });
+
+        expect(screen.getByTestId(testId)).toHaveTextContent(title);
+        expect(screen.getByTestId(testId)).toHaveTextContent(message);
+        fireEvent.click(screen.getByRole("button", { name: "Back to Automations" }));
+        expect(onBack).toHaveBeenCalledOnce();
+      }
     );
-  });
 
-  it.each([
-    {
-      name: "authored intent and an assigned owner",
-      task: {
-        title: "Prepare the publication checklist",
-        description: "Review the final copy and release notes.",
-        owner: { kind: "human" as const, ref: "editor" },
-      },
-      title: "Prepare the publication checklist",
-      description: "Review the final copy and release notes.",
-      owner: "human:editor",
-    },
-    {
-      name: "job defaults and an unassigned owner",
-      task: { title: " ", description: " " },
-      title: jobFixture.name,
-      description: jobFixture.prompt,
-      owner: "unassigned",
-    },
-  ])("Should render persisted task work with $name", ({ task, title, description, owner }) => {
-    renderPanel({ item: { ...jobFixture, agent_name: "", task } });
+    it("Should hold the page geometry while loading instead of guessing a sentence (UT-080)", () => {
+      renderPanel(undefined, { status: "loading" });
 
-    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent(`Task: ${title}`);
-    const details = screen.getByTestId("automation-task-details");
-    expect(details).toHaveTextContent(title);
-    expect(details).toHaveTextContent(description);
-    expect(details).toHaveTextContent(owner);
-    expect(screen.queryByRole("heading", { name: "Prompt" })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Agent:/)).not.toBeInTheDocument();
-  });
-
-  it("Should toggle a managed job from the head switch and explain the lock", () => {
-    const { onToggleEnabled } = renderPanel({
-      item: { ...jobFixture, source: "config", enabled: false },
-      onTriggerNow: undefined,
+      expect(screen.getByTestId("automation-detail-loading")).toBeInTheDocument();
+      expect(screen.queryByTestId("automation-detail-sentence")).not.toBeInTheDocument();
     });
-
-    expect(screen.getByTestId("automation-detail-lock")).toHaveTextContent(
-      "defined in configuration files"
-    );
-    expect(screen.queryByTestId("automation-detail-overflow")).not.toBeInTheDocument();
-    expect(screen.getByTestId("job-enable-label")).toHaveTextContent("Disabled");
-    fireEvent.click(screen.getByTestId("toggle-automation-btn"));
-    expect(onToggleEnabled).toHaveBeenCalledWith(true);
-  });
-
-  it("renders manual jobs without implying a cron schedule", () => {
-    renderPanel({
-      item: {
-        ...jobFixture,
-        schedule: undefined,
-      },
-    });
-
-    expect(screen.getByTestId("automation-detail-schedule")).toHaveTextContent("Manual");
-    fireEvent.click(screen.getByTestId("automation-job-advanced-toggle"));
-    expect(screen.queryByText("Schedule expression")).not.toBeInTheDocument();
-  });
-
-  it("renders truthful recent-window metrics from the fetched run sample", () => {
-    renderPanel({
-      item: jobFixture,
-      runs: [
-        runFixture,
-        {
-          ...runFixture,
-          id: "run_002",
-          status: "completed" as const,
-        },
-        {
-          ...runFixture,
-          id: "run_003",
-          status: "failed" as const,
-        },
-      ],
-    });
-
-    const successRate = screen.getByTestId("automation-job-metric-success-rate");
-    expect(successRate).toHaveTextContent("Recent success");
-    expect(successRate).toHaveTextContent("67%");
-    expect(screen.queryByTestId("automation-job-metric-runs")).not.toBeInTheDocument();
-    expect(screen.getByTestId("automation-run-history")).toHaveTextContent("3");
   });
 });

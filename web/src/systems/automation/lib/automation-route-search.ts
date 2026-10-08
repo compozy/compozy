@@ -93,3 +93,31 @@ export function validateAutomationsSearch(raw: Record<string, unknown>): Automat
   }
   return search;
 }
+
+/** One-shot editor deep link on a detail route: `edit=options` opens Edit at Options. */
+export type AutomationDetailEditParam = "1" | "options";
+
+/**
+ * Detail route search: the listing state Back restores (inherited from the
+ * parent `/automations` route) plus the one-shot editor deep link.
+ */
+export interface AutomationDetailRouteSearch extends Omit<AutomationsRouteSearch, "create"> {
+  edit?: AutomationDetailEditParam;
+}
+
+export function validateAutomationDetailSearch(
+  raw: Record<string, unknown>
+): AutomationDetailRouteSearch {
+  const { create: _create, ...listing } = validateAutomationsSearch(raw);
+  const edit =
+    raw.edit === "options" ? "options" : raw.edit === "1" || raw.edit === 1 ? "1" : undefined;
+  return edit ? { ...listing, edit } : listing;
+}
+
+/** The listing search Back returns to: everything but the detail-only deep link. */
+export function automationListingSearch(
+  search: AutomationDetailRouteSearch
+): AutomationsRouteSearch {
+  const { edit: _edit, ...listing } = search;
+  return listing;
+}
