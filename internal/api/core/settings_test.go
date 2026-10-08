@@ -4245,8 +4245,8 @@ func TestUpdateSettingsRolesRejectsRetiredFieldsWithoutWriting(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, body := range [][]byte{
-				[]byte(fmt.Sprintf(`{"%s":{"enabled":true}}`, field)),
-				[]byte(fmt.Sprintf(`{"config":{"%s":{"enabled":true}}}`, field)),
+				[]byte(fmt.Sprintf(`{%q:{"enabled":true}}`, field)),
+				[]byte(fmt.Sprintf(`{"config":{%q:{"enabled":true}}}`, field)),
 			} {
 				response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/roles", body)
 				if response.Code != http.StatusBadRequest {

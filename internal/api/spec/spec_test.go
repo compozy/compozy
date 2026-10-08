@@ -2793,18 +2793,6 @@ func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *op
 	return operation
 }
 
-func assertOperationAbsent(t *testing.T, doc *openapi3.T, path string, method string) {
-	t.Helper()
-
-	pathItem := doc.Paths.Value(path)
-	if pathItem == nil {
-		return
-	}
-	if operation := pathItem.GetOperation(method); operation != nil {
-		t.Fatalf("unexpected operation %s %s", method, path)
-	}
-}
-
 func jsonResponseSchema(t *testing.T, operation *openapi3.Operation, status int) *openapi3.Schema {
 	t.Helper()
 

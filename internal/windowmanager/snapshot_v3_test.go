@@ -174,7 +174,7 @@ func TestReconcileRegisteredApps(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Marshal(after) = %v", err)
 		}
-		if string(after) != string(before) {
+		if !bytes.Equal(after, before) {
 			t.Fatal("reconciliation mutated its input")
 		}
 		requireValidSnapshot(t, got)
@@ -209,8 +209,16 @@ func TestReconcileRegisteredApps(t *testing.T) {
 		t.Parallel()
 		snapshot := reconcileSnapshotFixture(t)
 		snapshot.History.Undo = []HistoryEntry{{Before: snapshotState(snapshot), After: snapshotState(snapshot)}}
-		snapshot.ClosedEntries = []ClosedEntry{{DesktopID: "desktop", Rect: NormalizedRect{Width: 1, Height: 1},
-			ActiveID: new(WindowID("knowledge")), Windows: []Window{snapshot.Windows["knowledge"], snapshot.Windows["settings"]}}}
+		snapshot.ClosedEntries = []ClosedEntry{
+			{
+				DesktopID: "desktop",
+				Rect:      NormalizedRect{Width: 1, Height: 1},
+				ActiveID: new(
+					WindowID("knowledge"),
+				),
+				Windows: []Window{snapshot.Windows["knowledge"], snapshot.Windows["settings"]},
+			},
+		}
 		got, changed := ReconcileRegisteredApps(snapshot, registered)
 		if !changed || len(got.History.Undo) != 1 || len(got.History.Undo[0].Before.Windows) != 2 ||
 			len(got.History.Undo[0].After.Windows) != 2 || len(got.ClosedEntries) != 1 ||
@@ -253,8 +261,17 @@ func reconcileSnapshotFixture(t *testing.T) Snapshot {
 		Windows: map[WindowID]Window{}}
 	for _, app := range []string{"session", "knowledge", "settings"} {
 		id := WindowID(app)
-		snapshot.Windows[id] = Window{ID: id, App: app, DesktopID: "desktop", Placement: WindowPlacementTiled,
-			Route: RouteIntent{Pathname: "/" + app, Search: RouteSearch{}}, FloatingRect: NormalizedRect{Width: 0.5, Height: 0.5}}
+		snapshot.Windows[id] = Window{
+			ID:        id,
+			App:       app,
+			DesktopID: "desktop",
+			Placement: WindowPlacementTiled,
+			Route: RouteIntent{
+				Pathname: "/" + app,
+				Search:   RouteSearch{},
+			},
+			FloatingRect: NormalizedRect{Width: 0.5, Height: 0.5},
+		}
 		snapshot.Desktops[0].Groups[0].Root.Children = append(snapshot.Desktops[0].Groups[0].Root.Children,
 			LayoutNode{ID: NodeID("leaf-" + app), Kind: NodeKindLeaf, WindowID: new(id)})
 	}

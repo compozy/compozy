@@ -28,6 +28,7 @@ const (
 	statusStateDegraded            = "degraded"
 	statusStateOK                  = "ok"
 	statusStateRunning             = "running"
+	statusStateUnavailable         = "unavailable"
 	statusStateWarn                = "warn"
 	statusStateError               = "error"
 )
@@ -288,7 +289,7 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	if h.Settings == nil {
 		return contract.LogTailStatusPayload{
 			Available: false,
-			Status:    "unavailable",
+			Status:    statusStateUnavailable,
 		}
 	}
 	envelope, err := h.Settings.GetSection(ctx, settingspkg.SectionRequest{

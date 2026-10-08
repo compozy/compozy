@@ -2079,14 +2079,6 @@ func assertZeroMetricField(t *testing.T, payload map[string]any, field string) {
 	}
 }
 
-func assertJSONFieldAbsent(t *testing.T, payload map[string]any, field string) {
-	t.Helper()
-
-	if _, exists := payload[field]; exists {
-		t.Fatalf("payload should not include %q: %#v", field, payload)
-	}
-}
-
 // Invariant: complete public Marketplace wire fixtures survive strict decoding and encoding byte-for-byte after JSON whitespace normalization.
 // Owner: API contract; canonical contract suite. Retired MCP acquisition has no success contract.
 func TestMarketplaceWireFixtures(t *testing.T) {

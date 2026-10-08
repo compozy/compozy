@@ -1002,9 +1002,9 @@ func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 		t.Run("Should use unknown route behavior for "+tc.method+" "+tc.path, func(t *testing.T) {
 			t.Parallel()
 			unknown := httptest.NewRecorder()
-			engine.ServeHTTP(unknown, httptest.NewRequest(tc.method, "/api/nope", nil))
+			engine.ServeHTTP(unknown, httptest.NewRequestWithContext(t.Context(), tc.method, "/api/nope", http.NoBody))
 			response := httptest.NewRecorder()
-			engine.ServeHTTP(response, httptest.NewRequest(tc.method, tc.path, nil))
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, http.NoBody))
 			if response.Code != http.StatusNotFound || response.Code != unknown.Code ||
 				response.Body.String() != unknown.Body.String() ||
 				response.Header().Get("Content-Type") != unknown.Header().Get("Content-Type") {

@@ -34,7 +34,8 @@ func ReconcileRegisteredApps(snapshot Snapshot, registered func(app string) bool
 		if len(windows) == 0 {
 			continue
 		}
-		if entry.ActiveID != nil && !slices.ContainsFunc(windows, func(window Window) bool { return window.ID == *entry.ActiveID }) {
+		if entry.ActiveID != nil &&
+			!slices.ContainsFunc(windows, func(window Window) bool { return window.ID == *entry.ActiveID }) {
 			entry.ActiveID = new(windows[0].ID)
 		}
 		closed = append(closed, entry)

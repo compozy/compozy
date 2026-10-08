@@ -32,7 +32,11 @@ func TestGlobalDBTriggerEventHardCutMigration(t *testing.T) {
 			}
 			ctx := globalMigrationTestContext(t)
 			seedTriggerEventHardCutFixture(ctx, t, prefixDB)
-			if err := applyGlobalMigrationPrefix(t, prefixDB, globalMigrationPrefixBefore(t, "00061_schema.sql")); err != nil {
+			if err := applyGlobalMigrationPrefix(
+				t,
+				prefixDB,
+				globalMigrationPrefixBefore(t, "00061_schema.sql"),
+			); err != nil {
 				t.Fatal(err)
 			}
 			assertTriggerEventHardCutState(ctx, t, prefixDB, false)
@@ -342,104 +346,131 @@ func triggerEventHardCutIDsWhere(
 // history and other entries in shared overlays. Owner: global SQLite migration.
 func TestGlobalDBMemoryTriggerRetirementMigration(t *testing.T) {
 	t.Parallel()
-	t.Run("Should retire memory triggers and owned resources while preserving supported triggers and history", func(t *testing.T) {
-		t.Parallel()
-		ctx := globalMigrationTestContext(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00130_retire_memory.sql"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, id := range []string{"retired-trigger", "kept-trigger"} {
-			event := "memory.consolidated"
-			if id == "kept-trigger" {
-				event = "session.stopped"
-			}
-			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_triggers (
-				id,profile_id,scope,name,agent_name,prompt,event,retry,fire_limit,webhook_secret_ref,created_at,updated_at
-			) VALUES (?,'00000000000000000000000000','global',?,'coder','Prompt',?,'{}','{}',?,'2026-10-07','2026-10-07')`, id, id, event, "vault:automation/triggers/"+id+"/webhook-secret"); err != nil {
+	t.Run(
+		"Should retire memory triggers and owned resources while preserving supported triggers and history",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := globalMigrationTestContext(t)
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prior, err := openGlobalMigrationPrefixDatabase(
+				t,
+				path,
+				globalMigrationPrefixBefore(t, "00130_retire_memory.sql"),
+			)
+			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := prior.ExecContext(ctx, `INSERT INTO resource_records (
+			for _, id := range []string{"retired-trigger", "kept-trigger"} {
+				event := "memory.consolidated"
+				if id == "kept-trigger" {
+					event = "session.stopped"
+				}
+				if _, err := prior.ExecContext(ctx, `INSERT INTO automation_triggers (
+				id,profile_id,scope,name,agent_name,prompt,event,retry,fire_limit,webhook_secret_ref,created_at,updated_at
+			) VALUES (?,'00000000000000000000000000','global',?,'coder','Prompt',?,'{}','{}',?,'2026-10-07','2026-10-07')`, id, id, event, "vault:automation/triggers/"+id+"/webhook-secret"); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := prior.ExecContext(ctx, `INSERT INTO resource_records (
                 kind,id,version,scope_kind,owner_kind,owner_id,source_kind,source_id,spec_json,created_at,updated_at
             ) VALUES ('automation.trigger',?,1,'user','user','operator','user','operator',
                 json_object('id',?,'scope','global','name',?,'event',?,'webhook_secret_ref',?),
                 '2026-10-07','2026-10-07')`, id+"-resource", id+"-resource", id+"-resource", event,
-				"vault:automation/triggers/"+id+"-resource/webhook-secret"); err != nil {
-				t.Fatal(err)
-			}
-			for _, subject := range []string{id, id + "-resource"} {
-				for _, statement := range []string{
-					`INSERT INTO automation_trigger_overlays (trigger_id,enabled_override,updated_at) VALUES (?,0,'2026-10-07')`,
-					`INSERT INTO gateway_ingress_bindings (subject_kind,subject_id,scope_kind,endpoint_generation,confirmed_at) VALUES ('webhook_trigger',?,'global',1,'2026-10-07')`,
-					`INSERT INTO vault_secrets (ref,kind,encrypted_value,created_at,updated_at) VALUES ('vault:automation/triggers/' || ? || '/webhook-secret','webhook_secret','cipher','2026-10-07','2026-10-07')`,
-				} {
-					if _, err := prior.ExecContext(ctx, statement, subject); err != nil {
-						t.Fatal(err)
+					"vault:automation/triggers/"+id+"-resource/webhook-secret"); err != nil {
+					t.Fatal(err)
+				}
+				for _, subject := range []string{id, id + "-resource"} {
+					for _, statement := range []string{
+						`INSERT INTO automation_trigger_overlays (trigger_id,enabled_override,updated_at) VALUES (?,0,'2026-10-07')`,
+						`INSERT INTO gateway_ingress_bindings (subject_kind,subject_id,scope_kind,endpoint_generation,confirmed_at) VALUES ('webhook_trigger',?,'global',1,'2026-10-07')`,
+						`INSERT INTO vault_secrets (ref,kind,encrypted_value,created_at,updated_at) VALUES ('vault:automation/triggers/' || ? || '/webhook-secret','webhook_secret','cipher','2026-10-07','2026-10-07')`,
+					} {
+						if _, err := prior.ExecContext(ctx, statement, subject); err != nil {
+							t.Fatal(err)
+						}
 					}
 				}
-			}
-			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_runs (id,profile_id,trigger_id,status,attempt,metadata_json) VALUES (?,'00000000000000000000000000',?,'completed',1,'{}')`, id, id); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_trigger_catalog_entries (
+				if _, err := prior.ExecContext(
+					ctx,
+					`INSERT INTO automation_runs (id,profile_id,trigger_id,status,attempt,metadata_json) VALUES (?,'00000000000000000000000000',?,'completed',1,'{}')`,
+					id,
+					id,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := prior.ExecContext(ctx, `INSERT INTO automation_trigger_catalog_entries (
 				trigger_id,scope,workspace_id,event,source,source_rank,name,enabled,search_name,search_agent_name,search_prompt,search_scope,search_source,search_event,search_endpoint_slug,search_webhook_id
 			) VALUES (?,'global','',?,'dynamic',1,?,1,?,'coder','prompt','global','dynamic',?,'','')`, id, event, id, id, event); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := prior.ExecContext(
+					ctx,
+					`INSERT INTO automation_trigger_catalog_filter_terms (trigger_id,value) VALUES (?,'fixture')`,
+					id,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			keptQueries := []string{
+				`SELECT * FROM automation_triggers WHERE id='kept-trigger'`,
+				`SELECT * FROM automation_trigger_overlays WHERE trigger_id LIKE 'kept-%' ORDER BY trigger_id`,
+				`SELECT * FROM automation_runs ORDER BY id`,
+				`SELECT * FROM automation_trigger_catalog_entries WHERE trigger_id='kept-trigger'`,
+				`SELECT * FROM automation_trigger_catalog_filter_terms WHERE trigger_id='kept-trigger'`,
+				`SELECT * FROM resource_records WHERE id='kept-trigger-resource'`,
+				`SELECT * FROM gateway_ingress_bindings WHERE subject_id LIKE 'kept-%' ORDER BY subject_id`,
+				`SELECT * FROM vault_secrets WHERE ref LIKE '%/kept-%' ORDER BY ref`,
+			}
+			before := make([]string, len(keptQueries))
+			for i, query := range keptQueries {
+				before[i] = memoryRetirementRows(t, prior, query)
+			}
+			if err := prior.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := prior.ExecContext(ctx, `INSERT INTO automation_trigger_catalog_filter_terms (trigger_id,value) VALUES (?,'fixture')`, id); err != nil {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
 				t.Fatal(err)
 			}
-		}
-		keptQueries := []string{
-			`SELECT * FROM automation_triggers WHERE id='kept-trigger'`,
-			`SELECT * FROM automation_trigger_overlays WHERE trigger_id LIKE 'kept-%' ORDER BY trigger_id`,
-			`SELECT * FROM automation_runs ORDER BY id`,
-			`SELECT * FROM automation_trigger_catalog_entries WHERE trigger_id='kept-trigger'`,
-			`SELECT * FROM automation_trigger_catalog_filter_terms WHERE trigger_id='kept-trigger'`,
-			`SELECT * FROM resource_records WHERE id='kept-trigger-resource'`,
-			`SELECT * FROM gateway_ingress_bindings WHERE subject_id LIKE 'kept-%' ORDER BY subject_id`,
-			`SELECT * FROM vault_secrets WHERE ref LIKE '%/kept-%' ORDER BY ref`,
-		}
-		before := make([]string, len(keptQueries))
-		for i, query := range keptQueries {
-			before[i] = memoryRetirementRows(t, prior, query)
-		}
-		if err := prior.Close(); err != nil {
-			t.Fatal(err)
-		}
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := upgraded.Close(testutil.Context(t)); err != nil {
-				t.Error(err)
+			t.Cleanup(func() {
+				if err := upgraded.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			for i, query := range keptQueries {
+				if got := memoryRetirementRows(t, upgraded.db, query); got != before[i] {
+					t.Fatalf("kept trigger state changed for %s: got %s want %s", query, got, before[i])
+				}
 			}
-		})
-		for i, query := range keptQueries {
-			if got := memoryRetirementRows(t, upgraded.db, query); got != before[i] {
-				t.Fatalf("kept trigger state changed for %s: got %s want %s", query, got, before[i])
+			for _, fixture := range []struct{ table, column string }{
+				{"automation_triggers", "id"}, {"automation_trigger_overlays", "trigger_id"},
+				{"automation_trigger_catalog_entries", "trigger_id"}, {"automation_trigger_catalog_filter_terms", "trigger_id"},
+				{"resource_records", "id"}, {"gateway_ingress_bindings", "subject_id"},
+			} {
+				if got := triggerEventHardCutIDsWhere(
+					ctx,
+					t,
+					upgraded.db,
+					fixture.table,
+					fixture.column,
+					fixture.column+" LIKE 'retired-%'",
+				); len(
+					got,
+				) != 0 {
+					t.Fatalf("retired %s = %v", fixture.table, got)
+				}
 			}
-		}
-		for _, fixture := range []struct{ table, column string }{
-			{"automation_triggers", "id"}, {"automation_trigger_overlays", "trigger_id"},
-			{"automation_trigger_catalog_entries", "trigger_id"}, {"automation_trigger_catalog_filter_terms", "trigger_id"},
-			{"resource_records", "id"}, {"gateway_ingress_bindings", "subject_id"},
-		} {
-			if got := triggerEventHardCutIDsWhere(ctx, t, upgraded.db, fixture.table, fixture.column, fixture.column+" LIKE 'retired-%'"); len(got) != 0 {
-				t.Fatalf("retired %s = %v", fixture.table, got)
+			var secrets, violations int
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM vault_secrets WHERE ref LIKE '%/retired-%'`).
+				Scan(&secrets); err != nil {
+				t.Fatal(err)
 			}
-		}
-		var secrets, violations int
-		if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM vault_secrets WHERE ref LIKE '%/retired-%'`).Scan(&secrets); err != nil {
-			t.Fatal(err)
-		}
-		if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM pragma_foreign_key_check`).Scan(&violations); err != nil {
-			t.Fatal(err)
-		}
-		if secrets != 0 || violations != 0 {
-			t.Fatalf("retired secrets/FK violations = %d/%d", secrets, violations)
-		}
-	})
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM pragma_foreign_key_check`).
+				Scan(&violations); err != nil {
+				t.Fatal(err)
+			}
+			if secrets != 0 || violations != 0 {
+				t.Fatalf("retired secrets/FK violations = %d/%d", secrets, violations)
+			}
+		},
+	)
 }
