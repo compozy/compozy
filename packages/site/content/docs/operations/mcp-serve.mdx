@@ -64,7 +64,7 @@ The relay derives schemas from the canonical Host API contracts and publishes to
 `compozy_host__<family>__<verb>` namespace. Examples include `compozy_host__sessions__list` and
 `compozy_host__tasks__create`. These are MCP façade names, not native `compozy__*` tools.
 
-The approved families are sessions, workspace-safe task operations, memory, and resources.
+The approved families are sessions, workspace-safe task operations, and resources.
 Target-only task mutations that cannot be bound safely from their request shape are excluded, as
 are daemon-global and unrelated Host API families. New Host API methods remain unpublished until
 they receive an explicit projection decision.

@@ -1,7 +1,6 @@
 export { Hero } from "./hero";
 export { SupportedAgents } from "./supported-agents";
 export { BentoSection } from "./bento-section";
-export { MemoryDreamSection } from "./memory-dream-section";
 export { AutonomyKernelSection } from "./autonomy-kernel-section";
 export { FeaturesSection } from "./features-section";
 export { ExtensibilitySection } from "./extensibility-section";

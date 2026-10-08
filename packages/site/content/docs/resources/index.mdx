@@ -13,9 +13,9 @@ agent sidecar, skill, automation job, trigger, or window layout can be managed
 through the same control plane.
 
 <OperatorNote label="Control-plane boundary">
-  Resources are an operator and extension surface. They are not the same as session events, memory
-  files, or protocol messages. A resource says "this runtime object should exist"; reconcile turns
-  that desired state into subsystem-specific state. The default daemon exposes this operator surface
+  Resources are an operator and extension surface. They are not the same as session events or
+  protocol messages. A resource says "this runtime object should exist"; reconcile turns that
+  desired state into subsystem-specific state. The default daemon exposes this operator surface
   through UDS and the UDS-backed CLI. An embedding may also register the HTTP routes when it
   supplies explicit resource-operator authentication.
 </OperatorNote>

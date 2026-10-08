@@ -107,6 +107,23 @@ their prompt metadata through restart and share the dispatch order with human fo
 prompts remain internal: queue reads and entry counts exclude them, and queue clear, edit, promote,
 and remove actions cannot control them. Use the dedicated Goal controls to pause or stop Goal work.
 
+## Ask the agent to compact its context (experimental)
+
+Compact now asks the agent to compact its own context window. It is a control-plane request, not a
+prompt: CompozyOS sends the command the agent advertises (`/compact`, else `/compress`) as its own
+maintenance turn and never summarizes the session itself.
+
+```bash
+compozy session compact sess_1234 -o json
+```
+
+HTTP and UDS expose `POST /api/workspaces/{workspace_id}/sessions/{session_id}/compact`; agents use
+`compozy__session_compact`. A running turn or another compact request in flight returns
+`409 session_busy`, and an agent that advertises neither command returns
+`409 compaction_unsupported`.
+The request, its responses, and what it leaves in the transcript are in
+[Context compaction](/docs/sessions/compaction#compact-now-experimental).
+
 ## Find a message in retained history
 
 Search covers the session's retained materialized transcript, including messages outside the
@@ -143,7 +160,7 @@ results are an empty array, not a transport error.
 
 Outline returns `{entries}` with one row per retained sent message, its turn, timestamp,
 message preview and latest reply preview. Previews are limited to 160 characters. Both
-reads share the session's workspace authorization and exclude compacted or rewound entries.
+reads share the session's workspace authorization and exclude rewound entries.
 Use the sequence to load the matching transcript context; re-read after a history reset.
 
 Search matches retain their stable entry `sequence` and include `part_index` and

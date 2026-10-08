@@ -8,7 +8,7 @@ machine. The loader starts from built-in defaults, applies global config, then a
 workspace root overlay.
 
 This keeps project behavior portable. Copy a repository with `.compozy/config.toml`, `.compozy/agents/`,
-`.compozy/skills/`, and `.compozy/memory/`, register the copied path, and the project-level runtime context
+and `.compozy/skills/`, register the copied path, and the project-level runtime context
 comes with it.
 
 <OperatorNote>
@@ -21,14 +21,14 @@ comes with it.
 
 The effective config for a resolved workspace is built in this order:
 
-| Order | Source                             | Notes                                                                                    |
-| ----- | ---------------------------------- | ---------------------------------------------------------------------------------------- |
-| 1     | Built-in defaults                  | `DefaultWithHome(homePaths)`.                                                            |
-| 2     | `~/.compozy/config.toml`           | Global operator settings. `$COMPOZY_HOME/config.toml` when `COMPOZY_HOME` is set.        |
-| 3     | `~/.compozy/mcp.json`              | Global top-level MCP sidecar.                                                            |
-| 4     | `<workspace>/.compozy/config.toml` | Workspace root overlay only.                                                             |
-| 5     | `<workspace>/.compozy/mcp.json`    | Workspace top-level MCP sidecar.                                                         |
-| 6     | Path normalization and validation  | Expands `~` in `daemon.socket` and `memory.global_dir`, then validates the final config. |
+| Order | Source                             | Notes                                                                             |
+| ----- | ---------------------------------- | --------------------------------------------------------------------------------- |
+| 1     | Built-in defaults                  | `DefaultWithHome(homePaths)`.                                                     |
+| 2     | `~/.compozy/config.toml`           | Global operator settings. `$COMPOZY_HOME/config.toml` when `COMPOZY_HOME` is set. |
+| 3     | `~/.compozy/mcp.json`              | Global top-level MCP sidecar.                                                     |
+| 4     | `<workspace>/.compozy/config.toml` | Workspace root overlay only.                                                      |
+| 5     | `<workspace>/.compozy/mcp.json`    | Workspace top-level MCP sidecar.                                                  |
+| 6     | Path normalization and validation  | Expands `~` in `daemon.socket`, then validates the final config.                  |
 
 Workspace additional roots do not contribute config. They can contribute agents and skills, but
 only the primary root contributes `config.toml` and top-level `mcp.json`.
@@ -219,20 +219,21 @@ config load. That means a workspace can set `COMPOZY_HOME` for sessions that res
 COMPOZY_HOME=/Users/you/.compozy-checkout
 ```
 
-Use this carefully. It changes the global config, agents, skills, memory, sessions, logs, socket,
+Use this carefully. It changes the global config, agents, skills, sessions, logs, socket,
 and database locations for that resolved workspace config load. Most projects should prefer
 `<workspace>/.compozy/config.toml` for project-specific behavior and keep `COMPOZY_HOME` stable.
 
 ## Failure Behavior
 
-| Case                          | Behavior                                                 |
-| ----------------------------- | -------------------------------------------------------- |
-| Missing `config.toml`         | Ignored. Defaults and other layers still load.           |
-| Missing `mcp.json`            | Ignored.                                                 |
-| Unknown TOML key              | Loading fails and reports the key path.                  |
-| Invalid TOML duration or type | Loading fails during decode or validation.               |
-| Invalid MCP JSON              | Loading fails with path context.                         |
-| Invalid final config          | Loading fails before the workspace snapshot is returned. |
+| Case                               | Behavior                                                                                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Missing `config.toml`              | Ignored. Defaults and other layers still load.                                                                                                               |
+| Missing `mcp.json`                 | Ignored.                                                                                                                                                     |
+| Unknown TOML key                   | Loading fails and reports the key path.                                                                                                                      |
+| Retired memory or compaction table | Archived as a comment at the end of the file; loading continues. See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings). |
+| Invalid TOML duration or type      | Loading fails during decode or validation.                                                                                                                   |
+| Invalid MCP JSON                   | Loading fails with path context.                                                                                                                             |
+| Invalid final config               | Loading fails before the workspace snapshot is returned.                                                                                                     |
 
 ## Related Pages
 

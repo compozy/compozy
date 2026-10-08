@@ -175,6 +175,13 @@ compozy tool invoke <tool-id> \
 What happened: CompozyOS still received the input needed by the handler, but the specified field is
 treated as sensitive in diagnostic and event surfaces.
 
+## Retired tool IDs
+
+A tool policy that names a retired memory tool ID or toolset (in an agent definition, profile, or
+session policy) is never an error: CompozyOS drops those entries, logs one
+`tools.retired_ids_ignored` warning, and applies the rest of the policy. See the
+[migration guide](/docs/migration#memory-removal).
+
 ## Common failures
 
 | Symptom                            | Likely cause                                                         | First check                                          |
