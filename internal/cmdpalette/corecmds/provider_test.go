@@ -47,6 +47,33 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should open the Automations editor with each start preselected [UT-112]", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		expected := map[cmdpalette.CommandID][2]string{
+			"automation.create.schedule": {"New scheduled automation", "schedule"},
+			"automation.create.event":    {"New automation on an event", "event"},
+		}
+		for id, want := range expected {
+			command, found := byID[id]
+			if !found {
+				t.Errorf("command %q is missing", id)
+				continue
+			}
+			action := command.Action
+			if command.Title != want[0] || action.Kind != cmdpalette.ActionKindNavigate ||
+				action.App != "automations" || action.Args["pathname"] != "/automations" ||
+				action.Args["create"] != "1" || action.Args["start"] != want[1] {
+				t.Errorf("command %q = %#v, want %q opening /automations?create=1&start=%s",
+					id, command, want[0], want[1])
+			}
+		}
+	})
+
 	t.Run("Should give every shell-only palette row a bindable id [UT-002]", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)

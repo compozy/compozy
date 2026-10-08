@@ -21,6 +21,7 @@ func New() (*Provider, error) {
 	commands = append(commands, shellCommands()...)
 	commands = append(commands, windowManagerCommands()...)
 	commands = append(commands, appCommands()...)
+	commands = append(commands, automationCommands()...)
 	commands = append(commands, settingsCommands()...)
 	commands = append(commands, viewCommands()...)
 	commands = append(commands, profileCommands()...)
