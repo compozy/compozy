@@ -30,6 +30,25 @@ import {
   useAutomationPageBase,
 } from "./use-automation-page-base";
 
+/** A Cancel or dismiss of the editor is the operator's close: it also clears a `?create=` link. */
+function withSeedClose<T extends { editor: { onCancel: () => void } | null }>(
+  props: T,
+  closeSeed: () => void
+): T {
+  const { editor } = props;
+  if (!editor) return props;
+  return {
+    ...props,
+    editor: {
+      ...editor,
+      onCancel: () => {
+        closeSeed();
+        editor.onCancel();
+      },
+    },
+  };
+}
+
 /** Which list failed when exactly one of the two loads failed (Business Rule 17). */
 export type AutomationPartialFailure = "schedule" | "event" | null;
 
@@ -183,7 +202,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
           }));
     },
   });
-  useAutomationCreateSeed(
+  const closeSeed = useAutomationCreateSeed(
     seedStore,
     automationEditorSeed(search),
     {
@@ -261,7 +280,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     deletePending: deleteJob.isPending || deleteTrigger.isPending,
     deleteTarget,
     edit,
-    editorDialogProps: editor.editorDialogProps,
+    editorDialogProps: withSeedClose(editor.editorDialogProps, closeSeed),
     firstRun,
     suggestionsWorkspaceId,
     enabledCount: loaded.filter(item => item.enabled).length,

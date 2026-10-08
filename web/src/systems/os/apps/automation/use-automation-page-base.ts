@@ -61,8 +61,19 @@ export function useAutomationCreateSeed(
     resolved: boolean;
   },
   openCreate: (seed: AutomationEditorSeed) => void
-): void {
+): () => void {
   const navigate = useNavigate();
+  const strip = () =>
+    void navigate({
+      replace: true,
+      search: current => ({
+        ...(current as AutomationsRouteSearch),
+        create: undefined,
+        loop: undefined,
+        start: undefined,
+      }),
+      to: "/automations",
+    });
   useEffect(() => {
     store.trigger.seedObserved({
       activeWorkspaceId: context.activeWorkspaceId,
@@ -71,27 +82,10 @@ export function useAutomationCreateSeed(
       workspaceResolved: context.resolved,
       open: openCreate,
       refuse: () => notifyUser({ message: "Pick a project to automate a Loop.", tone: "info" }),
-      strip: () =>
-        void navigate({
-          replace: true,
-          search: current => ({
-            ...(current as AutomationsRouteSearch),
-            create: undefined,
-            loop: undefined,
-            start: undefined,
-          }),
-          to: "/automations",
-        }),
+      strip,
     });
-  }, [
-    context.activeWorkspaceId,
-    context.editorOpen,
-    context.resolved,
-    navigate,
-    openCreate,
-    seed,
-    store,
-  ]);
+  });
+  return () => store.trigger.operatorClosed({ strip });
 }
 
 /**

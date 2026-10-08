@@ -301,6 +301,19 @@ describe("useAutomationsPage", () => {
     expect(result.current.editorDialogProps.editor).toBeNull();
   });
 
+  // F1 (QA walk): main.tsx renders under StrictMode, whose development double
+  // mount disposes the editor the first effect opened. That reset is not an
+  // operator close, so the link reopens instead of being stripped.
+  it("Should keep a cold-loaded create link open under StrictMode", async () => {
+    const { result } = renderHook(() => useAutomationsPage({ create: 1, start: "event" }), {
+      reactStrictMode: true,
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.editorDialogProps.editor).not.toBeNull());
+    expect(result.current.editorDialogProps.editor?.draft.start).toBe("event");
+    expect(mocks.navigate.mock.calls.some(([call]) => call.replace === true)).toBe(false);
+  });
+
   // F1 (QA walk): a cold load mounts the page before the lens settles and may
   // remount it while the window hydrates. The link must survive both.
   it("F1 keeps a cold-loaded create link open across a lens change and a remount", async () => {
