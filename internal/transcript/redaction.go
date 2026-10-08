@@ -75,6 +75,9 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.CompactionID = redactStructuralString(payload.CompactionID)
 	payload.Status = redactStructuralString(payload.Status)
 	payload.Summary = redactDisplayString(payload.Summary)
+	if payload.Type == acp.EventTypeCompaction {
+		payload.Summary = boundedCompactionSummary(payload.Summary)
+	}
 	payload.Text = redactDisplayString(payload.Text)
 	payload.AuthoredText = redactDisplayString(payload.AuthoredText)
 	payload.Title = redactDisplayString(payload.Title)
@@ -260,7 +263,7 @@ func redactCompactionObservation(observation *acp.CompactionObservation) *acp.Co
 	redacted := *observation
 	redacted.CompactionID = redactStructuralString(redacted.CompactionID)
 	redacted.Status = redactStructuralString(redacted.Status)
-	redacted.Summary = redactDisplayString(redacted.Summary)
+	redacted.Summary = boundedCompactionSummary(redactDisplayString(redacted.Summary))
 	redacted.Error = redactDisplayString(redacted.Error)
 	return &redacted
 }

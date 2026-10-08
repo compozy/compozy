@@ -57,6 +57,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 		CreatedAt:              s.CreatedAt,
 		UpdatedAt:              s.UpdatedAt,
 	}
+	meta.SetPendingResumeReplay(s.pendingResumeReplay)
 	meta.SetRuntimeFailure(s.RuntimeFailure)
 	meta.SetRuntimeSelection(store.NewSessionRuntimeSelectionState(
 		storeSessionRuntimeSelection(s.SelectedRuntime),

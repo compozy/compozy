@@ -22,6 +22,28 @@ import (
 
 func TestTokenUsageParsing(t *testing.T) {
 	t.Parallel()
+	t.Run("Should invalidate occupancy without clearing accumulated token counters or costs", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-usage", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		before := TokenUsage{
+			InputTokens: new(int64(10)), OutputTokens: new(int64(20)), TotalTokens: new(int64(30)),
+			ThoughtTokens: new(int64(4)), CacheReadTokens: new(int64(5)), CacheWriteTokens: new(int64(6)),
+			ContextUsed: new(int64(190000)), ContextSize: new(int64(200000)),
+			CostAmount: new(1.5), CostCurrency: new("USD"),
+		}
+		proc.mergePromptUsage(before)
+		sendCompactionTestUpdate(t, proc, "c1", `{"status":"completed"}`)
+		before.ContextUsed = nil
+		before.ContextSize = nil
+		if got := proc.mergePromptUsage(TokenUsage{}); !reflect.DeepEqual(got, before) {
+			t.Fatalf("post-compaction usage = %#v, want %#v", got, before)
+		}
+	})
 
 	t.Run("Should decode canonical adapter cache counters and prefer them over legacy aliases", func(t *testing.T) {
 		t.Parallel()
@@ -1165,6 +1187,66 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 
 func TestPromptStreamsSessionUpdates(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		variant  string
+		wantUsed *int64
+		wantSize *int64
+		wantCost float64
+	}{
+		{"Should discard same-turn occupancy on completion without new usage", "", nil, nil, 1.5},
+		{"Should keep occupancy unknown after cost-only telemetry", "cost", nil, nil, 2.5},
+		{"Should not combine fresh used-only telemetry with pre-compaction size", "used", new(int64(8000)), nil, 1.5},
+		{"Should preserve fresh occupancy across a terminal correction", "fresh", new(int64(8000)), new(int64(200000)), 1.5},
+		{"Should retain token totals without restoring occupancy", "totals", nil, nil, 1.5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New()
+			proc := startHelperProcess(t, driver, "compaction_usage", tc.variant, StartOpts{})
+			defer stopProcess(t, driver, proc)
+			stream, err := driver.Prompt(t.Context(), proc, PromptRequest{TurnID: "turn-compact", Message: "/compact"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := collectEvents(t, stream)
+			terminalSeen := false
+			doneSeen := false
+			for _, event := range events {
+				if event.Compaction != nil && event.Compaction.Terminal {
+					terminalSeen = true
+				}
+				if !terminalSeen || event.Usage == nil {
+					continue
+				}
+				got := event.Usage
+				if !reflect.DeepEqual(got.ContextUsed, tc.wantUsed) ||
+					!reflect.DeepEqual(got.ContextSize, tc.wantSize) {
+					t.Fatalf(
+						"post-compaction %s occupancy = %#v, want used=%v size=%v",
+						event.Type,
+						got,
+						tc.wantUsed,
+						tc.wantSize,
+					)
+				}
+				if got.CostAmount == nil || *got.CostAmount != tc.wantCost || got.CostCurrency == nil ||
+					*got.CostCurrency != "USD" {
+					t.Fatalf("post-compaction cost = %#v", got)
+				}
+				if event.Type == EventTypeDone {
+					doneSeen = true
+					if tc.variant == "totals" && (got.InputTokens == nil || *got.InputTokens != 190000 ||
+						got.OutputTokens == nil || *got.OutputTokens != 1000 || got.TotalTokens == nil || *got.TotalTokens != 191000) {
+						t.Fatalf("prompt totals = %#v", got)
+					}
+				}
+			}
+			if !terminalSeen || !doneSeen {
+				t.Fatalf("missing compaction or done event: %#v", events)
+			}
+		})
+	}
 
 	t.Run("Should stream session updates and refresh session metadata from prompt events", func(t *testing.T) {
 		t.Parallel()

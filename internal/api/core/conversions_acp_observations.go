@@ -44,6 +44,7 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Error:             event.Error,
 		Failure:           SessionFailurePayloadFromStore(event.Failure),
 		Usage:             TokenUsagePayloadFromUsage(event.Usage),
+		Compaction:        compactionSnapshotPayload(event.Compaction),
 		Delivery:          transcript.RedactAgentEvent(event).DeliveryManifest(),
 		ProviderError:     providerErrorDiagnosticPayload(event.ProviderError),
 		Goal: goalPromptMetaPayload(
@@ -52,6 +53,17 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Runtime:       runtimeActivityPayloadFromEvent(event.Runtime),
 		PromptRuntime: runtimeSelectionPayloadFromACP(event.PromptRuntimeSnapshot()),
 		Raw:           payloadJSONBytes(event.Raw),
+	}
+}
+
+func compactionSnapshotPayload(observation *acp.CompactionObservation) *contract.CompactionSnapshotPayload {
+	redacted := transcript.RedactAgentEvent(acp.AgentEvent{Compaction: observation}).Compaction
+	if redacted == nil {
+		return nil
+	}
+	return &contract.CompactionSnapshotPayload{
+		CompactionID: redacted.CompactionID, Status: redacted.Status,
+		Summary: redacted.Summary, Error: redacted.Error,
 	}
 }
 

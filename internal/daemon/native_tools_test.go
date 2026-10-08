@@ -1553,6 +1553,57 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve native compaction domain error codes structurally", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name  string
+			cause error
+			code  toolspkg.ErrorCode
+		}{
+			{"Should expose busy admission", session.ErrPromptInProgress, toolspkg.ErrorCodeSessionBusy},
+			{
+				"Should expose unsupported capability",
+				session.ErrCompactionUnsupported,
+				toolspkg.ErrorCodeCompactionUnsupported,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				manager := nativeTestSessionManager("ws-native")
+				manager.RequestCompactionFn = func(context.Context, string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
+					return session.CompactionRequestResult{}, nil, fmt.Errorf("request rejected: %w", tc.cause)
+				}
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+				}, nativeApproveAllPolicyInputs())
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true, WorkspaceID: "ws-native"},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDSessionCompact,
+						Input:  json.RawMessage(`{"session_id":"sess-123"}`),
+					},
+				)
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || toolErr.Code != tc.code || !errors.Is(err, tc.cause) {
+					t.Fatalf("error = %#v, want %s wrapping %v", err, tc.code, tc.cause)
+				}
+				encoded, marshalErr := json.Marshal(toolErr)
+				if marshalErr != nil {
+					t.Fatal(marshalErr)
+				}
+				var decoded toolspkg.ToolError
+				if decodeErr := json.Unmarshal(encoded, &decoded); decodeErr != nil {
+					t.Fatal(decodeErr)
+				}
+				if decoded.Code != tc.code || decoded.ToolID != toolspkg.ToolIDSessionCompact {
+					t.Fatalf("public error = %s", encoded)
+				}
+			})
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 

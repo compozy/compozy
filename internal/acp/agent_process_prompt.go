@@ -346,6 +346,17 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	}
 }
 
+func (p *AgentProcess) invalidatePromptOccupancy() {
+	active := p.currentPrompt()
+	if active == nil {
+		return
+	}
+	active.usageMu.Lock()
+	defer active.usageMu.Unlock()
+	active.usage.ContextUsed = nil
+	active.usage.ContextSize = nil
+}
+
 func (p *AgentProcess) mergePromptUsage(update TokenUsage) TokenUsage {
 	active := p.currentPrompt()
 	if active == nil {

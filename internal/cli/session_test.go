@@ -4458,14 +4458,16 @@ func (c compactEventStreamClient) StreamSessionEvents(
 // The CLI waits for its own turn's terminal event even after observing compaction completion.
 func TestWaitSessionCompaction(t *testing.T) {
 	t.Parallel()
-	for _, test := range []struct{ status, terminal, outcome string }{
-		{"completed", acp.EventTypeDone, "completed"},
-		{"failed", acp.EventTypeDone, "failed"},
-		{"cancelled", acp.EventTypeDone, "cancelled"}, //nolint:misspell // ACP wire spelling.
-		{"", acp.EventTypeDone, "turn_completed"},
-		{"", acp.EventTypeError, "turn_failed"},
+	for _, test := range []struct{ status, correction, terminal, outcome string }{
+		{"completed", "", acp.EventTypeDone, "completed"},
+		{"failed", "", acp.EventTypeDone, "failed"},
+		{"cancelled", "", acp.EventTypeDone, "cancelled"}, //nolint:misspell // ACP wire spelling.
+		{"", "", acp.EventTypeDone, "turn_completed"},
+		{"", "", acp.EventTypeError, "turn_failed"},
+		{"completed", "failed", acp.EventTypeDone, "failed"},
+		{"failed", "completed", acp.EventTypeDone, "completed"},
 	} {
-		t.Run(test.outcome, func(t *testing.T) {
+		t.Run("Should report "+test.outcome+" after "+test.status+" then "+test.correction, func(t *testing.T) {
 			t.Parallel()
 			terminalSeen := false
 			client := compactEventStreamClient{
@@ -4479,7 +4481,7 @@ func TestWaitSessionCompaction(t *testing.T) {
 							event.Compaction = &acp.CompactionObservation{
 								CompactionID: "c1",
 								Status:       status,
-								Terminal:     true,
+								Terminal:     status == test.status,
 							}
 						}
 						content, err := transcript.MarshalAgentEvent(event)
@@ -4500,6 +4502,11 @@ func TestWaitSessionCompaction(t *testing.T) {
 					if test.status != "" {
 						if err := send("turn-1", acp.EventTypeCompaction, test.status); err != nil {
 							t.Fatalf("compaction frame ended turn wait: %v", err)
+						}
+					}
+					if test.correction != "" {
+						if err := send("turn-1", acp.EventTypeCompaction, test.correction); err != nil {
+							t.Fatalf("corrective snapshot ended turn wait: %v", err)
 						}
 					}
 					terminalSeen = true

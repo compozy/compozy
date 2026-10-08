@@ -297,52 +297,26 @@ func TestDaemonLegacyCompactionReadPath(t *testing.T) {
 // through the maintenance prompt, then deliver each on the next ordinary turn.
 func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 	// Not parallel: integrationHomePaths sets the process environment with t.Setenv.
-	for _, recoverDriver := range []bool{false, true} {
+	for _, mode := range []string{"replace", "recover", "restart"} {
+		recoverDriver, restartDaemon := mode == "recover", mode == "restart"
 		name := "Should send compact alone and reserve replay for ordinary continuation"
 		if recoverDriver {
 			name = "Should preserve maintenance delivery after forced driver recovery"
 		}
+		if restartDaemon {
+			name = "Should preserve deferred replay across daemon restart and native load"
+		}
 		t.Run(name, func(t *testing.T) {
 			home, deps, resolved, diagnostics, daemon := newBoundedRebuildFixture(t, false, false)
-			fixturePath := mockFixturePath(t, "native_compaction_fixture.json")
-			if recoverDriver {
-				fixture, err := acpmock.LoadFixture(fixturePath)
-				if err != nil {
-					t.Fatal(err)
-				}
-				for ai := range fixture.Agents {
-					for ti := range fixture.Agents[ai].Turns {
-						turn := &fixture.Agents[ai].Turns[ti]
-						if turn.Name == "compact-now" {
-							pause := acpmock.Step{
-								Kind: acpmock.StepKindDriverControl,
-								DriverControl: &acpmock.DriverControlStep{
-									Action: acpmock.DriverControlBlockUntilCancel,
-								},
-							}
-							turn.Steps = append(turn.Steps[:1], append([]acpmock.Step{pause}, turn.Steps[1:]...)...)
-						}
-					}
-				}
-				data, err := json.Marshal(fixture)
-				if err != nil {
-					t.Fatal(err)
-				}
-				fixturePath = filepath.Join(t.TempDir(), "recovery-compaction.json")
-				if err := os.WriteFile(fixturePath, data, 0o600); err != nil {
-					t.Fatal(err)
-				}
-			}
+			fixturePath := maintenanceCompactionFixture(t, recoverDriver, restartDaemon)
 			command := acpmock.BuildCommand(acpmock.RequireDriver(t), fixturePath, "compaction-claude", diagnostics)
 			resolved.Config.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 			resolved.Config.Providers["acpmock-replacement"] = acpmock.ProviderConfig(command)
 			resolved.Agents[0].Name = "compaction-claude"
 			resolved.Agents[0].Prompt = "Exercise maintenance startup isolation."
 			manager := newBoundedRebuildManager(t, home, deps, resolved, daemon)
-			active, err := manager.Create(
-				t.Context(),
-				session.CreateOpts{AgentName: "compaction-claude", Workspace: resolved.ID},
-			)
+			opts := session.CreateOpts{AgentName: "compaction-claude", Workspace: resolved.ID}
+			active, err := manager.Create(t.Context(), opts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -387,11 +361,36 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 			if recoverDriver && !recovered {
 				t.Fatal("compaction never reached the forced recovery boundary")
 			}
+			if restartDaemon {
+				originalACP := active.Info().ACPSessionID
+				if err := manager.Stop(t.Context(), active.ID); err != nil {
+					t.Fatal(err)
+				}
+				if err := manager.Shutdown(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if err := daemon.Shutdown(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				daemon, deps = bootHarnessPolicyDaemon(t, home, &resolved.Config)
+				cleanupMaintenanceDaemon(t, daemon)
+				manager = newBoundedRebuildManager(t, home, deps, resolved, daemon)
+				resumed, err := manager.Resume(t.Context(), active.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resumed.Info().ACPSessionID != originalACP {
+					t.Fatal("native load did not retain replacement ACP identity")
+				}
+			}
 			promptBoundedRebuild(t, manager, active.ID, "ordinary continuation")
 			promptBoundedRebuild(t, manager, active.ID, "ordinary continuation")
 			records, err := acpmock.ReadDiagnostics(diagnostics)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if restartDaemon {
+				assertMaintenanceNativeLoad(t, records)
 			}
 			prompts := acpmock.PromptDiagnostics(records)
 			if len(prompts) != 4 {
@@ -432,12 +431,17 @@ func TestDaemonCompactEndpointReachesACP(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 		defer cancel()
 		for _, transport := range []struct {
-			name   string
-			client *http.Client
-			url    func(string) string
+			name      string
+			client    *http.Client
+			url       func(string) string
+			clientID  string
+			userAgent string
+			source    string
 		}{
-			{"HTTP", harness.HTTPClient, harness.HTTPURL},
-			{"UDS", harness.UDSClient, harness.UDSURL},
+			{"HTTP", harness.HTTPClient, harness.HTTPURL, "", "", "http"},
+			{"UDS", harness.UDSClient, harness.UDSURL, "", "", "http"},
+			{"Web", harness.HTTPClient, harness.HTTPURL, "web-test-client", "", "web"},
+			{"CLI", harness.HTTPClient, harness.HTTPURL, "web-test-client", "compozy-cli/test", "cli"},
 		} {
 			active := createFixtureBackedSession(t, ctx, harness, agent, "compact endpoint "+transport.name)
 			if _, err := harness.PromptSession(ctx, active.ID, "baseline"); err != nil {
@@ -454,6 +458,8 @@ func TestDaemonCompactEndpointReachesACP(t *testing.T) {
 				t.Fatal(err)
 			}
 			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("X-Compozy-Client-ID", transport.clientID)
+			request.Header.Set("User-Agent", transport.userAgent)
 			status, receipt := func() (int, contract.SessionCompactResponse) {
 				response, err := transport.client.Do(request)
 				if err != nil {
@@ -481,18 +487,8 @@ func TestDaemonCompactEndpointReachesACP(t *testing.T) {
 				}
 				return false
 			})
+			assertCompactionRequestSource(t, ctx, harness, active.ID, receipt.PromptID, transport.source)
 		}
-		registration, ok := harness.MockAgentRegistration(agent)
-		if !ok {
-			t.Fatal("mock registration missing")
-		}
-		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		prompts := acpmock.PromptDiagnostics(records)
-		if len(prompts) != 4 || prompts[1].Prompt != "/compact" || prompts[3].Prompt != "/compact" {
-			t.Fatalf("received prompts = %#v, want two literal compact commands", prompts)
-		}
+		assertMaintenanceCommandDiagnostics(t, harness, agent)
 	})
 }

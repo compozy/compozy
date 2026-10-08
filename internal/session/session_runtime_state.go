@@ -12,22 +12,23 @@ import (
 )
 
 type runtimeBindingSnapshot struct {
-	process         *AgentProcess
-	selection       RuntimeSelection
-	status          RuntimeStatus
-	transition      RuntimeTransitionStrategy
-	failure         string
-	generation      int64
-	recovery        *store.SessionRuntimeRecovery
-	acpSessionID    string
-	acceptedRoute   *store.SessionAcceptedRoute
-	acceptedCommand string
-	acpCaps         acp.Caps
-	acpCapsKnown    bool
-	speedResolution *speedpkg.Resolution
-	liveness        *store.SessionLivenessMeta
-	agentDef        compozyconfig.AgentDef
-	startupManifest acp.StartupManifest
+	process             *AgentProcess
+	selection           RuntimeSelection
+	status              RuntimeStatus
+	transition          RuntimeTransitionStrategy
+	failure             string
+	generation          int64
+	recovery            *store.SessionRuntimeRecovery
+	acpSessionID        string
+	acceptedRoute       *store.SessionAcceptedRoute
+	acceptedCommand     string
+	pendingResumeReplay string
+	acpCaps             acp.Caps
+	acpCapsKnown        bool
+	speedResolution     *speedpkg.Resolution
+	liveness            *store.SessionLivenessMeta
+	agentDef            compozyconfig.AgentDef
+	startupManifest     acp.StartupManifest
 }
 
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
@@ -45,20 +46,21 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 			Speed:           s.Speed,
 			ACPOptions:      acp.CloneSessionConfigOptionSelections(s.ACPOptions),
 		},
-		status:          s.RuntimeStatus,
-		transition:      s.RuntimeTransition,
-		failure:         s.RuntimeFailure,
-		generation:      s.RuntimeGeneration,
-		recovery:        store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
-		acpSessionID:    s.ACPSessionID,
-		acceptedRoute:   store.CloneSessionAcceptedRoute(s.acceptedRoute),
-		acceptedCommand: s.acceptedCommand,
-		acpCaps:         cloneCaps(s.ACPCaps),
-		acpCapsKnown:    s.ACPCapsKnown,
-		speedResolution: speedpkg.CloneResolution(s.SpeedResolution),
-		liveness:        store.CloneSessionLivenessMeta(s.Liveness),
-		agentDef:        compozyconfig.CloneAgentDef(s.agentDef),
-		startupManifest: acp.CloneStartupManifest(s.startupManifest),
+		status:              s.RuntimeStatus,
+		transition:          s.RuntimeTransition,
+		failure:             s.RuntimeFailure,
+		generation:          s.RuntimeGeneration,
+		recovery:            store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
+		acpSessionID:        s.ACPSessionID,
+		acceptedRoute:       store.CloneSessionAcceptedRoute(s.acceptedRoute),
+		acceptedCommand:     s.acceptedCommand,
+		pendingResumeReplay: s.pendingResumeReplay,
+		acpCaps:             cloneCaps(s.ACPCaps),
+		acpCapsKnown:        s.ACPCapsKnown,
+		speedResolution:     speedpkg.CloneResolution(s.SpeedResolution),
+		liveness:            store.CloneSessionLivenessMeta(s.Liveness),
+		agentDef:            compozyconfig.CloneAgentDef(s.agentDef),
+		startupManifest:     acp.CloneStartupManifest(s.startupManifest),
 	}
 }
 
@@ -224,6 +226,7 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.ACPSessionID = snapshot.acpSessionID
 	s.acceptedRoute = store.CloneSessionAcceptedRoute(snapshot.acceptedRoute)
 	s.acceptedCommand = snapshot.acceptedCommand
+	s.pendingResumeReplay = snapshot.pendingResumeReplay
 	s.ACPCaps = cloneCaps(snapshot.acpCaps)
 	s.ACPCapsKnown = snapshot.acpCapsKnown
 	s.SpeedResolution = speedpkg.CloneResolution(snapshot.speedResolution)

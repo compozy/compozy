@@ -33,21 +33,36 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
-	for _, command := range []string{"compact", "compress"} {
+	for _, test := range []struct {
+		command, first, correction string
+	}{
+		{"compact", "completed", ""},
+		{"compress", "completed", ""},
+		{"compact", "completed", "failed"},
+		{"compact", "failed", "completed"},
+	} {
+		command := test.command
+		wantStatus := test.first
+		if test.correction != "" {
+			wantStatus = test.correction
+		}
 		t.Run(
-			"Should execute the managed maintenance command "+command+" and observe native completion",
+			"Should execute managed maintenance "+command+" and settle "+test.first+" corrected to "+wantStatus,
 			func(t *testing.T) {
 				driver := newHarnessIntegrationDriver()
 				received := make(chan acp.PromptRequest, 2)
 				driver.promptHook = func(_ context.Context, _ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 					received <- req
-					out := make(chan acp.AgentEvent, 4)
+					out := make(chan acp.AgentEvent, 5)
 					if !req.Maintenance {
 						out <- (acp.AgentEvent{Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate, TurnID: req.TurnID}).WithAvailableCommands([]store.SessionAdvertisedCommand{{Name: command}})
 						out <- acp.AgentEvent{Type: acp.EventTypeUsage, TurnID: req.TurnID, Usage: &acp.TokenUsage{ContextUsed: new(int64(90)), ContextSize: new(int64(100))}}
 					} else {
 						out <- acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: req.TurnID, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "in_progress"}}
-						out <- acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: req.TurnID, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: "completed", Terminal: true}}
+						out <- acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: req.TurnID, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: test.first, Terminal: true}}
+						if test.correction != "" {
+							out <- acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: req.TurnID, Compaction: &acp.CompactionObservation{CompactionID: "c1", Status: test.correction}}
+						}
 					}
 					out <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, PromptStopReason: acp.PromptStopReasonEndTurn}
 					close(out)
@@ -137,7 +152,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 					t.Fatalf("maintenance request=%#v", req)
 				}
 				if result.Compaction == nil || result.Compaction.CompactionID != "c1" ||
-					result.Compaction.Status != "completed" {
+					result.Compaction.Status != wantStatus {
 					t.Fatalf("result=%#v", result)
 				}
 				recovered, _, found, err := reconstructManagedGoalPromptResult(
@@ -147,12 +162,16 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 					ticket.PromptID,
 				)
 				if err != nil || !found || recovered.PromptID != ticket.PromptID || recovered.Compaction == nil ||
-					recovered.Compaction.Status != "completed" {
+					recovered.Compaction.Status != wantStatus {
 					t.Fatalf("reconstructed result=%#v found=%v err=%v", recovered, found, err)
 				}
 				after, err := fixture.runtime.Usage(t.Context(), fixture.binding)
 				if err != nil || after.Known {
 					t.Fatalf("post compact usage=%#v %v", after, err)
+				}
+				settlement := goalpkg.CompactionSucceeded
+				if result.Compaction.Status == "failed" {
+					settlement = goalpkg.CompactionFailed
 				}
 				checkpoint, err := fixture.goalStore.CompleteCompaction(
 					t.Context(),
@@ -165,7 +184,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 						PromptID:             ticket.PromptID,
 						Result: goalpkg.CompactionResult{
 							PromptResult:      result,
-							Outcome:           goalpkg.CompactionSucceeded,
+							Outcome:           settlement,
 							UsageSequence:     new(usage.Sequence),
 							UsageBaselineUsed: new(usage.Used),
 						},
@@ -174,8 +193,13 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if checkpoint.ContextState != "unknown" || checkpoint.CompactionBaselineUsed != nil {
+				if wantStatus == "completed" &&
+					(checkpoint.ContextState != "unknown" || checkpoint.CompactionBaselineUsed != nil) {
 					t.Fatalf("checkpoint=%#v", checkpoint)
+				}
+				if wantStatus == "failed" && (checkpoint.ContextState != "known" || checkpoint.UsageSequence == nil ||
+					*checkpoint.UsageSequence != usage.Sequence) {
+					t.Fatalf("corrected failure cleared the retained usage checkpoint: %#v", checkpoint)
 				}
 			},
 		)

@@ -199,8 +199,9 @@ type Session struct {
 	providerRoute             compozyconfig.ResolvedAgent
 	acceptedRoute             *store.SessionAcceptedRoute
 	// derivation and importedContext exist only on continued or forked children.
-	derivation      *store.SessionDerivation
-	importedContext *store.SessionImportedContext
+	derivation          *store.SessionDerivation
+	importedContext     *store.SessionImportedContext
+	pendingResumeReplay string
 	// pendingDeriveReceipt is taken by the first catalog registration of a derived child.
 	pendingDeriveReceipt *store.SessionDerivationReceipt
 	// deriveCommitted marks the irreversible commit of a derived child's registration

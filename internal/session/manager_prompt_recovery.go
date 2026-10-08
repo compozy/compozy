@@ -279,6 +279,7 @@ func (m *Manager) recoverPromptRuntime(
 		attempt = snapshot.acceptedRoute.Attempt
 	}
 	session.commitAcceptedRoute(acceptedRouteRecord(attempt, runtime.agent, plan.selection.Model), plan.spec.command)
+	session.setPendingResumeReplay(plan.spec.resumeReplayBlock)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRecoveryBinding(candidate, &snapshot, err.Error(), m.now())
 		stopErr := m.stopReplacedRuntime(session, candidate, false)

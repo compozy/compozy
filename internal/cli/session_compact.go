@@ -128,10 +128,12 @@ func waitSessionCompaction(
 				if err != nil {
 					return fmt.Errorf("cli: decode compaction snapshot: %w", err)
 				}
-				if payload.Compaction != nil && outcome == "" {
+				if payload.Compaction != nil {
 					switch payload.Compaction.Status {
 					case "completed", string(bootstrapPhaseFailed), "cancelled": //nolint:misspell // ACP wire spelling.
 						outcome = payload.Compaction.Status
+					default:
+						outcome = ""
 					}
 				}
 			case acp.EventTypeDone:

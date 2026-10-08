@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
@@ -27,6 +28,22 @@ func (n *daemonNativeTools) sessionCompact(
 	}
 	result, _, err := manager.RequestCompaction(session.WithCompactionRequestedBy(ctx, "tool"), target)
 	if err != nil {
+		switch {
+		case errors.Is(err, session.ErrPromptInProgress):
+			return toolspkg.ToolResult{}, toolspkg.NewToolError(
+				toolspkg.ErrorCodeSessionBusy,
+				req.ToolID,
+				err.Error(),
+				err,
+			)
+		case errors.Is(err, session.ErrCompactionUnsupported):
+			return toolspkg.ToolResult{}, toolspkg.NewToolError(
+				toolspkg.ErrorCodeCompactionUnsupported,
+				req.ToolID,
+				err.Error(),
+				err,
+			)
+		}
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	return structuredResult(core.SessionCompactPayload(result), "Compaction accepted")
