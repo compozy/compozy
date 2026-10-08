@@ -46,7 +46,6 @@ No new `@compozy/ui` primitive. `HoverCard` is not added; the compact hover surf
 | Glyph / state | Primitive + token | Where |
 | --- | --- | --- |
 | ring fill (reported) | SVG arc `--fg` on track `--line-strong`, 2px, r 6.5 | control |
-| ring fill (≥ threshold) | arc + glyph `--warning` | control |
 | ring stale | dotted arc `--subtle` | control |
 | ring unknown | dashed track `--faint`, no arc | control |
 | ring used-only | solid track + centre dot `--subtle` | control |
@@ -54,28 +53,26 @@ No new `@compozy/ui` primitive. `HoverCard` is not added; the compact hover surf
 | state chip `stale` | `Pill` xs warning | tooltip, meter |
 | state chip `unavailable` | `Pill` xs neutral hollow; values stay | meter |
 | state chip `estimated size` | sentence "Window from model catalog." (no chip) | tooltip |
-| state chip `near compaction` | `Pill` xs warning | meter |
 | tier Compozy context ≈ | `StackedProgress` segment tone `accent` (`--color-chart-1` alias) | meter |
 | tier Agent & conversation | segment tone `neutral` (`bg-muted`, `--color-neutral`) | meter |
 | tier Free | track `bg-canvas-tint` | meter |
-| threshold tick | 1px `--warning` at `pressure_threshold`; no label — the line below the bar names the number | meter |
 | injected row bar | `--accent`; stale rows `--accent-dim` | injected |
 | "may have been summarized" / "estimate exceeds reported" | `text-warning` suffix | injected, meter legend |
-| compaction marker | `Eyebrow`-sized row on `canvas-soft`, `Minimize2` 11px | turns, meter line |
+| compaction marker (observed agent compaction) | `Eyebrow`-sized row on `canvas-soft`, `Minimize2` 11px | turns, meter line |
 | runtime warning row | `TriangleAlert` `--warning` | activity |
 | empties | `Empty` compacted: 32px well, form title, micro description | meter, usage, turns |
 
-Signal colour marks state only: warning for near-compaction, stale rows, runtime warnings. The three tiers are magnitude, not status (DESIGN.md §2).
+Signal colour marks state only: warning for stale rows, runtime warnings. The three tiers are magnitude, not status (DESIGN.md §2).
 
 ## Copy (COPY.md register)
 
 - Rail title: **Context**. Topbar toggle: "Open context sidebar" / "Close context sidebar".
 - Control labels: "Context 35% used" · "Context 35% used, stale" · "Context 89.7K used" · "Context usage unknown".
-- Tooltip: "35% · 89.7K / 256K" · "reported · as of turn 12" · "Compaction runs at 85%" (only with an agent-reported window) · "Window from model catalog." · "This agent hasn't reported context usage." · "Usage unavailable" (keeps the last ring).
+- Tooltip: "35% · 89.7K / 256K" · "reported · as of turn 12" · "Window from model catalog." · "This agent hasn't reported context usage." · "Usage unavailable" (keeps the last ring).
 - Meter legend: "Compozy context ≈" · "Agent & conversation" · "Free" · "estimate exceeds reported".
-- Injected rows: "System prompt" · "Agent prompt" · "Situation" · "Memory" · "Soul" · "Skills catalog" · "Tool manuals" · "Workspace knowledge" · "Attachments" (name + bytes, no estimate for binary) · "sent on turn N" · "re-sent on turn N" · "unchanged since turn N · last seen turn M" · "may have been summarized" · "modified by a hook" · "included in the startup prompt" (startup-dedup row without an estimate) · foot "Estimate: bytes ÷ 4 over the text Compozy delivered."
+- Injected rows: "System prompt" · "Agent prompt" · "Situation" · "Soul" · "Skills catalog" · "Tool manuals" · "Attachments" (name + bytes, no estimate for binary) · "sent on turn N" · "re-sent on turn N" · "unchanged since turn N · last seen turn M" · "may have been summarized" · "modified by a hook" · "included in the startup prompt" (startup-dedup row without an estimate) · foot "Estimate: bytes ÷ 4 over the text Compozy delivered."
 - Tokens & cost: existing labels; "Cache read" · "Cache write"; "No usage yet" kept.
-- Turns: "Compozy compaction · at 85% · 218K · replay span archived" ("· replay span not archived" otherwise) · "Show earlier turns" · "No turns yet". One row per turn that has a usage report or a delivery (usage-only, counter-only, delivery-only, both), ordered by ledger sequence. The marker never says the agent's window shrank and never claims the attempt completed; the Compozy rows go stale only when the agent's own `used` drops.
+- Turns: "Agent compaction · completed · 218K → 71.3K" (the after-figure only once the next usage report is known) · "Requested compaction · in progress" (`trigger = requested`; status reads in progress, completed, failed, cancelled, or the agent's own word verbatim) · "Show earlier turns" · "No turns yet". One row per turn that has a usage report or a delivery (usage-only, counter-only, delivery-only, both), ordered by ledger sequence. The Compozy rows go stale only when the agent's own `used` drops.
 - Meter empty: "No context report yet" · "The meter fills once the agent reports its first turn."
 
 ## Gaps and authorized deltas
@@ -89,3 +86,4 @@ Signal colour marks state only: warning for near-compaction, stale rows, runtime
 
 - 2026-09-11 · peer review round 1 (B-005, B-009): `unavailable` state added; the compaction sentence appears only with an agent-reported window.
 - 2026-09-11 · peer review round 2 (B-015, B-018, B-019, B-020, N-007): compaction marker copy → "Compozy compaction · at N% · replay span archived / not archived" (no completion claim); rows stale only on the agent's `used` drop (never on the daemon marker); Turns = union of usage and delivery rows ordered by sequence; live refresh from the stream's `session_usage_changed` event, not from transcript entries; display tier Compozy = `min(injected, used, size)`; new row states "included in the startup prompt" and "Agent prompt". Board annotations §03/§05/§07 updated in place; the specimens' numbers are unchanged.
+- 2026-10-07 · memory removal: CompozyOS no longer compacts a session, so the composer control loses its warning state (VC-02 retired), the tooltip loses the "Compaction runs at 85%" line, the meter loses the threshold tick, the "near compaction" chip and the warning headline; the clamp specimen stays with a neutral headline. Markers now show observed agent compactions ("Agent compaction" / "Requested compaction" · status · before → after), and right after a terminal compaction the meter reads unknown until the next usage report. The `Memory` and `Workspace knowledge` injected rows are gone. Dated entries above are history.

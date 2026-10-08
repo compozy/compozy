@@ -565,11 +565,11 @@ svg.lucide{stroke-width:1.6}
           <div><div class="dsh-ev__t">You created the trigger <b>docs/**/*.mdx</b></div></div>
           <span class="dsh-ev__time" title="Aug 22, 18:20">15h</span></div>
         <button class="dsh-evmore" type="button" aria-expanded="false" aria-controls="quiet" data-od-id="quiet-fold">
-          <i data-lucide="chevron-right"></i>9 quieter events — tool calls, config reads, memory compaction
+          <i data-lucide="chevron-right"></i>9 quieter events — tool calls, config reads, context compactions
         </button>
         <div id="quiet" hidden>
           <div class="dsh-ev"><span class="dsh-ev__dot"></span><div><div class="dsh-ev__t"><b>core</b> ran Edit 14 times on <code>internal/acp</code></div></div><span class="dsh-ev__time">16h</span></div>
-          <div class="dsh-ev"><span class="dsh-ev__dot"></span><div><div class="dsh-ev__t">Memory compaction finished</div></div><span class="dsh-ev__time">18h</span></div>
+          <div class="dsh-ev"><span class="dsh-ev__dot"></span><div><div class="dsh-ev__t"><b>core</b> compacted its context</div></div><span class="dsh-ev__time">18h</span></div>
         </div>
       </div>
       <p class="demo-note">the fold <b>names its contents</b>, so a user can decide without opening it</p>
@@ -652,7 +652,6 @@ svg.lucide{stroke-width:1.6}
             <div class="tile"><div class="tile__l">Providers</div><div class="tile__v"><span class="d d--ok"></span>3 of 3 <span class="mono" style="color:var(--faint)">claude · codex · hermes</span></div></div>
             <div class="tile"><div class="tile__l">Scheduler</div><div class="tile__v"><span class="d d--ok"></span>Running <span class="mono" style="color:var(--faint)">next 11:00</span></div></div>
             <div class="tile"><div class="tile__l">Triggers</div><div class="tile__v"><span class="d d--ok"></span>4 armed <span class="mono" style="color:var(--faint)">0 misfires</span></div></div>
-            <div class="tile"><div class="tile__l">Memory</div><div class="tile__v"><span class="d d--ok"></span>Healthy <span class="mono" style="color:var(--faint)">compacted 04:12</span></div></div>
             <div class="tile"><div class="tile__l">Retention</div><div class="tile__v">60 days <span class="mono" style="color:var(--faint)">events · usage</span></div></div>
           </div>
           <div class="dsh-code"><span class="c"># the same view, from the CLI</span>

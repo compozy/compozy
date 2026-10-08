@@ -51,18 +51,17 @@ Seção `use-cases`, cards `.uc`. Cinco ilustrações da mesma família visual: 
 
 Os dois wide (Release e Gate) precisam de composição horizontal de verdade, não o quadrado esticado — foi o erro dos anteriores. O chão da ilustração é a cor do card (`--canvas-soft`, #1F1E1C), plano, sem vinheta: a imagem não tem moldura e precisa sumir no card; deixar o motivo principal na metade de cima.
 
-## 3. Features — seis capturas do produto
+## 3. Features — cinco capturas do produto
 
 Seção `features`, janelas `.win` 16:10 com o chrome (título + rota) desenhado em HTML; a captura preenche só o corpo da janela. Capturar em um lab semeado com dados reais (workspace `~/Dev/compozy` ou equivalente), escala 2×, tema escuro, sem cursor, sem dados sensíveis. Recortar o chrome nativo; a landing coloca o seu.
 
 | # | Slot | Rota | Arquivo | O que a captura precisa conter |
 | --- | --- | --- | --- | --- |
 | 3.1 | Sessions | `/agents/$name/sessions/$id` | `feature-sessions.webp` | uma sessão com timeline real: arquivo editado, testes rodando, commit, sessão pausada; o diff ao lado |
-| 3.2 | Knowledge (Memory) | `/knowledge` | `feature-memory.webp` | a base de conhecimento com arquivos Markdown reais e as superfícies que os leem |
-| 3.3 | Tasks | `/tasks?mode=kanban` | `capture-tasks-window.webp` | o quadro kanban com grupos blocked / queued / done, donos e prioridades (hoje só existe a captura em lista) |
-| 3.4 | Jobs (Automation) | `/jobs` | `feature-automation.webp` | um job com histórico de runs: o trace de uma run ao lado do gráfico de eventos por dia |
-| 3.5 | Desktops (shell) | desktop inteiro | `hero-poster.webp` (reuso) | menubar, duas janelas em tile e o dock — a mesma cena que serve de poster do hero |
-| 3.6 | Loop run | `/loop-runs/$runId` | `capture-loops-window.webp` | uma run real em `needs-approval`; a faixa "Needs you" é HTML e fica por cima, então deixar o terço inferior calmo |
+| 3.2 | Tasks | `/tasks?mode=kanban` | `capture-tasks-window.webp` | o quadro kanban com grupos blocked / queued / done, donos e prioridades (hoje só existe a captura em lista) |
+| 3.3 | Jobs (Automation) | `/jobs` | `feature-automation.webp` | um job com histórico de runs: o trace de uma run ao lado do gráfico de eventos por dia |
+| 3.4 | Desktops (shell) | desktop inteiro | `hero-poster.webp` (reuso) | menubar, duas janelas em tile e o dock — a mesma cena que serve de poster do hero |
+| 3.5 | Loop run | `/loop-runs/$runId` | `capture-loops-window.webp` | uma run real em `needs-approval`; a faixa "Needs you" é HTML e fica por cima, então deixar o terço inferior calmo |
 
 Profiles, Gateway e Workspaces continuam como diagramas SVG inline (verdade de estado, três switches off) — não são imagens a gerar. Os fundos deles estão no item 5.
 
@@ -102,11 +101,11 @@ Descritos no item 1. São vídeos gravados, não animação autoral: `.webm` (VP
 
 O que a animação precisa contar, nessa ordem:
 
-1. **A pilha.** Nove peças que hoje o builder monta sozinho: agent CLI, loops, triggers, cron e webhooks, memory, permissions, approvals, observability, glue scripts. Cada uma é um objeto pequeno e distinto (ícone + rótulo curto), espalhadas, levemente tortas — dá para sentir que foram encaixadas à mão.
-2. **O colapso.** As nove convergem para o centro e viram um único bloco CompozyOS (o símbolo + o nome). Não é explosão nem partícula: é encaixe, com peso. 900 ms de espera após entrar no viewport, ~1,2 s de movimento, easing expo-out.
+1. **A pilha.** Oito peças que hoje o builder monta sozinho: agent CLI, loops, triggers, cron e webhooks, permissions, approvals, observability, glue scripts. Cada uma é um objeto pequeno e distinto (ícone + rótulo curto), espalhadas, levemente tortas — dá para sentir que foram encaixadas à mão.
+2. **O colapso.** As oito convergem para o centro e viram um único bloco CompozyOS (o símbolo + o nome). Não é explosão nem partícula: é encaixe, com peso. 900 ms de espera após entrar no viewport, ~1,2 s de movimento, easing expo-out.
 3. **O repouso.** O bloco fica, com um brilho baixo atrás; a frase "replaces the pile" aparece pequena embaixo. Um botão Replay discreto no canto reexecuta.
 
-Restrições: paleta do produto, um acento; sem loop infinito (roda uma vez, replay manual); sob `prefers-reduced-motion` mostra o quadro final estático com as nove peças listadas acima do bloco e uma seta entre eles; funciona sem JS como o quadro estático. Pode ser CSS/JS autoral (como era) ou um vídeo/Lottie — se for vídeo, entregar também o quadro final como imagem para o fallback.
+Restrições: paleta do produto, um acento; sem loop infinito (roda uma vez, replay manual); sob `prefers-reduced-motion` mostra o quadro final estático com as oito peças listadas acima do bloco e uma seta entre eles; funciona sem JS como o quadro estático. Pode ser CSS/JS autoral (como era) ou um vídeo/Lottie — se for vídeo, entregar também o quadro final como imagem para o fallback.
 
 ### 6.3 O que não é asset
 
