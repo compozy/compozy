@@ -75,6 +75,37 @@ func (m *Manager) buildResumeReplay(
 	if err != nil {
 		return "", 0, err
 	}
+	return m.renderBoundedResumeReplay(session, messages, imported, options)
+}
+
+func (m *Manager) reboundResumeReplay(
+	session *Session, block string, options rebuildReplayContext,
+) (string, int, error) {
+	_, fenced, found := strings.Cut(block, resumeReplayOpenTag)
+	if !found {
+		return "", 0, errors.New("session: persisted resume replay is missing its transcript")
+	}
+	payload, _, found := strings.Cut(fenced, resumeReplayCloseTag)
+	if !found {
+		return "", 0, errors.New("session: persisted resume replay transcript is not closed")
+	}
+	var messages []transcript.Message
+	if err := json.Unmarshal([]byte(payload), &messages); err != nil {
+		return "", 0, fmt.Errorf("session: decode persisted resume replay: %w", err)
+	}
+	// Reuse the original cut so maintenance events cannot become carried history.
+	return m.renderBoundedResumeReplay(session, messages, session.importedContextSnapshot(), options)
+}
+
+func (m *Manager) renderBoundedResumeReplay(
+	session *Session,
+	messages []transcript.Message,
+	imported *store.SessionImportedContext,
+	options rebuildReplayContext,
+) (string, int, error) {
+	previouslyOmitted := slices.ContainsFunc(messages, func(message transcript.Message) bool {
+		return message.ID == deriveOmittedMessageID
+	})
 	messages, stats := boundReplay(messages, m.deriveBudget(options.workspace))
 	payload, err := json.Marshal(messages)
 	if err != nil {
@@ -97,7 +128,7 @@ func (m *Manager) buildResumeReplay(
 		imported,
 		string(payload),
 		options.historyAvailable,
-		omittedCount > 0,
+		omittedCount > 0 || previouslyOmitted,
 	), stats.MessageCount, nil
 }
 
@@ -251,10 +282,9 @@ func (m *Manager) consumeResumeReplay(sessionID string, replayBlock string) {
 		}
 		session.mu.Unlock()
 		if pending == block {
+			// Accepted delivery stays consumed; later lifecycle writes retry its acknowledgment.
 			if err := m.writeMeta(session); err != nil {
-				session.setPendingResumeReplay(pending)
 				m.sessionLogger(session).Error("session.replay.consumption_persist_failed", "error", err)
-				return
 			}
 		}
 	}

@@ -190591,6 +190591,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -190608,6 +190609,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -192175,6 +192177,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -192192,6 +192195,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -192605,6 +192609,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -192622,6 +192627,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -193586,6 +193592,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -193603,6 +193610,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -193977,6 +193985,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -193994,6 +194003,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -194373,6 +194383,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -194390,6 +194401,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -194940,6 +194952,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -194957,6 +194970,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -195302,6 +195316,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -195319,6 +195334,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -195691,6 +195707,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -195708,6 +195725,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -196087,6 +196105,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -196104,6 +196123,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -196628,6 +196648,7 @@
                           "error_code": {
                             "enum": [
                               "approval_rejected",
+                              "compaction_unsupported",
                               "generation_fenced",
                               "input_request_already_answered",
                               "input_request_limit_reached",
@@ -196645,6 +196666,7 @@
                               "recording_already_started",
                               "recording_not_active",
                               "recording_unavailable",
+                              "session_busy",
                               "slow_consumer",
                               "subscriber_limit_reached",
                               "terminal_exited",
@@ -197065,6 +197087,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -197082,6 +197105,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -197454,6 +197478,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -197471,6 +197496,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -197816,6 +197842,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -197833,6 +197860,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -198205,6 +198233,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -198222,6 +198251,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -198596,6 +198626,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -198613,6 +198644,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -198958,6 +198990,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -198975,6 +199008,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -199318,6 +199352,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -199335,6 +199370,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -199678,6 +199714,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -199695,6 +199732,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -200114,6 +200152,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -200131,6 +200170,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -200772,6 +200812,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -200789,6 +200830,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -201439,6 +201481,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -201456,6 +201499,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -201830,6 +201874,7 @@
                             "code": {
                               "enum": [
                                 "approval_rejected",
+                                "compaction_unsupported",
                                 "generation_fenced",
                                 "input_request_already_answered",
                                 "input_request_limit_reached",
@@ -201847,6 +201892,7 @@
                                 "recording_already_started",
                                 "recording_not_active",
                                 "recording_unavailable",
+                                "session_busy",
                                 "slow_consumer",
                                 "subscriber_limit_reached",
                                 "terminal_exited",
@@ -202226,6 +202272,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -202243,6 +202290,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -294511,6 +294559,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -294528,6 +294577,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -295467,6 +295517,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -295484,6 +295535,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -295827,6 +295879,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -295844,6 +295897,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -312529,6 +312583,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -312546,6 +312601,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -312889,6 +312945,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -312906,6 +312963,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
@@ -313249,6 +313307,7 @@
                         "code": {
                           "enum": [
                             "approval_rejected",
+                            "compaction_unsupported",
                             "generation_fenced",
                             "input_request_already_answered",
                             "input_request_limit_reached",
@@ -313266,6 +313325,7 @@
                             "recording_already_started",
                             "recording_not_active",
                             "recording_unavailable",
+                            "session_busy",
                             "slow_consumer",
                             "subscriber_limit_reached",
                             "terminal_exited",
