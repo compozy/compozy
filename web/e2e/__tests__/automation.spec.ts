@@ -196,11 +196,13 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await triggersUI.editAutomationButton.click();
     await expect(triggersUI.nameInput).toHaveValue(seeded.trigger.name);
     const triggerDialog = triggersUI.editorDialog;
-    await expect(triggersUI.retryMax).toBeVisible();
-    await triggersWin.getByTestId("automation-options-toggle").click();
-    await expect(triggersUI.retryMax).toBeHidden();
-    await triggersWin.getByTestId("automation-options-toggle").click();
-    await expect(triggersUI.retryMax).toBeVisible();
+    // Edit mode opens Options; the seeded trigger does not retry, so its retry choice
+    // ("No") is the control that shows and hides with the fold.
+    await expect(triggersUI.retryNone).toBeVisible();
+    await triggersUI.optionsToggle.click();
+    await expect(triggersUI.retryNone).toBeHidden();
+    await triggersUI.optionsToggle.click();
+    await expect(triggersUI.retryNone).toBeVisible();
     await appPage.keyboard.press("Escape");
     await expect(triggerDialog).toBeHidden();
 
