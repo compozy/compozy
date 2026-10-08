@@ -113,20 +113,24 @@ criterion, use a [`goal` node in a compozy.loop/v1 definition](/docs/loops/goal-
 
 The context gauge reports evidence from the active Goal checkpoint:
 
-| State     | Meaning                                                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------------------- |
-| `known`   | The provider reported a current context window size and usage ratio.                                          |
-| `unknown` | No trustworthy report exists. CompozyOS does not display or infer a percentage.                               |
-| `pending` | Compaction ran, but CompozyOS still needs a strictly newer usage report before it can call the context fresh. |
+| State     | Meaning                                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `known`   | The provider reported a current context window size and usage ratio.                                                                             |
+| `unknown` | No trustworthy report exists, or an observed compaction just completed. CompozyOS does not display or infer a percentage.                        |
+| `pending` | A compaction turn ended without the agent reporting a compaction lifecycle, and CompozyOS still needs a strictly newer usage report to judge it. |
 
 `[goals].context_nudge_ratio` is pinned when the Run starts. When known usage reaches that threshold,
 CompozyOS asks the agent to compact its own context by sending the command the agent advertises,
 `/compact` or else `/compress`, as an operational prompt in maintenance mode on the managed Goal
 path. It is not a user-authored human message and not a Goal work turn. The compaction succeeds when
 CompozyOS observes a terminal `completed` update for it; a `failed` or `cancelled` update does not.
-An agent that advertises neither command goes straight to the reseed path below. This turn is
-**experimental**, because it follows an unstable upstream agent contract. See
-[Session compaction](/docs/sessions/compaction).
+After an observed `completed` update the gauge reads `unknown` until a later usage report carries both
+`used` and a positive window `size`; a used-only or counter-only report does not make it `known`. When
+the agent reports no compaction lifecycle at all, a normal turn end counts as success and the gauge is
+`pending`: the next strictly newer usage report must show `used` below the value measured before the
+compaction, otherwise the Goal takes the reseed path. An agent that advertises neither command goes
+straight to the reseed path below. This turn is **experimental**, because it follows an unstable
+upstream agent contract. See [Session compaction](/docs/sessions/compaction#goal).
 
 CompozyOS does not replay an ACP prompt after its durable start. A restart with exact terminal evidence
 reconciles that terminal result. Missing proof becomes an `ambiguous` turn and a typed approval

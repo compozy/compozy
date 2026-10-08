@@ -135,6 +135,14 @@ warning with the session and workspace IDs. That store is excluded from boot his
 healthy sessions remain available and public reads of the refused store still fail. Migration and
 schema failures remain fatal to startup.
 
+Observe reconciliation never recatalogs an orphaned session directory whose metadata names a retired
+or unknown session type (any non-empty type this build does not know) or a retired internal spawn
+role. It logs `observe.session_recovery_skipped` once per session per observer lifetime, with
+`session_id`, `session_type`, `spawn_role`, and `reason` (`unknown_session_type` or
+`retired_spawn_role`), and never deletes, moves, or rewrites those files. This boundary is permanent,
+not a temporary compatibility shim. Orphaned directories of a known type, including sessions with a
+custom advisory spawn role, still recover into the catalog.
+
 If an owner check fails, stop the daemon and preserve the complete containing `COMPOZY_HOME`, including
 the database and every SQLite sidecar. Restore a matching complete backup, or create a new session when
 discarding the retained state is acceptable. Never edit the owner row, move `events.db` between session
@@ -165,18 +173,35 @@ CompozyOS advertises `clientCapabilities.session.compaction` at ACP initialize a
 compaction an agent performs on its own context. This follows an unstable upstream ACP contract and
 may change. An agent that does not honor the capability produces none of the items below; its own
 "Compact conversation" tool call stays an ordinary tool row. For an honoring agent, each compaction id
-produces exactly one `compaction` item in session history and the timeline (`compaction_id`, `status`
-of `in_progress`, `completed`, `failed`, `cancelled`, or a vendor value passed through verbatim, plus
-an optional redacted `summary` capped at 16 KiB and an `error` on failure), one
-`session.compaction_fired` event with `{compaction_id, trigger, context_used, context_size}` where
-`trigger` is `requested` or `agent`, and one `compactions[]` usage marker. Summaries exist only when the
-agent sends one; Claude does and Codex does not. After a terminal compaction `context.used` is `null`
-with `state: "unknown"` until the agent sends a later usage report. Events recorded by earlier releases
-stay readable as opaque history.
+produces:
 
-Hooks `context.pre_compact` and `context.post_compact` are observation-only: they fire on real agent
-compaction, accept only a `{"labels": {...}}` patch, and match on `compaction_trigger`
-(`requested` or `agent`).
+- raw `compaction` snapshot rows in the session ledger, one per lifecycle change: `compaction_id`,
+  `status` (`in_progress`, `completed`, `failed`, `cancelled`, or a vendor value passed through
+  verbatim), an optional `summary` capped at 16 KiB, and an `error` on failure;
+- one `session.compaction_fired` row with `{compaction_id, trigger, context_used, context_size}`, where
+  `trigger` is `requested` (CompozyOS started the compaction turn, from Compact now or a Goal) or
+  `agent`, and both context fields are `null` when no earlier context reading existed;
+- one `compactions[]` usage marker (see the usage section below);
+- one Compaction item in the transcript projection.
+
+The read layers differ. `compozy session history` and `GET …/sessions/{id}/history` return the raw
+grouped ledger rows (`TurnHistoryPayload`): for a compaction, the snapshot rows for the id plus the
+`session.compaction_fired` row, never a folded item. Rows recorded by earlier releases stay opaque and
+produce no marker. Only the transcript projection (`GET …/sessions/{id}/transcript` and the Web timeline)
+folds one Compaction item per id: a system message whose part has type `data-compozy-compaction` and data
+`{kind: "compaction", compaction_id, status, summary?, error?, started_at, ended_at?}`. `status`, `summary`,
+and `error` are the latest observed values, `ended_at` is the first terminal snapshot, and a summary over
+16 KiB ends with ` [summary truncated]`. Summaries exist only when the agent sends one; Claude does and
+Codex does not. After a terminal compaction the context reading is `unknown` until the agent sends a later
+usage report.
+
+Hooks `context.pre_compact` (once, at the first snapshot for an id) and `context.post_compact` (once, at
+the first terminal snapshot) are observation-only. Both are sync-eligible, but the patch is labels-only
+(`{"labels": {...}}`) and applied as a no-op, so a hook can annotate but never deny or change a
+compaction. They share one payload, `ContextCompactionPayload`: the base, session, and turn context plus
+`compaction_id` and `trigger`; the post event adds `status`, `summary?`, and `error?`. Hook introspection and
+the SDKs name the aliases `ContextPreCompactPayload|Patch` and `ContextPostCompactPayload|Patch`. Match with
+`compaction_trigger` (`requested` or `agent`) in a `[hooks.declarations.matcher]` table.
 
 ### Compact now (experimental)
 
@@ -184,15 +209,29 @@ Request the agent's own compaction with `compozy session compact <session-id> [-
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/compact` (`compactSession`, body `{}`), or
 `compozy__session_compact`. CompozyOS sends exactly `/compact`, or `/compress` when the agent
 advertises that instead, as its own prompt turn in maintenance delivery mode: no skill expansion, no
-augmenters, no startup instructions, and any pending resume replay rides the next ordinary prompt. The
-CLI waits and reports `outcome` as `completed`, `failed`, `cancelled`, `turn_completed` (the turn ended
-without a compaction lifecycle report), or `turn_failed`. HTTP and UDS return `202` with
-`{"session_id","prompt_id","command","status":"accepted"}`. A running turn or another in-flight request
-fails with `session_busy`; an agent advertising neither command fails with `compaction_unsupported`
-(both `409`). Observe the outcome through the compaction item and events above. The Web session context
-meter offers **Compact now** only for agents that advertise the command and disables it while a turn
-runs. A Goal's context-compaction turn uses the same advertised command; an agent advertising neither
-goes straight to the Goal reseed path.
+augmenters, no startup instructions, and any pending resume replay rides the next ordinary prompt. It
+records a `session.compaction.requested` event (`session_id`, `command`, `requested_by` of `cli`, `http`,
+`tool`, `goal`, or `web`) before the turn starts. HTTP and UDS return `202` with
+`{"session_id","prompt_id","command","status":"accepted"}`, where `command` is `compact` or `compress`
+without the slash.
+
+The CLI has no flags beyond the inherited `-o`, `--json`, and `--profile`. It streams the compaction
+turn's events and waits for it to end. Human output is `Compaction requested: /<command> (prompt
+<prompt_id>)` followed by `Compaction <outcome>`; `-o json` prints only
+`{"session_id","prompt_id","command","outcome"}`, `-o jsonl` prints that object as one record, and
+`-o toon` prints an object named `session_compact`. `outcome` is the first terminal compaction status
+(`completed`, `failed`, `cancelled`), else `turn_completed` when the turn ended without a compaction
+lifecycle report, or `turn_failed` when the turn failed. A session that is not active (stopped or still
+starting) fails with `400` `session_not_promptable` and is not resumed. A running turn or another
+in-flight request fails with `session_busy`, and an agent advertising neither command fails with
+`compaction_unsupported` (both `409`, sending nothing to the agent). The CLI exits `65` on a `400` or
+`409`: human mode prints the daemon message on stderr (`error: session: prompt already in progress`), and
+`-o json` prints the error payload with the stable `code`. The native tool does not carry those codes: its
+`409` arrives as a `tool_conflict` tool error with the same message. The tool targets one idle session in
+the caller's workspace by `session_id` and returns the accepted receipt only; read the outcome through the
+transcript item and events above. A Goal's context-compaction turn uses
+the same advertised command; an agent advertising neither goes straight to the Goal reseed path. The Web
+session context meter offers **Compact now** for supporting agents and disables it while a turn runs.
 
 ## Session CLI
 
@@ -242,6 +281,7 @@ cannot be validated fail closed.
     compozy session rewind <session-id> --message-id <message-id>
     compozy session continue <session-id> --agent <name> --message "Carry on; run the tests first." -o json
     compozy session fork <session-id> --message-id <message-id> -o json
+    compozy session compact <session-id> -o json
     compozy session prompt <session-id> "Summarize the last three tool results."
     compozy session runtime set <session-id> --provider cursor --model claude-opus-5 --reasoning-effort high --speed fast --acp-toggle thinking=true
     compozy session runtime clear <session-id>
@@ -601,13 +641,16 @@ Prefer `compozy session usage <session-id> -o json` when an agent needs the same
 The same response includes `context.state`: `reported`, `estimated_size`, `unknown`, or `unavailable`.
 Context is the latest ledger report, not a token sum. An estimated size comes from the current model
 catalog. `stale` means the report precedes a different settled turn. After a terminal compaction the
-state is `unknown` until the agent sends a later usage report. Failed context reads retain the
-aggregate and return `context: {state: "unavailable"}`.
+state is `unknown`, and `used`, `size`, and `ratio` are absent (not `null`), until the agent sends a later
+usage report with a context reading. Failed context reads retain the aggregate and return
+`context: {state: "unavailable"}`.
 
 Use `compozy session usage <session-id> --turns -o json` or `GET …/usage/turns` to inspect each turn
 that has usage or a delivery. Each `compactions[]` marker is an observed agent compaction
-(`turn_id`, `sequence`, `at`, `compaction_id`, `trigger`, `status`, `context_used`, `context_size`),
-experimental like the compaction item itself; usage carries no CompozyOS compaction threshold. A
+(`turn_id`, `sequence`, `at`, `compaction_id`, `trigger`, `status`, and optional `context_used` and
+`context_size`, which are absent, not `null`, when the earlier reading was unknown), experimental like the
+compaction item itself. Legacy `session.compaction_fired` rows without a `compaction_id` never produce a
+marker; usage carries no CompozyOS compaction threshold. A
 failed turns read returns an error. Listen for `session_usage_changed` on the transcript stream to
 refresh these queries; the signal never advances the transcript cursor. Its replay watermark is
 independent of transcript projection reads, so concurrent usage commits remain eligible for the next

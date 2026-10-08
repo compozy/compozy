@@ -121,11 +121,29 @@ Each event family accepts only its own matcher fields:
 it in a declaration fails validation.
 
 `compaction_trigger` accepts `requested` or `agent` and narrows a `context.pre_compact` or
-`context.post_compact` hook to compactions CompozyOS asked for (Compact now, a native tool call, or a
-Goal) or to compactions the agent started on its own. An empty value matches both. It replaces the
-earlier `compaction_reason` and `compaction_strategy` matchers: a `config.toml` declaration that still
-carries them has them archived on load, a manifest declaration ignores them with a warning, and in
-both cases the hook keeps running and observes every agent compaction.
+`context.post_compact` hook to compactions CompozyOS asked for (Compact now, `compozy session compact`,
+the `compozy__session_compact` tool, or a Goal) or to compactions the agent started on its own. An
+empty value or `*` matches both. Like every string matcher it is validated only as a wildcard
+pattern, so a value other than `requested` or `agent` is accepted and never matches. The matcher
+applies only to the two `context` events; on any other event the declaration fails validation.
+
+`compaction_trigger` replaces the earlier `compaction_reason` and `compaction_strategy` matchers.
+How a declaration that still carries them is handled depends on where it lives:
+
+| Source                                                          | Handling                                                                                                                                                                                |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config` (`[[hooks.declarations]]` in a `config.toml`)          | The two keys are removed from the matcher and archived at the end of the same file on load. See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings). |
+| `extension` (`[[resources.hooks]]` in `extension.toml`/`.json`) | The two keys are ignored and CompozyOS logs one `extension.retired_entries_ignored` warning per manifest load, listing entries such as `hooks[0].compaction_reason`.                    |
+| `agent_definition` and `skill`                                  | Not covered. The keys are unknown matcher fields, so the `AGENT.md` or `SKILL.md` fails to load until you delete them.                                                                  |
+
+In the first two cases the declaration keeps running with no trigger filter, so it observes every
+compaction, whatever its `trigger`.
+
+An `AGENT.md` hook cannot target the context events at all. CompozyOS adds the agent's `name` as
+`matcher.agent_name` on every agent-definition hook, and the `context` family does not accept
+`agent_name`, so the file fails with
+`agent.hooks[0]: hooks: matcher fields [agent_name] are not valid for event "context.pre_compact"`.
+Declare context hooks in `config.toml`, an extension manifest, or a skill.
 
 Autonomy correlation fields are nested under `matcher.autonomy` in config, agent, skill, and
 extension declarations. They use the same exact or wildcard string matching as other string

@@ -29,12 +29,13 @@ after the upgrade; the daemon starts normally:
   extension manifest entries `memory.backend`, `memory/*`, and `memory.read|write` are ignored with a
   warning. Saved desktop layouts drop the Knowledge window.
 - Markdown memory files, `knowledge/` directories, and `ledger.jsonl` files stay on disk and are no
-  longer read. No file is deleted. These ignore and archive rules are removed in v0.6.0.
+  longer read. No file is deleted, and the session directories of the deleted legacy sessions are never
+  recataloged. The ignore and archive rules are removed in v0.6.0.
 
 Port scripts and extensions off `compozy memory`, `/api/memory*`, `compozy__memory_*`, the Host API
 `memory/*`, and the `memory.backend` capability; no replacement memory feature is provided. New and
 changed surfaces, all experimental: `compozy session compact`, `POST .../sessions/{session_id}/compact`,
-`compozy__session_compact`, the Compact now action, the `compaction` history item, the reshaped
+`compozy__session_compact`, the Compact now action, the `compaction` transcript item, the reshaped
 `session.compaction_fired` payload and usage markers, and observation-only `context.pre_compact` /
 `context.post_compact` hooks with a `compaction_trigger` matcher.
 

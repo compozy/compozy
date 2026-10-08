@@ -239,7 +239,9 @@ must move a directory, use the conservative filesystem procedure below instead o
 
 At boot, CompozyOS reconciles the global catalog with the session directories on disk. Sessions missing
 from disk are marked `orphaned` in the global catalog; CompozyOS does not physically purge the global
-session row.
+session row. Directories whose metadata names an unknown session type or a retired internal spawn role
+are skipped and logged, never deleted; see
+[Session directories the daemon does not recover](/docs/sessions/lifecycle#session-directories-the-daemon-does-not-recover).
 
 ## Handle corrupt database files
 

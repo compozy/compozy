@@ -400,7 +400,9 @@ Children created with `--parent` (`provenance`), `recovery` sessions, and contin
 rewind like any user session; only governed `spawn` sessions are refused as daemon-managed.
 
 Rewind changes the conversation only. It does not undo file changes, tool effects, network actions,
-or external provider actions. Removed events remain archived for audit:
+or external provider actions. Removed events remain archived for audit, and rewind is the only
+operation that archives events: the agent's own [context compaction](/docs/sessions/compaction) never
+does.
 
 ```bash
 compozy session events sess-1234 --archive archived
@@ -794,6 +796,25 @@ That durable store supports [live resume attach](/docs/sessions/resume),
 [approval audit](/docs/sessions/permissions). Attach requires a live, attachable session;
 the other reads remain useful after terminal stop.
 
+### Session directories the daemon does not recover
+
+At boot the daemon reconciles the global catalog with the session directories on disk. It skips a
+directory, and never adds it to the catalog, when its `meta.json` names either of these:
+
+- a session type other than `user`, `system`, `coordinator`, or `spawned`, such as the `dream` type of
+  the removed memory feature (`reason: unknown_session_type`)
+- an internal spawn role of the removed memory feature, `memory-extractor` or `checkpoint-summary`
+  (`reason: retired_spawn_role`)
+
+For each skipped directory the daemon logs one `observe.session_recovery_skipped` warning per daemon
+run, with `session_id`, `session_type`, `spawn_role`, and `reason`. It never deletes, moves, or rewrites
+the directory, so you can copy what you want to keep and delete the rest yourself. A catalog row that
+already exists for a skipped directory is marked `orphaned`, like any directory reconciliation cannot
+recover. Sessions with any other spawn role, including custom advisory roles, recover normally.
+
+This is permanent behavior, not a temporary compatibility shim. See
+[Memory removal](/docs/migration#memory-removal) for the sessions the upgrade deletes.
+
 ## Session types
 
 CompozyOS records why a session exists:
@@ -804,6 +825,9 @@ CompozyOS records why a session exists:
 | `system`      | Internal CompozyOS-managed work.                                         |
 | `coordinator` | Managed autonomy coordinator for workspace-scoped coordinated task runs. |
 | `spawned`     | Child session created by an agent through safe spawn.                    |
+
+A directory whose metadata names any other type is not recovered; see
+[Session directories the daemon does not recover](#session-directories-the-daemon-does-not-recover).
 
 Coordinator sessions are root lineage rows. They are created only after executable coordinated work
 is enqueued, not when a task is merely created. Spawned sessions record parent, root, depth, role,

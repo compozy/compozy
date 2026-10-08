@@ -84,7 +84,9 @@ my-repo/
 | `<workspace>/.compozy/compozy.db`                         | Workspace catalog DB       | Per-workspace catalog.                                                                       |
 | `<workspace>/.env`                                        | Config loader              | Optional. Loaded before `COMPOZY_HOME` is resolved when config is loaded for this workspace. |
 
-The resolver directly snapshots config, MCP sidecars, agent definitions, and skill definitions.
+The resolver directly snapshots config, MCP sidecars, agent definitions, and skill definitions. Loading
+a workspace `config.toml` that still holds retired settings archives them as comments at the end of that
+file; see [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings).
 
 ## Resolution Inputs
 

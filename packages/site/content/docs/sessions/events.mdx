@@ -129,27 +129,27 @@ Those IDs can diverge after a resume that falls back to a fresh ACP session.
 
 The persisted event `type` values currently emitted by CompozyOS are:
 
-| Type                         | When it is recorded                                                                               | Key `content` fields                                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `user_message`               | After CompozyOS has bound or reconfigured the selected runtime, before it submits a prompt to ACP | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`, `message_id`, `attachments`, `prompt_runtime` |
-| `agent_message`              | Agent text chunk                                                                                  | `text`, plus the shared canonical fields                                                                      |
-| `thought`                    | Agent reasoning chunk                                                                             | `text`, plus the shared canonical fields                                                                      |
-| `tool_call`                  | Tool call started or updated before completion                                                    | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw`                      |
-| `tool_result`                | Tool call completed or failed                                                                     | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                                      |
-| `plan`                       | ACP plan update                                                                                   | optional `raw`; CompozyOS stores the canonical envelope even when the payload is sparse                       |
-| `permission`                 | ACP permission request or resolved decision                                                       | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                                |
-| `prompt_delivery`            | Confirmed delivery of CompozyOS-owned context                                                     | `delivery` with turn, send time, estimate method and disjoint spans                                           |
-| `usage`                      | Token or context usage update                                                                     | `usage` with token counts, context counts, cost fields, and `timestamp`                                       |
-| `runtime_progress`           | Low-frequency long-running prompt progress update                                                 | `text`, `runtime` activity payload                                                                            |
-| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                          | `text`, `runtime` activity payload, optional `raw`                                                            |
-| `compaction`                 | Snapshot of one observed agent compaction (experimental)                                          | `compaction_id`, `status`, optional `summary`, optional `error`                                               |
-| `session.compaction_fired`   | First observation of an agent compaction id (experimental)                                        | `raw` with `compaction_id`, `trigger`, `context_used`, `context_size`                                         |
-| `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                  | marker kind, summary, occurrence time, and optional evidence                                                  |
-| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                             | marker kind, summary, occurrence time, and redaction metadata                                                 |
-| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                     | `title`, optional `raw`                                                                                       |
-| `done`                       | End of a prompt turn                                                                              | `stop_reason`, optional `usage`, optional `raw`                                                               |
-| `error`                      | Prompt processing error                                                                           | `error`, optional `raw`                                                                                       |
-| `session_stopped`            | Session finalization                                                                              | `stop_reason`, optional `failure`, optional `error`, optional `text`                                          |
+| Type                         | When it is recorded                                                                                       | Key `content` fields                                                                                          |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `user_message`               | After CompozyOS has bound or reconfigured the selected runtime, before it submits a prompt to ACP         | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`, `message_id`, `attachments`, `prompt_runtime` |
+| `agent_message`              | Agent text chunk                                                                                          | `text`, plus the shared canonical fields                                                                      |
+| `thought`                    | Agent reasoning chunk                                                                                     | `text`, plus the shared canonical fields                                                                      |
+| `tool_call`                  | Tool call started or updated before completion                                                            | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw`                      |
+| `tool_result`                | Tool call completed or failed                                                                             | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                                      |
+| `plan`                       | ACP plan update                                                                                           | optional `raw`; CompozyOS stores the canonical envelope even when the payload is sparse                       |
+| `permission`                 | ACP permission request or resolved decision                                                               | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                                |
+| `prompt_delivery`            | Confirmed delivery of CompozyOS-owned context                                                             | `delivery` with turn, send time, estimate method and disjoint spans                                           |
+| `usage`                      | Token or context usage update                                                                             | `usage` with token counts, context counts, cost fields, and `timestamp`                                       |
+| `runtime_progress`           | Low-frequency long-running prompt progress update                                                         | `text`, `runtime` activity payload                                                                            |
+| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                                  | `text`, `runtime` activity payload, optional `raw`                                                            |
+| `compaction`                 | Snapshot of one observed agent compaction; appended when status, summary, or error changes (experimental) | `compaction_id`, `status`, optional `summary`, optional `error`, `terminal` on the first terminal snapshot    |
+| `session.compaction_fired`   | First observation of an agent compaction id (experimental)                                                | `raw` with `compaction_id`, `trigger`, `context_used`, `context_size` (`null` when unknown)                   |
+| `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                          | marker kind, summary, occurrence time, and optional evidence                                                  |
+| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                                     | marker kind, summary, occurrence time, and redaction metadata                                                 |
+| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                             | `title`, optional `raw`                                                                                       |
+| `done`                       | End of a prompt turn                                                                                      | `stop_reason`, optional `usage`, optional `raw`                                                               |
+| `error`                      | Prompt processing error                                                                                   | `error`, optional `raw`                                                                                       |
+| `session_stopped`            | Session finalization                                                                                      | `stop_reason`, optional `failure`, optional `error`, optional `text`                                          |
 
 ### Runtime supervision events
 
@@ -239,14 +239,16 @@ model catalog, `unknown` before any context report, and `unavailable` when the l
 An unavailable context does not discard the aggregate token and cost totals. Context selects the latest
 ledger observation; it never sums context-window usage. `stale` marks an observation from a different
 turn that precedes the latest settled turn. After an agent compaction reaches a terminal status,
-`context.used` is `null` with `state: "unknown"` until the agent sends a later usage report. CompozyOS
-has no usage threshold of its own, so the context object carries none.
+`context` reports `state: "unknown"` with `used` and `size` absent (omitted, not `null`) until the agent
+sends a later usage report that carries a context `used` value. A report with only token counters does
+not restore it. CompozyOS has no usage threshold of its own, so the context object carries none.
 
 Use `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns` or
 `compozy session usage <session-id> --turns` for the union of usage-bearing and delivery-bearing turns.
 The response returns ordered `turns` and separate `compactions`. Each marker describes one compaction
 the agent performed and CompozyOS observed (experimental): `{turn_id, sequence, at, compaction_id,
-trigger, status, context_used, context_size}`. Markers come only from observed compactions; see
+trigger, status, context_used, context_size}`, where `context_used` and `context_size` are absent when
+unknown. Markers come only from observed compactions; see
 [Context compaction](/docs/sessions/compaction#usage-markers-and-the-context-meter). The turns endpoint
 returns an error if its ledger reads fail.
 
@@ -569,8 +571,8 @@ matching rows first and then re-sorts them ascending before returning them.
 
 The [resume attach and replay](/docs/sessions/resume) path depends on this stored event log:
 
-- `compozy session history` groups the stored rows by `turn_id`
-- `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` assembles canonical replay entries from these rows
+- `compozy session history` groups the stored rows by `turn_id`; it returns raw ledger rows, so a compaction appears there as its `compaction` snapshot rows and its `session.compaction_fired` row
+- `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` assembles canonical replay entries from these rows, folding the snapshot rows of one compaction id into a single Compaction item
 - `GET /api/workspaces/:workspace_id/sessions/:session_id/stream` emits transcript snapshots and deltas by default
 - `GET /api/workspaces/:workspace_id/sessions/:session_id/recap` returns a bounded, redacted reorientation snapshot
 - `transcript_marker.created` and `transcript_marker.redacted` rows preserve interrupts, timeouts, unhealthy state, MCP auth prompts, and unresolved file-mutation verification as durable marker evidence
@@ -578,25 +580,26 @@ The [resume attach and replay](/docs/sessions/resume) path depends on this store
 ### Observed compaction ordering (experimental)
 
 CompozyOS never compacts a session. When the agent compacts its own context and honors the ACP
-compaction capability, each compaction id is recorded once:
+compaction capability, each compaction id is announced once:
 
 - the first accepted update records one `session.compaction_fired` event and runs
   `context.pre_compact`;
 - the first terminal status (`completed`, `failed`, or `cancelled`) runs `context.post_compact` at most
   once; a terminal-first observation runs pre, then post;
-- later corrections (a new summary, a cleared error, a different terminal status) update the
-  `compaction` item in place and fire nothing again;
+- later corrections (a new summary, a cleared error, a different terminal status) append a new
+  `compaction` row, update the transcript's Compaction item in place, and fire nothing again;
 - a hook cannot deny or alter the compaction: both hooks are observation-only.
 
 No event rows are archived, and a failed or cancelled compaction leaves the stored history untouched.
-See [Context compaction](/docs/sessions/compaction#observed-native-compaction-experimental) for the
+Only a conversation rewind archives events. See
+[Context compaction](/docs/sessions/compaction#observed-native-compaction-experimental) for the
 payloads.
 
 ## Next steps
 
 - Use [Session Lifecycle](/docs/sessions/lifecycle) to understand how stop, attach, and repair interact with the state machine.
 - Use [Permissions](/docs/sessions/permissions) to understand the approval events you will see in this stream.
-- Use [Context compaction](/docs/sessions/compaction) for the `compaction` item, the `session.compaction_fired` payload, and usage markers.
+- Use [Context compaction](/docs/sessions/compaction) for the `compaction` ledger rows, the transcript's Compaction item, the `session.compaction_fired` payload, and usage markers.
 
 The canonical `session.queue_cleared` event accompanies each removed entry. Its payload identifies
 `workspace_id`, `session_id`, `turn_id`, `queue_entry_id`, `count`, `actor_kind`, and `actor_id`.

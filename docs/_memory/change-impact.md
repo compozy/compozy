@@ -16,8 +16,13 @@ leftovers in user-owned files are retired without blocking the user.
   SDK members are deleted; tool IDs are retired permanently. Added, all `experimental`:
   `compozy session compact`, `compactSession`, and `compozy__session_compact` (toolset
   `compozy__sessions`, risk `write`). Changed: `session.compaction_fired`, usage `compactions[]`
-  markers (no `pressure_threshold`), the session `type` enum (no `dream`), the roles roster
-  (`coordinator`, `auto_title`), and `StatusSchemaVersion` `2026-10-07` without `memory`.
+  markers (no `pressure_threshold`; `context_used`/`context_size` are omitted when unknown), the
+  session `type` enum (no `dream`), the roles roster (`coordinator`, `auto_title`), and
+  `StatusSchemaVersion` `2026-10-07` without `memory`. `GET …/history` and `compozy session history`
+  keep returning raw grouped ledger rows (`compaction` snapshot rows plus `session.compaction_fired`);
+  only the transcript projection folds one Compaction item per `compaction_id`. After a native terminal
+  compaction, occupancy stays unknown until a later usage update carries both `used` and a positive
+  `size` (session usage API and Goal readers).
 - **Extensibility / hooks / config:** `context.pre_compact` / `context.post_compact` become
   observation-only (`labels` patch only) with a `compaction_trigger` matcher replacing
   `compaction_reason` / `compaction_strategy`. `[memory]`, `[session.compaction]`, four roles, and the

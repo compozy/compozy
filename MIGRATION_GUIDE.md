@@ -61,13 +61,16 @@ Nothing needs editing by hand. On the first start:
   with a `tools.retired_ids_ignored` warning. An extension manifest that declares `memory.backend`,
   `memory/recall|store|forget`, or the `memory.read|write` consent still loads with those entries
   dropped and one `extension.retired_entries_ignored` warning.
-- **Saved desktop layouts.** The Knowledge window is dropped, a Settings window on `/settings/memory`
-  moves to `/settings`, and the reconciled layout is saved once.
+- **Saved desktop layouts.** The Knowledge window is dropped from saved layouts, including persisted
+  layout resources, a Settings window on `/settings/memory` moves to `/settings`, and the reconciled
+  layout is saved once.
 - **Files stay.** No file is deleted or rewritten: Markdown memory under
   `~/.compozy/profiles/<name>/memory/`, `<workspace>/.compozy/memory/`, and agent `memory/`
   directories (including `_inbox/` candidates the extractor never consumed), `<workspace>/knowledge/`
   directories, and `ledger.jsonl` session files. Nothing reads them any more. Copy what you want to
-  keep and delete the rest whenever you like.
+  keep and delete the rest whenever you like. The session directories of the deleted legacy sessions
+  also stay in place; the daemon never recatalogs them and logs `observe.session_recovery_skipped`
+  once per session.
 
 ### Removed surfaces
 
@@ -107,11 +110,12 @@ summarize, archive, or start a child session. The agent owns its context window.
   earliest user message, states that the workspace is authoritative, and points to
   `compozy__session_history` for the omitted history.
 - **Observed agent compaction (experimental).** When the agent supports the ACP compaction
-  capability, each compaction appears as one `compaction` item in session history, one
-  `session.compaction_fired` event with the new payload (`compaction_id`, `trigger`, `context_used`,
-  `context_size`), and one usage marker. `pressure_threshold` and the marker fields `from_sequence`,
-  `to_sequence`, `pressure`, `strategy`, and `span_archived` are removed. Events recorded before the
-  upgrade stay in the ledger as opaque history.
+  capability, each compaction appears as one `compaction` item in the session transcript and Web
+  timeline, as `compaction` snapshot rows plus one `session.compaction_fired` event with the new
+  payload (`compaction_id`, `trigger`, `context_used`, `context_size`) in `compozy session events`
+  and `compozy session history`, and as one usage marker. `pressure_threshold` and the marker fields
+  `from_sequence`, `to_sequence`, `pressure`, `strategy`, and `span_archived` are removed. Events
+  recorded before the upgrade stay in the ledger as opaque history and never produce a marker.
 - **Compact now (experimental).** `compozy session compact <session-id>`,
   `POST /api/workspaces/{workspace_id}/sessions/{session_id}/compact`, the native tool
   `compozy__session_compact`, and the Web context meter ask the agent to compact through the command
