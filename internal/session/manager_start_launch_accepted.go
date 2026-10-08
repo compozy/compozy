@@ -94,7 +94,7 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	}
 	accepted.runtime = runtime
 	acceptedID := accepted.proc.SessionID
-	if spec.resumeReplay {
+	if spec.resumeReplay || spec.resumeReplayBlock != "" {
 		session.setPendingResumeReplay(spec.resumeReplayBlock)
 	}
 	session.commitAcceptedRoute(acceptedRouteRecord(spec.fallbackAttempt, runtime.agent, ""), spec.command)

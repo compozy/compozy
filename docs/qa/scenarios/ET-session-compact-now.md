@@ -87,3 +87,5 @@ that replay the recorded Claude compaction frames; the real-adapter walk is RT-s
    unit suite; this step is the real-lab walk and has not run, so the scenario stays `untested`.
 
 QA impact 2026-10-07 (memory removal): new in this change; no prior verdict.
+
+Review round 2 transport check: invoke `compozy__session_compact` through `POST /api/tools/{id}/invoke` and hosted MCP for busy and unsupported sessions. Both return HTTP409 with the respective structural code, tool ID and safe message (`session is busy` / `session compaction is unsupported`); backend details must not escape. The generated `tools.ErrorCode` enum includes both values. Owning automated coverage is the existing tool transport parity and hosted MCP suites; no browser walkthrough is claimed.

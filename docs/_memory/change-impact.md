@@ -2,6 +2,8 @@
 
 ## Memory removal — 2026-10-07
 
+Review round 2: accepted ordinary replay delivery clears effective pending state even when its metadata acknowledgment fails; later lifecycle persistence retries the cleared snapshot without making history deliverable again. Cached replay is re-bounded from its original pre-maintenance message cut under the current workspace derive budget and effective history-tool framing. Native Compact domain codes are co-shipped through shared safe HTTP/UDS/hosted-MCP 409 mapping and the generated public ErrorCode enum. Existing replay/maintenance, tool-route parity and hosted-MCP suites own the regressions; session isolation, hooks/config shape and SQL are unchanged. Existing runtime and native-tools skill instructions remain accurate; affected QA cases are updated, with browser/live-provider walks owned by the controller.
+
 Usage-stream follow-up (US-019 / BR11): the shared HTTP/UDS session stream emits the existing `session_usage_changed` payload for every persisted `compaction` snapshot and `session.compaction_fired` attribution, so Web invalidates the context reading and markers before prompt completion. Push and polling use the existing per-session cursor; no new DTO, native tool, hook/config, workspace scope, schema, or official-skill instruction is needed. Existing `TestWriteUsageChangedEvents` owns ordered mid-turn notification and replay deduplication; `ET-web-session-context-meter` now explicitly requires the mid-turn update. Browser scenario execution remains with the controller/Web QA owner.
 
 

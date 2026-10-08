@@ -112,6 +112,31 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 func TestHostedMCPJSONToolErrors(t *testing.T) {
 	t.Parallel()
 
+	for _, tc := range []struct {
+		name    string
+		code    toolspkg.ErrorCode
+		message string
+	}{
+		{"Should classify busy compaction as a conflict", toolspkg.ErrorCodeSessionBusy, "session is busy"},
+		{"Should classify unsupported compaction as a conflict", toolspkg.ErrorCodeCompactionUnsupported, "session compaction is unsupported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			registry := newCompactionFailureHostedMCPToolRegistry(t, tc.code)
+			router, service, peer := newHostedMCPRouteTestHarnessWithRegistry(t, registry)
+			bind := launchAndBindHostedMCP(t, service, peer, "sess-"+string(tc.code))
+			recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, string(toolspkg.ToolIDSessionCompact))
+			payload := decodeHostedMCPToolError(t, recorder)
+			if recorder.Code != http.StatusConflict || payload.Error.Code != tc.code ||
+				payload.Error.ToolID != toolspkg.ToolIDSessionCompact || payload.Error.Message != tc.message {
+				t.Fatalf("hosted refusal status=%d payload=%#v, want safe typed 409", recorder.Code, payload)
+			}
+			if strings.Contains(recorder.Body.String(), "compozy_claim_secret") {
+				t.Fatalf("hosted refusal leaked backend details: %s", recorder.Body)
+			}
+		})
+	}
+
 	t.Run("Should return structured not found tool errors from hosted tool calls", func(t *testing.T) {
 		t.Parallel()
 
@@ -583,6 +608,33 @@ func newApprovalRequiredHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 			ApprovalAvailable:    true,
 		}, toolspkg.ToolsetCatalog{}),
 	)
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	return registry
+}
+
+func newCompactionFailureHostedMCPToolRegistry(t *testing.T, code toolspkg.ErrorCode) toolspkg.Registry {
+	t.Helper()
+	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: toolspkg.BuiltinSourceOwner}
+	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
+		Descriptor: toolspkg.Descriptor{
+			ID:               toolspkg.ToolIDSessionCompact,
+			ToolPresentation: toolspkg.NewToolPresentation("Compact", "", ""),
+			Description:      "Compaction refusal test tool.",
+			InputSchema:      json.RawMessage(`{"type":"object"}`),
+			Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "session_compact"},
+			Source:           source, Visibility: toolspkg.VisibilityModel, Risk: toolspkg.RiskRead, ReadOnly: true,
+		},
+		Call: func(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+			return toolspkg.ToolResult{}, toolspkg.NewToolError(code, toolspkg.ToolIDSessionCompact,
+				"backend compozy_claim_secret", toolspkg.ErrToolConflict)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewNativeProvider() error = %v", err)
+	}
+	registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(provider))
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}

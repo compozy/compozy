@@ -688,6 +688,104 @@ func TestResumeReplayFallback(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep accepted replay consumed after a transient acknowledgment write failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		target := createSession(t, h)
+		recordResumeReplayFixture(t, h.manager, target, "accepted-replay-history")
+		block, _, err := h.manager.buildResumeReplay(t.Context(), target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.stageResumeReplay(target.ID, block)
+		if err := h.manager.persistSessionMetadataOnly(target); err != nil {
+			t.Fatal(err)
+		}
+		target.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		_, maintenance, err := h.manager.RequestCompaction(t.Context(), target.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, maintenance)
+
+		metaPath := target.MetaPath()
+		backup := metaPath + ".before-consumption"
+		blocked := false
+		restore := func() error {
+			if !blocked {
+				return nil
+			}
+			if err := os.Remove(metaPath); err != nil {
+				return err
+			}
+			if err := os.Rename(backup, metaPath); err != nil {
+				return err
+			}
+			blocked = false
+			return nil
+		}
+		t.Cleanup(func() {
+			if err := restore(); err != nil {
+				t.Errorf("restore metadata: %v", err)
+			}
+		})
+		source := make(chan acp.AgentEvent, 1)
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return source, nil
+		}
+		delivered, err := h.manager.PromptWithOpts(t.Context(), target.ID, PromptOpts{
+			Message: "accepted ordinary prompt",
+			PrepareDelivery: func(context.Context, PromptDeliveryInfo) error {
+				if err := os.Rename(metaPath, backup); err != nil {
+					return err
+				}
+				if err := os.Mkdir(metaPath, 0o700); err != nil {
+					return errors.Join(err, os.Rename(backup, metaPath))
+				}
+				blocked = true
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		durablePending := readMeta(t, backup)
+		if durablePending.PendingResumeReplayValue() != block {
+			t.Fatal("failed acknowledgment unexpectedly changed durable pending replay")
+		}
+		effective := target.Meta()
+		if h.manager.pendingResumeReplay(target.ID) != "" || effective.PendingResumeReplayValue() != "" {
+			t.Fatal("accepted replay became deliverable again after metadata failure")
+		}
+		if err := restore(); err != nil {
+			t.Fatal(err)
+		}
+		source <- acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: h.manager.now(), PromptStopReason: acp.PromptStopReasonEndTurn}
+		close(source)
+		collectEvents(t, delivered)
+		h.driver.promptHook = nil
+		next, err := h.manager.Prompt(t.Context(), target.ID, "next ordinary prompt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, next)
+		h.driver.mu.Lock()
+		requests := slices.Clone(h.driver.promptCalls)
+		h.driver.mu.Unlock()
+		if requests[0].Message != "/compact" || !strings.Contains(requests[1].Message, "accepted-replay-history") ||
+			strings.Contains(requests[2].Message, resumeReplayOpenTag) {
+			t.Fatalf("maintenance and ordinary deliveries=%#v", requests)
+		}
+		if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+			t.Fatal(err)
+		}
+		acknowledged := readMeta(t, metaPath)
+		if acknowledged.PendingResumeReplayValue() != "" {
+			t.Fatal("later lifecycle write did not persist accepted replay consumption")
+		}
+	})
+
 	t.Run("Should isolate replay to the resumed session", func(t *testing.T) {
 		t.Parallel()
 

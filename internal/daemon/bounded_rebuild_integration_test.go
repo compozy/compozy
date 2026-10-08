@@ -479,3 +479,45 @@ func assertMaintenanceCommandDiagnostics(t *testing.T, harness *e2etest.RuntimeH
 		}
 	}
 }
+
+func assertReducedMaintenanceReplay(t *testing.T, prompt string, records []acpmock.DiagnosticsRecord) {
+	t.Helper()
+	_, fenced, found := strings.Cut(prompt, "<compozy_context_replay>")
+	if !found {
+		t.Fatal("ordinary continuation has no deferred transcript")
+	}
+	payload, _, found := strings.Cut(fenced, "</compozy_context_replay>")
+	if !found || len(strings.TrimSpace(payload)) > 8192 {
+		t.Fatalf("delivered replay array bytes = %d, want <= 8192", len(strings.TrimSpace(payload)))
+	}
+	var messages []transcript.Message
+	if err := json.Unmarshal([]byte(payload), &messages); err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) == 0 || messages[0].Content != rebuildFirstUser {
+		t.Fatal("reduced replay lost the original request")
+	}
+	for _, message := range messages {
+		encoded, err := json.Marshal(message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(encoded) > 4096 || strings.Contains(message.Content, "Native compaction observed.") ||
+			strings.Contains(message.Content, "Retain the agreed project constraints.") ||
+			message.Content == "/compact" {
+			t.Fatalf("replay crossed its current per-message budget or maintenance cut: %s", encoded)
+		}
+	}
+	if strings.Contains(prompt, "Read them with the compozy__session_history tool") {
+		t.Fatal("replay advertises an unavailable effective history tool")
+	}
+	creates := 0
+	for _, record := range records {
+		if record.LifecycleEvent == "session_new" {
+			creates++
+		}
+	}
+	if creates != 3 {
+		t.Fatalf("session/new calls = %d, want initial, replacement and load-unsupported fallback", creates)
+	}
+}

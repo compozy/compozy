@@ -567,6 +567,53 @@ func TestReplayBudgetWorkspaceOverlay(t *testing.T) {
 			}
 		}
 	})
+	for _, historyAvailable := range []bool{false, true} {
+		name := "Should rebuild cached replay under current bounds without a removed history tool"
+		if historyAvailable {
+			name = "Should keep the omission pointer under the current effective history tool"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			sess := createSession(t, h)
+			messages := deriveTestMessages(30, 6000)
+			encoded, err := json.Marshal(messages)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cached := renderResumeReplay(sess.ID, nil, string(encoded), true, true)
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace.Config.Session.Derive = compozyconfig.SessionDeriveConfig{
+				MaxReplayBytes:  8192,
+				MaxMessageBytes: 4096,
+			}
+			replay, _, err := h.manager.reboundResumeReplay(sess, cached, rebuildReplayContext{
+				workspace: &workspace, historyAvailable: historyAvailable, reason: "resume",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			bounded := resumeReplayMessagesFromPrompt(t, replay)
+			if replayArrayBytes(bounded) > 8192 || len(bounded) == 0 || bounded[0].ID != messages[0].ID {
+				t.Fatalf(
+					"replay bytes=%d count=%d, want <=8192 with original request",
+					replayArrayBytes(bounded),
+					len(bounded),
+				)
+			}
+			for _, message := range bounded {
+				if replayMessageBytes(message) > 4096 {
+					t.Fatalf("message bytes=%d, want <=4096", replayMessageBytes(message))
+				}
+			}
+			if strings.Contains(replay, "Read them with the compozy__session_history tool") != historyAvailable {
+				t.Fatalf("effective history pointer disagrees with availability %t", historyAvailable)
+			}
+		})
+	}
 }
 
 // Invariant: derive readers rebuild a stale retained prefix without mutating their source.

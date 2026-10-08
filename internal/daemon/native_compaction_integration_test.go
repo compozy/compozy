@@ -14,6 +14,7 @@ import (
 	"time"
 
 	contract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -297,8 +298,9 @@ func TestDaemonLegacyCompactionReadPath(t *testing.T) {
 // through the maintenance prompt, then deliver each on the next ordinary turn.
 func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 	// Not parallel: integrationHomePaths sets the process environment with t.Setenv.
-	for _, mode := range []string{"replace", "recover", "restart"} {
-		recoverDriver, restartDaemon := mode == "recover", mode == "restart"
+	for _, mode := range []string{"replace", "recover", "restart", "restart-rebound"} {
+		recoverDriver, restartDaemon := mode == "recover", strings.HasPrefix(mode, "restart")
+		rebound := mode == "restart-rebound"
 		name := "Should send compact alone and reserve replay for ordinary continuation"
 		if recoverDriver {
 			name = "Should preserve maintenance delivery after forced driver recovery"
@@ -306,9 +308,12 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 		if restartDaemon {
 			name = "Should preserve deferred replay across daemon restart and native load"
 		}
+		if rebound {
+			name = "Should re-bound deferred replay on restart fallback using current budgets and tools"
+		}
 		t.Run(name, func(t *testing.T) {
 			home, deps, resolved, diagnostics, daemon := newBoundedRebuildFixture(t, false, false)
-			fixturePath := maintenanceCompactionFixture(t, recoverDriver, restartDaemon)
+			fixturePath := maintenanceCompactionFixture(t, recoverDriver, restartDaemon && !rebound)
 			command := acpmock.BuildCommand(acpmock.RequireDriver(t), fixturePath, "compaction-claude", diagnostics)
 			resolved.Config.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 			resolved.Config.Providers["acpmock-replacement"] = acpmock.ProviderConfig(command)
@@ -372,6 +377,19 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 				if err := daemon.Shutdown(t.Context()); err != nil {
 					t.Fatal(err)
 				}
+				if rebound {
+					meta := active.Meta()
+					pending := meta.PendingResumeReplayValue()
+					if len(pending) <= 8192 ||
+						!strings.Contains(pending, "Read them with the compozy__session_history tool") {
+						t.Fatal("fixture must stage oversized replay with the original effective history tool")
+					}
+					resolved.Config.Session.Derive = compozyconfig.SessionDeriveConfig{
+						MaxReplayBytes:  8192,
+						MaxMessageBytes: 4096,
+					}
+					resolved.Agents[0].Tools = []string{"compozy__session_compact"}
+				}
 				daemon, deps = bootHarnessPolicyDaemon(t, home, &resolved.Config)
 				cleanupMaintenanceDaemon(t, daemon)
 				manager = newBoundedRebuildManager(t, home, deps, resolved, daemon)
@@ -379,7 +397,7 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if resumed.Info().ACPSessionID != originalACP {
+				if !rebound && resumed.Info().ACPSessionID != originalACP {
 					t.Fatal("native load did not retain replacement ACP identity")
 				}
 			}
@@ -389,7 +407,7 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if restartDaemon {
+			if restartDaemon && !rebound {
 				assertMaintenanceNativeLoad(t, records)
 			}
 			prompts := acpmock.PromptDiagnostics(records)
@@ -399,7 +417,11 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 			if prompts[1].Prompt != "/compact" {
 				t.Fatalf("maintenance prompt = %q, want /compact alone", prompts[1].Prompt)
 			}
-			assertBoundedRebuildPrompt(t, prompts[2].Prompt, active.ID)
+			if rebound {
+				assertReducedMaintenanceReplay(t, prompts[2].Prompt, records)
+			} else {
+				assertBoundedRebuildPrompt(t, prompts[2].Prompt, active.ID)
+			}
 			if strings.Count(prompts[2].Prompt, "Exercise maintenance startup isolation.") != 1 {
 				t.Fatalf("startup instructions not delivered once: %s", prompts[2].Prompt)
 			}

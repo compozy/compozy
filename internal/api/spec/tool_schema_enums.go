@@ -71,6 +71,8 @@ func toolErrorCodeValues() []string {
 	values := []string{
 		string(tools.ErrorCodeNotFound),
 		string(tools.ErrorCodeConflict),
+		string(tools.ErrorCodeSessionBusy),
+		string(tools.ErrorCodeCompactionUnsupported),
 		string(tools.ErrorCodeUnavailable),
 		string(tools.ErrorCodeDenied),
 		string(tools.ErrorCodeApprovalRequired),

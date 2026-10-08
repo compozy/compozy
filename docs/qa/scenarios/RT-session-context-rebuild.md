@@ -22,7 +22,7 @@ on a unique fact from its earlier transcript. Confirm the provider receives one 
 transcript contains one typed recovery marker. Repeat with a valid provider session load and confirm
 that no replay or marker is added. If the first accepted turn after a rebuild is a maintenance turn (Compact now),
 the replay stays pending as a durable obligation and is delivered once with the next ordinary prompt, including
-after a stop and daemon restart or a native resume (walked in MS-workspace-checkpoint-continuity).
+after a stop and daemon restart or a native resume (walked in MS-workspace-checkpoint-continuity). Before restart, lower valid workspace derive limits and change the effective history-tool availability; verify the delivered replay array and every message obey the current limits, its pointer follows the current tool surface, and no maintenance rows entered the pre-maintenance cut. Inject a transient metadata acknowledgment failure after an ordinary delivery is accepted: the next ordinary turn must not repeat replay, and a later lifecycle write must persist the consumed state.
 
 QA impact 2026-07-15: new runtime recovery behavior. Planning flag only; no QA replay ran in this
 implementation slice.

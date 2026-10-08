@@ -75469,6 +75469,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -75486,6 +75487,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -76325,6 +76327,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -76342,6 +76345,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -76615,6 +76619,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -76632,6 +76637,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -77181,6 +77187,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -77198,6 +77205,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -77449,6 +77457,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -77466,6 +77475,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -77724,6 +77734,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -77741,6 +77752,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -78067,6 +78079,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -78084,6 +78097,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -78327,6 +78341,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -78344,6 +78359,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -78595,6 +78611,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -78612,6 +78629,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -78870,6 +78888,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -78887,6 +78906,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -79202,6 +79222,7 @@ export interface operations {
               /** @enum {string} */
               error_code?:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -79219,6 +79240,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -79483,6 +79505,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -79500,6 +79523,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -79751,6 +79775,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -79768,6 +79793,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -80011,6 +80037,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -80028,6 +80055,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -80279,6 +80307,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -80296,6 +80325,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -80547,6 +80577,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -80564,6 +80595,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -80807,6 +80839,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -80824,6 +80857,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -81067,6 +81101,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -81084,6 +81119,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -81327,6 +81363,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -81344,6 +81381,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -81617,6 +81655,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -81634,6 +81673,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -82043,6 +82083,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -82060,6 +82101,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -82465,6 +82507,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -82482,6 +82525,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -82733,6 +82777,7 @@ export interface operations {
                   /** @enum {string} */
                   code:
                     | "approval_rejected"
+                    | "compaction_unsupported"
                     | "generation_fenced"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
@@ -82750,6 +82795,7 @@ export interface operations {
                     | "recording_already_started"
                     | "recording_not_active"
                     | "recording_unavailable"
+                    | "session_busy"
                     | "slow_consumer"
                     | "subscriber_limit_reached"
                     | "terminal_exited"
@@ -83008,6 +83054,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -83025,6 +83072,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -116712,6 +116760,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -116729,6 +116778,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -117272,6 +117322,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -117289,6 +117340,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -117532,6 +117584,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -117549,6 +117602,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -123883,6 +123937,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -123900,6 +123955,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -124143,6 +124199,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -124160,6 +124217,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"
@@ -124403,6 +124461,7 @@ export interface operations {
               /** @enum {string} */
               code:
                 | "approval_rejected"
+                | "compaction_unsupported"
                 | "generation_fenced"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
@@ -124420,6 +124479,7 @@ export interface operations {
                 | "recording_already_started"
                 | "recording_not_active"
                 | "recording_unavailable"
+                | "session_busy"
                 | "slow_consumer"
                 | "subscriber_limit_reached"
                 | "terminal_exited"

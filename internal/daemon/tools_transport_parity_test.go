@@ -32,10 +32,12 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 	udsEngine := newToolParityUDSEngine(t)
 	artifactID := fmt.Sprintf("art_%x", sha256.Sum256([]byte(toolParityArtifactContent)))
 	requests := []struct {
-		name   string
-		method string
-		path   string
-		body   []byte
+		name        string
+		method      string
+		path        string
+		body        []byte
+		wantCode    toolspkg.ErrorCode
+		wantMessage string
 	}{
 		{name: "ShouldListTools", method: http.MethodGet, path: "/api/tools"},
 		{
@@ -65,6 +67,18 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 			path:   "/api/tools/compozy__workspace_describe/invoke",
 			body:   []byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"workspace":"ws-1"}}`),
 		},
+		{
+			name: "ShouldRejectBusyCompaction", method: http.MethodPost,
+			path:     "/api/tools/compozy__session_compact/invoke",
+			body:     []byte(`{"session_id":"sess-1","input":{}}`),
+			wantCode: toolspkg.ErrorCodeSessionBusy, wantMessage: "session is busy",
+		},
+		{
+			name: "ShouldRejectUnsupportedCompaction", method: http.MethodPost,
+			path:     "/api/tools/compozy__session_compact/invoke",
+			body:     []byte(`{"session_id":"sess-1","input":{"unsupported":true}}`),
+			wantCode: toolspkg.ErrorCodeCompactionUnsupported, wantMessage: "session compaction is unsupported",
+		},
 		{name: "ShouldListSessionTools", method: http.MethodGet, path: "/api/workspaces/ws-1/sessions/sess-1/tools"},
 		{
 			name:   "ShouldSearchSessionTools",
@@ -92,6 +106,19 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 			}
 			if !jsonBodiesEqual(t, httpResp.Body.Bytes(), udsResp.Body.Bytes()) {
 				t.Fatalf("body mismatch\nhttp=%s\nuds=%s", httpResp.Body.String(), udsResp.Body.String())
+			}
+			if request.wantCode != "" {
+				var payload contract.ToolErrorResponse
+				if err := json.Unmarshal(httpResp.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("decode refusal: %v", err)
+				}
+				if httpResp.Code != http.StatusConflict || payload.Error.Code != request.wantCode ||
+					payload.Error.ToolID != toolspkg.ToolIDSessionCompact || payload.Error.Message != request.wantMessage {
+					t.Fatalf("refusal status=%d payload=%#v, want safe typed 409", httpResp.Code, payload)
+				}
+				if strings.Contains(httpResp.Body.String(), "compozy_claim_secret") {
+					t.Fatalf("refusal leaked backend details: %s", httpResp.Body)
+				}
 			}
 			if request.name == "ShouldReadToolArtifact" {
 				if httpResp.Code != http.StatusOK {
@@ -237,6 +264,7 @@ type toolParityRegistry struct {
 func newToolParityRegistry() *toolParityRegistry {
 	return &toolParityRegistry{views: []toolspkg.ToolView{
 		toolParityView(toolspkg.ToolIDSkillView, toolspkg.VisibilityModel, true),
+		toolParityView(toolspkg.ToolIDSessionCompact, toolspkg.VisibilityModel, true),
 		toolParityView(toolspkg.ToolIDSessionEvents, toolspkg.VisibilityModel, true),
 		toolParityView(toolspkg.ToolIDWorkspaceDescribe, toolspkg.VisibilityModel, true),
 		toolParityView("compozy__operator_diag", toolspkg.VisibilityOperator, false),
@@ -310,6 +338,14 @@ func (r *toolParityRegistry) Call(
 ) (toolspkg.ToolResult, error) {
 	if _, err := r.Get(ctx, toolspkg.Scope{Operator: true}, req.ToolID); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if req.ToolID == toolspkg.ToolIDSessionCompact {
+		code := toolspkg.ErrorCodeSessionBusy
+		if strings.Contains(string(req.Input), "unsupported") {
+			code = toolspkg.ErrorCodeCompactionUnsupported
+		}
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(code, req.ToolID,
+			"backend compozy_claim_secret", toolspkg.ErrToolConflict)
 	}
 	return toolspkg.ToolResult{
 		Content:    []toolspkg.ToolContent{{Type: "text", Text: "ok"}},
