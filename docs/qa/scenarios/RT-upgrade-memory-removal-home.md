@@ -147,3 +147,8 @@ late-result, successful-retry ordering. Both fired events are projected before t
 every original identity and public sequence is compared after two opens, including the surviving trigger
 entry. Earlier interleaving, delayed-completion, rewind and reused-route cases remain in the suite.
 The complete previous-release home/Web lab remains untested.
+
+CI fix 2 automated layout leg: the single Web Memory removal E2E-008 now reads and writes the raw
+clientstate snapshot during an isolated cold restart, then verifies Session visibility, removal of
+Knowledge, unchanged floating geometry across reload and no console errors. That browser leg passed;
+it does not replace the complete previous-release home upgrade lab above.
