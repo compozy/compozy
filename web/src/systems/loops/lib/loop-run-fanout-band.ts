@@ -63,6 +63,8 @@ export interface LoopFanOutBranch {
   attemptLabel: string | null;
   nodeId: string;
   itemIndex: number;
+  /** The loop run this branch started, when it started one. */
+  childRunId: string | null;
 }
 
 export interface LoopFanOutBand {
@@ -250,6 +252,7 @@ export function buildFanOutBand({
     attemptLabel: loopAttemptLabel(node.attempt),
     nodeId: node.node_id,
     itemIndex: node.item_index,
+    childRunId: node.child_loop_run_id?.trim() || null,
   }));
   return {
     nodeId: rollup.node_id,

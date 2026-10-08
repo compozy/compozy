@@ -242,8 +242,10 @@ export function LoopRunPageBody({
               <LoopRunStepsProgress
                 doneWhen={contract.definition_of_done}
                 goal={contract.goal}
+                nowMs={nowMs}
                 progress={registers.progress}
                 reach={registers.reach}
+                workspaceId={workspaceId}
               />
             ) : null}
             <LoopRunStory

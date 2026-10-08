@@ -8,6 +8,7 @@ import { cn } from "../../lib/utils";
 export type StateGlyphState =
   | "running"
   | "queued"
+  | "delegated"
   | "done"
   | "attention"
   | "failed"
@@ -39,6 +40,7 @@ const SIZE_CLASS: Record<StateGlyphSize, string> = {
 const STATE_CLASS: Record<StateGlyphState, string> = {
   running: "text-success",
   queued: "text-indicator",
+  delegated: "text-info",
   done: "text-success",
   attention: "text-accent",
   failed: "text-danger",
@@ -67,6 +69,14 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
       );
     case "queued":
       return <circle cx="8" cy="8" r={RING_RADIUS} strokeDasharray="2.2 2.2" />;
+    case "delegated":
+      // A ring holding a smaller mark: work parked inside work it handed off.
+      return (
+        <>
+          <circle cx="8" cy="8" r={RING_RADIUS} />
+          <circle cx="8" cy="8" r="2.25" fill="currentColor" stroke="none" />
+        </>
+      );
     case "done":
       return (
         <>
@@ -99,7 +109,8 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
 
 /**
  * Work-state mark from the shell-rail status vocabulary: a mint spinner ring
- * (running), a dashed ring (queued), a filled mint check (done), an accent
+ * (running), a dashed ring (queued), an info ring around a dot (delegated —
+ * parked until work it handed off finishes), a filled mint check (done), an accent
  * orange dot (attention / needs you), a danger ring with × (failed), a subtle
  * filled square (stopped) and a subtle dot (idle). Warning amber is never a
  * state glyph — it stays reserved for real warnings. Under reduced motion the
@@ -108,6 +119,7 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
  * Canonical domain mapping (every migration uses this table):
  * - running/active/in-progress → `running`
  * - queued/pending/todo/retrying → `queued`
+ * - awaiting-child/delegated/waiting-on-sub-run → `delegated`
  * - done/completed/resolved/succeeded → `done`
  * - needs-you/needs-input/blocked/waiting-approval → `attention`
  * - failed/hung/error/rejected/quarantined → `failed`

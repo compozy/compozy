@@ -2014,7 +2014,7 @@ describe("LoopRunStepsProgress fold", () => {
   }
 
   it("Should hide quiet rows behind a counted summary and keep the way ahead visible", () => {
-    render(<LoopRunStepsProgress progress={routedProgress()} />);
+    render(<LoopRunStepsProgress nowMs={0} progress={routedProgress()} workspaceId="" />);
 
     expect(screen.getByTestId("loop-run-step-review")).toBeInTheDocument();
     // Reachable-but-unstarted is where the run is going; it never folds.
@@ -2033,7 +2033,7 @@ describe("LoopRunStepsProgress fold", () => {
   });
 
   it("Should bring the folded rows back in graph order, not as an appendix", async () => {
-    render(<LoopRunStepsProgress progress={routedProgress()} />);
+    render(<LoopRunStepsProgress nowMs={0} progress={routedProgress()} workspaceId="" />);
 
     await userEvent.click(screen.getByTestId("loop-run-step-fold-toggle"));
 
@@ -2054,6 +2054,90 @@ describe("LoopRunStepsProgress fold", () => {
     const toggle = screen.getByTestId("loop-run-step-fold-toggle");
     expect(toggle).toHaveTextContent("Show fewer steps");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+});
+
+// Invariant (#705): a step that started loop runs keeps them one disclosure away —
+// closed by default, and opening it reads each child's status, current step and
+// elapsed time from the child's own detail and roster routes.
+// Owner: run-page components composed with useLoopChildRun and MSW I/O.
+describe("LoopRunStepsProgress child runs", () => {
+  it("Should read each child run's status, step and elapsed time once opened", async () => {
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const { createMswFetch } = await import("@/test/msw-fetch");
+    const { nestedChildRunHandlers, nestedLoopsScenario, NESTED_STORY_WORKSPACE_ID } =
+      await import("../stories/loop-run-nested-fixtures");
+    const { STORY_NOW } = await import("../stories/loop-run-page-fixture-world");
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() => nestedChildRunHandlers)
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const progress = buildScenarioProps(nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <QueryClientProvider client={client}>
+        <LoopRunStepsProgress
+          nowMs={STORY_NOW}
+          progress={progress}
+          workspaceId={NESTED_STORY_WORKSPACE_ID}
+        />
+      </QueryClientProvider>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      expect(
+        within(within(step).getByTestId("loop-run-step-rollup-fix_batch")).getByTestId(
+          "loop-state-chip-awaiting_child"
+        )
+      ).toBeVisible();
+      const toggle = within(step).getByTestId("loop-run-child-runs-toggle");
+      expect(toggle).toHaveTextContent("3 child runs");
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(within(step).queryAllByTestId("loop-run-child-run")).toHaveLength(0);
+
+      await userEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+      const row = (runId: string) =>
+        within(step)
+          .getAllByTestId("loop-run-child-run")
+          .find(element => element.getAttribute("data-child-run-id") === runId)!;
+      await waitFor(() =>
+        expect(within(row("r-d40e17")).getByTestId("loop-run-child-run-meta")).toHaveTextContent(
+          "4 of 4 steps · 9m 00s"
+        )
+      );
+      await waitFor(() =>
+        expect(within(row("r-8f21a0")).getByTestId("loop-run-child-run-step")).toHaveTextContent(
+          "At run tests"
+        )
+      );
+      const working = row("r-8f21a0");
+      expect(within(working).getByTestId("loop-run-child-run-status")).toHaveTextContent("Running");
+      expect(within(working).getByTestId("loop-run-child-run-meta")).toHaveTextContent(
+        "1 of 4 steps · 6m 00s"
+      );
+      expect(within(working).getByTestId("loop-run-child-run-link")).toHaveTextContent(
+        "fix-one-batch"
+      );
+      await waitFor(() =>
+        expect(within(row("r-3b9c55")).getByTestId("loop-run-child-run-step")).toHaveTextContent(
+          "At finalize round — waiting for your decision"
+        )
+      );
+      expect(within(row("r-3b9c55")).getByTestId("loop-run-child-run-status")).toHaveTextContent(
+        "Needs approval"
+      );
+      // A settled child is not on any step; its status and count say it all.
+      expect(within(row("r-d40e17")).getByTestId("loop-run-child-run-step")).toHaveTextContent("");
+      expect(within(row("r-d40e17")).getByTestId("loop-run-child-run-status")).toHaveTextContent(
+        "Done"
+      );
+    } finally {
+      rendered.unmount();
+      client.clear();
+      vi.unstubAllGlobals();
+    }
   });
 });
 

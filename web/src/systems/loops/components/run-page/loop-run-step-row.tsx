@@ -9,9 +9,13 @@ import type { LoopStepRow } from "../../lib/loop-run-progress";
 import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import { LOOP_PROGRESS_SEGMENT_CLASS } from "./loop-progress-segment-class";
 import { LoopNodeStateChip } from "./loop-node-state-chip";
+import { LoopRunChildRuns } from "./loop-run-child-runs";
 
 interface LoopRunStepRowProps extends Omit<ComponentProps<"li">, "children"> {
   step: LoopStepRow;
+  /** Scopes the child-run reads a step that started loops opens. */
+  workspaceId: string;
+  nowMs: number;
 }
 
 /**
@@ -79,7 +83,13 @@ function LoopStepFanOutBand({ band, className, ...props }: LoopStepFanOutBandPro
   );
 }
 
-export function LoopRunStepRow({ step, className, ...props }: LoopRunStepRowProps) {
+export function LoopRunStepRow({
+  step,
+  workspaceId,
+  nowMs,
+  className,
+  ...props
+}: LoopRunStepRowProps) {
   return (
     <li
       className={cn(
@@ -107,6 +117,7 @@ export function LoopRunStepRow({ step, className, ...props }: LoopRunStepRowProp
           ) : null}
         </div>
         {step.fanOut ? <LoopStepFanOutBand band={step.fanOut} /> : null}
+        <LoopRunChildRuns childRuns={step.childRuns} nowMs={nowMs} workspaceId={workspaceId} />
       </div>
       <span className="shrink-0">
         {step.fanOut ? (

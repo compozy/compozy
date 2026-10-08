@@ -76,7 +76,7 @@ describe("DesignSystemShowcase", () => {
       Array.from(glyphs.querySelectorAll('[data-slot="state-glyph"]'), glyph =>
         glyph.getAttribute("data-state")
       )
-    ).toEqual(["running", "queued", "done", "attention", "failed", "stopped", "idle"]);
+    ).toEqual(["running", "queued", "delegated", "done", "attention", "failed", "stopped", "idle"]);
 
     const feedback = screen.getByTestId("section-feedback");
     expect(within(feedback).getAllByRole("alert").length).toBe(2);

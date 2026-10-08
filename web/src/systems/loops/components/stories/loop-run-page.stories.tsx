@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 
 import { useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
@@ -46,6 +47,11 @@ import {
 } from "./loop-run-lifecycle-fixtures";
 import { pendingReviewRequest } from "../../mocks";
 import {
+  NESTED_STORY_WORKSPACE_ID,
+  nestedChildRunHandlers,
+  nestedLoopsScenario,
+} from "./loop-run-nested-fixtures";
+import {
   exhaustedScenario,
   ratchetRestoreScenario,
   scoredBestScenario,
@@ -66,8 +72,11 @@ function ScenarioPage({
   inspectInitiallyOpen = false,
   requestState,
   prunedSessionIds,
+  workspaceId,
 }: {
   scenario: LoopRunStoryScenario;
+  /** Scopes the reads a story serves over MSW (child runs). */
+  workspaceId?: string;
   inspectInitiallyOpen?: boolean;
   requestState?: LoopRunRequestState;
   /** Stages the retention degrade the live page reads from the session store. */
@@ -112,6 +121,7 @@ function ScenarioPage({
         onNodeSelectionChange={setNodeSelection}
         prunedSessionIds={prunedSessionIds}
         requestState={requestState}
+        workspaceId={workspaceId}
       />
     </div>
   );
@@ -394,4 +404,40 @@ export const RegisterRetryingRoster: Story = {
 export const RegisterNoSteps: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={registerNoStepsScenario()} inspectInitiallyOpen />,
+};
+
+/** Issue #705: a fan-out whose branches are child runs, two still owed. */
+export const NestedLoops: Story = {
+  args: {},
+  parameters: { msw: { handlers: nestedChildRunHandlers } },
+  render: () => (
+    <LoopRunPageStory scenario={nestedLoopsScenario()} workspaceId={NESTED_STORY_WORKSPACE_ID} />
+  ),
+};
+
+/** The same parent, read in the graph: `awaiting child` beside `pending`. */
+export const NestedLoopsGraph: Story = {
+  args: {},
+  parameters: { msw: { handlers: nestedChildRunHandlers } },
+  render: () => (
+    <LoopRunPageStory
+      inspectInitiallyOpen
+      scenario={nestedLoopsScenario()}
+      workspaceId={NESTED_STORY_WORKSPACE_ID}
+    />
+  ),
+};
+
+/** The disclosure opened: each child's status, step and elapsed time. */
+export const NestedLoopsExpanded: Story = {
+  args: {},
+  parameters: { msw: { handlers: nestedChildRunHandlers } },
+  render: () => (
+    <LoopRunPageStory scenario={nestedLoopsScenario()} workspaceId={NESTED_STORY_WORKSPACE_ID} />
+  ),
+  play: async ({ canvasElement }) => {
+    const toggle = await within(canvasElement).findByTestId("loop-run-child-runs-toggle");
+    await userEvent.click(toggle);
+    await within(canvasElement).findAllByText("fix-one-batch");
+  },
 };
