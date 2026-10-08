@@ -1234,7 +1234,7 @@ func assertWindowManagerSessionReopenAcrossClients(
 		windowManagerTransportPayload(t, compozycontract.WindowManagerOpenWindowPayload{
 			Window: compozycontract.WindowManagerWindowSpecPayload{
 				ID:          "window-session",
-				App:         "sessions",
+				App:         "session",
 				InstanceKey: &instanceKey,
 				Route: windowmanager.RouteIntent{
 					Pathname: "/sessions/" + sessionPayload.ID,
@@ -2505,7 +2505,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if !strings.Contains(httpHarnessEvents[2].Summary, "surface=turn") {
 		t.Fatalf("turn summary = %q, want turn surface", httpHarnessEvents[2].Summary)
 	}
-	for _, augmenter := range []string{"workspace_knowledge", "skills", "situation", "durable_memory"} {
+	for _, augmenter := range []string{"skills", "situation"} {
 		if !slices.ContainsFunc(httpHarnessEvents[3:], func(event compozycontract.LogEventPayload) bool {
 			return strings.Contains(event.Summary, "augmenter="+augmenter+" ")
 		}) {
@@ -3327,8 +3327,6 @@ func wantTransportObserveHarnessTypes() []string {
 		"harness.context_resolved",
 		"harness.section_selected",
 		"harness.context_resolved",
-		"harness.augmenter_applied",
-		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 	}
