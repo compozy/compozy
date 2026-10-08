@@ -1339,6 +1339,7 @@ func TestAutomationListLastRunOutput(t *testing.T) {
 		}{
 			{name: "Should show failed run age", run: &contract.AutomationLastRunPayload{ID: "run-failed", Status: automationpkg.RunFailed, StartedAt: new(fixed.Add(-7 * time.Hour))}, human: "failed 7h ago"},
 			{name: "Should describe skipped cancellations", run: &contract.AutomationLastRunPayload{ID: "run-skipped", Status: automationpkg.RunCancelled, SkipReason: "self_overlap", StartedAt: new(fixed.Add(-30 * time.Minute))}, human: "skipped 30m ago"},
+			{name: "Should describe misfired fires as missed", run: &contract.AutomationLastRunPayload{ID: "run-missed", Status: automationpkg.RunCancelled, SkipReason: automationpkg.SchedulerSkipReasonGraceExceeded, StartedAt: new(fixed.Add(-30 * time.Minute))}, human: "missed 30m ago"},
 			{name: "Should show a dash for an automation without runs", human: "—"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {

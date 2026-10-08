@@ -20,6 +20,9 @@ func formatAutomationLastRun(run *contract.AutomationLastRunPayload, now func() 
 	status := string(run.Status)
 	if run.Status == automationpkg.RunCancelled && run.SkipReason != "" {
 		status = "skipped"
+		if run.SkipReason == automationpkg.SchedulerSkipReasonGraceExceeded {
+			status = "missed"
+		}
 	}
 	if run.StartedAt == nil {
 		return status

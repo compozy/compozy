@@ -41,7 +41,7 @@ that created it; restart from the first page when any filter changes. See the ge
 Every job in the list, and the single job from `get`, carries its most recent run as `last_run`
 (`id`, `status`, `started_at`, `ended_at`, and `skip_reason` for a skipped fire). It is absent when
 the job has never run. The human table shows it as the **Last Run** column, for example
-`failed 7h ago`; a skipped fire reads `skipped` whichever its `skip_reason`. See
+`failed 7h ago`; a skipped fire reads `skipped`, or `missed` when CompozyOS was off at the start time. See
 [Check whether an automation worked](/docs/automation#check-whether-an-automation-worked).
 
 ## Execution flow

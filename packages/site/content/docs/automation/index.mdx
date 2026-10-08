@@ -108,8 +108,8 @@ compozy automation jobs --workspace checkout-api -o json | jq '.jobs[] | {name, 
 
 The human tables of `compozy automation jobs` and `compozy automation triggers` add a **Last Run**
 column: the status and how long ago it started ("failed 7h ago"), or `—` when it never ran. A
-skipped fire reads `skipped` (for either `skip_reason`), never `canceled`; `skip_reason` in the JSON
-tells an overlap from a fire missed while CompozyOS was off. `-o toon` adds `last_run_status` (the
+skipped fire reads `skipped` (an overlap) or `missed` (CompozyOS was off at the start time), never
+`canceled`; `skip_reason` in the JSON carries the same distinction. `-o toon` adds `last_run_status` (the
 raw status) and `last_run_started_at`.
 
 Both list commands also take `--target agent|loop|task` to filter by what the automation does, and
