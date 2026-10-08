@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: "On a CompozyOS home upgraded from v0.3.x: old links redirect with history replace (Back does not bounce) — `/jobs?enabled=true&q=nightly` → `/automations?start=schedule&enabled=true&q=nightly`, `/jobs/<id>` → `/automations/jobs/<id>`, `/triggers?event=session.stopped` → `/automations?start=event&q=session.stopped`, `/triggers/<id>` → `/automations/triggers/<id>`, and the `create=loop` handoffs keep their Loop with the matching `start`. A saved desktop with Jobs and/or Triggers windows (tiled, tabbed in one deck, floating, and recently closed) reopens every one as an Automations window on the rewritten path in the same place; nothing is closed, and the next save stores `automations` only (snapshot v5). Pinned Open Jobs / Open Triggers become one pinned Open Automations with summed usage. During v0.4.0, `compozy window open --app jobs --pathname /jobs/<id>` succeeds on Automations and prints `warning: app \"jobs\" is deprecated and will be removed in v0.5.0; use \"automations\"`; palette routes for `app.open.jobs` and `palette.view.triggers` resolve to the automations ids with one WARN log per id per process."
 entry_points: web `/jobs*` and `/triggers*` links; a saved desktop from v0.3.x; command palette pins; `compozy window open --app jobs|triggers`; `POST /api/cmd-palette/commands/app.open.jobs/invoke`
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: Q1-F2 fixed; Q1-F1 fixed (round 3); Q1-F7 pre-existing on main, out of scope
+fix_status: fixed
+retest_status: pass
+fix_commits: f31174acc; 1d03efe86; b0339e65e
+evidence: .compozy/tasks/automations/screens/; .compozy/tasks/automations/reports/q1-qa-walk.md (Round 3)
+last_report: .compozy/tasks/automations/reports/q1-qa-walk.md
 overlaps: TA-web-automations-listing; ET-palette-domain-views
 ---
 

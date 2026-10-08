@@ -6,13 +6,13 @@ persona: Cora
 journey: J-24
 expected: "`/automations` lists jobs and triggers together, sorted by name (schedules first on ties); the head reads Automations with the total `jobs.page.total + triggers.page.total` and one secondary New automation. Start views All · Scheduled · On events (webhooks count as events) carry per-list counts and `?start=`; search `q` and the Does · Status · Location · Source · Loop filters are server-side and round-trip through the URL; Clear filters resets `q`, every facet and `start`; an unknown `start` normalizes away. Each row is the shared sentence with Off / From config / From package badges only, the time stat (jobs: next run; triggers: last ran; faint — when Off or never ran), the last-run truth (Last run failed in danger; skipped, missed, canceled, running, handed off, completed neutral; nothing when never ran), a non-optimistic On/Off switch (dimmed while pending, previous state + toast on failure), and an overflow with only supported actions (Run now for schedules, Copy link for webhooks, Edit/Delete for dynamic, disabled Edit in config.toml for config). Rows|Cards toggle keeps the same content. The footer reads N automations · M on · next run in X. Load more appears when either list has more. Loading skeletons, the unavailable alert with Open Settings, the both-failed load error with Try again, and the one-list-failed inline alert (that Start view count reads —) are explicit."
 entry_points: web `/automations`; dock Automations launcher
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: Q1-F5 fixed; Q1-F6 fixed; Q1-F8 fixed; Q1-F9 pre-existing on main, out of scope
+fix_status: fixed
+retest_status: pass
+fix_commits: 99910ca2b
+evidence: .compozy/tasks/automations/screens/; .compozy/tasks/automations/reports/q1-qa-walk.md (Round 2)
+last_report: .compozy/tasks/automations/reports/q1-qa-walk.md
 overlaps: TA-web-automations-first-run; TA-web-automation-detail; TA-automation-last-run-agent; ET-web-route-chrome-topbar; ET-web-page-content-gutter
 ---
 
