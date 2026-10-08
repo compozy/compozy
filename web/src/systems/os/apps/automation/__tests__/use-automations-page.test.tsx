@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   updateTrigger: vi.fn(),
   triggerJob: vi.fn(),
   runtime: { available: true } as { available: boolean },
+  aggregate: false,
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -39,7 +40,7 @@ vi.mock("@/systems/automation/adapters/automation-api", async importOriginal => 
 
 vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
   useProfileReadScope: () => ({
-    aggregate: false,
+    aggregate: mocks.aggregate,
     destination: "default",
     key: "default",
     params: {},
@@ -92,6 +93,7 @@ describe("useAutomationsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.runtime = { available: true };
+    mocks.aggregate = false;
     mocks.listJobs.mockResolvedValue(page("jobs", automationStoryJobs));
     mocks.listTriggers.mockResolvedValue(page("triggers", automationStoryTriggers));
   });
@@ -249,6 +251,26 @@ describe("useAutomationsPage", () => {
       start: undefined,
       q: "x",
     });
+  });
+
+  it("Should offer suggestions only for an empty unfiltered workspace listing", async () => {
+    mocks.listJobs.mockResolvedValue(page("jobs", []));
+    mocks.listTriggers.mockResolvedValue(page("triggers", []));
+
+    const workspace = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(workspace.result.current.firstRun).toBe(true));
+    expect(workspace.result.current.suggestionsWorkspaceId).toBe("ws_launch_hq");
+
+    const global = renderHook(() => useAutomationsPage({ scope: "global" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(global.result.current.isLoading).toBe(false));
+    expect(global.result.current.suggestionsWorkspaceId).toBeNull();
+
+    mocks.aggregate = true;
+    const aggregate = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(aggregate.result.current.firstRun).toBe(true));
+    expect(aggregate.result.current.suggestionsWorkspaceId).toBeNull();
   });
 
   it("Should clear search, every facet and the Start view", async () => {

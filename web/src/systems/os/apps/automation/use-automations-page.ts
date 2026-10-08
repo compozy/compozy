@@ -142,6 +142,13 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     items.length === 0 &&
     ((loadJobs && jobsQuery.isLoading) || (loadTriggers && triggersQuery.isLoading));
 
+  const firstRun = !isLoading && items.length === 0 && !page.hasActiveFilters;
+  // Suggestions are workspace-scoped: never in Global scope or the all-profiles aggregate.
+  const suggestionsWorkspaceId =
+    firstRun && search.scope !== "global" && !profile.aggregate && page.activeWorkspaceId
+      ? page.activeWorkspaceId
+      : null;
+
   const findEntity = (view: AutomationView): AutomationJob | AutomationTrigger | undefined =>
     view.kind === "job"
       ? jobs.find(job => job.id === view.id)
@@ -230,6 +237,8 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     deleteTarget,
     edit,
     editorDialogProps: editor.editorDialogProps,
+    firstRun,
+    suggestionsWorkspaceId,
     enabledCount: items.filter(item => item.enabled).length,
     isFetchingMore: jobsQuery.isFetchingNextPage || triggersQuery.isFetchingNextPage,
     isLoading,

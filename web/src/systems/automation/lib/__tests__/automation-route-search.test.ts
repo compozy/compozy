@@ -2,6 +2,8 @@
 // Invariant: listing search normalizes unknown values away and legacy URLs map to /automations.
 // Boundary IN: raw router search records and legacy pathnames.
 // Boundary OUT: router navigation (route stubs own the replace).
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { redirectLegacyAutomationURL } from "../automation-redirects";
@@ -56,7 +58,34 @@ describe("validateAutomationsSearch", () => {
   });
 });
 
+interface RetiredAppRouteVector {
+  app: "jobs" | "triggers";
+  input: { pathname: string; search: Record<string, unknown> };
+  expected: { pathname: string; search: Record<string, unknown> };
+}
+
+/** The daemon's `RewriteRetiredAppRoute` vectors (UT-126); both sides must agree on each. */
+const retiredAppRouteVectors = JSON.parse(
+  readFileSync(
+    join(__dirname, "../../../../../../internal/windowmanager/testdata/retired_app_routes.json"),
+    "utf8"
+  )
+) as RetiredAppRouteVector[];
+
 describe("redirectLegacyAutomationURL", () => {
+  it("Should load the shared daemon vectors", () => {
+    expect(retiredAppRouteVectors.length).toBeGreaterThan(0);
+  });
+
+  it.each(retiredAppRouteVectors.map(vector => [vector.input.pathname, vector] as const))(
+    "Should match the daemon rewrite for %s",
+    (_pathname, vector) => {
+      expect(redirectLegacyAutomationURL(vector.input.pathname, vector.input.search)).toEqual(
+        vector.expected
+      );
+    }
+  );
+
   it.each([
     [
       "/jobs",
