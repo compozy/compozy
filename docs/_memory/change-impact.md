@@ -2,6 +2,13 @@
 
 ## Memory removal — 2026-10-07
 
+CI runtime parity follow-up: the existing HTTP/UDS fixture now opens the registered `session` app
+rather than the `sessions` palette view ID, and expects durable harness events for retained skills
+and situation augmenters. Removed workspace-knowledge and memory augmenters cannot emit those events.
+BR14 registered-app reconciliation and the existing no-op persistence/revision guards remain unchanged;
+the exact race-enabled UDS transport CI selector passes. No production, wire, config/hook, isolation,
+official skill or Web behavior changes are introduced by this fixture correction.
+
 Review round 3: automatic prompt recovery retains the original prepared ordinary payload independently of the constructed wire request. Each replacement runtime receives one freshly bounded historical replay plus that payload; maintenance recovery retains its literal command and deferred context. The experimental compactSession operation now declares its existing 400 ErrorPayload refusal for inactive sessions (`session_not_promptable`), co-shipping generated OpenAPI/Web contracts. Existing prompt-lifetime, compact-handler and schema suites own coverage. Native tools, hooks/extensions/config, workspace isolation, SQL and official skill instructions are unchanged; existing automatic-recovery and Compact now QA scenarios record the checks. No handwritten Web changes or browser/live-provider walkthrough is claimed.
 
 S14 / UT-W08 marker fields: experimental `compactions[].context_after` supplies the first event-level occupancy report after that ID's first terminal boundary and before the next ID's first terminal boundary; same-turn reports count, counter-only rows and later corrections do not. Experimental `context.cleared_by` identifies the compaction and first terminal sequence only while occupancy is unknown. Existing Go queries/contextusage/API conversions, CLI human/JSON/TOON and generated OpenAPI/Web types co-ship. Per-session ledger ownership, hooks/config and SQL are unchanged; the official runtime-operations skill and existing CLI usage scenario document the additive fields. The Web owner consumes the generated fields; browser scenario walks remain with that owner.
