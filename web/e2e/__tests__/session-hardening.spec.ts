@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -38,11 +39,16 @@ const driverFaultFixture = path.join(fixtureRoot, "driver_fault_fixture.json");
 const autoTitleFixture = path.join(fixtureRoot, "auto_title_fixture.json");
 const costProvenanceFixture = path.join(fixtureRoot, "cost_provenance_fixture.json");
 const toolArtifactFixture = path.join(fixtureRoot, "browser_tool_artifact_fixture.json");
+const nativeCompactionFixture = path.join(fixtureRoot, "native_compaction_fixture.json");
+const sessionContextFixture = path.join(fixtureRoot, "session_context_fixture.json");
 const permissionAgent = "permission-hardening-agent";
 const faultAgent = "faulty";
 const autoTitleAgent = "auto-title-agent";
 const costProvenanceAgent = "cost-provenance-agent";
 const toolArtifactAgent = "tool-artifact-agent";
+const compactionAgent = "compaction-claude";
+const silentContextAgent = "session-context-agent";
+const compactionHoldPrompt = "hold the turn open";
 const costProvenancePrompt = "Summarize the cost provenance run";
 const toolArtifactDigest = "c82d7447711d610d6c0d8fd52b8c8ee99f051a81e62f51bf052eaad467fca444";
 const toolArtifactTail = "E2E-009 tool artifact tail";
@@ -63,6 +69,7 @@ interface SessionPayload {
   state: string;
   workspace_id: string;
   name?: string | null;
+  available_commands?: Array<{ name: string }>;
 }
 
 interface SessionEnvelope {
@@ -1272,8 +1279,8 @@ test.describe("session context E2E-001", () => {
       seed: {
         mockAgents: [
           {
-            fixturePath: path.join(fixtureRoot, "session_context_fixture.json"),
-            fixtureAgent: "session-context-agent",
+            fixturePath: sessionContextFixture,
+            fixtureAgent: silentContextAgent,
           },
         ],
       },
@@ -1287,7 +1294,7 @@ test.describe("session context E2E-001", () => {
     if (!runtime.paths) throw new Error("session context E2E requires launch-mode runtime paths");
     await appPage.setViewportSize({ width: 1440, height: 900 });
     const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-    const session = await createSession(runtime, "session-context-agent", workspace.id);
+    const session = await createSession(runtime, silentContextAgent, workspace.id);
     const ref = `vault:sessions/${session.id}/context-fixture`;
     await runtime.requestJSON("/api/vault/secrets", {
       method: "PUT",
@@ -1321,15 +1328,222 @@ test.describe("session context E2E-001", () => {
     await ui.composerTextarea.fill("warning");
     await ui.composerTextarea.press("Enter");
     await expect(contextButton).toHaveAccessibleName("Context 88% used");
+    // CompozyOS acts at no threshold: a high reading is the same quiet reported ring.
+    await expect(contextButton).toHaveAttribute("data-state", "reported");
     await contextButton.hover();
-    await expect(appPage.getByRole("tooltip")).toContainText(
-      "CompozyOS summarizes older messages at 85% full"
-    );
-    await expect(contextButton.locator("circle").last()).toHaveAttribute(
-      "stroke",
-      "var(--color-warning)"
-    );
+    await expect(appPage.getByRole("tooltip")).toContainText("88% · 225.3K / 256K");
     await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
     await expect(appPage.getByTestId(`vault-secrets-delete-${ref}`)).toBeVisible();
+  });
+});
+
+interface CompactionFixtureStep {
+  kind: string;
+  driver_control?: { action: string; delay_ms?: number };
+}
+
+interface CompactionFixtureTurn {
+  name: string;
+  match: Record<string, string>;
+  steps: CompactionFixtureStep[];
+}
+
+interface CompactionFixtureAgent {
+  name: string;
+  turns: CompactionFixtureTurn[];
+}
+
+/**
+ * Derives the fixture this suite drives from the Go-owned native compaction fixture: the same
+ * `compaction-claude` agent and frames, plus a held turn (Compact now must be observed disabled
+ * while a turn streams) and a pause after the in-progress frame (the "Compacting context…" row
+ * must be observable before the terminal frame replaces it).
+ */
+function writeCompactionFixture(): string {
+  const source = JSON.parse(readFileSync(nativeCompactionFixture, "utf8")) as {
+    version: number;
+    agents: CompactionFixtureAgent[];
+  };
+  const agent = source.agents.find(candidate => candidate.name === compactionAgent);
+  const compactNow = agent?.turns.find(turn => turn.name === "compact-now");
+  if (!agent || !compactNow) {
+    throw new Error(`${nativeCompactionFixture} must define ${compactionAgent} with compact-now`);
+  }
+  compactNow.steps.splice(1, 0, {
+    kind: "driver_control",
+    driver_control: { action: "delay", delay_ms: 3_000 },
+  });
+  agent.turns.push({
+    name: "hold-open",
+    match: { user_text: compactionHoldPrompt },
+    steps: [{ kind: "driver_control", driver_control: { action: "block_until_cancel" } }],
+  });
+  const target = path.join(
+    mkdtempSync(path.join(os.tmpdir(), "compozy-compaction-fixture-")),
+    "native_compaction_derived_fixture.json"
+  );
+  writeFileSync(target, JSON.stringify({ version: source.version, agents: [agent] }), "utf8");
+  return target;
+}
+
+/** One turn on a `compaction-claude` session: its first prompt makes the agent advertise `compact`. */
+async function promptUntilCompactAdvertised(
+  ui: ReturnType<typeof sessionWindowSelectors>,
+  runtime: BrowserRuntime,
+  workspaceID: string,
+  sessionID: string
+): Promise<void> {
+  await ui.composerTextarea.fill("baseline");
+  await ui.composerTextarea.press("Enter");
+  await expect(ui.chatView).toContainText("baseline ready");
+  await expect
+    .poll(async () => {
+      const detail = await runtime.requestJSON<SessionEnvelope>(
+        sessionAPIPath(workspaceID, sessionID)
+      );
+      return detail.session.available_commands?.map(command => command.name) ?? [];
+    })
+    .toContain("compact");
+}
+
+async function openSessionWindow(
+  runtime: BrowserRuntime,
+  page: import("@playwright/test").Page,
+  agentName: string,
+  workspaceID: string
+) {
+  const session = await createSession(runtime, agentName, workspaceID);
+  await page.goto(runtime.url(sessionPath(agentName, session.id)), {
+    waitUntil: "domcontentloaded",
+  });
+  const sessionWin = sessionWindow(page, session.id);
+  await expect(sessionWin).toBeVisible();
+  return { session, sessionWin, ui: sessionWindowSelectors(sessionWin, page) };
+}
+
+test.describe("native compaction E2E-005 / E2E-006", () => {
+  test.use({
+    runtimeOptions: {
+      modelsDevEnabled: false,
+      seed: {
+        mockAgents: [
+          { fixturePath: writeCompactionFixture(), fixtureAgent: compactionAgent },
+          { fixturePath: sessionContextFixture, fixtureAgent: silentContextAgent },
+        ],
+      },
+    },
+  });
+
+  test("E2E-005: Compact now shows the agent's compaction in the timeline and the context rail", async ({
+    appPage,
+    browserArtifacts,
+    runtime,
+  }) => {
+    await appPage.setViewportSize({ width: 1440, height: 900 });
+    const workspace = await prepareSessionRuntime(runtime, appPage);
+    const { session, sessionWin, ui } = await openSessionWindow(
+      runtime,
+      appPage,
+      compactionAgent,
+      workspace.id
+    );
+    await promptUntilCompactAdvertised(ui, runtime, workspace.id, session.id);
+
+    // The context control opens the Context rail; Compact now is offered once the agent advertised it.
+    await sessionWin.getByTestId("composer-context-button").click();
+    const compactNow = appPage.getByTestId("session-context-compact-now");
+    await expect(compactNow).toBeEnabled();
+    const compactResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === sessionAPIPath(workspace.id, session.id, "/compact")
+    );
+    await compactNow.click();
+    expect((await compactResponse).status()).toBe(202);
+
+    // The fixture pauses after the in-progress frame, so the live row is observable before it settles.
+    const compaction = sessionWin.getByTestId("session-compaction-item");
+    await expect(compaction).toHaveAttribute("data-status", "in_progress");
+    await expect(compaction).toContainText("Compacting context…");
+    await expect(compaction).toHaveAttribute("data-status", "completed");
+    await expect(compaction).toContainText("Context compacted");
+
+    const summary = sessionWin.getByTestId("session-compaction-summary");
+    const summaryToggle = summary.getByRole("button", { name: "Summary" });
+    await expect(summaryToggle).toHaveAttribute("aria-expanded", "false");
+    await summaryToggle.click();
+    await expect(summaryToggle).toHaveAttribute("aria-expanded", "true");
+    await expect(summary).toContainText("Retain the agreed project constraints.");
+    await expect(ui.chatView).toContainText("Native compaction observed.");
+
+    // A compaction started through Compact now is a requested one; the rail's Turns fold lists it.
+    const inspectorToggle = sessionWin.getByTestId("session-inspector-toggle");
+    if ((await inspectorToggle.getAttribute("aria-pressed")) !== "true") {
+      await inspectorToggle.click();
+    }
+    const turnsToggle = appPage
+      .getByTestId("session-context-turns")
+      .getByRole("button", { name: /^Turns/ });
+    if ((await turnsToggle.getAttribute("aria-expanded")) !== "true") {
+      await turnsToggle.click();
+    }
+    const marker = appPage.getByTestId("session-context-compaction-marker");
+    await expect(marker).toContainText("Requested compaction");
+    await expect(marker).toContainText("completed");
+    await browserArtifacts.captureScreenshot("e2e-005-native-compaction", appPage);
+  });
+
+  test("E2E-006: Compact now is absent without an advertised command and disabled while a turn streams", async ({
+    appPage,
+    runtime,
+  }) => {
+    await appPage.setViewportSize({ width: 1440, height: 900 });
+    const workspace = await prepareSessionRuntime(runtime, appPage);
+    const compactNow = appPage.getByTestId("session-context-compact-now");
+
+    await test.step("an agent that advertises no command shows the meter without Compact now", async () => {
+      const { session, sessionWin, ui } = await openSessionWindow(
+        runtime,
+        appPage,
+        silentContextAgent,
+        workspace.id
+      );
+      await ui.composerTextarea.fill("reported");
+      await ui.composerTextarea.press("Enter");
+      const contextButton = sessionWin.getByTestId("composer-context-button");
+      await expect(contextButton).toHaveAccessibleName("Context 35% used");
+      const detail = await runtime.requestJSON<SessionEnvelope>(
+        sessionAPIPath(workspace.id, session.id)
+      );
+      expect(detail.session.available_commands ?? []).toEqual([]);
+
+      await contextButton.click();
+      await expect(appPage.getByTestId("session-context-meter")).toBeVisible();
+      await expect(compactNow).toHaveCount(0);
+    });
+
+    await test.step("an agent that advertises compact offers it, disabled while a turn streams", async () => {
+      const { session, sessionWin, ui } = await openSessionWindow(
+        runtime,
+        appPage,
+        compactionAgent,
+        workspace.id
+      );
+      await promptUntilCompactAdvertised(ui, runtime, workspace.id, session.id);
+      const contextButton = sessionWin.getByTestId("composer-context-button");
+      await contextButton.click();
+      await expect(compactNow).toBeEnabled();
+
+      await startBlockingTurn(ui, runtime, workspace.id, session.id, compactionHoldPrompt);
+      await contextButton.click();
+      await expect(compactNow).toBeVisible();
+      await expect(compactNow).toBeDisabled();
+
+      // End the held turn's session so the daemon teardown has nothing left to cancel.
+      const stopResponse = await appPage.request.post(
+        runtime.url(sessionAPIPath(workspace.id, session.id, "/stop"))
+      );
+      expect(stopResponse.status(), await stopResponse.text()).toBe(204);
+    });
   });
 });
