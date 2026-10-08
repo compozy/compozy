@@ -121,6 +121,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
                   {page.unavailableMessage}
                   <div className="mt-2">
                     <Button
+                      nativeButton={false}
                       render={<Link to="/settings/automation" />}
                       size="sm"
                       variant="secondary"
@@ -142,6 +143,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
             <div className="flex gap-2">
               <Button
                 data-testid="automations-empty-start-schedule"
+                nativeButton={false}
                 render={<Link search={{ create: "1", start: "schedule" }} to="/automations" />}
                 size="sm"
                 variant="neutral"
@@ -150,6 +152,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
               </Button>
               <Button
                 data-testid="automations-empty-start-event"
+                nativeButton={false}
                 render={<Link search={{ create: "1", start: "event" }} to="/automations" />}
                 size="sm"
                 variant="neutral"

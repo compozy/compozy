@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { delay, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
@@ -12,14 +12,14 @@ import {
 } from "@/storybook/route-story-meta";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
-  title: "systems/automation/routes/Triggers",
+  title: "systems/automation/routes/AutomationDetail",
   component: StorybookRouteCanvas,
   parameters: {
     layout: "fullscreen",
     docs: {
       description: {
         component:
-          "Full-page triggers route stories with the real shell, covering list/detail states, scope filtering, and editor flows.",
+          "Full-page automation detail route stories (`/automations/jobs/:id`, `/automations/triggers/:id`) with the real shell.",
       },
     },
   },
@@ -28,117 +28,24 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-  args: {},
-  parameters: appRouteParameters("/triggers"),
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const Cards: Story = {
+export const JobDetail: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: appRouteParameters("/triggers?view=cards"),
+  parameters: appRouteParameters("/automations/jobs/job_launch_command_digest"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId("triggers-list-card-grid")).toBeVisible(), {
+    await waitFor(() => expect(canvas.getByTestId("automation-detail-panel")).toBeVisible(), {
       timeout: 5000,
     });
   },
-};
-
-export const Empty: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters("/triggers"),
-    ...storybookMswParameters({
-      automation: [
-        compozyApiMock.get("/api/automation/triggers", () =>
-          HttpResponse.json({
-            page: { has_more: false, limit: 50, total: 0 },
-            triggers: [],
-          })
-        ),
-      ],
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const FilteredEmpty: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters("/triggers?q=zzzz"),
-    ...storybookMswParameters({
-      automation: [
-        compozyApiMock.get("/api/automation/triggers", () =>
-          HttpResponse.json({
-            page: { has_more: false, limit: 50, total: 0 },
-            triggers: [],
-          })
-        ),
-      ],
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const TriggersError: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters("/triggers"),
-    ...storybookMswParameters({
-      automation: [
-        compozyApiMock.get("/api/automation/triggers", () =>
-          HttpResponse.json({ error: "triggers unavailable" }, { status: 500 })
-        ),
-      ],
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const EditorCreate: Story = {
-  args: {},
-  tags: ["play-fn"],
-  parameters: appRouteParameters("/triggers"),
-  render: () => <StorybookWorkspaceSetup />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId("create-trigger-btn")).toBeEnabled(), {
-      timeout: 5000,
-    });
-    await userEvent.click(canvas.getByTestId("create-trigger-btn"));
-    await expect(
-      within(document.body).findByTestId("automation-trigger-form")
-    ).resolves.toBeDefined();
-  },
-};
-
-export const Loading: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters("/triggers"),
-    ...storybookMswParameters({
-      automation: [
-        compozyApiMock.get("/api/automation/triggers", async () => {
-          await delay("infinite");
-          return HttpResponse.json({
-            page: { has_more: false, limit: 50, total: 0 },
-            triggers: [],
-          });
-        }),
-      ],
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
 };
 
 /** Agent target on an observer event — the canonical trigger detail read. */
 export const TriggerDetail: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: appRouteParameters("/triggers/trg_summarize_failures"),
+  parameters: appRouteParameters("/automations/triggers/trg_summarize_failures"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -155,7 +62,7 @@ export const TriggerDetail: Story = {
 export const TriggerDetailLoop: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: appRouteParameters("/triggers/trg_rerun_delivery"),
+  parameters: appRouteParameters("/automations/triggers/trg_rerun_delivery"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -169,7 +76,7 @@ export const TriggerDetailLoop: Story = {
 export const TriggerDetailWebhook: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: appRouteParameters("/triggers/trg_deploy_webhook"),
+  parameters: appRouteParameters("/automations/triggers/trg_deploy_webhook"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -184,7 +91,7 @@ export const TriggerDetailWebhook: Story = {
 export const TriggerDetailInspect: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: appRouteParameters("/triggers/trg_deploy_webhook"),
+  parameters: appRouteParameters("/automations/triggers/trg_deploy_webhook"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -203,7 +110,7 @@ export const TriggerDetailLocked: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/triggers/trg_summarize_failures"),
+    ...appRouteParameters("/automations/triggers/trg_summarize_failures"),
     ...storybookMswParameters({
       automation: [
         compozyApiMock.get("/api/automation/triggers/{id}", () =>

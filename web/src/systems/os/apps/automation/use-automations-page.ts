@@ -24,8 +24,10 @@ import { useProfileReadScope } from "@/systems/profiles";
 
 import { automationPendingLogic } from "./automation-pending-store";
 import {
+  automationCreateSeedOf,
   automationUnavailableMessage,
   useAutomationCreateSeed,
+  type AutomationCreateSeed,
   useAutomationPageBase,
 } from "./use-automation-page-base";
 
@@ -161,12 +163,12 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
         params: { triggerId: trigger.id },
       }),
   });
-  const seedEditor = search.start === "event" ? triggerEditor : jobEditor;
-  useAutomationCreateSeed(
-    search.create === "loop" && search.loop ? { loop: search.loop } : {},
-    page.activeWorkspaceId,
-    seedEditor.openLoopCreate
-  );
+  const openSeed = (seed: AutomationCreateSeed) => {
+    const editor = seed.start === "event" || seed.start === "webhook" ? triggerEditor : jobEditor;
+    if (seed.loop) editor.openLoopCreate(seed.loop);
+    else editor.openCreate();
+  };
+  useAutomationCreateSeed(automationCreateSeedOf(search), page.activeWorkspaceId, openSeed);
 
   const updateJob = useUpdateAutomationJob();
   const updateTrigger = useUpdateAutomationTrigger();
