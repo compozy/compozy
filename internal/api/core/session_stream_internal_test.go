@@ -20,6 +20,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -1168,8 +1169,21 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				{Sequence: 10, Type: acp.EventTypeUsage},
 				{Sequence: 11, Type: acp.EventTypeAgentMessage},
 				{Sequence: 12, TurnID: "A", Type: acp.EventTypeUsage},
-				{Sequence: 13, TurnID: "A", Type: acp.EventTypeDone},
-				{Sequence: 14, TurnID: "A", Type: acp.EventTypePromptDelivery},
+				{
+					Sequence: 13,
+					TurnID:   "A",
+					Type:     acp.EventTypeCompaction,
+					Content:  `{"compaction":{"compaction_id":"c1","status":"in_progress"}}`,
+				},
+				{
+					Sequence: 14,
+					TurnID:   "A",
+					Type:     acp.EventTypeCompaction,
+					Content:  `{"compaction":{"compaction_id":"c1","status":"completed"}}`,
+				},
+				{Sequence: 15, TurnID: "A", Type: eventspkg.SessionCompactionFired},
+				{Sequence: 16, TurnID: "A", Type: acp.EventTypeDone},
+				{Sequence: 17, TurnID: "A", Type: acp.EventTypePromptDelivery},
 			}
 			calls := 0
 			handlers := &BaseHandlers{
@@ -1194,11 +1208,13 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				supplied = nil
 			}
 			writer := &streamTestFlushWriter{}
-			if _, err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", 10, supplied); err != nil {
+			cursor, err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", 10, supplied)
+			if err != nil {
 				t.Fatal(err)
 			}
 			body := writer.String()
-			if strings.Count(body, "event: session_usage_changed") != 3 || strings.Contains(body, "id:") ||
+			if cursor != 17 || strings.Count(body, "event: session_usage_changed") != 6 ||
+				strings.Contains(body, "id:") ||
 				strings.Contains(body, `"sequence":10`) {
 				t.Fatalf("usage frames=%s", body)
 			}
@@ -1215,8 +1231,11 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 			}
 			wants := []map[string]any{
 				want,
-				{"sequence": float64(13), "turn_id": "A", "kind": acp.EventTypeDone},
-				{"sequence": float64(14), "turn_id": "A", "kind": acp.EventTypePromptDelivery},
+				{"sequence": float64(13), "turn_id": "A", "kind": acp.EventTypeCompaction},
+				{"sequence": float64(14), "turn_id": "A", "kind": acp.EventTypeCompaction},
+				{"sequence": float64(15), "turn_id": "A", "kind": eventspkg.SessionCompactionFired},
+				{"sequence": float64(16), "turn_id": "A", "kind": acp.EventTypeDone},
+				{"sequence": float64(17), "turn_id": "A", "kind": acp.EventTypePromptDelivery},
 			}
 			var got []map[string]any
 			for line := range strings.SplitSeq(body, "\n") {
@@ -1230,6 +1249,12 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, wants) {
 				t.Fatalf("usage changes=%#v want=%#v", got, wants)
+			}
+			if _, err := handlers.writeUsageChangedEvents(t.Context(), writer, "sess-a", cursor, events); err != nil {
+				t.Fatal(err)
+			}
+			if writer.String() != body {
+				t.Fatal("repeated ledger events emitted duplicate usage changes")
 			}
 		})
 	}

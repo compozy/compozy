@@ -20,7 +20,7 @@ overlaps: ET-web-session-context-sidebar; ET-web-session-inspector-toggle
 2. Activate the control by Enter and by click. Both open Context and press the existing topbar toggle. Verify narrow composer wrapping preserves Send and attachments.
 3. Send `warning`: 88% keeps the normal fill bands — no warning tone, no `almost full` chip, no threshold tick, and no compaction sentence in the tooltip or the rail meter.
 4. Verify unknown, first-read pending, catalog window, used-only, stale, stopped, over-capacity, and unavailable states. Catalog size carries no threshold sentence; over-capacity keeps raw values and caps the arc; unavailable keeps last values.
-5. After a terminal agent compaction (recorded Claude frames), the previous reading clears and the meter renders the existing unknown treatment (dashed ring, "Context usage unknown", never zero percent) until the next usage report carrying a context reading restores it.
+5. While an ordinary turn remains running, after a terminal agent compaction (recorded Claude frames), the previous reading clears and the meter renders the existing unknown treatment (dashed ring, "Context usage unknown", never zero percent) until the next usage report carrying a context reading restores it. The update and native marker must appear before the turn ends; compaction snapshots and attribution emit `session_usage_changed`.
 6. Confirm a later query supersedes the observation by ledger sequence; equal-sequence attribution still refreshes, and an explicit clear/reset removes retained context.
 
 Final execution and paired reference/implementation captures belong to task_06 VC-01–05. No walk has run for this change.
