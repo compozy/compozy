@@ -33,7 +33,10 @@ leftovers in user-owned files are retired without blocking the user.
   `memory-extractor` sessions; session migration `00009` restores events archived by the removed
   compaction (never inside a rewind receipt range). No file is deleted or rewritten: Markdown
   memory, `knowledge/` directories, and `ledger.jsonl` files stay on disk, unread. `<workspace>/knowledge/`
-  is no longer injected into prompts.
+  is no longer injected into prompts. Disk recovery refuses non-empty unsupported session types or spawn
+  roles before durable-owner verification or metadata normalization, logs `observe.session_recovery_skipped`
+  once per session per observer lifetime, and leaves those session directories unchanged. This is a permanent
+  recovery boundary, not a retired-name shim; normal user sessions without catalog rows remain recoverable.
 - **Official skill / Web / docs:** `skills/compozy/references/memory.md` is deleted and every memory
   or CompozyOS-compaction mention is removed; `compozy__session_compact` and Compact now are
   documented. Web drops the Knowledge app, Settings → Memory, the Home Memory tile, memory role

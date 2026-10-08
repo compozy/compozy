@@ -1894,14 +1894,14 @@ func TestLoadPersistedConfigArchivesRetiredMemory(t *testing.T) {
 		writeFile(
 			t,
 			homePaths.ConfigFile,
-			"[roles.auto_title]\nmodel = 'title-model'\n[roles.coordinator]\nmax_children = 3\n[session.derive]\nmax_replay_bytes = 8192\n",
+			"[roles.auto_title]\nmodel = 'title-model'\n[roles.coordinator]\nmax_children = 3\n[session.derive]\nmax_replay_bytes = 8192\nmax_message_bytes = 4096\n",
 		)
 		cfg, err := LoadForHome(homePaths, withoutDotEnv())
 		if err != nil {
 			t.Fatal(err)
 		}
 		if cfg.Roles.AutoTitle.Model != "title-model" || cfg.Roles.Coordinator.MaxChildren != 3 ||
-			cfg.Session.Derive.MaxReplayBytes != 8192 {
+			cfg.Session.Derive.MaxReplayBytes != 8192 || cfg.Session.Derive.MaxMessageBytes != 4096 {
 			t.Fatalf("retained config was not applied: %#v", cfg)
 		}
 	})

@@ -34,6 +34,7 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -3519,5 +3520,109 @@ func copyDirectory(sourceDir string, targetDir string) error {
 			return fmt.Errorf("write %q: %w", targetPath, err)
 		}
 		return nil
+	})
+}
+
+func TestBootRecoveryPreservesUnsupportedLifecycleArtifactsIntegration(t *testing.T) {
+	t.Run("Should retain retired session files while recovering a valid user orphan", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		workspace := seedDaemonWorkspace(t, homePaths, filepath.Join(t.TempDir(), "workspace"))
+		now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
+		fixtures := []struct {
+			id, sessionType, spawnRole string
+		}{
+			{id: "legacy-dream", sessionType: "dream"},
+			{id: "legacy-extractor", sessionType: string(session.SessionTypeSpawned), spawnRole: "memory-extractor"},
+			{id: "user-orphan", sessionType: string(session.SessionTypeUser)},
+		}
+		retiredFiles := make(map[string][]byte)
+		for _, fixture := range fixtures {
+			dir := filepath.Join(homePaths.SessionsDir, fixture.id)
+			meta := &store.SessionMeta{
+				ID: fixture.id, ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude",
+				WorkspaceID: workspace.Workspace.ID, SessionType: fixture.sessionType,
+				State: string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
+				CreatedAt: now, UpdatedAt: now,
+			}
+			if fixture.spawnRole != "" {
+				meta.Lineage = &store.SessionLineage{
+					ParentSessionID: "user-orphan", RootSessionID: "user-orphan", SpawnDepth: 1,
+					SpawnRole: fixture.spawnRole, Kind: store.LineageKindSpawn,
+				}
+			}
+			if err := store.WriteSessionMeta(store.SessionMetaFile(dir), meta); err != nil {
+				t.Fatalf("WriteSessionMeta(%s) error = %v", fixture.id, err)
+			}
+			db, err := sessiondb.OpenSessionDB(t.Context(), store.SessionDBOwner{
+				SessionID: fixture.id, WorkspaceID: workspace.Workspace.ID,
+			}, store.SessionDBFile(dir))
+			if err != nil {
+				t.Fatalf("OpenSessionDB(%s) error = %v", fixture.id, err)
+			}
+			if err := db.Close(t.Context()); err != nil {
+				t.Fatalf("Close(%s) error = %v", fixture.id, err)
+			}
+			if fixture.id == "user-orphan" {
+				continue
+			}
+			for _, path := range []string{store.SessionMetaFile(dir), store.SessionDBFile(dir)} {
+				content, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("ReadFile(%s) error = %v", path, err)
+				}
+				retiredFiles[path] = content
+			}
+		}
+		registry, err := openDaemonTestGlobalDBAtPath(t.Context(), homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		before, err := registry.ListSessions(t.Context(), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if closeErr := registry.Close(t.Context()); closeErr != nil {
+			t.Fatalf("CloseGlobalDB() error = %v", closeErr)
+		}
+		if err != nil || len(before) != 0 {
+			t.Fatalf("session catalog before boot = %#v, error = %v, want empty", before, err)
+		}
+		d := newTestDaemon(t, homePaths, &cfg)
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(context.Background()); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+		if _, err := d.observer.Reconcile(t.Context()); err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		infos, err := d.sessions.ListAll(t.Context())
+		if err != nil {
+			t.Fatalf("ListAll() error = %v", err)
+		}
+		if len(infos) != 1 || infos[0].ID != "user-orphan" || infos[0].Type != session.SessionTypeUser {
+			t.Fatalf("recovered sessions = %#v, want the valid user orphan", infos)
+		}
+		rows, err := d.registry.ListSessions(t.Context(), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(rows) != 1 || rows[0].ID != "user-orphan" || rows[0].SessionType != string(session.SessionTypeUser) {
+			t.Fatalf("catalog rows = %#v, want the recovered user orphan", rows)
+		}
+		for path, want := range retiredFiles {
+			got, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("ReadFile(%s) after boot error = %v", path, err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("retired session artifact %s changed during boot/reconciliation", path)
+			}
+		}
 	})
 }

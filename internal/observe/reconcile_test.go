@@ -3,15 +3,18 @@ package observe
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
@@ -113,7 +116,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		creationOptions := store.SessionCreationOptions{
 			SessionID:   childID,
 			Name:        "Child",
-			SessionType: "worker",
+			SessionType: string(session.SessionTypeSpawned),
 		}
 		creationProfileRef, err := creationProfile.Ref()
 		if err != nil {
@@ -211,7 +214,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 					}, 1),
 				},
 				WorkspaceID:  h.workspaceID,
-				SessionType:  "worker",
+				SessionType:  string(session.SessionTypeSpawned),
 				State:        "stopped",
 				ACPSessionID: &acpSessionID,
 				StopReason:   &stopReason,
@@ -225,7 +228,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 					ParentSessionID:  parentID,
 					RootSessionID:    rootID,
 					SpawnDepth:       2,
-					SpawnRole:        "delegate_task",
+					SpawnRole:        session.DefaultSpawnRole,
 					Kind:             store.LineageKindSpawn,
 					TTLExpiresAt:     &ttl,
 					AutoStopOnParent: true,
@@ -316,7 +319,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 			indexed.Lineage.ParentSessionID != parentID ||
 			indexed.Lineage.RootSessionID != rootID ||
 			indexed.Lineage.SpawnDepth != 2 ||
-			indexed.Lineage.SpawnRole != "delegate_task" ||
+			indexed.Lineage.SpawnRole != session.DefaultSpawnRole ||
 			indexed.Lineage.TTLExpiresAt == nil ||
 			!indexed.Lineage.TTLExpiresAt.Equal(ttl) ||
 			!indexed.Lineage.AutoStopOnParent {
@@ -693,4 +696,140 @@ func TestReconciliationSkipsSessionMetadataMissingWorkspaceID(t *testing.T) {
 			t.Fatalf("len(sessions) = %d, want 0", len(sessions))
 		}
 	})
+}
+
+func TestReconciliationRecoveryMetadataBoundary(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		sessionType string
+		spawnRole   string
+		reason      string
+	}{
+		{name: "Should leave a retired session type inert", sessionType: "dream", reason: "unknown_session_type"},
+		{name: "Should leave a retired spawn role inert", sessionType: "spawned", spawnRole: "memory-extractor", reason: "unknown_spawn_role"},
+		{name: "Should refuse any unsupported session type", sessionType: "future-type", reason: "unknown_session_type"},
+		{name: "Should refuse any unsupported spawn role", sessionType: "spawned", spawnRole: "future-role", reason: "unknown_spawn_role"},
+		{name: "Should recover a normal user orphan", sessionType: "user"},
+		{name: "Should recover a system orphan", sessionType: "system"},
+		{name: "Should recover a coordinator orphan", sessionType: "coordinator", spawnRole: string(session.SessionTypeCoordinator)},
+		{name: "Should recover metadata with omitted lifecycle fields"},
+		{name: "Should recover a worker orphan", sessionType: "spawned", spawnRole: session.DefaultSpawnRole},
+		{name: "Should recover an auto title orphan", sessionType: "spawned", spawnRole: session.SpawnRoleAutoTitle},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			ctx := t.Context()
+			const sessionID = "orphan-session"
+			sessionDir := filepath.Join(h.home.SessionsDir, sessionID)
+			dbPath := store.SessionDBFile(sessionDir)
+			db, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+				SessionID: sessionID, WorkspaceID: h.workspaceID,
+			}, dbPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			metaPath := store.SessionMetaFile(sessionDir)
+			lineage := &store.SessionLineage{SpawnRole: tc.spawnRole}
+			if tc.sessionType == string(session.SessionTypeSpawned) {
+				lineage.Kind = store.LineageKindSpawn
+			}
+			if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
+				ID: sessionID, ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+				Provider: "claude", AgentName: "coder", SessionType: tc.sessionType,
+				Lineage: lineage, State: "stopped",
+				RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: h.now, UpdatedAt: h.now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			before := snapshotRecoveryFiles(t, sessionDir)
+			var logs bytes.Buffer
+			h.observer.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+			for attempt := range 2 {
+				result, err := h.observer.Reconcile(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantIndexed := 0
+				if tc.reason == "" && attempt == 0 {
+					wantIndexed = 1
+				}
+				if len(result.Indexed) != wantIndexed {
+					t.Fatalf("indexed = %v, want count %d", result.Indexed, wantIndexed)
+				}
+			}
+			rows, err := h.registry.ListSessions(ctx, store.SessionListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.reason == "" {
+				if len(rows) != 1 || rows[0].ID != sessionID {
+					t.Fatalf("recovered rows = %+v, want normal orphan", rows)
+				}
+				return
+			}
+			if len(rows) != 0 {
+				t.Fatalf("unsupported metadata was recataloged: %+v", rows)
+			}
+			after := snapshotRecoveryFiles(t, sessionDir)
+			if len(after) != len(before) {
+				t.Fatalf("recovery changed file set: before %v, after %v", before, after)
+			}
+			for path, original := range before {
+				current, ok := after[path]
+				if !ok || !bytes.Equal(original.content, current.content) ||
+					!original.modified.Equal(current.modified) {
+					t.Fatalf("recovery changed unsupported session file %s", path)
+				}
+			}
+			var warning map[string]any
+			if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &warning); err != nil {
+				t.Fatalf("want exactly one structured warning: %v; logs: %s", err, logs.String())
+			}
+			for key, want := range map[string]string{
+				"level": "WARN", "msg": "observe.session_recovery_skipped", "session_id": sessionID,
+				"session_type": tc.sessionType, "spawn_role": tc.spawnRole, "reason": tc.reason,
+			} {
+				if warning[key] != want {
+					t.Fatalf("warning[%s] = %v, want %s", key, warning[key], want)
+				}
+			}
+		})
+	}
+}
+
+type recoveryFileSnapshot struct {
+	content  []byte
+	modified time.Time
+}
+
+func snapshotRecoveryFiles(t *testing.T, dir string) map[string]recoveryFileSnapshot {
+	t.Helper()
+	files := make(map[string]recoveryFileSnapshot)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			t.Fatalf("unexpected nested recovery fixture directory %s", entry.Name())
+		}
+		path := filepath.Join(dir, entry.Name())
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[entry.Name()] = recoveryFileSnapshot{content: content, modified: info.ModTime()}
+	}
+	return files
 }
