@@ -2043,6 +2043,42 @@ func TestCompactionAssembler(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should release terminal buffers and retire the oldest terminal compactions", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		total := compactionRetainedTerminalLimit + 1
+		active, err := proc.beginPrompt("turn-retention", 2*total+4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for i := range total {
+			id := fmt.Sprintf("c%d", i)
+			sendCompactionTestUpdate(t, proc, id, `{"chunk":"summary text"}`)
+			sendCompactionTestUpdate(t, proc, id, `{"status":"completed"}`)
+		}
+		proc.compactionMu.Lock()
+		retained := len(proc.compactions)
+		buffered := 0
+		for _, state := range proc.compactions {
+			buffered += len(state.buffer)
+		}
+		proc.compactionMu.Unlock()
+		if retained != compactionRetainedTerminalLimit || buffered != 0 {
+			t.Fatalf("retained = %d, buffered bytes = %d", retained, buffered)
+		}
+		sendCompactionTestUpdate(t, proc, "c0", `{"status":"failed","error":"late"}`)
+		sendCompactionTestUpdate(t, proc, fmt.Sprintf("c%d", total-1), `{"status":"failed","error":"correction"}`)
+		events := drainCompactionTestEvents(t, proc, active)
+		if len(events) != 2*total+1 {
+			t.Fatalf("snapshots = %d, want %d", len(events), 2*total+1)
+		}
+		last := events[len(events)-1].Compaction
+		if last.CompactionID != fmt.Sprintf("c%d", total-1) || last.Status != "failed" || last.Terminal ||
+			last.Summary != "summary text" {
+			t.Fatalf("retained correction = %#v", last)
+		}
+	})
 	t.Run("Should cap assembled summaries and scrub split claim tokens before emission", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)

@@ -62,14 +62,18 @@ type AgentProcess struct {
 	providerFailureMu sync.Mutex
 	providerFailures  map[string]ProviderErrorDiagnostic
 
-	logger            *slog.Logger
-	compactionMu      sync.Mutex
-	compactions       map[string]*compactionState
-	unknownUpdates    map[string]struct{}
-	usageAliasWarning sync.Once
-	usageRangeWarning sync.Once
-	promptMu          sync.RWMutex
-	activePrompt      *activePromptState
+	logger       *slog.Logger
+	compactionMu sync.Mutex
+	compactions  map[string]*compactionState
+	// compactionTerminalOrder lists retained terminal compactions oldest first;
+	// retiredCompactions keeps only the ids of evicted ones so late updates drop.
+	compactionTerminalOrder []string
+	retiredCompactions      map[string]struct{}
+	unknownUpdates          map[string]struct{}
+	usageAliasWarning       sync.Once
+	usageRangeWarning       sync.Once
+	promptMu                sync.RWMutex
+	activePrompt            *activePromptState
 
 	pendingPermissionMu  sync.Mutex
 	pendingPermissions   map[string]*pendingPermission

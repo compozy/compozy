@@ -15,6 +15,10 @@ const compactionTextContentType = "text"
 const compactionTruncationMark = " [summary truncated]"
 const compactionStatusCancelled = "cancelled" //nolint:misspell // ACP wire spelling.
 
+// compactionRetainedTerminalLimit bounds how many terminal compactions keep their
+// snapshot for corrections in one agent process.
+const compactionRetainedTerminalLimit = 64
+
 type CompactionObservation struct {
 	CompactionID string
 	Status       string
@@ -43,6 +47,18 @@ func (p *AgentProcess) handleCompactionUpdate(raw wireSessionNotification, kind 
 	}
 	p.compactionMu.Lock()
 	defer p.compactionMu.Unlock()
+	if _, retired := p.retiredCompactions[id]; retired {
+		if p.logger != nil {
+			p.logger.Warn(
+				"acp.compaction.retired_update",
+				"session_id",
+				raw.SessionID,
+				"compaction_id",
+				redact.ClaimTokens(id),
+			)
+		}
+		return nil
+	}
 	if p.compactions == nil {
 		p.compactions = make(map[string]*compactionState)
 	}
@@ -74,6 +90,11 @@ func (p *AgentProcess) handleCompactionUpdate(raw wireSessionNotification, kind 
 	} else {
 		state.applyPatch(fields)
 	}
+	if isCompactionTerminal(state.snapshot.Status) {
+		// The terminal snapshot now owns the summary; late chunks are dropped.
+		state.buffer = ""
+		state.truncated = false
+	}
 	if exists && before.Status == state.snapshot.Status &&
 		before.Summary == state.snapshot.Summary && before.Error == state.snapshot.Error {
 		return nil
@@ -85,12 +106,28 @@ func (p *AgentProcess) handleCompactionUpdate(raw wireSessionNotification, kind 
 	if snapshot.Terminal {
 		state.terminalSeen = true
 		p.invalidatePromptOccupancy()
+		p.retainTerminalCompactionLocked(id)
 	}
 	p.emitPromptEvent(AgentEvent{
 		Type: EventTypeCompaction, SessionID: string(raw.SessionID), TurnID: p.activeTurnID(),
 		Timestamp: timeNowUTC(), Compaction: &snapshot,
 	})
 	return nil
+}
+
+// retainTerminalCompactionLocked records a first terminal transition and evicts the
+// oldest retained terminal compactions beyond the limit. Callers hold compactionMu.
+func (p *AgentProcess) retainTerminalCompactionLocked(id string) {
+	p.compactionTerminalOrder = append(p.compactionTerminalOrder, id)
+	for len(p.compactionTerminalOrder) > compactionRetainedTerminalLimit {
+		evicted := p.compactionTerminalOrder[0]
+		p.compactionTerminalOrder = p.compactionTerminalOrder[1:]
+		delete(p.compactions, evicted)
+		if p.retiredCompactions == nil {
+			p.retiredCompactions = make(map[string]struct{})
+		}
+		p.retiredCompactions[evicted] = struct{}{}
+	}
 }
 
 func (s *compactionState) applyPatch(fields map[string]json.RawMessage) {

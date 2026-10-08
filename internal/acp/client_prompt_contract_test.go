@@ -1199,10 +1199,11 @@ func TestPromptStreamsSessionUpdates(t *testing.T) {
 		{"Should not combine fresh used-only telemetry with pre-compaction size", "used", new(int64(8000)), nil, 1.5},
 		{"Should preserve fresh occupancy across a terminal correction", "fresh", new(int64(8000)), new(int64(200000)), 1.5},
 		{"Should retain token totals without restoring occupancy", "totals", nil, nil, 1.5},
+		{"Should discard occupancy when the terminal compaction arrives after the response", "late", nil, nil, 1.5},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			driver := New()
+			driver := New(WithPromptDrainWait(500 * time.Millisecond))
 			proc := startHelperProcess(t, driver, "compaction_usage", tc.variant, StartOpts{})
 			defer stopProcess(t, driver, proc)
 			stream, err := driver.Prompt(t.Context(), proc, PromptRequest{TurnID: "turn-compact", Message: "/compact"})

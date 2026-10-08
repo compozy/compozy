@@ -726,6 +726,18 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 			updates = append(updates, `{"sessionUpdate":"usage_update","cost":{"amount":2.5,"currency":"USD"}}`)
 		case "used":
 			updates = append(updates, `{"sessionUpdate":"usage_update","used":8000}`)
+		case "late":
+			// The terminal compaction arrives after the prompt response, inside the drain window.
+			updates = updates[:1]
+			go func() {
+				time.Sleep(20 * time.Millisecond)
+				_ = a.conn.SessionUpdate(context.WithoutCancel(ctx), acpsdk.SessionNotification{
+					SessionId: params.SessionId,
+					Update: acpsdk.SessionUpdate{CompactionUpdate: &acpsdk.SessionCompactionUpdate{
+						SessionUpdate: "compaction_update", CompactionId: "c1", Status: "completed",
+					}},
+				})
+			}()
 		case "fresh":
 			updates = append(updates,
 				`{"sessionUpdate":"usage_update","used":8000,"size":200000}`,
