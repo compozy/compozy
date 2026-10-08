@@ -183,12 +183,74 @@ interface AutomationRunListProps {
   onSetUpRetries?: () => void;
 }
 
-/**
- * Runs — the last activations the daemon kept, newest first, as a single-open
- * accordion so one run can be read without losing the list. One list for
- * every kind; the glyph carries the tone and the word stays quiet.
- */
-export function AutomationRunList({
+/** The collapsed section's gist; nothing while the list is loading or failed. */
+function runListGist(settled: boolean, count: number): string | undefined {
+  if (!settled) return undefined;
+  return count === 0 ? "no runs yet" : "last 10 recorded";
+}
+
+function RunListEmpty({ nextRunAt }: { nextRunAt?: string }) {
+  return (
+    <Empty
+      className="px-4 py-7"
+      data-testid="automation-run-list-empty"
+      description={
+        nextRunAt ? (
+          <>
+            Next run <Time iso={nextRunAt} />
+          </>
+        ) : undefined
+      }
+      fill={false}
+      icon={History}
+      title="No runs yet"
+    />
+  );
+}
+
+function RunListError({ error, onRetry }: { error: Error; onRetry: () => void }) {
+  return (
+    <Empty
+      action={
+        <Button onClick={onRetry} size="sm" type="button" variant="neutral">
+          Try again
+        </Button>
+      }
+      className="px-4 py-7"
+      data-testid="automation-run-list-error"
+      description={error.message || "Failed to load automation runs."}
+      fill={false}
+      icon={AlertCircle}
+      title="Unable to load runs"
+    />
+  );
+}
+
+/** Single-open accordion: opening a run closes the one before it. */
+function RunListRows({
+  views,
+  onSetUpRetries,
+}: {
+  views: AutomationRunView[];
+  onSetUpRetries?: () => void;
+}) {
+  const [openRunId, setOpenRunId] = useState<string | null>(null);
+  return (
+    <ul data-testid="automation-run-list-rows">
+      {views.map(view => (
+        <RunRow
+          key={view.id}
+          onOpenToggle={() => setOpenRunId(previous => (previous === view.id ? null : view.id))}
+          onSetUpRetries={onSetUpRetries}
+          open={openRunId === view.id}
+          view={view}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function RunListBody({
   entity,
   runs,
   error,
@@ -197,67 +259,40 @@ export function AutomationRunList({
   onRetry,
   onSetUpRetries,
 }: AutomationRunListProps) {
-  const [openRunId, setOpenRunId] = useState<string | null>(null);
-  const settled = !isLoading && !error;
-  const views = settled ? runs.map(run => buildAutomationRunView(run, entity)) : [];
+  if (isLoading) {
+    return (
+      <div className="px-4 py-3" data-testid="automation-run-list-loading">
+        <SkeletonRows count={3} />
+      </div>
+    );
+  }
+  if (error) return <RunListError error={error} onRetry={onRetry} />;
+  if (runs.length === 0) return <RunListEmpty nextRunAt={nextRunAt} />;
+  return (
+    <RunListRows
+      onSetUpRetries={onSetUpRetries}
+      views={runs.map(run => buildAutomationRunView(run, entity))}
+    />
+  );
+}
 
+/**
+ * Runs — the last activations the daemon kept, newest first, as a single-open
+ * accordion so one run can be read without losing the list. One list for
+ * every kind; the glyph carries the tone and the word stays quiet.
+ */
+export function AutomationRunList(props: AutomationRunListProps) {
+  const settled = !props.isLoading && !props.error;
   return (
     <AutomationDetailSection
-      count={settled ? runs.length : undefined}
+      count={settled ? props.runs.length : undefined}
       data-testid="automation-run-list"
-      gist={settled ? (runs.length === 0 ? "no runs yet" : "last 10 recorded") : undefined}
+      gist={runListGist(settled, props.runs.length)}
       icon={History}
       label="Runs"
     >
       <div className={PANEL_SHELL}>
-        {isLoading ? (
-          <div className="px-4 py-3" data-testid="automation-run-list-loading">
-            <SkeletonRows count={3} />
-          </div>
-        ) : error ? (
-          <Empty
-            action={
-              <Button onClick={onRetry} size="sm" type="button" variant="neutral">
-                Try again
-              </Button>
-            }
-            className="px-4 py-7"
-            data-testid="automation-run-list-error"
-            description={error.message || "Failed to load automation runs."}
-            fill={false}
-            icon={AlertCircle}
-            title="Unable to load runs"
-          />
-        ) : views.length === 0 ? (
-          <Empty
-            className="px-4 py-7"
-            data-testid="automation-run-list-empty"
-            description={
-              nextRunAt ? (
-                <>
-                  Next run <Time iso={nextRunAt} />
-                </>
-              ) : undefined
-            }
-            fill={false}
-            icon={History}
-            title="No runs yet"
-          />
-        ) : (
-          <ul data-testid="automation-run-list-rows">
-            {views.map(view => (
-              <RunRow
-                key={view.id}
-                onOpenToggle={() =>
-                  setOpenRunId(previous => (previous === view.id ? null : view.id))
-                }
-                onSetUpRetries={onSetUpRetries}
-                open={openRunId === view.id}
-                view={view}
-              />
-            ))}
-          </ul>
-        )}
+        <RunListBody {...props} />
       </div>
     </AutomationDetailSection>
   );
