@@ -12,7 +12,7 @@ var sharedAppViewDomains = []domainDefinition{
 	{id: coreAppTasks, title: "Tasks", icon: "list-checks"},
 	{id: coreAppLoops, title: "Loops", icon: "repeat-2"},
 	{id: coreAppAutomations, title: "Automations", icon: coreIconZap,
-		keywords: []string{"jobs", "triggers", "schedule", "webhook", "event"}},
+		keywords: []string{"jobs", "triggers", coreStartSchedule, coreKeywordWebhook, coreStartEvent}},
 	{id: coreAppMarketplace, title: "Marketplace", icon: "store"},
 	{id: coreAppKnowledge, title: "Knowledge", icon: "book-open"},
 	{id: coreAppVault, title: "Vault", icon: "key-round"},

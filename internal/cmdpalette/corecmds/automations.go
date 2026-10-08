@@ -13,16 +13,16 @@ type automationCreateDefinition struct {
 // preselected; the web route reads `create=1&start=…` as the editor deep link.
 var automationCreateDefinitions = []automationCreateDefinition{
 	{
-		start:    "schedule",
+		start:    coreStartSchedule,
 		title:    "New scheduled automation",
 		icon:     coreIconPlus,
-		keywords: []string{"job", "schedule", "cron", "every"},
+		keywords: []string{"job", coreStartSchedule, "cron", "every"},
 	},
 	{
-		start:    "event",
+		start:    coreStartEvent,
 		title:    "New automation on an event",
 		icon:     coreIconPlus,
-		keywords: []string{"trigger", "event", "when", "webhook"},
+		keywords: []string{"trigger", coreStartEvent, "when", coreKeywordWebhook},
 	},
 }
 
@@ -38,9 +38,9 @@ func automationCommands() []cmdpalette.Descriptor {
 				Kind: cmdpalette.ActionKindNavigate,
 				App:  coreAppAutomations,
 				Args: map[string]any{
-					"pathname": "/automations",
-					"create":   "1",
-					"start":    definition.start,
+					coreArgPathname: "/automations",
+					"create":        "1",
+					"start":         definition.start,
 				},
 			},
 		)
