@@ -38,6 +38,7 @@ import {
   resetSessionDebugTelemetry,
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
+import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionFailurePayload, SessionMessage, SessionState } from "@/systems/session/types";
 import { SESSION_TRANSPORT_LIVE } from "@/systems/session/lib/session-transport";
@@ -714,6 +715,103 @@ describe("SessionThread transcript states", () => {
         '[data-testid="thread-message-row"][data-message-id="compaction:c1"]'
       )
     ).toHaveLength(1);
+  });
+
+  // Invariant (S18): a requested compaction is followed, in the same turn, by the agent's own
+  // reply. The thread shows the compaction row AND that reply; neither hides the other.
+  // Owner: thread rendering over the daemon's real projection (user /compact, the system
+  // compaction message, the quiet fired event, then the assistant text with its maintenance
+  // `prompt_delivery`, whose `spans` is null because `/compact` carries no sections). The
+  // transcript is normalized exactly as the live tail does; a rejected frame hides the reply.
+  it("Should render the assistant text that follows a compaction item in the same turn", async () => {
+    const turn = "turn-955a640065514905";
+    const transcript = [
+      {
+        id: "ask",
+        role: "user",
+        metadata: { turn_id: "turn-afe4f209a549163f" },
+        parts: [{ type: "text", text: "baseline", state: "done" }],
+      },
+      {
+        id: "turn-afe4f209a549163f",
+        role: "assistant",
+        parts: [{ type: "text", text: "baseline ready", state: "done" }],
+      },
+      {
+        id: "ev-compact",
+        role: "user",
+        metadata: { turn_id: turn },
+        parts: [{ type: "text", text: "/compact", state: "done" }],
+      },
+      {
+        id: "compaction:native-1",
+        role: "system",
+        parts: [
+          {
+            type: "data-compozy-compaction",
+            id: "native-1",
+            data: {
+              kind: "compaction",
+              compaction_id: "native-1",
+              status: "completed",
+              summary: "Retain the agreed project constraints.",
+              started_at: "2026-10-08T11:50:54.762Z",
+              ended_at: "2026-10-08T11:50:57.765Z",
+            },
+          },
+        ],
+      },
+      {
+        id: `${turn}-2`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "session.compaction_fired",
+              session_id: "s",
+              turn_id: turn,
+              timestamp: "2026-10-08T11:50:54.762Z",
+              raw: { compaction_id: "native-1", trigger: "requested" },
+            },
+          },
+        ],
+      },
+      {
+        id: `${turn}-3`,
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            id: `${turn}-3-text-1`,
+            text: "Native compaction observed.",
+            state: "done",
+          },
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "prompt_delivery",
+              session_id: "s",
+              turn_id: turn,
+              timestamp: "2026-10-08T11:50:57.821Z",
+              delivery: {
+                turn_id: turn,
+                sent_at: "2026-10-08T11:50:54.762Z",
+                estimate: "bytes_div_4",
+                spans: null,
+              },
+            },
+          },
+        ],
+      },
+    ] as unknown as SessionMessage[];
+    const normalized = await normalizeTranscriptMessages(transcript);
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+    expect(await screen.findByTestId("session-compaction-item")).toHaveTextContent(
+      "Context compacted"
+    );
+    expect(screen.getByText("Native compaction observed.")).toBeInTheDocument();
   });
 
   it("Should render a retryable transcript error pane and call retry", async () => {

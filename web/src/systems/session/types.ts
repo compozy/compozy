@@ -280,6 +280,7 @@ export interface PromptDeliveryPayload {
   turn_id: string;
   sent_at: string;
   estimate: string;
+  /** `null` when the delivery sent no sections (a literal maintenance prompt). */
   spans: Array<{
     key: string;
     kind: string;
@@ -290,7 +291,7 @@ export interface PromptDeliveryPayload {
     unchanged?: boolean;
     startup_dedup?: boolean;
     hook_modified?: boolean;
-  }>;
+  }> | null;
 }
 
 export interface AgentEventPayload {
