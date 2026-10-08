@@ -2,6 +2,7 @@ export type {
   ACPCaps,
   AgentEventPayload,
   CompozyPermissionData,
+  SessionCompactionItemData,
   AnswerClarificationBody,
   AnswerClarificationResult,
   ApproveSessionParams,
@@ -104,6 +105,7 @@ export {
   clearSessionInputs,
   clearSessionRuntime,
   ClarificationNotAnswerableError,
+  compactSession,
   createSession,
   fetchSessionClarifications,
   fetchSessionInteractions,
@@ -141,7 +143,7 @@ export type { SessionPromptCapability } from "./lib/session-prompt-capability";
 export * from "./attachments";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { derivePendingClarifyRequestIds, isClarifyEventData } from "./lib/clarify-event";
-export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
+export { isAgentEventPayload, isCompactionItemData, resolveToolResult } from "./lib/message-parts";
 export { isProviderErrorEvent } from "./lib/provider-error";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 // Attention surface — badge dictionary, pending-interaction reads, list
@@ -457,6 +459,10 @@ export {
   type ClarificationDataPartProps,
 } from "./components/clarification-data-part";
 export { RuntimeActivityNotice } from "./components/runtime-activity-notice";
+export {
+  SessionCompactionItem,
+  type SessionCompactionItemProps,
+} from "./components/session-compaction-item";
 export {
   SessionInspector,
   type InspectorUsage,

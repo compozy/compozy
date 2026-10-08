@@ -3,11 +3,11 @@ import { Fragment, useState } from "react";
 import { Button, Collapsible, CollapsibleContent } from "@compozy/ui";
 import { History, Minimize2 } from "lucide-react";
 import type { SessionUsageTurnsResponse } from "../types";
+import { formatContextTokens, formatContextTurn } from "../lib/context-format";
 import {
-  formatContextPercent,
-  formatContextTokens,
-  formatContextTurn,
-} from "../lib/context-format";
+  describeSessionCompactionMarkers,
+  type SessionCompactionMarkerView,
+} from "../lib/session-context-view";
 import {
   SessionInspectorDisclosureHead,
   SessionInspectorEmpty,
@@ -17,7 +17,6 @@ import {
 const VISIBLE_TURNS = 50;
 
 type Turn = SessionUsageTurnsResponse["turns"][number];
-type Compaction = SessionUsageTurnsResponse["compactions"][number];
 
 /** "in · out · cache" plus what CompozyOS delivered; absent counters have no clause. */
 function turnDetails(turn: Turn): string[] {
@@ -77,23 +76,37 @@ function SessionContextTurnRow({ turn }: { turn: Turn }) {
   );
 }
 
-/** A daemon compaction where it fired: pressure, the window then, and whether the span is archived now. */
-function SessionContextCompactionMarker({ marker }: { marker: Compaction }) {
+/** Only the figures the daemon knows: before and after, before alone, or nothing. */
+function compactionTokens({ before, after }: SessionCompactionMarkerView): string | undefined {
+  const from = before != null ? formatContextTokens(before) : undefined;
+  const to = after != null ? formatContextTokens(after) : undefined;
+  if (from && to) return `${from} → ${to}`;
+  if (from) return from;
+  return to ? `→ ${to}` : undefined;
+}
+
+/** An observed agent compaction: who started it, how it ended, and the window before and after. */
+function SessionContextCompactionMarker({ marker }: { marker: SessionCompactionMarkerView }) {
+  const tokens = compactionTokens(marker);
   return (
     <li
       className="flex items-start gap-1.75 px-2.5 py-1.5 text-micro leading-4 text-subtle"
-      data-testid="session-context-compaction"
+      data-status={marker.status}
+      data-testid="session-context-compaction-marker"
+      data-trigger={marker.trigger}
     >
       <Minimize2 aria-hidden="true" className="mt-0.75 size-2.75 shrink-0" />
       <span>
-        CompozyOS compaction · at {formatContextPercent(marker.pressure)} ·{" "}
-        <b className="font-mono font-medium text-muted">
-          {formatContextTokens(marker.context_used)}
-        </b>{" "}
-        · replay span{" "}
-        <span className={marker.span_archived ? undefined : "text-warning"}>
-          {marker.span_archived ? "archived" : "not archived"}
+        {marker.label} ·{" "}
+        <span className={marker.status === "failed" ? "text-danger" : undefined}>
+          {marker.statusLabel}
         </span>
+        {tokens ? (
+          <>
+            {" "}
+            · <b className="font-mono font-medium tabular-nums text-muted">{tokens}</b>
+          </>
+        ) : null}
       </span>
     </li>
   );
@@ -125,12 +138,12 @@ export function SessionContextTurnsSection({
       key: `turn/${turn.turn_id}`,
       content: <SessionContextTurnRow turn={turn} />,
     })),
-    ...(data?.compactions ?? []).flatMap(marker => {
+    ...describeSessionCompactionMarkers(data).flatMap(marker => {
       if (capped && marker.sequence < oldest) return [];
       return [
         {
           sequence: marker.sequence,
-          key: `compaction/${marker.sequence}`,
+          key: `compaction/${marker.key}`,
           content: <SessionContextCompactionMarker marker={marker} />,
         },
       ];

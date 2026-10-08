@@ -3,11 +3,13 @@ import { Gauge } from "lucide-react";
 import { Pill, StackedProgress, StatusBreakdown, cn } from "@compozy/ui";
 import type { SessionContextView } from "../lib/session-context";
 import { formatContextTokens } from "../lib/context-format";
+import type { SessionPayload } from "../types";
 import {
   describeSessionContextMeter,
   type SessionContextMeterView,
   type SessionContextTiersView,
 } from "../lib/session-context-view";
+import { SessionContextCompactAction } from "./session-context-compact-action";
 import { SessionInspectorEmpty, SessionInspectorSection } from "./session-inspector-section";
 
 type StatusBreakdownItem = ComponentProps<typeof StatusBreakdown>["items"][number];
@@ -106,9 +108,7 @@ function SessionContextMeterBody({ view }: { view: SessionContextMeterView }) {
     return (
       <>
         <p className="text-small-body font-medium text-fg">Context usage unknown</p>
-        <p className="text-micro leading-4 text-subtle">
-          This agent hasn't reported context usage.
-        </p>
+        <p className="text-micro leading-4 text-subtle">{view.sentence}</p>
       </>
     );
   }
@@ -132,11 +132,19 @@ function SessionContextMeterBody({ view }: { view: SessionContextMeterView }) {
   );
 }
 
-export function SessionContextMeterSection({ context }: { context: SessionContextView }) {
+export function SessionContextMeterSection({
+  context,
+  session,
+}: {
+  context: SessionContextView;
+  /** The inspected session; its advertised commands decide whether Compact now is offered. */
+  session?: SessionPayload;
+}) {
   const view = describeSessionContextMeter(context);
   return (
     <SessionInspectorSection data-testid="session-context-meter">
       <SessionContextMeterBody view={view} />
+      {session ? <SessionContextCompactAction session={session} /> : null}
     </SessionInspectorSection>
   );
 }

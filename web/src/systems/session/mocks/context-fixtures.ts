@@ -136,25 +136,76 @@ export const sessionContextTurnsFixture: SessionUsageTurnsResponse = {
       sequence: 50,
       turn_id: "turn-2",
       at: "2026-09-12T09:20:00Z",
+      compaction_id: "compaction-1",
+      trigger: "agent",
+      status: "completed",
       context_used: 217_600,
       context_size: 256_000,
-      pressure: 0.85,
-      from_sequence: 1,
-      to_sequence: 40,
-      span_archived: true,
-      strategy: "replay",
     },
     {
       sequence: 80,
       turn_id: "turn-4",
       at: "2026-09-12T09:50:00Z",
+      compaction_id: "compaction-2",
+      trigger: "requested",
+      status: "completed",
       context_used: 225_280,
       context_size: 256_000,
-      pressure: 0.88,
-      from_sequence: 41,
-      to_sequence: 77,
-      span_archived: false,
-      strategy: "replay",
     },
   ],
 };
+
+type UsageTurn = SessionUsageTurnsResponse["turns"][number];
+type UsageCompaction = SessionUsageTurnsResponse["compactions"][number];
+
+const compactionStatuses = [
+  "in_progress",
+  "completed",
+  "failed",
+  "cancelled",
+  // A vendor value the daemon passes through verbatim.
+  "compaction_paused",
+] as const;
+
+function contextTurn(id: string, sequence: number, used: number): UsageTurn {
+  return {
+    turn_id: id,
+    sequence,
+    usage: {
+      sequence,
+      timestamp: "2026-09-12T09:00:00Z",
+      context_used: used,
+      context_size: 256_000,
+    },
+  };
+}
+
+/**
+ * Every compaction marker state: agent and requested triggers across each status.
+ * Agent markers have a later turn's usage report (before → after); requested ones
+ * stop at the reading they were observed at, and the in-progress request has none.
+ */
+export const sessionContextCompactionStatesFixture: SessionUsageTurnsResponse = (() => {
+  const turns: UsageTurn[] = [];
+  const compactions: UsageCompaction[] = [];
+  compactionStatuses.forEach((status, statusIndex) => {
+    (["agent", "requested"] as const).forEach((trigger, triggerIndex) => {
+      const base = (statusIndex * 2 + triggerIndex + 1) * 100;
+      const turnId = `turn-${base}`;
+      const observed = trigger === "requested" && status === "in_progress" ? undefined : 200_000;
+      turns.push(contextTurn(turnId, base + 10, 200_000));
+      if (trigger === "agent") turns.push(contextTurn(`turn-${base + 40}`, base + 40, 41_000));
+      compactions.push({
+        sequence: base + 20,
+        turn_id: turnId,
+        at: "2026-09-12T09:20:00Z",
+        compaction_id: `compaction-${trigger}-${status}`,
+        trigger,
+        status,
+        context_used: observed,
+        context_size: observed == null ? undefined : 256_000,
+      });
+    });
+  });
+  return { turns, compactions };
+})();

@@ -15,6 +15,7 @@ import {
   cancelSessionPrompt,
   clearSessionRuntime,
   clearSessionConversation,
+  compactSession,
   createSession,
   deleteSession,
   fetchSession,
@@ -541,6 +542,58 @@ describe("session archive", () => {
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/unarchive",
     });
+  });
+});
+
+describe("compactSession", () => {
+  const receipt = {
+    command: "compact",
+    prompt_id: "prompt-compact-1",
+    session_id: "sess-001",
+    status: "accepted",
+  };
+
+  it("posts an empty body to the compact route and resolves with the 202 receipt", async () => {
+    mockJsonResponse(receipt, { status: 202 });
+    const controller = new AbortController();
+
+    await expect(compactSession(WORKSPACE_ID, "sess-001", controller.signal)).resolves.toEqual(
+      receipt
+    );
+
+    await expectFetchRequest({
+      body: {},
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/compact",
+      signal: controller.signal,
+    });
+  });
+
+  it.each(["session_busy", "compaction_unsupported"])(
+    "carries the %s code and the daemon message on a 409",
+    async code => {
+      mockJsonResponse({ code, error: `daemon says ${code}` }, { status: 409 });
+
+      const error = await compactSession(WORKSPACE_ID, "sess-001").catch(
+        (reason: unknown) => reason
+      );
+
+      expect(error).toBeInstanceOf(SessionApiError);
+      expect(error).toMatchObject({
+        code,
+        message: `daemon says ${code}`,
+        sessionId: "sess-001",
+        status: 409,
+      });
+    }
+  );
+
+  it("reports an unknown session as not found", async () => {
+    mockJsonResponse({ error: "session not found" }, { status: 404 });
+
+    await expect(compactSession(WORKSPACE_ID, "unknown")).rejects.toBeInstanceOf(
+      SessionNotFoundError
+    );
   });
 });
 
@@ -1209,6 +1262,44 @@ describe("fetchSessionTranscript", () => {
       text: "Permission blocked diagnostic: terminal/create denied before writing workspace marker.",
       type: "text",
     });
+  });
+
+  // Invariant (S18): a compaction item survives transcript normalization whole — the
+  // `system` role, the agent's own (vendor) status, and the optional summary and error.
+  it("Should carry compaction items with any agent status through normalization", async () => {
+    const compactionTranscript = {
+      epoch: 1,
+      generation: 1,
+      max_sequence: 3,
+      has_older: false,
+      limit: 200,
+      entries: ["in_progress", "compaction_paused", "failed"].map((status, index) => ({
+        sequence: index + 1,
+        start_sequence: index + 1,
+        message: {
+          id: `compaction:c${index}`,
+          role: "system",
+          parts: [
+            {
+              type: "data-compozy-compaction",
+              id: `c${index}`,
+              data: {
+                kind: "compaction",
+                compaction_id: `c${index}`,
+                status,
+                started_at: "2026-10-08T14:02:11Z",
+                ...(status === "failed" ? { error: "context window exceeded" } : {}),
+              },
+            },
+          ],
+        },
+      })),
+    };
+    mockJsonResponse(compactionTranscript);
+
+    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
+
+    expect(result).toEqual(compactionTranscript);
   });
 
   it("throws 404 for unknown session", async () => {

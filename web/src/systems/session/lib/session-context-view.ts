@@ -1,3 +1,4 @@
+import type { SessionUsageTurnsResponse } from "../types";
 import { formatContextPercent, formatContextTokens } from "./context-format";
 import {
   sessionContextRingState,
@@ -52,6 +53,15 @@ export function describeSessionContextChip(
   return undefined;
 }
 
+/** Why a context reading is empty, in the sentence the tooltip and the meter share. */
+export const CONTEXT_NEVER_REPORTED_SENTENCE = "This agent hasn't reported context usage.";
+export const CONTEXT_COMPACTED_SENTENCE =
+  "Context compacted. Waiting for the agent's next usage report.";
+
+function unknownReadingSentence(context: SessionContextView): string {
+  return context.clearedByCompaction ? CONTEXT_COMPACTED_SENTENCE : CONTEXT_NEVER_REPORTED_SENTENCE;
+}
+
 export type SessionContextTooltipRow =
   | { kind: "numbers"; percent?: string; amount: string }
   | { kind: "headline"; text: string }
@@ -97,7 +107,7 @@ function tooltipRows(
           : "Context usage unknown";
     rows.push({ kind: "headline", text });
     if (state === "unknown" && !unavailable) {
-      rows.push({ kind: "sentence", text: "This agent hasn't reported context usage." });
+      rows.push({ kind: "sentence", text: unknownReadingSentence(context) });
     }
     return rows;
   }
@@ -140,7 +150,7 @@ export interface SessionContextTiersView {
 
 export type SessionContextMeterView =
   | { kind: "empty"; title: string; description?: string }
-  | { kind: "unknown" }
+  | { kind: "unknown"; sentence: string }
   | {
       kind: "reported";
       value: string;
@@ -152,8 +162,11 @@ export type SessionContextMeterView =
 function meterEmpty(context: SessionContextView, unavailable: boolean): SessionContextMeterView {
   if (context.loading) return { kind: "empty", title: "Loading context" };
   if (unavailable) return { kind: "empty", title: "Usage unavailable" };
-  // Rows without a report: the agent never says how full its window is.
-  if ((context.injected?.rows.length ?? 0) > 0) return { kind: "unknown" };
+  // Rows without a report, or a compaction that cleared the reading: the agent
+  // has not said how full its window is.
+  if (context.clearedByCompaction || (context.injected?.rows.length ?? 0) > 0) {
+    return { kind: "unknown", sentence: unknownReadingSentence(context) };
+  }
   return {
     kind: "empty",
     title: "No context report yet",
@@ -190,4 +203,96 @@ export function describeSessionContextMeter(context: SessionContextView): Sessio
     chip: describeSessionContextChip(context),
     tiers: meterTiers(context, used),
   };
+}
+
+interface ContextReport {
+  turnId: string;
+  sequence: number;
+  used: number;
+}
+
+/** Every context occupancy the agent reported, in ledger order. */
+function contextReports(data: SessionUsageTurnsResponse | undefined): ContextReport[] {
+  return (data?.turns ?? [])
+    .flatMap(turn => {
+      const used = turn.usage?.context_used;
+      return used == null
+        ? []
+        : [{ turnId: turn.turn_id, sequence: turn.usage?.sequence ?? turn.sequence, used }];
+    })
+    .sort((a, b) => a.sequence - b.sequence);
+}
+
+/** A compaction that is over; `in_progress` and vendor statuses (for example `…_paused`) are not. */
+const TERMINAL_COMPACTION_STATUSES: ReadonlySet<string> = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+/**
+ * True when the latest observed compaction has ended and the agent has not
+ * reported context usage since. The daemon clears the reading at that boundary
+ * (`unknown`) until the next report, so the meter says so instead of claiming
+ * the agent never reported.
+ */
+export function isAwaitingUsageAfterCompaction(
+  data: SessionUsageTurnsResponse | undefined
+): boolean {
+  const latest = (data?.compactions ?? []).reduce<
+    SessionUsageTurnsResponse["compactions"][number] | undefined
+  >(
+    (newest, marker) => (newest && newest.sequence >= marker.sequence ? newest : marker),
+    undefined
+  );
+  if (!latest || !TERMINAL_COMPACTION_STATUSES.has(latest.status)) return false;
+  return !contextReports(data).some(
+    report => report.turnId !== latest.turn_id && report.sequence > latest.sequence
+  );
+}
+
+export interface SessionCompactionMarkerView {
+  key: string;
+  /** Position in the session's event ledger; markers interleave with turns by it. */
+  sequence: number;
+  label: "Agent compaction" | "Requested compaction";
+  /** The daemon's status, vendor values included, verbatim. */
+  status: string;
+  statusLabel: string;
+  trigger: string;
+  /** Occupancy when the compaction was observed; absent when the agent sent none. */
+  before?: number;
+  /** The agent's next usage report for a later turn; absent until one exists. */
+  after?: number;
+}
+
+/**
+ * One row per observed agent compaction. The "after" figure is the first usage
+ * report of a later turn that lands before the next compaction, so it is only
+ * ever a report the agent made, never an estimate.
+ */
+export function describeSessionCompactionMarkers(
+  data: SessionUsageTurnsResponse | undefined
+): SessionCompactionMarkerView[] {
+  const markers = [...(data?.compactions ?? [])].sort((a, b) => a.sequence - b.sequence);
+  const reports = contextReports(data);
+  return markers.map((marker, index) => {
+    const ceiling = markers[index + 1]?.sequence ?? Number.POSITIVE_INFINITY;
+    const after = reports.find(
+      report =>
+        report.turnId !== marker.turn_id &&
+        report.sequence > marker.sequence &&
+        report.sequence < ceiling
+    )?.used;
+    return {
+      key: marker.compaction_id,
+      sequence: marker.sequence,
+      label: marker.trigger === "requested" ? "Requested compaction" : "Agent compaction",
+      status: marker.status,
+      statusLabel: marker.status === "in_progress" ? "in progress" : marker.status,
+      trigger: marker.trigger,
+      before: marker.context_used ?? undefined,
+      after,
+    };
+  });
 }
