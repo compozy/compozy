@@ -61,6 +61,7 @@ export interface BrowserRouteState {
   url: string;
   pathname: string;
   title: string;
+  /** Daemon entity of the open `/automations/{jobs,triggers}/:id` detail route. */
   automation_active_tab?: "jobs" | "triggers";
   automation_delete_visible?: boolean;
   automation_detail_overflow_visible?: boolean;

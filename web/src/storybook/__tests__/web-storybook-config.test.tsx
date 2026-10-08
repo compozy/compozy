@@ -113,11 +113,11 @@ describe("web Storybook config", () => {
     await router.navigate({ to: "/session/$id", params: { id: "sess-storybook" } });
     expect(router.state.location.pathname).toBe("/session/sess-storybook");
 
-    await router.navigate({ to: "/jobs" });
-    expect(router.state.location.pathname).toBe("/jobs");
+    await router.navigate({ to: "/automations" });
+    expect(router.state.location.pathname).toBe("/automations");
 
-    await router.navigate({ to: "/triggers" });
-    expect(router.state.location.pathname).toBe("/triggers");
+    await router.navigate({ to: "/automations/jobs/$jobId", params: { jobId: "morning-digest" } });
+    expect(router.state.location.pathname).toBe("/automations/jobs/morning-digest");
 
     await router.navigate({ to: "/tasks" });
     expect(router.state.location.pathname).toBe("/tasks");

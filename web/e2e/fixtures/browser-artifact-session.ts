@@ -233,20 +233,13 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
             testId !== "automation-run-history-rows" &&
             !testId.startsWith("automation-run-session-link-")
         ).length;
-    const automationPathTab = window.location.pathname.match(/^\/(jobs|triggers)(?:\/|$)/)?.[1] as
-      | "jobs"
-      | "triggers"
-      | undefined;
-    const automationActiveTab =
-      automationPathTab ??
-      (document.querySelector('[data-testid="jobs-shell"]')
-        ? "jobs"
-        : document.querySelector('[data-testid="triggers-shell"]')
-          ? "triggers"
-          : undefined);
+    // The merged Automations app has no tabs; detail routes still name the daemon entity.
+    const automationActiveTab = window.location.pathname.match(
+      /^\/automations\/(jobs|triggers)(?:\/|$)/
+    )?.[1] as "jobs" | "triggers" | undefined;
     // Catalog scope now lives in the list route URL (`?scope=`); absent means "all".
     const automationScopeParam = new URLSearchParams(window.location.search).get("scope");
-    const automationScopeFilter = /^\/(jobs|triggers)$/.test(window.location.pathname)
+    const automationScopeFilter = /^\/automations\/?$/.test(window.location.pathname)
       ? automationScopeParam === "global" || automationScopeParam === "workspace"
         ? automationScopeParam
         : ("all" as const)
@@ -314,7 +307,11 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       automation_editor_kind: automationEditorKind,
       automation_editor_open:
         document.querySelector('[data-testid="automation-editor-dialog"]') !== null,
-      automation_item_count: countByPrefix("automation-item-"),
+      automation_item_count:
+        countByPrefix("automation-row-job-") +
+        countByPrefix("automation-row-trigger-") +
+        countByPrefix("automation-card-job-") +
+        countByPrefix("automation-card-trigger-"),
       automation_run_count: countAutomationRunCards(),
       automation_run_history_visible:
         document.querySelector('[data-testid="automation-run-history"]') !== null,
@@ -332,8 +329,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       automation_trigger_visible:
         document.querySelector('[data-testid="trigger-job-btn"]') !== null,
       automation_view_visible:
-        document.querySelector('[data-testid="jobs-shell"]') !== null ||
-        document.querySelector('[data-testid="triggers-shell"]') !== null ||
+        document.querySelector('[data-testid="automations-shell"]') !== null ||
         document.querySelector('[data-testid="automation-detail-panel"]') !== null,
       chat_view_visible: document.querySelector('[data-testid="chat-view"]') !== null,
       composer_clear_button_enabled:

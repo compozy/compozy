@@ -109,8 +109,10 @@ export const automationOperatorTestIds = {
   automationDeleteDialog: "automation-delete-dialog",
   automationDeleteConfirmTyping: "automation-delete-confirm-typing",
   confirmDeleteAutomationButton: "confirm-delete-automation-btn",
-  createJobButton: "create-job-btn",
-  createTriggerButton: "create-trigger-btn",
+  automationsCreate: "automations-create",
+  automationsListRows: "automations-list-rows",
+  automationsShell: "automations-shell",
+  automationStartViews: "automation-start-views",
   deleteAutomationButton: "delete-automation-btn",
   detailOverflow: "automation-detail-overflow",
   editAutomationButton: "edit-automation-btn",
@@ -119,8 +121,6 @@ export const automationOperatorTestIds = {
   jobFireLimitMax: "job-fire-limit-max",
   jobFireLimitWindow: "job-fire-limit-window",
   jobGovernanceToggle: "job-governance-toggle",
-  jobsListRows: "jobs-list-rows",
-  jobsShell: "jobs-shell",
   jobNameInput: "job-name-input",
   jobPromptInput: "job-prompt-input",
   jobScheduleInterval: "job-schedule-interval",
@@ -135,8 +135,6 @@ export const automationOperatorTestIds = {
   triggerEndpointSlugInput: "trigger-endpoint-slug-input",
   triggerFireLimitMax: "trigger-fire-limit-max",
   triggerFireLimitWindow: "trigger-fire-limit-window",
-  triggersListRows: "triggers-list-rows",
-  triggersShell: "triggers-shell",
   triggerPromptInput: "trigger-prompt-input",
   triggerRetryMax: "trigger-retry-max",
   triggerRetryStrategyBackoff: "trigger-retry-strategy-backoff",
@@ -220,8 +218,14 @@ export interface AutomationOperatorSelectors {
   automationDeleteConfirmTyping: Locator;
   automationDeleteDialog: Locator;
   confirmDeleteAutomationButton: Locator;
-  createJobButton: Locator;
-  createTriggerButton: Locator;
+  automationsCreate: Locator;
+  automationsListRows: Locator;
+  automationsShell: Locator;
+  /** Start view pill: `all` · `schedule` · `event`. */
+  automationStartView(start: "all" | "schedule" | "event"): Locator;
+  /** Listing row by automation name (unique per kind; both kinds match when names collide). */
+  automationRow(name: string): Locator;
+  automationSwitch(id: string): Locator;
   deleteAutomationButton: Locator;
   detailOverflow: Locator;
   detailPanel: Locator;
@@ -244,8 +248,6 @@ export interface AutomationOperatorSelectors {
   jobScheduleModeCron: Locator;
   jobScheduleModeEvery: Locator;
   jobScheduleTime: Locator;
-  jobsListRows: Locator;
-  jobsShell: Locator;
   itemLink(id: string): Locator;
   run(id: string): Locator;
   runHistory: Locator;
@@ -262,8 +264,6 @@ export interface AutomationOperatorSelectors {
   triggerFilterValue(index: number): Locator;
   triggerFireLimitMax: Locator;
   triggerFireLimitWindow: Locator;
-  triggersListRows: Locator;
-  triggersShell: Locator;
   triggerPromptInput: Locator;
   triggerRetryMax: Locator;
   triggerRetryStrategyBackoff: Locator;
@@ -999,6 +999,11 @@ export function marketplaceOperatorSelectors(
   };
 }
 
+/** Listing row of either daemon entity for an automation id. */
+function automationRowTestId(id: string): RegExp {
+  return new RegExp(`^automation-row-(job|trigger)-${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+}
+
 export function automationOperatorSelectors(
   page: Pick<Page, "getByLabel" | "getByRole" | "getByTestId">,
   portalRoot: Pick<Page, "getByTestId"> = page
@@ -1017,8 +1022,15 @@ export function automationOperatorSelectors(
     confirmDeleteAutomationButton: page.getByTestId(
       automationOperatorTestIds.confirmDeleteAutomationButton
     ),
-    createJobButton: page.getByTestId(automationOperatorTestIds.createJobButton),
-    createTriggerButton: page.getByTestId(automationOperatorTestIds.createTriggerButton),
+    automationsCreate: page.getByTestId(automationOperatorTestIds.automationsCreate),
+    automationsListRows: page.getByTestId(automationOperatorTestIds.automationsListRows),
+    automationsShell: page.getByTestId(automationOperatorTestIds.automationsShell),
+    automationStartView: start => page.getByTestId(`automation-start-${start}`),
+    automationRow: name =>
+      page
+        .getByTestId(/^automation-row-(job|trigger)-/)
+        .filter({ has: page.getByRole("link", { name: `Open ${name}`, exact: true }) }),
+    automationSwitch: id => page.getByTestId(`automation-switch-${id}`),
     deleteAutomationButton: portalRoot.getByTestId(
       automationOperatorTestIds.deleteAutomationButton
     ),
@@ -1026,8 +1038,8 @@ export function automationOperatorSelectors(
     detailPanel: page.getByTestId(automationOperatorTestIds.automationDetailPanel),
     editAutomationButton: portalRoot.getByTestId(automationOperatorTestIds.editAutomationButton),
     editorDialog,
-    item: (id: string) => page.getByTestId(`automation-item-${id}`),
-    itemLink: (id: string) => page.getByTestId(`automation-item-${id}`).getByRole("link"),
+    item: (id: string) => page.getByTestId(automationRowTestId(id)),
+    itemLink: (id: string) => page.getByTestId(automationRowTestId(id)).getByRole("link"),
     jobAgentInput: page.getByTestId(automationOperatorTestIds.jobAgentInput),
     jobEnabledToggle: page.getByTestId(automationOperatorTestIds.jobEnabledToggle),
     jobFireLimitMax: page.getByTestId(automationOperatorTestIds.jobFireLimitMax),
@@ -1043,8 +1055,6 @@ export function automationOperatorSelectors(
     jobScheduleModeCron: page.getByTestId(automationOperatorTestIds.jobScheduleModeCron),
     jobScheduleModeEvery: page.getByTestId(automationOperatorTestIds.jobScheduleModeEvery),
     jobScheduleTime: page.getByTestId(automationOperatorTestIds.jobScheduleTime),
-    jobsListRows: page.getByTestId(automationOperatorTestIds.jobsListRows),
-    jobsShell: page.getByTestId(automationOperatorTestIds.jobsShell),
     run: (id: string) => page.getByTestId(`automation-run-${id}`),
     runDrawer: (runId: string) => page.getByTestId(`trigger-run-drawer-${runId}`),
     runHistory: page.getByTestId(automationOperatorTestIds.automationRunHistory),
@@ -1065,8 +1075,6 @@ export function automationOperatorSelectors(
     triggerFilterValue: (index: number) => page.getByTestId(`trigger-filter-value-${index}`),
     triggerFireLimitMax: page.getByTestId(automationOperatorTestIds.triggerFireLimitMax),
     triggerFireLimitWindow: page.getByTestId(automationOperatorTestIds.triggerFireLimitWindow),
-    triggersListRows: page.getByTestId(automationOperatorTestIds.triggersListRows),
-    triggersShell: page.getByTestId(automationOperatorTestIds.triggersShell),
     triggerPromptInput: page.getByTestId(automationOperatorTestIds.triggerPromptInput),
     triggerRetryMax: page.getByTestId(automationOperatorTestIds.triggerRetryMax),
     triggerRetryStrategyBackoff: page.getByTestId(

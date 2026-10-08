@@ -21,10 +21,21 @@ import { automationCreateSeedLogic } from "./automation-create-seed-store";
 import { type SettingsAutomationSection, useSettingsAutomation } from "@/systems/settings";
 import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
 
-/** Pre-target seed for opening the create sheet aimed at one Loop (§9.14 CTAs). */
+/** One-shot editor deep link: `?create=1&start=…` or `?create=loop&start=…&loop=…`. */
 export interface AutomationCreateSeed {
-  /** When set, the page opens the create sheet in Run-loop mode for this Loop. */
+  /** Start preselection; `event`/`webhook` open the event editor, otherwise schedules. */
+  start?: "schedule" | "event" | "webhook";
+  /** When set, the editor opens with Does = Start a Loop for this Loop. */
   loop?: string;
+}
+
+/** The seed a route search carries, or null when it opens no editor. */
+export function automationCreateSeedOf(
+  search: AutomationsRouteSearch
+): AutomationCreateSeed | null {
+  if (search.create === "loop")
+    return search.loop ? { start: search.start, loop: search.loop } : null;
+  return search.create === "1" ? { start: search.start } : null;
 }
 
 const UNAVAILABLE_OFF =
@@ -45,24 +56,27 @@ export function automationUnavailableMessage(
 }
 
 /**
- * Consumes the one-shot `?create=loop&loop=` deep link. Waits for the active
- * workspace before opening the create editor (the loop-target draft binds
- * workspace scope), then strips the consumed params so a cancel or reload does
- * not re-open the dialog and the list is not silently filtered by `loop`.
+ * Consumes the one-shot create deep link. Waits for the active workspace before
+ * opening the editor (drafts bind workspace scope), then strips the consumed
+ * params so a cancel or reload does not re-open the dialog and the list is not
+ * silently filtered by `loop` or `start`.
  */
 export function useAutomationCreateSeed(
-  seed: AutomationCreateSeed,
+  seed: AutomationCreateSeed | null,
   activeWorkspaceId: string | null | undefined,
-  openLoopCreate: (loop: string) => void
+  open: (seed: AutomationCreateSeed) => void
 ): void {
   const navigate = useNavigate();
   const store = useStore(automationCreateSeedLogic);
+  const key = seed ? `${seed.start ?? ""}:${seed.loop ?? ""}` : null;
+  const start = seed?.start;
+  const loop = seed?.loop;
   useEffect(() => {
     store.trigger.seedObserved({
       activeWorkspaceId,
-      loop: seed.loop ?? null,
-      consume: loop => {
-        openLoopCreate(loop);
+      key,
+      consume: () => {
+        open({ start, loop });
         void navigate({
           replace: true,
           search: current => ({
@@ -75,7 +89,7 @@ export function useAutomationCreateSeed(
         });
       },
     });
-  }, [activeWorkspaceId, navigate, openLoopCreate, seed.loop, store]);
+  }, [activeWorkspaceId, key, loop, navigate, open, start, store]);
 }
 
 /**

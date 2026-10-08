@@ -34,12 +34,12 @@ function SuggestionsShell({
 }) {
   return (
     <CatalogEmptyPanel
-      aria-label="Suggested jobs"
+      aria-label="Suggested automations"
       className={className}
       count={count}
       data-testid="automation-suggestions-card"
-      label="Suggested jobs"
-      note="Review each suggestion before creating the job."
+      label="Suggested automations"
+      note="Review each suggestion before creating it."
     >
       {children}
     </CatalogEmptyPanel>
@@ -51,7 +51,7 @@ function AutomationSuggestionsLoading({ className }: { className?: string }) {
     <SuggestionsShell className={className}>
       <div
         aria-busy="true"
-        aria-label="Loading suggested jobs"
+        aria-label="Loading suggested automations"
         data-testid="automation-suggestions-loading"
       >
         {["first", "second"].map(row => (
@@ -190,7 +190,7 @@ export function AutomationSuggestionsCard({
                     type="button"
                     variant="neutral"
                   >
-                    Create job
+                    Create automation
                   </AutomationSuggestionActionButton>
                   <AutomationSuggestionActionButton
                     disabled={Boolean(pendingAction)}

@@ -166,15 +166,15 @@ test("operator manages a webhook trigger and verifies authentication replay and 
   const parityEvidence: Record<string, unknown> = {};
 
   await test.step("operator creates updates fires disables re-enables and deletes a webhook trigger with parity evidence", async () => {
-    const triggersWin = appWindow(appPage, "triggers");
+    const triggersWin = appWindow(appPage, "automations");
     const ui = automationOperatorSelectors(triggersWin, appPage);
     const shellUI = automationOperatorSelectors(appPage);
     await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(shellUI);
 
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-    await expect(ui.triggersShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+    await expect(ui.automationsShell).toBeVisible();
 
     const initialName = uniqueName("triggers-lifecycle");
     const editedName = `${initialName}-edited`;
@@ -184,7 +184,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     const prompt = browserAutomationOperatorFlowScenario.trigger.prompt;
     const editedPrompt = `{{ printf "Review payload %s for %s" (index .Data "payload") (index .Data "branch") }}`;
 
-    await ui.createTriggerButton.click();
+    await ui.automationsCreate.click();
     await expect(ui.editorDialog).toBeVisible();
     await expect(ui.submitTriggerForm).toBeDisabled();
     await ui.triggerNameInput.fill(initialName);
@@ -212,7 +212,9 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     const created = await waitForTriggerByName(runtime, initialName);
     expect(created.webhook_secret_present).toBe(true);
     // Saving from the editor navigates straight to the new trigger's detail route.
-    await expect(appPage).toHaveURL(new RegExp(`/triggers/${created.id}$`), { timeout: 20_000 });
+    await expect(appPage).toHaveURL(new RegExp(`/automations/triggers/${created.id}$`), {
+      timeout: 20_000,
+    });
     await expect(windowTitle(triggersWin)).toContainText(initialName);
     await expect(ui.detailPanel).toContainText(webhookID);
     await expect(ui.detailPanel).not.toContainText(webhookSecret);
@@ -393,7 +395,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
       browserAutomationOperatorFlowScenario.transcript.assistant
     );
 
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
     await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(updated.id).click();
     await ui.detailOverflow.click();
@@ -435,7 +437,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
   });
 
   await test.step("operator sees fire-limit rejection across browser and runtime surfaces", async () => {
-    const triggersWin = appWindow(appPage, "triggers");
+    const triggersWin = appWindow(appPage, "automations");
     const ui = automationOperatorSelectors(triggersWin, appPage);
     const shellUI = automationOperatorSelectors(appPage);
     const trigger = await createTrigger(
@@ -451,8 +453,8 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(shellUI);
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-    await expect(ui.triggersShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(trigger.id).click();
     await expect(ui.detailPanel).toContainText("No retry · 1 / hour");
@@ -527,7 +529,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   browserArtifacts,
   runtime,
 }) => {
-  const triggersWin = appWindow(appPage, "triggers");
+  const triggersWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const trigger = await createTrigger(
@@ -544,8 +546,8 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await ensureProjectWorkspace(appPage, runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(shellUI);
-  await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-  await expect(ui.triggersShell).toBeVisible();
+  await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+  await expect(ui.automationsShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
   await ui.itemLink(trigger.id).click();
   await ui.triggerRailReliability.click();
@@ -949,12 +951,12 @@ async function assertTriggersViewportMatrix(
   runtime: BrowserRuntime,
   triggerID: string
 ): Promise<void> {
-  const triggersWin = appWindow(appPage, "triggers");
+  const triggersWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-    await expect(ui.triggersShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(triggerID).click();
     await expect(ui.runHistory).toBeVisible();
@@ -984,12 +986,12 @@ async function assertTriggerRunViewportMatrix(
   runID: string,
   prefix: string
 ): Promise<void> {
-  const triggersWin = appWindow(appPage, "triggers");
+  const triggersWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
-    await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
-    await expect(ui.triggersShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(triggerID).click();
     await expect(ui.runHistory).toBeVisible();

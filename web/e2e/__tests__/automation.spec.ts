@@ -86,9 +86,9 @@ test("operator manages workspace suggestions and inspects a real automation run 
       throw new Error("Expected the deterministic starter suggestion catalog.");
     }
 
-    const jobsWin = await openAppWindow(appPage, "Jobs", "jobs");
+    const jobsWin = await openAppWindow(appPage, "Automations", "automations");
     const jobsUI = automationOperatorSelectors(jobsWin, appPage);
-    await expect(appPage).toHaveURL(/\/jobs$/);
+    await expect(appPage).toHaveURL(/\/automations$/);
     await expect(jobsUI.automationSuggestionsCard).toBeVisible();
 
     const dismissedRow = jobsUI.suggestion(dismissTarget.id);
@@ -100,7 +100,7 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await expect(acceptedRow.locator('[data-slot="collapsible-content"]')).toContainText(
       acceptTarget.payload.prompt
     );
-    await acceptedRow.getByRole("button", { name: "Create job" }).click();
+    await acceptedRow.getByRole("button", { name: "Create automation" }).click();
 
     await expect(acceptedRow).toBeHidden();
     await expect(jobsUI.item(acceptTarget.payload.id)).toBeVisible();
@@ -114,7 +114,7 @@ test("operator manages workspace suggestions and inspects a real automation run 
     });
 
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(jobsUI.jobsShell).toBeVisible();
+    await expect(jobsUI.automationsShell).toBeVisible();
     await expect(jobsUI.suggestion(acceptTarget.id)).toBeHidden();
     await expect(jobsUI.suggestion(dismissTarget.id)).toBeHidden();
 
@@ -138,19 +138,21 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await completeOnboardingIfPrompted(automationUI);
 
     await expect(automationUI.osDesktop).toBeVisible();
-    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-    // The route opens/focuses Jobs after hydration; another Dock click can minimize it.
-    const jobsWin = appWindow(appPage, "jobs");
+    await appPage.goto(runtime.url("/automations?start=schedule"), {
+      waitUntil: "domcontentloaded",
+    });
+    // The route opens/focuses Automations after hydration; another Dock click can minimize it.
+    const jobsWin = appWindow(appPage, "automations");
     await expect(jobsWin).toBeVisible();
     const jobsUI = automationOperatorSelectors(jobsWin, appPage);
 
-    await expect(appPage).toHaveURL(/\/jobs$/);
-    await expect(jobsUI.jobsShell).toBeVisible();
-    await expect(jobsUI.jobsListRows).toBeVisible();
+    await expect(appPage).toHaveURL(/\/automations\?start=schedule$/);
+    await expect(jobsUI.automationsShell).toBeVisible();
+    await expect(jobsUI.automationsListRows).toBeVisible();
     await expect(jobsUI.item(seeded.job.id)).toBeVisible();
     await jobsUI.itemLink(seeded.job.id).click();
 
-    await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${seeded.job.id}$`));
     await expect(jobsUI.detailPanel).toBeVisible();
     await expect(windowTitle(jobsWin)).toContainText(seeded.job.name);
     await expect(jobsUI.detailPanel).toContainText(
@@ -165,15 +167,22 @@ test("operator manages workspace suggestions and inspects a real automation run 
       `/session/${seeded.baselineRun.session_id}`
     );
 
-    const triggersWin = await openAppWindow(appPage, "Triggers", "triggers");
+    // Jobs and triggers share the Automations window: the job detail's back crumb returns to
+    // the listing, whose On events view lists the trigger.
+    await jobsWin
+      .getByRole("navigation", { name: "Window path" })
+      .getByRole("button", { exact: true, name: "Jobs" })
+      .click();
+    const triggersWin = appWindow(appPage, "automations");
     const triggersUI = automationOperatorSelectors(triggersWin, appPage);
-    await expect(appPage).toHaveURL(/\/triggers$/);
-    await expect(triggersUI.triggersShell).toBeVisible();
-    await expect(triggersUI.triggersListRows).toBeVisible();
+    await expect(triggersUI.automationsShell).toBeVisible();
+    await triggersUI.automationStartView("event").click();
+    await expect(appPage).toHaveURL(/\/automations\?start=event$/);
+    await expect(triggersUI.automationsListRows).toBeVisible();
     await expect(triggersUI.item(seeded.trigger.id)).toBeVisible();
     await triggersUI.itemLink(seeded.trigger.id).click();
 
-    await expect(appPage).toHaveURL(new RegExp(`/triggers/${seeded.trigger.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/triggers/${seeded.trigger.id}$`));
     await expect(windowTitle(triggersWin)).toContainText(seeded.trigger.name);
     await expect(triggersUI.detailPanel).toContainText(
       browserAutomationOperatorFlowScenario.trigger.webhookID
@@ -192,12 +201,14 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await appPage.keyboard.press("Escape");
     await expect(triggerDialog).toBeHidden();
 
-    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-    await expect(appPage).toHaveURL(/\/jobs$/);
-    await expect(jobsUI.jobsShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=schedule"), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(appPage).toHaveURL(/\/automations\?start=schedule$/);
+    await expect(jobsUI.automationsShell).toBeVisible();
     await focusWindowThroughPalette(appPage, jobsWin);
     await jobsUI.itemLink(seeded.job.id).click();
-    await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${seeded.job.id}$`));
     await expect(jobsUI.detailPanel).toBeVisible();
 
     await jobsUI.detailOverflow.click();

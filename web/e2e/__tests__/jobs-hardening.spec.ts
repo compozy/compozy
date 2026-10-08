@@ -174,7 +174,7 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
   const parityEvidence: Record<string, unknown> = {};
 
   await test.step("operator creates edits disables enables triggers and deletes a dynamic job with parity evidence", async () => {
-    const jobsWin = appWindow(appPage, "jobs");
+    const jobsWin = appWindow(appPage, "automations");
     const ui = automationOperatorSelectors(jobsWin, appPage);
     const shellUI = automationOperatorSelectors(appPage);
     const jobStatus = jobsWin.getByTestId("job-enable-label");
@@ -183,21 +183,23 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
     await completeOnboardingIfPrompted(shellUI);
     await switchWorkspace(appPage, workspace.id, workspace.name);
 
-    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-    await expect(ui.jobsShell).toBeVisible();
-    await expect(ui.jobsListRows).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=schedule"), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(ui.automationsShell).toBeVisible();
+    await expect(ui.automationsListRows).toBeVisible();
     await expect(ui.item(workspaceJob.id)).toBeVisible();
     await ui.itemLink(workspaceJob.id).click();
-    await expect(appPage).toHaveURL(new RegExp(`/jobs/${workspaceJob.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${workspaceJob.id}$`));
     await expect(jobsWin.getByTestId("automation-detail-meta")).toContainText("Project");
 
     await jobsWin
       .getByRole("navigation", { name: "Window path" })
       .getByRole("button", { exact: true, name: "Jobs" })
       .click();
-    await expect(appPage).toHaveURL(/\/jobs$/);
-    await expect(ui.jobsShell).toBeVisible();
-    await ui.createJobButton.click();
+    await expect(appPage).toHaveURL(/\/automations$/);
+    await expect(ui.automationsShell).toBeVisible();
+    await ui.automationsCreate.click();
     await expect(ui.editorDialog).toBeVisible();
     await expect(ui.submitJobForm).toBeDisabled();
     const initialName = uniqueName("jobs-lifecycle");
@@ -225,7 +227,7 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
     await expect(ui.editorDialog).toBeHidden();
     const created = await waitForJobByName(runtime, initialName);
     // Saving from the editor navigates straight to the new job's detail route.
-    await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${created.id}$`));
     await expect(windowTitle(jobsWin)).toContainText(initialName);
     await jobsWin.getByTestId("automation-job-advanced-toggle").click();
     await expect(jobsWin.getByTestId("automation-job-scheduler")).toContainText("Registered");
@@ -312,9 +314,11 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
     await expect(sessionUI.chatView).toContainText(
       browserAutomationOperatorFlowScenario.job.prompt
     );
-    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url("/automations?start=schedule"), {
+      waitUntil: "domcontentloaded",
+    });
     await ui.itemLink(created.id).click();
-    await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${created.id}$`));
 
     await ui.detailOverflow.click();
     await ui.deleteAutomationButton.click();
@@ -350,7 +354,7 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
   });
 
   await test.step("scheduled job survives daemon restart and does not duplicate fire ids", async () => {
-    const jobsWin = appWindow(appPage, "jobs");
+    const jobsWin = appWindow(appPage, "automations");
     const ui = automationOperatorSelectors(jobsWin, appPage);
     const shellUI = automationOperatorSelectors(appPage);
     const job = await createJob(
@@ -362,11 +366,13 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
       })
     );
     await completeOnboardingIfPrompted(shellUI);
-    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-    await expect(ui.jobsListRows).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=schedule"), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(ui.automationsListRows).toBeVisible();
     await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(job.id).click();
-    await expect(appPage).toHaveURL(new RegExp(`/jobs/${job.id}$`));
+    await expect(appPage).toHaveURL(new RegExp(`/automations/jobs/${job.id}$`));
     await jobsWin.getByTestId("automation-job-advanced-toggle").click();
     await expect(jobsWin.getByTestId("automation-job-scheduler")).toContainText("Registered");
 
@@ -389,8 +395,10 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
         timeout: 45_000,
       })
       .toBe("ready");
-    await reloadDaemonServedPage(appPage, runtime, "/jobs", { readyTestId: "jobs-shell" });
-    await expect(ui.jobsShell).toBeVisible();
+    await reloadDaemonServedPage(appPage, runtime, "/automations", {
+      readyTestId: "automations-shell",
+    });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
     await ui.itemLink(job.id).click();
 
@@ -420,7 +428,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
   browserArtifacts,
   runtime,
 }) => {
-  const jobsWin = appWindow(appPage, "jobs");
+  const jobsWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const job = await createJob(
@@ -432,7 +440,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
     })
   );
   await completeOnboardingIfPrompted(shellUI);
-  await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
+  await appPage.goto(runtime.url("/automations?start=schedule"), { waitUntil: "domcontentloaded" });
   await expect(ui.item(job.id)).toBeVisible();
   await ui.itemLink(job.id).click();
 
@@ -726,12 +734,14 @@ async function assertJobsLifecycleViewportMatrix(
   runtime: BrowserRuntime,
   jobID: string
 ): Promise<void> {
-  const jobsWin = appWindow(appPage, "jobs");
+  const jobsWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
-    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-    await expect(ui.jobsShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=schedule"), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(jobID)).toBeVisible();
     await ui.itemLink(jobID).click();
     await expect(ui.runHistory).toBeVisible();
@@ -754,12 +764,14 @@ async function assertJobsViewportMatrix(
   runtime: BrowserRuntime,
   jobID: string
 ): Promise<void> {
-  const jobsWin = appWindow(appPage, "jobs");
+  const jobsWin = appWindow(appPage, "automations");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
-    await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-    await expect(ui.jobsShell).toBeVisible();
+    await appPage.goto(runtime.url("/automations?start=schedule"), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(jobID)).toBeVisible();
     await ui.itemLink(jobID).click();
     await expect(ui.detailPanel).toBeVisible();

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  automationLastRunLabel,
+  automationLastRunMeta,
   automationRunSkipReason,
   automationScopeTone,
   automationSkipReasonDetail,
@@ -199,5 +201,48 @@ describe("automation formatter helpers", () => {
     expect(automationSkipReasonTone("misfire_grace_exceeded")).toBe("neutral");
     expect(automationSkipReasonDetail("self_overlap")).toContain("previous run");
     expect(automationSkipReasonDetail("misfire_grace_exceeded")).toContain("start window");
+  });
+
+  it("labels a last run's durable skip before its status", () => {
+    expect(automationLastRunLabel({ status: "canceled", skipReason: "self_overlap" })).toBe(
+      "Skipped"
+    );
+    expect(
+      automationLastRunLabel({ status: "canceled", skipReason: "misfire_grace_exceeded" })
+    ).toBe("Missed");
+    expect(automationLastRunLabel({ status: "canceled" })).toBe("Canceled");
+  });
+
+  it("words the row's last-run truth with danger only for failures", () => {
+    const at = "2026-10-07T02:00:01Z";
+    expect(automationLastRunMeta({ status: "failed", startedAt: at })).toEqual({
+      tone: "danger",
+      glyph: "fail",
+      text: "Last run failed",
+      at,
+    });
+    expect(automationLastRunMeta({ status: "canceled", skipReason: "self_overlap" })).toEqual({
+      tone: "neutral",
+      glyph: "skip",
+      text: "Last run skipped — the one before was still going",
+    });
+    expect(
+      automationLastRunMeta({ status: "canceled", skipReason: "misfire_grace_exceeded" })?.text
+    ).toBe("Last run missed — CompozyOS was off at the start time");
+    expect(automationLastRunMeta({ status: "canceled", startedAt: at })?.text).toBe(
+      "Last run canceled"
+    );
+    expect(automationLastRunMeta({ status: "running", startedAt: at })).toEqual({
+      tone: "neutral",
+      glyph: null,
+      text: "Running now",
+    });
+    expect(automationLastRunMeta({ status: "delegated", startedAt: at })?.text).toBe(
+      "Last run handed off"
+    );
+    expect(automationLastRunMeta({ status: "completed", startedAt: at })?.text).toBe(
+      "Last run completed"
+    );
+    expect(automationLastRunMeta(undefined)).toBeNull();
   });
 });
