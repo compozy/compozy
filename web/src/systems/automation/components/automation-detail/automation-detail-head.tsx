@@ -84,7 +84,7 @@ export function AutomationDetailHead({
         />
       </div>
       <div
-        className="mt-3 flex flex-wrap items-center gap-y-1 text-form-label text-subtle"
+        className="mt-3 flex flex-wrap items-center gap-y-1 text-eyebrow text-subtle"
         data-testid="automation-detail-subhead"
       >
         <span className="inline-flex items-center gap-1.5 text-muted">
@@ -92,12 +92,21 @@ export function AutomationDetailHead({
           {automationStartWord(view.start)}
         </span>
         <DotSeparator />
-        <span>{automationLocationLabel(view)}</span>
+        <span>
+          {view.scope === "workspace" && (view.workspaceName ?? view.workspaceId) ? (
+            <>
+              Project{" "}
+              <b className="font-medium text-fg">{view.workspaceName ?? view.workspaceId}</b>
+            </>
+          ) : (
+            automationLocationLabel(view)
+          )}
+        </span>
         <DotSeparator />
         <SubheadTime lastRanAt={lastRanAt} view={view} />
         <DotSeparator />
         <span>
-          Updated <Time className="text-muted" iso={updatedAt} />
+          Updated <Time className="text-fg-2" iso={updatedAt} />
         </span>
       </div>
     </div>
@@ -109,7 +118,7 @@ function SubheadTime({ view, lastRanAt }: { view: AutomationView; lastRanAt: str
   if (view.start === "schedule") {
     return view.enabled && view.nextRunAt ? (
       <span>
-        Next run <Time className="text-muted" iso={view.nextRunAt} />
+        Next run <Time className="text-fg-2" iso={view.nextRunAt} />
       </span>
     ) : (
       <span>No next run</span>
@@ -117,7 +126,7 @@ function SubheadTime({ view, lastRanAt }: { view: AutomationView; lastRanAt: str
   }
   return lastRanAt ? (
     <span>
-      Last ran <Time className="text-muted" iso={lastRanAt} />
+      Last ran <Time className="text-fg-2" iso={lastRanAt} />
     </span>
   ) : (
     <span>Never ran</span>

@@ -4,28 +4,18 @@ import { cn } from "@compozy/ui";
 
 import type { AutomationNextRun } from "../../lib/automation-detail";
 
-/** A single upcoming fire time: index chip + relative label + absolute UTC stamp. */
+/** A single upcoming fire time: faint index, relative label, absolute UTC stamp. */
 function NextRunRow({ run }: { run: AutomationNextRun }) {
   return (
-    <li className="flex items-center gap-3">
-      <span
-        className={cn(
-          "grid size-[18px] flex-none place-items-center rounded-full font-mono text-badge font-semibold",
-          run.isFirst ? "bg-accent-tint-strong text-accent-strong" : "bg-surface-2 text-subtle"
-        )}
-      >
-        {run.index}
-      </span>
-      <span
-        className={cn(
-          "flex-1 text-small-body font-medium",
-          run.isFirst ? "text-fg-strong" : "text-fg"
-        )}
-      >
+    <li className="flex min-h-7 items-center gap-2.5 border-t border-line-soft text-eyebrow text-muted first:border-t-0">
+      <span className="w-4 font-mono text-badge text-faint">{run.index}</span>
+      <span className="min-w-21.5 font-medium text-fg">
         {run.relative}
         {run.oneTime ? " · one-time" : ""}
       </span>
-      <span className="font-mono text-form-hint text-subtle tabular-nums">{run.absolute}</span>
+      <span className="ml-auto font-mono text-mono-id text-subtle tabular-nums">
+        {run.absolute}
+      </span>
     </li>
   );
 }
@@ -44,7 +34,7 @@ export function AutomationNextRuns({ runs, className, ...props }: AutomationNext
   return (
     <ol
       aria-label="Next runs"
-      className={cn("flex flex-col gap-1.5", className)}
+      className={cn("flex flex-col", className)}
       data-testid="automation-next-runs"
       {...props}
     >

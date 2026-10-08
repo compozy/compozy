@@ -17,7 +17,7 @@ import {
   describeFireLimit,
   describeRetryPlain,
 } from "../../lib/automation-formatters";
-import { triggerEventLabel } from "../../lib/automation-rule";
+import { describeTriggerWhen } from "../../lib/automation-rule";
 import type { SentenceContext } from "../../lib/automation-sentence";
 import { projectAutomationTarget } from "../../lib/automation-target";
 import { automationLocationLabel, type AutomationView } from "../../lib/automation-view";
@@ -63,9 +63,7 @@ function DetailsSection({
 }) {
   const target = projectAutomationTarget(entity);
   const starts = isAutomationTrigger(entity)
-    ? entity.event === "webhook"
-      ? "Another app calls a link"
-      : triggerEventLabel(entity)
+    ? describeTriggerWhen(entity, view.workspaceName ?? null).headline
     : automationStartWord("schedule");
   return (
     <RailSection data-testid="automation-rail-details" icon={Info} title="Details">

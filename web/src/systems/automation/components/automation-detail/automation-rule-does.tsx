@@ -31,7 +31,7 @@ function TargetChip({ children, className, ...props }: TargetChipProps) {
 }
 
 function RuleSub({ children }: { children: ReactNode }) {
-  return <span className="mt-1.5 text-small-body leading-relaxed text-muted">{children}</span>;
+  return <span className="mt-1.5 text-eyebrow leading-normal text-subtle">{children}</span>;
 }
 
 /** Message clamped to three lines; event templates mark their variables. */
@@ -39,22 +39,18 @@ function PromptPreview({ prompt, templated }: { prompt: string; templated: boole
   const [open, setOpen] = useState(false);
   return (
     <>
-      <div
-        className={cn(
-          "mt-2 rounded-lg bg-sunken px-3 py-2.5 font-mono text-form-label leading-relaxed whitespace-pre-wrap text-muted",
-          !open && "line-clamp-3"
-        )}
-        data-testid="automation-prompt-preview"
-      >
-        {templated
-          ? tokenizeTemplate(prompt).map(token =>
-              token.type === "var" ? (
-                <AutomationValueBadge key={token.id} tone="variable" value={token.value} />
-              ) : (
-                <span key={token.id}>{token.value}</span>
+      <div className="mt-2 rounded-lg border border-line-soft bg-sunken px-3 py-2.5 font-mono text-form-hint leading-relaxed whitespace-pre-wrap text-fg-2">
+        <div className={cn(!open && "line-clamp-3")} data-testid="automation-prompt-preview">
+          {templated
+            ? tokenizeTemplate(prompt).map(token =>
+                token.type === "var" ? (
+                  <AutomationValueBadge key={token.id} tone="variable" value={token.value} />
+                ) : (
+                  <span key={token.id}>{token.value}</span>
+                )
               )
-            )
-          : prompt}
+            : prompt}
+        </div>
       </div>
       <button
         aria-expanded={open}
@@ -123,7 +119,7 @@ function TaskDoes({ job }: { job: AutomationJob }) {
         <TargetChip>
           <SquareCheck className="size-3" />
         </TargetChip>
-        <b className="text-modal-title font-medium text-fg-strong">Create a task</b>
+        <b className="text-form-input font-medium text-fg-strong">Create a task</b>
       </span>
       <dl
         className="mt-2 grid grid-cols-[56px_minmax(0,1fr)] gap-x-3 gap-y-1 text-small-body"
@@ -178,7 +174,7 @@ export function AutomationRuleDoes({
           <TargetChip>
             <Repeat2 className="size-3" />
           </TargetChip>
-          <b className="min-w-0 truncate text-modal-title font-medium text-fg-strong">
+          <b className="min-w-0 truncate text-form-input font-medium text-fg-strong">
             Start the Loop{" "}
             {loopMissing ? (
               <span data-testid="automation-loop-name">{target.loopName}</span>
@@ -211,7 +207,7 @@ export function AutomationRuleDoes({
     <>
       <span className="flex min-w-0 items-center gap-2">
         <TargetChip>{target.agentName.charAt(0)}</TargetChip>
-        <span className="min-w-0 truncate text-modal-title text-fg">
+        <span className="min-w-0 truncate text-form-input text-fg">
           Ask <b className="font-medium text-fg-strong">{target.agentName}</b>
         </span>
       </span>

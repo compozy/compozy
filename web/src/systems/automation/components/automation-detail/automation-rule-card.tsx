@@ -50,7 +50,7 @@ function RuleRow({ label, children, className, ...props }: RuleRowProps) {
   return (
     <div
       className={cn(
-        "grid grid-cols-[56px_minmax(0,1fr)] gap-3 border-t border-line-soft px-3 py-3 first:border-t-0 md:grid-cols-[72px_minmax(0,1fr)] md:gap-3.5 md:px-4 md:py-3.5",
+        "grid grid-cols-[56px_minmax(0,1fr)] gap-3 border-t border-line-soft px-3 py-3 first:border-t-0 md:grid-cols-[84px_minmax(0,1fr)] md:gap-3.5 md:px-4 md:py-3.5",
         className
       )}
       {...props}
@@ -65,13 +65,13 @@ function RuleHeadline({ icon: Icon, children }: { icon: LucideIcon; children: Re
   return (
     <span className="flex flex-wrap items-center gap-2">
       <Icon aria-hidden="true" className="size-3.5 text-subtle" />
-      <b className="text-modal-title font-medium text-fg-strong">{children}</b>
+      <b className="text-form-input font-medium text-fg-strong">{children}</b>
     </span>
   );
 }
 
 function RuleSubLine({ children }: { children: ReactNode }) {
-  return <span className="mt-1.5 text-small-body leading-relaxed text-muted">{children}</span>;
+  return <span className="mt-1.5 text-eyebrow leading-normal text-subtle">{children}</span>;
 }
 
 function RuleCode({ children }: { children: ReactNode }) {
@@ -135,7 +135,7 @@ function OnlyIfRow({ trigger }: { trigger: AutomationTrigger }) {
         <Filter aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
         {condition.clauses.map(clause => (
           <span
-            className="inline-flex items-center gap-1.5 text-modal-title text-fg"
+            className="inline-flex items-center gap-1.5 text-form-input font-medium text-fg-strong"
             key={`${clause.lead}-${clause.value}`}
           >
             {clause.lead} <AutomationValueBadge value={clause.value} />
