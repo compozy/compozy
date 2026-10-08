@@ -1,6 +1,6 @@
 import { SessionApiError } from "../adapters/session-api-errors";
 import type { SessionPayload } from "../types";
-import { isSessionRunning } from "./session-running";
+import { hasActivePrompt } from "./session-running";
 
 export type SessionCompactionCommand = "compact" | "compress";
 
@@ -33,15 +33,17 @@ export function resolveCompactionCommand(
 
 /**
  * Whether a compaction request can be admitted now: the agent advertises a
- * compaction command, the session is active, and no turn is running. The
- * daemon still owns the verdict (`session_busy`); this keeps the control
- * honest about requests it would certainly refuse.
+ * compaction command, the session is active, and no prompt is in flight. A
+ * stalled prompt (`hung`/`unhealthy` badge) is still in flight, so this reads
+ * the active turn, not the display badge. The daemon still owns the verdict
+ * (`session_busy`); this keeps the control honest about requests it would
+ * certainly refuse.
  */
 export function canCompactNow(session: SessionPayload): boolean {
   return (
     resolveCompactionCommand(session.available_commands) !== null &&
     session.state === "active" &&
-    !isSessionRunning(session)
+    !hasActivePrompt(session)
   );
 }
 

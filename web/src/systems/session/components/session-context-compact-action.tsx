@@ -7,7 +7,7 @@ import {
   describeCompactionFailure,
   resolveCompactionCommand,
 } from "../lib/session-compaction";
-import { isSessionRunning } from "../lib/session-running";
+import { hasActivePrompt } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 
 interface SessionContextCompactViewProps {
@@ -53,7 +53,7 @@ function SessionContextCompactControl({
   session: SessionPayload;
   workspaceId: string;
 }) {
-  const running = isSessionRunning(session);
+  const running = hasActivePrompt(session);
   const { error, isPending, mutate, reset } = useCompactSession(workspaceId, session.id);
 
   // A refusal stays readable while the session is busy; once the turn ends it no longer describes anything.
