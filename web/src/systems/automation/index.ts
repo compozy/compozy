@@ -202,6 +202,7 @@ export {
   type AutomationDetailPanelProps,
   type AutomationDetailStatus,
 } from "./components/automation-detail/automation-detail-panel";
+export { AutomationDeleteAction } from "./components/automation-delete-action";
 export { AutomationEditorDialog } from "./components/automation-editor-dialog";
 export { AutomationListFilters } from "./components/automation-list-filters";
 export { AutomationCatalogShell } from "./components/automation-catalog-shell";

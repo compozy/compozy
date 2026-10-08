@@ -193,8 +193,14 @@ describe("useAutomationsPage", () => {
     const { result } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.canLoadMore).toBe(true));
 
+    // Greptile P2: the loaded page can't speak for the whole list yet.
+    expect(result.current.enabledCount).toBeNull();
+    expect(result.current.nextRunAt).toBeNull();
+    expect(result.current.loadedCount).toBe(7);
+
     act(() => result.current.loadMore());
     await waitFor(() => expect(mocks.listJobs).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.enabledCount).toBe(6));
     expect(mocks.listJobs.mock.calls[1]?.[0]).toMatchObject({ cursor: "jobs-2" });
     expect(mocks.listTriggers).toHaveBeenCalledTimes(1);
   });

@@ -1,13 +1,8 @@
-import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import {
-  automationEditorSeed,
   compareAutomationViews,
   toAutomationView,
-  useAutomationEditor,
-  useAutomationJobs,
-  useAutomationTriggers,
   type AutomationJob,
   type AutomationTrigger,
   type AutomationView,
@@ -17,31 +12,9 @@ import { useProfileReadScope } from "@/systems/profiles";
 
 import { deriveAutomationListingState } from "./automation-listing-state";
 import { useAutomationRowActions } from "./use-automation-row-actions";
-import {
-  automationUnavailableMessage,
-  useAutomationCreateSeed,
-  useAutomationCreateSeedStore,
-  useAutomationPageBase,
-} from "./use-automation-page-base";
-
-/** A Cancel or dismiss of the editor is the operator's close: it also clears a `?create=` link. */
-function withSeedClose<T extends { editor: { onCancel: () => void } | null }>(
-  props: T,
-  closeSeed: () => void
-): T {
-  const { editor } = props;
-  if (!editor) return props;
-  return {
-    ...props,
-    editor: {
-      ...editor,
-      onCancel: () => {
-        closeSeed();
-        editor.onCancel();
-      },
-    },
-  };
-}
+import { useAutomationLists } from "./use-automation-lists";
+import { useAutomationsEditor } from "./use-automations-editor";
+import { automationUnavailableMessage, useAutomationPageBase } from "./use-automation-page-base";
 
 export type { AutomationPartialFailure, AutomationStartCounts } from "./automation-listing-state";
 
@@ -66,6 +39,22 @@ export function soonestNextRun(views: readonly AutomationView[]): string | null 
   return soonest?.iso ?? null;
 }
 
+/**
+ * Footer facts over the loaded rows. "N on" and the next run are only true for
+ * the whole list once no list has another page.
+ */
+export function summarizeLoadedAutomations(
+  loaded: readonly AutomationView[],
+  hasMorePages: boolean
+): { enabledCount: number | null; loadedCount: number; nextRunAt: string | null } {
+  if (hasMorePages) return { enabledCount: null, loadedCount: loaded.length, nextRunAt: null };
+  return {
+    enabledCount: loaded.filter(item => item.enabled).length,
+    loadedCount: loaded.length,
+    nextRunAt: soonestNextRun(loaded),
+  };
+}
+
 /** Copies a webhook automation's public link. */
 function copyAutomationLink(view: AutomationView): void {
   if (!view.webhookPath) return;
@@ -79,17 +68,14 @@ function copyAutomationLink(view: AutomationView): void {
 /** `/automations` view-model: two list queries (minus `start`), merged, sorted and counted. */
 export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   const page = useAutomationPageBase(search);
-  const navigate = useNavigate();
   const profile = useProfileReadScope();
 
-  // Both lists load in every Start view so the view counts and the window total stay
-  // honest on a cold load; a Start view only decides which kind renders. Task targets
-  // exist only on jobs, so `target=task` never asks for triggers.
-  const fetchTriggers = page.targetFilter !== "task";
-  const showJobs = page.start !== "event";
-  const showTriggers = page.start !== "schedule" && fetchTriggers;
-  const jobsQuery = useAutomationJobs(page.listFilters);
-  const triggersQuery = useAutomationTriggers(page.listFilters, { enabled: fetchTriggers });
+  const lists = useAutomationLists({
+    filters: page.listFilters,
+    start: page.start,
+    targetFilter: page.targetFilter,
+  });
+  const { jobsQuery, triggersQuery, showJobs, showTriggers, loadedTriggers } = lists;
 
   const workspaceNames = new Map(page.workspaces.map(option => [option.id, option.name]));
   const toView = (entity: AutomationJob | AutomationTrigger) =>
@@ -98,7 +84,6 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
       workspaceName: id => workspaceNames.get(id),
       ...(profile.aggregate ? { ownerOf: profile.ownerOf } : {}),
     });
-  const loadedTriggers = fetchTriggers ? triggersQuery.triggers : [];
   // Footer truth ("M on · next run in X") spans both loaded lists, whatever the view.
   const loaded = mergeAutomationViews(jobsQuery.jobs, loadedTriggers, toView);
   const items = loaded.filter(view => (view.kind === "job" ? showJobs : showTriggers));
@@ -108,7 +93,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   const unavailableMessage = automationUnavailableMessage(
     page.automationRuntime,
     jobsQuery.error,
-    fetchTriggers ? triggersQuery.error : null
+    lists.triggersError
   );
   const { loadError, partialFailure, counts, isLoading, firstRun } = deriveAutomationListingState({
     jobs: {
@@ -121,7 +106,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     },
     triggers: {
       shown: showTriggers,
-      fetched: fetchTriggers,
+      fetched: lists.fetchTriggers,
       error: triggersQuery.error,
       loaded: Boolean(triggersQuery.data),
       loading: triggersQuery.isLoading,
@@ -145,30 +130,13 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
       ? jobs.find(job => job.id === view.id)
       : triggers.find(trigger => trigger.id === view.id);
 
-  const seedStore = useAutomationCreateSeedStore();
-  const editor = useAutomationEditor({
+  const editor = useAutomationsEditor({
+    search,
     activeWorkspaceId: page.activeWorkspaceId,
     workspaces: page.workspaces,
-    onSaved: saved => {
-      seedStore.trigger.saved();
-      void (saved.entity === "job"
-        ? navigate({ to: "/automations/jobs/$jobId", params: { jobId: saved.automation.id } })
-        : navigate({
-            to: "/automations/triggers/$triggerId",
-            params: { triggerId: saved.automation.id },
-          }));
-    },
+    workspaceResolved: page.workspaceResolved,
+    startView: page.start,
   });
-  const closeSeed = useAutomationCreateSeed(
-    seedStore,
-    automationEditorSeed(search),
-    {
-      activeWorkspaceId: page.activeWorkspaceId,
-      editorOpen: editor.editor !== null,
-      resolved: page.workspaceResolved,
-    },
-    seed => editor.openCreate({ loop: seed.loop, start: seed.start })
-  );
 
   const actions = useAutomationRowActions({
     unavailable: unavailableMessage !== null,
@@ -176,39 +144,28 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     openEdit: editor.openEdit,
   });
 
-  /** "New automation": the given start, else the current Start view, else a schedule. */
-  const create = (start?: "schedule" | "event" | "webhook" | null) =>
-    editor.openCreate({ start: (start === undefined ? page.start : start) ?? "schedule" });
-
-  const loadMore = () => {
-    if (showJobs && jobsQuery.hasNextPage) void jobsQuery.fetchNextPage();
-    if (showTriggers && triggersQuery.hasNextPage) void triggersQuery.fetchNextPage();
-  };
+  const summary = summarizeLoadedAutomations(loaded, lists.hasMorePages);
 
   return {
     ...page,
     ...actions,
-    canLoadMore: (showJobs && jobsQuery.hasNextPage) || (showTriggers && triggersQuery.hasNextPage),
+    ...summary,
+    canLoadMore: lists.canLoadMore,
     copyLink: copyAutomationLink,
     counts,
-    create,
-    editorDialogProps: withSeedClose(editor.editorDialogProps, closeSeed),
+    create: editor.create,
+    editorDialogProps: editor.editorDialogProps,
     firstRun,
     suggestionsWorkspaceId,
-    enabledCount: loaded.filter(item => item.enabled).length,
-    isFetchingMore: jobsQuery.isFetchingNextPage || triggersQuery.isFetchingNextPage,
+    isFetchingMore: lists.isFetchingMore,
     isLoading,
-    isPaused: jobsQuery.isPaused || triggersQuery.isPaused,
+    isPaused: lists.isPaused,
     items,
     loadError,
-    loadMore,
-    nextRunAt: soonestNextRun(loaded),
+    loadMore: lists.loadMore,
     partialFailure,
     profileScope: profile,
-    retry: () => {
-      void jobsQuery.refetch();
-      if (fetchTriggers) void triggersQuery.refetch();
-    },
+    retry: lists.retry,
     total,
     unavailableMessage,
   };

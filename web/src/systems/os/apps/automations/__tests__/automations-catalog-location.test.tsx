@@ -72,6 +72,7 @@ function page(overrides: Record<string, unknown> = {}) {
     editorDialogProps: {},
     enabledCount: 0,
     enabledFilter: null,
+    loadedCount: 0,
     firstRun: false,
     hasActiveFilters: false,
     isFetchingMore: false,
@@ -162,6 +163,21 @@ describe("AutomationsCatalogLocation", () => {
     );
   });
 
+  it("Should keep cached rows under a retry alert when a refresh fails", async () => {
+    const retry = vi.fn();
+    renderLocation({
+      items: storyViews,
+      loadError: new Error("daemon offline"),
+      retry,
+    });
+
+    const alert = screen.getByTestId("automations-partial-alert");
+    expect(alert).toHaveTextContent("Couldn't refresh automations.");
+    expect(screen.getByTestId("automations-list-rows")).toBeVisible();
+    await userEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
   it("Should name the failed kind above the loaded rows and blank its view count", async () => {
     const retry = vi.fn();
     renderLocation({
@@ -197,5 +213,39 @@ describe("AutomationsCatalogLocation", () => {
     expect(screen.getByTestId("automations-list-footer")).toHaveTextContent(
       "7 automations · 6 on · next run in 14h"
     );
+  });
+
+  it("Should not claim on-counts or the next run while more pages exist", () => {
+    renderLocation({
+      canLoadMore: true,
+      enabledCount: null,
+      items: storyViews,
+      loadedCount: 7,
+      nextRunAt: null,
+      total: 60,
+    });
+
+    expect(screen.getByTestId("automations-list-footer")).toHaveTextContent(
+      "60 automations · 7 shown"
+    );
+  });
+
+  it("Should keep the delete dialog open with the daemon's reason when a delete fails", async () => {
+    const target = storyViews[0]!;
+    const confirmDelete = vi.fn().mockRejectedValue(new Error("daemon offline"));
+    renderLocation({ confirmDelete, deleteTarget: target, items: storyViews });
+
+    const dialog = screen.getByTestId("automation-delete-dialog");
+    await userEvent.type(
+      within(dialog).getByTestId("automation-delete-confirm-typing"),
+      target.name
+    );
+    await userEvent.click(within(dialog).getByTestId("confirm-delete-automation-btn"));
+
+    expect(confirmDelete).toHaveBeenCalledOnce();
+    expect(await screen.findByTestId("automation-delete-error")).toHaveTextContent(
+      "daemon offline"
+    );
+    expect(screen.getByTestId("automation-delete-dialog")).toBeVisible();
   });
 });

@@ -16,6 +16,7 @@ import { useAutomationsPage } from "../automation/use-automation-page";
 import {
   AutomationCard,
   AutomationCatalogShell,
+  AutomationDeleteAction,
   AutomationEditorDialog,
   AutomationListFilters,
   AutomationRow,
@@ -25,11 +26,7 @@ import {
   type AutomationItemControls,
   type AutomationsRouteSearch,
 } from "@/systems/automation";
-import {
-  AutomationListFooter,
-  AutomationPartialAlert,
-  AutomationDeleteDialog,
-} from "./automations-catalog-parts";
+import { AutomationListFooter, AutomationPartialAlert } from "./automations-catalog-parts";
 
 export function AutomationsCatalogLocation({ search }: { search: AutomationsRouteSearch }) {
   const page = useAutomationsPage(search);
@@ -129,6 +126,8 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
             </div>
           ) : page.partialFailure ? (
             <AutomationPartialAlert failed={page.partialFailure} onRetry={page.retry} />
+          ) : page.loadError && page.items.length > 0 ? (
+            <AutomationPartialAlert failed="refresh" onRetry={page.retry} />
           ) : null
         }
         data-testid="automations-shell"
@@ -190,19 +189,23 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
         {page.items.length > 0 ? (
           <AutomationListFooter
             enabledCount={page.enabledCount}
+            loadedCount={page.loadedCount}
             nextRunAt={page.nextRunAt}
             total={page.total}
           />
         ) : null}
       </ListingPage>
 
-      <AutomationDeleteDialog
+      <AutomationDeleteAction
+        consequence="Past runs stay."
+        hideTrigger
+        isPending={page.deletePending}
+        name={page.deleteTarget?.name ?? ""}
         onConfirm={page.confirmDelete}
         onOpenChange={open => {
           if (!open) page.setDeleteTarget(null);
         }}
-        pending={page.deletePending}
-        target={page.deleteTarget}
+        open={page.deleteTarget !== null}
       />
       <AutomationEditorDialog {...page.editorDialogProps} />
     </>
