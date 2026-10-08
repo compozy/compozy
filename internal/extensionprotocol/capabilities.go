@@ -7,8 +7,6 @@ import (
 )
 
 const (
-	// CapabilityProvideMemoryBackend is the provide surface for daemon-managed memory backends.
-	CapabilityProvideMemoryBackend = "memory.backend"
 	// CapabilityToolProvider is the provide surface for executable extension-host tools.
 	CapabilityToolProvider = "tool.provider"
 	// CapabilityProvideModelSource is the provide surface for model catalog source rows.
@@ -27,9 +25,6 @@ const (
 type ExtensionServiceMethod string
 
 const (
-	ExtensionServiceMethodMemoryStore           ExtensionServiceMethod = "memory/store"
-	ExtensionServiceMethodMemoryRecall          ExtensionServiceMethod = "memory/recall"
-	ExtensionServiceMethodMemoryForget          ExtensionServiceMethod = "memory/forget"
 	ExtensionServiceMethodProvideTools          ExtensionServiceMethod = "provide_tools"
 	ExtensionServiceMethodToolsCall             ExtensionServiceMethod = "tools/call"
 	ExtensionServiceMethodModelsList            ExtensionServiceMethod = "models/list"
@@ -46,11 +41,6 @@ const (
 )
 
 var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
-	CapabilityProvideMemoryBackend: {
-		ExtensionServiceMethodMemoryStore,
-		ExtensionServiceMethodMemoryRecall,
-		ExtensionServiceMethodMemoryForget,
-	},
 	CapabilityToolProvider: {
 		ExtensionServiceMethodProvideTools,
 		ExtensionServiceMethodToolsCall,

@@ -290,7 +290,6 @@ describe("SDK integration", () => {
       "connectivity.provider",
       "forge.provider",
       "loop.watch_source",
-      "memory.backend",
       "model.source",
       "tool.provider",
       "view.provider",
@@ -323,13 +322,11 @@ describe("SDK integration", () => {
          {
            name: "integration-ext",
            version: "0.1.0",
-           capabilities: { provides: ["memory.backend"] },
+           capabilities: { provides: ["model.source"] },
            permissions: { requires: ["sessions/list"] }
          }
        );
-       extension.handle("memory/store", async (_ctx, params) => ({ stored: params.key }));
-       extension.handle("memory/recall", async () => ({ entries: [] }));
-       extension.handle("memory/forget", async () => ({}));
+       extension.handle("models/list", async (_ctx, params) => ({ models: [params.source] }));
        extension.handle("health_check", async () => ({ healthy: true, message: "", details: {} }));
        extension.onReady(async (host) => {
          const sessions = await host.sessions.list();
@@ -362,14 +359,14 @@ describe("SDK integration", () => {
               session_nonce: "integration-nonce",
               extension: { name: "integration-ext", version: "0.1.0", source_tier: "user" },
               capabilities: {
-                provides: ["memory.backend"],
+                provides: ["model.source"],
                 granted_permissions: ["sessions/list"],
                 granted_resource_kinds: [],
                 granted_resource_scopes: [],
               },
               methods: {
                 daemon_requests: ["health_check", "shutdown"],
-                extension_services: ["memory/store", "memory/recall", "memory/forget"],
+                extension_services: ["models/list"],
               },
               runtime: {
                 health_check_interval_ms: 30000,
@@ -416,20 +413,19 @@ describe("SDK integration", () => {
           `${JSON.stringify({
             jsonrpc: "2.0",
             id: 2,
-            method: "memory/store",
+            method: "models/list",
             params: {
-              key: "alpha",
-              content: "remember this",
+              source: "alpha",
             },
           })}\n`
         );
-        const storeResponse = await stdout.next({
+        const modelsResponse = await stdout.next({
           ...diagnostics,
-          label: "memory/store response",
+          label: "models/list response",
         });
-        expect(storeResponse).toMatchObject({
+        expect(modelsResponse).toMatchObject({
           id: 2,
-          result: { stored: "alpha" },
+          result: { models: ["alpha"] },
         });
 
         child.stdin.write(

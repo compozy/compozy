@@ -2,7 +2,7 @@ package cli
 
 import "github.com/spf13/cobra"
 
-const automationTriggerEventHelp = "Trigger event: session.created, session.stopped, memory.consolidated, " +
+const automationTriggerEventHelp = "Trigger event: session.created, session.stopped, " +
 	"hook.<hook_name>.completed, webhook, or ext.*"
 
 func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {

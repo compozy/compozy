@@ -231,8 +231,6 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 		testutil.StubObserver{},
 		tasks,
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	resp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/execution-profile", nil)
@@ -425,8 +423,6 @@ func TestBaseHandlersTaskRunReviewEndpoints(t *testing.T) {
 		testutil.StubObserver{},
 		tasks,
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	resp := performRequest(
@@ -597,8 +593,6 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		pauseResp := performRequest(
@@ -731,8 +725,6 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
@@ -866,8 +858,6 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		maximum := contract.SchedulerDrainTimeoutMaxSeconds
@@ -944,8 +934,6 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(
@@ -1009,8 +997,6 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			workspaces,
-			nil,
-			nil,
 		)
 
 		resp := performRequest(
@@ -1076,8 +1062,6 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			workspaces,
-			nil,
-			nil,
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks?scope=global&workspace=missing", nil)
@@ -1142,8 +1126,6 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/missing", nil)
@@ -1186,8 +1168,6 @@ func TestBaseHandlersTaskMutationOwners(t *testing.T) {
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		response := performRequest(
@@ -1245,7 +1225,7 @@ func TestBaseHandlersTaskMutationOwners(t *testing.T) {
 				},
 			}
 			fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{},
-				tasks, testutil.StubWorkspaceService{}, nil, nil)
+				tasks, testutil.StubWorkspaceService{})
 			fixture.Handlers.Profiles = sessionProfileServiceStub{}
 			response := performRequest(t, fixture.Engine, http.MethodPost, tc.path+"?profile=marketing", []byte(`{}`))
 			if response.Code != tc.wantStatus {
@@ -1290,7 +1270,7 @@ func TestBaseHandlersTaskInspectOwners(t *testing.T) {
 			}
 			fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{},
 				&testutil.StubTaskManager{InspectTaskFn: inspect, InspectRunFn: inspect},
-				testutil.StubWorkspaceService{}, nil, nil)
+				testutil.StubWorkspaceService{})
 			fixture.Handlers.Profiles = sessionProfileServiceStub{}
 			response := performRequest(t, fixture.Engine, http.MethodGet, tc.path+"?profile=marketing", nil)
 			if response.Code != http.StatusOK {
@@ -1702,8 +1682,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		testutil.StubObserver{},
 		tasks,
 		workspaces,
-		nil,
-		nil,
 	)
 
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
@@ -2218,8 +2196,6 @@ func TestBaseHandlersTaskActorResolverErrors(t *testing.T) {
 		testutil.StubObserver{},
 		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	fixture.Handlers.TaskActorContextResolver = func(*gin.Context, string) (taskpkg.ActorContext, error) {
 		return taskpkg.ActorContext{}, errors.New("resolver failed")
@@ -2282,8 +2258,6 @@ func TestBaseHandlersTaskServiceUnavailable(t *testing.T) {
 		testutil.StubObserver{},
 		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 	fixture.Handlers.Tasks = nil
 
@@ -2393,8 +2367,6 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 			},
 		},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	requests := []struct {
@@ -2511,7 +2483,7 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 						return conflict(runID, actor)
 					},
 				},
-				testutil.StubWorkspaceService{}, nil, nil,
+				testutil.StubWorkspaceService{},
 			)
 			fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 				return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
@@ -2544,8 +2516,6 @@ func TestBaseHandlersTaskDecodeErrors(t *testing.T) {
 		testutil.StubObserver{},
 		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	requests := []struct {

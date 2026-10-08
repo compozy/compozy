@@ -249,7 +249,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			"config",
 			"set",
 			"roles",
-			`{"memory_controller":{"enabled":true,"provider":"pi","model":"anthropic/claude-haiku-4","timeout":"500ms","top_k":7,"prompt_version":"v2","max_tokens_out":512}}`,
+			`{"auto_title":{"enabled":true,"provider":"pi","model":"anthropic/claude-haiku-4"}}`,
 		); err != nil {
 			t.Fatalf("config set roles error = %v", err)
 		}
@@ -257,8 +257,8 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig(roles) error = %v", err)
 		}
-		if got := configured.Roles.MemoryController; got.TopK != 7 || got.MaxTokensOut != 512 {
-			t.Fatalf("Roles.MemoryController = %#v, want top_k=7 max_tokens_out=512", got)
+		if got := configured.Roles.AutoTitle; got.Model != "anthropic/claude-haiku-4" {
+			t.Fatalf("Roles.AutoTitle = %#v, want configured model", got)
 		}
 	})
 }
@@ -2354,14 +2354,14 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: true,
 			},
 			{
-				name:        "Should allow dream role model",
-				path:        "roles.dream.model",
+				name:        "Should allow auto title role model",
+				path:        "roles.auto_title.model",
 				wantKind:    configSetString,
 				wantAllowed: true,
 			},
 			{
-				name:        "Should allow memory controller role timeout",
-				path:        "roles.memory_controller.timeout",
+				name:        "Should allow coordinator role TTL",
+				path:        "roles.coordinator.ttl",
 				wantKind:    configSetDuration,
 				wantAllowed: true,
 			},

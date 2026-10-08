@@ -144,54 +144,6 @@ type DaemonClient interface {
 	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
 	ListLogs(ctx context.Context, query LogsListQuery) ([]LogEventRecord, error)
 	StreamLogs(ctx context.Context, query LogsListQuery, lastEventID string, handler SSEHandler) error
-	MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error)
-	MemoryHistory(ctx context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
-	ListMemory(ctx context.Context, query MemoryListQuery) (MemoryListRecord, error)
-	ShowMemory(ctx context.Context, filename string, query MemorySelectorQuery) (MemoryEntryRecord, error)
-	CreateMemory(ctx context.Context, request MemoryCreateRequest) (MemoryMutationRecord, error)
-	EditMemory(ctx context.Context, filename string, request MemoryEditRequest) (MemoryMutationRecord, error)
-	DeleteMemory(ctx context.Context, filename string, query MemorySelectorQuery) (MemoryDeleteRecord, error)
-	SearchMemory(ctx context.Context, request MemorySearchRequest) (MemorySearchRecord, error)
-	ReindexMemory(ctx context.Context, request MemoryReindexRequest) (MemoryReindexRecord, error)
-	PromoteMemory(ctx context.Context, request MemoryPromoteRequest) (MemoryPromoteRecord, error)
-	ResetMemory(ctx context.Context, request MemoryResetRequest) (MemoryResetRecord, error)
-	ReloadMemory(ctx context.Context, request MemorySelectorQuery) (MemoryReloadRecord, error)
-	MemoryScopeShow(ctx context.Context, query MemorySelectorQuery) (MemoryScopeShowRecord, error)
-	ListMemoryDecisions(ctx context.Context, query MemoryDecisionListQuery) (MemoryDecisionListRecord, error)
-	GetMemoryDecision(ctx context.Context, id string) (MemoryDecisionRecord, error)
-	RevertMemoryDecision(
-		ctx context.Context,
-		id string,
-		request MemoryDecisionRevertRequest,
-	) (MemoryDecisionRevertRecord, error)
-	GetMemoryRecallTrace(ctx context.Context, sessionID string, turnSeq int64) (MemoryRecallTraceRecord, error)
-	ListMemoryDreams(ctx context.Context) (MemoryDreamListRecord, error)
-	GetMemoryDream(ctx context.Context, id string) (MemoryDreamRecord, error)
-	TriggerMemoryDream(ctx context.Context, request MemoryDreamTriggerRequest) (MemoryDreamTriggerRecord, error)
-	RetryMemoryDream(ctx context.Context, id string, request MemoryDreamRetryRequest) (MemoryDreamRetryRecord, error)
-	GetMemoryDreamStatus(ctx context.Context) (MemoryDreamListRecord, error)
-	ListMemoryDailyLogs(ctx context.Context, query MemorySelectorQuery) (MemoryDailyLogListRecord, error)
-	GetMemoryExtractorStatus(ctx context.Context, sessionID string) (MemoryExtractorStatusRecord, error)
-	ListMemoryExtractorFailures(ctx context.Context) (MemoryExtractorFailuresRecord, error)
-	RetryMemoryExtractor(ctx context.Context, request MemoryExtractorRetryRequest) (MemoryExtractorRetryRecord, error)
-	DrainMemoryExtractor(ctx context.Context) (MemoryExtractorDrainRecord, error)
-	ListMemoryProviders(ctx context.Context) (MemoryProviderListRecord, error)
-	GetMemoryProvider(ctx context.Context, name string) (MemoryProviderRecord, error)
-	SelectMemoryProvider(
-		ctx context.Context,
-		request MemoryProviderSelectRequest,
-	) (MemoryProviderLifecycleRecord, error)
-	EnableMemoryProvider(
-		ctx context.Context,
-		name string,
-		request MemoryProviderLifecycleRequest,
-	) (MemoryProviderLifecycleRecord, error)
-	DisableMemoryProvider(
-		ctx context.Context,
-		name string,
-		request MemoryProviderLifecycleRequest,
-	) (MemoryProviderLifecycleRecord, error)
-	CreateMemoryAdhocNote(ctx context.Context, request MemoryAdhocNoteRequest) (MemoryAdhocNoteRecord, error)
 	automationClientAPI
 	ListTasks(ctx context.Context, query TaskListQuery) (TaskListRecord, error)
 	CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error)

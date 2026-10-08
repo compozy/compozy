@@ -33,9 +33,6 @@ export type HostAPIMethod =
   | "automation/triggers/update"
   | "clarify/ask"
   | "logs/list"
-  | "memory/forget"
-  | "memory/recall"
-  | "memory/store"
   | "models/list"
   | "models/refresh"
   | "models/status"
@@ -500,7 +497,6 @@ export interface AgentSoulFrontmatterPayload {
   principles?: string[];
   constraints?: string[];
   collaboration?: string[];
-  memory_policy?: string[];
   tags?: string[];
 }
 
@@ -2550,35 +2546,6 @@ export interface LoopTerminalPayload {
   cause?: string;
   reason_code?: string;
   details?: JSONValue;
-}
-
-export type MemoryScope = "profile" | "workspace" | "agent";
-
-export interface MemoryForgetParams {
-  key: string;
-  scope?: MemoryScope;
-  workspace?: string;
-}
-
-export interface MemoryRecallEntry {
-  key: string;
-  content: string;
-  score: number;
-}
-
-export interface MemoryRecallParams {
-  query: string;
-  limit?: number;
-  scope?: MemoryScope;
-  workspace?: string;
-}
-
-export interface MemoryStoreParams {
-  key: string;
-  content: string;
-  scope?: MemoryScope;
-  workspace?: string;
-  tags?: string[];
 }
 
 export interface MessageDeltaPatch {
@@ -6728,18 +6695,6 @@ export interface HostAPIMethodMap {
     params: SessionStatusGetParams;
     result: SessionStatusResponse;
   };
-  "memory/recall": {
-    params: MemoryRecallParams;
-    result: MemoryRecallEntry[];
-  };
-  "memory/store": {
-    params: MemoryStoreParams;
-    result: EmptyResult;
-  };
-  "memory/forget": {
-    params: MemoryForgetParams;
-    result: EmptyResult;
-  };
   "observe/health": {
     params: undefined;
     result: ObserveHealth;
@@ -6982,7 +6937,6 @@ export const REQUIRED_METHODS_BY_PROVIDE = {
   ],
   "forge.provider": ["forge/capabilities", "forge/pr_create", "forge/status"],
   "loop.watch_source": ["watch/poll"],
-  "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
   "model.source": ["models/list"],
   "tool.provider": ["provide_tools", "tools/call"],
   "view.provider": ["view/close", "view/event", "view/open"],
@@ -7003,7 +6957,6 @@ export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFix
     provide: "loop.watch_source",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],
   },
-  { provide: "memory.backend", required_methods: REQUIRED_METHODS_BY_PROVIDE["memory.backend"] },
   { provide: "model.source", required_methods: REQUIRED_METHODS_BY_PROVIDE["model.source"] },
   { provide: "tool.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["tool.provider"] },
   { provide: "view.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["view.provider"] },

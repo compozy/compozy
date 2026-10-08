@@ -34,7 +34,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/marketplace"
-	"github.com/compozy/compozy/internal/memory"
 
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -2534,55 +2533,6 @@ func TestWorkspaceCommandsIntegration(t *testing.T) {
 	}
 }
 
-func TestMemoryWriteListIntegration(t *testing.T) {
-	t.Parallel()
-
-	h := newIntegrationHarness(t)
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	writeOut, _, err := executeRootCommand(
-		t,
-		h.deps,
-		"memory",
-		"write",
-		"--type",
-		"user",
-		"--name",
-		"Prefs",
-		"--description",
-		"cli memory",
-		"--content",
-		"remember this",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("memory write error = %v", err)
-	}
-	var written MemoryMutationRecord
-	if err := json.Unmarshal([]byte(writeOut), &written); err != nil {
-		t.Fatalf("json.Unmarshal(memory write) error = %v; out=%s", err, writeOut)
-	}
-	if !written.Applied || written.Decision.TargetFilename == "" {
-		t.Fatalf("written = %#v, want applied decision with target filename", written)
-	}
-
-	listOut, _, err := executeRootCommand(t, h.deps, "memory", "list", "--scope", "profile", "-o", "json")
-	if err != nil {
-		t.Fatalf("memory list error = %v", err)
-	}
-
-	var listed struct {
-		Memories []memoryListItem `json:"memories"`
-	}
-	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
-		t.Fatalf("json.Unmarshal(memory list) error = %v; out=%s", err, listOut)
-	}
-	memories := listed.Memories
-	if len(memories) != 1 || memories[0].Filename != written.Decision.TargetFilename {
-		t.Fatalf("memories = %#v, want %q", memories, written.Decision.TargetFilename)
-	}
-}
-
 func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -3441,25 +3391,6 @@ func newIntegrationAgentCommandDeps(
 	return agentDeps, worker
 }
 
-type integrationDreamTrigger struct {
-	enabled   bool
-	triggered bool
-	reason    string
-	last      time.Time
-}
-
-func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
-	return t.triggered, t.reason, nil
-}
-
-func (t *integrationDreamTrigger) LastConsolidatedAt() (time.Time, error) {
-	return t.last, nil
-}
-
-func (t *integrationDreamTrigger) Enabled() bool {
-	return t.enabled
-}
-
 type integrationSoulRunActivityChecker struct{}
 
 func (integrationSoulRunActivityChecker) HasActiveRunForSession(context.Context, string, time.Time) (bool, error) {
@@ -4157,24 +4088,6 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	}()
 	fanout.notifiers = append(fanout.notifiers, observer)
 
-	memoryStore := memory.NewStore(
-		d.homePaths.MemoryDir,
-		memory.WithCatalogDatabasePath(d.homePaths.DatabaseFile),
-	)
-	if err := memoryStore.EnsureDirs(); err != nil {
-		return fmt.Errorf("ensure memory dirs: %w", err)
-	}
-	if err := memoryStore.OpenCatalog(context.Background()); err != nil {
-		return fmt.Errorf("open memory catalog: %w", err)
-	}
-	defer func() {
-		joinRunError("close memory catalog", memoryStore.CloseCatalog(context.Background()))
-	}()
-	dreamTrigger := &integrationDreamTrigger{
-		enabled:   true,
-		triggered: true,
-		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
-	}
 	extRegistry := extensionpkg.NewRegistry(registry.DB())
 	extManager := extensionpkg.NewManager(
 		extRegistry,
@@ -4277,8 +4190,6 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		udsapi.WithAutomation(automationManager),
 
 		udsapi.WithWorkspaceResolver(resolver),
-		udsapi.WithMemoryStore(memoryStore),
-		udsapi.WithDreamTrigger(dreamTrigger),
 		udsapi.WithExtensionService(extService),
 		udsapi.WithMarketplaceCatalogService(marketplaceService),
 		udsapi.WithSoulAuthoring(soulAuthoring),

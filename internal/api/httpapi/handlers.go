@@ -10,7 +10,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -76,11 +75,6 @@ type handlerConfig struct {
 	wakeEvents            core.HeartbeatWakeEventReader
 	skillsRegistry        core.SkillsRegistry
 	skillResources        core.SkillResourceSyncer
-	memoryStore           *memory.Store
-	dreamTrigger          core.DreamTrigger
-	memoryExtractor       core.MemoryExtractorService
-	memoryProviders       core.MemoryProviderService
-	memoryLedger          core.MemorySessionLedgerService
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	deadEntities          doctor.DeadEntitySource
 	gateway               core.GatewayService
@@ -250,11 +244,6 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SessionHealth:          cfg.sessionHealth,
 		SkillsRegistry:         cfg.skillsRegistry,
 		SkillResources:         cfg.skillResources,
-		MemoryStore:            cfg.memoryStore,
-		DreamTrigger:           cfg.dreamTrigger,
-		MemoryExtractor:        cfg.memoryExtractor,
-		MemoryProviders:        cfg.memoryProviders,
-		MemorySessionLedger:    cfg.memoryLedger,
 		RuntimeMemory:          cfg.runtimeMemory,
 		DeadEntities:           cfg.deadEntities,
 		Gateway:                cfg.gateway,

@@ -1233,10 +1233,6 @@ func roleDreamMockCommand(t testing.TB, diagnosticsPath string) string {
 	)
 }
 
-func quotedYAMLString(value string) string {
-	return strconv.Quote(value)
-}
-
 func seedDreamEligibility(
 	t testing.TB,
 	ctx context.Context,

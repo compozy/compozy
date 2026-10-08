@@ -19,7 +19,6 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 		capChecker.SetResourcePolicy(deps.Extensions.Resources)
 		hostAPI := extensionpkg.NewHostAPIHandler(
 			newHostAPISessionManagerAdapter(deps.Sessions),
-			deps.MemoryStore,
 			deps.Observer,
 			deps.SkillsRegistry,
 			buildHostAPIOptions(&deps, capChecker, deps.ResourceStore)...,

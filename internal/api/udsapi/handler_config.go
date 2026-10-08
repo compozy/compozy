@@ -9,7 +9,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -68,11 +67,6 @@ type handlerConfig struct {
 	roles                 core.RolesStatusProvider
 	skillsRegistry        core.SkillsRegistry
 	skillResources        core.SkillResourceSyncer
-	memoryStore           *memory.Store
-	dreamTrigger          core.DreamTrigger
-	memoryExtractor       core.MemoryExtractorService
-	memoryProviders       core.MemoryProviderService
-	memoryLedger          core.MemorySessionLedgerService
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	deadEntities          doctor.DeadEntitySource
 	gateway               core.GatewayService

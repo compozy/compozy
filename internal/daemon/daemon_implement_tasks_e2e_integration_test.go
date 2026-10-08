@@ -1175,3 +1175,7 @@ func implementTasksCompletionJudgeDefinition() contract.LoopDefinitionDocument {
 		DefinitionExtensionState: &dsl.DefinitionExtensionState{Start: []dsl.StartBinding{{Kind: "http"}}},
 	}
 }
+
+func quotedYAMLString(value string) string {
+	return strconv.Quote(value)
+}

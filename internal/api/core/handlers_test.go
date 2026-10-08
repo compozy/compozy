@@ -271,8 +271,6 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 						manager,
 						testutil.StubObserver{},
 						testutil.StubWorkspaceService{},
-						nil,
-						nil,
 					)
 					fixture.Handlers.SessionHealth = sessionHealthReaderFunc(
 						func(context.Context, string) (heartbeat.SessionHealth, error) {
@@ -486,7 +484,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			}
 			return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
 		},
-	}, nil, nil)
+	})
 	fixture.Handlers.Profiles = sessionProfileServiceStub{}
 
 	t.Run("Should list sessions", func(t *testing.T) {
@@ -822,8 +820,6 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 					base,
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
-					nil,
-					nil,
 				)
 				fixture.Handlers.Sessions = sessionStopManagerStub{StubSessionManager: base,
 					request: func(_ context.Context, id string, cause session.StopCause) error {
@@ -1261,7 +1257,7 @@ func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
 			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 				return workspacepkg.Workspace{}, errors.New("Global has no workspace to resolve")
 			},
-		}, nil, nil)
+		})
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-global/owner", nil)
 		var owner contract.SessionOwner
 		if err := json.Unmarshal(response.Body.Bytes(), &owner); err != nil || response.Code != http.StatusOK {
@@ -1288,7 +1284,7 @@ func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
 			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 				return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
 			},
-		}, nil, nil)
+		})
 		ownerResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-stale/owner", nil)
 		var owner contract.SessionOwner
 		if err := json.Unmarshal(ownerResp.Body.Bytes(), &owner); err != nil || ownerResp.Code != http.StatusOK {
@@ -1340,8 +1336,6 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 		manager,
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	t.Run("Should set a durable runtime selection", func(t *testing.T) {
@@ -1441,8 +1435,6 @@ func TestRenameSessionHandler(t *testing.T) {
 		manager,
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
-		nil,
-		nil,
 	)
 
 	t.Run("Should rename the workspace-scoped session", func(t *testing.T) {
@@ -1625,7 +1617,7 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -1719,7 +1711,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 							}, nil
 						},
 					}
-					fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+					fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 					fixture.Handlers.Config.Session.Compaction.Enabled = true
 					fixture.Handlers.Config.Session.Compaction.PressureThreshold = 0.85
 					response := performRequest(
@@ -1762,7 +1754,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 				{Sequence: 10, TurnID: "A", Usage: acp.TokenUsage{ContextUsed: new(int64(80))}},
 			}, nil
 		}}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.ContextWindowResolver = sessionContextWindowFunc(
 			func(_ context.Context, provider, model string) (*int64, error) {
 				if provider != "claude" || model != "model-a" {
@@ -1874,7 +1866,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -1946,7 +1938,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -2032,7 +2024,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -2090,7 +2082,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -2126,7 +2118,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -2167,7 +2159,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		response := performRequest(
 			t,
 			fixture.Engine,
@@ -2195,8 +2187,6 @@ func TestLogsEndpointsRequireObserver(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Observer = nil
 
@@ -2295,7 +2285,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			},
 		}
 
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
 
 		streamResp := performRequest(
@@ -2356,7 +2346,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				}}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		var logs bytes.Buffer
 		fixture.Handlers.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
@@ -2444,7 +2434,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				emitted = append(emitted, event)
 			},
 		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
 
 		streamResp := performRequest(
@@ -2546,7 +2536,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
 
 		streamResp := testutil.PerformRequestWithHeaders(
@@ -2603,7 +2593,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				return transcript.ChangePage{}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 
 		streamResp := performRequest(
 			t,
@@ -2645,7 +2635,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				return transcript.ChangePage{}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 
 		streamResp := testutil.PerformRequestWithHeaders(
 			t,
@@ -2676,8 +2666,6 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, query := range []string{"replay=snapshot", "replay="} {
 			streamResp := performRequest(
@@ -2704,8 +2692,6 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, name := range []string{"epoch", "generation"} {
 			streamResp := performRequest(
@@ -2753,7 +2739,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				}
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
 
 		streamResp := performRequest(
@@ -2791,8 +2777,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
@@ -2841,8 +2825,6 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
@@ -2888,8 +2870,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		syncer := &recordingAgentDefinitionSync{}
 		fixture.Handlers.AgentDefinitionSync = syncer
@@ -2990,8 +2970,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope:     contract.AgentCreateScopeWorkspace,
@@ -3046,8 +3024,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		resp := performRequest(
 			t,
@@ -3083,8 +3059,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
 		resp := performRequest(
@@ -3120,8 +3094,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Config = compozyconfig.Config{}
 		body := mustJSON(t, contract.CreateAgentRequest{
@@ -3149,8 +3121,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Config = compozyconfig.Config{}
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
@@ -3186,8 +3156,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Config = compozyconfig.Config{}
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
@@ -3216,8 +3184,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		syncErr := errors.New("sync unavailable")
 		syncer := &recordingAgentDefinitionSync{errs: []error{syncErr, nil}}
@@ -3261,8 +3227,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
@@ -3356,8 +3320,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 					testutil.StubSessionManager{},
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
-					nil,
-					nil,
 				)
 				resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", mustJSON(t, tc.req))
 				if resp.Code != http.StatusBadRequest {
@@ -3380,8 +3342,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
@@ -3413,8 +3373,6 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				},
 			},
-			nil,
-			nil,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope:     contract.AgentCreateScopeWorkspace,
@@ -3465,7 +3423,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 						ProfileID: "profile-marketing", ProfileName: "marketing",
 					}, nil
 				},
-			}, nil, nil)
+			})
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
 			listForWorkspace: func(resolved *workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
@@ -3564,8 +3522,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
@@ -3627,8 +3583,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(
 			t.TempDir(),
@@ -3700,8 +3654,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if _, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
@@ -3762,8 +3714,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
@@ -3834,8 +3784,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
@@ -3938,8 +3886,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if _, err := compozyconfig.CreateAgentDefFile(globalPath, compozyconfig.AgentDefinitionDraft{
@@ -4015,8 +3961,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		purgeErr := errors.New("history unavailable")
 		fixture.Handlers.SoulHistoryPurger = &recordingSoulHistoryPurger{err: purgeErr}
@@ -4067,8 +4011,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		fixture.Handlers.SoulHistoryPurger = &recordingSoulHistoryPurger{}
 		fixture.Handlers.HeartbeatHistoryPurger = &recordingHeartbeatHistoryPurger{}
@@ -4114,8 +4056,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if err := os.MkdirAll(filepath.Dir(globalPath), 0o700); err != nil {
@@ -4150,8 +4090,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 				testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
-				nil,
-				nil,
 			)
 			sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 			if _, err := compozyconfig.CreateAgentDefFile(sourcePath, compozyconfig.AgentDefinitionDraft{
@@ -4297,8 +4235,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		resp := performRequest(
 			t,
@@ -4372,8 +4308,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if _, err := compozyconfig.CreateAgentDefFile(sourcePath, compozyconfig.AgentDefinitionDraft{
@@ -4414,8 +4348,6 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		tests := []struct {
 			name   string
@@ -4520,8 +4452,6 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, draft := range []compozyconfig.AgentDefinitionDraft{
 			{Name: "zeta", Provider: "codex", Prompt: "Zeta prompt"},
@@ -4627,8 +4557,6 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
 			agents: []compozyconfig.AgentDef{
@@ -4810,8 +4738,6 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 
 		firstResp := performRequest(
@@ -4940,8 +4866,6 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 					}, nil
 				},
 			},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Profiles = profiles
 
@@ -5032,8 +4956,6 @@ func TestDoctorProjectsProfileLayerDiagnostics(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Profiles = &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{{
 			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
@@ -5080,8 +5002,6 @@ func TestDoctorLogTailDiagnosticIncludesCapabilityEvidence(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Settings = &stubSettingsService{
 			GetSectionFn: func(
@@ -5171,14 +5091,17 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 			manager.StubSessionManager,
 			observer,
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Sessions = manager
 
 		statusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status?workspace_id=ws-a", nil)
 		if statusResponse.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", statusResponse.Code, http.StatusOK, statusResponse.Body.String())
+		}
+		var statusShape map[string]json.RawMessage
+		decodeJSON(t, statusResponse.Body.Bytes(), &statusShape)
+		if string(statusShape["schema_version"]) != `"2026-10-07"` || statusShape["memory"] != nil {
+			t.Fatalf("IT-012 status contract = %s", statusResponse.Body.String())
 		}
 		var statusPayload contract.StatusPayload
 		decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
@@ -5255,8 +5178,6 @@ func TestDaemonStatusProjectsWorkspaceSkills(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			workspaces,
-			nil,
-			nil,
 		)
 		fixture.Handlers.SkillsRegistry = registry
 
@@ -5312,7 +5233,7 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{})
 		controller := &testDrainController{}
 		controller.settled.Store(true)
 		fixture.Handlers.DrainController = controller
@@ -5450,8 +5371,6 @@ func TestLogsEndpointsRejectConflictingAliases(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		for _, path := range []string{
 			"/logs?after_seq=1&after_sequence=2",
@@ -5478,8 +5397,6 @@ func TestDoctorSessionMetadataProbe(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
-			nil,
-			nil,
 		)
 		fixture.Handlers.Sessions = metadataDoctorSessions{}
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=runtime.session_metadata", nil)
@@ -5549,7 +5466,7 @@ func TestCreateSessionLineageKind(t *testing.T) {
 				return info, nil
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		return fixture
 	}
@@ -5638,4 +5555,25 @@ func TestCreateSessionLineageKind(t *testing.T) {
 			})
 		}
 	})
+}
+
+// The events transport rejects invalid component filters before querying storage.
+func TestEventsRejectInvalidComponentsIT014(t *testing.T) {
+	t.Parallel()
+	for _, component := range []string{"memory", "nope"} {
+		t.Run("Should reject component "+component, func(t *testing.T) {
+			t.Parallel()
+			observer := testutil.StubObserver{QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+				t.Fatal("invalid component reached observer")
+				return nil, nil
+			}}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Observer: observer})
+			engine := gin.New()
+			engine.GET("/api/events", handlers.ListLogs)
+			response := performRequest(t, engine, http.MethodGet, "/api/events?component="+component, nil)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "invalid event summary component") {
+				t.Fatalf("events status = %d body=%s, want invalid component 400", response.Code, response.Body.String())
+			}
+		})
+	}
 }

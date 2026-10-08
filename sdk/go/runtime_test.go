@@ -84,10 +84,10 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	runtime := newRuntimeHarness(t)
 	extension := compozysdk.NewExtension(
 		compozysdk.ExtensionDefinition{
-			Name:    "Memory Extension",
+			Name:    "Model Extension",
 			Version: "0.1.0",
 			Capabilities: compozysdk.CapabilitiesConfig{
-				Provides: []string{"memory.backend"},
+				Provides: []string{"model.source"},
 			},
 			Permissions: compozysdk.PermissionsConfig{
 				Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
@@ -98,32 +98,14 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 		compozysdk.WithSDKVersion("test-version"),
 		compozysdk.WithStderr(io.Discard),
 	)
-	if err := extension.Handle("memory/store", func(
+	if err := extension.Handle("models/list", func(
 		context.Context,
 		compozysdk.ExtensionContext,
 		json.RawMessage,
 	) (any, error) {
-		return map[string]bool{"stored": true}, nil
+		return map[string]bool{"listed": true}, nil
 	}); err != nil {
-		t.Fatalf("Handle(memory/store) error = %v", err)
-	}
-	if err := extension.Handle("memory/recall", func(
-		context.Context,
-		compozysdk.ExtensionContext,
-		json.RawMessage,
-	) (any, error) {
-		return map[string]any{"entries": []any{}}, nil
-	}); err != nil {
-		t.Fatalf("Handle(memory/recall) error = %v", err)
-	}
-	if err := extension.Handle("memory/forget", func(
-		context.Context,
-		compozysdk.ExtensionContext,
-		json.RawMessage,
-	) (any, error) {
-		return map[string]bool{"forgotten": true}, nil
-	}); err != nil {
-		t.Fatalf("Handle(memory/forget) error = %v", err)
+		t.Fatalf("Handle(models/list) error = %v", err)
 	}
 	if err := extension.Handle("health_check", func(
 		context.Context,
@@ -163,8 +145,8 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	})
 
 	initialize := runtime.call(t, 1, "initialize", initializeParamsWithGrants(
-		"Memory Extension",
-		[]string{"memory.backend"},
+		"Model Extension",
+		[]string{"model.source"},
 		[]string{"sessions/list"},
 	))
 	if initialize.Error != nil {
@@ -179,14 +161,14 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 		t.Fatalf("supported hook events = %#v, want session.started", initResult.SupportedHookEvents)
 	}
 
-	store := runtime.call(t, 2, "memory/store", map[string]string{"key": "alpha"})
-	if store.Error != nil {
-		t.Fatalf("memory/store error = %#v", store.Error)
+	list := runtime.call(t, 2, "models/list", map[string]string{"key": "alpha"})
+	if list.Error != nil {
+		t.Fatalf("models/list error = %#v", list.Error)
 	}
-	var stored map[string]bool
-	decodeResult(t, store.Result, &stored)
-	if !stored["stored"] {
-		t.Fatalf("memory/store result = %#v, want stored", stored)
+	var listed map[string]bool
+	decodeResult(t, list.Result, &listed)
+	if !listed["listed"] {
+		t.Fatalf("models/list result = %#v, want listed", listed)
 	}
 
 	health := runtime.call(t, 3, "health_check", map[string]any{})
@@ -209,7 +191,7 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 		t.Fatalf("shutdown result = %#v, want acknowledged", shutdownResult)
 	}
 
-	blocked := runtime.call(t, 5, "memory/recall", map[string]any{})
+	blocked := runtime.call(t, 5, "models/list", map[string]any{})
 	if blocked.Error == nil || blocked.Error.Code != -32004 {
 		t.Fatalf("post-shutdown response error = %#v, want shutdown in progress", blocked.Error)
 	}
@@ -1581,7 +1563,10 @@ func initializeParamsWithGrants(
 	capabilities := params["capabilities"].(map[string]any)
 	capabilities["provides"] = provides
 	capabilities["granted_permissions"] = permissions
-	extensionServices := []string{"memory/store", "memory/recall", "memory/forget"}
+	extensionServices := []string{}
+	if contains(provides, "model.source") {
+		extensionServices = append(extensionServices, "models/list")
+	}
 	if contains(provides, "tool.provider") {
 		extensionServices = append(extensionServices, "provide_tools", "tools/call")
 	}

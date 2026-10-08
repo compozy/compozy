@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
@@ -91,6 +92,11 @@ func ParseLogsQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 		return store.EventSummaryQuery{}, err
 	}
 
+	component := strings.TrimSpace(c.Query("component"))
+	if !eventspkg.ValidComponent(component) {
+		return store.EventSummaryQuery{}, fmt.Errorf("invalid event summary component %q", component)
+	}
+
 	return store.EventSummaryQuery{
 		WorkspaceID:   strings.TrimSpace(workspaceID),
 		SessionID:     strings.TrimSpace(c.Query("session_id")),
@@ -101,7 +107,7 @@ func ParseLogsQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 		ActorID:       actorID,
 		Provider:      strings.TrimSpace(c.Query("provider")),
 		Outcome:       strings.TrimSpace(c.Query("outcome")),
-		Component:     strings.TrimSpace(c.Query("component")),
+		Component:     component,
 		ErrorOnly:     errorOnly,
 		AfterSequence: afterSequence,
 		Since:         since,

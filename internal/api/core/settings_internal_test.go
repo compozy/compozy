@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 	"time"
 
@@ -217,11 +216,6 @@ func TestSettingsSectionResponseFromEnvelopeRequiresConcreteSectionPayload(t *te
 			want:     "settings general section is required",
 		},
 		{
-			name:     "memory",
-			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionMemory},
-			want:     "settings memory section is required",
-		},
-		{
 			name:     "skills",
 			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionSkills},
 			want:     "settings skills section is required",
@@ -294,17 +288,6 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 			t.Fatal("generalSettingsFromPayload(invalid memory report interval) error = nil, want non-nil")
 		}
 	})
-
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	memoryConfig := compozyconfig.DefaultWithHome(homePaths).Memory
-	memoryPayload := settingsMemoryConfigPayload(&memoryConfig)
-	memoryPayload.Dream.CheckInterval = "bad"
-	if _, err := memoryConfigFromPayload(&memoryPayload); err == nil {
-		t.Fatal("memoryConfigFromPayload(invalid interval) error = nil, want non-nil")
-	}
 
 	if _, err := skillsConfigFromPayload(contract.SettingsSkillsConfigPayload{
 		Enabled:      true,
@@ -469,33 +452,5 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 				t.Fatalf("settingsGeneralConfigPayload().Terminal = %#v, want %#v", got, payload.Terminal)
 			}
 		})
-	}
-}
-
-func TestMemorySettingsPayloadRoundTripIncludesV2Config(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	want := compozyconfig.DefaultWithHome(homePaths).Memory
-	want.GlobalDir = "/tmp/roundtrip-memory"
-	want.Controller.Mode = "rules"
-	want.Controller.Policy.AllowOrigins = []string{"cli", "tool"}
-	want.Recall.IncludeAlreadySurfaced = true
-	want.Extractor.Queue.CoalesceMax = 12
-	want.Dream.MinHours = 18
-	want.Session.UnboundPartition = "_orphans"
-	want.Provider.Name = "local"
-	want.Workspace.AutoCreate = false
-
-	payload := settingsMemoryConfigPayload(&want)
-	got, err := memoryConfigFromPayload(&payload)
-	if err != nil {
-		t.Fatalf("memoryConfigFromPayload() error = %v", err)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("memoryConfigFromPayload() = %#v, want %#v", got, want)
 	}
 }

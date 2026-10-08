@@ -42,7 +42,6 @@ const (
 	specAPIExtensionsNameSecretsPath    = specAPIExtensionsNamePath + "/secrets"
 	specAPIExtensionsNameSecretPath     = specAPIExtensionsNameSecretsPath + "/{env_name}"
 	specAPIExtensionsNameEnablementPath = specAPIExtensionsNamePath + "/enablement"
-	specAPIMemoryFilenamePath           = "/api/memory/{filename}"
 	specAPIResourcesKindIDPath          = "/api/resources/{kind}/{id}"
 	specAPISettingsAutomationPath       = "/api/settings/automation"
 	specAPISettingsGeneralPath          = "/api/settings/general"
@@ -50,7 +49,6 @@ const (
 	specAPISettingsHooksExtensionsPath  = "/api/settings/hooks-extensions"
 	specAPISettingsHooksNamePath        = "/api/settings/hooks/{name}"
 	specAPISettingsMCPServersNamePath   = "/api/settings/mcp-servers/{name}"
-	specAPISettingsMemoryPath           = "/api/settings/memory"
 	specAPISettingsRolesPath            = "/api/settings/roles"
 
 	specAPISettingsWindowManagerPath = "/api/settings/window-manager"
@@ -157,7 +155,6 @@ const (
 	specIntegerKey     = "integer"
 	specLogsKey        = "logs"
 	specMarketplaceKey = "marketplace"
-	specMemoryKey      = "memory"
 
 	specNotificationsKey           = "notifications"
 	specObserveKey                 = "observe"
@@ -279,7 +276,6 @@ func Document() (*openapi3.T, error) {
 			{Name: specLogsKey},
 			{Name: specLoopsKey},
 			{Name: specMarketplaceKey},
-			{Name: specMemoryKey},
 			{Name: specObserveKey},
 			{Name: specOpenAIKey},
 			{Name: specProvidersKey},

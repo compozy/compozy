@@ -182,7 +182,7 @@ func renderTaskInspectToon(record *TaskInspectRecord) (string, error) {
 				extensionTypeKey,
 				taskRunIDKey,
 				taskOutcomeKey,
-				memorySummaryKey,
+				cliSummaryKey,
 				taskTimestampKey,
 			},
 			taskInspectEventToonRows(record.RecentEvents),

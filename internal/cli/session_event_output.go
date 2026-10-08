@@ -41,7 +41,7 @@ func sessionEventsBundle(events []SessionEventRecord) outputBundle {
 			sessionAgentNameKey,
 			sessionTurnIDKey,
 			cliOutputTimestampKey,
-			memoryContentKey,
+			cliContentKey,
 		},
 		func(event SessionEventRecord) []string {
 			return []string{
@@ -87,7 +87,7 @@ func sessionHistoryBundle(history []TurnHistoryRecord) outputBundle {
 			extensionTypeKey,
 			sessionAgentNameKey,
 			cliOutputTimestampKey,
-			memoryContentKey,
+			cliContentKey,
 		},
 		func(event SessionEventRecord) []string {
 			return []string{

@@ -39,7 +39,7 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 
 	env := newRegistryTestEnv(t)
 	dir, manifest, checksum := createRegistryTestExtension(t, "alpha-registry", registryManifestOptions{
-		capabilities: []string{"memory.backend", "tool.provider"},
+		capabilities: []string{"tool.provider", "view.provider"},
 		permissions:  []string{"sessions/list", "observe/health"},
 		extraFiles: map[string]string{
 			"skills/alpha.md": "# alpha\n",
@@ -542,7 +542,7 @@ func TestRegistryListReturnsAllInstalledExtensions(t *testing.T) {
 
 	env := newRegistryTestEnv(t)
 	alphaDir, alphaManifest, alphaChecksum := createRegistryTestExtension(t, "alpha", registryManifestOptions{
-		capabilities: []string{"memory.backend"},
+		capabilities: []string{"tool.provider"},
 		permissions:  []string{"sessions/list"},
 	})
 	betaDir, betaManifest, betaChecksum := createRegistryTestExtension(t, "beta", registryManifestOptions{
@@ -771,7 +771,7 @@ version = "0.2.1"
 min_compozy_version = "0.5.0"
 
 [capabilities]
-provides = ["memory.backend"]
+provides = ["tool.provider"]
 
 [permissions]
 requires = ["sessions/list"]
@@ -2064,7 +2064,7 @@ func createRegistryTestExtension(t *testing.T, name string, opts registryManifes
 func registryManifestTOML(name string, opts registryManifestOptions) string {
 	capabilities := append([]string(nil), opts.capabilities...)
 	if len(capabilities) == 0 {
-		capabilities = []string{"memory.backend"}
+		capabilities = []string{"tool.provider"}
 	}
 
 	permissions := append([]string(nil), opts.permissions...)

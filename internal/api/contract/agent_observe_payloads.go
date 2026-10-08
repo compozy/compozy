@@ -201,7 +201,7 @@ type AgentProbeHealthPayload struct {
 }
 
 // ObservePersistenceHealthPayload captures store health fields shared by
-// lifecycle, memory, and operator diagnostics.
+// lifecycle and operator diagnostics.
 type ObservePersistenceHealthPayload struct {
 	Status             string `json:"status"`
 	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`

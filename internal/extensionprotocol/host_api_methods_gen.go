@@ -20,9 +20,6 @@ const (
 	HostAPIMethodSessionsSoulRefresh      HostAPIMethod = "sessions/soul/refresh"
 	HostAPIMethodSessionsHealthGet        HostAPIMethod = "sessions/health/get"
 	HostAPIMethodSessionsStatusGet        HostAPIMethod = "sessions/status/get"
-	HostAPIMethodMemoryRecall             HostAPIMethod = "memory/recall"
-	HostAPIMethodMemoryStore              HostAPIMethod = "memory/store"
-	HostAPIMethodMemoryForget             HostAPIMethod = "memory/forget"
 	HostAPIMethodObserveHealth            HostAPIMethod = "observe/health"
 	HostAPIMethodListLogs                 HostAPIMethod = "logs/list"
 	HostAPIMethodSkillsList               HostAPIMethod = "skills/list"
@@ -101,9 +98,6 @@ var allHostAPIMethods = []HostAPIMethod{
 	HostAPIMethodSessionsSoulRefresh,
 	HostAPIMethodSessionsHealthGet,
 	HostAPIMethodSessionsStatusGet,
-	HostAPIMethodMemoryRecall,
-	HostAPIMethodMemoryStore,
-	HostAPIMethodMemoryForget,
 	HostAPIMethodObserveHealth,
 	HostAPIMethodListLogs,
 	HostAPIMethodSkillsList,

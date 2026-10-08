@@ -1,7 +1,6 @@
 package spec
 
 import (
-	"github.com/compozy/compozy/internal/api/contract"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -117,19 +116,6 @@ func settingsLayeredParameters() []ParameterSpec {
 		queryParam("workspace_id", "Select the workspace context", false),
 		queryParam(specProfileKey, "Select the profile layer", false),
 	}
-}
-
-func memorySelectorQueryParams() []ParameterSpec {
-	return []ParameterSpec{
-		enumQueryParam(specScopeKey, "Memory scope", memoryScopeValues()),
-		queryParam("workspace_id", "Durable workspace id", false),
-		queryParam("agent_name", "Agent name for agent-scoped memory", false),
-		enumQueryParam("agent_tier", "Agent memory tier", memoryAgentTierValues()),
-	}
-}
-
-func memoryError(status int, description string) ResponseSpec {
-	return ResponseSpec{Status: status, Description: description, Body: contract.MemoryErrorPayload{}}
 }
 
 func afterSequenceQueryParam(description string) ParameterSpec {

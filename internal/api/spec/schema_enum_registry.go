@@ -10,7 +10,6 @@ import (
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -175,17 +174,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[hooks.HookSkillSource]():                hookSkillSourceValues(),
 		reflect.TypeFor[hooks.HookExecutorKind]():               hookExecutorKindValues(),
 		reflect.TypeFor[hooks.HookSource]():                     hookSourceValues(),
-		reflect.TypeFor[memcontract.Type]():                     memoryTypeValues(),
-		reflect.TypeFor[memcontract.Scope]():                    memoryScopeValues(),
-		reflect.TypeFor[memcontract.AgentTier]():                memoryAgentTierValues(),
-		reflect.TypeFor[memcontract.Origin]():                   memoryOriginValues(),
-		reflect.TypeFor[memcontract.Operation]():                memoryOperationValues(),
-		reflect.TypeFor[memcontract.DecisionSource]():           memoryDecisionSourceValues(),
-		reflect.TypeFor[memcontract.Trigger]():                  memoryTriggerValues(),
-		reflect.TypeFor[contract.MemoryDecisionOp]():            memoryDecisionOpValues(),
-		reflect.TypeFor[contract.MemoryProviderState]():         memoryProviderStateValues(),
-		reflect.TypeFor[contract.MemoryDreamState]():            memoryDreamStateValues(),
-		reflect.TypeFor[contract.MemoryExtractorState]():        memoryExtractorStateValues(),
 		reflect.TypeFor[contract.SettingsScopeKind]():           settingsScopeValues(),
 		reflect.TypeFor[contract.SettingsUserScopeKind]():       settingsUserScopeValues(),
 		reflect.TypeFor[contract.SettingsAgentScopeKind]():      settingsAgentScopeValues(),

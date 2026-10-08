@@ -104,52 +104,6 @@ type OnboardingStore interface {
 	store.OnboardingStore
 }
 
-// DreamTrigger exposes consolidation controls and state to the API layer.
-type DreamTrigger interface {
-	Trigger(ctx context.Context, workspace string) (bool, string, error)
-	LastConsolidatedAt() (time.Time, error)
-	Enabled() bool
-}
-
-// MemoryExtractorService exposes the daemon-owned Memory v2 extractor runtime.
-type MemoryExtractorService interface {
-	Status(ctx context.Context) (contract.MemoryExtractorStatusPayload, error)
-	ListFailures(ctx context.Context) ([]contract.MemoryExtractorFailurePayload, error)
-	Retry(ctx context.Context, req contract.MemoryExtractorRetryRequest) (contract.MemoryExtractorRetryResponse, error)
-	Drain(ctx context.Context) (contract.MemoryExtractorDrainResponse, error)
-}
-
-// MemoryProviderService exposes the active MemoryProvider registry.
-type MemoryProviderService interface {
-	List(ctx context.Context, workspaceID string) ([]contract.MemoryProviderPayload, error)
-	Get(ctx context.Context, workspaceID string, name string) (contract.MemoryProviderPayload, error)
-	Select(ctx context.Context, workspaceID string, name string) (contract.MemoryProviderPayload, error)
-	Enable(
-		ctx context.Context,
-		workspaceID string,
-		name string,
-		reason string,
-	) (contract.MemoryProviderLifecycleResponse, error)
-	Disable(
-		ctx context.Context,
-		workspaceID string,
-		name string,
-		reason string,
-	) (contract.MemoryProviderLifecycleResponse, error)
-}
-
-// MemorySessionLedgerService exposes materialized session ledgers and replay.
-type MemorySessionLedgerService interface {
-	Get(ctx context.Context, sessionID string) (contract.MemorySessionLedgerResponse, error)
-	Replay(
-		ctx context.Context,
-		sessionID string,
-		req contract.MemorySessionReplayRequest,
-	) (contract.MemorySessionReplayResponse, error)
-	Prune(ctx context.Context, req contract.MemorySessionsPruneRequest) (contract.MemorySessionsPruneResponse, error)
-	Repair(ctx context.Context) (contract.MemorySessionsRepairResponse, error)
-}
-
 // SupportBundleService exposes daemon-owned support bundle operations to transports.
 type SupportBundleService interface {
 	Create(ctx context.Context, req support.CreateRequest) (support.Operation, error)

@@ -26,9 +26,6 @@ func TestNewHomeConfig(t *testing.T) {
 		if cfg.Daemon.Socket != homePaths.DaemonSocket {
 			t.Fatalf("daemon socket = %q, want %q", cfg.Daemon.Socket, homePaths.DaemonSocket)
 		}
-		if cfg.Memory.GlobalDir != homePaths.MemoryDir {
-			t.Fatalf("memory global dir = %q, want %q", cfg.Memory.GlobalDir, homePaths.MemoryDir)
-		}
 	})
 }
 

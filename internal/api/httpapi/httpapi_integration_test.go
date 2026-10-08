@@ -26,8 +26,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/memory"
-	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
@@ -1745,132 +1743,6 @@ func TestHTTPApprovePermissionTimeout(t *testing.T) {
 	}
 }
 
-func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-
-	writeResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/memory"),
-		[]byte(
-			`{"scope":"profile","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
-		),
-		nil,
-	)
-	if writeResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, writeResp)
-		t.Fatalf("write status = %d, want %d; body=%s", writeResp.StatusCode, http.StatusOK, string(body))
-	}
-	var writePayload memoryMutationDecisionResponse
-	decodeHTTPJSON(t, writeResp, &writePayload)
-	targetFilename := writePayload.Decision.TargetFilename
-	if targetFilename == "" {
-		t.Fatalf("write payload = %#v, want target filename", writePayload)
-	}
-
-	readResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=profile"),
-		nil,
-		nil,
-	)
-	if readResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, readResp)
-		t.Fatalf("read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
-	}
-	var readPayload memoryEntryResponse
-	decodeHTTPJSON(t, readResp, &readPayload)
-	if !strings.Contains(readPayload.Memory.Content, "hello integration") {
-		t.Fatalf("content = %q, want written body", readPayload.Memory.Content)
-	}
-
-	listResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory?scope=profile"),
-		nil,
-		nil,
-	)
-	if listResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, listResp)
-		t.Fatalf("list status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
-	}
-	var listPayload memoryListResponse
-	decodeHTTPJSON(t, listResp, &listPayload)
-	if len(listPayload.Memories) != 1 || listPayload.Memories[0].Filename != targetFilename {
-		t.Fatalf("memories = %#v, want %s", listPayload.Memories, targetFilename)
-	}
-
-	deleteResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodDelete,
-		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=profile"),
-		nil,
-		nil,
-	)
-	if deleteResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, deleteResp)
-		t.Fatalf("delete status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusOK, string(body))
-	}
-	closeHTTPBody(t, deleteResp.Body)
-
-	emptyList := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory?scope=profile"),
-		nil,
-		nil,
-	)
-	if emptyList.StatusCode != http.StatusOK {
-		t.Fatalf("post-delete list status = %d, want %d", emptyList.StatusCode, http.StatusOK)
-	}
-	decodeHTTPJSON(t, emptyList, &listPayload)
-	if len(listPayload.Memories) != 0 {
-		t.Fatalf("memories = %#v, want empty list after delete", listPayload.Memories)
-	}
-}
-
-func TestHTTPMemoryDreamTriggerIntegration(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-
-	resp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/memory/dreams/trigger"),
-		mustIntegrationJSON(map[string]any{
-			"scope":        "workspace",
-			"workspace_id": runtime.workspace,
-		}),
-		nil,
-	)
-	if resp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, resp)
-		t.Fatalf("dream trigger status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
-	}
-
-	var payload memoryDreamTriggerResponse
-	decodeHTTPJSON(t, resp, &payload)
-	if !payload.Triggered || runtime.dream.calls != 1 || runtime.dream.recordedWorkspace != runtime.workspace {
-		t.Fatalf(
-			"payload = %#v dream.calls=%d workspace=%q, want triggered once for %q",
-			payload,
-			runtime.dream.calls,
-			runtime.dream.recordedWorkspace,
-			runtime.workspace,
-		)
-	}
-	if payload.Dream.Scope != memcontract.ScopeWorkspace || payload.Dream.WorkspaceID != runtime.workspace {
-		t.Fatalf("dream payload = %#v, want workspace-scoped dream for %q", payload.Dream, runtime.workspace)
-	}
-}
-
 func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
@@ -3219,16 +3091,13 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 }
 
 type integrationRuntime struct {
-	client   *http.Client
-	server   *Server
-	manager  *session.Manager
-	tasks    *taskpkg.Service
-	driver   *integrationDriver
-	observer *observe.Observer
-	registry *globaldb.GlobalDB
-
-	memory              *memory.Store
-	dream               *integrationDreamTrigger
+	client              *http.Client
+	server              *Server
+	manager             *session.Manager
+	tasks               *taskpkg.Service
+	driver              *integrationDriver
+	observer            *observe.Observer
+	registry            *globaldb.GlobalDB
 	streamSubscriptions *integrationStreamSubscriptionRecorder
 	host                string
 	port                int
@@ -3264,29 +3133,6 @@ func (*integrationTaskSessionExecutor) RequestTaskStop(context.Context, string, 
 
 func (*integrationTaskSessionExecutor) ForceTaskStop(context.Context, string, taskpkg.StopReason) error {
 	return nil
-}
-
-type integrationDreamTrigger struct {
-	enabled           bool
-	triggered         bool
-	reason            string
-	last              time.Time
-	calls             int
-	recordedWorkspace string
-}
-
-func (t *integrationDreamTrigger) Trigger(_ context.Context, workspaceID string) (bool, string, error) {
-	t.calls++
-	t.recordedWorkspace = workspaceID
-	return t.triggered, t.reason, nil
-}
-
-func (t *integrationDreamTrigger) LastConsolidatedAt() (time.Time, error) {
-	return t.last, nil
-}
-
-func (t *integrationDreamTrigger) Enabled() bool {
-	return t.enabled
 }
 
 type integrationNotifierFanout struct {
@@ -3745,26 +3591,6 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
 
-	memoryStore := memory.NewStore(
-		homePaths.MemoryDir,
-		memory.WithCatalogDatabasePath(homePaths.DatabaseFile),
-	)
-	if err := memoryStore.EnsureDirs(); err != nil {
-		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
-	}
-	if err := memoryStore.OpenCatalog(t.Context()); err != nil {
-		t.Fatalf("memoryStore.OpenCatalog() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := memoryStore.CloseCatalog(context.Background()); err != nil {
-			t.Errorf("memoryStore.CloseCatalog() error = %v", err)
-		}
-	})
-	dreamTrigger := &integrationDreamTrigger{
-		enabled:   true,
-		triggered: true,
-		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
-	}
 	lookupEnv := func(key string) (string, bool) {
 		value, ok := os.LookupEnv(key)
 		return value, ok && strings.TrimSpace(value) != ""
@@ -3834,8 +3660,6 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		WithAutomation(automationManager),
 		WithVaultService(vaultService),
 		WithWorkspaceResolver(resolver),
-		WithMemoryStore(memoryStore),
-		WithDreamTrigger(dreamTrigger),
 		WithPollInterval(10*time.Millisecond),
 	)
 	if err != nil {
@@ -3860,8 +3684,6 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		driver:              driver,
 		observer:            observer,
 		registry:            registry,
-		memory:              memoryStore,
-		dream:               dreamTrigger,
 		streamSubscriptions: streamSubscriptions,
 		host:                cfg.HTTP.Host,
 		port:                server.Port(),

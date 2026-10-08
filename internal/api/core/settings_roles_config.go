@@ -18,23 +18,7 @@ func settingsRolesConfigPayload(value *compozyconfig.RolesConfig) contract.Setti
 			MaxChildren:                   value.Coordinator.MaxChildren,
 			MaxActiveSessionsPerWorkspace: value.Coordinator.MaxActiveSessionsPerWorkspace,
 		},
-		Dream:             settingsRoleConfigPayload(value.Dream),
-		CheckpointSummary: settingsRoleConfigPayload(value.CheckpointSummary),
-		MemoryExtractor:   settingsRoleConfigPayload(value.MemoryExtractor),
-		AutoTitle:         settingsRoleConfigPayload(value.AutoTitle),
-		MemoryController: contract.SettingsMemoryControllerRoleConfigPayload{
-			Enabled:         value.MemoryController.Enabled,
-			Provider:        strings.TrimSpace(value.MemoryController.Provider),
-			Model:           strings.TrimSpace(value.MemoryController.Model),
-			ReasoningEffort: strings.TrimSpace(value.MemoryController.ReasoningEffort),
-			Speed:           settingsRoleSpeedPayload(value.MemoryController.Speed),
-			ACPOptions:      settingsACPOptionPayloads(value.MemoryController.ACPOptions),
-			Timeout:         value.MemoryController.Timeout.String(),
-			TopK:            value.MemoryController.TopK,
-			PromptVersion:   strings.TrimSpace(value.MemoryController.PromptVersion),
-			MaxTokensOut:    value.MemoryController.MaxTokensOut,
-			FallbackChain:   settingsRoleFallbackPayloads(value.MemoryController.FallbackChain),
-		},
+		AutoTitle: settingsRoleConfigPayload(value.AutoTitle),
 	}
 }
 
@@ -76,10 +60,6 @@ func rolesConfigFromPayload(payload *contract.SettingsRolesConfigPayload) (compo
 	if err != nil {
 		return compozyconfig.RolesConfig{}, err
 	}
-	timeout, err := parseSettingsDuration("roles.config.memory_controller.timeout", payload.MemoryController.Timeout)
-	if err != nil {
-		return compozyconfig.RolesConfig{}, err
-	}
 	return compozyconfig.RolesConfig{
 		Coordinator: compozyconfig.CoordinatorRoleConfig{
 			RoleConfig:                    roleConfigFromSettingsPayload(payload.Coordinator.SettingsRoleConfigPayload),
@@ -87,23 +67,7 @@ func rolesConfigFromPayload(payload *contract.SettingsRolesConfigPayload) (compo
 			MaxChildren:                   payload.Coordinator.MaxChildren,
 			MaxActiveSessionsPerWorkspace: payload.Coordinator.MaxActiveSessionsPerWorkspace,
 		},
-		Dream:             roleConfigFromSettingsPayload(payload.Dream),
-		CheckpointSummary: roleConfigFromSettingsPayload(payload.CheckpointSummary),
-		MemoryExtractor:   roleConfigFromSettingsPayload(payload.MemoryExtractor),
-		AutoTitle:         roleConfigFromSettingsPayload(payload.AutoTitle),
-		MemoryController: compozyconfig.MemoryControllerRoleConfig{
-			Enabled:         payload.MemoryController.Enabled,
-			Provider:        strings.TrimSpace(payload.MemoryController.Provider),
-			Model:           strings.TrimSpace(payload.MemoryController.Model),
-			ReasoningEffort: strings.TrimSpace(payload.MemoryController.ReasoningEffort),
-			Speed:           settingsRoleSpeedFromPayload(payload.MemoryController.Speed),
-			ACPOptions:      settingsACPOptionsFromPayload(payload.MemoryController.ACPOptions),
-			Timeout:         timeout,
-			TopK:            payload.MemoryController.TopK,
-			PromptVersion:   strings.TrimSpace(payload.MemoryController.PromptVersion),
-			MaxTokensOut:    payload.MemoryController.MaxTokensOut,
-			FallbackChain:   roleFallbacksFromSettingsPayload(payload.MemoryController.FallbackChain),
-		},
+		AutoTitle: roleConfigFromSettingsPayload(payload.AutoTitle),
 	}, nil
 }
 

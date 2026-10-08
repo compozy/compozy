@@ -14,7 +14,6 @@ import (
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/gateway"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/memory"
 
 	"github.com/compozy/compozy/internal/resources"
 
@@ -126,15 +125,6 @@ func StatusForWorkspaceError(err error) int {
 	return statusForWorkspaceError(err)
 }
 
-// NewMemoryValidationError wraps a memory validation failure with the shared sentinel.
-func NewMemoryValidationError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %w", memory.ErrValidation, err)
-}
-
-// StatusForVaultError maps vault-domain failures to transport statuses.
 func StatusForVaultError(err error) int {
 	switch {
 	case err == nil:
@@ -149,25 +139,6 @@ func StatusForVaultError(err error) int {
 	}
 }
 
-// StatusForMemoryError maps memory-domain errors to transport statuses.
-func StatusForMemoryError(err error) int {
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.Is(err, ErrMemoryUnsupported):
-		return http.StatusNotImplemented
-	case errors.Is(err, ErrMemoryRejected):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, os.ErrNotExist), errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, memory.ErrValidation):
-		return http.StatusBadRequest
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-// StatusForResourceError maps desired-state resource failures to transport statuses.
 func StatusForResourceError(err error) int {
 	switch {
 	case err == nil:

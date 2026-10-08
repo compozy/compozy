@@ -97,8 +97,8 @@ func removalContract(value profilepkg.RemovalSummary) contract.ProfileRemovalSum
 	return contract.ProfileRemovalSummary{
 		Agents: value.Agents, Skills: value.Skills, Loops: value.Loops, MCPServers: value.MCPServers,
 		ConfigKeys: value.ConfigKeys, CredentialOverrides: value.CredentialOverrides,
-		MemoryEntries: value.MemoryEntries, DesktopPartitions: value.DesktopPartitions,
-		PaletteUsage: value.PaletteUsage, PaletteQueryHits: value.PaletteQueryHits,
+		DesktopPartitions: value.DesktopPartitions,
+		PaletteUsage:      value.PaletteUsage, PaletteQueryHits: value.PaletteQueryHits,
 		PalettePins: value.PalettePins, TerminalApprovals: value.TerminalApprovals,
 		EventSummaries: value.EventSummaries,
 	}

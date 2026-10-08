@@ -15,8 +15,6 @@ import (
 const (
 	hostAPIAutomationJobsPath       = "automation/jobs"
 	hostAPIAutomationJobsCreatePath = "automation/jobs/create"
-	hostAPIMemoryForgetPath         = "memory/forget"
-	hostAPIMemoryRecallPath         = "memory/recall"
 	hostAPIListLogsPath             = "logs/list"
 	hostAPIResourcesListPath        = "resources/list"
 	hostAPIResourcesSnapshotPath    = "resources/snapshot"
@@ -45,9 +43,6 @@ const (
 	capabilityHeartbeatReadPath            = "heartbeat.read"
 	capabilityHeartbeatWritePath           = "heartbeat.write"
 	capabilityLogsReadPath                 = "logs.read"
-	capabilityMemoryReadPath               = "memory.read"
-	capabilityMemoryWritePath              = "memory.write"
-	capabilityMemoryStorePath              = "memory/store"
 	capabilityModelReadPath                = "model.read"
 	capabilityModelWritePath               = "model.write"
 	capabilityModelsStatusPath             = "models/status"
@@ -95,7 +90,6 @@ const (
 
 var (
 	marketplaceConsentCeiling = []string{
-		capabilityMemoryReadPath,
 		capabilityLogsReadPath,
 		capabilityObserveReadPath,
 		capabilitySessionReadPath,

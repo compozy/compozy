@@ -11,8 +11,6 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 
-	"github.com/compozy/compozy/internal/memory"
-
 	observepkg "github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
@@ -42,7 +40,6 @@ const (
 	hostAPIAutomationTriggersUpdatePath = "automation/triggers/update"
 	hostAPIKindKey                      = "kind"
 	hostAPILimitKey                     = "limit"
-	hostAPIMemoryStorePath              = "memory/store"
 	hostAPIMethodKey                    = "method"
 	hostAPIObserveHealthPath            = "observe/health"
 	hostAPIResourceKey                  = "resource"
@@ -75,9 +72,6 @@ const (
 	defaultHostAPIRateLimit     = 10
 	defaultHostAPIBurst         = 20
 	defaultHostAPIDefaultLimit  = 100
-	defaultHostAPIRecallLimit   = 10
-	maxMemoryDescriptionLength  = 160
-	tagCommentPrefix            = "<!-- compozy-tags:"
 	hostAPIUnknownExtensionName = "unknown"
 )
 
@@ -106,8 +100,6 @@ type HostAPIHandler struct {
 	automation       HostAPIAutomationManager
 	tasks            hostAPITaskManager
 	taskFilters      HostAPITaskCatalogFilterMapper
-	memory           *memory.Store
-	memoryForProfile memory.RecallStoreResolver
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
 	modelCatalog     hostAPIModelCatalogService
@@ -124,7 +116,6 @@ type HostAPIHandler struct {
 	viewPatches      ViewPatchPublisher
 	sessionHealth    hostAPISessionHealthReader
 	wakeEvents       hostAPIHeartbeatWakeEventReader
-	memoryProviders  *MemoryProviderRegistry
 	capChecker       *CapabilityChecker
 	limiter          *hostAPIRateLimiter
 	viewLimiter      *hostAPIRateLimiter

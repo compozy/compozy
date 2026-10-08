@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -60,6 +61,30 @@ func TestGetProfileUsesTargetedDetailRead(t *testing.T) {
 		if payload.ID != "profile-marketing" || payload.Name != "marketing" ||
 			payload.WorkItems != 7 || !payload.NeedsSetup || len(payload.CredentialRequirements) != 1 {
 			t.Fatalf("profile payload = %#v", payload)
+		}
+	})
+}
+
+func (s *profileDetailServiceStub) PrepareDelete(_ context.Context, _ string) (profilepkg.DeletePlan, error) {
+	return profilepkg.DeletePlan{Revision: "revision", Removed: profilepkg.RemovalSummary{Agents: 2}}, nil
+}
+
+// Profile deletion exposes the retained resource accounting contract.
+func TestProfileDeletePlanContractIT012(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return retained resource counts", func(t *testing.T) {
+		t.Parallel()
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Profiles: &profileDetailServiceStub{}})
+		engine := gin.New()
+		engine.GET("/api/profiles/:name/delete-plan", handlers.PrepareProfileDelete)
+		response := performRequest(t, engine, http.MethodGet, "/api/profiles/marketing/delete-plan", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("delete plan status = %d body=%s, want 200", response.Code, response.Body.String())
+		}
+		var payload contract.DeleteProfilePlan
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if payload.Removed.Agents != 2 || strings.Contains(response.Body.String(), "memory_entries") {
+			t.Fatalf("IT-012 delete plan contract = %s", response.Body.String())
 		}
 	})
 }

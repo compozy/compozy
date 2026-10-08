@@ -45,7 +45,6 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newTaskCommand(deps),
 		newSkillCommand(deps),
 		newResourceCommand(deps),
-		newMemoryCommand(deps),
 		newVaultCommand(deps),
 		newToolCommand(deps),
 		newSecretCommand(deps),

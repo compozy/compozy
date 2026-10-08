@@ -4,7 +4,7 @@ import "time"
 
 const (
 	// StatusSchemaVersion identifies the public status/doctor payload contract.
-	StatusSchemaVersion = "2026-07-16"
+	StatusSchemaVersion = "2026-10-07"
 )
 
 // SchemaStreamStatus reports one daemon-global migration stream's applied state.
@@ -40,7 +40,6 @@ type StatusPayload struct {
 	Sessions         SessionAggregatePayload          `json:"sessions"`
 	SubprocessHealth SubprocessHealthAggregatePayload `json:"subprocess_health"`
 	Health           ObserveHealthPayload             `json:"health"`
-	Memory           MemoryHealthPayload              `json:"memory"`
 	Automation       AutomationHealthPayload          `json:"automation"`
 	Tasks            TaskHealthPayload                `json:"tasks"`
 	Providers        []ProviderStatusPayload          `json:"providers,omitempty"`

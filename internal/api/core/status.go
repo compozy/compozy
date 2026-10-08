@@ -70,10 +70,6 @@ func (h *BaseHandlers) statusPayload(
 	if err != nil {
 		return contract.StatusPayload{}, err
 	}
-	memoryHealth, err := h.memoryHealthSnapshot(ctx, workspaceID)
-	if err != nil {
-		return contract.StatusPayload{}, fmt.Errorf("api: collect memory health: %w", err)
-	}
 	automationHealth, err := h.automationHealth(ctx)
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect automation health: %w", err)
@@ -115,7 +111,6 @@ func (h *BaseHandlers) statusPayload(
 		Sessions:         sessionSummary,
 		SubprocessHealth: h.subprocessHealthAggregate(workspaceID),
 		Health:           ObserveHealthPayloadFromHealth(&health),
-		Memory:           memoryHealth,
 		Automation:       automationHealth,
 		Tasks:            TaskHealthPayloadFromObserve(health.Tasks),
 		Providers:        providers,
@@ -293,7 +288,7 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	if h.Settings == nil {
 		return contract.LogTailStatusPayload{
 			Available: false,
-			Status:    memoryHealthStatusUnavailable,
+			Status:    "unavailable",
 		}
 	}
 	envelope, err := h.Settings.GetSection(ctx, settingspkg.SectionRequest{
@@ -303,7 +298,7 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	if err != nil || envelope.Observability == nil {
 		return contract.LogTailStatusPayload{
 			Available: false,
-			Status:    memoryHealthStatusUnavailable,
+			Status:    "unavailable",
 		}
 	}
 	if envelope.Observability.LogTailSupport.Available {
@@ -314,6 +309,6 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	}
 	return contract.LogTailStatusPayload{
 		Available: false,
-		Status:    memoryHealthStatusDisabled,
+		Status:    "disabled",
 	}
 }

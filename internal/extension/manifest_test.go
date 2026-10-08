@@ -501,7 +501,7 @@ provides = ["prompt.provider"]
 			wantFragments: []string{
 				"prompt.provider",
 				"loop.watch_source",
-				"memory.backend",
+				"view.provider",
 				"model.source",
 				"tool.provider",
 			},
@@ -641,7 +641,7 @@ path = "agents/"
 path = "\t"
 
 [capabilities]
-provides = ["memory.backend", "   "]
+provides = ["view.provider", "   "]
 
 [permissions]
 requires = ["sessions/list", ""]
@@ -662,8 +662,8 @@ args = ["--config", " ", "\t", "config.toml"]
 	if !reflect.DeepEqual(manifestResourcePaths(manifest.Resources.Agents), []string{"agents/"}) {
 		t.Fatalf("Resources.Agents = %#v, want %#v", manifest.Resources.Agents, []string{"agents/"})
 	}
-	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"memory.backend"}) {
-		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"memory.backend"})
+	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"view.provider"}) {
+		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"view.provider"})
 	}
 	if !reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) {
 		t.Fatalf("Actions.Requires = %#v, want %#v", manifest.Permissions.Requires, []string{"sessions/list"})
@@ -759,7 +759,7 @@ version = "1.0.0"
 min_compozy_version = "0.5.0"
 
 [capabilities]
-provides = ["memory.backend"]
+provides = ["view.provider"]
 
 [permissions]
 requires = ["sessions/list"]
@@ -1210,7 +1210,7 @@ min_compozy_version = "0.5.0"
 			daemonVersion: "0.6.0",
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 min_compozy_version = "0.5.0"
 `,
 			wantErr:   ErrManifestInvalid,
@@ -1221,7 +1221,7 @@ min_compozy_version = "0.5.0"
 			daemonVersion: "0.6.0",
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 version = "0.2.1"
 min_other_version = "0.5.0"
 `,
@@ -1234,7 +1234,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_other_version": "0.5.0"
   }
@@ -1249,7 +1249,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "latest",
     "min_compozy_version": "0.5.0"
   }
@@ -1264,7 +1264,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_compozy_version": "0.5.0"
   },
@@ -1282,7 +1282,7 @@ min_other_version = "0.5.0"
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
     "min_compozy_version": "0.5.0"
   },
@@ -1774,9 +1774,9 @@ func duration(value time.Duration) Duration {
 func expectedManifest() Manifest {
 	return Manifest{
 		Format:            FormatCompozy,
-		Name:              "pgvector-memory",
+		Name:              "sample-view",
 		Version:           "0.2.1",
-		Description:       "PostgreSQL pgvector memory backend for Compozy",
+		Description:       "Sample view provider for Compozy",
 		MinCompozyVersion: "0.5.0",
 		Resources: ResourcesConfig{
 			Skills: []ManifestResourcePath{{Path: "skills/"}},
@@ -1823,7 +1823,7 @@ func expectedManifest() Manifest {
 			},
 		},
 		Capabilities: CapabilitiesConfig{
-			Provides: []string{"memory.backend"},
+			Provides: []string{"view.provider"},
 		},
 		Permissions: PermissionsConfig{
 			Requires: []string{"sessions/list", "sessions/events"},
@@ -1841,9 +1841,9 @@ func expectedManifest() Manifest {
 }
 
 const validManifestTOML = `[extension]
-name = "pgvector-memory"
+name = "sample-view"
 version = "0.2.1"
-description = "PostgreSQL pgvector memory backend for Compozy"
+description = "Sample view provider for Compozy"
 min_compozy_version = "0.5.0"
 
 [[resources.skills]]
@@ -1881,7 +1881,7 @@ args = ["--context", "production"]
 env = { KUBECONFIG = "{{env:KUBECONFIG}}" }
 
 [capabilities]
-provides = ["memory.backend"]
+provides = ["view.provider"]
 
 [permissions]
 requires = ["sessions/list", "sessions/events"]
@@ -1901,9 +1901,9 @@ mode = "enabled"
 
 const validManifestJSON = `{
   "extension": {
-    "name": "pgvector-memory",
+    "name": "sample-view",
     "version": "0.2.1",
-    "description": "PostgreSQL pgvector memory backend for Compozy",
+    "description": "Sample view provider for Compozy",
     "min_compozy_version": "0.5.0"
   },
   "resources": {
@@ -1951,7 +1951,7 @@ const validManifestJSON = `{
     }
   },
   "capabilities": {
-    "provides": ["memory.backend"]
+    "provides": ["view.provider"]
   },
   "permissions": {
     "requires": ["sessions/list", "sessions/events"]

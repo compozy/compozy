@@ -75,7 +75,7 @@ func mcpRuntimeStatus(state settingspkg.MCPServerRuntimeState) string {
 		settingspkg.MCPServerRuntimeStatePermissionDenied,
 		settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
 		settingspkg.MCPServerRuntimeStateDead:
-		return memoryHealthStatusUnavailable
+		return "unavailable"
 	default:
 		return statusStateConfigured
 	}

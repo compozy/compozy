@@ -37,7 +37,7 @@ func stubSessionListPage(infos []*session.Info, query session.ListQuery) session
 }
 
 func stubSessionListMatch(info *session.Info, query session.ListQuery, now time.Time) bool {
-	if info == nil || info.Type == session.SessionTypeDream {
+	if info == nil {
 		return false
 	}
 	if lineage := info.Lineage; lineage != nil && session.IsInternalSpawnRole(lineage.SpawnRole) {

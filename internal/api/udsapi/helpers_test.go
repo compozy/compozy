@@ -632,8 +632,6 @@ func settingsTestSectionEnvelope(
 	switch section {
 	case settingspkg.SectionGeneral:
 		envelope.General = &settingspkg.GeneralSection{}
-	case settingspkg.SectionMemory:
-		envelope.Memory = &settingspkg.MemorySection{}
 	case settingspkg.SectionSkills:
 		envelope.Skills = &settingspkg.SkillsSection{}
 	case settingspkg.SectionAutomation:

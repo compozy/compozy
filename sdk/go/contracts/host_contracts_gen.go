@@ -27,9 +27,6 @@ var HostAPISessionsEventsContract = HostAPIMethodContract[SessionEventsParams, [
 var HostAPISessionsSoulRefreshContract = HostAPIMethodContract[SessionSoulRefreshParams, AgentSoulPayload]{Method: HostAPIMethodSessionsSoulRefresh}
 var HostAPISessionsHealthGetContract = HostAPIMethodContract[SessionHealthGetParams, SessionHealthResponse]{Method: HostAPIMethodSessionsHealthGet}
 var HostAPISessionsStatusGetContract = HostAPIMethodContract[SessionStatusGetParams, SessionStatusResponse]{Method: HostAPIMethodSessionsStatusGet}
-var HostAPIMemoryRecallContract = HostAPIMethodContract[MemoryRecallParams, []MemoryRecallEntry]{Method: HostAPIMethodMemoryRecall}
-var HostAPIMemoryStoreContract = HostAPIMethodContract[MemoryStoreParams, EmptyResult]{Method: HostAPIMethodMemoryStore}
-var HostAPIMemoryForgetContract = HostAPIMethodContract[MemoryForgetParams, EmptyResult]{Method: HostAPIMethodMemoryForget}
 var HostAPIObserveHealthContract = HostAPIMethodContract[EmptyResult, ObserveHealth]{
 	Method:         HostAPIMethodObserveHealth,
 	OptionalParams: true,
