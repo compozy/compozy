@@ -2064,28 +2064,44 @@ describe("LoopRunStepsProgress fold", () => {
 // children. Every reading comes from the child's own detail, briefing and roster.
 // Owner: run-page components composed with useLoopChildRun and MSW I/O.
 describe("Nested child runs", () => {
-  async function childReadHarness() {
+  /** Stubs the child-run routes over MSW and returns a provider with a query cache and the page context. */
+  async function childReadHarness(
+    options: {
+      clockLive?: boolean;
+      nowMs?: number;
+      handlers?: import("msw").HttpHandler[];
+      onRequest?: (url: URL) => void;
+    } = {}
+  ) {
     const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
     const { createMswFetch } = await import("@/test/msw-fetch");
     const fixtures = await import("../stories/loop-run-nested-fixtures");
     const { STORY_NOW } = await import("../stories/loop-run-page-fixture-world");
     const { LoopRunChildReadContext } = await import("../../hooks/use-loop-run-child-read");
-    vi.stubGlobal(
-      "fetch",
-      createMswFetch(() => fixtures.nestedChildRunHandlers)
-    );
+    const mswFetch = createMswFetch(() => [
+      ...(options.handlers ?? []),
+      ...fixtures.nestedChildRunHandlers,
+    ]);
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      options.onRequest?.(new URL(request.url, window.location.origin));
+      return mswFetch(input, init);
+    });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const context = {
+      workspaceId: fixtures.NESTED_STORY_WORKSPACE_ID,
+      nowMs: options.nowMs ?? STORY_NOW,
+      clockLive: options.clockLive ?? true,
+    };
+    /** Query cache plus the page context every child-run read takes. */
     function Harness({ children }: { children: React.ReactNode }) {
       return (
         <QueryClientProvider client={client}>
-          <LoopRunChildReadContext
-            value={{ workspaceId: fixtures.NESTED_STORY_WORKSPACE_ID, nowMs: STORY_NOW }}
-          >
-            {children}
-          </LoopRunChildReadContext>
+          <LoopRunChildReadContext value={context}>{children}</LoopRunChildReadContext>
         </QueryClientProvider>
       );
     }
+    /** Drops the cache and the fetch stub so the next case starts clean. */
     const cleanup = () => {
       client.clear();
       vi.unstubAllGlobals();
@@ -2093,6 +2109,7 @@ describe("Nested child runs", () => {
     return { Harness, cleanup, fixtures };
   }
 
+  /** The child row for one run id inside a scope, failing loudly when it is absent. */
   function childRow(scope: HTMLElement, runId: string) {
     const row = within(scope)
       .getAllByTestId("loop-run-child-run")
@@ -2209,6 +2226,7 @@ describe("Nested child runs", () => {
       </Harness>
     );
     try {
+      /** The state glyph drawn on one graph card. */
       const glyph = (nodeId: string) =>
         screen.getByTestId(`loop-dag-node-${nodeId}`).querySelector('[data-slot="state-glyph"]');
       expect(glyph("wave")).toHaveAttribute("data-state", "delegated");
@@ -2257,6 +2275,119 @@ describe("Nested child runs", () => {
       expect(
         within(childRow(panelEl, "r-wave02")).getByTestId("loop-run-child-run-inputs")
       ).toHaveTextContent('batches: ["api","billing"] · wave: 2');
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should read only the child's current round, and say so when it is too wide", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const rosterReads: URL[] = [];
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      onRequest: url => {
+        if (url.pathname.endsWith("/nodes")) rosterReads.push(url);
+      },
+      handlers: [
+        // A round wider than the row reads: every page promises another.
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+          ({ params, request }) => {
+            if (params.run_id !== "r-8f21a0") return undefined;
+            const cursor = Number(new URL(request.url).searchParams.get("cursor") ?? "0");
+            return HttpResponse.json({
+              run_id: "r-8f21a0",
+              loop_name: "fix-one-batch",
+              run_status: "running",
+              nodes: [],
+              fanout_rollups: [],
+              next_cursor: String(cursor + 1),
+            });
+          }
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() => {
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("This round has more steps than a row reads");
+      });
+      const wide = rosterReads.filter(url => url.pathname.includes("/r-8f21a0/"));
+      // The round the briefing names, never the oldest-first whole roster,
+      // and no more pages than the cap.
+      expect(wide.every(url => url.searchParams.get("generation") === "1")).toBe(true);
+      expect(wide).toHaveLength(5);
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should say a child could not be read when its briefing fails, keeping what did arrive", async () => {
+    const { HttpResponse } = await import("msw");
+    const { compozyApiMock } = await import("@/storybook/openapi-msw");
+    const { Harness, cleanup, fixtures } = await childReadHarness({
+      handlers: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing",
+          ({ params }) =>
+            params.run_id === "r-8f21a0"
+              ? HttpResponse.json({ error: "briefing unavailable" }, { status: 500 })
+              : undefined
+        ),
+      ],
+    });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-step")
+        ).toHaveTextContent("Couldn't read this child run")
+      );
+      // The detail did arrive, so the child is still named and its status shown.
+      const row = childRow(step, "r-8f21a0");
+      expect(within(row).getByTestId("loop-run-child-run-status")).toHaveTextContent("Running");
+    } finally {
+      rendered.unmount();
+      cleanup();
+    }
+  });
+
+  it("Should keep a running child's clock ticking after the page clock stops", async () => {
+    // A detached child outlives its parent: the parent page's clock is frozen
+    // (here at 0), and the child's elapsed time must not freeze with it.
+    const { Harness, cleanup, fixtures } = await childReadHarness({ clockLive: false, nowMs: 0 });
+    const progress = buildScenarioProps(fixtures.nestedLoopsScenario()).registers.progress!;
+    const rendered = render(
+      <Harness>
+        <LoopRunStepsProgress progress={progress} />
+      </Harness>
+    );
+    try {
+      const step = screen.getByTestId("loop-run-step-fix_batch");
+      await userEvent.click(within(step).getByTestId("loop-run-child-runs-toggle"));
+      await waitFor(() =>
+        expect(
+          within(childRow(step, "r-8f21a0")).getByTestId("loop-run-child-run-meta")
+        ).toHaveTextContent(/1 of 4 steps · 6m 0\ds/)
+      );
     } finally {
       rendered.unmount();
       cleanup();

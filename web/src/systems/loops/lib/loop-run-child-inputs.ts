@@ -20,6 +20,7 @@ export interface LoopChildRunInputs {
   title: string;
 }
 
+/** How an input reads in a label; display only, never used to compare. */
 function stringifyInput(value: unknown): string {
   if (typeof value === "string") return value;
   if (value === null || value === undefined) return String(value);
@@ -27,10 +28,21 @@ function stringifyInput(value: unknown): string {
   return JSON.stringify(value) ?? "";
 }
 
+/** Cuts a long value to the label budget; the tooltip keeps it whole. */
 function shorten(value: string): string {
   return value.length > CHILD_INPUT_VALUE_MAX
     ? `${value.slice(0, CHILD_INPUT_VALUE_MAX - 1)}…`
     : value;
+}
+
+/**
+ * A value's identity for comparison, with its type kept: `5` and `"5"` differ,
+ * and an input a child was never given differs from one it was given.
+ */
+function comparableInput(inputs: Record<string, unknown>, key: string): string {
+  if (!Object.hasOwn(inputs, key)) return "absent";
+  const value = inputs[key];
+  return value === undefined ? "undefined" : `value:${JSON.stringify(value)}`;
 }
 
 /** Keys whose value is not the same across every sibling that has been read. */
@@ -38,7 +50,7 @@ function distinguishingKeys(siblings: readonly Record<string, unknown>[]): strin
   const keys = [...new Set(siblings.flatMap(inputs => Object.keys(inputs)))].sort();
   if (siblings.length < 2) return keys;
   return keys.filter(key => {
-    const values = new Set(siblings.map(inputs => stringifyInput(inputs[key])));
+    const values = new Set(siblings.map(inputs => comparableInput(inputs, key)));
     return values.size > 1;
   });
 }
@@ -58,7 +70,7 @@ export function childRunInputLabels(
   const labels = new Map<string, LoopChildRunInputs>();
   if (keys.length === 0) return labels;
   for (const child of read) {
-    const present = keys.filter(key => key in child.inputs);
+    const present = keys.filter(key => Object.hasOwn(child.inputs, key));
     if (present.length === 0) continue;
     const pairs = present.map(key => [key, stringifyInput(child.inputs[key])] as const);
     labels.set(child.runId, {

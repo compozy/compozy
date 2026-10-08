@@ -105,6 +105,7 @@ function currentRound(progress: LoopStepProgress | null, nodes: readonly LoopRos
   return nodes.reduce((latest, node) => Math.max(latest, node.generation), 0);
 }
 
+/** Whole seconds from an ISO instant to `nowMs`; null when there is no instant to measure from. */
 function secondsSince(iso: string | null | undefined, nowMs: number): number | null {
   if (!iso) return null;
   const started = Date.parse(iso);
@@ -127,6 +128,7 @@ function stepStartedAt(node: LoopRosterNode, waits: readonly LoopChildRunWait[])
   return wait?.created_at ?? null;
 }
 
+/** The step a live child is on in its current round, the most pressing one leading; null once the child has settled. */
 export function childRunCurrentStep(
   status: string,
   progress: LoopStepProgress | null,
@@ -211,6 +213,7 @@ function progressLabel(progress: LoopStepProgress | null): string {
   return `${progress.steps_done} of ${progress.steps_total} steps`;
 }
 
+/** Everything a child row says about one child, from its detail, briefing, roster and wait cells. */
 export function buildChildRunSummary(
   run: LoopRunRecord,
   progress: LoopStepProgress | null,

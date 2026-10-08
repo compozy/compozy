@@ -31,6 +31,17 @@ describe("childRunInputLabels", () => {
     expect(labels.get("a")?.title).toContain(file);
   });
 
+  it("Should compare values with their types, not their printed text", () => {
+    // `5` and "5", and an omitted input and the literal "undefined", print the
+    // same; they are still different inputs, and a reader must see that.
+    const labels = childRunInputLabels([
+      { runId: "a", inputs: { files: 5, note: "undefined" } },
+      { runId: "b", inputs: { files: "5" } },
+    ]);
+    expect(labels.get("a")?.label).toBe("files: 5 · note: undefined");
+    expect(labels.get("b")?.label).toBe("files: 5");
+  });
+
   it("Should label nothing for identical siblings or children not read yet", () => {
     const labels = childRunInputLabels([
       { runId: "a", inputs: { batch: "api" } },

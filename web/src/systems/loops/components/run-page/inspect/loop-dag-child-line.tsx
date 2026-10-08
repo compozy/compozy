@@ -5,7 +5,6 @@ import { Skeleton, StateGlyph } from "@compozy/ui";
 import { useLoopChildRun } from "../../../hooks/use-loop-child-run";
 import { formatClockDuration } from "../../../lib/loop-run-usage";
 import { loopStatusGlyph, loopStatusLabel } from "../../../lib/loop-formatters";
-import { useLoopRunChildRead } from "../../../hooks/use-loop-run-child-read";
 
 /**
  * Where a step's child run is, on the step's own graph card.
@@ -16,8 +15,7 @@ import { useLoopRunChildRead } from "../../../hooks/use-loop-run-child-read";
  * full row and anything the child started in turn.
  */
 export function LoopDagChildLine({ runId }: { runId: string }) {
-  const { workspaceId, nowMs } = useLoopRunChildRead();
-  const { summary, isLoading } = useLoopChildRun(workspaceId, runId, nowMs);
+  const { summary, isLoading } = useLoopChildRun(runId);
   if (!summary) {
     return isLoading ? <Skeleton className="h-3 w-24" /> : null;
   }

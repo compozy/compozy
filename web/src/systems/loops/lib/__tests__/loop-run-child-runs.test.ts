@@ -11,6 +11,7 @@ import {
 
 const PROGRESS = { round: 1, steps_done: 1, steps_total: 4 };
 
+/** A running `fix-one-batch` child started six minutes before the story clock. */
 function childRun(overrides: Parameters<typeof reviewAndFixRun>[0] = {}) {
   return reviewAndFixRun({
     id: "r-child",

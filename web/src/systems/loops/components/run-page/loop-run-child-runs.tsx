@@ -24,6 +24,7 @@ const CHILD_RUNS_VISIBLE_LIMIT = 8;
  */
 const CHILD_RUNS_MAX_DEPTH = 3;
 
+/** The child's run status, or a placeholder while its detail is still arriving. */
 function LoopRunChildRunStatus({ summary, isLoading }: LoopChildRunReadState) {
   if (summary) {
     return <LoopStatusMark data-testid="loop-run-child-run-status" status={summary.status} />;
@@ -31,10 +32,21 @@ function LoopRunChildRunStatus({ summary, isLoading }: LoopChildRunReadState) {
   return isLoading ? <Skeleton className="h-3.5 w-16" /> : null;
 }
 
-/** Where the child is: its current step, why it sits there and for how long. */
-function LoopRunChildRunStep({ summary, isLoading, isError }: LoopChildRunReadState) {
-  if (isError) return "Couldn't read this child run. Open it to see where it is.";
+/**
+ * Where the child is: its current step, why it sits there and for how long.
+ * A step that did arrive stays on screen; only its absence is explained.
+ */
+function LoopRunChildRunStep({
+  summary,
+  isLoading,
+  isError,
+  rosterTruncated,
+}: LoopChildRunReadState) {
   const step = summary?.currentStep;
+  if (!step && isError) return "Couldn't read this child run. Open it to see where it is.";
+  if (!step && rosterTruncated) {
+    return "This round has more steps than a row reads. Open the run to see where it is.";
+  }
   if (step) {
     return (
       <>
@@ -63,9 +75,9 @@ interface LoopRunChildRunRowProps {
   depth: number;
 }
 
+/** One child run: who it is, where it is, and — a level down — what it started. */
 function LoopRunChildRunRow({ child, inputs, depth }: LoopRunChildRunRowProps) {
-  const { workspaceId, nowMs } = useLoopRunChildRead();
-  const read = useLoopChildRun(workspaceId, child.runId, nowMs);
+  const read = useLoopChildRun(child.runId);
   const grandchildren = read.summary?.childRuns ?? [];
   return (
     <li
@@ -131,6 +143,7 @@ interface LoopRunChildRunListProps {
   id: string;
 }
 
+/** The opened list: reads the visible children's inputs together to tell them apart. */
 function LoopRunChildRunList({ childRuns, depth, id }: LoopRunChildRunListProps) {
   const { workspaceId } = useLoopRunChildRead();
   const [showAll, setShowAll] = useState(false);

@@ -201,7 +201,7 @@ export function LoopRunPageBody({
   return (
     // Child runs surface in Progress, the graph and the node panel; they read
     // the workspace and the page clock from here rather than through each register.
-    <LoopRunChildReadContext value={{ workspaceId, nowMs }}>
+    <LoopRunChildReadContext value={{ workspaceId, nowMs, clockLive: isLive }}>
       <div
         className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}
         data-testid="loop-run-detail-content"

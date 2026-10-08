@@ -1,53 +1,82 @@
 import { useProfileReadScope } from "@/systems/profiles";
+import { useEffect } from "react";
 import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 
+import { isLiveLoopRun } from "../lib/loop-formatters";
 import { type LoopChildRunSummary, buildChildRunSummary } from "../lib/loop-run-child-runs";
 import {
   loopRunBriefingOptions,
   loopRunDetailOptions,
   loopRunRosterOptions,
 } from "../lib/query-options";
+import { useLoopRunChildRead } from "./use-loop-run-child-read";
+import { useNowTick } from "./use-now-tick";
+
+/**
+ * How many pages of the child's current round a row reads before it stops and
+ * says so. 200 rows a page: a round wider than this is a run to open, not a row.
+ */
+const CHILD_ROSTER_PAGE_CAP = 5;
 
 export interface LoopChildRunRead {
   summary: LoopChildRunSummary | null;
+  /** Any of the three reads still has nothing to show. */
   isLoading: boolean;
+  /** Any of the three reads failed; whatever did arrive stays on screen. */
   isError: boolean;
+  /** The current round is wider than the row reads, so its step may be elsewhere. */
+  rosterTruncated: boolean;
 }
 
 /**
  * One child run, read the way its own page reads it.
  *
- * The same detail, briefing and roster options the child's page uses, so
- * opening the child afterwards is a cache hit, and every read stops polling the
- * moment the child settles. The detail names the run and times it, the briefing
- * serves its step counts, and the roster says which step it is on. Only the
- * first roster page is read: the current step lives in the current round, and a
- * child wide enough to page past it still reports its counts on the briefing.
+ * The detail names the run, times it and holds its wait cells; the briefing
+ * serves its step counts and current round; the roster — that round only, every
+ * page up to a cap — says which step it is on. All three use the child page's
+ * own query options, so they stop polling the moment the child settles.
  */
-export function useLoopChildRun(
-  workspaceId: string,
-  runId: string,
-  nowMs: number
-): LoopChildRunRead {
+export function useLoopChildRun(runId: string): LoopChildRunRead {
+  const { workspaceId, nowMs: pageNowMs, clockLive } = useLoopRunChildRead();
   const { params } = useProfileReadScope();
   const detail = useQuery(loopRunDetailOptions(workspaceId, runId, true, params));
   const briefing = useQuery(loopRunBriefingOptions(workspaceId, runId, true, params));
-  const roster = useInfiniteQuery(loopRunRosterOptions(workspaceId, runId, {}, true, params));
+  // The daemon pages the roster oldest round first, so the round a child is on
+  // can sit far past page one. Asking for that round alone reads only what the
+  // row needs; a child with no round yet has no step to find.
+  const round = briefing.data?.progress.round ?? 0;
+  const roster = useInfiniteQuery(
+    loopRunRosterOptions(workspaceId, runId, { generation: round }, round > 0, params)
+  );
+  const pages = roster.data?.pages ?? [];
+  const pageCount = pages.length;
+  const atCap = pageCount >= CHILD_ROSTER_PAGE_CAP;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = roster;
+  // Keyed on the page count too: a page can arrive and the fetch flag settle
+  // within one render, and the next page still has to be asked for.
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage || pageCount >= CHILD_ROSTER_PAGE_CAP) return;
+    void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, pageCount, fetchNextPage]);
+
   const run = detail.data?.run ?? null;
-  const nodes = roster.data?.pages[0]?.nodes ?? [];
+  // The page clock stops with the parent; a child still running keeps ticking.
+  const ownNowMs = useNowTick(!clockLive && isLiveLoopRun(run));
+  const nowMs = clockLive ? pageNowMs : ownNowMs;
   return {
     summary: run
       ? buildChildRunSummary(
           run,
           briefing.data?.progress ?? null,
-          nodes,
+          pages.flatMap(page => page.nodes),
           nowMs,
           // A step parked in a durable wait is timed by its wait cell.
           detail.data?.waits ?? []
         )
       : null,
-    isLoading: detail.isPending,
-    isError: detail.isError,
+    isLoading: detail.isPending || briefing.isPending || (round > 0 && roster.isPending),
+    isError: detail.isError || briefing.isError || roster.isError,
+    rosterTruncated: atCap && hasNextPage,
   };
 }
 

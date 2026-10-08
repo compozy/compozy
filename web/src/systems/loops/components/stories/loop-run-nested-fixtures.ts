@@ -42,6 +42,7 @@ interface StoryChild {
 
 const ZERO_PROGRESS: LoopStepProgress = { round: 0, steps_done: 0, steps_total: 0 };
 
+/** A running child's timestamps, started `minutesAgo` and last moved `lastProgress` minutes ago. */
 function live(minutesAgo: number, lastProgress = 1): Partial<LoopRunRecord> {
   return {
     status: "running",
@@ -159,6 +160,7 @@ function childRecord(child: StoryChild): LoopRunRecord {
   });
 }
 
+/** The child's `getLoopRun` payload, with `progress` zeroed as the daemon serves it. */
 function childDetail(child: StoryChild): LoopRunDetail {
   return {
     // The detail route does not populate `progress`; the briefing serves it. A
@@ -175,6 +177,7 @@ function childDetail(child: StoryChild): LoopRunDetail {
   };
 }
 
+/** The child's roster page: every node it has, on one page. */
 function childRoster(child: StoryChild): LoopRunRosterPage {
   return {
     run_id: child.runId,
@@ -204,12 +207,21 @@ export const nestedChildRunHandlers = [
       ? HttpResponse.json(childDetail(child))
       : HttpResponse.json(NOT_FOUND, { status: 404 });
   }),
-  compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes", ({ params }) => {
-    const child = childById.get(String(params.run_id));
-    return child
-      ? HttpResponse.json(childRoster(child))
-      : HttpResponse.json(NOT_FOUND, { status: 404 });
-  }),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+    ({ params, request }) => {
+      const child = childById.get(String(params.run_id));
+      if (!child) return HttpResponse.json(NOT_FOUND, { status: 404 });
+      // The daemon narrows the roster to one round when asked; so does this.
+      const generation = new URL(request.url).searchParams.get("generation");
+      const page = childRoster(child);
+      return HttpResponse.json(
+        generation === null
+          ? page
+          : { ...page, nodes: page.nodes.filter(node => String(node.generation) === generation) }
+      );
+    }
+  ),
 ];
 
 /** The parent: `fix_batch` fanned into four child runs, three still owed. */
@@ -281,6 +293,7 @@ const waveDefinition: LoopDefinition = {
   } as unknown as LoopDefinitionGraph,
 };
 
+/** The issue's graph as a scenario: `wave` awaiting its child beside steps nothing has reached. */
 export function nestedWaveScenario(): LoopRunStoryScenario {
   const progress = { round: 1, steps_done: 1, steps_total: 3 };
   const run = reviewAndFixRun({
