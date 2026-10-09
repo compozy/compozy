@@ -15,11 +15,17 @@ import { isSubagentSession } from "./session-hierarchy";
  *   parent, loaded as a non-matching context row; the walk stops at the first
  *   ancestor that is on the page or is not itself a subagent (that ancestor
  *   leads its thread).
+ * - Deleted ancestor: when a hop's detail read answers not found, the rows
+ *   below it stay visible; the outermost one leads its thread and the sidebar
+ *   labels it `Subagent of a deleted session` (COPY.md), the one case where a
+ *   subagent row is a root.
  */
 export interface SubagentContextInput {
   sessions: readonly SessionPayload[];
   /** Ancestors already read through the session detail query, by id. */
   loaded: ReadonlyMap<string, SessionPayload>;
+  /** Ancestors whose detail read answered not found: the session is gone. */
+  deleted?: ReadonlySet<string>;
   revealed?: SessionPayload | null;
   searching: boolean;
 }
@@ -29,6 +35,11 @@ type AncestorWalk =
   | { kind: "anchored"; anchorId: string; chain: SessionPayload[] }
   /** Search only: the chain's last row is a non-subagent ancestor that leads the thread. */
   | { kind: "context-root"; chain: SessionPayload[] }
+  /**
+   * An ancestor is deleted: the chain's outermost row (or the target) leads its
+   * thread and reads `Subagent of a deleted session`, instead of vanishing.
+   */
+  | { kind: "orphaned"; chain: SessionPayload[] }
   | { kind: "missing"; id: string }
   | { kind: "none" };
 
@@ -39,8 +50,7 @@ function parentIdOf(session: SessionPayload): string {
 function walkAncestors(
   start: SessionPayload,
   onPage: ReadonlySet<string>,
-  loaded: ReadonlyMap<string, SessionPayload>,
-  searching: boolean
+  { loaded, deleted, searching }: SubagentContextInput
 ): AncestorWalk {
   const chain: SessionPayload[] = [];
   const visited = new Set([start.id]);
@@ -49,6 +59,7 @@ function walkAncestors(
     const parentId = parentIdOf(current);
     if (parentId === "" || visited.has(parentId)) return { kind: "none" };
     if (onPage.has(parentId)) return { kind: "anchored", anchorId: parentId, chain };
+    if (deleted?.has(parentId)) return { kind: "orphaned", chain };
     const parent = loaded.get(parentId);
     if (!parent) return { kind: "missing", id: parentId };
     visited.add(parentId);
@@ -79,7 +90,7 @@ export function subagentContextRequests(input: SubagentContextInput): SubagentCo
   const { onPage, targets } = subagentTargets(input);
   const requests = new Map<string, SubagentContextRequest>();
   for (const target of targets) {
-    const walk = walkAncestors(target, onPage, input.loaded, input.searching);
+    const walk = walkAncestors(target, onPage, input);
     if (walk.kind === "missing" && !requests.has(walk.id)) {
       requests.set(walk.id, { sessionId: walk.id, workspaceId: target.workspace_id ?? "" });
     }
@@ -100,8 +111,10 @@ export function withSubagentContext(input: SubagentContextInput): readonly Sessi
   const after = new Map<string, SessionPayload[]>();
   const replace = new Map<string, SessionPayload[]>();
   const dropped = new Set<string>();
+  // A viewed subagent whose ancestry is gone has no anchor: it leads the list.
+  const orphans: SessionPayload[] = [];
   for (const target of targets) {
-    const walk = walkAncestors(target, onPage, input.loaded, input.searching);
+    const walk = walkAncestors(target, onPage, input);
     const fresh = (rows: SessionPayload[]) => rows.filter(row => !placed.has(row.id));
     if (walk.kind === "anchored" || walk.kind === "context-root") {
       const rows = fresh([...walk.chain].reverse());
@@ -115,14 +128,22 @@ export function withSubagentContext(input: SubagentContextInput): readonly Sessi
         // A viewed subagent never leads a thread off the page.
         dropped.add(target.id);
       }
+    } else if (walk.kind === "orphaned") {
+      const rows = fresh([...walk.chain].reverse());
+      for (const row of rows) placed.add(row.id);
+      if (onPage.has(target.id)) replace.set(target.id, [...rows, target]);
+      else orphans.push(...rows, target);
     } else if (onPage.has(target.id) && parentIdOf(target) !== "") {
       // Its chain is still loading, or it has nowhere to nest: hold it back.
       dropped.add(target.id);
     }
   }
-  return input.sessions.flatMap(session => {
-    if (dropped.has(session.id)) return [];
-    const head = replace.get(session.id) ?? [session];
-    return [...head, ...(after.get(session.id) ?? [])];
-  });
+  return [
+    ...orphans,
+    ...input.sessions.flatMap(session => {
+      if (dropped.has(session.id)) return [];
+      const head = replace.get(session.id) ?? [session];
+      return [...head, ...(after.get(session.id) ?? [])];
+    }),
+  ];
 }

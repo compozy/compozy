@@ -9,6 +9,8 @@ import type { SubagentLocationView, SubagentStatus, SubagentView } from "./types
 
 export const SUBAGENT_BANNER_STOP_FAILED = "Could not stop subagents.";
 export const SUBAGENT_ROW_STOP_FAILED = "Could not stop subagent";
+/** COPY.md: the lineage label once a subagent's parent session is gone. */
+export const SUBAGENT_OF_DELETED_SESSION = "Subagent of a deleted session";
 
 export const SUBAGENT_STATUS_WORD: Record<SubagentStatus, string> = {
   queued: "Queued",

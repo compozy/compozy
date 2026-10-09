@@ -310,4 +310,25 @@ describe("subagent context", () => {
     expect(ids(listed)).toEqual(["other", "parent", "middle", "match"]);
     expect(buildSessionTree(listed).roots.map(session => session.id)).toEqual(["other", "parent"]);
   });
+
+  it("Should keep rows below a deleted ancestor, led by the outermost surviving row", () => {
+    const middle = subagent("middle", "gone");
+    const viewed = subagent("viewed", "middle");
+    const match = subagent("match", "gone");
+    const input = {
+      sessions: [treeSession("other"), match],
+      loaded: new Map([["middle", middle]]),
+      deleted: new Set(["gone"]),
+      searching: true,
+    };
+
+    expect(subagentContextRequests({ ...input, revealed: viewed })).toEqual([]);
+    const listed = withSubagentContext({ ...input, revealed: viewed });
+    expect(ids(listed)).toEqual(["middle", "viewed", "other", "match"]);
+    expect(buildSessionTree(listed).roots.map(session => session.id)).toEqual([
+      "middle",
+      "other",
+      "match",
+    ]);
+  });
 });

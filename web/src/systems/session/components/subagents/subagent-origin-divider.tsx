@@ -2,6 +2,8 @@ import { Bot } from "lucide-react";
 
 import { Button, Separator } from "@compozy/ui";
 
+import { SUBAGENT_OF_DELETED_SESSION } from "./subagent-format";
+
 export interface SubagentOriginParent {
   id: string;
   title: string;
@@ -21,7 +23,7 @@ export interface SubagentOriginDividerProps {
  */
 export function SubagentOriginDivider({ parent, onOpenParent }: SubagentOriginDividerProps) {
   const title = parent?.title.trim() || null;
-  const label = parent && title ? `Subagent of ${title}` : "Subagent of a deleted session";
+  const label = parent && title ? `Subagent of ${title}` : SUBAGENT_OF_DELETED_SESSION;
   return (
     <Separator
       aria-label={label}

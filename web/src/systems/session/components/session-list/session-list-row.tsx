@@ -12,6 +12,7 @@ import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
+import { SUBAGENT_OF_DELETED_SESSION } from "../subagents/subagent-format";
 import { SessionListSubagentChip } from "./session-list-subagent-chip";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
@@ -27,6 +28,8 @@ export interface SessionListRowProps {
   sessionActions: SessionLifecycleActionHandlers;
   showActions?: boolean;
   testIdPrefix: string;
+  /** A subagent session whose ancestry was deleted: it leads its thread, labelled. */
+  orphanedSubagent?: boolean;
   /** Trailing controls rendered beside the row actions (e.g. a thread toggle). */
   trailing?: React.ReactNode;
   selection?: SessionRowSelection;
@@ -43,6 +46,7 @@ export function SessionListRow({
   testIdPrefix,
   trailing,
   selection,
+  orphanedSubagent = false,
 }: SessionListRowProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
@@ -79,7 +83,11 @@ export function SessionListRow({
             selection?.mode && "opacity-0"
           )}
         />
-        <SessionListRowDetails session={session} current={current} />
+        <SessionListRowDetails
+          session={session}
+          current={current}
+          orphanedSubagent={orphanedSubagent}
+        />
         <span className="mt-0.5 flex items-center gap-1.5">
           {owner ? <ProfileOwnerTag compact owner={owner} /> : null}
           <Time iso={session.updated_at} className="text-eyebrow text-subtle" />
@@ -119,11 +127,13 @@ export function SessionListRow({
 function SessionListRowDetails({
   session,
   current,
+  orphanedSubagent,
   className,
   ...props
 }: {
   session: SessionPayload;
   current: boolean;
+  orphanedSubagent: boolean;
 } & React.ComponentProps<"span">) {
   const signal = sessionBadgeSignal(session.badge);
   const maskedNote = maskedAttentionNote(session, signal.label);
@@ -152,6 +162,12 @@ function SessionListRowDetails({
           <>
             <span aria-hidden="true"> · </span>
             {maskedNote}
+          </>
+        ) : null}
+        {orphanedSubagent ? (
+          <>
+            <span aria-hidden="true"> · </span>
+            {SUBAGENT_OF_DELETED_SESSION}
           </>
         ) : null}
         {session.archived_at !== null ? (

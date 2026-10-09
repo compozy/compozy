@@ -984,6 +984,7 @@ describe("SessionInspector — Subagents", () => {
     started_at: "2026-10-08T12:00:00Z",
     settled_at: status === "running" ? null : "2026-10-08T12:05:00Z",
     updated_at: "2026-10-08T12:05:00Z",
+    created_at: "2026-10-08T12:00:00Z",
   });
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
