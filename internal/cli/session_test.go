@@ -4593,6 +4593,27 @@ func TestWaitSessionCompaction(t *testing.T) {
 // UT-046/UT-047: session subagent commands preserve documented output and errors.
 func TestSubagentCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should show a subagent without resolving the current directory", func(t *testing.T) {
+		t.Parallel()
+		client := &subagentCommandStub{DaemonClient: newDefaultProfileTestClient(&stubClient{})}
+		deps := newTestDeps(t, client)
+		deps.getenv = func(string) string { return "" }
+		code, stdout, stderr := executeRootCommandWithExit(t, deps, "session", "subagents", "show", "sub-1")
+		if code != 0 || !strings.Contains(stdout, "Recommendation") {
+			t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout, stderr)
+		}
+	})
+	t.Run("Should format hours and omit missing runtime separators", func(t *testing.T) {
+		t.Parallel()
+		row := subagentCLIRecord()
+		row.StartedAt = new(fixedTestNow.Add(-63 * time.Minute))
+		if got := subagentElapsed(row, fixedTestNow); got != "1h 03m" {
+			t.Fatal(got)
+		}
+		if got := subagentDetails(row, fixedTestNow); !strings.Contains(got, "Runtime       codex · gpt-6.1-sol\n") {
+			t.Fatal(got)
+		}
+	})
 	for _, tc := range []struct {
 		name    string
 		args    []string

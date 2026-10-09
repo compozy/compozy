@@ -2444,3 +2444,17 @@ The roster read E2E now owns a cancellation-driven retry fixture; the separate t
 node-timeout E2E remains unchanged. Owners: TestExecuteWrite, TestDaemonToolEventSink,
 LP-run-read-agent-journey and ET-skill-view-actionable-errors.
 Evidence is recorded in docs/qa/reports/2026-10-05-dependency-upgrades.md.
+
+### API fix round 1
+
+Subagent payloads add `created_at` for stable Web ordering. HTTP/UDS cancellation accepts an empty
+body; tool request validation preserves `invalid_request` field messages through hosted MCP.
+Descriptors own idempotency and validation-error metadata. A shared hosted-name normalizer feeds
+transcript cards, native tool metadata, and hook classification. Later native task descriptions update
+the stored roster and card; a provider is no longer guessed in the card payload. CLI show/cancel can
+resolve an ID through authorized workspace routes without a registered cwd, and runtime display omits
+empty fields. Delegated speed defaults to `normal`; elapsed CLI output supports hours. Native tool
+IDs, config, hook shapes, workspace authorization, persisted schema, and official skill instructions
+are unchanged. Generated OpenAPI, Web client, and SDK contracts co-ship. Existing subagent QA scenarios
+remain failed pending the controller's re-walk; targeted API, daemon/SQLite/ACP, transcript, CLI, and
+registry suites own regression coverage.

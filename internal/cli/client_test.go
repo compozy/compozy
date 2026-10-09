@@ -5207,6 +5207,26 @@ func TestSharedContractJSONParity(t *testing.T) {
 // UT-047: daemon errors retain the documented subagent codes at the CLI boundary.
 func TestSubagentClientRequests(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resolve a subagent ID without a workspace or registered cwd", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			switch request.URL.Path {
+			case "/api/workspaces":
+				return newHTTPResponse(200, `{"workspaces":[{"id":"other"},{"id":"owner"}]}`), nil
+			case "/api/workspaces/other/subagents/sub-1":
+				return newHTTPResponse(404, `{"code":"subagent_not_found"}`), nil
+			case "/api/workspaces/owner/subagents/sub-1":
+				return newHTTPResponse(200, `{"subagent_id":"sub-1","workspace_id":"owner"}`), nil
+			default:
+				t.Fatalf("unexpected request: %s", request.URL)
+				return nil, nil
+			}
+		})}}
+		row, err := client.GetSubagent(t.Context(), "", "sub-1")
+		if err != nil || row.WorkspaceID != "owner" {
+			t.Fatalf("row=%#v error=%v", row, err)
+		}
+	})
 	t.Run("Should encode list filters and preserve the page envelope", func(t *testing.T) {
 		t.Parallel()
 		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {

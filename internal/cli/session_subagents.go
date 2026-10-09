@@ -74,7 +74,7 @@ func newSubagentCancelCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.CancelSubagent(cmd.Context(), workspaceID, id, reason)
+			result, err := client.CancelSubagent(cmd.Context(), row.WorkspaceID, id, reason)
 			if err != nil {
 				return err
 			}
@@ -99,7 +99,7 @@ func subagentCommandClient(cmd *cobra.Command, deps commandDeps) (sessionSubagen
 	if !ok {
 		return nil, "", errors.New("cli: subagents are unavailable")
 	}
-	workspaceID, err := resolveWorkspaceFlagOverride(cmd, deps, client, true)
+	workspaceID, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 	return subagents, workspaceID, err
 }
 
@@ -140,6 +140,9 @@ func subagentElapsed(row contract.SubagentPayload, now time.Time) string {
 	if seconds < 60 {
 		return fmt.Sprintf("%ds", seconds)
 	}
+	if seconds >= 3600 {
+		return fmt.Sprintf("%dh %02dm", seconds/3600, seconds%3600/60)
+	}
 	return fmt.Sprintf("%dm %ds", seconds/60, seconds%60)
 }
 
@@ -155,8 +158,14 @@ func subagentDetails(row contract.SubagentPayload, now time.Time) string {
 	if row.SettledAt != nil {
 		started += " · settled " + row.SettledAt.Format("2006-01-02 15:04:05") + " (" + subagentElapsed(row, now) + ")"
 	}
-	output := fmt.Sprintf("Subagent      %s\nTitle         %s\nParent        %s (turn %s)\nChild         %s\nRuntime       %s · %s · %s · %s\nStatus        %s (%s) · %s\nStarted       %s\n", row.SubagentID, row.Title, row.ParentSessionID, row.ParentTurnID, child,
-		row.Runtime.Provider, row.Runtime.Model, row.Runtime.ReasoningEffort, row.Runtime.Speed,
+	runtime := []string{}
+	for _, value := range []string{row.Runtime.Provider, row.Runtime.Model, row.Runtime.ReasoningEffort, row.Runtime.Speed} {
+		if value != "" {
+			runtime = append(runtime, value)
+		}
+	}
+	output := fmt.Sprintf("Subagent      %s\nTitle         %s\nParent        %s (turn %s)\nChild         %s\nRuntime       %s\nStatus        %s (%s) · %s\nStarted       %s\n", row.SubagentID, row.Title, row.ParentSessionID, row.ParentTurnID, child,
+		strings.Join(runtime, " · "),
 		row.Status, strings.ReplaceAll(row.WorkState, "_", " "), row.Delivery, started)
 	if row.Result != nil {
 		output += "\nResult\n" + *row.Result + "\n"

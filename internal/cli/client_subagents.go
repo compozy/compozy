@@ -51,6 +51,9 @@ func (c *daemonClient) ListSessionSubagents(ctx context.Context, id string, quer
 
 func (c *daemonClient) GetSubagent(ctx context.Context, workspaceID, id string) (contract.SubagentPayload, error) {
 	var result contract.SubagentPayload
+	if workspaceID == "" {
+		return c.findSubagent(ctx, id)
+	}
 	path, err := subagentClientPath(workspaceID, id)
 	if err != nil {
 		return result, err
@@ -96,4 +99,28 @@ func subagentClientError(err error, notFoundCode, notFoundMessage string) error 
 		return fmt.Errorf("%s: %s", apiError.payload.Code, apiError.payload.Error)
 	}
 	return err
+}
+
+// findSubagent resolves a globally unique ID through authorized workspace routes.
+func (c *daemonClient) findSubagent(ctx context.Context, id string) (contract.SubagentPayload, error) {
+	workspaces, err := c.ListWorkspaces(ctx)
+	if err != nil {
+		return contract.SubagentPayload{}, err
+	}
+	for _, workspace := range workspaces {
+		path, err := subagentClientPath(workspace.ID, id)
+		if err != nil {
+			return contract.SubagentPayload{}, err
+		}
+		var row contract.SubagentPayload
+		err = c.doJSON(ctx, http.MethodGet, path, nil, nil, &row)
+		if err == nil {
+			return row, nil
+		}
+		apiError, ok := errors.AsType[*daemonAPIError](err)
+		if !ok || apiError.statusCode != http.StatusNotFound {
+			return row, err
+		}
+	}
+	return contract.SubagentPayload{}, fmt.Errorf("subagent_not_found: subagent %s not found", id)
 }
