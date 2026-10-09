@@ -1317,7 +1317,12 @@ func TestSubagentStreamOrdering(t *testing.T) {
 					return transcript.Page{Generation: 1}, nil
 				},
 			}
-			handlers := &BaseHandlers{Sessions: manager, Subagents: service, PollInterval: time.Hour, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+			handlers := &BaseHandlers{
+				Sessions:     manager,
+				Subagents:    service,
+				PollInterval: time.Hour,
+				Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+			}
 			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 			ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 			writer := &streamTestFlushWriter{}
@@ -1326,12 +1331,23 @@ func TestSubagentStreamOrdering(t *testing.T) {
 				subscription.events = make(chan store.SessionEvent)
 				subscription.cancel = func() {}
 			}
-			handlers.streamTranscriptSessionEvents(ctx, writer, "parent", info, store.EventQuery{Limit: 200}, nil, sessionStreamOptions{frameMode: contract.SessionStreamFrameTranscript}, subscription)
+			handlers.streamTranscriptSessionEvents(
+				ctx,
+				writer,
+				"parent",
+				info,
+				store.EventQuery{Limit: 200},
+				nil,
+				sessionStreamOptions{frameMode: contract.SessionStreamFrameTranscript},
+				subscription,
+			)
 			body := writer.String()
 			snapshot := strings.Index(body, "event: transcript_snapshot")
 			subagents := strings.Index(body, "event: subagents_snapshot")
 			updated := strings.Index(body, "event: subagent_updated")
-			if snapshot < 0 || subagents <= snapshot || updated <= subagents || !strings.Contains(body, `"status":"completed"`) || !service.canceled {
+			if snapshot < 0 || subagents <= snapshot || updated <= subagents ||
+				!strings.Contains(body, `"status":"completed"`) ||
+				!service.canceled {
 				t.Fatalf("invalid ordering or subscription cleanup (canceled=%v): %s", service.canceled, body)
 			}
 		})
@@ -1349,7 +1365,10 @@ type subagentStreamStub struct {
 var _ session.SubagentService = (*subagentStreamStub)(nil)
 var _ session.SubagentUpdateSubscriber = (*subagentStreamStub)(nil)
 
-func (s *subagentStreamStub) SubscribeSubagentUpdates(_ context.Context, id string) (<-chan session.SubagentUpdate, func(), error) {
+func (s *subagentStreamStub) SubscribeSubagentUpdates(
+	_ context.Context,
+	id string,
+) (<-chan session.SubagentUpdate, func(), error) {
 	s.t.Helper()
 	if id != "parent" {
 		s.t.Fatalf("subscription id = %s", id)

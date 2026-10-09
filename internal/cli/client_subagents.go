@@ -26,7 +26,11 @@ type sessionSubagentsClient interface {
 
 var _ sessionSubagentsClient = (*daemonClient)(nil)
 
-func (c *daemonClient) ListSessionSubagents(ctx context.Context, id string, query SubagentListQuery) (contract.SubagentListPayload, error) {
+func (c *daemonClient) ListSessionSubagents(
+	ctx context.Context,
+	id string,
+	query SubagentListQuery,
+) (contract.SubagentListPayload, error) {
 	var result contract.SubagentListPayload
 	path, err := c.sessionScopedPath(ctx, id, "/subagents")
 	if err != nil {
@@ -62,7 +66,10 @@ func (c *daemonClient) GetSubagent(ctx context.Context, workspaceID, id string) 
 	return result, subagentClientError(err, "subagent_not_found", "subagent "+id+" not found")
 }
 
-func (c *daemonClient) CancelSubagent(ctx context.Context, workspaceID, id, reason string) (contract.SubagentCancelPayload, error) {
+func (c *daemonClient) CancelSubagent(
+	ctx context.Context,
+	workspaceID, id, reason string,
+) (contract.SubagentCancelPayload, error) {
 	var result contract.SubagentCancelPayload
 	path, err := subagentClientPath(workspaceID, id)
 	if err != nil {

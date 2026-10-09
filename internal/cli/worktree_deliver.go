@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const worktreeIncludeFlag = "include"
+
 func newWorktreeDeliverCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	request := WorktreeExitActionRequest{Action: "deliver", Draft: true}
@@ -52,9 +54,11 @@ func newWorktreeDeliverCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&request.Body, "body", "", "Draft pull request body")
 	cmd.Flags().StringVar(&request.Base, "base", "", "Pull request base branch")
 	cmd.Flags().
-		StringArrayVar(&request.IncludePaths, "include", nil, "Exact reviewed worktree-relative file (repeatable)")
+		StringArrayVar(&request.IncludePaths, worktreeIncludeFlag, nil, "Exact reviewed worktree-relative file (repeatable)")
 	cmd.Flags().StringVar(&request.ExpectedScope, "expected-scope", "", "Fingerprint from the scoped exit plan")
-	for _, flag := range []string{"delivery-id", "expected-head", "message", "base", "include", "expected-scope"} {
+	for _, flag := range []string{
+		"delivery-id", "expected-head", "message", "base", worktreeIncludeFlag, "expected-scope",
+	} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
 			panic("invariant: registered delivery flag missing")
 		}

@@ -4638,7 +4638,10 @@ func TestSubagentCommands(t *testing.T) {
 			withWorkspaceResolution(base)
 			client := &subagentCommandStub{DaemonClient: newDefaultProfileTestClient(base)}
 			deps := newTestDeps(t, client)
-			exitCode, stdout, stderr := executeRootCommandWithExit(t, deps, append([]string{"session", "subagents"}, tc.args...)...)
+			exitCode, stdout, stderr := executeRootCommandWithExit(
+				t,
+				deps,
+				append([]string{"session", "subagents"}, tc.args...)...)
 			if tc.failure {
 				if exitCode != 1 || !strings.Contains(stderr, tc.want) {
 					t.Fatalf("exit=%d stderr=%q, want exit 1 and %q", exitCode, stderr, tc.want)
@@ -4674,9 +4677,15 @@ type subagentCommandStub struct{ DaemonClient }
 
 var _ sessionSubagentsClient = (*subagentCommandStub)(nil)
 
-func (s *subagentCommandStub) ListSessionSubagents(_ context.Context, id string, _ SubagentListQuery) (contract.SubagentListPayload, error) {
+func (s *subagentCommandStub) ListSessionSubagents(
+	_ context.Context,
+	id string,
+	_ SubagentListQuery,
+) (contract.SubagentListPayload, error) {
 	if id == "missing" {
-		return contract.SubagentListPayload{}, errors.New("session_not_found: Session missing not found.")
+		return contract.SubagentListPayload{}, &session.SubagentError{
+			Code: "session_not_found", Message: "session_not_found: Session missing not found.",
+		}
 	}
 	return contract.SubagentListPayload{Subagents: []contract.SubagentPayload{subagentCLIRecord()}}, nil
 }
@@ -4686,9 +4695,21 @@ func (s *subagentCommandStub) GetSubagent(_ context.Context, _ string, id string
 	}
 	return subagentCLIRecord(), nil
 }
-func (s *subagentCommandStub) CancelSubagent(_ context.Context, _ string, id, _ string) (contract.SubagentCancelPayload, error) {
+
+func (s *subagentCommandStub) CancelSubagent(
+	_ context.Context,
+	_ string,
+	id, _ string,
+) (contract.SubagentCancelPayload, error) {
 	return contract.SubagentCancelPayload{SubagentID: id, Status: "cancel_requested"}, nil
 }
 func subagentCLIRecord() contract.SubagentPayload {
-	return contract.SubagentPayload{SubagentID: "sub-1", Title: "Review", Status: "running", Runtime: contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"}, StartedAt: new(fixedTestNow.Add(-7 * time.Second)), Result: new("Recommendation")}
+	return contract.SubagentPayload{
+		SubagentID: "sub-1",
+		Title:      "Review",
+		Status:     "running",
+		Runtime:    contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"},
+		StartedAt:  new(fixedTestNow.Add(-7 * time.Second)),
+		Result:     new("Recommendation"),
+	}
 }

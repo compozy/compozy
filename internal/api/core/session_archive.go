@@ -38,7 +38,12 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 		return
 	}
 	if existing.Lineage != nil && existing.Lineage.SpawnRole == "subagent" {
-		subagentError(c, http.StatusConflict, "subagent_archive_follows_parent", "Subagent sessions are archived with their parent session.")
+		subagentError(
+			c,
+			http.StatusConflict,
+			"subagent_archive_follows_parent",
+			"Subagent sessions are archived with their parent session.",
+		)
 		return
 	}
 	var info *session.Info

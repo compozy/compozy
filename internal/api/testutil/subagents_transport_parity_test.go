@@ -58,8 +58,17 @@ func TestSubagentHTTPUDSParity(t *testing.T) {
 			httpRouter, udsRouter := subagentParityRouters(t, service)
 			a := testutil.PerformRequest(t, httpRouter, tc.method, tc.path, []byte(tc.body))
 			b := testutil.PerformRequest(t, udsRouter, tc.method, tc.path, []byte(tc.body))
-			if a.Code != tc.status || b.Code != tc.status || a.Body.String() != b.Body.String() || !strings.Contains(a.Body.String(), tc.contains) {
-				t.Fatalf("HTTP = %d %s; UDS = %d %s; want %d containing %s", a.Code, a.Body, b.Code, b.Body, tc.status, tc.contains)
+			if a.Code != tc.status || b.Code != tc.status || a.Body.String() != b.Body.String() ||
+				!strings.Contains(a.Body.String(), tc.contains) {
+				t.Fatalf(
+					"HTTP = %d %s; UDS = %d %s; want %d containing %s",
+					a.Code,
+					a.Body,
+					b.Code,
+					b.Body,
+					tc.status,
+					tc.contains,
+				)
 			}
 		})
 	}
@@ -89,7 +98,8 @@ func TestSubagentSessionCatalog(t *testing.T) {
 				if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
 					t.Fatal(err)
 				}
-				if response.Code != 200 || len(page.Sessions) != 1 || (page.Sessions[0].SubagentSummary == nil || page.Sessions[0].SubagentSummary.Total != 30) {
+				if response.Code != 200 || len(page.Sessions) != 1 ||
+					(page.Sessions[0].SubagentSummary == nil || page.Sessions[0].SubagentSummary.Total != 30) {
 					t.Fatalf("page = %d %s", response.Code, response.Body)
 				}
 				if service.filter != filter {
@@ -125,7 +135,14 @@ func (s *subagentParityService) Get(_ context.Context, workspaceID, id string) (
 	if id == "missing" {
 		return session.Subagent{}, session.ErrSubagentNotFound
 	}
-	row := store.SessionSubagent{ID: id, WorkspaceID: workspaceID, ParentSessionID: "parent", Origin: store.SubagentOriginDelegated, CreatedAt: time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), Result: new("answer\nmore")}
+	row := store.SessionSubagent{
+		ID:              id,
+		WorkspaceID:     workspaceID,
+		ParentSessionID: "parent",
+		Origin:          store.SubagentOriginDelegated,
+		CreatedAt:       time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC),
+		Result:          new("answer\nmore"),
+	}
 	if id == "native" {
 		row.Origin = store.SubagentOriginProviderNative
 	}
@@ -139,7 +156,8 @@ func (s *subagentParityService) List(_ context.Context, q store.SubagentListQuer
 		return store.SubagentPage{}, listcursor.ErrInvalid
 	}
 	if q.Cursor == "opaque" {
-		if q.Limit != 20 || len(q.Origins) != 1 || q.Origins[0] != "delegated" || strings.Join(q.Statuses, ",") != "completed,running" {
+		if q.Limit != 20 || len(q.Origins) != 1 || q.Origins[0] != "delegated" ||
+			strings.Join(q.Statuses, ",") != "completed,running" {
 			return store.SubagentPage{}, errors.New("filters were not forwarded")
 		}
 		return store.SubagentPage{Items: []store.SessionSubagent{}, NextCursor: "next"}, nil
@@ -147,9 +165,16 @@ func (s *subagentParityService) List(_ context.Context, q store.SubagentListQuer
 	if q.ParentSessionID != "parent" || q.WorkspaceID != "ws-registry" || q.Limit != 50 {
 		return store.SubagentPage{}, errors.New("unexpected query")
 	}
-	return store.SubagentPage{Items: []store.SessionSubagent{{ID: "sub-1", ParentSessionID: q.ParentSessionID, WorkspaceID: q.WorkspaceID}}}, nil
+	return store.SubagentPage{
+		Items: []store.SessionSubagent{{ID: "sub-1", ParentSessionID: q.ParentSessionID, WorkspaceID: q.WorkspaceID}},
+	}, nil
 }
-func (s *subagentParityService) Cancel(_ context.Context, actor session.SubagentActor, id, reason string) (session.SubagentCancelOutcome, error) {
+
+func (s *subagentParityService) Cancel(
+	_ context.Context,
+	actor session.SubagentActor,
+	id, reason string,
+) (session.SubagentCancelOutcome, error) {
 	if actor.Kind != "operator" || (reason != "done" && reason != "") {
 		return session.SubagentCancelOutcome{}, errors.New("unexpected cancel")
 	}
@@ -173,7 +198,12 @@ func subagentParityRouters(t *testing.T, service *subagentParityService) (http.H
 			if id == "missing" {
 				return nil, session.ErrSessionNotFound
 			}
-			info := &session.Info{ID: id, WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID, State: session.StateStopped}
+			info := &session.Info{
+				ID:          id,
+				WorkspaceID: "ws-registry",
+				ProfileID:   store.DefaultProfileID,
+				State:       session.StateStopped,
+			}
 			if id == "foreign" {
 				info.WorkspaceID = "elsewhere"
 			}
@@ -195,11 +225,20 @@ func subagentParityRouters(t *testing.T, service *subagentParityService) (http.H
 				total = 30
 			}
 			facets := store.SessionCatalogFacets{All: total}
-			return store.SessionCatalogFacetResult{Facets: facets, ByWorkspace: []store.WorkspaceSessionCatalogFacets{{WorkspaceID: "ws-registry", Facets: facets}}}, nil
+			return store.SessionCatalogFacetResult{
+				Facets:      facets,
+				ByWorkspace: []store.WorkspaceSessionCatalogFacets{{WorkspaceID: "ws-registry", Facets: facets}},
+			}, nil
 		},
 		ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 			service.filter = query.Subagents
-			return session.ListPage{Sessions: []*session.Info{{ID: "parent", WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID}}, Total: 120, Limit: 100}, nil
+			return session.ListPage{
+				Sessions: []*session.Info{
+					{ID: "parent", WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID},
+				},
+				Total: 120,
+				Limit: 100,
+			}, nil
 		},
 	}
 	var dependency session.SubagentService
@@ -215,10 +254,32 @@ func subagentParityRouters(t *testing.T, service *subagentParityService) (http.H
 		return workspace.Workspace{ID: "ws-registry", Name: "Parity", RootDir: "/repo"}, nil
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if _, err := httpapi.New(httpapi.WithEngine(a), httpapi.WithHomePaths(home), httpapi.WithConfig(&cfg), httpapi.WithHost(cfg.HTTP.Host), httpapi.WithPort(cfg.HTTP.Port), httpapi.WithLogger(logger), httpapi.WithSessionManager(manager), httpapi.WithTaskService(&testutil.StubTaskManager{}), httpapi.WithObserver(testutil.StubObserver{}), httpapi.WithWorkspaceResolver(workspaceService), httpapi.WithSubagentService(dependency)); err != nil {
+	if _, err := httpapi.New(
+		httpapi.WithEngine(a),
+		httpapi.WithHomePaths(home),
+		httpapi.WithConfig(&cfg),
+		httpapi.WithHost(cfg.HTTP.Host),
+		httpapi.WithPort(cfg.HTTP.Port),
+		httpapi.WithLogger(logger),
+		httpapi.WithSessionManager(manager),
+		httpapi.WithTaskService(&testutil.StubTaskManager{}),
+		httpapi.WithObserver(testutil.StubObserver{}),
+		httpapi.WithWorkspaceResolver(workspaceService),
+		httpapi.WithSubagentService(dependency),
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := udsapi.New(udsapi.WithEngine(b), udsapi.WithHomePaths(home), udsapi.WithConfig(&cfg), udsapi.WithLogger(logger), udsapi.WithSessionManager(manager), udsapi.WithTaskService(&testutil.StubTaskManager{}), udsapi.WithObserver(testutil.StubObserver{}), udsapi.WithWorkspaceResolver(workspaceService), udsapi.WithSubagentService(dependency)); err != nil {
+	if _, err := udsapi.New(
+		udsapi.WithEngine(b),
+		udsapi.WithHomePaths(home),
+		udsapi.WithConfig(&cfg),
+		udsapi.WithLogger(logger),
+		udsapi.WithSessionManager(manager),
+		udsapi.WithTaskService(&testutil.StubTaskManager{}),
+		udsapi.WithObserver(testutil.StubObserver{}),
+		udsapi.WithWorkspaceResolver(workspaceService),
+		udsapi.WithSubagentService(dependency),
+	); err != nil {
 		t.Fatal(err)
 	}
 	return a, b
@@ -244,7 +305,8 @@ func TestSubagentSessionFacets(t *testing.T) {
 				}
 				previous = response.Body.String()
 				if filter == "bad" {
-					if response.Code != http.StatusBadRequest || !strings.Contains(previous, `"code":"invalid_request"`) {
+					if response.Code != http.StatusBadRequest ||
+						!strings.Contains(previous, `"code":"invalid_request"`) {
 						t.Fatalf("invalid facets: %d %s", response.Code, previous)
 					}
 					continue
@@ -260,8 +322,17 @@ func TestSubagentSessionFacets(t *testing.T) {
 				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 					t.Fatal(err)
 				}
-				if response.Code != http.StatusOK || payload.Facets.All != total || len(payload.ByWorkspace) != 1 || payload.ByWorkspace[0].Facets.All != total || service.filter != filter {
-					t.Fatalf("facets: %d %s filter=%q; want total=%d filter=%q", response.Code, previous, service.filter, total, filter)
+				if response.Code != http.StatusOK || payload.Facets.All != total || len(payload.ByWorkspace) != 1 ||
+					payload.ByWorkspace[0].Facets.All != total ||
+					service.filter != filter {
+					t.Fatalf(
+						"facets: %d %s filter=%q; want total=%d filter=%q",
+						response.Code,
+						previous,
+						service.filter,
+						total,
+						filter,
+					)
 				}
 			}
 		})

@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const subagentIDKey = "subagent_id"
+
 func newSessionSubagentsCommand(deps commandDeps) *cobra.Command {
 	query := SubagentListQuery{}
 	cmd := &cobra.Command{
@@ -31,12 +33,17 @@ func newSessionSubagentsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, subagentOutput(result, func() (string, error) { return subagentTable(result, deps.now()) }))
+			return writeCommandOutput(
+				cmd,
+				subagentOutput(result, func() (string, error) { return subagentTable(result, deps.now()) }),
+			)
 		},
 	}
-	cmd.PersistentFlags().String(workspaceSkillSource, "", "Override workspace (ID, name, or path); fast path for show/cancel that avoids searching across workspaces")
+	cmd.PersistentFlags().
+		String(workspaceSkillSource, "", "Override workspace (ID, name, or path); fast path for show/cancel "+
+			"that avoids searching across workspaces")
 	cmd.Flags().StringVar(&query.Origin, "origin", "", "Filter by delegated or provider_native origin")
-	cmd.Flags().StringVar(&query.Status, "status", "", "Filter by comma-separated statuses")
+	cmd.Flags().StringVar(&query.Status, automationStatusKey, "", "Filter by comma-separated statuses")
 	cmd.Flags().IntVar(&query.Limit, "limit", 50, "Subagents per page (1-200)")
 	cmd.Flags().StringVar(&query.Cursor, "cursor", "", "Continue from an opaque next_cursor")
 	cmd.AddCommand(newSubagentShowCommand(deps), newSubagentCancelCommand(deps))
@@ -55,7 +62,10 @@ func newSubagentShowCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, subagentOutput(row, func() (string, error) { return subagentDetails(row, deps.now()), nil }))
+			return writeCommandOutput(
+				cmd,
+				subagentOutput(row, func() (string, error) { return subagentDetails(row, deps.now()), nil }),
+			)
 		},
 	}
 }
@@ -118,7 +128,16 @@ func subagentTable(page contract.SubagentListPayload, now time.Time) (string, er
 		return "", err
 	}
 	for _, row := range page.Subagents {
-		if _, err := fmt.Fprintf(writer, "%s\t%s\t%s/%s\t%s\t%s\n", row.SubagentID, row.Title, row.Runtime.Provider, row.Runtime.Model, row.Status, subagentElapsed(row, now)); err != nil {
+		if _, err := fmt.Fprintf(
+			writer,
+			"%s\t%s\t%s/%s\t%s\t%s\n",
+			row.SubagentID,
+			row.Title,
+			row.Runtime.Provider,
+			row.Runtime.Model,
+			row.Status,
+			subagentElapsed(row, now),
+		); err != nil {
 			return "", err
 		}
 	}
@@ -159,14 +178,27 @@ func subagentDetails(row contract.SubagentPayload, now time.Time) string {
 		started += " · settled " + row.SettledAt.Format("2006-01-02 15:04:05") + " (" + subagentElapsed(row, now) + ")"
 	}
 	runtime := []string{}
-	for _, value := range []string{row.Runtime.Provider, row.Runtime.Model, row.Runtime.ReasoningEffort, row.Runtime.Speed} {
+	for _, value := range []string{
+		row.Runtime.Provider, row.Runtime.Model, row.Runtime.ReasoningEffort, row.Runtime.Speed,
+	} {
 		if value != "" {
 			runtime = append(runtime, value)
 		}
 	}
-	output := fmt.Sprintf("Subagent      %s\nTitle         %s\nParent        %s (turn %s)\nChild         %s\nRuntime       %s\nStatus        %s (%s) · %s\nStarted       %s\n", row.SubagentID, row.Title, row.ParentSessionID, row.ParentTurnID, child,
+	output := fmt.Sprintf(
+		"Subagent      %s\nTitle         %s\nParent        %s (turn %s)\nChild         %s\n"+
+			"Runtime       %s\nStatus        %s (%s) · %s\nStarted       %s\n",
+		row.SubagentID,
+		row.Title,
+		row.ParentSessionID,
+		row.ParentTurnID,
+		child,
 		strings.Join(runtime, " · "),
-		row.Status, strings.ReplaceAll(row.WorkState, "_", " "), row.Delivery, started)
+		row.Status,
+		strings.ReplaceAll(row.WorkState, "_", " "),
+		row.Delivery,
+		started,
+	)
 	if row.Result != nil {
 		output += "\nResult\n" + *row.Result + "\n"
 	}
@@ -179,19 +211,30 @@ func subagentDetails(row contract.SubagentPayload, now time.Time) string {
 func subagentToon(value any) string {
 	switch row := value.(type) {
 	case contract.SubagentCancelPayload:
-		return renderToonObject("subagent", []string{"subagent_id", "status"}, []string{row.SubagentID, row.Status})
+		return renderToonObject(
+			"subagent",
+			[]string{subagentIDKey, automationStatusKey},
+			[]string{row.SubagentID, row.Status},
+		)
 	case contract.SubagentPayload:
 		result := ""
 		if row.Result != nil {
 			result = *row.Result
 		}
-		return renderToonObject("subagent", []string{"subagent_id", "title", "status", "result"}, []string{row.SubagentID, row.Title, row.Status, result})
+		return renderToonObject(
+			"subagent",
+			[]string{subagentIDKey, "title", automationStatusKey, "result"},
+			[]string{row.SubagentID, row.Title, row.Status, result},
+		)
 	case contract.SubagentListPayload:
 		rows := make([][]string, 0, len(row.Subagents))
 		for _, item := range row.Subagents {
-			rows = append(rows, []string{item.SubagentID, item.Title, item.Runtime.Provider + "/" + item.Runtime.Model, item.Status})
+			rows = append(
+				rows,
+				[]string{item.SubagentID, item.Title, item.Runtime.Provider + "/" + item.Runtime.Model, item.Status},
+			)
 		}
-		return renderToonArray("subagents", []string{"subagent_id", "title", "runtime", "status"}, rows)
+		return renderToonArray("subagents", []string{subagentIDKey, "title", "runtime", automationStatusKey}, rows)
 	}
 	return ""
 }

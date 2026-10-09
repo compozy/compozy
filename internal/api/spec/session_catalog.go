@@ -86,7 +86,11 @@ func sessionCatalogListOperation() OperationSpec {
 			),
 			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
 			queryParam("agent", "Filter by exact agent definition name", false),
-			enumQueryParam("subagents", "Subagent session visibility (default include)", []string{"include", "exclude", "only"}),
+			enumQueryParam(
+				"subagents",
+				"Subagent session visibility (default include)",
+				[]string{specIncludeKey, specExcludeKey, specOnlyKey},
+			),
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
 			queryParam("worktree", "Filter by exact bound worktree id", false),
@@ -106,7 +110,7 @@ func sessionCatalogListOperation() OperationSpec {
 			enumQueryParam(
 				"archive",
 				"Archived session visibility",
-				[]string{"exclude", "only", specIncludeKey},
+				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
 			),
 			enumQueryParam(
 				"sort",
@@ -256,7 +260,11 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			queryParam("worktree", "Filter by bound worktree id", false),
 			queryParam("agent", "Filter by exact agent name", false),
-			enumQueryParam("subagents", "Subagent session visibility (default include)", []string{"include", "exclude", "only"}),
+			enumQueryParam(
+				"subagents",
+				"Subagent session visibility (default include)",
+				[]string{specIncludeKey, specExcludeKey, specOnlyKey},
+			),
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
 			boolQueryParam("resumable", "Only count sessions eligible for explicit attach"),
@@ -266,7 +274,11 @@ func sessionCatalogFacetsOperation() OperationSpec {
 				[]string{"starting", "active", "stopping", "stopped"},
 			),
 			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
-			enumQueryParam("archive", "Archived session visibility", []string{"exclude", "only", specIncludeKey}),
+			enumQueryParam(
+				"archive",
+				"Archived session visibility",
+				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+			),
 		),
 		Responses: []ResponseSpec{
 			{

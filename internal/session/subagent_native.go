@@ -14,7 +14,7 @@ func (s *subagentService) OnNativeToolEvent(ctx context.Context, parent string, 
 	if ev.ProviderToolCallID == "" {
 		return nil
 	}
-	if ev.ToolName != "Agent" && ev.ToolName != "Task" {
+	if ev.ToolName != nativeSubagentAgentTool && ev.ToolName != nativeSubagentTaskTool {
 		s.mu.Lock()
 		known := s.nativeKnown[parent][ev.ProviderToolCallID]
 		s.mu.Unlock()
@@ -50,21 +50,9 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if row.Origin != store.SubagentOriginProviderNative {
 		return false, store.ErrSubagentIdempotencyConflict
 	}
-	title := strings.TrimSpace(ev.Title)
-	if title != "" && title != "Agent" && title != "Task" && title != row.Title {
-		runes := []rune(title)
-		at := ev.At
-		if at.IsZero() {
-			at = s.now().UTC()
-		}
-		var changed bool
-		row, changed, err = s.store.UpdateNativeSubagentTitle(ctx, id, string(runes[:min(512, len(runes))]), at)
-		if err != nil {
-			return false, err
-		}
-		if changed {
-			s.publish(ctx, row)
-		}
+	row, err = s.updateNativeTitle(ctx, row, ev)
+	if err != nil {
+		return false, err
 	}
 	s.mu.Lock()
 	if s.nativeKnown == nil {
@@ -105,6 +93,29 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	}
 	s.publishTerminal(ctx, row)
 	return true, s.settleParent(ctx, parent)
+}
+
+func (s *subagentService) updateNativeTitle(
+	ctx context.Context, row store.SessionSubagent, ev NativeSubagentEvent,
+) (store.SessionSubagent, error) {
+	title := strings.TrimSpace(ev.Title)
+	if title != "" && title != nativeSubagentAgentTool && title != nativeSubagentTaskTool && title != row.Title {
+		runes := []rune(title)
+		at := ev.At
+		if at.IsZero() {
+			at = s.now().UTC()
+		}
+		var changed bool
+		var err error
+		row, changed, err = s.store.UpdateNativeSubagentTitle(ctx, row.ID, string(runes[:min(512, len(runes))]), at)
+		if err != nil {
+			return row, err
+		}
+		if changed {
+			s.publish(ctx, row)
+		}
+	}
+	return row, nil
 }
 
 func (s *subagentService) interruptNative(ctx context.Context, parent, turn string) error {

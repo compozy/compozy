@@ -5717,13 +5717,14 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 			if err := prior.Close(); err != nil {
 				t.Fatal(err)
 			}
+			retirement := globalMigrationPrefixThrough(t, "00130_retire_memory.sql")
 			for range 2 {
-				upgraded, err := openGlobalMigrationUpgrade(t, path)
+				upgraded, err := openGlobalMigrationPrefixDatabase(t, path, retirement)
 				if err != nil {
 					t.Fatal(err)
 				}
 				for i, query := range keptQueries {
-					if got := memoryRetirementRows(t, upgraded.db, query); got != before[i] {
+					if got := memoryRetirementRows(t, upgraded, query); got != before[i] {
 						t.Fatalf("kept state changed for %s", query)
 					}
 				}
@@ -5734,7 +5735,7 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 					`SELECT count(*) FROM pragma_foreign_key_check`,
 				} {
 					var count int
-					if err := upgraded.db.QueryRowContext(ctx, query).Scan(&count); err != nil {
+					if err := upgraded.QueryRowContext(ctx, query).Scan(&count); err != nil {
 						t.Fatal(err)
 					}
 					if count != 0 {
@@ -5743,7 +5744,7 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 				}
 				for _, eventID := range []string{"retired-wake", "retired-checkpoint-wake"} {
 					var eventSession sql.NullString
-					if err := upgraded.db.QueryRowContext(ctx, `SELECT session_id FROM agent_heartbeat_wake_events WHERE id=?`, eventID).
+					if err := upgraded.QueryRowContext(ctx, `SELECT session_id FROM agent_heartbeat_wake_events WHERE id=?`, eventID).
 						Scan(&eventSession); err != nil {
 						t.Fatal(err)
 					}
@@ -5751,12 +5752,12 @@ func TestGlobalDBMemoryRetirementMigration(t *testing.T) {
 						t.Fatalf("heartbeat audit %s retains deleted session %q", eventID, eventSession.String)
 					}
 				}
-				status, err := store.Status(ctx, upgraded.db, MigrationStream())
+				status, err := store.Status(ctx, upgraded, retirement)
 				if err != nil {
 					t.Fatal(err)
 				}
-				assertCompleteMigrationStream(t, status, MigrationStream())
-				if err := upgraded.Close(ctx); err != nil {
+				assertCompleteMigrationStream(t, status, retirement)
+				if err := upgraded.Close(); err != nil {
 					t.Fatal(err)
 				}
 			}

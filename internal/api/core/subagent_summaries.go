@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -10,8 +11,8 @@ func (h *BaseHandlers) decorateSubagentSummaries(ctx context.Context, payloads [
 		return nil
 	}
 	ids := make([]string, 0, len(payloads))
-	for _, payload := range payloads {
-		ids = append(ids, payload.ID)
+	for i := range payloads {
+		ids = append(ids, payloads[i].ID)
 	}
 	summaries, err := h.Subagents.Summaries(ctx, ids)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subagentid"
 )
@@ -121,7 +122,7 @@ func resolveSubagentTarget(inherited, requested, defaults SubagentTarget) Subage
 	if target.Speed == "" {
 		target.Speed = base.Speed
 		if target.Speed == "" {
-			target.Speed = "normal"
+			target.Speed = string(speedpkg.SpeedNormal)
 		}
 	}
 	if target.ACPOptions == nil {
@@ -166,7 +167,7 @@ func presentSubagent(row store.SessionSubagent) Subagent {
 	// PendingTask is recovery state, never a presentation field.
 	row.PendingTask = nil
 	if row.Origin == store.SubagentOriginDelegated && row.RuntimeSpeed == "" {
-		row.RuntimeSpeed = "normal"
+		row.RuntimeSpeed = string(speedpkg.SpeedNormal)
 	}
 	result := Subagent{SessionSubagent: row}
 	if row.Result != nil {

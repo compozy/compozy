@@ -11,14 +11,19 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+const nativeSubagentAgentTool = "Agent"
+const nativeSubagentTaskTool = "Task"
+
 // NativeSubagentEventFromStored converts a committed tool event for native ingest.
 func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent) (NativeSubagentEvent, bool, error) {
 	event, err := transcript.UnmarshalAgentEvent(stored.Content)
 	if err != nil {
 		return NativeSubagentEvent{}, false, err
 	}
+	toolName := event.ProviderToolName()
+	isSubagent := toolName == nativeSubagentAgentTool || toolName == nativeSubagentTaskTool
 	if (event.Type != acp.EventTypeToolCall && event.Type != acp.EventTypeToolResult) ||
-		(event.ProviderToolName() != "Agent" && event.ProviderToolName() != "Task") || event.ToolCallID == "" {
+		!isSubagent || event.ToolCallID == "" {
 		return NativeSubagentEvent{}, false, nil
 	}
 	var payload struct {
@@ -54,8 +59,17 @@ func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent
 		at = event.Timestamp
 	}
 	return NativeSubagentEvent{
-		WorkspaceID: workspaceID, ParentTurnID: cmp.Or(stored.TurnID, event.TurnID),
-		ProviderToolCallID: event.ToolCallID, ToolName: event.ProviderToolName(),
-		Title: transcript.NativeSubagentTitle(event), Model: model, Status: status, Result: result, Error: detail, At: at,
+		WorkspaceID:        workspaceID,
+		ParentTurnID:       cmp.Or(stored.TurnID, event.TurnID),
+		ProviderToolCallID: event.ToolCallID,
+		ToolName:           event.ProviderToolName(),
+		Title: transcript.NativeSubagentTitle(
+			event,
+		),
+		Model:  model,
+		Status: status,
+		Result: result,
+		Error:  detail,
+		At:     at,
 	}, true, nil
 }

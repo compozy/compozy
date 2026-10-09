@@ -12,6 +12,7 @@ import (
 )
 
 const allWorkspacesFlagName = "all-workspaces"
+const sessionSubagentsInclude = "include"
 
 type sessionListFlags struct {
 	subagents       string
@@ -51,7 +52,10 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 			return runSessionListCommand(cmd, deps, flags)
 		},
 	}
-	cmd.Flags().StringVar(&flags.subagents, "subagents", "include", "Subagent session visibility (include|exclude|only)")
+	cmd.Flags().StringVar(
+		&flags.subagents, "subagents", sessionSubagentsInclude,
+		"Subagent session visibility (include|exclude|only)",
+	)
 	cmd.Flags().BoolVar(&flags.includeAll, "all", false, "Include every session state when --state is omitted")
 	cmd.Flags().
 		StringVar(&flags.workspaceFilter, workspaceSkillSource, "", "Override workspace filter (ID, name, or path)")
@@ -173,7 +177,7 @@ func sessionListSort(flags sessionListFlags, badges []session.Badge) string {
 
 func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]session.Badge, error) {
 	switch flags.subagents {
-	case "", "include", "exclude", "only":
+	case "", sessionSubagentsInclude, "exclude", "only":
 	default:
 		return nil, errors.New("cli: --subagents must be include, exclude, or only")
 	}
@@ -200,13 +204,16 @@ func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]ses
 }
 
 func sessionListHasRowFilters(flags sessionListFlags) bool {
-	return (flags.subagents != "" && flags.subagents != "include") || flags.includeAll || strings.TrimSpace(flags.workspaceFilter) != "" ||
+	hasSubagentFilter := flags.subagents != "" && flags.subagents != sessionSubagentsInclude
+	return hasSubagentFilter || flags.includeAll || strings.TrimSpace(flags.workspaceFilter) != "" ||
 		strings.TrimSpace(flags.worktreeFilter) != "" || strings.TrimSpace(flags.stateFilter) != "" ||
 		strings.TrimSpace(flags.typeFilter) != "" || strings.TrimSpace(flags.agentFilter) != "" ||
 		strings.TrimSpace(flags.parentFilter) != "" || strings.TrimSpace(flags.rootFilter) != "" ||
 		strings.TrimSpace(flags.search) != "" || flags.resumable || flags.attention || len(flags.badgeFilters) > 0 ||
-		flags.archived || flags.includeArchived || flags.includeHealth || flags.limit != 0 ||
-		strings.TrimSpace(flags.sortKey) != "" || strings.TrimSpace(flags.cursor) != ""
+		flags.archived || flags.includeArchived || flags.includeHealth ||
+		flags.limit != 0 ||
+		strings.TrimSpace(flags.sortKey) != "" ||
+		strings.TrimSpace(flags.cursor) != ""
 }
 
 func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle {

@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/session"
 	"log/slog"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/session"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/cmdpalette"
