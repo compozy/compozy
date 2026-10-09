@@ -1,10 +1,11 @@
 import { useState, type MouseEvent } from "react";
-import { Square } from "lucide-react";
+import { ChevronRight, Square } from "lucide-react";
 
 import {
   Button,
   Collapsible,
   CollapsibleContent,
+  CollapsibleTrigger,
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
@@ -12,11 +13,7 @@ import {
   cn,
 } from "@compozy/ui";
 
-import {
-  SessionInspectorDisclosureHead,
-  SessionInspectorSection,
-  SessionInspectorSectionHead,
-} from "../session-inspector-section";
+import { SessionInspectorSection, SessionInspectorSectionHead } from "../session-inspector-section";
 import { SubagentAvatar } from "./subagent-avatar";
 import type { SubagentOpenOptions } from "./subagent-card";
 import {
@@ -176,9 +173,20 @@ export function SessionInspectorSubagentsSection({
         ) : null}
         {groups.previous.length > 0 ? (
           <Collapsible open={previousOpen} onOpenChange={setPreviousOpen}>
-            <SessionInspectorDisclosureHead className="mt-1 px-1.5 py-1.5">
+            <CollapsibleTrigger
+              render={
+                <button
+                  type="button"
+                  className="group/previous mt-1 flex w-full items-center gap-1.5 rounded-sm p-1.5 text-left text-transcript-caption text-muted outline-none hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring"
+                />
+              }
+            >
+              <ChevronRight
+                aria-hidden="true"
+                className="size-3 shrink-0 text-subtle transition-transform duration-base ease-out group-aria-expanded/previous:rotate-90 motion-reduce:transition-none"
+              />
               Previous subagents ({groups.previous.length})
-            </SessionInspectorDisclosureHead>
+            </CollapsibleTrigger>
             <CollapsibleContent>
               <ul className="flex flex-col gap-px">{shownPrevious.map(row)}</ul>
             </CollapsibleContent>
