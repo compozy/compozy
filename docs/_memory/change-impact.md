@@ -1,5 +1,21 @@
 # Compozy Change Impact
 
+## Release smoke teardown verdict — 2026-10-09
+
+Owner: branch `fix/release-smoke-teardown`. The QA teardown helper classifies
+processes from final liveness after signal escalation, preserving failure for
+live survivors while clearing stale signal-denial classifications for exited PIDs.
+Release run `37975462651`, macOS x64 smoke job `113982345844`, recorded PIDs 5097
+and 5108 in both `killed` and `survivors`; application provisioning had passed.
+The earlier PR failure was a separate DMG detach error during packaging.
+
+Native tools, extensibility/hooks/config, persisted user data, Web, and the
+official `skills/compozy/` surface are unaffected. Lab process isolation and
+signal scope remain unchanged. The bootstrap contract documents the verdict.
+Coverage belongs to the existing QA bootstrap helper smoke suite, including
+real owned/outside processes and signal-denial races at the OS I/O boundary.
+Packaged release smoke remains mandatory for publication.
+
 ## Subagents — 2026-10-08
 
 Owner: spec `.compozy/tasks/subagents/` (ADR-001..005, §Compozy Cross-Surface Impact Audit); one PR
