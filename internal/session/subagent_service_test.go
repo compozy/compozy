@@ -598,6 +598,32 @@ func TestSubagentRecovery(t *testing.T) {
 			t.Fatal(runtime.stopped)
 		}
 	})
+	t.Run("Should fail fresh reservations from the previous run and wake the parent", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		snap := runtime.snapshots["parent"]
+		snap.Active, snap.TurnID = false, ""
+		runtime.snapshots["parent"] = snap
+		db.rows["fresh"] = store.SessionSubagent{
+			ID:              "fresh",
+			WorkspaceID:     "ws",
+			ParentSessionID: "parent",
+			ParentTurnID:    "old-turn",
+			Status:          "queued",
+			Origin:          "delegated",
+			WakePolicy:      store.SubagentWakePolicySettledOnly,
+			Delivery:        "none",
+			CreatedAt:       s.now().Add(-10 * time.Second),
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		row := db.rows["fresh"]
+		if row.Status != "failed" || row.WakePolicy != store.SubagentWakePolicyAlways || row.Delivery != "claimed" ||
+			len(runtime.queues) != 1 {
+			t.Fatal(row, runtime.queues)
+		}
+	})
 	t.Run(
 		"Should publish a committed terminal row and preserve newest subscriber state IT-019 IT-032",
 		func(t *testing.T) {

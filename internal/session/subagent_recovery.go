@@ -9,17 +9,21 @@ import (
 )
 
 func (s *subagentService) Recover(ctx context.Context) error {
-	stale, err := s.store.ListStaleReserved(ctx, s.now().Add(-2*time.Minute))
+	// Every reservation that exists at boot belongs to the previous daemon run
+	// unless this process is still delegating it (an in-memory flight).
+	stale, err := s.store.ListStaleReserved(ctx, s.now().Add(time.Nanosecond))
 	if err != nil {
 		return err
 	}
 	for _, row := range stale {
+		if s.inFlight(row.ID) {
+			continue
+		}
 		child := ""
 		if row.ChildSessionID != nil {
 			child = *row.ChildSessionID
 		}
-		_, err := s.failDelegation(ctx, row, child, errors.New("delegation interrupted"))
-		s.recoveryResult(ctx, row.ID, "stale_reservation", err)
+		s.recoveryResult(ctx, row.ID, "stale_reservation", s.failRecovered(ctx, row, child))
 	}
 	if err := s.recoverRunning(ctx); err != nil {
 		return err
@@ -93,12 +97,10 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 	}
 	if !admitted {
 		if row.PendingTask == nil {
-			_, err := s.failDelegation(ctx, row, *row.ChildSessionID, errors.New("delegation interrupted"))
-			return err
+			return s.failRecovered(ctx, row, *row.ChildSessionID)
 		}
 		if err := s.runtime.Admit(ctx, row, subagentPrompt(row.Role, *row.PendingTask)); err != nil {
-			_, settleErr := s.failDelegation(ctx, row, *row.ChildSessionID, err)
-			return settleErr
+			return errors.Join(err, s.failRecovered(ctx, row, *row.ChildSessionID))
 		}
 	}
 	if row.PendingTask != nil {
@@ -107,6 +109,32 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 		}
 	}
 	return s.OnChildSettled(ctx, *row.ChildSessionID)
+}
+
+// failRecovered settles a delegation the previous daemon run abandoned. Unlike a
+// live delegate call, no caller is left to receive the failure, so the parent
+// is told through an ordinary wake (always, whatever the original wait policy).
+func (s *subagentService) failRecovered(ctx context.Context, row store.SessionSubagent, child string) error {
+	failed, err := s.failDelegation(ctx, row, child, errors.New("delegation interrupted"))
+	if err != nil {
+		return err
+	}
+	if failed.WakePolicy != store.SubagentWakePolicyAlways {
+		upgraded, err := s.store.UpgradeWakePolicy(ctx, failed.ID)
+		if err != nil {
+			return err
+		}
+		failed.SessionSubagent = upgraded
+	}
+	unlock := s.lock(row.ParentSessionID)
+	defer unlock()
+	return s.planDelivery(ctx, failed.SessionSubagent)
+}
+
+func (s *subagentService) inFlight(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.flights[id] != nil
 }
 
 func (s *subagentService) recoverNative(ctx context.Context, row store.SessionSubagent) error {
