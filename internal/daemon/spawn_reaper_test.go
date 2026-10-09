@@ -450,3 +450,35 @@ func equalStrings(left []string, right []string) bool {
 	}
 	return true
 }
+
+// Invariant: subagent lifetime has no TTL but follows parent stop; owner: reaper (IT-016).
+func TestSubagentReaper(t *testing.T) {
+	t.Parallel()
+	t.Run("Should ignore expired TTL and still reap stopped parent", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+		reaper := &spawnReaper{now: func() time.Time { return now }}
+		child := &session.Info{
+			ID:    "child",
+			State: session.StateActive,
+			Type:  session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID:  "parent",
+				RootSessionID:    "parent",
+				SpawnRole:        store.SubagentSpawnRole,
+				TTLExpiresAt:     new(now.Add(-time.Hour)),
+				AutoStopOnParent: true,
+			},
+		}
+		parent := &session.Info{ID: "parent", State: session.StateActive}
+		parents := map[string]*session.Info{"parent": parent}
+		if _, reap := reaper.reapSpawnedCandidate(child, parents); reap {
+			t.Fatal("subagent selected for TTL")
+		}
+		parent.State = session.StateStopped
+		candidate, reap := reaper.reapSpawnedCandidate(child, parents)
+		if !reap || candidate.reason != spawnReapReasonParentStopped {
+			t.Fatal(candidate, reap)
+		}
+	})
+}

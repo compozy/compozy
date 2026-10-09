@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,8 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		m.startManagedInputPrompt(session, managedInputFromQueueEntry(&selected))
 		return
 	}
+	dispatchCtx, unlock := m.lockSubagentInputDispatch(m.fallbackLifecycleContext(), &selected)
+	defer unlock()
 	entry, ok, err := m.inputQueue.ClaimNext(m.fallbackLifecycleContext(), target)
 	if err != nil {
 		m.sessionLogger(session).Warn("session: claim queued input failed", "error", err)
@@ -54,10 +57,11 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 				"error", releaseErr,
 			)
 		}
+		unlock()
 		m.startNextQueuedInputPrompt(target)
 		return
 	}
-	m.dispatchQueuedInput(target, session, queuedInput{
+	m.dispatchQueuedInput(dispatchCtx, unlock, target, session, queuedInput{
 		id:                entry.ID,
 		syntheticPrompt:   entry.SyntheticPrompt,
 		promptAdmissionID: entry.PromptAdmissionID,
@@ -98,23 +102,35 @@ func (m *Manager) peekNextQueuedInputPrompt(
 }
 
 func (m *Manager) dispatchQueuedInput(
+	dispatchCtx context.Context,
+	unlock func(),
 	target string,
 	session *Session,
 	entry queuedInput,
 ) {
 	req, err := m.newQueuedInputPromptRequest(target, entry)
 	if err != nil {
+		unlock()
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
 		return
 	}
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
 	if err != nil {
+		unlock()
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
 		return
 	}
-	m.acceptQueuedInputDispatch(session, target, entry, req)
+	m.acceptQueuedInputDispatch(dispatchCtx, session, target, entry, req)
+	unlock()
 	m.startTrackedPromptTask(func() {
-		m.drainQueuedInputEvents(events)
+		canceled := m.drainSubagentInputEvents(events)
+		if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
+			if service := m.subagentService(); service != nil {
+				m.logSubagentError(
+					service.OnWakeTurnSettled(m.fallbackLifecycleContext(), target, entry.messageID, canceled),
+				)
+			}
+		}
 	})
 }
 
@@ -195,6 +211,7 @@ func (m *Manager) handleQueuedInputDispatchError(
 }
 
 func (m *Manager) acceptQueuedInputDispatch(
+	dispatchCtx context.Context,
 	session *Session,
 	target string,
 	entry queuedInput,
@@ -220,6 +237,11 @@ func (m *Manager) acceptQueuedInputDispatch(
 		)
 		return
 	}
+	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
+		if service := m.subagentService(); service != nil {
+			m.logSubagentError(service.OnWakeDispatched(dispatchCtx, target, entry.messageID))
+		}
+	}
 	evidence := queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0)
 	evidence["message_id"] = entry.messageID
 	evidence["authored_text"] = entry.text
@@ -233,10 +255,4 @@ func (m *Manager) acceptQueuedInputDispatch(
 		"Queued input accepted for dispatch.",
 		evidence,
 	)
-}
-
-func (m *Manager) drainQueuedInputEvents(events <-chan acp.AgentEvent) {
-	for range events {
-		continue
-	}
 }

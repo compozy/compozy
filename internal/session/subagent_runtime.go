@@ -1,0 +1,284 @@
+package session
+
+import (
+	"context"
+	"encoding/json/v2"
+	"errors"
+	"slices"
+	"strings"
+
+	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
+)
+
+type managerSubagentRuntime struct{ m *Manager }
+
+var _ subagentRuntime = managerSubagentRuntime{}
+
+func (r managerSubagentRuntime) Snapshot(ctx context.Context, id string) (subagentSnapshot, error) {
+	info, err := r.m.Status(ctx, id)
+	if err != nil {
+		return subagentSnapshot{}, err
+	}
+	snap := subagentSnapshot{Info: info}
+	if child, ok := r.m.Get(id); ok {
+		snap.Active = info.Liveness != nil && info.Liveness.Activity != nil && info.Liveness.Activity.TurnID != ""
+		snap.TurnID = child.CurrentTurnID()
+		if proc := child.processHandle(); proc != nil {
+			caps := proc.CapsSnapshot()
+			_, supports := r.m.driver.(AgentSteerer)
+			snap.CanSteer = supports &&
+				(caps.SteerCapability == compozyconfig.SteerCapabilityExtension ||
+					caps.SteerCapability == compozyconfig.SteerCapabilityConcurrentPrompt)
+		}
+	}
+	if r.m.inputQueue != nil {
+		pending, err := r.m.inputQueue.List(ctx, id)
+		if err != nil {
+			return subagentSnapshot{}, err
+		}
+		snap.Queued = len(pending)
+		for i := range pending {
+			if pending[i].Mode == store.SessionInputQueueModeSteer {
+				snap.UserSteer = true
+			}
+		}
+	}
+	return snap, nil
+}
+func (r managerSubagentRuntime) Spawn(ctx context.Context, opts SpawnOpts) (string, error) {
+	child, err := r.m.Spawn(ctx, opts)
+	if child == nil {
+		return "", err
+	}
+	return child.ID, err
+}
+func (r managerSubagentRuntime) Admit(ctx context.Context, row store.SessionSubagent, text string) error {
+	if row.ChildSessionID == nil {
+		return errors.New("session: subagent child is missing")
+	}
+	result, err := r.m.SendPrompt(
+		ctx,
+		*row.ChildSessionID,
+		SendPromptOpts{Message: text, MessageID: row.ID, IdempotencyKey: row.ID, Mode: BusyInputModeQueue},
+	)
+	if err != nil {
+		return err
+	}
+	if result.Events != nil {
+		r.m.startTrackedPromptTask(func() {
+			for range result.Events {
+				continue
+			}
+		})
+	}
+	return nil
+}
+func (r managerSubagentRuntime) HasAdmission(ctx context.Context, row store.SessionSubagent) (bool, error) {
+	if row.ChildSessionID == nil {
+		return false, nil
+	}
+	if r.m.inputQueue != nil {
+		inputs, err := r.m.inputQueue.List(ctx, *row.ChildSessionID)
+		if err != nil {
+			return false, err
+		}
+		for i := range inputs {
+			if inputs[i].IdempotencyKey == row.ID {
+				return true, nil
+			}
+		}
+	}
+	found := false
+	err := r.walkTranscript(ctx, *row.ChildSessionID, func(entry transcript.Entry) bool {
+		var meta struct {
+			MessageID string `json:"message_id"`
+		}
+		if json.Unmarshal(entry.Message.Metadata, &meta) == nil && entry.Message.Role == transcript.UIRoleUser &&
+			meta.MessageID == row.ID {
+			found = true
+			return true
+		}
+		return false
+	})
+	return found, err
+}
+func (r managerSubagentRuntime) Stop(ctx context.Context, id string) error { return r.m.Stop(ctx, id) }
+func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, error) {
+	query := store.EventQuery{Limit: 200}
+	var turn string
+	var events []store.SessionEvent
+	for {
+		page, err := r.m.Events(ctx, id, query)
+		if err != nil {
+			return "", err
+		}
+		finished := len(page) < query.Limit
+		for _, event := range slices.Backward(page) {
+			if event.TurnID == "" {
+				continue
+			}
+			if turn == "" {
+				turn = event.TurnID
+			}
+			if event.TurnID != turn {
+				finished = true
+				break
+			}
+			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil {
+				return "", err
+			}
+			if decoded.ParentToolCallID() != "" {
+				continue
+			}
+			events = append(events, event)
+		}
+		if finished {
+			break
+		}
+		query.BeforeSequence = page[0].Sequence
+	}
+	// Canonical assembly preserves chunk boundaries and complete assistant messages.
+	// The UI projection merges a turn's assistant segments and has no turn metadata.
+	messages, err := transcript.Assemble(events)
+	if err != nil {
+		return "", err
+	}
+	for _, message := range slices.Backward(messages) {
+		if message.Role == transcript.RoleAssistant && strings.TrimSpace(message.Content) != "" {
+			return message.Content, nil
+		}
+	}
+	return "", nil
+}
+
+func (r managerSubagentRuntime) walkTranscript(
+	ctx context.Context,
+	id string,
+	visit func(transcript.Entry) bool,
+) error {
+	query := transcript.PageQuery{Limit: 200}
+	for {
+		page, err := r.m.TranscriptPage(ctx, id, query)
+		if err != nil {
+			return err
+		}
+		for _, entry := range slices.Backward(page.Entries) {
+			if visit(entry) {
+				return nil
+			}
+		}
+		if !page.HasOlder {
+			return nil
+		}
+		query.BeforeSequence = page.NextBeforeSequence
+	}
+}
+
+func (r managerSubagentRuntime) QueueWake(
+	ctx context.Context,
+	wake store.SessionSubagentWake,
+	rows []store.SessionSubagent,
+) (string, error) {
+	child, err := r.m.lookupPromptSession(ctx, wake.ParentSessionID)
+	if err != nil {
+		return "", err
+	}
+	if r.m.inputQueue == nil {
+		return "", errors.New("session: subagent wakes require the durable input queue")
+	}
+	generation, err := r.m.currentInputGeneration(ctx, child.ID)
+	if err != nil {
+		return "", err
+	}
+	id, err := store.NewID("inq")
+	if err != nil {
+		return "", err
+	}
+	turn, err := r.m.newPromptTurnID()
+	if err != nil {
+		return "", err
+	}
+	metadata, err := json.Marshal(subagentWakeMeta(rows))
+	if err != nil {
+		return "", err
+	}
+	entry, _, err := r.m.inputQueueStore.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+		ID:                id,
+		SessionID:         child.ID,
+		OwnerKind:         store.SessionInputOwnerSynthetic,
+		MessageID:         wake.WakeMessageID,
+		Priority:          1,
+		TurnID:            turn,
+		Mode:              store.SessionInputQueueModeQueue,
+		Delivery:          store.SessionInputDeliveryAfterTurn,
+		Text:              subagentWakeText(rows),
+		SessionGeneration: generation,
+		QueueCap:          r.m.busyInput.QueueCap,
+		SyntheticPrompt: &store.SessionInputSyntheticPrompt{
+			RunID:    wake.WakeMessageID,
+			Delivery: store.SessionInputDeliveryAfterTurn,
+			Metadata: metadata,
+		},
+		Now: r.m.now(),
+	})
+	if err != nil {
+		return "", err
+	}
+	// The caller records the wake's queue identity before a tracked dispatch can call back.
+	r.m.startTrackedPromptTask(func() { r.m.startNextQueuedInputPrompt(child.ID) })
+	return entry.ID, nil
+}
+func (r managerSubagentRuntime) CancelWake(ctx context.Context, wake store.SessionSubagentWake) error {
+	if wake.InputEntryID == "" {
+		return nil
+	}
+	_, err := r.m.inputQueue.Cancel(ctx, wake.ParentSessionID, wake.InputEntryID)
+	if errors.Is(err, store.ErrSessionInputQueueEntryNotQueued) {
+		return nil
+	}
+	return err
+}
+func (r managerSubagentRuntime) Steer(ctx context.Context, parent, turn, id, text string) (acp.SteerResult, error) {
+	child, ok := r.m.Get(parent)
+	if !ok {
+		return acp.SteerResult{}, ErrSessionNotFound
+	}
+	driver, ok := r.m.driver.(AgentSteerer)
+	if !ok {
+		return acp.SteerResult{Attempt: acp.SteerAttemptUnsupported}, nil
+	}
+	if child.CurrentTurnID() != turn {
+		return acp.SteerResult{}, acp.ErrSteerTurnMismatch
+	}
+	steerCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
+	defer cancel()
+	result, err := driver.Steer(steerCtx, child.processHandle(), turn, text)
+	r.m.emitTranscriptMarker(
+		ctx,
+		child,
+		turn,
+		transcript.MarkerPromptSteered,
+		text,
+		map[string]any{"message_id": id, "kind": subagentWakeKind},
+	)
+	return result, err
+}
+func (r managerSubagentRuntime) PublishParent(ctx context.Context, parent string) {
+	info, err := r.m.Status(ctx, parent)
+	if err != nil {
+		r.m.logger.WarnContext(ctx, "subagent.catalog_publish", "parent_session_id", parent, "error", err)
+		return
+	}
+	r.m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+}
+func (r managerSubagentRuntime) SettleParent(ctx context.Context, parent string) error {
+	if err := r.m.settleSessionAttention(ctx, parent, r.m.now().UTC()); err != nil {
+		return err
+	}
+	r.PublishParent(ctx, parent)
+	return nil
+}

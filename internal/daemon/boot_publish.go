@@ -9,6 +9,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.closeLogger = state.closeLogger
 	d.booting = false
 	d.daemonRuntimeState = daemonRuntimeState{
+		subagents:             state.subagents,
 		lock:                  state.lock,
 		harnessResolver:       state.harnessResolver,
 		registry:              state.registry,
