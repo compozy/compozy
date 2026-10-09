@@ -2880,3 +2880,91 @@ func startSubagentCLIHarness(t *testing.T) *e2etest.RuntimeHarness {
 		},
 	})
 }
+
+// E2E-008: live config reload changes the delegated result cap without truncating the child transcript.
+func TestDaemonE2ESubagentResultLimitReload(t *testing.T) {
+	t.Run("Should apply the reloaded result limit and preserve the complete child answer", func(t *testing.T) {
+		t.Parallel()
+		harness := startSubagentCLIHarness(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		parent := createFixtureBackedSession(t, ctx, harness, "subagent-cli-parent", "Config parent")
+		original, err := os.ReadFile(harness.HomePaths.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		original = append(original, []byte("\n[subagents]\nresult_max_chars = 1000\n")...)
+		if err := os.WriteFile(harness.HomePaths.ConfigFile, original, 0600); err != nil {
+			t.Fatal(err)
+		}
+		var reload struct {
+			Applied          bool  `json:"applied"`
+			ActiveGeneration int64 `json:"active_generation"`
+			RestartRequired  bool  `json:"restart_required"`
+		}
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&reload,
+			"config",
+			"reload",
+			"--json",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if !reload.Applied || reload.ActiveGeneration < 1 || reload.RestartRequired {
+			t.Fatalf("live config reload = %#v", reload)
+		}
+		if _, err := harness.PromptSession(ctx, parent.ID, "exercise result limit"); err != nil {
+			t.Fatal(err)
+		}
+		var page compozycontract.SubagentListPayload
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &page,
+			"session", "subagents", parent.ID, "--json"); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Subagents) != 1 {
+			t.Fatalf("subagents = %#v", page)
+		}
+		var row compozycontract.SubagentPayload
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &row,
+			"session", "subagents", "show", page.Subagents[0].SubagentID, "--json"); err != nil {
+			t.Fatal(err)
+		}
+		if row.Status != "completed" || !row.ResultTruncated || row.Result == nil || len([]rune(*row.Result)) != 1000 ||
+			row.ChildSessionID == nil {
+			t.Fatalf("limited result = %#v", row)
+		}
+		if row.Hint != "Read the full answer with compozy__session_history on child_session_id." {
+			t.Errorf("truncated hint = %q", row.Hint)
+		}
+		fixture, err := acpmock.LoadFixture(mockFixturePath(t, "subagent_cli_fixture.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		worker, err := fixture.Agent("subagent-cli-worker")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn, err := worker.SelectTurn("long CLI work", acp.PromptMeta{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		full := turn.Steps[0].Text
+		if len([]rune(full)) <= 1000 || *row.Result != string([]rune(full)[:1000]) {
+			t.Fatalf("result does not preserve the first 1000 characters: %q", *row.Result)
+		}
+		transcript, err := harness.SessionTranscript(ctx, *row.ChildSessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range transcript.Entries {
+			for _, part := range entry.Message.Parts {
+				if part.Type == "text" && part.Text == full {
+					return
+				}
+			}
+		}
+		t.Fatal("the full answer is missing from the persisted child transcript")
+	})
+}
