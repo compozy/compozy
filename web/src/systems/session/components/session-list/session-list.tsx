@@ -4,7 +4,7 @@ import { WifiOff } from "lucide-react";
 
 import { Alert, AlertDescription, Button, SearchInput } from "@compozy/ui";
 
-import { withRevealedSubagent } from "../../lib/session-hierarchy";
+import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
@@ -74,7 +74,11 @@ export function SessionList({
   const [filter, setFilter] = useState("");
   const remoteSearch = view.search !== undefined;
   const normalizedFilter = (view.search ?? filter).trim().toLocaleLowerCase();
-  const listed = withRevealedSubagent(sessions, revealedSession);
+  const listed = useSubagentContextSessions(
+    sessions,
+    revealedSession,
+    remoteSearch && normalizedFilter !== ""
+  );
   const threads = buildSessionListThreads(listed, remoteSearch ? "" : normalizedFilter);
   const visibleCount = countThreadSessions(threads);
   const collapsedThreads = new Set(collapsedThreadIds);

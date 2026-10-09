@@ -15,6 +15,7 @@ import {
   filterThreadSessions,
   visibleSessionOrder,
 } from "../session-hierarchy";
+import { subagentContextRequests, withSubagentContext } from "../session-subagent-context";
 
 function treeSession(
   id: string,
@@ -241,5 +242,72 @@ describe("childSessionSignalState", () => {
 
     expect(childSessionSignalState([done])).toBeNull();
     expect(childSessionSignalState([done, running])).toBe("running");
+  });
+});
+
+// S9: subagent sessions are off the page; context rules decide which ancestors to read and
+// where the rows land, so a subagent always nests and never becomes a root.
+describe("subagent context", () => {
+  const subagent = (id: string, parent: string): SessionPayload => {
+    const session = treeSession(id, { parent });
+    return { ...session, lineage: { ...session.lineage!, spawn_role: "subagent" } };
+  };
+  const ids = (sessions: readonly SessionPayload[]) => sessions.map(session => session.id);
+
+  it("Should request each missing hop and nest a depth-3 reveal under the on-page ancestor", () => {
+    const root = treeSession("root");
+    const a = subagent("a", "root");
+    const b = subagent("b", "a");
+    const viewed = subagent("viewed", "b");
+    const input = { sessions: [root], revealed: viewed, searching: false };
+
+    expect(subagentContextRequests({ ...input, loaded: new Map() })).toEqual([
+      { sessionId: "b", workspaceId: "ws-1" },
+    ]);
+    expect(subagentContextRequests({ ...input, loaded: new Map([["b", b]]) })).toEqual([
+      { sessionId: "a", workspaceId: "ws-1" },
+    ]);
+    const loaded = new Map([
+      ["a", a],
+      ["b", b],
+    ]);
+    expect(subagentContextRequests({ ...input, loaded })).toEqual([]);
+    const listed = withSubagentContext({ ...input, loaded });
+    expect(ids(listed)).toEqual(["root", "a", "b", "viewed"]);
+    expect(buildSessionTree(listed).roots.map(session => session.id)).toEqual(["root"]);
+  });
+
+  it("Should reveal nothing when the chain reaches a non-subagent ancestor off the page", () => {
+    const offPage = treeSession("off-page");
+    const viewed = subagent("viewed", "off-page");
+    const listed = withSubagentContext({
+      sessions: [treeSession("other")],
+      loaded: new Map([["off-page", offPage]]),
+      revealed: viewed,
+      searching: false,
+    });
+
+    expect(ids(listed)).toEqual(["other"]);
+  });
+
+  it("Should lead a search match's thread with its non-matching ancestor and hold it while loading", () => {
+    const parent = treeSession("parent");
+    const middle = subagent("middle", "parent");
+    const match = subagent("match", "middle");
+    const page = [treeSession("other"), match];
+
+    expect(
+      ids(withSubagentContext({ sessions: page, loaded: new Map(), searching: true }))
+    ).toEqual(["other"]);
+    const listed = withSubagentContext({
+      sessions: page,
+      loaded: new Map([
+        ["middle", middle],
+        ["parent", parent],
+      ]),
+      searching: true,
+    });
+    expect(ids(listed)).toEqual(["other", "parent", "middle", "match"]);
+    expect(buildSessionTree(listed).roots.map(session => session.id)).toEqual(["other", "parent"]);
   });
 });
