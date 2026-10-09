@@ -74,6 +74,13 @@ real-provider scenario verdicts remain under sa-qa; automated evidence is in sa-
 The existing RT-subagent-delegate, RT-subagent-native and RT-subagent-restart scenarios own re-walks.
 
 
+Tools fix round 2 (sa-tools): malformed hosted MCP `tools/call` params/metadata remain SDK-owned
+request errors (`-32602`) without terminating the connection. Dispatcher `maxLength` validation
+is opt-in through descriptor `InputErrorCode`, including descriptor registration; existing tool
+bindings retain their prior behavior. No tool IDs, hook/config contracts, workspace isolation,
+persisted data, Web or official skill/site changes. Owning automated evidence: hosted proxy
+transport and tools dispatcher suites; existing scenario verdicts remain unchanged.
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the
