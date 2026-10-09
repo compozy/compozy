@@ -19,6 +19,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 	return handlerConfig{
 		sessions:              s.sessions,
 		drainController:       s.drainController,
+		subagents:             s.subagents,
 		sessionCatalog:        s.sessionCatalog,
 		taskDesignations:      s.taskDesignations,
 		skillExposureStore:    s.skillExposureStore,

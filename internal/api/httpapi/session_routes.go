@@ -13,7 +13,11 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	registerSessionReadRoutes(sessions, handlers)
 	sessions.POST("", handlers.CreateSession)
 
+	api.GET("/workspaces/:workspace_id/subagents/:subagent_id", handlers.GetSubagent)
+	api.POST("/workspaces/:workspace_id/subagents/:subagent_id/cancel", handlers.CancelSubagent)
 	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
+	workspaceSessions.GET("", handlers.ListSessions)
+	workspaceSessions.GET("/:session_id/subagents", handlers.ListSessionSubagents)
 	workspaceSessions.GET("/:session_id", handlers.GetSession)
 	workspaceSessions.PATCH("/:session_id", handlers.RenameSession)
 	workspaceSessions.GET("/:session_id/goal", handlers.GetSessionGoal)

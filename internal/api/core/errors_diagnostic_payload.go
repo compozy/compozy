@@ -20,6 +20,10 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
 	switch {
+	case errors.Is(err, session.ErrListQueryInvalid):
+		payload.Code = "invalid_request"
+	case errors.Is(err, session.ErrSubagentArchiveFollows):
+		payload.Code = "subagent_archive_follows_parent"
 	case errors.Is(err, session.ErrCompactionUnsupported):
 		payload.Code = "compaction_unsupported"
 	case errors.Is(err, session.ErrPromptInProgress):

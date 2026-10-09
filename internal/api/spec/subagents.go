@@ -5,6 +5,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 func registrySubagentOperations() []OperationSpec {
 	const subagentPath = "/api/workspaces/{workspace_id}/subagents/{subagent_id}"
 	return []OperationSpec{
+		workspaceSessionCatalogListOperation(),
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents",
@@ -42,8 +43,23 @@ func subagentResponses(status int, body any) []ResponseSpec {
 	return []ResponseSpec{
 		{Status: status, Description: "Success", Body: body},
 		{Status: 400, Description: "Invalid request", Body: contract.ErrorPayload{}},
+		{Status: 403, Description: "Capability denied", Body: contract.ErrorPayload{}},
 		{Status: 404, Description: "Session or subagent not found", Body: contract.ErrorPayload{}},
 		{Status: 503, Description: "Subagents unavailable", Body: contract.ErrorPayload{}},
 		{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 	}
+}
+
+func workspaceSessionCatalogListOperation() OperationSpec {
+	operation := sessionCatalogListOperation()
+	operation.Path = "/api/workspaces/{workspace_id}/sessions"
+	operation.OperationID = "listWorkspaceSessions"
+	parameters := []ParameterSpec{pathParam("workspace_id", "Workspace id")}
+	for _, parameter := range operation.Parameters {
+		if parameter.Name != "workspace_id" && parameter.Name != "all_workspaces" {
+			parameters = append(parameters, parameter)
+		}
+	}
+	operation.Parameters = parameters
+	return operation
 }

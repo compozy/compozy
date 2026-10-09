@@ -45,6 +45,7 @@ func (p SessionCatalogPosition) Validate() error {
 // explicit profile or the AllProfiles aggregate. Cursor decoding and
 // active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
+	Subagents           string
 	SkipTotal           bool
 	ReadScope           ReadScope
 	WorkspaceID         string

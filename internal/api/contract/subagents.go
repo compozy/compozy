@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
@@ -80,6 +81,14 @@ type SubagentUpdatedEvent struct {
 }
 
 func SubagentFromDomain(row session.Subagent) SubagentPayload {
+	if row.ResultPreview == "" && row.Result != nil {
+		line, _, _ := strings.Cut(*row.Result, "\n")
+		preview := []rune(line)
+		row.ResultPreview = string(preview[:min(len(preview), 280)])
+	}
+	if row.ResultTruncated && row.Hint == "" {
+		row.Hint = "Read the full answer with compozy__session_history on child_session_id."
+	}
 	var toolCallID *string
 	if row.ProviderToolCallID != "" {
 		toolCallID = &row.ProviderToolCallID
