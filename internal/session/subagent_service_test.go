@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -1630,7 +1632,78 @@ func (r blockedSubagentStop) Stop(ctx context.Context, id string) error {
 	}
 }
 
+// cancelReadBarrier signals the first row read of a Cancel so a test can link
+// the child while Cancel waits for the parent lock.
+type cancelReadBarrier struct {
+	store.SubagentStore
+	read chan struct{}
+	once *sync.Once
+}
+
+func (b cancelReadBarrier) GetSubagentByID(ctx context.Context, id string) (store.SessionSubagent, error) {
+	row, err := b.SubagentStore.GetSubagentByID(ctx, id)
+	b.once.Do(func() { close(b.read) })
+	return row, err
+}
+
 func TestSubagentCancelLifetime(t *testing.T) {
+	t.Run("Should stop a child linked while cancel waits for the parent lock", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			child := *row.ChildSessionID
+			reserved := db.rows[row.ID]
+			reserved.Status, reserved.ChildSessionID = store.SubagentStatusQueued, nil
+			db.rows[row.ID] = reserved
+			read := make(chan struct{})
+			s.store = cancelReadBarrier{SubagentStore: db, read: read, once: &sync.Once{}}
+			unlock := s.lock("parent")
+			done := make(chan error, 1)
+			go func() {
+				_, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+				done <- err
+			}()
+			<-read
+			if _, err := db.LinkChild(t.Context(), row.ID, child, s.now()); err != nil {
+				t.Fatal(err)
+			}
+			unlock()
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if !slices.Contains(runtime.stopped, child) || db.rows[row.ID].Status != store.SubagentStatusCanceled {
+				t.Fatal(runtime.stopped, db.rows[row.ID])
+			}
+		})
+	})
+	t.Run("Should leave a row that settled while cancel waited", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			read := make(chan struct{})
+			s.store = cancelReadBarrier{SubagentStore: db, read: read, once: &sync.Once{}}
+			unlock := s.lock("parent")
+			done := make(chan SubagentCancelOutcome, 1)
+			go func() {
+				out, _ := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+				done <- out
+			}()
+			<-read
+			settled := db.rows[row.ID]
+			settled.Status = store.SubagentStatusCompleted
+			db.rows[row.ID] = settled
+			unlock()
+			out := <-done
+			synctest.Wait()
+			if out.Status != store.SubagentStatusCompleted || db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed ||
+				len(runtime.stopped) != 0 {
+				t.Fatal(out, db.rows[row.ID], runtime.stopped)
+			}
+		})
+	})
 	t.Run("Should finalize synchronously and keep stopping after the request is canceled", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

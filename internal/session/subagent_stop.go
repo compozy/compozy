@@ -49,6 +49,17 @@ func (s *subagentService) Cancel(
 		return SubagentCancelOutcome{ID: id, Status: row.Status}, nil
 	}
 	unlock := s.lock(row.ParentSessionID)
+	// Delegation links the child and settlement finalizes the row under this
+	// lock, so the pre-lock read can be stale: act on the current row.
+	row, err = s.store.GetSubagentByID(ctx, id)
+	if err != nil {
+		unlock()
+		return SubagentCancelOutcome{}, err
+	}
+	if store.IsSubagentStatusTerminal(row.Status) {
+		unlock()
+		return SubagentCancelOutcome{ID: id, Status: row.Status}, nil
+	}
 	err = s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: row.ParentSessionID, IDs: []string{id}})
 	if err == nil {
 		err = s.finalizeCanceled(ctx, row)

@@ -150,6 +150,12 @@ func (s *subagentService) startDelegation(
 	if _, err = s.caller(ctx, req.Caller); err != nil {
 		return s.failDelegation(ctx, row, child, err)
 	}
+	// Cancel can win between link and admission; it owns the child stop then.
+	if current, err := s.store.GetSubagentByID(ctx, id); err != nil {
+		return s.failDelegation(ctx, row, child, err)
+	} else if store.IsSubagentStatusTerminal(current.Status) {
+		return presentSubagent(current), nil
+	}
 	if err = s.runtime.Admit(ctx, row, subagentPrompt(row.Role, req.Task)); err != nil {
 		return s.failDelegation(ctx, row, child, err)
 	}
