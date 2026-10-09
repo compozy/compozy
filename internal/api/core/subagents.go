@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -55,7 +56,7 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 		return
 	}
 	var request contract.SubagentCancelRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := c.ShouldBindJSON(&request); err != nil && !errors.Is(err, io.EOF) {
 		subagentError(c, 400, "invalid_request", "Invalid cancellation request.")
 		return
 	}

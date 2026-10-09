@@ -329,3 +329,22 @@ func expectedNativeEntry(
 		Preview:      preview,
 	}
 }
+
+func TestHostedNativeToolNames(t *testing.T) {
+	t.Run("Should normalize only Compozy hosted server wrappers", func(t *testing.T) {
+		t.Parallel()
+		for _, prefix := range []string{"", "mcp__compozy-hosted-tools__", "mcp.compozy-hosted-tools.", "compozy-hosted-tools."} {
+			name := prefix + "compozy__subagent_delegate"
+			if got := toolmeta.NormalizeHostedToolName(name); got != "compozy__subagent_delegate" {
+				t.Fatal(got)
+			}
+			if _, ok := toolmeta.NativeEntry(name); !ok {
+				t.Fatalf("native metadata missing for %s", name)
+			}
+		}
+		foreign := "mcp__other__compozy__subagent_delegate"
+		if got := toolmeta.NormalizeHostedToolName(foreign); got != foreign {
+			t.Fatal(got)
+		}
+	})
+}

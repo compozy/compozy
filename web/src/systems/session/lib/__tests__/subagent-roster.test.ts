@@ -38,6 +38,7 @@ function row(id: string, overrides: Partial<SubagentPayload> = {}): SubagentPayl
     error: null,
     wait_timed_out: false,
     delivery: "none",
+    created_at: at(0),
     started_at: at(0),
     settled_at: null,
     updated_at: at(1),
@@ -50,6 +51,14 @@ const snapshot = (...rows: SubagentPayload[]) =>
 const update = (subagent: SubagentPayload) => ({ session_id: "sess-parent", subagent });
 
 describe("subagent roster (UT-W01)", () => {
+  it("Should preserve creation time when a queued row receives progress before starting", () => {
+    const queued = row("queued", { status: "queued", started_at: null, created_at: at(-10) });
+    const roster = applySubagentUpdated(
+      snapshot(queued),
+      update({ ...queued, progress: "Queued", updated_at: at(20) })
+    );
+    expect(roster.rows[0]?.created_at).toBe(at(-10));
+  });
   it("Should upsert updates by id after the snapshot and prepend rows first seen in an update", () => {
     let roster = snapshot(row("a"), row("b"));
     roster = applySubagentUpdated(

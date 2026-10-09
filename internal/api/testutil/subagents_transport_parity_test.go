@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/httpapi"
@@ -31,6 +32,8 @@ func TestSubagentHTTPUDSParity(t *testing.T) {
 		{"list", "GET", "/api/workspaces/ws-public/sessions/parent/subagents", "", `"next_cursor":null`, 200},
 		{"show", "GET", "/api/workspaces/ws-public/subagents/sub-1", "", `"result_preview":"answer"`, 200},
 		{"cancel", "POST", "/api/workspaces/ws-public/subagents/sub-1/cancel", `{"reason":"done"}`, `"status":"cancel_requested"`, 202},
+		{"cancel without body", "POST", "/api/workspaces/ws-public/subagents/sub-1/cancel", "", `"status":"cancel_requested"`, 202},
+		{"created timestamp", "GET", "/api/workspaces/ws-public/subagents/sub-1", "", `"created_at":"2026-10-09T00:00:00Z"`, 200},
 		{"cancel terminal", "POST", "/api/workspaces/ws-public/subagents/completed/cancel", `{"reason":"done"}`, `"status":"completed"`, 202},
 		{"valid filters", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?origin=delegated&status=completed,running&limit=20&cursor=opaque", "", `"next_cursor":"next"`, 200},
 		{"empty limit", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?limit=", "", `"code":"invalid_request"`, 400},
@@ -122,7 +125,7 @@ func (s *subagentParityService) Get(_ context.Context, workspaceID, id string) (
 	if id == "missing" {
 		return session.Subagent{}, session.ErrSubagentNotFound
 	}
-	row := store.SessionSubagent{ID: id, WorkspaceID: workspaceID, ParentSessionID: "parent", Origin: store.SubagentOriginDelegated, Result: new("answer\nmore")}
+	row := store.SessionSubagent{ID: id, WorkspaceID: workspaceID, ParentSessionID: "parent", Origin: store.SubagentOriginDelegated, CreatedAt: time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), Result: new("answer\nmore")}
 	if id == "native" {
 		row.Origin = store.SubagentOriginProviderNative
 	}
@@ -147,7 +150,7 @@ func (s *subagentParityService) List(_ context.Context, q store.SubagentListQuer
 	return store.SubagentPage{Items: []store.SessionSubagent{{ID: "sub-1", ParentSessionID: q.ParentSessionID, WorkspaceID: q.WorkspaceID}}}, nil
 }
 func (s *subagentParityService) Cancel(_ context.Context, actor session.SubagentActor, id, reason string) (session.SubagentCancelOutcome, error) {
-	if actor.Kind != "operator" || reason != "done" {
+	if actor.Kind != "operator" || (reason != "done" && reason != "") {
 		return session.SubagentCancelOutcome{}, errors.New("unexpected cancel")
 	}
 	if id == "completed" {

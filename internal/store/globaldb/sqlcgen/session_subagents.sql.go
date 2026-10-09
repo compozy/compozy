@@ -1216,6 +1216,25 @@ func (q *Queries) SubagentSummaries(ctx context.Context, parentIds any) ([]Subag
 	return items, nil
 }
 
+const updateNativeSubagentTitle = `-- name: UpdateNativeSubagentTitle :execrows
+UPDATE session_subagents SET title = ?1, updated_at = ?2
+WHERE id = ?3 AND origin = 'provider_native' AND title <> ?1
+`
+
+type UpdateNativeSubagentTitleParams struct {
+	Title     string `json:"title"`
+	UpdatedAt string `json:"updated_at"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) UpdateNativeSubagentTitle(ctx context.Context, arg UpdateNativeSubagentTitleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNativeSubagentTitle, arg.Title, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateSubagentProgress = `-- name: UpdateSubagentProgress :execrows
 UPDATE session_subagents SET progress = ?, updated_at = ? WHERE id = ? AND status IN ('queued','running','waiting')
 `

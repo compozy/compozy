@@ -345,6 +345,28 @@ func TestGlobalDBSubagents(t *testing.T) {
 }
 
 func TestGlobalDBSubagentStateUpdates(t *testing.T) {
+	t.Run("Should persist later native titles without changing delegated rows or replay timestamps", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		row := store.SessionSubagent{ID: "native", WorkspaceID: workspace, ParentSessionID: parent, ParentTurnID: "turn", Origin: store.SubagentOriginProviderNative, ProviderToolCallID: "tool", IdempotencyKey: "tool", RequestFingerprint: "native:tool", Title: "Task", Depth: 1, WakePolicy: store.SubagentWakePolicySettledOnly}
+		_, _, err := db.ReserveSubagent(t.Context(), row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		updated, changed, err := db.UpdateNativeSubagentTitle(t.Context(), row.ID, "Survey risks", now.Add(time.Second))
+		if err != nil || !changed || updated.Title != "Survey risks" {
+			t.Fatal(updated, changed, err)
+		}
+		replayed, changed, err := db.UpdateNativeSubagentTitle(t.Context(), row.ID, updated.Title, now.Add(2*time.Second))
+		if err != nil || changed || !replayed.UpdatedAt.Equal(updated.UpdatedAt) {
+			t.Fatal(replayed, changed, err)
+		}
+		delegated := reserveSubagent(t, db.SessionRepo, workspace, parent, "delegated-title", now)
+		unchanged, changed, err := db.UpdateNativeSubagentTitle(t.Context(), delegated.ID, "Wrong", now.Add(time.Second))
+		if err != nil || changed || unchanged.Title != delegated.Title {
+			t.Fatal(unchanged, changed, err)
+		}
+	})
 	t.Run("Should update only nonterminal state and preserve unchanged timestamps", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

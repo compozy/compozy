@@ -358,6 +358,12 @@ func newSubagentDaemonConfigured(
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Real providers may announce a generic call before streaming its description.
+	first, rest, _ := strings.Cut(strings.TrimSpace(string(nativeData)), "\n")
+	initial := strings.Replace(first, `"title":"Review the diff (high effort)"`, `"title":"Task"`, 1)
+	initial = strings.Replace(initial, `"description":"Review the diff (high effort)",`, "", 1)
+	update := strings.Replace(first, `"sessionUpdate":"tool_call"`, `"sessionUpdate":"tool_call_update"`, 1)
+	nativeData = []byte(initial + "\n" + update + "\n" + rest)
 	nativeSteps := []acpmock.Step{}
 	for frame := range strings.SplitSeq(strings.TrimSpace(string(nativeData)), "\n") {
 		nativeSteps = append(
@@ -490,6 +496,7 @@ func TestSubagentNativeDaemonIntegration(t *testing.T) {
 		})
 		if row.Origin != "provider_native" || row.ChildSessionID != nil || row.ProviderToolCallID != "toolu_agent" ||
 			row.RuntimeModel != "sonnet-5.5" ||
+			row.Title != "Review the diff (high effort)" ||
 			row.WakeMessageID != nil ||
 			row.Delivery != "none" ||
 			row.Result == nil ||

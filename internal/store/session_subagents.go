@@ -183,6 +183,7 @@ type SubagentStore interface {
 	ListSubagents(ctx context.Context, q SubagentListQuery) (SubagentPage, error)
 	Summaries(ctx context.Context, parentIDs []string) (map[string]SubagentSummary, error)
 	UpdateProgress(ctx context.Context, id, progress string, at time.Time) error
+	UpdateNativeSubagentTitle(ctx context.Context, id, title string, at time.Time) (SessionSubagent, bool, error)
 	UpdateSubagentState(ctx context.Context, id, status, workState string, at time.Time) (SessionSubagent, bool, error)
 	FinalizeSubagent(ctx context.Context, in SubagentFinalize) (SessionSubagent, bool, error)
 

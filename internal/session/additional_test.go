@@ -1155,7 +1155,7 @@ func TestNativeSubagentEventFromStored(t *testing.T) {
 				ToolCallID: "toolu_agent",
 				Title:      "Review the diff (high effort)",
 			}.WithProviderToolMetadata("", tool, "pending").
-				WithTool(tool, json.RawMessage(`{"model":"sonnet-5.5"}`), false)
+				WithTool(tool, json.RawMessage(`{"model":"sonnet-5.5","description":"Survey risks"}`), false)
 			payload, err := transcript.MarshalAgentEvent(event)
 			if err != nil {
 				t.Fatal(err)
@@ -1168,7 +1168,7 @@ func TestNativeSubagentEventFromStored(t *testing.T) {
 			}
 			if got.WorkspaceID != "workspace" || got.ParentTurnID != "turn" || got.ToolName != tool ||
 				got.ProviderToolCallID != "toolu_agent" ||
-				got.Title != event.Title ||
+				got.Title != "Survey risks" ||
 				got.Model != "sonnet-5.5" ||
 				got.Status != "pending" ||
 				!got.At.Equal(at) {

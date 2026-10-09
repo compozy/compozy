@@ -56,6 +56,6 @@ func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent
 	return NativeSubagentEvent{
 		WorkspaceID: workspaceID, ParentTurnID: cmp.Or(stored.TurnID, event.TurnID),
 		ProviderToolCallID: event.ToolCallID, ToolName: event.ProviderToolName(),
-		Title: event.Title, Model: model, Status: status, Result: result, Error: detail, At: at,
+		Title: transcript.NativeSubagentTitle(event), Model: model, Status: status, Result: result, Error: detail, At: at,
 	}, true, nil
 }

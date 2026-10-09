@@ -35,9 +35,7 @@ function toSubagentOrigin(origin: string): SubagentOrigin {
 }
 
 /**
- * The one wire → view mapping for a subagent row. The wire names the id
- * `subagent_id` and carries no `created_at`; the earliest daemon timestamp
- * stands in so newest-first ordering stays stable.
+ * The wire → view mapping preserves the daemon creation timestamp for stable ordering.
  */
 export function subagentViewFromPayload(payload: SubagentPayload): SubagentView {
   return {
@@ -58,7 +56,7 @@ export function subagentViewFromPayload(payload: SubagentPayload): SubagentView 
     depth: payload.depth,
     started_at: payload.started_at,
     settled_at: payload.settled_at,
-    created_at: payload.started_at ?? payload.updated_at,
+    created_at: payload.created_at,
     updated_at: payload.updated_at,
     delivery: payload.delivery,
   };

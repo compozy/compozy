@@ -595,3 +595,15 @@ func settleTestChild(t *testing.T, s *subagentService, r *subagentTestRuntime, r
 	}
 }
 func testSubagentError() error { return errors.New("provider failed") }
+
+func (d *memorySubagents) UpdateNativeSubagentTitle(_ context.Context, id, title string, at time.Time) (store.SessionSubagent, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row := d.rows[id]
+	changed := row.Origin == store.SubagentOriginProviderNative && row.Title != title
+	if changed {
+		row.Title, row.UpdatedAt = title, at
+		d.rows[id] = row
+	}
+	return row, changed, nil
+}

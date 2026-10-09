@@ -758,6 +758,74 @@ func TestCompactionProjection(t *testing.T) {
 }
 
 func TestSubagentUIProjection(t *testing.T) {
+	t.Run("Should project hosted delegate names from both metadata surfaces", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{"compozy__subagent_delegate", "mcp__compozy-hosted-tools__compozy__subagent_delegate", "mcp.compozy-hosted-tools.compozy__subagent_delegate", "compozy-hosted-tools.compozy__subagent_delegate"} {
+			for _, providerMetadata := range []bool{false, true} {
+				event := acp.AgentEvent{Type: acp.EventTypeToolResult, SessionID: "parent", TurnID: "turn", ToolCallID: "call", Raw: json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated"}}`)}
+				if providerMetadata {
+					event = event.WithProviderToolMetadata("", name, "completed")
+				} else {
+					event = event.WithTool(name, nil, false)
+				}
+				content, err := MarshalAgentEvent(event)
+				if err != nil {
+					t.Fatal(err)
+				}
+				messages, err := ToUIMessages([]store.SessionEvent{{ID: "event", SessionID: "parent", TurnID: "turn", Sequence: 1, Type: event.Type, Content: content}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				cards := 0
+				for _, message := range messages {
+					for _, part := range message.Parts {
+						if part.Type == "data-compozy-subagent" {
+							cards++
+						}
+					}
+				}
+				if cards != 1 {
+					t.Fatalf("%s (provider=%v): cards=%d", name, providerMetadata, cards)
+				}
+			}
+		}
+	})
+	t.Run("Should replace a generic native title with the streamed description without guessing its provider", func(t *testing.T) {
+		t.Parallel()
+		var rows []store.SessionEvent
+		for i, input := range []string{`{}`, `{"description":"Survey BRIEF.md risks"}`} {
+			event := acp.AgentEvent{Type: acp.EventTypeToolCall, SessionID: "parent", TurnID: "turn", ToolCallID: "native", Title: "Task"}.
+				WithTool("Agent", json.RawMessage(input), false).WithProviderToolMetadata("", "Agent", "in_progress")
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows = append(rows, store.SessionEvent{ID: fmt.Sprintf("event-%d", i), SessionID: "parent", TurnID: "turn", Sequence: int64(i + 1), Type: event.Type, Content: content})
+		}
+		messages, err := ToUIMessages(rows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cards := 0
+		for _, message := range messages {
+			for _, part := range message.Parts {
+				if part.Type != "data-compozy-subagent" {
+					continue
+				}
+				cards++
+				var payload UISubagentPayload
+				if err := json.Unmarshal(part.Data, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Title != "Survey BRIEF.md risks" || payload.RuntimeProvider != "" {
+					t.Fatalf("payload=%#v", payload)
+				}
+			}
+		}
+		if cards != 1 {
+			t.Fatalf("cards=%d", cards)
+		}
+	})
 	// UT-038: tool/text attribution does not merge child chunks into parent chunks.
 	t.Run("Should project native and delegated cards at their transcript positions", func(t *testing.T) {
 		t.Parallel()

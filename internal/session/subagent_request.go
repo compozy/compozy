@@ -120,6 +120,9 @@ func resolveSubagentTarget(inherited, requested, defaults SubagentTarget) Subage
 	}
 	if target.Speed == "" {
 		target.Speed = base.Speed
+		if target.Speed == "" {
+			target.Speed = "normal"
+		}
 	}
 	if target.ACPOptions == nil {
 		target.ACPOptions = acp.CloneSessionConfigOptionSelections(base.ACPOptions)
@@ -162,12 +165,15 @@ func subagentPermissions(
 func presentSubagent(row store.SessionSubagent) Subagent {
 	// PendingTask is recovery state, never a presentation field.
 	row.PendingTask = nil
+	if row.Origin == store.SubagentOriginDelegated && row.RuntimeSpeed == "" {
+		row.RuntimeSpeed = "normal"
+	}
 	result := Subagent{SessionSubagent: row}
 	if row.Result != nil {
 		result.ResultPreview = subagentFirstLine(*row.Result, 280)
 	}
 	if row.ResultTruncated {
-		result.Hint = "Result truncated. Open the child session to read the full transcript."
+		result.Hint = "Read the full answer with compozy__session_history on child_session_id."
 	}
 	return result
 }

@@ -85,6 +85,14 @@ func TestSubagentRequest(t *testing.T) {
 }
 func TestSubagentTargetAndPermissions(t *testing.T) {
 	t.Parallel()
+	t.Run("Should default omitted runtime speed to normal", func(t *testing.T) {
+		t.Parallel()
+		target := resolveSubagentTarget(SubagentTarget{}, SubagentTarget{}, SubagentTarget{})
+		row := presentSubagent(store.SessionSubagent{Origin: store.SubagentOriginDelegated})
+		if target.Speed != "normal" || row.RuntimeSpeed != "normal" {
+			t.Fatal(target, row)
+		}
+	})
 	t.Run("Should inherit only matching provider runtime UT-001 UT-002", func(t *testing.T) {
 		t.Parallel()
 		in := SubagentTarget{
@@ -369,7 +377,7 @@ func TestSubagentLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, err := s.Get(t.Context(), "ws", row.ID)
-		if err != nil || !got.ResultTruncated || *got.Result != "界界界" || got.Hint == "" || hook.calls != 1 ||
+		if err != nil || !got.ResultTruncated || *got.Result != "界界界" || got.Hint != "Read the full answer with compozy__session_history on child_session_id." || hook.calls != 1 ||
 			db.rows[row.ID].Delivery != "claimed" {
 			t.Fatal(got, err, hook.calls)
 		}
@@ -754,6 +762,13 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			row.RuntimeModel != ev.Model ||
 			row.ProviderToolCallID != ev.ProviderToolCallID {
 			t.Fatal(row)
+		}
+		ev.Title = "Survey BRIEF.md risks"
+		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+			t.Fatal(err)
+		}
+		if db.rows[id].Title != ev.Title {
+			t.Fatalf("updated title = %q", db.rows[id].Title)
 		}
 		ev.Status = "completed"
 		ev.Result = "native answer"

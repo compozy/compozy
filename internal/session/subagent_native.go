@@ -51,6 +51,22 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if row.Origin != store.SubagentOriginProviderNative {
 		return store.ErrSubagentIdempotencyConflict
 	}
+	title := strings.TrimSpace(ev.Title)
+	if title != "" && title != "Agent" && title != "Task" && title != row.Title {
+		runes := []rune(title)
+		at := ev.At
+		if at.IsZero() {
+			at = s.now().UTC()
+		}
+		var changed bool
+		row, changed, err = s.store.UpdateNativeSubagentTitle(ctx, id, string(runes[:min(512, len(runes))]), at)
+		if err != nil {
+			return err
+		}
+		if changed {
+			s.publish(ctx, row)
+		}
+	}
 	if !terminal || store.IsSubagentStatusTerminal(row.Status) {
 		return nil
 	}

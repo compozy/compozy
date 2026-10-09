@@ -117924,6 +117924,10 @@
                               "nullable": true,
                               "type": "string"
                             },
+                            "created_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
                             "delivery": {
                               "type": "string"
                             },
@@ -118028,6 +118032,7 @@
                           },
                           "required": [
                             "child_session_id",
+                            "created_at",
                             "delivery",
                             "depth",
                             "error",
@@ -118071,6 +118076,10 @@
                             "properties": {
                               "child_session_id": {
                                 "nullable": true,
+                                "type": "string"
+                              },
+                              "created_at": {
+                                "format": "date-time",
                                 "type": "string"
                               },
                               "delivery": {
@@ -118177,6 +118186,7 @@
                             },
                             "required": [
                               "child_session_id",
+                              "created_at",
                               "delivery",
                               "depth",
                               "error",
@@ -296087,6 +296097,10 @@
                               "nullable": true,
                               "type": "string"
                             },
+                            "created_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
                             "delivery": {
                               "type": "string"
                             },
@@ -296191,6 +296205,7 @@
                           },
                           "required": [
                             "child_session_id",
+                            "created_at",
                             "delivery",
                             "depth",
                             "error",
@@ -296234,6 +296249,10 @@
                             "properties": {
                               "child_session_id": {
                                 "nullable": true,
+                                "type": "string"
+                              },
+                              "created_at": {
+                                "format": "date-time",
                                 "type": "string"
                               },
                               "delivery": {
@@ -296340,6 +296359,7 @@
                             },
                             "required": [
                               "child_session_id",
+                              "created_at",
                               "delivery",
                               "depth",
                               "error",
@@ -297049,6 +297069,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
                           "delivery": {
                             "type": "string"
                           },
@@ -297153,6 +297177,7 @@
                         },
                         "required": [
                           "child_session_id",
+                          "created_at",
                           "delivery",
                           "depth",
                           "error",
@@ -305493,6 +305518,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
                     "delivery": {
                       "type": "string"
                     },
@@ -305597,6 +305626,7 @@
                   },
                   "required": [
                     "child_session_id",
+                    "created_at",
                     "delivery",
                     "depth",
                     "error",

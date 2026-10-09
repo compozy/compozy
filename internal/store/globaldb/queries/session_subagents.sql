@@ -134,3 +134,7 @@ SET text = sqlc.arg(text),
 WHERE id = sqlc.arg(input_id) AND session_id = sqlc.arg(parent_id)
  AND status = 'queued' AND owner_kind = 'synthetic'
  AND json_type(synthetic_prompt_json) = 'object';
+
+-- name: UpdateNativeSubagentTitle :execrows
+UPDATE session_subagents SET title = @title, updated_at = @updated_at
+WHERE id = @id AND origin = 'provider_native' AND title <> @title;

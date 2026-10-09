@@ -48110,6 +48110,8 @@ export interface operations {
               session_id: string;
               subagent: {
                 child_session_id: string | null;
+                /** Format: date-time */
+                created_at: string;
                 delivery: string;
                 depth: number;
                 error: string | null;
@@ -48148,6 +48150,8 @@ export interface operations {
               session_id: string;
               subagents: {
                 child_session_id: string | null;
+                /** Format: date-time */
+                created_at: string;
                 delivery: string;
                 depth: number;
                 error: string | null;
@@ -117126,6 +117130,8 @@ export interface operations {
               session_id: string;
               subagent: {
                 child_session_id: string | null;
+                /** Format: date-time */
+                created_at: string;
                 delivery: string;
                 depth: number;
                 error: string | null;
@@ -117164,6 +117170,8 @@ export interface operations {
               session_id: string;
               subagents: {
                 child_session_id: string | null;
+                /** Format: date-time */
+                created_at: string;
                 delivery: string;
                 depth: number;
                 error: string | null;
@@ -117446,6 +117454,8 @@ export interface operations {
             next_cursor: string | null;
             subagents: {
               child_session_id: string | null;
+              /** Format: date-time */
+              created_at: string;
               delivery: string;
               depth: number;
               error: string | null;
@@ -121047,6 +121057,8 @@ export interface operations {
         content: {
           "application/json": {
             child_session_id: string | null;
+            /** Format: date-time */
+            created_at: string;
             delivery: string;
             depth: number;
             error: string | null;

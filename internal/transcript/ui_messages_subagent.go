@@ -2,10 +2,12 @@ package transcript
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subagentid"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 // UISubagentPayload identifies the roster entry and supplies initial display hints.
@@ -32,8 +34,7 @@ func (b *uiMessageBuilder) appendSubagentPart(decoded *decodedStoredEvent) {
 		}
 		payload.SubagentID = subagentid.Derive(parentID, event.ToolCallID)
 		payload.Origin = store.SubagentOriginProviderNative
-		payload.Title = event.Title
-		payload.RuntimeProvider = "claude"
+		payload.Title = NativeSubagentTitle(event)
 		var input struct {
 			Model string `json:"model"`
 		}
@@ -41,7 +42,7 @@ func (b *uiMessageBuilder) appendSubagentPart(decoded *decodedStoredEvent) {
 			payload.RuntimeModel = input.Model
 		}
 	case decoded.parsed.Type == acp.EventTypeToolResult && !decoded.parsed.ToolError &&
-		(decoded.parsed.ToolName == "compozy__subagent_delegate" || event.ProviderToolName() == "compozy__subagent_delegate"):
+		(toolmeta.NormalizeHostedToolName(decoded.parsed.ToolName) == "compozy__subagent_delegate" || toolmeta.NormalizeHostedToolName(event.ProviderToolName()) == "compozy__subagent_delegate"):
 		result := decoded.parsed.ToolResult
 		if result == nil {
 			return
@@ -62,4 +63,15 @@ func (b *uiMessageBuilder) appendSubagentPart(decoded *decodedStoredEvent) {
 		return
 	}
 	b.appendDataPart("data-compozy-subagent", payload.SubagentID, data)
+}
+
+// NativeSubagentTitle prefers the task description as streamed tool arguments become available.
+func NativeSubagentTitle(event acp.AgentEvent) string {
+	var input struct {
+		Description string `json:"description"`
+	}
+	if json.Unmarshal(event.ToolInput(), &input) == nil && strings.TrimSpace(input.Description) != "" {
+		return strings.TrimSpace(input.Description)
+	}
+	return strings.TrimSpace(event.Title)
 }

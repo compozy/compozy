@@ -45,6 +45,7 @@ type SubagentPayload struct {
 	Delivery           string                 `json:"delivery"`
 	StartedAt          *time.Time             `json:"started_at"`
 	SettledAt          *time.Time             `json:"settled_at"`
+	CreatedAt          time.Time              `json:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
 }
 
@@ -81,6 +82,9 @@ type SubagentUpdatedEvent struct {
 }
 
 func SubagentFromDomain(row session.Subagent) SubagentPayload {
+	if row.Origin == store.SubagentOriginDelegated && row.RuntimeSpeed == "" {
+		row.RuntimeSpeed = "normal"
+	}
 	if row.ResultPreview == "" && row.Result != nil {
 		line, _, _ := strings.Cut(*row.Result, "\n")
 		preview := []rune(line)
@@ -103,7 +107,7 @@ func SubagentFromDomain(row session.Subagent) SubagentPayload {
 		Depth: row.Depth, Progress: row.Progress, Result: row.Result, ResultPreview: row.ResultPreview,
 		ResultTruncated: row.ResultTruncated, Error: row.Error, WaitTimedOut: row.WaitTimedOut,
 		Hint: row.Hint, Delivery: row.Delivery, StartedAt: row.StartedAt,
-		SettledAt: row.SettledAt, UpdatedAt: row.UpdatedAt,
+		SettledAt: row.SettledAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 

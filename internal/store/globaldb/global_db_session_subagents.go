@@ -223,3 +223,17 @@ func (g *SessionRepo) UpdateSubagentState(
 	})
 	return out, changed, err
 }
+
+func (g *SessionRepo) UpdateNativeSubagentTitle(ctx context.Context, id, title string, at time.Time) (out store.SessionSubagent, changed bool, err error) {
+	err = g.withImmediateTransaction(ctx, "update native subagent title", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		n, e := q.UpdateNativeSubagentTitle(ctx, sqlcgen.UpdateNativeSubagentTitleParams{ID: id, Title: title, UpdatedAt: store.FormatTimestamp(at)})
+		if e != nil {
+			return e
+		}
+		out, e = readSubagent(ctx, q, id)
+		changed = n == 1
+		return e
+	})
+	return out, changed, err
+}
