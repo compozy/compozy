@@ -12827,7 +12827,10 @@ func TestNativeSubagentBindings(t *testing.T) {
 				ParentSessionID: c.SessionID,
 				Providers: []session.SubagentProviderOption{
 					{
-						Provider: "codex",
+						Provider:        "codex",
+						ModelsTotal:     611,
+						ModelsTruncated: true,
+						CanDelegate:     true,
 						Models: []session.SubagentModelOption{
 							{ID: "gpt", Label: "GPT", ReasoningEfforts: []string{"high"}, Speeds: []string{"normal"}},
 						},
@@ -12889,6 +12892,10 @@ func TestNativeSubagentBindings(t *testing.T) {
 				t.Fatal(err)
 			}
 			requireNativeStructuredContains(t, result, []byte(tc.want))
+			if tc.id == toolspkg.ToolIDSubagentCapabilities {
+				requireNativeStructuredContains(t, result, []byte(`"models_total":611`))
+				requireNativeStructuredContains(t, result, []byte(`"models_truncated":true`))
+			}
 		}
 	})
 }

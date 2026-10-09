@@ -106,11 +106,13 @@ func (e *SubagentError) Unwrap() error { return e.Err }
 
 // SubagentProviderOption is one delegable provider in the capabilities payload.
 type SubagentProviderOption struct {
-	Provider    string
-	DisplayName string
-	Models      []SubagentModelOption
-	CanDelegate bool
-	Constraints []string
+	Provider        string
+	DisplayName     string
+	Models          []SubagentModelOption
+	ModelsTotal     int
+	ModelsTruncated bool
+	CanDelegate     bool
+	Constraints     []string
 }
 
 // SubagentCapabilities answers compozy__subagent_capabilities.

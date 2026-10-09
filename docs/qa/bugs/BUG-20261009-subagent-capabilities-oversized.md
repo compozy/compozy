@@ -24,3 +24,11 @@ Every `compozy__subagent_capabilities` call from a Claude parent returned 99,133
 ## Evidence
 
 - `providers` is ~106 KB: `opencode` lists 611 models (82 KB) and `hermes` 89 (13 KB), and every non-delegatable provider is included. Bound or summarize the model lists (for example, models only for `can_delegate` providers, with a cap) or let the agent ask per provider.
+
+## Remediation
+
+Capabilities now includes at most 40 models for each delegable provider, current/default first,
+with additive `models_total` and `models_truncated`. Unavailable providers expose an empty model
+list. Delegate validation retains the complete catalog. UT-017 covers a 611-model catalog and an
+omitted valid delegate target; native binding coverage checks the additive wire fields. Real-provider
+verification remains pending; this entry's status is unchanged until the QA re-walk.

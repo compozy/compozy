@@ -15,7 +15,9 @@ func subagentDescriptors() []toolspkg.Descriptor {
 			"subagent_capabilities",
 			"Subagent Capabilities",
 			"Discover inherited runtime settings and available agents, providers, models and "+
-				"constraints before delegating. Read-only and idempotent; requires an active caller turn.",
+				"constraints before delegating. Model lists include only delegable providers, with at most 40 models each "+
+				"(current/default first). Any model id advertised by the provider is accepted even if not listed here; "+
+				"delegation validates the full catalog. Read-only and idempotent; requires an active caller turn.",
 			emptyInputSchema,
 			subagentCapabilitiesOutputSchema,
 			toolspkg.RiskRead,
