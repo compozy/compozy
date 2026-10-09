@@ -750,6 +750,21 @@ func TestSubagentTranscriptResult(t *testing.T) {
 				record("current", acp.EventTypeAgentMessage, message)
 				record("current", acp.EventTypeDone, "")
 			}
+			// Provider-native inner output must not become the parent's delegated result.
+			sequence++
+			if err := recorder.Record(
+				t.Context(),
+				store.SessionEvent{
+					Sequence:  sequence,
+					TurnID:    "current",
+					Type:      acp.EventTypeAgentMessage,
+					AgentName: child.Info().AgentName,
+					Content:   `{"schema":"compozy.session.event.v1","type":"agent_message","text":"inner answer","parent_tool_call_id":"nested"}`,
+					Timestamp: time.Now().UTC(),
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
 			got, err := (managerSubagentRuntime{h.manager}).Result(t.Context(), child.ID)
 			if err != nil || got != tc.want {
 				t.Fatalf("got %q want %q err %v", got, tc.want, err)

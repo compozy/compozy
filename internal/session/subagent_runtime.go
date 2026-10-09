@@ -127,6 +127,13 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, 
 				finished = true
 				break
 			}
+			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil {
+				return "", err
+			}
+			if decoded.ParentToolCallID() != "" {
+				continue
+			}
 			events = append(events, event)
 		}
 		if finished {

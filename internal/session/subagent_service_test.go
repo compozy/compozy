@@ -712,16 +712,16 @@ func TestSubagentModelValidation(t *testing.T) {
 		for i := range options {
 			options[i].ID = string(rune('a' + i))
 		}
-		err := validateSubagentModel("gpt-9", options)
+		err := validateSubagentModel("gpt-9", "codex", options)
 		typed, ok := errors.AsType[*SubagentError](err)
 		if !ok || typed.Code != "model_unavailable" ||
-			typed.Message != "Model gpt-9 is unavailable. Available models: a, b, c, d, e, f, g, h, i, j" {
+			typed.Message != "Model gpt-9 is not available on codex. Available: a, b, c, d, e, f, g, h, i, j." {
 			t.Fatal(err)
 		}
 	})
 	t.Run("Should permit default with unavailable catalog UT-005", func(t *testing.T) {
 		t.Parallel()
-		if err := validateSubagentModel("default", nil); err != nil {
+		if err := validateSubagentModel("default", "codex", nil); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -824,5 +824,78 @@ func TestSubagentSteerCompletion(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+// IT-031 database boundary: recovery consumes persisted tasks and stale reservations against real SQLite.
+// The runtime fixture is the I/O boundary; the port, constraints and transactions are production code.
+func TestSubagentDatabaseRecovery(t *testing.T) {
+	t.Parallel()
+	h := newDeriveHarness(t)
+	parent := createSession(t, h.harness)
+	child := createSession(t, h.harness)
+	s, _, runtime := newSubagentTestService(t)
+	s.store = h.db
+	runtime.snapshots[parent.ID] = runtime.snapshots["parent"]
+	snapshot := runtime.snapshots[parent.ID]
+	info := *snapshot.Info
+	info.ID = parent.ID
+	info.WorkspaceID = h.workspaceID
+	snapshot.Info = &info
+	runtime.snapshots[parent.ID] = snapshot
+	runtime.snapshots[child.ID] = subagentSnapshot{
+		Info:   &Info{ID: child.ID, WorkspaceID: h.workspaceID, State: StateActive},
+		Active: true,
+	}
+	stale := store.SessionSubagent{
+		ID:                 "sub-stale",
+		WorkspaceID:        h.workspaceID,
+		ParentSessionID:    parent.ID,
+		ParentTurnID:       "turn",
+		Origin:             "delegated",
+		IdempotencyKey:     "stale",
+		RequestFingerprint: "stale",
+		Title:              "Stale",
+		Role:               "general",
+		Depth:              1,
+		Status:             "queued",
+		WorkState:          "working",
+		WakePolicy:         "always",
+		Delivery:           "none",
+		PendingTask:        new("task"),
+		CreatedAt:          s.now().Add(-5 * time.Minute),
+	}
+	if _, _, err := h.db.ReserveSubagent(t.Context(), stale); err != nil {
+		t.Fatal(err)
+	}
+	running := stale
+	running.ID = "sub-running"
+	running.IdempotencyKey = "running"
+	running.RequestFingerprint = "running"
+	running.CreatedAt = s.now()
+	running.PendingTask = new("recover task")
+	if _, _, err := h.db.ReserveSubagent(t.Context(), running); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.db.LinkChild(t.Context(), running.ID, child.ID, s.now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Recover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := h.db.GetSubagent(t.Context(), h.workspaceID, stale.ID)
+	if err != nil || got.Status != "failed" || got.Error == nil || *got.Error != "delegation interrupted" {
+		t.Fatal(got, err)
+	}
+	got, err = h.db.GetSubagent(t.Context(), h.workspaceID, running.ID)
+	if err != nil || got.PendingTask != nil || runtime.admitted[running.ID] != "recover task" ||
+		got.Status != "running" {
+		t.Fatal(got, err)
+	}
+	if err := s.Recover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.admitted) != 1 {
+		t.Fatal(runtime.admitted)
 	}
 }

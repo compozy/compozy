@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/providers"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (r managerSubagentRuntime) Resolve(
@@ -41,6 +43,13 @@ func (r managerSubagentRuntime) Resolve(
 		r.m.agentResolver,
 	)
 	if err != nil {
+		if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			return SubagentTarget{}, &SubagentError{
+				Code:    "agent_not_found",
+				Message: fmt.Sprintf("Agent %s not found.", agent),
+				Err:     ErrSubagentTargetUnavailable,
+			}
+		}
 		return SubagentTarget{}, &SubagentError{
 			Code:    "provider_unavailable",
 			Message: err.Error(),
@@ -69,7 +78,7 @@ func (r managerSubagentRuntime) Resolve(
 			Speed:           string(resolved.SpeedValue()),
 		},
 	)
-	if err := validateSubagentModel(target.Model, option.Models); err != nil {
+	if err := validateSubagentModel(target.Model, target.Provider, option.Models); err != nil {
 		return SubagentTarget{}, err
 	}
 	return target, nil
@@ -194,7 +203,7 @@ func (r managerSubagentRuntime) providerOption(
 	return option, nil
 }
 
-func validateSubagentModel(model string, options []SubagentModelOption) error {
+func validateSubagentModel(model, provider string, options []SubagentModelOption) error {
 	if model == "" || len(options) == 0 {
 		return nil
 	}
@@ -208,8 +217,8 @@ func validateSubagentModel(model string, options []SubagentModelOption) error {
 	return &SubagentError{
 		Code: "model_unavailable",
 		Message: fmt.Sprintf(
-			"Model %s is unavailable. Available models: %s",
-			model,
+			"Model %s is not available on %s. Available: %s.",
+			model, provider,
 			strings.Join(ids[:min(10, len(ids))], ", "),
 		),
 		Err: ErrSubagentTargetUnavailable,

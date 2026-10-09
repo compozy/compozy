@@ -33,7 +33,11 @@ const (
 
 // CancelPrompt cancels prompt setup/execution for a known session.
 func (m *Manager) CancelPrompt(ctx context.Context, id string) (PromptCancelResult, error) {
-	return m.CancelPromptWithCause(ctx, id, PromptCancelUser)
+	cause := PromptCancelUser
+	if actingSessionID(ctx) != "" {
+		cause = PromptCancelAgent
+	}
+	return m.CancelPromptWithCause(ctx, id, cause)
 }
 
 func (m *Manager) CancelPromptWithCause(

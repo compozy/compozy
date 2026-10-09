@@ -24,7 +24,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	}
 	mode, policy, err := subagentPermissions(snap.Info, req)
 	if err != nil {
-		return Subagent{}, err
+		return Subagent{}, &SubagentError{Code: "permission_escalation_denied", Message: err.Error(), Err: err}
 	}
 	fingerprint, err := subagentFingerprint(req)
 	if err != nil {
