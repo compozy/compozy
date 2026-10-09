@@ -5771,6 +5771,8 @@ export interface BackendRef {
   requires_capabilities?: string[];
 }
 
+export type ErrorCode = string;
+
 export type SourceKind = "builtin" | "mcp" | "extension" | "dynamic";
 
 export interface SourceRef {
@@ -5787,8 +5789,6 @@ export interface SourceRef {
 
 export type Visibility = string;
 
-export type ErrorCode = string;
-
 export type ToolsetID = string;
 
 export interface Tool {
@@ -5797,6 +5797,9 @@ export interface Tool {
   display_title?: string;
   friendly_verb?: string;
   preview?: string;
+  max_result_bytes?: number;
+  idempotent?: boolean;
+  input_error_code?: ErrorCode;
   description: string;
   input_schema: JSONValue;
   output_schema?: JSONValue;
@@ -5805,14 +5808,11 @@ export interface Tool {
   source: SourceRef;
   visibility: Visibility;
   risk: RiskClass;
-  idempotent?: boolean;
-  input_error_code?: ErrorCode;
   read_only: boolean;
   destructive: boolean;
   open_world: boolean;
   requires_interaction: boolean;
   concurrency_safe: boolean;
-  max_result_bytes?: number;
   toolsets?: ToolsetID[];
   tags?: string[];
   search_hints?: string[];

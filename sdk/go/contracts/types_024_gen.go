@@ -87,6 +87,9 @@ type Tool struct {
 	DisplayTitle        string          `json:"display_title,omitempty"`
 	FriendlyVerb        string          `json:"friendly_verb,omitempty"`
 	Preview             string          `json:"preview,omitempty"`
+	MaxResultBytes      int64           `json:"max_result_bytes,omitempty"`
+	Idempotent          bool            `json:"idempotent,omitempty"`
+	InputErrorCode      ErrorCode       `json:"input_error_code,omitempty"`
 	Description         string          `json:"description"`
 	InputSchema         json.RawMessage `json:"input_schema"`
 	OutputSchema        json.RawMessage `json:"output_schema,omitempty"`
@@ -95,14 +98,11 @@ type Tool struct {
 	Source              SourceRef       `json:"source"`
 	Visibility          Visibility      `json:"visibility"`
 	Risk                RiskClass       `json:"risk"`
-	Idempotent          bool            `json:"idempotent,omitempty"`
-	InputErrorCode      ErrorCode       `json:"input_error_code,omitempty"`
 	ReadOnly            bool            `json:"read_only"`
 	Destructive         bool            `json:"destructive"`
 	OpenWorld           bool            `json:"open_world"`
 	RequiresInteraction bool            `json:"requires_interaction"`
 	ConcurrencySafe     bool            `json:"concurrency_safe"`
-	MaxResultBytes      int64           `json:"max_result_bytes,omitempty"`
 	Toolsets            []ToolsetID     `json:"toolsets,omitempty"`
 	Tags                []string        `json:"tags,omitempty"`
 	SearchHints         []string        `json:"search_hints,omitempty"`
