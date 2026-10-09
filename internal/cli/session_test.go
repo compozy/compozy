@@ -4622,6 +4622,8 @@ func TestSubagentCommands(t *testing.T) {
 	}{
 		{"list table", []string{"parent"}, "ID", false},
 		{"list JSON", []string{"parent", "--json"}, `"next_cursor":null`, false},
+		{"show workspace help", []string{"show", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
+		{"cancel workspace help", []string{"cancel", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
 		{"show result", []string{"show", "sub-1"}, "Result\nRecommendation", false},
 		{"show JSON", []string{"show", "sub-1", "--json"}, `"subagent_id":"sub-1"`, false},
 		{"cancel", []string{"cancel", "sub-1", "--reason", "done"}, "Cancel requested for sub-1 (Review).", false},
