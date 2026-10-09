@@ -52,23 +52,6 @@ export function isSubagentSession(session: SessionPayload): boolean {
 }
 
 /**
- * The sidebar excludes subagent sessions server-side; while the operator views
- * one, only that session is revealed, nested under its parent row. A parent
- * outside the loaded page reveals nothing: a subagent never becomes a root.
- */
-export function withRevealedSubagent(
-  sessions: readonly SessionPayload[],
-  revealed: SessionPayload | null | undefined
-): readonly SessionPayload[] {
-  if (!revealed || !isSubagentSession(revealed)) return sessions;
-  const parentId = revealed.lineage?.parent_session_id ?? "";
-  if (sessions.some(session => session.id === revealed.id)) return sessions;
-  const parentIndex = sessions.findIndex(session => session.id === parentId);
-  if (parentIndex < 0) return sessions;
-  return [...sessions.slice(0, parentIndex + 1), revealed, ...sessions.slice(parentIndex + 1)];
-}
-
-/**
  * The parent a session nests under. Continued and forked sessions are new
  * top-level sessions the operator started; their source is provenance (the
  * origin pill and divider), not hierarchy. Spawned, provenance and recovery

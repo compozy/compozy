@@ -60,6 +60,7 @@ function renderList(
     sessions?: SessionPayload[];
     revealedSession?: SessionPayload | null;
     collapsedThreadIds?: string[];
+    view?: SessionListViewModel;
   } = {}
 ) {
   const onSelect = vi.fn();
@@ -82,7 +83,7 @@ function renderList(
     revealedSession: overrides.revealedSession,
     disconnected: false,
     collapsedThreadIds: overrides.collapsedThreadIds ?? [],
-    view,
+    view: overrides.view ?? view,
     onToggleThread: vi.fn(),
     onSelectSession: onSelect,
     onNewSession: vi.fn(),
@@ -333,6 +334,53 @@ describe("SessionList subagents", () => {
     );
     expect(screen.getByTestId("session-sidebar-session-plain").closest("[inert]")).not.toBeNull();
     expect(screen.getByTestId("session-sidebar-session-viewed-sub").closest("[inert]")).toBeNull();
+  });
+
+  const detailResponse = (sessionsById: Record<string, SessionPayload>) =>
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const id = new URL((input as Request).url).pathname.split("/").at(-1) ?? "";
+      const session = sessionsById[id];
+      return session
+        ? new Response(JSON.stringify({ session }), {
+            headers: { "Content-Type": "application/json" },
+          })
+        : new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    });
+
+  // m19 / S9: the backend pages search matches only; a matched subagent whose parent did not
+  // match is nested under that parent, loaded as a non-matching context row — never a root.
+  it("UT-W18: nests a search-matched subagent under its loaded, non-matching parent", async () => {
+    const offPageParent = row("parent-off", { name: "Ship checkout v2" });
+    const matched = row("matched-sub", {
+      name: "Audit payment webhooks",
+      lineage: lineage("parent-off", "subagent"),
+    });
+    detailResponse({ "parent-off": offPageParent });
+    renderList({ sessions: [matched], view: { ...view, search: "webhook", setSearch: vi.fn() } });
+
+    // While the parent loads, the match is held back rather than shown as a root.
+    expect(screen.queryByTestId("session-sidebar-thread-matched-sub")).not.toBeInTheDocument();
+    const thread = await screen.findByTestId("session-sidebar-thread-parent-off");
+    expect(within(thread).getByTestId("session-sidebar-session-parent-off")).toBeVisible();
+    expect(within(thread).getByTestId("session-sidebar-session-matched-sub")).toBeVisible();
+    await expectFetchRequest({
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent-off?include_health=true&all_profiles=true`,
+    });
+  });
+
+  it("UT-W18: reveals a depth-2 subagent under its nearest on-page ancestor", async () => {
+    const parent = row("parent", summary(1, 1));
+    const middle = row("mid-sub", { lineage: lineage("parent", "subagent") });
+    const viewed = row("grand-sub", { lineage: lineage("mid-sub", "subagent") });
+    detailResponse({ "mid-sub": middle });
+    renderList({ sessions: [parent], revealedSession: viewed });
+
+    const thread = await screen.findByTestId("session-sidebar-thread-parent");
+    await waitFor(() =>
+      expect(within(thread).getByTestId("session-sidebar-session-grand-sub")).toBeVisible()
+    );
+    expect(within(thread).getByTestId("session-sidebar-session-mid-sub")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
   });
 
   it("UT-W18: never promotes a viewed subagent whose parent is off the page", () => {
