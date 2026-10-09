@@ -152,7 +152,7 @@
                             "kind": "driver_control",
                             "driver_control": {
                                 "action": "delay",
-                                "delay_ms": 6000
+                                "delay_ms": 15000
                             }
                         },
                         {
