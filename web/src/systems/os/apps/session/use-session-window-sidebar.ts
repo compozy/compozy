@@ -16,6 +16,13 @@ import {
   type SessionListViewModel,
 } from "@/systems/session";
 
+/** A session to open by id; the agent name lets this window retarget in place. */
+export interface SessionWindowSidebarTarget {
+  sessionId: string;
+  agentName: string;
+  workspaceId: string;
+}
+
 export interface SessionWindowSidebarModel {
   open: boolean;
   toggle: () => void;
@@ -25,6 +32,8 @@ export interface SessionWindowSidebarModel {
   view: SessionListViewModel;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
+  /** Drill-in by id (subagent rows): this window, or a split with `newWindow`. */
+  openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
   onNewSession: () => void;
   sessionActions: SessionLifecycleActionHandlers;
   rowDeleteDialog: ReturnType<typeof useSessionLifecycleActions>["deleteDialog"];
@@ -65,13 +74,15 @@ export function useSessionWindowSidebar({
 
   const reducedMotion = useOsReducedMotion();
 
-  const onSelectSession = (target: SessionPayload) => {
-    if (sessionId !== undefined && target.id === sessionId) return;
-    if (target.workspace_id !== workspaceId) {
+  const openSession = (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => {
+    if (sessionId !== undefined && target.sessionId === sessionId) return;
+    const targetWorkspaceId = target.workspaceId || workspaceId;
+    if (options.newWindow || targetWorkspaceId !== workspaceId || !target.agentName) {
       jumpToSession({
-        sessionId: target.id,
-        agentName: target.agent_name,
-        workspaceId: target.workspace_id ?? workspaceId,
+        sessionId: target.sessionId,
+        agentName: target.agentName || undefined,
+        workspaceId: targetWorkspaceId,
+        ...(options.newWindow ? { placement: "split" as const } : {}),
       });
       return;
     }
@@ -81,9 +92,9 @@ export function useSessionWindowSidebar({
       () => {
         void coordinator.userRetarget(windowId, {
           app: "session",
-          instanceKey: target.id,
+          instanceKey: target.sessionId,
           route: {
-            pathname: `/agents/${encodeURIComponent(target.agent_name)}/sessions/${encodeURIComponent(target.id)}`,
+            pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
             search: {},
           },
         });
@@ -91,6 +102,16 @@ export function useSessionWindowSidebar({
       { reduced: reducedMotion }
     );
   };
+
+  const onSelectSession = (target: SessionPayload) =>
+    openSession(
+      {
+        sessionId: target.id,
+        agentName: target.agent_name,
+        workspaceId: target.workspace_id ?? workspaceId,
+      },
+      { newWindow: false }
+    );
 
   return {
     open: sidebar.open,
@@ -102,6 +123,7 @@ export function useSessionWindowSidebar({
     view,
     onToggleThread: sidebar.toggleThread,
     onSelectSession,
+    openSession,
     onNewSession: () => openForAgent(""),
     sessionActions: lifecycle.actions,
     rowDeleteDialog: lifecycle.deleteDialog,
