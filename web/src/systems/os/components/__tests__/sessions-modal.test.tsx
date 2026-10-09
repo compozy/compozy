@@ -4,8 +4,8 @@
 // Boundary OUT: session catalog transport and full browser window journeys.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -89,6 +89,18 @@ function listView(overrides: Partial<SessionListViewModel> = {}): SessionListVie
   };
 }
 
+/** The app root provides a QueryClient to every SessionList host; the test host does too. */
+function TestShell({ value, children }: { value: OsShellHandle; children: ReactNode }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  );
+  return (
+    <QueryClientProvider client={client}>
+      <OsShellContext.Provider value={value}>{children}</OsShellContext.Provider>
+    </QueryClientProvider>
+  );
+}
+
 const managers: WindowManagerRuntime[] = [];
 
 function createShell(): OsShellHandle {
@@ -108,7 +120,7 @@ function renderModal(
   sessions: readonly SessionPayload[] = SESSIONS
 ) {
   return render(
-    <OsShellContext.Provider value={shell}>
+    <TestShell value={shell}>
       <OsSessionsModal
         open={open}
         onOpenChange={() => {}}
@@ -118,7 +130,7 @@ function renderModal(
         onNewSession={onNewSession}
         sessionActions={SESSION_ACTIONS}
       />
-    </OsShellContext.Provider>
+    </TestShell>
   );
 }
 
@@ -133,7 +145,7 @@ describe("OsSessionsModal", () => {
     const onOpenChange = vi.fn();
     const onDeleteMany = vi.fn();
     render(
-      <OsShellContext.Provider value={createShell()}>
+      <TestShell value={createShell()}>
         <OsSessionsModal
           open
           onOpenChange={onOpenChange}
@@ -143,7 +155,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={{ ...SESSION_ACTIONS, onDeleteMany }}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
     const row = screen.getByTestId("os-sessions-modal-session-session-1");
     fireEvent.click(row, { metaKey: true });
@@ -219,7 +231,7 @@ describe("OsSessionsModal", () => {
       },
     });
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={() => {}}
@@ -229,7 +241,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     const [thread] = screen.getAllByTestId("os-sessions-modal-thread-session-1");
@@ -295,7 +307,7 @@ describe("OsSessionsModal", () => {
       },
     });
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={() => {}}
@@ -305,7 +317,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     const filter = screen.getByRole("searchbox", { name: "Filter sessions" });
@@ -395,7 +407,7 @@ describe("OsSessionsModal", () => {
     function Harness() {
       const [open, setOpen] = useState(false);
       return (
-        <OsShellContext.Provider value={shell}>
+        <TestShell value={shell}>
           <button type="button" onClick={() => setOpen(true)}>
             Open sessions
           </button>
@@ -408,7 +420,7 @@ describe("OsSessionsModal", () => {
             onNewSession={vi.fn()}
             sessionActions={SESSION_ACTIONS}
           />
-        </OsShellContext.Provider>
+        </TestShell>
       );
     }
 
@@ -446,7 +458,7 @@ describe("OsSessionsModal", () => {
       archived_at: "2026-08-04T12:00:00Z",
     });
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={() => {}}
@@ -456,7 +468,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     expect(screen.getByTestId("os-sessions-modal-archived")).toHaveAttribute(
@@ -490,7 +502,7 @@ describe("OsSessionsModal", () => {
       }),
     ];
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <SessionDeriveContext value={requestContinue}>
           <SessionForkContext value={requestFork}>
             <OsSessionsModal
@@ -504,7 +516,7 @@ describe("OsSessionsModal", () => {
             />
           </SessionForkContext>
         </SessionDeriveContext>
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     fireEvent.click(screen.getByTestId("session-row-actions-session-spawned"));
@@ -548,7 +560,7 @@ describe("OsSessionsModal", () => {
     const onOpenChange = vi.fn();
 
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={onOpenChange}
@@ -558,7 +570,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={{ ...SESSION_ACTIONS, onDelete }}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     fireEvent.click(screen.getAllByTestId("session-row-actions-session-1")[0]!);
@@ -574,7 +586,7 @@ describe("OsSessionsModal", () => {
     const onOpenChange = vi.fn();
 
     render(
-      <OsShellContext.Provider value={shell}>
+      <TestShell value={shell}>
         <OsSessionsModal
           open
           onOpenChange={onOpenChange}
@@ -585,7 +597,7 @@ describe("OsSessionsModal", () => {
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
-      </OsShellContext.Provider>
+      </TestShell>
     );
 
     await user.keyboard("{Escape}");
