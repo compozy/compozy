@@ -16892,6 +16892,34 @@
                               ],
                               "type": "string"
                             },
+                            "subagent_summary": {
+                              "nullable": true,
+                              "properties": {
+                                "attention": {
+                                  "type": "integer"
+                                },
+                                "failed": {
+                                  "type": "integer"
+                                },
+                                "live": {
+                                  "type": "integer"
+                                },
+                                "most_urgent": {
+                                  "type": "string"
+                                },
+                                "total": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "attention",
+                                "failed",
+                                "live",
+                                "most_urgent",
+                                "total"
+                              ],
+                              "type": "object"
+                            },
                             "supervision": {
                               "nullable": true,
                               "properties": {
@@ -109568,6 +109596,19 @@
             }
           },
           {
+            "description": "Subagent session visibility (default include)",
+            "in": "query",
+            "name": "subagents",
+            "schema": {
+              "enum": [
+                "include",
+                "exclude",
+                "only"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by exact parent session id",
             "in": "query",
             "name": "parent",
@@ -110591,6 +110632,34 @@
                               "shutdown"
                             ],
                             "type": "string"
+                          },
+                          "subagent_summary": {
+                            "nullable": true,
+                            "properties": {
+                              "attention": {
+                                "type": "integer"
+                              },
+                              "failed": {
+                                "type": "integer"
+                              },
+                              "live": {
+                                "type": "integer"
+                              },
+                              "most_urgent": {
+                                "type": "string"
+                              },
+                              "total": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "attention",
+                              "failed",
+                              "live",
+                              "most_urgent",
+                              "total"
+                            ],
+                            "type": "object"
                           },
                           "supervision": {
                             "nullable": true,
@@ -112072,6 +112141,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -113278,6 +113375,19 @@
             "in": "query",
             "name": "agent",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subagent session visibility (default include)",
+            "in": "query",
+            "name": "subagents",
+            "schema": {
+              "enum": [
+                "include",
+                "exclude",
+                "only"
+              ],
               "type": "string"
             }
           },
@@ -114758,6 +114868,34 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
                         },
                         "supervision": {
                           "nullable": true,
@@ -117770,6 +117908,305 @@
                       "required": [
                         "kind",
                         "sequence"
+                      ],
+                      "type": "object"
+                    },
+                    "subagent_updated": {
+                      "nullable": true,
+                      "properties": {
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "subagent": {
+                          "properties": {
+                            "child_session_id": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "delivery": {
+                              "type": "string"
+                            },
+                            "depth": {
+                              "type": "integer"
+                            },
+                            "error": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "hint": {
+                              "type": "string"
+                            },
+                            "origin": {
+                              "type": "string"
+                            },
+                            "parent_session_id": {
+                              "type": "string"
+                            },
+                            "parent_turn_id": {
+                              "type": "string"
+                            },
+                            "progress": {
+                              "type": "string"
+                            },
+                            "provider_tool_call_id": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "result": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "result_preview": {
+                              "type": "string"
+                            },
+                            "result_truncated": {
+                              "type": "boolean"
+                            },
+                            "role": {
+                              "type": "string"
+                            },
+                            "runtime": {
+                              "properties": {
+                                "agent": {
+                                  "type": "string"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "agent",
+                                "model",
+                                "provider",
+                                "reasoning_effort",
+                                "speed"
+                              ],
+                              "type": "object"
+                            },
+                            "settled_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "subagent_id": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "wait_timed_out": {
+                              "type": "boolean"
+                            },
+                            "work_state": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "child_session_id",
+                            "delivery",
+                            "depth",
+                            "error",
+                            "origin",
+                            "parent_session_id",
+                            "parent_turn_id",
+                            "progress",
+                            "provider_tool_call_id",
+                            "result",
+                            "result_preview",
+                            "result_truncated",
+                            "role",
+                            "runtime",
+                            "settled_at",
+                            "started_at",
+                            "status",
+                            "subagent_id",
+                            "title",
+                            "updated_at",
+                            "wait_timed_out",
+                            "work_state",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "session_id",
+                        "subagent"
+                      ],
+                      "type": "object"
+                    },
+                    "subagents_snapshot": {
+                      "nullable": true,
+                      "properties": {
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "subagents": {
+                          "items": {
+                            "properties": {
+                              "child_session_id": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "delivery": {
+                                "type": "string"
+                              },
+                              "depth": {
+                                "type": "integer"
+                              },
+                              "error": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "hint": {
+                                "type": "string"
+                              },
+                              "origin": {
+                                "type": "string"
+                              },
+                              "parent_session_id": {
+                                "type": "string"
+                              },
+                              "parent_turn_id": {
+                                "type": "string"
+                              },
+                              "progress": {
+                                "type": "string"
+                              },
+                              "provider_tool_call_id": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "result": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "result_preview": {
+                                "type": "string"
+                              },
+                              "result_truncated": {
+                                "type": "boolean"
+                              },
+                              "role": {
+                                "type": "string"
+                              },
+                              "runtime": {
+                                "properties": {
+                                  "agent": {
+                                    "type": "string"
+                                  },
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "agent",
+                                  "model",
+                                  "provider",
+                                  "reasoning_effort",
+                                  "speed"
+                                ],
+                                "type": "object"
+                              },
+                              "settled_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "started_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "subagent_id": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "updated_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "wait_timed_out": {
+                                "type": "boolean"
+                              },
+                              "work_state": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "child_session_id",
+                              "delivery",
+                              "depth",
+                              "error",
+                              "origin",
+                              "parent_session_id",
+                              "parent_turn_id",
+                              "progress",
+                              "provider_tool_call_id",
+                              "result",
+                              "result_preview",
+                              "result_truncated",
+                              "role",
+                              "runtime",
+                              "settled_at",
+                              "started_at",
+                              "status",
+                              "subagent_id",
+                              "title",
+                              "updated_at",
+                              "wait_timed_out",
+                              "work_state",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "session_id",
+                        "subagents"
                       ],
                       "type": "object"
                     },
@@ -208443,6 +208880,34 @@
                             ],
                             "type": "string"
                           },
+                          "subagent_summary": {
+                            "nullable": true,
+                            "properties": {
+                              "attention": {
+                                "type": "integer"
+                              },
+                              "failed": {
+                                "type": "integer"
+                              },
+                              "live": {
+                                "type": "integer"
+                              },
+                              "most_urgent": {
+                                "type": "string"
+                              },
+                              "total": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "attention",
+                              "failed",
+                              "live",
+                              "most_urgent",
+                              "total"
+                            ],
+                            "type": "object"
+                          },
                           "supervision": {
                             "nullable": true,
                             "properties": {
@@ -257645,6 +258110,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -258876,6 +259369,34 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
                         },
                         "supervision": {
                           "nullable": true,
@@ -260566,6 +261087,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -261976,6 +262525,34 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
                         },
                         "supervision": {
                           "nullable": true,
@@ -265343,6 +265920,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -267611,6 +268216,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -268713,6 +269346,34 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
                         },
                         "supervision": {
                           "nullable": true,
@@ -271370,6 +272031,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -272472,6 +273161,34 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
                         },
                         "supervision": {
                           "nullable": true,
@@ -285116,6 +285833,34 @@
                               ],
                               "type": "string"
                             },
+                            "subagent_summary": {
+                              "nullable": true,
+                              "properties": {
+                                "attention": {
+                                  "type": "integer"
+                                },
+                                "failed": {
+                                  "type": "integer"
+                                },
+                                "live": {
+                                  "type": "integer"
+                                },
+                                "most_urgent": {
+                                  "type": "string"
+                                },
+                                "total": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "attention",
+                                "failed",
+                                "live",
+                                "most_urgent",
+                                "total"
+                              ],
+                              "type": "object"
+                            },
                             "supervision": {
                               "nullable": true,
                               "properties": {
@@ -286908,6 +287653,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -288362,6 +289135,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -289793,6 +290594,34 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
                         },
                         "supervision": {
                           "nullable": true,
@@ -293548,6 +294377,305 @@
                       ],
                       "type": "object"
                     },
+                    "subagent_updated": {
+                      "nullable": true,
+                      "properties": {
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "subagent": {
+                          "properties": {
+                            "child_session_id": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "delivery": {
+                              "type": "string"
+                            },
+                            "depth": {
+                              "type": "integer"
+                            },
+                            "error": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "hint": {
+                              "type": "string"
+                            },
+                            "origin": {
+                              "type": "string"
+                            },
+                            "parent_session_id": {
+                              "type": "string"
+                            },
+                            "parent_turn_id": {
+                              "type": "string"
+                            },
+                            "progress": {
+                              "type": "string"
+                            },
+                            "provider_tool_call_id": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "result": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "result_preview": {
+                              "type": "string"
+                            },
+                            "result_truncated": {
+                              "type": "boolean"
+                            },
+                            "role": {
+                              "type": "string"
+                            },
+                            "runtime": {
+                              "properties": {
+                                "agent": {
+                                  "type": "string"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "agent",
+                                "model",
+                                "provider",
+                                "reasoning_effort",
+                                "speed"
+                              ],
+                              "type": "object"
+                            },
+                            "settled_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "subagent_id": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "wait_timed_out": {
+                              "type": "boolean"
+                            },
+                            "work_state": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "child_session_id",
+                            "delivery",
+                            "depth",
+                            "error",
+                            "origin",
+                            "parent_session_id",
+                            "parent_turn_id",
+                            "progress",
+                            "provider_tool_call_id",
+                            "result",
+                            "result_preview",
+                            "result_truncated",
+                            "role",
+                            "runtime",
+                            "settled_at",
+                            "started_at",
+                            "status",
+                            "subagent_id",
+                            "title",
+                            "updated_at",
+                            "wait_timed_out",
+                            "work_state",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "session_id",
+                        "subagent"
+                      ],
+                      "type": "object"
+                    },
+                    "subagents_snapshot": {
+                      "nullable": true,
+                      "properties": {
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "subagents": {
+                          "items": {
+                            "properties": {
+                              "child_session_id": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "delivery": {
+                                "type": "string"
+                              },
+                              "depth": {
+                                "type": "integer"
+                              },
+                              "error": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "hint": {
+                                "type": "string"
+                              },
+                              "origin": {
+                                "type": "string"
+                              },
+                              "parent_session_id": {
+                                "type": "string"
+                              },
+                              "parent_turn_id": {
+                                "type": "string"
+                              },
+                              "progress": {
+                                "type": "string"
+                              },
+                              "provider_tool_call_id": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "result": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "result_preview": {
+                                "type": "string"
+                              },
+                              "result_truncated": {
+                                "type": "boolean"
+                              },
+                              "role": {
+                                "type": "string"
+                              },
+                              "runtime": {
+                                "properties": {
+                                  "agent": {
+                                    "type": "string"
+                                  },
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "agent",
+                                  "model",
+                                  "provider",
+                                  "reasoning_effort",
+                                  "speed"
+                                ],
+                                "type": "object"
+                              },
+                              "settled_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "started_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "subagent_id": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "updated_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "wait_timed_out": {
+                                "type": "boolean"
+                              },
+                              "work_state": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "child_session_id",
+                              "delivery",
+                              "depth",
+                              "error",
+                              "origin",
+                              "parent_session_id",
+                              "parent_turn_id",
+                              "progress",
+                              "provider_tool_call_id",
+                              "result",
+                              "result_preview",
+                              "result_truncated",
+                              "role",
+                              "runtime",
+                              "settled_at",
+                              "started_at",
+                              "status",
+                              "subagent_id",
+                              "title",
+                              "updated_at",
+                              "wait_timed_out",
+                              "work_state",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "session_id",
+                        "subagents"
+                      ],
+                      "type": "object"
+                    },
                     "transcript_delta": {
                       "nullable": true,
                       "properties": {
@@ -294131,6 +295259,540 @@
           }
         },
         "summary": "Stream raw session events or fenced transcript changes",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents": {
+      "get": {
+        "operationId": "listSessionSubagents",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Parent session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subagent origin",
+            "in": "query",
+            "name": "origin",
+            "schema": {
+              "enum": [
+                "delegated",
+                "provider_native"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated subagent statuses",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subagents per page (default 50, maximum 200)",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque next_cursor from the previous page",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "next_cursor": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "subagents": {
+                      "items": {
+                        "properties": {
+                          "child_session_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "delivery": {
+                            "type": "string"
+                          },
+                          "depth": {
+                            "type": "integer"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "hint": {
+                            "type": "string"
+                          },
+                          "origin": {
+                            "type": "string"
+                          },
+                          "parent_session_id": {
+                            "type": "string"
+                          },
+                          "parent_turn_id": {
+                            "type": "string"
+                          },
+                          "progress": {
+                            "type": "string"
+                          },
+                          "provider_tool_call_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "result": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "result_preview": {
+                            "type": "string"
+                          },
+                          "result_truncated": {
+                            "type": "boolean"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "runtime": {
+                            "properties": {
+                              "agent": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "type": "string"
+                              },
+                              "speed": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "agent",
+                              "model",
+                              "provider",
+                              "reasoning_effort",
+                              "speed"
+                            ],
+                            "type": "object"
+                          },
+                          "settled_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "started_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "subagent_id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "wait_timed_out": {
+                            "type": "boolean"
+                          },
+                          "work_state": {
+                            "type": "string"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "child_session_id",
+                          "delivery",
+                          "depth",
+                          "error",
+                          "origin",
+                          "parent_session_id",
+                          "parent_turn_id",
+                          "progress",
+                          "provider_tool_call_id",
+                          "result",
+                          "result_preview",
+                          "result_truncated",
+                          "role",
+                          "runtime",
+                          "settled_at",
+                          "started_at",
+                          "status",
+                          "subagent_id",
+                          "title",
+                          "updated_at",
+                          "wait_timed_out",
+                          "work_state",
+                          "workspace_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "next_cursor",
+                    "subagents"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session or subagent not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Subagents unavailable"
+          }
+        },
+        "summary": "List a session's subagents",
         "tags": [
           "sessions"
         ],
@@ -298575,6 +300237,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -301412,6 +303102,34 @@
                           ],
                           "type": "string"
                         },
+                        "subagent_summary": {
+                          "nullable": true,
+                          "properties": {
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "failed": {
+                              "type": "integer"
+                            },
+                            "live": {
+                              "type": "integer"
+                            },
+                            "most_urgent": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "attention",
+                            "failed",
+                            "live",
+                            "most_urgent",
+                            "total"
+                          ],
+                          "type": "object"
+                        },
                         "supervision": {
                           "nullable": true,
                           "properties": {
@@ -301950,6 +303668,943 @@
           }
         },
         "summary": "Fork a live session into a worktree",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/subagents/{subagent_id}": {
+      "get": {
+        "operationId": "getSubagent",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subagent id",
+            "in": "path",
+            "name": "subagent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "child_session_id": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "delivery": {
+                      "type": "string"
+                    },
+                    "depth": {
+                      "type": "integer"
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "origin": {
+                      "type": "string"
+                    },
+                    "parent_session_id": {
+                      "type": "string"
+                    },
+                    "parent_turn_id": {
+                      "type": "string"
+                    },
+                    "progress": {
+                      "type": "string"
+                    },
+                    "provider_tool_call_id": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "result": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "result_preview": {
+                      "type": "string"
+                    },
+                    "result_truncated": {
+                      "type": "boolean"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "runtime": {
+                      "properties": {
+                        "agent": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "provider": {
+                          "type": "string"
+                        },
+                        "reasoning_effort": {
+                          "type": "string"
+                        },
+                        "speed": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "agent",
+                        "model",
+                        "provider",
+                        "reasoning_effort",
+                        "speed"
+                      ],
+                      "type": "object"
+                    },
+                    "settled_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "started_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "subagent_id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "wait_timed_out": {
+                      "type": "boolean"
+                    },
+                    "work_state": {
+                      "type": "string"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "child_session_id",
+                    "delivery",
+                    "depth",
+                    "error",
+                    "origin",
+                    "parent_session_id",
+                    "parent_turn_id",
+                    "progress",
+                    "provider_tool_call_id",
+                    "result",
+                    "result_preview",
+                    "result_truncated",
+                    "role",
+                    "runtime",
+                    "settled_at",
+                    "started_at",
+                    "status",
+                    "subagent_id",
+                    "title",
+                    "updated_at",
+                    "wait_timed_out",
+                    "work_state",
+                    "workspace_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session or subagent not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Subagents unavailable"
+          }
+        },
+        "summary": "Read one subagent",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel": {
+      "post": {
+        "operationId": "cancelSubagent",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subagent id",
+            "in": "path",
+            "name": "subagent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "subagent_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "subagent_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session or subagent not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Subagent is not cancelable"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Subagents unavailable"
+          }
+        },
+        "summary": "Cancel a delegated subagent",
         "tags": [
           "sessions"
         ],
