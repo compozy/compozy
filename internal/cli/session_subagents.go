@@ -34,7 +34,7 @@ func newSessionSubagentsCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, subagentOutput(result, func() (string, error) { return subagentTable(result, deps.now()) }))
 		},
 	}
-	cmd.PersistentFlags().String(workspaceSkillSource, "", "Override workspace (ID, name, or path)")
+	cmd.PersistentFlags().String(workspaceSkillSource, "", "Override workspace (ID, name, or path); fast path for show/cancel that avoids searching across workspaces")
 	cmd.Flags().StringVar(&query.Origin, "origin", "", "Filter by delegated or provider_native origin")
 	cmd.Flags().StringVar(&query.Status, "status", "", "Filter by comma-separated statuses")
 	cmd.Flags().IntVar(&query.Limit, "limit", 50, "Subagents per page (1-200)")
