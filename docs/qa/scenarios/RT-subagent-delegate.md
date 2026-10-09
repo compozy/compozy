@@ -27,7 +27,8 @@ E2E-008, which use acpmock.
    target, a `running` result with `subagent_id` (`sub-…`) and `child_session_id`, and the parent's own
    work continuing. When Codex settles, exactly one wake turn arrives with
    `Subagent "<title>" (<sub-id>) finished: completed.` and
-   `Call compozy__subagent_status to read each result.`; the parent calls status, gets `completed`,
+   `Call compozy__subagent_status to read its result.` (`each result` when a batch lists several
+   rows); the parent calls status, gets `completed`,
    `work_state: result_available`, the result, and `delivery: acknowledged`, then answers. Record the
    delegate latency (target < 3 s on a warm provider).
 2. **Child context.** `compozy session history <child_session_id> -o json`: the first user prompt is
