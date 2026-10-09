@@ -6,11 +6,13 @@ import { cn } from "@/lib/utils";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { sessionBadgeSignal } from "../../lib/session-badge";
 import { sessionBadgeWordClass } from "../../lib/session-badge-classes";
+import { sessionAwaitsSubagents, sessionSubagentCounts } from "../../lib/session-subagent-summary";
 import { maskedAttentionNote } from "../../lib/session-pending-interactions";
 import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
+import { SessionListSubagentChip } from "./session-list-subagent-chip";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface SessionListRowProps {
@@ -68,6 +70,7 @@ export function SessionListRow({
       >
         <SessionBadgeMark
           badge={session.badge}
+          delegated={sessionAwaitsSubagents(session)}
           className={cn(
             "mt-1",
             selection &&
@@ -99,6 +102,9 @@ export function SessionListRow({
         />
       ) : null}
       <div className="flex items-center gap-0.5 pt-1">
+        {sessionSubagentCounts(session) !== null ? (
+          <SessionListSubagentChip session={session} onSelect={onSelect} />
+        ) : null}
         {trailing}
         {showActions && !selection?.mode ? (
           <SessionRowActions session={session} actions={sessionActions} />

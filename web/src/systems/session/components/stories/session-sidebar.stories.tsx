@@ -192,3 +192,86 @@ export const SelectionMenuOpen: Story = {
     await userEvent.click(within(canvasElement).getByTestId("session-sidebar-selection-more"));
   },
 };
+
+function withSubagents(
+  session: SessionPayload,
+  live: number,
+  total: number,
+  failed = 0,
+  attention = 0
+): SessionPayload {
+  return {
+    ...session,
+    subagent_summary: { live, total, failed, attention, most_urgent: "running" },
+  };
+}
+
+const VIEWED_SUBAGENT: SessionPayload = {
+  ...minutesAgo(
+    sidebarSession("sess-webhooks", "Check webhook retries", "reviewer", "running", "sess-ship"),
+    1
+  ),
+  lineage: {
+    ...sidebarSession("sess-webhooks", "", "reviewer", "running", "sess-ship").lineage!,
+    kind: "spawn",
+    spawn_role: "subagent",
+  },
+};
+
+/** Recent activity so rows read relative times (`now`, `4m`), as the sidebar shows live work. */
+function minutesAgo(session: SessionPayload, minutes: number): SessionPayload {
+  return { ...session, updated_at: new Date(Date.now() - minutes * 60_000).toISOString() };
+}
+
+const SUBAGENT_PARENTS: SessionPayload[] = [
+  minutesAgo(
+    withSubagents(
+      sidebarSession("sess-ship", "Ship checkout v2", "claude", "running"),
+      3,
+      10,
+      1,
+      1
+    ),
+    0
+  ),
+  minutesAgo(
+    withSubagents(sidebarSession("sess-cart", "Refactor cart totals", "claude", "done"), 2, 4),
+    4
+  ),
+  minutesAgo(sidebarSession("sess-nightly", "Nightly delivery", "claude", "done"), 120),
+  minutesAgo(
+    sidebarSession("sess-task-04", "Implement task_04", "codex", "done", "sess-nightly"),
+    121
+  ),
+  minutesAgo(
+    sidebarSession("sess-review-04", "Review task_04", "claude", "done", "sess-nightly"),
+    122
+  ),
+  minutesAgo(sidebarSession("sess-refund", "Fix flaky refund test", "codex", "done"), 300),
+  minutesAgo(
+    withSubagents(sidebarSession("sess-sdk", "Upgrade payment SDK", "claude", "stopped"), 0, 6, 2),
+    1440
+  ),
+];
+
+/**
+ * Subagents (nav VC-02): subagent sessions take no rows; each parent carries one
+ * chip — attention, delegated while its turn is idle, or the failed total — and
+ * plain spawned children keep their thread.
+ */
+export const SubagentParents: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: SUBAGENT_PARENTS,
+    currentSessionId: "sess-ship",
+  },
+};
+
+/** Viewing a subagent reveals only that session, nested under its parent row. */
+export const RevealedSubagent: Story = {
+  args: {
+    ...SubagentParents.args,
+    currentSessionId: VIEWED_SUBAGENT.id,
+    revealedSession: VIEWED_SUBAGENT,
+  },
+};

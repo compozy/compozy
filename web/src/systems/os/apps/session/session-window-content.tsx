@@ -264,6 +264,7 @@ export function SessionWindowContent({
             collapsedThreadIds={sidebar.collapsedThreadIds}
             view={sidebar.view}
             currentSessionId={sessionId}
+            revealedSession={session}
             onToggleThread={sidebar.onToggleThread}
             onSelectSession={sidebar.onSelectSession}
             onNewSession={sidebar.onNewSession}
@@ -355,6 +356,17 @@ export function SessionWindowContent({
                 }}
                 context={sessionContext.context}
                 session={session}
+                onOpenSubagent={(subagent, options) => {
+                  if (subagent.child_session_id === null) return;
+                  sidebar.openSession(
+                    {
+                      sessionId: subagent.child_session_id,
+                      agentName: subagent.runtime.agent ?? "",
+                      workspaceId,
+                    },
+                    options
+                  );
+                }}
                 turns={sessionUsageTurns.data}
                 turnsUnavailable={sessionUsageTurns.isError}
                 usage={inspectorUsage}

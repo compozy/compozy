@@ -1,0 +1,73 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "subagent-nav-parent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You delegate ten subagents for the sidebar navigation E2E.",
+            "turns": [
+                {
+                    "name": "delegate-ten",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "delegate ten subagents"
+                    },
+                    "steps": [
+                        {
+                            "kind": "command_exec",
+                            "tool_call_id": "subagent-nav-delegate-ten",
+                            "title": "Delegate ten subagents",
+                            "command": "/bin/sh",
+                            "args": [
+                                "-c",
+                                "set -eu; i=1; while [ \"$i\" -le 10 ]; do \"$COMPOZY_BIN\" tool invoke compozy__subagent_delegate --session \"$COMPOZY_SESSION_ID\" --input \"{\\\"title\\\":\\\"Nav subagent $i\\\",\\\"task\\\":\\\"nav subagent task $i\\\",\\\"target\\\":{\\\"agent\\\":\\\"subagent-nav-child\\\"},\\\"idempotency_key\\\":\\\"subagent-nav-$i\\\"}\" -o json >/dev/null; i=$((i + 1)); done"
+                            ],
+                            "expect_exit_code": 0
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Delegated ten subagents."
+                        }
+                    ]
+                },
+                {
+                    "name": "subagent-wake",
+                    "match": {
+                        "turn_source": "synthetic"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Subagent wake observed."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "subagent-nav-child",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are one delegated subagent for the sidebar navigation E2E.",
+            "turns": [
+                {
+                    "name": "work-then-answer",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 30000 }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Subagent finished."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

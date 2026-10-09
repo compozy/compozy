@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@compozy/ui";
+import { toast } from "sonner";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 import { userEvent } from "@testing-library/user-event";
 import { expectFetchRequest } from "@/test/fetch-test-utils";
@@ -16,6 +17,8 @@ import {
   deriveSourceSessionFixture,
   forkedSessionFixture,
 } from "../../mocks/derive-fixtures";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 
@@ -942,5 +945,112 @@ describe("SessionInspector — Compact now", () => {
     const error = await screen.findByTestId("session-context-compact-error");
     expect(error).toHaveTextContent("Couldn't request compaction. Try again.");
     expect(error).not.toHaveTextContent("internal detail");
+  });
+});
+
+// Invariant (UT-W19 wiring): the inspector mounts the Subagents roster only for a session whose
+// summary reports subagents, reads its direct children from the list route, stops a live
+// delegated row through the cancel route (toast on failure), and drills in on row click.
+describe("SessionInspector — Subagents", () => {
+  const parent: SessionPayload = {
+    ...deriveSourceSessionFixture,
+    subagent_summary: { live: 1, total: 3, failed: 1, attention: 0, most_urgent: "failed" },
+  };
+  const listPath = `/api/workspaces/${parent.workspace_id}/sessions/${parent.id}/subagents`;
+  const wire = (id: string, status: string, title: string) => ({
+    subagent_id: id,
+    workspace_id: parent.workspace_id,
+    parent_session_id: parent.id,
+    parent_turn_id: "turn-1",
+    child_session_id: `child-${id}`,
+    origin: "delegated",
+    provider_tool_call_id: null,
+    title,
+    role: "",
+    status,
+    work_state: "working",
+    progress: "",
+    result: null,
+    result_preview: "",
+    result_truncated: false,
+    error: status === "failed" ? "boom" : null,
+    delivery: "none",
+    depth: 1,
+    wait_timed_out: false,
+    runtime: { agent: "reviewer", provider: "claude", model: "", reasoning_effort: "", speed: "" },
+    started_at: "2026-10-08T12:00:00Z",
+    settled_at: status === "running" ? null : "2026-10-08T12:05:00Z",
+    updated_at: "2026-10-08T12:05:00Z",
+  });
+  const json = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), {
+      headers: { "Content-Type": "application/json" },
+      status,
+    });
+  function renderInspector(session: SessionPayload, onOpenSubagent = vi.fn()) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SessionInspector session={session} onOpenSubagent={onOpenSubagent} />
+      </QueryClientProvider>
+    );
+    return { onOpenSubagent };
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(toast.error).mockClear();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Should stay absent and read nothing when the session has no subagents", () => {
+    renderInspector(deriveSourceSessionFixture);
+
+    expect(screen.queryByTestId("session-inspector-subagents")).not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("Should list direct children, stop through the cancel route, and drill in on click", async () => {
+    const user = userEvent.setup();
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const request = input as Request;
+      if (request.method === "POST") return json(409, { error: "Subagent already settled." });
+      return json(200, {
+        subagents: [
+          wire("sub-run", "running", "Draft the diff panel"),
+          wire("sub-fail", "failed", "Audit tokens"),
+          wire("sub-done", "completed", "Read the spec"),
+        ],
+        next_cursor: null,
+      });
+    });
+    const { onOpenSubagent } = renderInspector(parent);
+
+    const section = await screen.findByTestId("session-inspector-subagents");
+    expect(within(section).getByText("Subagents · 1 running")).toBeInTheDocument();
+    await expectFetchRequest({ path: `${listPath}?limit=200` });
+    const rows = within(section).getAllByRole("button", { name: /^Open / });
+    expect(rows.map(row => row.getAttribute("aria-label"))).toEqual([
+      "Open Audit tokens",
+      "Open Draft the diff panel",
+    ]);
+    expect(within(section).getByText("Previous subagents (1)")).toBeInTheDocument();
+
+    await user.click(within(section).getByRole("button", { name: "Stop subagent" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not stop subagent"));
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "POST",
+      path: `/api/workspaces/${parent.workspace_id}/subagents/sub-run/cancel`,
+      body: { reason: "" },
+    });
+
+    await user.click(within(section).getByRole("button", { name: "Open Draft the diff panel" }));
+    expect(onOpenSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "sub-run", child_session_id: "child-sub-run" }),
+      { newWindow: false }
+    );
   });
 });
