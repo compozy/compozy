@@ -43,6 +43,7 @@ func (m *Manager) ClearPendingInputs(
 		ClearedCount: cleared.Cleared, QueueGeneration: cleared.Generation,
 	}
 	for index := range cleared.Inputs {
+		m.publishSubagentWakeCanceled(ctx, &cleared.Inputs[index])
 		result.Inputs = append(result.Inputs, pendingInputFromStore(&cleared.Inputs[index]))
 	}
 	if err := m.projectInputClearTraces(ctx, session); err != nil {

@@ -15,6 +15,7 @@ import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { SessionForkContext } from "../contexts/session-fork-context-value";
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
+import { isSubagentSession } from "../lib/session-hierarchy";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 
@@ -87,7 +88,8 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
             Stop session
           </DropdownMenuItem>
         ) : null}
-        {isArchived ? (
+        {/* A subagent session archives with its parent (ADR-005): no standalone verb. */}
+        {isSubagentSession(session) ? null : isArchived ? (
           <DropdownMenuItem
             data-testid={`session-row-unarchive-${session.id}`}
             disabled={disabled}

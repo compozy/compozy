@@ -26,6 +26,8 @@ type Fixture struct {
 
 // AgentFixture describes one named ACP mock agent inside a fixture file.
 type AgentFixture struct {
+	// SteerOutcome advertises the steering extension and returns this scripted outcome.
+	SteerOutcome    string   `json:"steer_outcome,omitempty"`
 	Name            string   `json:"name"`
 	Provider        string   `json:"provider"`
 	Model           string   `json:"model,omitempty"`

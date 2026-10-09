@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
+import { useSubagentRosterContext } from "@/systems/session/hooks/use-subagent-roster-context";
 import { SubagentCard } from "@/systems/session/components/subagents/subagent-card";
 import { SubagentGroup } from "@/systems/session/components/subagents/subagent-group";
 import type { SubagentView } from "@/systems/session/components/subagents/types";
@@ -24,7 +24,7 @@ export function SessionSubagentRowView({
   renderNested,
   onGroupOpenChange,
 }: SessionSubagentRowViewProps) {
-  const { roster, onOpen } = useSessionSubagents();
+  const { roster, onOpen } = useSubagentRosterContext();
   const models = row.parts.map(part => subagentCardModel(part, roster));
   const nested = (subagent: SubagentView) => renderNested(subagent.id);
   if (models.length === 1) {

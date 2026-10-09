@@ -265,3 +265,34 @@ func (s *presenceAttentionStore) settleCallCount() int {
 	defer s.mu.Unlock()
 	return len(s.settledSeen)
 }
+
+// Invariant: subagents never raise unseen-done and parents wait for live delegates; owner: attention (UT-055).
+func TestSubagentAttention(t *testing.T) {
+	t.Parallel()
+	t.Run("Should force child seen and defer parent settle UT-055", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+		attention := newPresenceAttentionStore()
+		manager := newPresenceTestManager(t, attention, &now)
+		child, _ := manager.Get("sess-1")
+		child.mu.Lock()
+		child.Lineage = &store.SessionLineage{SpawnRole: store.SubagentSpawnRole}
+		child.mu.Unlock()
+		if err := manager.settleSessionAttention(t.Context(), child.ID, now); err != nil {
+			t.Fatal(err)
+		}
+		if !attention.lastSettledSeen() {
+			t.Fatal("subagent raised unseen attention")
+		}
+		service, db, _ := newSubagentTestService(t)
+		db.rows["live"] = store.SessionSubagent{ID: "live", ParentSessionID: child.ID, Status: "running"}
+		manager.SetSubagentService(service)
+		calls := attention.settleCallCount()
+		if err := manager.settleSessionAttention(t.Context(), child.ID, now); err != nil {
+			t.Fatal(err)
+		}
+		if attention.settleCallCount() != calls {
+			t.Fatal("settled while descendants remain live")
+		}
+	})
+}

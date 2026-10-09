@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 	"strings"
@@ -19,6 +20,7 @@ func (m *Manager) dispatchSpawnPreCreate(
 ) (SpawnOpts, *store.SessionLineage, error) {
 	payload := hookspkg.SpawnPreCreatePayload{
 		Event:             hookspkg.HookSpawnPreCreate,
+		Subagent:          opts.Subagent,
 		Timestamp:         m.now().UTC(),
 		SpawnContext:      spawnHookContext(parent, nil, lineage, opts.AgentName, opts.SpawnRole),
 		ParentPermissions: hookPermissionSetFromPolicy(parent.Lineage.PermissionPolicy),
@@ -26,6 +28,9 @@ func (m *Manager) dispatchSpawnPreCreate(
 	}
 	result, err := m.hooks.spawn().DispatchSpawnPreCreate(ctx, payload)
 	if err != nil {
+		if _, denied := errors.AsType[*hookspkg.DeniedError](err); denied && opts.SpawnRole == store.SubagentSpawnRole {
+			return SpawnOpts{}, nil, fmt.Errorf("%w: %w", ErrSubagentCapabilityDenied, err)
+		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %w", ErrSpawnPermissionDenied, err)
 	}
 	if result.Denied {
@@ -33,9 +38,16 @@ func (m *Manager) dispatchSpawnPreCreate(
 		if reason == "" {
 			reason = "spawn denied by hook"
 		}
+		if opts.SpawnRole == store.SubagentSpawnRole {
+			return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSubagentCapabilityDenied, reason)
+		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSpawnPermissionDenied, reason)
 	}
 
+	if opts.SpawnRole == store.SubagentSpawnRole &&
+		(result.TTLSeconds != 0 || result.SpawnRole != store.SubagentSpawnRole) {
+		return SpawnOpts{}, nil, ErrSubagentCapabilityDenied
+	}
 	opts.AgentName = strings.TrimSpace(result.AgentName)
 	opts.SpawnRole = normalizeSpawnRole(result.SpawnRole)
 	opts.TTL = time.Duration(result.TTLSeconds) * time.Second

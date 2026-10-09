@@ -21,7 +21,7 @@ import { useSessionTurnOutcomes } from "@/systems/session/hooks/use-session-turn
 import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import type { SessionTurnOutcomes } from "@/systems/session/lib/session-turn-outcomes";
 import { isSessionErrorEvent } from "@/systems/session/lib/runtime-activity-notice";
-import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
+import { useSubagentRosterContext } from "@/systems/session/hooks/use-subagent-roster-context";
 import { settledSubagentIds } from "@/systems/session/lib/subagent-roster";
 import type { GoalPromptMeta } from "@/systems/session/types";
 
@@ -311,7 +311,7 @@ export function useAssistantMessageTimeline() {
     state => state.context.expandedChangedFiles
   );
   const workGroupAnchors = useSelector(timelineStore, state => state.context.workGroupAnchors);
-  const { roster } = useSessionSubagents();
+  const { roster } = useSubagentRosterContext();
   const rows = deriveSessionRows(parts, {
     settledSubagentIds: settledSubagentIds(roster),
     activeTurnId: workingPart?.turnId,

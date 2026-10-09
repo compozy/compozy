@@ -4,7 +4,7 @@ import { cancelSubagent } from "@/systems/session/adapters/subagent-api";
 import { SubagentWaitingBanner } from "@/systems/session/components/subagents/subagent-waiting-banner";
 import { subagentWaitingBannerRows } from "@/systems/session/components/subagents/subagent-format";
 import { SubagentNavigationContext } from "@/systems/session/contexts/session-subagents-context-value";
-import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
+import { useSubagentRosterContext } from "@/systems/session/hooks/use-subagent-roster-context";
 
 /**
  * The composer's waiting banner (S5, UT-W13): while the parent has no running
@@ -12,7 +12,7 @@ import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagen
  * that cancels every one of them through the cancel route.
  */
 export function SessionSubagentBanner({ parentTurnRunning }: { parentTurnRunning: boolean }) {
-  const { workspaceId, roster, onOpen } = useSessionSubagents();
+  const { workspaceId, roster, onOpen } = useSubagentRosterContext();
   const navigation = use(SubagentNavigationContext);
   const waiting = subagentWaitingBannerRows(roster.rows, parentTurnRunning);
   if (waiting.length === 0) return null;

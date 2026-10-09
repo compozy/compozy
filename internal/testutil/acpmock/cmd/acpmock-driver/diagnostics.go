@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	acpsdk "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
@@ -56,4 +59,18 @@ func (a *mockAgent) writeDiagnostics(record acpmock.DiagnosticsRecord) (err erro
 		return fmt.Errorf("write diagnostics %q: %w", a.diagnosticsPath, err)
 	}
 	return nil
+}
+
+func (a *mockAgent) HandleExtensionMethod(_ context.Context, method string, params json.RawMessage) (any, error) {
+	if method != "_session/steering" || a.agent.SteerOutcome == "" {
+		return nil, &acpsdk.RequestError{Code: -32601, Message: "Method not found"}
+	}
+	var request acpsdk.PromptRequest
+	if err := json.Unmarshal(params, &request); err != nil {
+		return nil, err
+	}
+	if err := a.writeProtocolDiagnostics(method, string(request.SessionId), "", ""); err != nil {
+		return nil, err
+	}
+	return map[string]string{"outcome": a.agent.SteerOutcome}, nil
 }

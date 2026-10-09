@@ -2,9 +2,10 @@ package session
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/compozy/compozy/internal/listcursor"
 	"github.com/compozy/compozy/internal/store"
-	"strings"
 )
 
 func decodeSessionListCursor(raw string, fingerprint string) (*store.SessionCatalogPosition, error) {

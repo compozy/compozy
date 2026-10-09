@@ -88,6 +88,9 @@ export const sessionKeys = {
   /** Client-held roster the session stream writes (`subagents_snapshot` / `subagent_updated`). */
   subagentRoster: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "subagent-roster"] as const,
+  /** A parent's direct subagents, every page of the list route (S10, chip preview). */
+  subagents: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "subagents"] as const,
   contextReset: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "context-reset"] as const,
   toolArtifact: (workspace: string, artifactURI: string) =>

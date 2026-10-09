@@ -4,6 +4,7 @@ import { useSelector } from "@xstate/store-react";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
+import { isSubagentSession } from "../lib/session-hierarchy";
 import type { SessionPayload } from "../types";
 
 interface SessionSelectionContext {
@@ -67,9 +68,12 @@ export function sessionSelectionCounts(
         session.archived_at === null && (session.state === "active" || session.state === "starting")
     ).length,
     archivable: sessions.filter(
-      session => session.archived_at === null && session.state === "stopped"
+      session =>
+        session.archived_at === null && session.state === "stopped" && !isSubagentSession(session)
     ).length,
-    unarchivable: sessions.filter(session => session.archived_at !== null).length,
+    unarchivable: sessions.filter(
+      session => session.archived_at !== null && !isSubagentSession(session)
+    ).length,
     hiddenByFilter: sessions.filter(session => !visible.has(session.id)).length,
   };
 }

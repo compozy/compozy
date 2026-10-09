@@ -99,7 +99,7 @@ type SubagentError struct {
 	Err     error
 }
 
-var _ error = (*SubagentError)(nil)
+var _ error = (*SubagentError)(nil) //nolint:errcheck // Compile-time interface assertion.
 
 func (e *SubagentError) Error() string { return e.Message }
 func (e *SubagentError) Unwrap() error { return e.Err }

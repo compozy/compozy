@@ -16,20 +16,28 @@ import { sessionBadgeSignal } from "../lib/session-badge";
 
 export interface SessionBadgeMarkProps extends Omit<React.ComponentProps<"span">, "children"> {
   badge: string | null | undefined;
+  /** The turn ended but subagents still work: the parent reads `delegated`, not done. */
+  delegated?: boolean;
 }
 
 /** Row-scale mark: the state glyph + an accessible state token. */
-export function SessionBadgeMark({ badge, className, ...props }: SessionBadgeMarkProps) {
+export function SessionBadgeMark({
+  badge,
+  delegated = false,
+  className,
+  ...props
+}: SessionBadgeMarkProps) {
   const signal = sessionBadgeSignal(badge);
+  const label = delegated ? "delegated" : signal.label;
   return (
     <span
       role="img"
-      aria-label={`Session badge: ${signal.label}`}
-      data-badge={signal.label}
+      aria-label={`Session badge: ${label}`}
+      data-badge={label}
       className={cn("grid size-3 shrink-0 place-items-center", className)}
       {...props}
     >
-      <StateGlyph size="sm" state={signal.state} />
+      <StateGlyph size="sm" state={delegated ? "delegated" : signal.state} />
     </span>
   );
 }

@@ -245,7 +245,7 @@ func (r *spawnReaper) reapSpawnedCandidate(
 	info.Lineage = lineage
 
 	now := r.now().UTC()
-	if lineage.TTLExpiresAt != nil && !lineage.TTLExpiresAt.After(now) {
+	if lineage.SpawnRole != store.SubagentSpawnRole && lineage.TTLExpiresAt != nil && !lineage.TTLExpiresAt.After(now) {
 		return spawnReapCandidate{
 			child:  info,
 			parent: parents[lineage.ParentSessionID],

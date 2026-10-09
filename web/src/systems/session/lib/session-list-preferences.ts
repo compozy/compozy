@@ -45,3 +45,12 @@ export function toSessionListScope(value: string | null | undefined): SessionLis
 export function sessionListSortParam(sort: SessionListSort): "last_activity" | "attention" {
   return sort;
 }
+
+/**
+ * Subagent sessions stay out of the sidebar page (ADR-005): the parent row
+ * carries their chip. A search widens the population so matching subagents
+ * appear, nested under their parent.
+ */
+export function sessionListSubagentsParam(search: string | undefined): "include" | "exclude" {
+  return search?.trim() ? "include" : "exclude";
+}

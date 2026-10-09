@@ -133,6 +133,7 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings
 	supervisionMu              sync.Mutex
 	workSignals                *WorkSignalRegistry

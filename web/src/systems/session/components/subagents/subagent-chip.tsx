@@ -13,6 +13,8 @@ export interface SubagentChipProps {
   preview?: readonly SubagentView[];
   /** Opens the inspector's Subagents section. */
   onOpen?: () => void;
+  /** The hover preview opened or closed; the owner may load `preview` lazily. */
+  onPreviewOpenChange?: (open: boolean) => void;
   className?: string;
 }
 
@@ -26,6 +28,7 @@ export function SubagentChip({
   parentTurnRunning,
   preview,
   onOpen,
+  onPreviewOpenChange,
   className,
 }: SubagentChipProps) {
   const state = subagentChipState(counts, parentTurnRunning);
@@ -33,7 +36,7 @@ export function SubagentChip({
   const list = preview ? subagentChipPreview(preview, counts.total) : null;
 
   return (
-    <HoverCard>
+    <HoverCard onOpenChange={open => onPreviewOpenChange?.(open)}>
       <HoverCardTrigger
         render={
           <button

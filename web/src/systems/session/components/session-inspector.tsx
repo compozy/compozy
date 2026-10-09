@@ -1,13 +1,17 @@
 import { DetailInspector, cn } from "@compozy/ui";
 import { deriveSessionContext, type SessionContextView } from "../lib/session-context";
+import { sessionSubagentCounts } from "../lib/session-subagent-summary";
 import type { SessionPayload, SessionUsageTurnsResponse } from "../types";
 import { SessionContextMeterSection } from "./session-context-meter-section";
 import { SessionContextInjectedSection } from "./session-context-injected-section";
 import { SessionContextTurnsSection } from "./session-context-turns-section";
 import { SessionActivitySection, type SessionActivityView } from "./session-activity-section";
 import { SessionInspectorOriginSection } from "./session-inspector-origin-section";
+import { SessionInspectorSubagents } from "./session-inspector-subagents";
 import { SessionInspectorUsageSection } from "./session-inspector-sections";
 import type { InspectorUsage } from "./session-inspector-types";
+import type { SubagentOpenOptions } from "./subagents/subagent-card";
+import type { SubagentView } from "./subagents/types";
 
 export type { InspectorUsage } from "./session-inspector-types";
 
@@ -22,6 +26,8 @@ export interface SessionInspectorProps {
    * an agent advertising `compact`/`compress` gains Compact now.
    */
   session?: SessionPayload;
+  /** Opens one of the session's subagents from the Subagents roster (S10). */
+  onOpenSubagent?: (subagent: SubagentView, options: SubagentOpenOptions) => void;
   injectedDefaultOpen?: boolean;
   turnsDefaultOpen?: boolean;
   drawerOpen?: boolean;
@@ -36,6 +42,7 @@ export function SessionInspector({
   turnsUnavailable,
   activity,
   session,
+  onOpenSubagent,
   injectedDefaultOpen,
   turnsDefaultOpen,
   drawerOpen,
@@ -64,6 +71,9 @@ export function SessionInspector({
           defaultOpen={turnsDefaultOpen}
         />
         <SessionActivitySection activity={activity} />
+        {session && sessionSubagentCounts(session) !== null ? (
+          <SessionInspectorSubagents session={session} onOpen={onOpenSubagent} />
+        ) : null}
         {session ? <SessionInspectorOriginSection session={session} /> : null}
       </div>
     </DetailInspector>
