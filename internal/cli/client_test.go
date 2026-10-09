@@ -5203,3 +5203,61 @@ func TestSharedContractJSONParity(t *testing.T) {
 		}
 	})
 }
+
+// UT-047: daemon errors retain the documented subagent codes at the CLI boundary.
+func TestSubagentClientRequests(t *testing.T) {
+	t.Parallel()
+	t.Run("Should encode list filters and preserve the page envelope", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path == "/api/sessions/parent" {
+				return newHTTPResponse(200, `{"session":{"id":"parent","workspace_id":"ws"}}`), nil
+			}
+			if request.URL.Path != "/api/workspaces/ws/sessions/parent/subagents" || request.URL.Query().Get("origin") != "delegated" || request.URL.Query().Get("status") != "running,completed" || request.URL.Query().Get("limit") != "20" || request.URL.Query().Get("cursor") != "opaque" {
+				t.Fatalf("request=%s", request.URL)
+			}
+			return newHTTPResponse(200, `{"subagents":[],"next_cursor":"next"}`), nil
+		})}}
+		page, err := client.ListSessionSubagents(t.Context(), "parent", SubagentListQuery{Origin: "delegated", Status: "running,completed", Limit: 20, Cursor: "opaque"})
+		if err != nil || page.NextCursor == nil || *page.NextCursor != "next" || page.Subagents == nil {
+			t.Fatalf("page=%+v error=%v", page, err)
+		}
+	})
+	t.Run("Should preserve cancellation reason and accepted status", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != "POST" || request.URL.Path != "/api/workspaces/ws/subagents/sub-1/cancel" {
+				t.Fatalf("request=%s %s", request.Method, request.URL)
+			}
+			var body contract.SubagentCancelRequest
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Reason != "Direction abandoned." {
+				t.Fatalf("reason=%q", body.Reason)
+			}
+			return newHTTPResponse(202, `{"subagent_id":"sub-1","status":"cancel_requested"}`), nil
+		})}}
+		result, err := client.CancelSubagent(t.Context(), "ws", "sub-1", "Direction abandoned.")
+		if err != nil || result.Status != "cancel_requested" {
+			t.Fatalf("result=%+v error=%v", result, err)
+		}
+	})
+	for _, kind := range []string{"session", "subagent"} {
+		t.Run("Should map unknown "+kind+" to the documented code", func(t *testing.T) {
+			t.Parallel()
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(404, `{"error":"not found"}`), nil
+			})}}
+			var err error
+			if kind == "session" {
+				_, err = client.ListSessionSubagents(t.Context(), "missing", SubagentListQuery{})
+			} else {
+				_, err = client.GetSubagent(t.Context(), "ws", "missing")
+			}
+			if err == nil || !strings.HasPrefix(err.Error(), kind+"_not_found:") {
+				t.Fatalf("error=%v", err)
+			}
+		})
+	}
+}

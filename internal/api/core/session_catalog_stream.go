@@ -145,6 +145,12 @@ func (h *BaseHandlers) parseSessionCatalogWorkspace(c *gin.Context) (bool, strin
 		return false, "", err
 	}
 	workspaceRef := strings.TrimSpace(c.Query("workspace_id"))
+	if routeRef := c.Param("workspace_id"); routeRef != "" {
+		if workspaceRef != "" && workspaceRef != routeRef {
+			return false, "", fmt.Errorf("%w: conflicting workspace_id", session.ErrCatalogScopeInvalid)
+		}
+		workspaceRef = routeRef
+	}
 	if (workspaceRef != "") == allWorkspaces {
 		return false, "", fmt.Errorf(
 			"%w: choose exactly one workspace_id or all_workspaces=true",

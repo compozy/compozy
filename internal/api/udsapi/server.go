@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/session"
 	"log/slog"
 	"net"
 	"net/http"
@@ -61,6 +62,7 @@ type Server struct {
 	pollInterval          time.Duration
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
+	subagents             session.SubagentService
 	sessionCatalog        core.SessionCatalog
 	taskDesignations      core.TaskDesignationStore
 	skillExposureStore    store.SkillExposureRepository

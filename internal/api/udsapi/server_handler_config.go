@@ -4,6 +4,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 	return &handlerConfig{
 		sessions:              s.sessions,
 		drainController:       s.drainController,
+		subagents:             s.subagents,
 		sessionCatalog:        s.sessionCatalog,
 		taskDesignations:      s.taskDesignations,
 		skillExposureStore:    s.skillExposureStore,

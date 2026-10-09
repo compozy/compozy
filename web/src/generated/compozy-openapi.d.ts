@@ -4902,6 +4902,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List sessions */
+    get: operations["listWorkspaceSessions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}": {
     parameters: {
       query?: never;
@@ -46520,8 +46537,6 @@ export interface operations {
         worktree?: string;
         /** @description Filter by exact agent name */
         agent?: string;
-        /** @description Subagent session visibility (default include) */
-        subagents?: "include" | "exclude" | "only";
         /** @description Filter by exact parent session id */
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
@@ -102759,6 +102774,539 @@ export interface operations {
       };
     };
   };
+  listWorkspaceSessions: {
+    parameters: {
+      query?: {
+        /** @description Include metadata-only health for returned sessions */
+        include_health?: boolean;
+        /** @description Omit the exact catalog count for a bounded cursor read */
+        skip_total?: boolean;
+        /** @description Filter by exact session state */
+        state?: "starting" | "active" | "stopping" | "stopped";
+        /** @description Filter by exact session type */
+        type?: "user" | "system" | "coordinator" | "spawned";
+        /** @description Filter by exact agent definition name */
+        agent?: string;
+        /** @description Subagent session visibility (default include) */
+        subagents?: "include" | "exclude" | "only";
+        /** @description Filter by exact parent session id */
+        parent?: string;
+        /** @description Filter by exact root session id (includes the root itself) */
+        root?: string;
+        /** @description Filter by exact bound worktree id */
+        worktree?: string;
+        /** @description Search session id, name, agent, or provider; title_agent searches visible title and agent */
+        q?: string;
+        /** @description Select visible title/agent search instead of the default catalog fields */
+        search_fields?: "title_agent";
+        /** @description Only list sessions eligible for explicit attach */
+        resumable?: boolean;
+        /** @description Only list sessions in the needs-you attention class */
+        attention?: boolean;
+        /** @description Filter by comma-separated exact session badges */
+        badge?: string;
+        /** @description Archived session visibility */
+        archive?: "exclude" | "only" | "include";
+        /** @description Stable session ordering */
+        sort?: "recent" | "created" | "last_activity" | "attention" | "navigator";
+        /** @description Opaque next_cursor from the previous page */
+        cursor?: string;
+        /** @description Sessions per page (1-100) */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total?: number | null;
+            };
+            sessions: {
+              activity?: {
+                current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
+                /** Format: int64 */
+                elapsed_seconds: number;
+                /** Format: int64 */
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
+              agent_name: string;
+              /** Format: date-time */
+              archived_at: string | null;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              attention?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
+              available_commands: {
+                description: string;
+                input?: {
+                  hint: string;
+                } | null;
+                name: string;
+              }[];
+              badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
+              /** Format: date-time */
+              created_at: string;
+              derivation?: {
+                first_prompt: string;
+                /** @enum {string} */
+                kind: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                native_fork_error?: string;
+                native_state?: string;
+                seed: string;
+                source_session_id: string;
+              } | null;
+              escalated?: boolean | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                reason_code?: string;
+                summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                attention?: string;
+                eligible_for_wake: boolean;
+                escalated?: boolean | null;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                verified?: boolean | null;
+                workspace_id: string;
+              } | null;
+              id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                /** @enum {string} */
+                kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
+                notify_creator: boolean;
+                origin_agent_name?: string;
+                origin_message_id?: string;
+                parent_session_id?: string;
+                permission_policy: {
+                  mcp_servers: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
+              name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                tool_id?: string;
+                turn_id?: string;
+              }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      group_id?: string;
+                      group_label?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
+                  supported_modes?: string[];
+                  supports_fork_session: boolean;
+                  supports_load_session: boolean;
+                  supports_resume_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
+                  model?: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
+                selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
+                  model?: string;
+                  provider: string;
+                  reasoning_effort?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                } | null;
+                /** Format: int64 */
+                selection_revision: number;
+                status: string;
+                transition?: string;
+              };
+              /** @enum {string} */
+              state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "owner_released"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
+              /** Format: int64 */
+              transcript_epoch?: number;
+              /** @enum {string} */
+              type?: "user" | "system" | "coordinator" | "spawned";
+              /** Format: date-time */
+              updated_at: string;
+              verified?: boolean | null;
+              workspace_id?: string;
+              workspace_path?: string;
+              worktree_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid session list query or cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root is missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Paged session catalog or workspace resolver is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getSession: {
     parameters: {
       query?: {
@@ -116951,6 +117499,36 @@ export interface operations {
           };
         };
       };
+      /** @description Capability denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Session or subagent not found */
       404: {
         headers: {
@@ -120520,6 +121098,36 @@ export interface operations {
           };
         };
       };
+      /** @description Capability denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Session or subagent not found */
       404: {
         headers: {
@@ -120647,6 +121255,36 @@ export interface operations {
       };
       /** @description Invalid request */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Capability denied */
+      403: {
         headers: {
           [name: string]: unknown;
         };
