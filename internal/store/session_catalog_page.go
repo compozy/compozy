@@ -45,6 +45,7 @@ func (p SessionCatalogPosition) Validate() error {
 // explicit profile or the AllProfiles aggregate. Cursor decoding and
 // active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
+	Subagents           string
 	SkipTotal           bool
 	ReadScope           ReadScope
 	WorkspaceID         string
@@ -71,6 +72,11 @@ type SessionCatalogPageQuery struct {
 
 // Validate ensures the durable query is bounded and its anchor is usable.
 func (q SessionCatalogPageQuery) Validate() error {
+	switch q.Subagents {
+	case "", "include", "exclude", "only":
+	default:
+		return fmt.Errorf("store: unsupported subagents filter %q", q.Subagents)
+	}
 	if err := q.ReadScope.Validate(); err != nil {
 		return err
 	}

@@ -22,6 +22,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		return store.SessionInputQueueEntry{}, err
 	}
 	entry := store.SessionInputQueueEntry{
+		Priority:          int(row.Priority),
 		ID:                row.ID,
 		SessionID:         row.SessionID,
 		PromptAdmissionID: strings.TrimSpace(row.PromptAdmissionID.String),

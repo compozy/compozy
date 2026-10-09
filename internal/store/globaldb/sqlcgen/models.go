@@ -1516,6 +1516,7 @@ type SessionInputQueue struct {
 	TerminalTokensReported   int64          `json:"terminal_tokens_reported"`
 	TerminalTokensUsed       sql.NullInt64  `json:"terminal_tokens_used"`
 	TerminalAt               sql.NullTime   `json:"terminal_at"`
+	Priority                 int64          `json:"priority"`
 }
 
 type SessionPendingInteraction struct {
@@ -1560,6 +1561,55 @@ type SessionPromptAdmission struct {
 	DispatchCommittedAt    sql.NullString `json:"dispatch_committed_at"`
 	CompletedAt            sql.NullString `json:"completed_at"`
 	UpdatedAt              string         `json:"updated_at"`
+}
+
+type SessionSubagent struct {
+	ID                     string         `json:"id"`
+	WorkspaceID            string         `json:"workspace_id"`
+	ParentSessionID        string         `json:"parent_session_id"`
+	ParentTurnID           string         `json:"parent_turn_id"`
+	ParentToolCallID       string         `json:"parent_tool_call_id"`
+	ChildSessionID         sql.NullString `json:"child_session_id"`
+	Origin                 string         `json:"origin"`
+	ProviderToolCallID     string         `json:"provider_tool_call_id"`
+	IdempotencyKey         string         `json:"idempotency_key"`
+	RequestFingerprint     string         `json:"request_fingerprint"`
+	Title                  string         `json:"title"`
+	Role                   string         `json:"role"`
+	TaskChars              int64          `json:"task_chars"`
+	PendingTask            sql.NullString `json:"pending_task"`
+	RuntimeAgent           string         `json:"runtime_agent"`
+	RuntimeProvider        string         `json:"runtime_provider"`
+	RuntimeModel           string         `json:"runtime_model"`
+	RuntimeReasoningEffort string         `json:"runtime_reasoning_effort"`
+	RuntimeSpeed           string         `json:"runtime_speed"`
+	Depth                  int64          `json:"depth"`
+	Status                 string         `json:"status"`
+	WorkState              string         `json:"work_state"`
+	Progress               string         `json:"progress"`
+	Result                 sql.NullString `json:"result"`
+	ResultTruncated        int64          `json:"result_truncated"`
+	Error                  sql.NullString `json:"error"`
+	WakePolicy             string         `json:"wake_policy"`
+	Delivery               string         `json:"delivery"`
+	WakeMessageID          sql.NullString `json:"wake_message_id"`
+	AcknowledgedTurnID     string         `json:"acknowledged_turn_id"`
+	StartedAt              sql.NullString `json:"started_at"`
+	SettledAt              sql.NullString `json:"settled_at"`
+	CreatedAt              string         `json:"created_at"`
+	UpdatedAt              string         `json:"updated_at"`
+}
+
+type SessionSubagentWake struct {
+	WakeMessageID   string `json:"wake_message_id"`
+	WorkspaceID     string `json:"workspace_id"`
+	ParentSessionID string `json:"parent_session_id"`
+	State           string `json:"state"`
+	Route           string `json:"route"`
+	InputEntryID    string `json:"input_entry_id"`
+	SteerRequeued   int64  `json:"steer_requeued"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 type SkillExposure struct {

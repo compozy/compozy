@@ -124,6 +124,7 @@ func (g *SessionRepo) ListSessions(
 		store.StringClause("spawn_role", query.SpawnRole),
 		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
+	where = appendSubagentSessionFilter(where, query.Subagents)
 	if query.Resumable {
 		where = append(
 			where,
