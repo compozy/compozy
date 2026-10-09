@@ -32,16 +32,26 @@ func (h *BaseHandlers) writeSubagentsSnapshot(
 	if info != nil {
 		workspaceID = info.WorkspaceID
 	}
-	page, err := h.Subagents.List(
-		ctx,
-		store.SubagentListQuery{WorkspaceID: workspaceID, ParentSessionID: sessionID, Limit: 200},
-	)
-	if err != nil {
-		return err
+	// The snapshot replaces the client's whole roster, so it carries every row:
+	// a row missing from it would read as an unconfirmed (still running) card.
+	var all store.SubagentPage
+	query := store.SubagentListQuery{WorkspaceID: workspaceID, ParentSessionID: sessionID, Limit: subagentSnapshotPageSize}
+	for {
+		page, err := h.Subagents.List(ctx, query)
+		if err != nil {
+			return err
+		}
+		all.Items = append(all.Items, page.Items...)
+		if page.NextCursor == "" {
+			break
+		}
+		query.Cursor = page.NextCursor
 	}
 	return WriteSSE(writer, SSEMessage{Name: contract.SessionStreamEventSubagentsSnapshot,
-		Data: contract.SubagentsSnapshotEvent{SessionID: sessionID, Subagents: subagentPagePayloads(page)}})
+		Data: contract.SubagentsSnapshotEvent{SessionID: sessionID, Subagents: subagentPagePayloads(all)}})
 }
+
+const subagentSnapshotPageSize = 200
 
 func writeSubagentUpdate(writer FlushWriter, sessionID string, update *session.SubagentUpdate) error {
 	if update.ParentSessionID != sessionID {

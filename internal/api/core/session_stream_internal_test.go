@@ -1354,12 +1354,34 @@ func TestSubagentStreamOrdering(t *testing.T) {
 	}
 }
 
+// Greptile 711: the snapshot replaces the client roster, so it must carry every page.
+func TestSubagentSnapshotCarriesEveryPage(t *testing.T) {
+	t.Parallel()
+	t.Run("Should follow the cursor past the first page", func(t *testing.T) {
+		t.Parallel()
+		service := &subagentStreamStub{t: t, subscribed: true, pages: map[string]store.SubagentPage{
+			"":       {Items: []store.SessionSubagent{{ID: "sub-new", Status: "running"}}, NextCursor: "page-2"},
+			"page-2": {Items: []store.SessionSubagent{{ID: "sub-old", Status: "completed"}}},
+		}}
+		handlers := &BaseHandlers{Subagents: service}
+		writer := &streamTestFlushWriter{}
+		if err := handlers.writeSubagentsSnapshot(t.Context(), writer, "parent", streamTestSessionInfo("parent")); err != nil {
+			t.Fatal(err)
+		}
+		body := writer.String()
+		if !strings.Contains(body, `"sub-new"`) || !strings.Contains(body, `"sub-old"`) {
+			t.Fatalf("snapshot dropped a page: %s", body)
+		}
+	})
+}
+
 type subagentStreamStub struct {
 	session.SubagentService
 	t          *testing.T
 	updates    chan session.SubagentUpdate
 	subscribed bool
 	canceled   bool
+	pages      map[string]store.SubagentPage
 }
 
 var _ session.SubagentService = (*subagentStreamStub)(nil)
@@ -1380,6 +1402,9 @@ func (s *subagentStreamStub) List(_ context.Context, q store.SubagentListQuery) 
 	s.t.Helper()
 	if !s.subscribed || q.ParentSessionID != "parent" || q.Limit != 200 || q.WorkspaceID != "ws-workspace" {
 		s.t.Fatalf("unfenced snapshot: %+v", q)
+	}
+	if s.pages != nil {
+		return s.pages[q.Cursor], nil
 	}
 	return store.SubagentPage{Items: []store.SessionSubagent{{ID: "sub-1", Status: "running"}}}, nil
 }

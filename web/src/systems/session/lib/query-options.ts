@@ -27,7 +27,7 @@ import type { FetchSessionEventsParams } from "../adapters/session-api";
 import type { SessionListFilters, SessionState } from "../types";
 import { sessionKeys } from "./query-keys";
 import { EMPTY_SUBAGENT_ROSTER } from "./subagent-roster";
-import { fetchSessionSubagents } from "../adapters/subagent-api";
+import { fetchSessionSubagents, type SubagentPayload } from "../adapters/subagent-api";
 import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
 import { normalizeTranscriptSearchQuery } from "./session-navigation";
 import { expiredInteractionsByRequest } from "./session-pending-interactions";
@@ -444,11 +444,29 @@ export function sessionSubagentRosterOptions(workspaceId: string, sessionId: str
   });
 }
 
-/** One page of the parent's subagents for the mid-prompt control poll (newest first, up to 200). */
+/**
+ * Every subagent of the parent for the mid-prompt control poll (newest first). The
+ * poll replaces the whole roster, so it follows the cursor: a row left out would
+ * read as an unconfirmed, still-running card.
+ */
 export function sessionSubagentRosterPollOptions(workspaceId: string, sessionId: string) {
   return queryOptions({
     queryKey: sessionKeys.subagentRosterPoll(workspaceId, sessionId),
-    queryFn: ({ signal }) => fetchSessionSubagents(workspaceId, sessionId, { limit: 200 }, signal),
+    queryFn: async ({ signal }) => {
+      const subagents: SubagentPayload[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await fetchSessionSubagents(
+          workspaceId,
+          sessionId,
+          cursor ? { limit: 200, cursor } : { limit: 200 },
+          signal
+        );
+        subagents.push(...page.subagents);
+        cursor = page.next_cursor ?? undefined;
+      } while (cursor);
+      return { subagents, next_cursor: null };
+    },
     retry: false,
   });
 }

@@ -90,6 +90,29 @@ describe("subagent roster control poll", () => {
     );
   });
 
+  it("Should read every page so older cards keep their state", async () => {
+    vi.mocked(fetchSessionSubagents)
+      .mockResolvedValueOnce({ subagents: [row("sub-new", "running")], next_cursor: "page-2" })
+      .mockResolvedValueOnce({ subagents: [row("sub-old", "completed")], next_cursor: null });
+    const queryClient = setup(true);
+    await waitFor(() =>
+      expect(
+        queryClient
+          .getQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE, SESSION))
+          ?.rows.map(view => [view.id, view.status])
+      ).toEqual([
+        ["sub-new", "running"],
+        ["sub-old", "completed"],
+      ])
+    );
+    expect(fetchSessionSubagents).toHaveBeenLastCalledWith(
+      WORKSPACE,
+      SESSION,
+      { limit: 200, cursor: "page-2" },
+      expect.anything()
+    );
+  });
+
   it("Should not poll outside a prompt", async () => {
     const queryClient = setup(false);
     await new Promise(resolve => setTimeout(resolve, 20));
