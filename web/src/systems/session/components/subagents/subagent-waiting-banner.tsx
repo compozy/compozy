@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useId, type ReactNode } from "react";
 import { Square } from "lucide-react";
 import { useReducedMotionConfig } from "motion/react";
 
@@ -62,6 +62,7 @@ export function SubagentWaitingBanner({
   className,
 }: SubagentWaitingBannerProps) {
   const reduced = useReducedMotionConfig();
+  const titleId = useId();
   const { pending, stop } = useSubagentStop(
     onStop,
     SUBAGENT_BANNER_STOP_FAILED,
@@ -96,9 +97,14 @@ export function SubagentWaitingBanner({
     );
   }
 
+  const title = single
+    ? `Waiting on subagent ${single.title}`
+    : `Waiting on ${subagents.length} subagents`;
+  // A labeled region holds the controls; only the title is announced, so no
+  // live region wraps interactive content (n6).
   return (
-    <div
-      role="status"
+    <section
+      aria-label={title}
       data-slot="subagent-waiting-banner"
       data-stopping={busy ? "true" : undefined}
       className={cn(
@@ -111,7 +117,7 @@ export function SubagentWaitingBanner({
         className={cn("mt-0.5 self-start", wakePending && !reduced && "animate-pulse")}
       />
       <span className="flex min-w-0 flex-1 flex-col gap-px">
-        <span className="truncate text-transcript-meta font-medium text-fg-strong">
+        <span id={titleId} className="truncate text-transcript-meta font-medium text-fg-strong">
           {single ? (
             <>
               Waiting on subagent <SubagentName subagent={single} onOpen={onOpen} />
@@ -126,6 +132,6 @@ export function SubagentWaitingBanner({
         {busy ? <StateGlyph size="sm" state="running" /> : <Square aria-hidden="true" />}
         {busy ? "Stopping…" : "Stop"}
       </Button>
-    </div>
+    </section>
   );
 }

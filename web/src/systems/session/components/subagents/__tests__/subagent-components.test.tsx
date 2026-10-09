@@ -201,7 +201,9 @@ describe("SubagentWaitingBanner (UT-W13)", () => {
         onOpen={onOpen}
       />
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Waiting on subagent Draft release notes");
+    expect(
+      screen.getByRole("region", { name: /Waiting on subagent Draft release notes/ })
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open subagent Draft release notes" }));
     expect(onOpen).toHaveBeenCalledOnce();
   });
