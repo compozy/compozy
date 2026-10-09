@@ -56,9 +56,16 @@ export interface SubagentPartition {
   flow: readonly SessionTimelinePart[];
   /** Inner parts of each provider-native card, keyed by subagent id, in order. */
   nested: ReadonlyMap<string, readonly SessionTimelinePart[]>;
+  /**
+   * Flow parts that directly follow a removed part. The removed tool call or
+   * inner work separated what surrounds it, so prose on either side must not
+   * be joined as one streamed block.
+   */
+  boundaries: ReadonlySet<SessionTimelinePart>;
 }
 
 const NO_NESTED: ReadonlyMap<string, readonly SessionTimelinePart[]> = new Map();
+const NO_BOUNDARIES: ReadonlySet<SessionTimelinePart> = new Set();
 
 /**
  * Split card-owned parts out of the parent flow. A part whose
@@ -75,24 +82,32 @@ export function partitionSubagentParts(parts: readonly SessionTimelinePart[]): S
     if (data.origin === "provider_native")
       nativeByToolCall.set(data.tool_call_id, data.subagent_id);
   }
-  if (cardToolCalls.size === 0) return { flow: parts, nested: NO_NESTED };
+  if (cardToolCalls.size === 0) {
+    return { flow: parts, nested: NO_NESTED, boundaries: NO_BOUNDARIES };
+  }
 
   const flow: SessionTimelinePart[] = [];
   const nested = new Map<string, SessionTimelinePart[]>();
+  const boundaries = new Set<SessionTimelinePart>();
+  let removed = false;
   for (const part of parts) {
     const owner = part.parentToolCallId ? nativeByToolCall.get(part.parentToolCallId) : undefined;
     if (owner) {
       const inner = nested.get(owner);
       if (inner) inner.push(part);
       else nested.set(owner, [part]);
+      removed = true;
       continue;
     }
     if (part.kind === "tool" && part.isError !== true && cardToolCalls.has(part.toolCallId)) {
+      removed = true;
       continue;
     }
+    if (removed) boundaries.add(part);
+    removed = false;
     flow.push(part);
   }
-  return { flow, nested };
+  return { flow, nested, boundaries };
 }
 
 /** One card, or the group's disclosure id keyed by its first member (UT-W03). */
