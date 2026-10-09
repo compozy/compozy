@@ -102,3 +102,13 @@ service tests prove no immediate failed-wake retry and the `subagent.wake_abando
 `TestSubagentCleanRestartDaemonIntegration` resumes delegated work after clean shutdown;
 `TestSubagentRecoveryDaemonIntegration` reconciles native work from a lost turn as interrupted.
 These automated journeys preserve the real-provider fail verdict above until the QA owner re-walks.
+
+Fix round 2 automated scope: cancellation returns after durable canceled/disposed acceptance;
+physical child/grandchild stop completes on the daemon lifecycle even after request cancellation.
+The HTTP journey waits for both terminal rows and stopped sessions. Interrupted pending steering
+must return to pending, while failed wakes retry after a short backoff without another user prompt
+and stop at the existing three-attempt cap. A canceled/error turn retains cancellation semantics.
+Clean restart must preserve the original answer of an already completed, unobserved child.
+Owning evidence: `TestSubagentCancelLifetime`, `TestSubagentPendingSteerInterruption`,
+`TestSubagentWakeFailureLimit`, `TestSubagentCanceledErrorPrecedence`, and the daemon hosted-MCP,
+settled-restart and clean-restart journeys. The real-provider QA verdict above is unchanged.

@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -37,7 +38,7 @@ func (s *subagentService) Status(ctx context.Context, caller SubagentCaller, id 
 			if err := s.runtime.CancelWake(ctx, *wake); err != nil {
 				return Subagent{}, err
 			}
-			if _, err := s.store.SettleWake(ctx, wake.WakeMessageID, true); err != nil {
+			if _, err := s.settleWakeRows(ctx, wake.WakeMessageID, true); err != nil {
 				return Subagent{}, err
 			}
 		} else if current.State == store.SubagentWakeStateOpen {
@@ -84,9 +85,10 @@ func (s *subagentService) settleWake(ctx context.Context, parent, id string, can
 		return ErrSubagentNotFound
 	}
 	if wake.State == store.SubagentWakeStateSettled || wake.State == store.SubagentWakeStateCanceled {
+		s.forgetSteer(id)
 		return nil
 	}
-	rows, err := s.store.SettleWake(ctx, id, canceled)
+	rows, err := s.settleWakeRows(ctx, id, canceled)
 	if err != nil {
 		return err
 	}
@@ -105,7 +107,7 @@ func (s *subagentService) OnWakeCanceled(ctx context.Context, parent, id string)
 	if wake.ParentSessionID != parent {
 		return ErrSubagentNotFound
 	}
-	rows, err := s.store.SettleWake(ctx, id, true)
+	rows, err := s.settleWakeRows(ctx, id, true)
 	if err != nil {
 		return err
 	}
@@ -132,8 +134,10 @@ func (s *subagentService) steerOutcome(ctx context.Context, id string, injected 
 		return err
 	}
 	if wake.State == store.SubagentWakeStateSettled || wake.State == store.SubagentWakeStateCanceled {
+		s.forgetSteer(id)
 		return nil
 	}
+	s.forgetSteer(id)
 	if injected {
 		return s.settleWake(ctx, wake.ParentSessionID, id, false)
 	}
@@ -170,9 +174,6 @@ func (s *subagentService) settleTurnSteers(ctx context.Context, parent, turn str
 	for _, wake := range wakes {
 		s.mu.Lock()
 		target, accepted := s.steerTurns[wake.WakeMessageID]
-		if accepted && target == turn {
-			delete(s.steerTurns, wake.WakeMessageID)
-		}
 		s.mu.Unlock()
 		if accepted && target == turn {
 			if err := s.settleWake(ctx, parent, wake.WakeMessageID, false); err != nil {
@@ -201,6 +202,7 @@ func (s *subagentService) failWake(ctx context.Context, parent, id string) error
 	if err != nil {
 		return err
 	}
+	s.forgetSteer(id)
 	for _, row := range rows {
 		s.publish(ctx, row)
 	}
@@ -216,9 +218,67 @@ func (s *subagentService) failWake(ctx context.Context, parent, id string) error
 			wake.Attempts,
 		)
 	}
+	if len(rows) > 0 && wake.Attempts < 3 {
+		s.retryWake(parent)
+	}
 	return nil
 }
+
+const subagentWakeRetryDelay = 200 * time.Millisecond
+
+func (s *subagentService) retryWake(parent string) {
+	s.mu.Lock()
+	if s.wakeRetries == nil {
+		s.wakeRetries = make(map[string]bool)
+	}
+	if s.wakeRetries[parent] {
+		s.mu.Unlock()
+		return
+	}
+	s.wakeRetries[parent] = true
+	s.mu.Unlock()
+	s.launch(func() {
+		timer := time.NewTimer(subagentWakeRetryDelay)
+		defer timer.Stop()
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-timer.C:
+		}
+		unlock := s.lock(parent)
+		defer unlock()
+		s.mu.Lock()
+		delete(s.wakeRetries, parent)
+		s.mu.Unlock()
+		s.logError(s.ctx, "wake_retry", s.successor(s.ctx, parent))
+	})
+}
+
+func (s *subagentService) forgetSteer(id string) {
+	s.mu.Lock()
+	delete(s.steerTurns, id)
+	s.mu.Unlock()
+}
+
+func (s *subagentService) settleWakeRows(
+	ctx context.Context,
+	id string,
+	canceled bool,
+) ([]store.SessionSubagent, error) {
+	rows, err := s.store.SettleWake(ctx, id, canceled)
+	if err == nil {
+		s.forgetSteer(id)
+	}
+	return rows, err
+}
+
 func (s *subagentService) successor(ctx context.Context, parent string) error {
+	s.mu.Lock()
+	retrying := s.wakeRetries[parent]
+	s.mu.Unlock()
+	if retrying {
+		return nil
+	}
 	pending, err := s.store.ListPending(ctx)
 	if err != nil {
 		return err

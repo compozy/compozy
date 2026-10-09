@@ -70,7 +70,7 @@ func (m *Manager) drainSubagentInputEvents(events <-chan acp.AgentEvent) (cancel
 			canceled = true
 		}
 	}
-	return canceled, failed
+	return canceled, failed && !canceled
 }
 
 type subagentDispatchLockKey struct{}

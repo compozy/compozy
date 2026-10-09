@@ -381,7 +381,9 @@ func TestSubagentLifecycle(t *testing.T) {
 			}
 			synctest.Wait()
 			got, err := s.Get(t.Context(), "ws", row.ID)
-			if err != nil || !got.ResultTruncated || *got.Result != "界界界" || got.Hint != "Read the full answer with compozy__session_history on child_session_id." || hook.calls != 1 ||
+			if err != nil || !got.ResultTruncated || *got.Result != "界界界" ||
+				got.Hint != "Read the full answer with compozy__session_history on child_session_id." ||
+				hook.calls != 1 ||
 				db.rows[row.ID].Delivery != "claimed" {
 				t.Fatal(got, err, hook.calls)
 			}
@@ -716,31 +718,38 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 	})
 	t.Run("Should cancel descendants first and continue after stop errors UT-034 IT-028 service", func(t *testing.T) {
 		t.Parallel()
-		s, db, runtime := newSubagentTestService(t)
-		row := requireSubagent(t, s, subagentTestRequest())
-		db.rows["grandchild"] = store.SessionSubagent{
-			ID:              "grandchild",
-			ParentSessionID: *row.ChildSessionID,
-			ChildSessionID:  new("grandchild-session"),
-			Origin:          "delegated",
-			Status:          "running",
-			Delivery:        "none",
-		}
-		runtime.errorStop = testSubagentError()
-		got, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-		if err != nil || got.Status != "cancel_requested" || db.rows[row.ID].Delivery != "disposed" {
-			t.Fatal(got, err)
-		}
-		if len(runtime.stopped) != 2 || runtime.stopped[0] != "grandchild-session" ||
-			runtime.stopped[1] != *row.ChildSessionID {
-			t.Fatal(runtime.stopped)
-		}
-		row.Status = "completed"
-		db.rows[row.ID] = row.SessionSubagent
-		got, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-		if err != nil || got.Status != "completed" || len(runtime.stopped) != 2 {
-			t.Fatal(got, err)
-		}
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			db.rows["grandchild"] = store.SessionSubagent{
+				ID:              "grandchild",
+				ParentSessionID: *row.ChildSessionID,
+				ChildSessionID:  new("grandchild-session"),
+				Origin:          "delegated",
+				Status:          "running",
+				Delivery:        "none",
+			}
+			runtime.errorStop = testSubagentError()
+			got, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+			synctest.Wait()
+			if err != nil || got.Status != "cancel_requested" || db.rows[row.ID].Delivery != "disposed" {
+				t.Fatal(got, err)
+			}
+			if db.rows[row.ID].Status != store.SubagentStatusCanceled ||
+				db.rows["grandchild"].Status != store.SubagentStatusCanceled {
+				t.Fatal(db.rows)
+			}
+			if len(runtime.stopped) != 2 || runtime.stopped[0] != "grandchild-session" ||
+				runtime.stopped[1] != *row.ChildSessionID {
+				t.Fatal(runtime.stopped)
+			}
+			row.Status = "completed"
+			db.rows[row.ID] = row.SessionSubagent
+			got, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+			if err != nil || got.Status != "completed" || len(runtime.stopped) != 2 {
+				t.Fatal(got, err)
+			}
+		})
 	})
 	t.Run("Should mark injected steer delivered without queue UT-057", func(t *testing.T) {
 		t.Parallel()
@@ -1165,33 +1174,50 @@ func TestSubagentPendingSteerBatch(t *testing.T) {
 func TestSubagentWakeFailureLimit(t *testing.T) {
 	t.Run("Should abandon after three failures without immediately retrying", func(t *testing.T) {
 		t.Parallel()
-		s, db, r := newSubagentTestService(t)
-		var logs strings.Builder
-		s.logger = slog.New(slog.NewTextHandler(&logs, nil))
-		row := requireSubagent(t, s, subagentTestRequest())
-		settleTestChild(t, s, r, &row)
-		for attempt := 1; attempt <= 3; attempt++ {
-			wake := *db.rows[row.ID].WakeMessageID
-			if err := s.OnWakeDispatched(t.Context(), "parent", wake); err != nil {
-				t.Fatal(err)
+		synctest.Test(t, func(t *testing.T) {
+			s, db, r := newSubagentTestService(t)
+			var logs strings.Builder
+			s.logger = slog.New(slog.NewTextHandler(&logs, nil))
+			row := requireSubagent(t, s, subagentTestRequest())
+			settleTestChild(t, s, r, &row)
+			for attempt := 1; attempt <= 3; attempt++ {
+				wake := *db.rows[row.ID].WakeMessageID
+				if err := s.OnWakeDispatched(t.Context(), "parent", wake); err != nil {
+					t.Fatal(err)
+				}
+				// Both lifecycle orderings must produce the same delayed successor.
+				if err := s.OnParentTurnSettled(t.Context(), "parent", "turn"); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnWakeFailed(t.Context(), "parent", wake); err != nil {
+					t.Fatal(err)
+				}
+				want := store.SubagentDeliveryPending
+				if attempt == 3 {
+					want = store.SubagentDeliveryDisposed
+				}
+				unlock := s.lock("parent")
+				current, queueCount := db.rows[row.ID], len(r.queues)
+				unlock()
+				if current.Delivery != want || queueCount != attempt {
+					t.Fatal(current, queueCount)
+				}
+				if err := s.OnParentTurnSettled(t.Context(), "parent", "turn"); err != nil {
+					t.Fatal(err)
+				}
+				unlock = s.lock("parent")
+				queueCount = len(r.queues)
+				unlock()
+				if queueCount != attempt {
+					t.Fatal("turn settlement bypassed retry backoff", queueCount)
+				}
+				time.Sleep(subagentWakeRetryDelay)
+				synctest.Wait()
 			}
-			if err := s.OnWakeFailed(t.Context(), "parent", wake); err != nil {
-				t.Fatal(err)
+			if len(r.queues) != 3 || strings.Count(logs.String(), "subagent.wake_abandoned") != 1 {
+				t.Fatal(r.queues, logs.String())
 			}
-			want := store.SubagentDeliveryPending
-			if attempt == 3 {
-				want = store.SubagentDeliveryDisposed
-			}
-			if db.rows[row.ID].Delivery != want || len(r.queues) != attempt {
-				t.Fatal(db.rows[row.ID], r.queues)
-			}
-			if err := s.OnParentTurnSettled(t.Context(), "parent", "turn"); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if len(r.queues) != 3 || strings.Count(logs.String(), "subagent.wake_abandoned") != 1 {
-			t.Fatal(r.queues, logs.String())
-		}
+		})
 	})
 }
 
@@ -1430,4 +1456,116 @@ func TestSubagentRecoveryCorruptChild(t *testing.T) {
 			t.Fatal(db.rows[row.ID])
 		}
 	})
+}
+
+// N2: accepting cancellation finalizes the row before an independent lifecycle-owned stop.
+// Owner: service cancellation; canonical subagent service suite.
+type blockedSubagentStop struct {
+	*subagentTestRuntime
+	entered chan context.Context
+	release chan struct{}
+}
+
+func (r blockedSubagentStop) Stop(ctx context.Context, id string) error {
+	r.entered <- ctx
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-r.release:
+		return r.subagentTestRuntime.Stop(ctx, id)
+	}
+}
+
+func TestSubagentCancelLifetime(t *testing.T) {
+	t.Run("Should finalize synchronously and keep stopping after the request is canceled", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			blocked := blockedSubagentStop{runtime, make(chan context.Context), make(chan struct{})}
+			s.runtime = blocked
+			start := make(chan struct{})
+			launch := s.launch
+			s.launch = func(f func()) {
+				launch(func() {
+					select {
+					case <-start:
+						f()
+					case <-s.ctx.Done():
+					}
+				})
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			out, err := s.Cancel(ctx, SubagentActor{Kind: "operator"}, row.ID, "")
+			cancel()
+			if err != nil || out.Status != "cancel_requested" ||
+				db.rows[row.ID].Status != store.SubagentStatusCanceled ||
+				db.rows[row.ID].Delivery != store.SubagentDeliveryDisposed {
+				t.Fatal(out, db.rows[row.ID], err)
+			}
+			close(start)
+			stopCtx := <-blocked.entered
+			if stopCtx.Err() != nil {
+				t.Fatal("stop inherited request cancellation", stopCtx.Err())
+			}
+			close(blocked.release)
+			synctest.Wait()
+			if len(runtime.stopped) != 1 {
+				t.Fatal(runtime.stopped)
+			}
+		})
+	})
+}
+
+// N3/N6: pending steering is retriable after interruption and tracking ends with the wake.
+// Owner: service delivery; extends the canonical steer-batch invariant.
+func TestSubagentPendingSteerInterruption(t *testing.T) {
+	for _, edge := range []string{"interrupt", "stop", "cancel-wake", "injected", "fallback"} {
+		t.Run("Should release pending steer tracking on "+edge, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			snap := runtime.snapshots["parent"]
+			snap.CanSteer = true
+			runtime.snapshots["parent"] = snap
+			runtime.steer = acp.SteerResult{Attempt: acp.SteerAttemptPendingInjection}
+			row := requireSubagent(t, s, subagentTestRequest())
+			settleTestChild(t, s, runtime, &row)
+			wake := *db.rows[row.ID].WakeMessageID
+			if len(s.steerTurns) != 1 {
+				t.Fatal(s.steerTurns)
+			}
+			var err error
+			switch edge {
+			case "interrupt":
+				err = s.OnParentTurnInterrupted(t.Context(), "parent", "turn")
+			case "stop":
+				err = s.OnParentStopped(t.Context(), "parent")
+			case "cancel-wake":
+				err = s.OnWakeCanceled(t.Context(), "parent", wake)
+			case "injected":
+				err = s.OnSteerOutcome(t.Context(), "parent", wake, true)
+			case "fallback":
+				err = s.OnSteerOutcome(t.Context(), "parent", wake, false)
+			}
+			if err != nil || len(s.steerTurns) != 0 {
+				t.Fatal(s.steerTurns, err)
+			}
+			if edge == "interrupt" {
+				if db.rows[row.ID].Delivery != store.SubagentDeliveryPending || len(runtime.queues) != 0 {
+					t.Fatal(db.rows, runtime.queues)
+				}
+				snap.Active = false
+				runtime.snapshots["parent"] = snap
+				if err := s.OnParentTurnSettled(t.Context(), "parent", "turn"); err != nil {
+					t.Fatal(err)
+				}
+				current := db.rows[row.ID]
+				if current.Delivery != store.SubagentDeliveryClaimed || current.WakeMessageID == nil ||
+					*current.WakeMessageID == wake ||
+					len(runtime.queues) != 1 {
+					t.Fatal(current, runtime.queues)
+				}
+			}
+		})
+	}
 }
