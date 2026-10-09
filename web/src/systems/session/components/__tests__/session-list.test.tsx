@@ -286,6 +286,7 @@ describe("SessionList subagents", () => {
     settled_at: null,
     created_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
     updated_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
+    created_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
   });
 
   beforeEach(() => {
@@ -382,6 +383,30 @@ describe("SessionList subagents", () => {
     );
     expect(within(thread).getByTestId("session-sidebar-session-mid-sub")).toBeVisible();
     expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+  });
+
+  // Review round 2: a deleted ancestor no longer hides its descendant for good.
+  it("UT-W18: shows a viewed subagent whose parent was deleted, labelled as such", async () => {
+    const viewed = row("orphan-sub", { lineage: lineage("deleted-parent", "subagent") });
+    detailResponse({});
+    renderList({ sessions: [row("other")], revealedSession: viewed });
+
+    const orphan = await screen.findByTestId("session-sidebar-session-orphan-sub");
+    expect(orphan).toHaveTextContent("Subagent of a deleted session");
+    expect(screen.getByTestId("session-sidebar-session-other")).not.toHaveTextContent(
+      "Subagent of a deleted session"
+    );
+  });
+
+  it("keeps one cache subscription per chip across list re-renders", () => {
+    const parent = row("parent", summary(1, 2));
+    const { queryClient, update } = renderList({ sessions: [parent] });
+    const subscribe = vi.spyOn(queryClient.getQueryCache(), "subscribe");
+
+    update([{ ...parent, name: "Renamed parent" }]);
+    update([{ ...parent, name: "Renamed again" }]);
+
+    expect(subscribe).not.toHaveBeenCalled();
   });
 
   it("UT-W18: never promotes a viewed subagent whose parent is off the page", () => {

@@ -1,5 +1,6 @@
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 
+import { SessionNotFoundError } from "../adapters/session-api-errors";
 import { sessionDetailOptions } from "../lib/query-options";
 import {
   subagentContextRequests,
@@ -24,18 +25,21 @@ export function useSubagentContextSessions(
 ): readonly SessionPayload[] {
   const queryClient = useQueryClient();
   const loaded = new Map<string, SessionPayload>();
+  const deleted = new Set<string>();
   const reads: SubagentContextRequest[] = [];
-  let pending: SubagentContextRequest[] = [];
   for (let hop = 0; hop < MAX_CONTEXT_READS; hop++) {
-    pending = subagentContextRequests({ sessions, loaded, revealed, searching });
+    const pending = subagentContextRequests({ sessions, loaded, deleted, revealed, searching });
     let resolved = false;
     for (const request of pending) {
       reads.push(request);
-      const cached = queryClient.getQueryData<SessionPayload>(
-        sessionDetailOptions(request.workspaceId, request.sessionId).queryKey
-      );
+      const { queryKey } = sessionDetailOptions(request.workspaceId, request.sessionId);
+      const cached = queryClient.getQueryData<SessionPayload>(queryKey);
       if (cached) {
         loaded.set(request.sessionId, cached);
+        resolved = true;
+      } else if (queryClient.getQueryState(queryKey)?.error instanceof SessionNotFoundError) {
+        // The ancestor is gone; its descendants still show, labelled (COPY.md).
+        deleted.add(request.sessionId);
         resolved = true;
       }
     }
@@ -45,5 +49,5 @@ export function useSubagentContextSessions(
   useQueries({
     queries: reads.map(request => sessionDetailOptions(request.workspaceId, request.sessionId)),
   });
-  return withSubagentContext({ sessions, loaded, revealed, searching });
+  return withSubagentContext({ sessions, loaded, deleted, revealed, searching });
 }

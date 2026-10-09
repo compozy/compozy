@@ -56,6 +56,8 @@ export function SessionListThread({
   const rootRow = (
     <SessionListRow
       session={session}
+      // Context rules make a subagent a root only when its ancestry was deleted.
+      orphanedSubagent={isSubagentSession(session)}
       owner={owner}
       current={session.id === currentSessionId}
       onSelect={() => onSelectSession(session)}

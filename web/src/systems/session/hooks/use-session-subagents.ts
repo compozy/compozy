@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { cancelSubagent } from "../adapters/subagent-api";
 import type { SubagentView } from "../components/subagents/types";
@@ -38,11 +38,20 @@ function useLiveSubagentRoster(
   enabled: boolean
 ): SubagentRoster | null {
   const cache = useQueryClient().getQueryCache();
-  const queryKey = sessionKeys.subagentRoster(workspaceId, sessionId);
-  const subscribe = (notify: () => void) => cache.subscribe(notify);
-  const find = () => cache.find<SubagentRoster>({ queryKey, exact: true });
-  const data = useSyncExternalStore(subscribe, () => find()?.state.data);
-  const observers = useSyncExternalStore(subscribe, () => find()?.getObserversCount() ?? 0);
+  // Stable per cache: a new subscribe identity would resubscribe on every chip render.
+  const subscribe = useCallback((notify: () => void) => cache.subscribe(notify), [cache]);
+  const find = useCallback(
+    () =>
+      cache.find<SubagentRoster>({
+        queryKey: sessionKeys.subagentRoster(workspaceId, sessionId),
+        exact: true,
+      }),
+    [cache, workspaceId, sessionId]
+  );
+  const readData = useCallback(() => find()?.state.data, [find]);
+  const readObservers = useCallback(() => find()?.getObserversCount() ?? 0, [find]);
+  const data = useSyncExternalStore(subscribe, readData);
+  const observers = useSyncExternalStore(subscribe, readObservers);
   if (!enabled || !data || observers === 0 || data.staleIds.size > 0) return null;
   return data.rows.length >= SUBAGENT_LIST_PAGE_SIZE ? null : data;
 }
