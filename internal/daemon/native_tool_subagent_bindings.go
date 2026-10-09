@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
@@ -66,11 +68,16 @@ func (n *daemonNativeTools) subagentCaller(
 	if turnID == "" {
 		return session.SubagentCaller{}, session.ErrSubagentParentNotActive
 	}
+	toolCallID := strings.TrimSpace(req.ToolCallID)
+	if toolCallID == "" && req.CorrelationID != "" {
+		sum := sha256.Sum256([]byte(turnID + "\x00" + req.CorrelationID))
+		toolCallID = fmt.Sprintf("hosted-%x", sum)
+	}
 	return session.SubagentCaller{
 		WorkspaceID: parent.WorkspaceID,
 		SessionID:   id,
 		TurnID:      turnID,
-		ToolCallID:  strings.TrimSpace(req.ToolCallID),
+		ToolCallID:  toolCallID,
 		AgentName:   parent.AgentName,
 	}, nil
 }

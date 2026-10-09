@@ -18,6 +18,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
@@ -265,6 +266,18 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 		if err != nil || len(page.Items) != 3 {
 			t.Fatal(page, err)
 		}
+		// IT-030: the root is the only unseen-done item after all three children finish.
+		summary, err := manager.AttentionSummary(ctx, store.ReadScope{AllProfiles: true})
+		if err != nil || summary.Finished != 1 {
+			t.Fatal(summary, err)
+		}
+		for _, member := range page.Items {
+			info, err := manager.Status(ctx, *member.ChildSessionID)
+			if err != nil || info.LastSettledRevision > info.LastSeenRevision {
+				t.Fatal(info, err)
+			}
+		}
+
 	})
 }
 
@@ -341,7 +354,7 @@ func newSubagentDaemonConfigured(
 			},
 		},
 	)
-	for _, text := range []string{"user one", "user two"} {
+	for _, text := range []string{"user one", "user two", "Continue the interrupted delegated task."} {
 		fixture.Agents[0].Turns = append(
 			fixture.Agents[0].Turns,
 			acpmock.TurnFixture{
@@ -351,8 +364,26 @@ func newSubagentDaemonConfigured(
 			},
 		)
 	}
+	if len(steer) > 1 && steer[1] == "wake-approval" {
+		fixture.Agents[0].Permissions = "approve-reads"
+		fixture.Agents[0].Turns[2].Steps = append(
+			[]acpmock.Step{
+				{
+					Kind:           acpmock.StepKindPermission,
+					ToolCallID:     "wake-approval",
+					Title:          "Read wake",
+					ToolKind:       "edit",
+					Path:           "wake.txt",
+					ExpectDecision: "allow-once",
+				},
+			},
+			fixture.Agents[0].Turns[2].Steps...)
+	}
 	if len(steer) > 0 {
 		fixture.Agents[0].SteerOutcome = steer[0]
+		if len(steer) > 1 && steer[1] == "complete" {
+			fixture.Agents[0].Turns[0].Steps[1].DriverControl.Action = acpmock.DriverControlWaitForSteer
+		}
 	}
 	nativeData, err := os.ReadFile(filepath.Join("..", "acp", "testdata", "claude_agent_subagent.jsonl"))
 	if err != nil {
@@ -931,10 +962,27 @@ func TestSubagentRecoveryDaemonIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// IT-031: a native row whose provider turn disappeared is interrupted at boot, without a wake.
+		native := store.SessionSubagent{
+			ID: "native-recovery", WorkspaceID: workspace, ParentSessionID: parent.ID,
+			ParentTurnID: "lost-provider-turn", Origin: store.SubagentOriginProviderNative,
+			ProviderToolCallID: "lost-native-call", IdempotencyKey: "lost-native-call",
+			RequestFingerprint: "lost-native-call", Title: "Interrupted native", Depth: 1,
+			Status: store.SubagentStatusRunning, WorkState: store.SubagentWorkStateWorking,
+			WakePolicy: store.SubagentWakePolicySettledOnly, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		}
+		if _, _, err := db.ReserveSubagent(t.Context(), native); err != nil {
+			t.Fatal(err)
+		}
 		for range 2 {
 			if err := service.Recover(t.Context()); err != nil {
 				t.Fatal(err)
 			}
+		}
+		recoveredNative, err := db.GetSubagent(t.Context(), workspace, native.ID)
+		if err != nil || recoveredNative.Status != store.SubagentStatusInterrupted ||
+			recoveredNative.Delivery != store.SubagentDeliveryNone || recoveredNative.WakeMessageID != nil {
+			t.Fatal(recoveredNative, err)
 		}
 		info, err := manager.Status(t.Context(), orphan.ID)
 		if err != nil || info.State != session.StateStopped {
@@ -1459,4 +1507,357 @@ func runSubagentCrashProcess(t *testing.T, handoff string) {
 		t.Fatal(err)
 	}
 	<-t.Context().Done()
+}
+
+// IT-004 / IT-025: pending extension acceptance completes at the real ACP turn boundary.
+func TestSubagentPendingInjectionDaemonIntegration(t *testing.T) {
+	t.Run("Should finish a pending injection without a queued duplicate", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonIntegration(t, "pending_injection", "complete")
+		parent, caller := startSubagentIntegrationParent(t, m, ws)
+		row, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "pending injection completes", 15*time.Second, func() bool {
+			current, e := d.SubagentService().Get(t.Context(), ws, row.ID)
+			return e == nil && current.Delivery == store.SubagentDeliveryDelivered && !parent.IsPrompting()
+		})
+		current, err := d.SubagentService().Get(t.Context(), ws, row.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wake, _, err := d.registry.(store.SubagentStore).GetWake(t.Context(), *current.WakeMessageID)
+		if err != nil || wake.Route != store.SubagentWakeRouteSteer || wake.InputEntryID != "" || wake.SteerRequeued {
+			t.Fatal(wake, err)
+		}
+	})
+	t.Run("Should keep a second terminal row pending during injected steer", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonIntegration(t, "pending_injection")
+		parent, caller := startSubagentIntegrationParent(t, m, ws)
+		var rows []session.Subagent
+		for _, key := range []string{"first", "second"} {
+			row, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", IdempotencyKey: key})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows = append(rows, row)
+			waitForRuntimeCondition(t, "child delivery planned", 15*time.Second, func() bool {
+				current, e := d.SubagentService().Get(t.Context(), ws, row.ID)
+				if e != nil || !store.IsSubagentStatusTerminal(current.Status) {
+					return false
+				}
+				if key == "second" {
+					return current.Delivery == store.SubagentDeliveryPending
+				}
+				if current.WakeMessageID == nil {
+					return false
+				}
+				wake, _, e := d.registry.(store.SubagentStore).GetWake(t.Context(), *current.WakeMessageID)
+				return e == nil && wake.State == store.SubagentWakeStateDispatched
+			})
+		}
+		first, err := d.SubagentService().Get(t.Context(), ws, rows[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second, err := d.SubagentService().Get(t.Context(), ws, rows[1].ID)
+		if err != nil || second.Delivery != store.SubagentDeliveryPending {
+			t.Fatal(second, err)
+		}
+		if _, err := m.CancelPromptWithCause(
+			t.Context(),
+			parent.ID,
+			session.PromptCancelSyntheticAdmission,
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "successor delivery", 15*time.Second, func() bool {
+			current, e := d.SubagentService().Get(t.Context(), ws, second.ID)
+			return e == nil && current.Delivery == store.SubagentDeliveryDelivered
+		})
+		second, err = d.SubagentService().Get(t.Context(), ws, second.ID)
+		if err != nil || second.WakeMessageID == nil || *second.WakeMessageID == *first.WakeMessageID {
+			t.Fatal(first, second, err)
+		}
+	})
+}
+
+// D-06: shutdown preserves running delegation, then normal session resume continues the interrupted task.
+func TestSubagentCleanRestartDaemonIntegration(t *testing.T) {
+	t.Run("Should resume a running child after clean daemon shutdown", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonIntegration(t)
+		parent, caller := startSubagentIntegrationParent(t, m, ws)
+		row, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, ok := m.Get(*row.ChildSessionID)
+		if !ok {
+			t.Fatal("missing child")
+		}
+		waitForRuntimeCondition(
+			t,
+			"child in flight",
+			10*time.Second,
+			func() bool { return child.IsPrompting() && child.CurrentTurnID() != "" },
+		)
+		home, cfg := d.homePaths, d.config
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		restarted := reopenSubagentIntegrationDaemon(t, home, &cfg)
+		waitForRuntimeCondition(t, "resumed child completion", 15*time.Second, func() bool {
+			current, e := restarted.SubagentService().Get(t.Context(), ws, row.ID)
+			return e == nil && current.Status == store.SubagentStatusCompleted && current.WakeMessageID != nil
+		})
+		current, err := restarted.SubagentService().Get(t.Context(), ws, row.ID)
+		if err != nil || current.Delivery == store.SubagentDeliveryDisposed || current.Result == nil ||
+			!strings.Contains(*current.Result, "Continue the interrupted delegated task.") {
+			t.Fatal(current, err)
+		}
+		requireSubagentRestartDelivery(t, restarted, ws, row.ID, parent.ID)
+	})
+}
+
+// IT-004 none arm / IT-005: a fourth child finishing while the first wake runs belongs to a second batch.
+func TestSubagentSuccessorDaemonIntegration(t *testing.T) {
+	t.Run("Should queue without steer and dispatch a fourth result in the successor wake", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonConfigured(
+			t,
+			func(cfg *compozyconfig.Config) { cfg.Permissions.Mode = compozyconfig.PermissionModeApproveReads },
+			"",
+			"wake-approval",
+		)
+		parent, caller := startSubagentIntegrationParent(t, m, ws)
+		var rows []session.Subagent
+		for _, key := range []string{"one", "two", "three"} {
+			row, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", IdempotencyKey: key})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows = append(rows, row)
+			waitForRuntimeCondition(t, "joined result", 10*time.Second, func() bool {
+				r, e := d.SubagentService().Get(t.Context(), ws, row.ID)
+				return e == nil && r.Delivery == store.SubagentDeliveryClaimed
+			})
+		}
+		before, err := d.SubagentService().Get(t.Context(), ws, rows[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wake, _, err := d.registry.(store.SubagentStore).GetWake(t.Context(), *before.WakeMessageID)
+		if err != nil || wake.Route != store.SubagentWakeRouteQueue || wake.State != store.SubagentWakeStateOpen {
+			t.Fatal(wake, err)
+		}
+		if _, err := m.CancelPromptWithCause(
+			t.Context(),
+			parent.ID,
+			session.PromptCancelSyntheticAdmission,
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(
+			t,
+			"wake waiting for approval",
+			10*time.Second,
+			func() bool { return parent.Info().PendingPermission },
+		)
+		caller.TurnID = parent.CurrentTurnID()
+		fourth, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", IdempotencyKey: "four"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "fourth result pending", 10*time.Second, func() bool {
+			r, e := d.SubagentService().Get(t.Context(), ws, fourth.ID)
+			return e == nil && r.Delivery == store.SubagentDeliveryPending
+		})
+		if _, err := m.ApprovePermission(
+			t.Context(),
+			parent.ID,
+			acp.ApproveRequest{TurnID: caller.TurnID, Decision: "allow-once"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "second wake dispatched", 10*time.Second, func() bool {
+			r, e := d.SubagentService().Get(t.Context(), ws, fourth.ID)
+			return e == nil && r.WakeMessageID != nil && *r.WakeMessageID != *before.WakeMessageID &&
+				parent.Info().PendingPermission
+		})
+		if _, err := m.ApprovePermission(
+			t.Context(),
+			parent.ID,
+			acp.ApproveRequest{TurnID: parent.CurrentTurnID(), Decision: "allow-once"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "fourth delivered", 10*time.Second, func() bool {
+			r, e := d.SubagentService().Get(t.Context(), ws, fourth.ID)
+			return e == nil && r.Delivery == store.SubagentDeliveryDelivered
+		})
+	})
+}
+
+// M12 / D-03 / IT-032: root descendants invoke native tools through the real hosted MCP, including missing provider call IDs.
+func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
+	t.Run(
+		"Should let a root child query status and delegate through hosted MCP and publish the catalog stream",
+		func(t *testing.T) {
+			fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+			h := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{
+				{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+				{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+			}})
+			ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+			defer cancel()
+			parent := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "Root native nesting")
+			stream, err := h.StartSessionCatalogHTTPStream(ctx, func(event e2etest.SSEEvent) bool {
+				if event.Event != string(session.CatalogEventNameChanged) {
+					return false
+				}
+				var payload compozycontract.SessionCatalogEventPayload
+				if json.Unmarshal(event.Data, &payload) != nil || payload.SessionID != parent.ID ||
+					payload.Kind != "upserted" {
+					return false
+				}
+				current, e := h.GetSession(ctx, parent.ID)
+				return e == nil && current.SubagentSummary != nil && current.SubagentSummary.Total > 0
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.PromptSession(ctx, parent.ID, "delegate nested work"); err != nil {
+				t.Fatal(err)
+			}
+			awaitAttentionCatalogObservation(t, ctx, stream)
+			var children, grandchildren compozycontract.SubagentListPayload
+			waitForRuntimeCondition(t, "root child native delegation", 30*time.Second, func() bool {
+				children = readSubagentsHTTP(t, ctx, h, parent.ID)
+				if len(children.Subagents) != 1 || children.Subagents[0].ChildSessionID == nil {
+					return false
+				}
+				grandchildren = readSubagentsHTTP(t, ctx, h, *children.Subagents[0].ChildSessionID)
+				return len(grandchildren.Subagents) == 1 &&
+					grandchildren.Subagents[0].Status == store.SubagentStatusCompleted
+			})
+			if children.Subagents[0].Depth != 1 || grandchildren.Subagents[0].Depth != 2 {
+				t.Fatal(children, grandchildren)
+			}
+			page, err := h.SessionTranscript(ctx, *children.Subagents[0].ChildSessionID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			statusObserved := false
+			delegateObserved := false
+			for _, entry := range page.Entries {
+				for _, part := range entry.Message.Parts {
+					if part.ToolCallID == "status-from-child" &&
+						strings.Contains(string(part.Output), "subagent_not_found") {
+						statusObserved = true
+					}
+					if part.ToolCallID == "delegate-grandchild" &&
+						strings.Contains(string(part.Output), grandchildren.Subagents[0].SubagentID) {
+						delegateObserved = true
+					}
+				}
+			}
+			if !statusObserved || !delegateObserved {
+				t.Fatal("child hosted MCP calls did not reach their native bindings", statusObserved, delegateObserved)
+			}
+		},
+	)
+	t.Run("Should cancel a live delegated tree through the operator HTTP route IT-014", func(t *testing.T) {
+		fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+		h := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{
+			{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+			{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+		}})
+		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+		defer cancel()
+		parent := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "Live native tree")
+		if _, err := h.PromptSession(ctx, parent.ID, "delegate live tree"); err != nil {
+			t.Fatal(err)
+		}
+		var children, grandchildren compozycontract.SubagentListPayload
+		waitForRuntimeCondition(t, "live tree", 30*time.Second, func() bool {
+			children = readSubagentsHTTP(t, ctx, h, parent.ID)
+			if len(children.Subagents) != 1 || children.Subagents[0].ChildSessionID == nil {
+				return false
+			}
+			grandchildren = readSubagentsHTTP(t, ctx, h, *children.Subagents[0].ChildSessionID)
+			return len(grandchildren.Subagents) == 1 && grandchildren.Subagents[0].Status == store.SubagentStatusRunning
+		})
+		request, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodPost,
+			h.HTTPURL("/api/workspaces/"+h.WorkspaceID+"/subagents/"+children.Subagents[0].SubagentID+"/cancel"),
+			strings.NewReader(`{"reason":"operator test"}`),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		response, err := h.HTTPClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if readErr != nil || closeErr != nil || response.StatusCode != http.StatusAccepted ||
+			!strings.Contains(string(body), "cancel_requested") {
+			t.Fatal(response.StatusCode, string(body), readErr, closeErr)
+		}
+		for _, row := range []compozycontract.SubagentPayload{children.Subagents[0], grandchildren.Subagents[0]} {
+			waitForRuntimeCondition(t, "canceled tree member", 15*time.Second, func() bool {
+				list := readSubagentsHTTP(t, ctx, h, row.ParentSessionID)
+				for _, current := range list.Subagents {
+					if current.SubagentID == row.SubagentID {
+						return current.Status == store.SubagentStatusCanceled &&
+							current.Delivery == store.SubagentDeliveryDisposed
+					}
+				}
+				return false
+			})
+			info, err := h.GetSession(ctx, *row.ChildSessionID)
+			if err != nil || info.State != session.StateStopped {
+				t.Fatal(info, err)
+			}
+		}
+	})
+}
+
+func readSubagentsHTTP(
+	t *testing.T,
+	ctx context.Context,
+	h *e2etest.RuntimeHarness,
+	parent string,
+) compozycontract.SubagentListPayload {
+	t.Helper()
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		h.HTTPURL("/api/workspaces/"+h.WorkspaceID+"/sessions/"+parent+"/subagents"),
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := h.HTTPClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	var page compozycontract.SubagentListPayload
+	if readErr != nil || closeErr != nil || response.StatusCode != http.StatusOK {
+		t.Fatal(response.StatusCode, string(body), readErr, closeErr)
+	}
+	if err := json.Unmarshal(body, &page); err != nil {
+		t.Fatal(err)
+	}
+	return page
 }

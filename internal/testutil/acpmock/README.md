@@ -44,3 +44,11 @@ It uses MCP `tools/call`; no operator API invocation or synthetic tool response 
 `delegate child work`, and inspect its transcript for `delegate-child`. The parent discovers
 capabilities, delegates asynchronously, and ends its turn; the worker answers and the
 parent accepts the synthetic completion wake. This fixture can be used by browser E2E.
+
+Subagent steering fixtures may set agent `steer_outcome` to `injected`, `failed`, or
+`pending_injection`. Pending injection returns acceptance without an ACP completion channel.
+A `driver_control` step with `action: "wait_for_steer"` waits on the steering request,
+then continues the scripted turn to its normal completion. Use `block_until_cancel`
+when the integration test must hold the pending window open across another child settlement.
+Native-tool steps may set `omit_tool_call_id: true` to omit provider `_meta.toolCallId`
+while retaining the transcript tool ID; this exercises the hosted request-ID fallback.

@@ -123,7 +123,9 @@ func (a *mockAgent) callNativeTool(
 		return diagnostics, err
 	}
 	params := &sdkmcp.CallToolParams{Name: step.ToolID, Arguments: arguments}
-	params.Meta = sdkmcp.Meta{"toolCallId": step.ToolCallID}
+	if !step.OmitToolCallID {
+		params.Meta = sdkmcp.Meta{"toolCallId": step.ToolCallID}
+	}
 	result, callErr := client.CallTool(ctx, params)
 	status := acpsdk.ToolCallStatusCompleted
 	var output any

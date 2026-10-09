@@ -72,5 +72,14 @@ func (a *mockAgent) HandleExtensionMethod(_ context.Context, method string, para
 	if err := a.writeProtocolDiagnostics(method, string(request.SessionId), "", ""); err != nil {
 		return nil, err
 	}
+	a.mu.Lock()
+	if session := a.sessions[string(request.SessionId)]; session != nil && session.steerAccepted != nil {
+		select {
+		case <-session.steerAccepted:
+		default:
+			close(session.steerAccepted)
+		}
+	}
+	a.mu.Unlock()
 	return map[string]string{"outcome": a.agent.SteerOutcome}, nil
 }

@@ -147,7 +147,8 @@ type TurnMatchJudge struct {
 
 // Step describes one deterministic ACP action emitted or executed by the driver.
 type Step struct {
-	Kind StepKind `json:"kind"`
+	OmitToolCallID bool     `json:"omit_tool_call_id,omitzero"`
+	Kind           StepKind `json:"kind"`
 
 	Text   string   `json:"text,omitempty"`
 	Chunks []string `json:"chunks,omitempty"`
@@ -204,5 +205,6 @@ const (
 	// DriverControlFailPrompt answers the matched session/prompt with a JSON-RPC error
 	// carrying error_message, the shape a provider rate limit or auth lapse reaches the
 	// daemon in after the session was accepted.
-	DriverControlFailPrompt DriverControlAction = "fail_prompt"
+	DriverControlFailPrompt   DriverControlAction = "fail_prompt"
+	DriverControlWaitForSteer DriverControlAction = "wait_for_steer"
 )
