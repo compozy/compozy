@@ -112,7 +112,7 @@ func (a *mockAgent) stepContext(
 
 func stepAcceptsExternalCancel(step acpmock.Step) bool {
 	switch step.Kind {
-	case acpmock.StepKindCommand:
+	case acpmock.StepKindCommand, acpmock.StepKindNativeToolCall:
 		return true
 	case acpmock.StepKindDriverControl:
 		return step.DriverControl.Action == acpmock.DriverControlBlockUntilCancel
@@ -181,6 +181,8 @@ func (a *mockAgent) executeStep(
 		return a.emitTextChunks(ctx, sessionID, acpsdk.UpdateAgentMessageText, step)
 	case acpmock.StepKindThought:
 		return a.emitTextChunks(ctx, sessionID, acpsdk.UpdateAgentThoughtText, step)
+	case acpmock.StepKindNativeToolCall:
+		return a.callNativeTool(ctx, sessionID, step)
 	case acpmock.StepKindToolCall:
 		return a.emitToolCall(ctx, sessionID, step)
 	case acpmock.StepKindPermission:

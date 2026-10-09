@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -2671,4 +2672,92 @@ func containsAgentEvent(events []compozycontract.AgentEventPayload, want compozy
 		return true
 	}
 	return false
+}
+
+func TestDaemonE2EAgentDelegatesThroughHostedMCP(t *testing.T) {
+	t.Run(
+		"Should persist the agent delegate call and its subagent result in the parent transcript",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				MockAgents: []e2etest.MockAgentSpec{
+					{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+					{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+				},
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+			defer cancel()
+			parent, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+				AgentName: "subagent-delegator", WorkspacePath: harness.WorkspaceRoot,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.PromptSession(ctx, parent.ID, "delegate child work"); err != nil {
+				t.Fatal(err)
+			}
+			page, err := harness.SessionTranscript(ctx, parent.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var subagentID string
+			for _, entry := range page.Entries {
+				for _, part := range entry.Message.Parts {
+					if part.ToolCallID != "delegate-child" {
+						continue
+					}
+					if part.Type != "tool-compozy__subagent_delegate" || part.State != "output-available" {
+						t.Fatalf("delegate transcript part = %#v", part)
+					}
+					var input struct {
+						Task string `json:"task"`
+					}
+					if err := jsonv2.Unmarshal(part.Input, &input); err != nil || input.Task != "child work" {
+						t.Fatalf("delegate input = %s, error = %v", part.Input, err)
+					}
+					var envelope struct {
+						Raw struct {
+							RawOutput json.RawMessage `json:"raw_output"`
+						} `json:"raw"`
+					}
+					if err := jsonv2.Unmarshal(part.Output, &envelope); err != nil {
+						t.Fatal(err)
+					}
+					var result struct {
+						SubagentID      string `json:"subagent_id"`
+						ParentSessionID string `json:"parent_session_id"`
+						ChildSessionID  string `json:"child_session_id"`
+					}
+					if err := jsonv2.Unmarshal(envelope.Raw.RawOutput, &result); err != nil {
+						t.Fatal(err)
+					}
+					if result.SubagentID == "" || result.ParentSessionID != parent.ID || result.ChildSessionID == "" {
+						t.Fatalf("delegate output = %s", part.Output)
+					}
+					subagentID = result.SubagentID
+				}
+			}
+			if subagentID == "" {
+				t.Fatalf("persisted transcript has no delegate result: %#v", page.Entries)
+			}
+			registration, ok := harness.MockAgentRegistration("subagent-delegator")
+			if !ok {
+				t.Fatal("missing parent registration")
+			}
+			records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, record := range records {
+				for _, step := range record.Steps {
+					if step.Kind == acpmock.StepKindNativeToolCall && step.ToolCallID == "delegate-child" &&
+						step.Error == "" {
+						return
+					}
+				}
+			}
+			t.Fatal("delegate result was not executed by the parent fixture process")
+		},
+	)
 }

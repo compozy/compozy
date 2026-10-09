@@ -1,0 +1,52 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "subagent-delegator",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "delegate",
+                    "match": { "turn_source": "user", "user_text": "delegate child work" },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_capabilities",
+                            "tool_call_id": "discover-subagents",
+                            "raw_input": {}
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "delegate-child",
+                            "raw_input": {
+                                "task": "child work",
+                                "title": "Fixture delegation",
+                                "target": { "agent": "subagent-worker" }
+                            }
+                        },
+                        { "kind": "assistant", "text": "Delegated; waiting for the completion wake." }
+                    ]
+                },
+                {
+                    "name": "wake",
+                    "match": { "turn_source": "synthetic" },
+                    "steps": [{ "kind": "assistant", "text": "Child completion received." }]
+                }
+            ]
+        },
+        {
+            "name": "subagent-worker",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "work",
+                    "match": { "user_text": "child work" },
+                    "steps": [{ "kind": "assistant", "text": "Child work completed." }]
+                }
+            ]
+        }
+    ]
+}

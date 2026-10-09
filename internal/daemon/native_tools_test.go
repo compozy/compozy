@@ -12970,3 +12970,59 @@ func TestNativeSubagentPermissionBoundary(t *testing.T) {
 		}
 	})
 }
+
+func TestNativeSubagentHostedCaller(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		run        string
+		generation int64
+		allowed    bool
+	}{
+		{name: "Should resolve the current turn from the bound hosted run", run: "run", generation: 2, allowed: true},
+		{name: "Should reject a stale hosted run", run: "old-run", generation: 2},
+		{name: "Should reject a stale hosted generation", run: "run", generation: 1},
+		{name: "Should reject an unbound hosted call"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			adapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+				Workspaces: nativeTestWorkspaceService(t),
+				Sessions: apitest.StubSessionManager{
+					StatusFn: func(context.Context, string) (*session.Info, error) {
+						return &session.Info{
+							ID:          "parent",
+							ProfileID:   store.DefaultProfileID,
+							WorkspaceID: "ws",
+							State:       session.StateActive,
+							Liveness: &store.SessionLivenessMeta{
+								Activity: &store.SessionActivityMeta{TurnID: "active-turn"},
+							},
+						}, nil
+					},
+					ActivePromptRunFn: func(context.Context, string) (session.PromptRunIdentity, error) {
+						return session.PromptRunIdentity{
+							SessionID:   "parent",
+							WorkspaceID: "ws",
+							RunID:       "run",
+							Generation:  2,
+						}, nil
+					},
+				},
+			}}
+			caller, err := adapter.subagentCaller(t.Context(), toolspkg.Scope{
+				SessionID:   "parent",
+				WorkspaceID: "ws",
+				ProfileID:   store.DefaultProfileID,
+				RunID:       tc.run,
+				Generation:  tc.generation,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSubagentDelegate, ToolCallID: "hosted-call"})
+			if tc.allowed {
+				if err != nil || caller.TurnID != "active-turn" || caller.ToolCallID != "hosted-call" {
+					t.Fatalf("hosted caller = %#v, error = %v", caller, err)
+				}
+			} else if !errors.Is(err, session.ErrSubagentParentNotActive) {
+				t.Fatalf("hosted caller error = %v", err)
+			}
+		})
+	}
+}

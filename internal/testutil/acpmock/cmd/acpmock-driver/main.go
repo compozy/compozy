@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
@@ -28,6 +29,7 @@ type cliArgs struct {
 }
 
 type sessionState struct {
+	nativeTools          *sdkmcp.ClientSession
 	PromptCount          int
 	ConfigOptions        []acpsdk.SessionConfigOption
 	activePromptCancel   context.CancelFunc
@@ -97,6 +99,9 @@ func main() {
 	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, os.Stdin)
 	agent.SetAgentConnection(conn)
 	<-conn.Done()
+	if err := agent.closeNativeTools(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 	cancelLifecycle()
 	agent.waitForAsyncControls()
 }
@@ -166,10 +171,10 @@ func (a *mockAgent) Cancel(_ context.Context, params acpsdk.CancelNotification) 
 }
 
 func (a *mockAgent) CloseSession(
-	context.Context,
-	acpsdk.CloseSessionRequest,
+	_ context.Context,
+	params acpsdk.CloseSessionRequest,
 ) (acpsdk.CloseSessionResponse, error) {
-	return acpsdk.CloseSessionResponse{}, nil
+	return acpsdk.CloseSessionResponse{}, a.closeSessionNativeTools(string(params.SessionId))
 }
 
 func (a *mockAgent) ListSessions(
@@ -192,7 +197,10 @@ func (a *mockAgent) ResumeSession(
 	}, nil
 }
 
-func (a *mockAgent) NewSession(_ context.Context, params acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
+func (a *mockAgent) NewSession(
+	ctx context.Context,
+	params acpsdk.NewSessionRequest,
+) (acpsdk.NewSessionResponse, error) {
 	a.mu.Lock()
 	a.nextSession++
 	sessionID := fmt.Sprintf("%s-session-%d", a.agent.Name, a.nextSession)
@@ -200,6 +208,9 @@ func (a *mockAgent) NewSession(_ context.Context, params acpsdk.NewSessionReques
 		ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
 	}
 	a.mu.Unlock()
+	if err := a.prepareNativeTools(ctx, sessionID, params.McpServers, params.Cwd); err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
 	if err := a.writeSessionDiagnostics("session_new", sessionID, params.McpServers); err != nil {
 		return acpsdk.NewSessionResponse{}, err
 	}
@@ -210,7 +221,7 @@ func (a *mockAgent) NewSession(_ context.Context, params acpsdk.NewSessionReques
 }
 
 func (a *mockAgent) LoadSession(
-	_ context.Context,
+	ctx context.Context,
 	params acpsdk.LoadSessionRequest,
 ) (acpsdk.LoadSessionResponse, error) {
 	if a.agent.LoadMissing {
@@ -229,6 +240,9 @@ func (a *mockAgent) LoadSession(
 	}
 	configOptions := cloneSessionConfigOptions(a.sessions[sessionID].ConfigOptions)
 	a.mu.Unlock()
+	if err := a.prepareNativeTools(ctx, sessionID, params.McpServers, params.Cwd); err != nil {
+		return acpsdk.LoadSessionResponse{}, err
+	}
 	if err := a.writeSessionDiagnostics("session_load", sessionID, params.McpServers); err != nil {
 		return acpsdk.LoadSessionResponse{}, err
 	}

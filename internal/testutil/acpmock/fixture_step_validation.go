@@ -1,6 +1,7 @@
 package acpmock
 
 import (
+	"encoding/json/v2"
 	"fmt"
 
 	"path/filepath"
@@ -30,6 +31,8 @@ func (s Step) validateKindPayload(path string) error {
 	switch s.Kind {
 	case StepKindAssistant, StepKindThought:
 		return validateTextStep(path, s)
+	case StepKindNativeToolCall:
+		return validateNativeToolCallStep(path, s)
 	case StepKindToolCall:
 		return validateToolCallStep(path, s)
 	case StepKindPermission:
@@ -98,4 +101,22 @@ func validateDriverControlStep(path string, step Step) error {
 		return fmt.Errorf("acpmock: %s.driver_control is required", path)
 	}
 	return step.DriverControl.Validate(path + ".driver_control")
+}
+
+func validateNativeToolCallStep(path string, step Step) error {
+	if strings.TrimSpace(step.ToolCallID) == "" {
+		return fmt.Errorf("acpmock: %s.tool_call_id is required", path)
+	}
+	if !strings.HasPrefix(step.ToolID, "compozy__") ||
+		strings.TrimSpace(strings.TrimPrefix(step.ToolID, "compozy__")) == "" {
+		return fmt.Errorf("acpmock: %s.tool_id must name a compozy__ native tool", path)
+	}
+	var arguments map[string]any
+	if err := json.Unmarshal(step.RawInput, &arguments); err != nil || arguments == nil {
+		return fmt.Errorf("acpmock: %s.raw_input must be a JSON object", path)
+	}
+	if len(step.RawOutput) > 0 || step.ContentText != "" || step.Status != "" {
+		return fmt.Errorf("acpmock: %s native tool output and status come from the MCP result", path)
+	}
+	return nil
 }
