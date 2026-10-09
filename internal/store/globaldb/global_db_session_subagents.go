@@ -179,3 +179,47 @@ func (g *SessionRepo) UpgradeWakePolicy(ctx context.Context, id string) (out sto
 	})
 	return out, err
 }
+
+func (g *SessionRepo) UpdateSubagentState(
+	ctx context.Context, id, status, workState string, at time.Time,
+) (out store.SessionSubagent, changed bool, err error) {
+	err = g.withImmediateTransaction(ctx, "update subagent state", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		current, readErr := readSubagent(ctx, q, id)
+		if readErr != nil {
+			return readErr
+		}
+		out = current
+		if store.IsSubagentStatusTerminal(current.Status) {
+			return nil
+		}
+		switch status {
+		case store.SubagentStatusQueued, store.SubagentStatusRunning, store.SubagentStatusWaiting:
+		default:
+			return fmt.Errorf("store: invalid nonterminal subagent status %q", status)
+		}
+		switch workState {
+		case store.SubagentWorkStateWorking,
+			store.SubagentWorkStateWaitingForChildren,
+			store.SubagentWorkStateResultAvailable:
+		default:
+			return fmt.Errorf("store: invalid subagent work state %q", workState)
+		}
+		if at.IsZero() {
+			at = g.now()
+		}
+		affected, updateErr := q.UpdateSubagentState(ctx, sqlcgen.UpdateSubagentStateParams{
+			ID: id, Status: status, WorkState: workState, Now: store.FormatTimestamp(at),
+		})
+		if updateErr != nil {
+			return updateErr
+		}
+		if affected == 0 {
+			return nil
+		}
+		changed = true
+		out, readErr = readSubagent(ctx, q, id)
+		return readErr
+	})
+	return out, changed, err
+}

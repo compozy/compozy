@@ -3,7 +3,9 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -184,4 +186,33 @@ func (g *SessionRepo) ListOpenWakes(ctx context.Context) ([]store.SessionSubagen
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+func (g *SessionRepo) RewriteSubagentWakeInput(
+	ctx context.Context, wakeID, text string, metadata json.RawMessage,
+) error {
+	if !json.Valid(metadata) {
+		return errors.New("store: valid synthetic wake metadata is required")
+	}
+	return g.withImmediateTransaction(ctx, "rewrite subagent wake input", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		wake, err := readSubagentWake(ctx, q, wakeID)
+		if err != nil {
+			return err
+		}
+		if wake.State != store.SubagentWakeStateOpen {
+			return fmt.Errorf("store: subagent wake %q is not open", wakeID)
+		}
+		affected, err := q.RewriteSubagentWakeInput(ctx, sqlcgen.RewriteSubagentWakeInputParams{
+			Text: text, Metadata: string(metadata), Now: store.FormatTimestamp(g.now()),
+			InputID: wake.InputEntryID, ParentID: wake.ParentSessionID,
+		})
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotQueued, wake.InputEntryID)
+		}
+		return nil
+	})
 }

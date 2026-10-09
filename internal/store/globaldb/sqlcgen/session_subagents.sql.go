@@ -992,6 +992,38 @@ func (q *Queries) ReserveSubagent(ctx context.Context, arg ReserveSubagentParams
 	return result.RowsAffected()
 }
 
+const rewriteSubagentWakeInput = `-- name: RewriteSubagentWakeInput :execrows
+UPDATE session_input_queue
+SET text = ?1,
+ synthetic_prompt_json = json_set(synthetic_prompt_json, '$.metadata', json(?2)),
+ updated_at = ?3
+WHERE id = ?4 AND session_id = ?5
+ AND status = 'queued' AND owner_kind = 'synthetic'
+ AND json_type(synthetic_prompt_json) = 'object'
+`
+
+type RewriteSubagentWakeInputParams struct {
+	Text     string `json:"text"`
+	Metadata any    `json:"metadata"`
+	Now      string `json:"now"`
+	InputID  string `json:"input_id"`
+	ParentID string `json:"parent_id"`
+}
+
+func (q *Queries) RewriteSubagentWakeInput(ctx context.Context, arg RewriteSubagentWakeInputParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, rewriteSubagentWakeInput,
+		arg.Text,
+		arg.Metadata,
+		arg.Now,
+		arg.InputID,
+		arg.ParentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setSubagentFamilyArchived = `-- name: SetSubagentFamilyArchived :exec
 UPDATE sessions SET archived_at = ?1,updated_at = ?2
 WHERE workspace_id = ?3 AND id IN (SELECT value FROM json_each(?4))
@@ -1196,6 +1228,33 @@ type UpdateSubagentProgressParams struct {
 
 func (q *Queries) UpdateSubagentProgress(ctx context.Context, arg UpdateSubagentProgressParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateSubagentProgress, arg.Progress, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateSubagentState = `-- name: UpdateSubagentState :execrows
+UPDATE session_subagents
+SET status = ?1, work_state = ?2, updated_at = ?3
+WHERE id = ?4 AND status IN ('queued','running','waiting')
+ AND (status <> ?1 OR work_state <> ?2)
+`
+
+type UpdateSubagentStateParams struct {
+	Status    string `json:"status"`
+	WorkState string `json:"work_state"`
+	Now       string `json:"now"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) UpdateSubagentState(ctx context.Context, arg UpdateSubagentStateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateSubagentState,
+		arg.Status,
+		arg.WorkState,
+		arg.Now,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}
