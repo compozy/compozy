@@ -71,7 +71,9 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
       data-stopping={pending ? "true" : undefined}
       className="group/roster-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-sm pr-1.5 text-fg hover:bg-surface-2 has-focus-visible:bg-surface-2"
     >
-      <HoverCard>
+      {/* Remount when the trigger switches between button and group row, so the
+          hover listeners bind to the live element. */}
+      <HoverCard key={drillable ? "drill" : "static"}>
         <HoverCardTrigger
           render={
             drillable ? (

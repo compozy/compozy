@@ -196,7 +196,10 @@ export function SubagentCard({
 
   return (
     <div className={cn("flex min-w-0 flex-col", variant === "framed" && "max-w-140")}>
-      <HoverCard>
+      {/* The trigger's element kind follows the mode (a static row becomes a
+          drill-in button once the roster confirms a child): remount the card so
+          its hover listeners bind to the live element, not the replaced one. */}
+      <HoverCard key={mode}>
         <HoverCardTrigger render={trigger}>{body}</HoverCardTrigger>
         <HoverCardContent>
           <SubagentHoverContent

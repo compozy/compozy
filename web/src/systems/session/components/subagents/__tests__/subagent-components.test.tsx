@@ -145,6 +145,24 @@ describe("SubagentCard", () => {
     expect(labels.every(label => !label.hasAttribute("data-live"))).toBe(true);
   });
 
+  it("Should still open on hover after an unconfirmed static card becomes a drill-in button", async () => {
+    const user = userEvent.setup();
+    const unconfirmed = subagent({ child_session_id: null });
+    const { rerender } = renderUI(<SubagentCard subagent={unconfirmed} onOpen={vi.fn()} />);
+    // The roster confirms the child: the static row becomes the drill-in button.
+    rerender(
+      <UIProvider>
+        <SubagentCard subagent={subagent()} onOpen={vi.fn()} />
+      </UIProvider>
+    );
+    await user.hover(
+      screen.getByRole("button", { name: "Open Audit payment webhooks for retry safety" })
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="subagent-hover"]')).not.toBeNull()
+    );
+  });
+
   it("Should open the hover card on focus with Not reported for a missing model (UT-W08)", async () => {
     const user = userEvent.setup();
     renderUI(
