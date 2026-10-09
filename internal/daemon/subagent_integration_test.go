@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +32,46 @@ import (
 // Invariant: real daemon wiring reserves, launches ACP, persists a result and delivers one wake.
 // Owner: daemon orchestration; canonical suite for the new subagent journey (IT-001/IT-013 queue and replay halves).
 func TestSubagentDaemonIntegration(t *testing.T) {
+	// IT-018: boot must publish the subagent service to both public transports.
+	t.Run("Should expose subagent routes over HTTP and UDS after boot", func(t *testing.T) {
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "native_tool_delegate_fixture.json"),
+				FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator",
+			}},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		parent := createFixtureBackedSession(t, ctx, harness, "subagent-delegator", "subagent route boot")
+		path := "/api/workspaces/" + harness.WorkspaceID + "/sessions/" + parent.ID + "/subagents"
+		for _, transport := range []struct {
+			name   string
+			client *http.Client
+			target string
+		}{
+			{name: "HTTP", client: harness.HTTPClient, target: harness.HTTPURL(path)},
+			{name: "UDS", client: harness.UDSClient, target: harness.UDSURL(path)},
+		} {
+			t.Run("Should return OK over "+transport.name, func(t *testing.T) {
+				request, err := http.NewRequestWithContext(ctx, http.MethodGet, transport.target, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				response, err := transport.client.Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body, readErr := io.ReadAll(response.Body)
+				closeErr := response.Body.Close()
+				if readErr != nil || closeErr != nil {
+					t.Fatalf("read response: %v; close: %v", readErr, closeErr)
+				}
+				if response.StatusCode != http.StatusOK {
+					t.Fatalf("GET subagents over %s = %d, want 200: %s", transport.name, response.StatusCode, body)
+				}
+			})
+		}
+	})
 	t.Run("Should deliver one prioritized wake across providers", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
 		ctx := t.Context()
