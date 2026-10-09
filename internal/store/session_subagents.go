@@ -84,6 +84,11 @@ type SessionSubagent struct {
 	Title              string
 	Role               string
 	TaskChars          int
+	// PendingTask holds the child's first-prompt text from reserve until the
+	// first prompt is admitted (MarkFirstPromptAdmitted clears it), so boot
+	// recovery can re-admit it. NULL afterwards; the task then lives in the
+	// child transcript.
+	PendingTask        *string
 	RuntimeAgent       string
 	RuntimeProvider    string
 	RuntimeModel       string
@@ -167,6 +172,11 @@ type SubagentDisposeFilter struct {
 type SubagentStore interface {
 	ReserveSubagent(ctx context.Context, row SessionSubagent) (SessionSubagent, bool, error)
 	LinkChild(ctx context.Context, id, childSessionID string, startedAt time.Time) (SessionSubagent, error)
+	// MarkFirstPromptAdmitted clears PendingTask once the child's first prompt is admitted.
+	MarkFirstPromptAdmitted(ctx context.Context, id string) error
+	// DeleteReserved removes a row still `queued` with no child (spawn.pre_create denial:
+	// no session and no row, IT-022). It returns ErrSubagentNotFound for any other row.
+	DeleteReserved(ctx context.Context, id string) error
 	GetSubagent(ctx context.Context, workspaceID, id string) (SessionSubagent, error)
 	GetSubagentByChild(ctx context.Context, childSessionID string) (SessionSubagent, error)
 	ListSubagents(ctx context.Context, q SubagentListQuery) (SubagentPage, error)
