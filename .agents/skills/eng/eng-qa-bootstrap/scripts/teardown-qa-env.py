@@ -315,6 +315,7 @@ def signal_pids(pids: dict[int, str], grace_sec: float, result: TeardownResult, 
         for pid, reason in sorted(pids.items()):
             result.notes.append(f"dry-run: would kill pid {pid} ({reason})")
         return
+    signal_errors: dict[int, str] = {}
     for pid, reason in sorted(pids.items()):
         pgid = pgid_by_pid.get(pid, 0)
         try:
@@ -325,8 +326,7 @@ def signal_pids(pids: dict[int, str], grace_sec: float, result: TeardownResult, 
         except ProcessLookupError:
             continue
         except PermissionError:
-            result.survivors.append({"pid": pid, "reason": reason, "error": "EPERM on SIGTERM"})
-            continue
+            signal_errors[pid] = "EPERM on SIGTERM"
     deadline = time.monotonic() + grace_sec
     remaining = {pid: reason for pid, reason in pids.items() if pid_alive(pid)}
     while remaining and time.monotonic() < deadline:
@@ -342,13 +342,12 @@ def signal_pids(pids: dict[int, str], grace_sec: float, result: TeardownResult, 
         except ProcessLookupError:
             continue
         except PermissionError:
-            result.survivors.append({"pid": pid, "reason": reason, "error": "EPERM on SIGKILL"})
-            continue
+            signal_errors[pid] = "EPERM on SIGKILL"
     time.sleep(0.25)
     for pid, reason in sorted(pids.items()):
         if pid_alive(pid):
-            if not any(entry.get("pid") == pid for entry in result.survivors):
-                result.survivors.append({"pid": pid, "reason": reason, "error": "still alive after SIGKILL"})
+            error = signal_errors.get(pid, "still alive after SIGKILL")
+            result.survivors.append({"pid": pid, "reason": reason, "error": error})
         else:
             result.killed.append({"pid": pid, "reason": reason})
 

@@ -112,6 +112,7 @@ Use `make qa-reap` only for intentional machine-wide stale-lab recovery, not nor
 - It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps a `teardown` block into the manifest. `"clean": true` in that block is the required completion evidence.
 - Exception: a lab may stay alive ONLY while the same active session/loop continues using it (reuse policy above). A continuation that ends without reusing the lab inherits the teardown obligation.
 - Exit code `1` (survivors remain) is a blocking failure: diagnose the survivors, do not ignore them.
+- Classify survivors from the final process-liveness check after escalation. An earlier signal permission error remains blocking only while that PID is still alive; a terminated PID must never appear in both `killed` and `survivors`.
 
 ## Machine-readable continuation block
 
