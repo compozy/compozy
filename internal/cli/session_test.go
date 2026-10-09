@@ -4615,15 +4615,15 @@ func TestSubagentCommands(t *testing.T) {
 			withWorkspaceResolution(base)
 			client := &subagentCommandStub{DaemonClient: newDefaultProfileTestClient(base)}
 			deps := newTestDeps(t, client)
-			stdout, _, err := executeRootCommand(t, deps, append([]string{"session", "subagents"}, tc.args...)...)
+			exitCode, stdout, stderr := executeRootCommandWithExit(t, deps, append([]string{"session", "subagents"}, tc.args...)...)
 			if tc.failure {
-				if err == nil || !strings.Contains(err.Error(), tc.want) {
-					t.Fatalf("error=%v, want %q", err, tc.want)
+				if exitCode != 1 || !strings.Contains(stderr, tc.want) {
+					t.Fatalf("exit=%d stderr=%q, want exit 1 and %q", exitCode, stderr, tc.want)
 				}
 				return
 			}
-			if err != nil || !strings.Contains(stdout, tc.want) {
-				t.Fatalf("output=%s error=%v, want %q", stdout, err, tc.want)
+			if exitCode != 0 || !strings.Contains(stdout, tc.want) {
+				t.Fatalf("output=%s exit=%d stderr=%s, want %q", stdout, exitCode, stderr, tc.want)
 			}
 			if tc.name == "list table" {
 				for _, column := range []string{"TITLE", "RUNTIME", "STATUS", "ELAPSED", "codex/gpt-6.1-sol", "7s"} {
