@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -183,12 +184,12 @@ type SubagentStore interface {
 	Summaries(ctx context.Context, parentIDs []string) (map[string]SubagentSummary, error)
 	UpdateProgress(ctx context.Context, id, progress string, at time.Time) error
 	UpdateSubagentState(ctx context.Context, id, status, workState string, at time.Time) (SessionSubagent, bool, error)
-	RewriteSubagentWakeInput(ctx context.Context, wakeID, text string, metadata []byte) error
 	FinalizeSubagent(ctx context.Context, in SubagentFinalize) (SessionSubagent, bool, error)
 
 	OpenOrJoinWake(ctx context.Context, parentID string, ids []string, newWakeID string) (SessionSubagentWake, error)
 	GetWake(ctx context.Context, wakeID string) (SessionSubagentWake, []SessionSubagent, error)
 	SetWakeInput(ctx context.Context, wakeID, route, inputEntryID string) error
+	RewriteSubagentWakeInput(ctx context.Context, wakeID, text string, metadata json.RawMessage) error
 	MarkWakeSteerRequeued(ctx context.Context, wakeID string) error
 	MarkWakeDispatched(ctx context.Context, wakeID string) error
 	SettleWake(ctx context.Context, wakeID string, canceled bool) ([]SessionSubagent, error)

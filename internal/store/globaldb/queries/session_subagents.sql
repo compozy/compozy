@@ -119,3 +119,18 @@ SELECT id,state FROM family ORDER BY id;
 UPDATE sessions SET archived_at = sqlc.narg(archived_at),updated_at = sqlc.arg(now)
 WHERE workspace_id = sqlc.arg(workspace_id) AND id IN (SELECT value FROM json_each(sqlc.arg(ids)))
  AND ((sqlc.narg(archived_at) IS NULL AND archived_at IS NOT NULL) OR (sqlc.narg(archived_at) IS NOT NULL AND archived_at IS NULL));
+
+-- name: UpdateSubagentState :execrows
+UPDATE session_subagents
+SET status = sqlc.arg(status), work_state = sqlc.arg(work_state), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND status IN ('queued','running','waiting')
+ AND (status <> sqlc.arg(status) OR work_state <> sqlc.arg(work_state));
+
+-- name: RewriteSubagentWakeInput :execrows
+UPDATE session_input_queue
+SET text = sqlc.arg(text),
+ synthetic_prompt_json = json_set(synthetic_prompt_json, '$.metadata', json(sqlc.arg(metadata))),
+ updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(input_id) AND session_id = sqlc.arg(parent_id)
+ AND status = 'queued' AND owner_kind = 'synthetic'
+ AND json_type(synthetic_prompt_json) = 'object';

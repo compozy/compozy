@@ -1,9 +1,11 @@
 package globaldb
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -340,4 +342,204 @@ func TestGlobalDBSubagents(t *testing.T) {
 			t.Fatalf("cursor scope=%v", err)
 		}
 	})
+}
+
+func TestGlobalDBSubagentStateUpdates(t *testing.T) {
+	t.Run("Should update only nonterminal state and preserve unchanged timestamps", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		var port store.SubagentStore = db.SessionRepo
+		original := reserveSubagent(t, port, workspace, parent, "state", now)
+		row, changed, err := port.UpdateSubagentState(
+			ctx,
+			original.ID,
+			original.Status,
+			original.WorkState,
+			now.Add(time.Second),
+		)
+		if err != nil || changed || !row.UpdatedAt.Equal(original.UpdatedAt) {
+			t.Fatalf("unchanged = %#v, %v, %v", row, changed, err)
+		}
+		transitions := []struct{ status, work string }{
+			{store.SubagentStatusRunning, store.SubagentWorkStateWorking},
+			{store.SubagentStatusWaiting, store.SubagentWorkStateWaitingForChildren},
+			{store.SubagentStatusWaiting, store.SubagentWorkStateResultAvailable},
+			{store.SubagentStatusQueued, store.SubagentWorkStateWorking},
+		}
+		for i, transition := range transitions {
+			at := now.Add(time.Duration(i+2) * time.Second)
+			row, changed, err = port.UpdateSubagentState(ctx, original.ID, transition.status, transition.work, at)
+			if err != nil || !changed || row.Status != transition.status || row.WorkState != transition.work ||
+				!row.UpdatedAt.Equal(at) {
+				t.Fatalf("transition %d = %#v, %v, %v", i, row, changed, err)
+			}
+			if row.PendingTask == nil || *row.PendingTask != *original.PendingTask ||
+				row.ParentSessionID != original.ParentSessionID {
+				t.Fatalf("transition changed reservation = %#v", row)
+			}
+		}
+		for _, invalid := range []struct{ status, work string }{
+			{store.SubagentStatusCompleted, store.SubagentWorkStateResultAvailable},
+			{"invalid", store.SubagentWorkStateWorking},
+			{store.SubagentStatusRunning, "invalid"},
+		} {
+			if _, _, err := port.UpdateSubagentState(ctx, original.ID, invalid.status, invalid.work, now); err == nil {
+				t.Fatalf("accepted invalid transition = %#v", invalid)
+			}
+		}
+		preserved, err := port.GetSubagent(ctx, workspace, original.ID)
+		if err != nil || preserved.Status != row.Status || preserved.WorkState != row.WorkState ||
+			!preserved.UpdatedAt.Equal(row.UpdatedAt) {
+			t.Fatalf("invalid transition mutated row = %#v, %v", preserved, err)
+		}
+		if _, _, err := port.UpdateSubagentState(
+			ctx,
+			"missing",
+			store.SubagentStatusRunning,
+			store.SubagentWorkStateWorking,
+			now,
+		); !errors.Is(
+			err,
+			store.ErrSubagentNotFound,
+		) {
+			t.Fatalf("missing = %v", err)
+		}
+	})
+	for _, status := range []string{store.SubagentStatusCompleted, store.SubagentStatusFailed, store.SubagentStatusCanceled, store.SubagentStatusInterrupted} {
+		t.Run("Should preserve terminal "+status+" state", func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db, workspace, parent, now := subagentFixture(t)
+			var port store.SubagentStore = db.SessionRepo
+			reserveSubagent(t, port, workspace, parent, "terminal", now)
+			final, changed, err := port.FinalizeSubagent(
+				ctx,
+				store.SubagentFinalize{
+					ID:        "terminal",
+					Status:    status,
+					WorkState: store.SubagentWorkStateResultAvailable,
+					Result:    new("result"),
+					SettledAt: now,
+				},
+			)
+			if err != nil || !changed {
+				t.Fatalf("final=%#v %v %v", final, changed, err)
+			}
+			row, changed, err := port.UpdateSubagentState(
+				ctx,
+				"terminal",
+				store.SubagentStatusRunning,
+				store.SubagentWorkStateWorking,
+				now.Add(time.Hour),
+			)
+			if err != nil || changed || !reflect.DeepEqual(row, final) {
+				t.Fatalf("terminal moved=%#v %v %v", row, changed, err)
+			}
+		})
+	}
+}
+
+func TestGlobalDBSubagentWakeInputRewrite(t *testing.T) {
+	cases := []struct {
+		name, wakeState, inputState string
+		wantError                   bool
+	}{
+		{"Should rewrite an open queued wake in place", "open", "queued", false},
+		{"Should reject a dispatched wake", "dispatched", "queued", true},
+		{"Should reject a settled wake", "settled", "queued", true},
+		{"Should reject a canceled wake", "canceled", "queued", true},
+		{"Should reject an input already claimed by the pump", "open", "dispatching", true},
+		{"Should reject a sent input", "open", "sent", true},
+		{"Should reject a failed input", "open", "failed", true},
+		{"Should reject a canceled input", "open", "canceled", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db, workspace, parent, now := subagentFixture(t)
+			var port store.SubagentStore = db.SessionRepo
+			reserveSubagent(t, port, workspace, parent, "rewrite", now)
+			finalizeSubagent(t, port, "rewrite", now)
+			if _, err := port.OpenOrJoinWake(ctx, parent, []string{"rewrite"}, "wake"); err != nil {
+				t.Fatal(err)
+			}
+			before, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID:        "wake-input",
+				SessionID: parent,
+				MessageID: "wake",
+				TurnID:    "wake-turn",
+				Priority:  1,
+				Text:      "original",
+				QueueCap:  10,
+				Now:       now,
+				OwnerKind: store.SessionInputOwnerSynthetic,
+				SyntheticPrompt: &store.SessionInputSyntheticPrompt{
+					RunID:    "run",
+					Delivery: "followup",
+					Metadata: json.RawMessage(`{"subagent_ids":["a","b"]}`),
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = port.SetWakeInput(ctx, "wake", "queue", before.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = db.db.ExecContext(
+				ctx,
+				`UPDATE session_subagent_wakes SET state=? WHERE wake_message_id='wake'`,
+				tc.wakeState,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = db.db.ExecContext(
+				ctx,
+				`UPDATE session_input_queue SET status=? WHERE id=?`,
+				tc.inputState,
+				before.ID,
+			); err != nil {
+				t.Fatal(err)
+			}
+			before.Status = tc.inputState
+			metadata := json.RawMessage(`{"subagent_ids":["b"],"kind":"subagent_wake"}`)
+			err = port.RewriteSubagentWakeInput(ctx, "wake", "remaining result", metadata)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("rewrite error=%v wantError=%v", err, tc.wantError)
+			}
+			after, err := db.GetSessionInputQueueEntry(ctx, parent, before.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.wantError {
+				before.Text = "remaining result"
+				before.SyntheticPrompt.Metadata = metadata
+				before.UpdatedAt = after.UpdatedAt
+			}
+			if !reflect.DeepEqual(after, before) {
+				t.Fatalf("rewritten input=%#v want=%#v", after, before)
+			}
+			if !tc.wantError {
+				if err := port.RewriteSubagentWakeInput(ctx, "wake", "invalid", json.RawMessage(`{`)); err == nil {
+					t.Fatal("accepted invalid metadata")
+				}
+				preserved, err := db.GetSessionInputQueueEntry(ctx, parent, before.ID)
+				if err != nil || !reflect.DeepEqual(preserved, after) {
+					t.Fatalf("invalid rewrite mutated input=%#v %v", preserved, err)
+				}
+				if err := port.RewriteSubagentWakeInput(
+					ctx,
+					"missing",
+					"missing",
+					metadata,
+				); !errors.Is(
+					err,
+					store.ErrSubagentWakeNotFound,
+				) {
+					t.Fatalf("missing wake=%v", err)
+				}
+			}
+		})
+	}
 }

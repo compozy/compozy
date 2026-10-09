@@ -3,6 +3,7 @@ package session
 import (
 	"cmp"
 	"context"
+ "encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -149,7 +150,7 @@ func (d *memorySubagents) UpdateSubagentState(
 	}
 	return row, changed, nil
 }
-func (d *memorySubagents) RewriteSubagentWakeInput(_ context.Context, id, text string, _ []byte) error {
+func (d *memorySubagents) RewriteSubagentWakeInput(_ context.Context, id, text string, _ json.RawMessage) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.rewrites[id] = text
