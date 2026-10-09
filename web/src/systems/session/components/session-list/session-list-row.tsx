@@ -46,6 +46,7 @@ export function SessionListRow({
 }: SessionListRowProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
+  const subagentCounts = sessionSubagentCounts(session);
   return (
     <div className="group/session-row relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
       <button
@@ -102,8 +103,8 @@ export function SessionListRow({
         />
       ) : null}
       <div className="flex items-center gap-0.5 pt-1">
-        {sessionSubagentCounts(session) !== null ? (
-          <SessionListSubagentChip session={session} onSelect={onSelect} />
+        {subagentCounts !== null ? (
+          <SessionListSubagentChip session={session} counts={subagentCounts} onSelect={onSelect} />
         ) : null}
         {trailing}
         {showActions && !selection?.mode ? (

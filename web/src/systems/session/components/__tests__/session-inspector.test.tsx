@@ -10,6 +10,9 @@ import { SessionContextControl } from "../session-context-control";
 import { SessionContextMeterSection } from "../session-context-meter-section";
 import { deriveSessionContext } from "../../lib/session-context";
 import { useSessionInspectorState } from "../../hooks/use-session-inspector-state";
+import { useSubagentRoster } from "../../hooks/use-subagent-roster";
+import { sessionKeys } from "../../lib/query-keys";
+import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { sessionContextFixture, sessionContextTurnsFixture } from "../../mocks/context-fixtures";
 import type { SessionContextPayload, SessionPayload, SessionUsageTurnsResponse } from "../../types";
 import {
@@ -1052,5 +1055,36 @@ describe("SessionInspector — Subagents", () => {
       expect.objectContaining({ id: "sub-run", child_session_id: "child-sub-run" }),
       { newWindow: false }
     );
+  });
+
+  // M9: while the parent's thread holds its session stream, the stream-fed roster feeds the
+  // section and the list route stays cold.
+  it("Should read the live roster instead of the list route while the parent's thread is open", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const workspaceId = parent.workspace_id ?? "";
+    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, parent.id), {
+      rows: [wire("sub-live", "running", "Live from the stream")].map(row =>
+        subagentViewFromPayload(row as never)
+      ),
+      staleIds: new Set<string>(),
+    });
+    function ParentThread() {
+      useSubagentRoster(workspaceId, parent.id);
+      return null;
+    }
+    const tree = (inspector: boolean) => (
+      <QueryClientProvider client={queryClient}>
+        <ParentThread />
+        {inspector ? <SessionInspector session={parent} /> : null}
+      </QueryClientProvider>
+    );
+    // The thread is mounted before the operator opens the inspector, as in the session window.
+    const view = render(tree(false));
+    view.rerender(tree(true));
+
+    const section = await screen.findByTestId("session-inspector-subagents");
+    expect(within(section).getByText("Live from the stream")).toBeInTheDocument();
+    expect(within(section).getByText("Subagents · 1 running")).toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });
