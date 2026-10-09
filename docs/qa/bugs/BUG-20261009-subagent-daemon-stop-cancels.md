@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-daemon-stop-cancels: A clean daemon stop cancels running subagents
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Data-Loss
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -27,3 +27,7 @@ Dora stops the daemon while a delegated Codex child is working. After start, the
 
 - The stop path routes the child's shutdown stop through the subagent cancel classification. Parent sessions themselves stay `active` across the clean restart.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in 5b33ec550. Re-walked on the stock build at 980d51fbe: Clean `daemon stop` mid child run: the row stayed `running`, the child came back `active/running` (`child_reconciled`) and completed `job finished.`; the wake was delivered once after the parent was resumed by a prompt (a wake turn cut by shutdown was re-offered once under a new wake id). Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

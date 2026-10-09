@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-card-hosted-tool-name: Real Claude delegations never get a subagent card in the parent transcript
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P0
 - **Persona Affected:** Bruno
@@ -26,3 +26,7 @@ Bruno watches a Claude session delegate to Codex; the transcript shows `Delegate
 
 - `internal/transcript/ui_messages_subagent.go:44-45` compares the tool name to the bare `compozy__subagent_delegate`. Stripping the hosted prefixes in a QA-local build produced the part and the card for new delegations. The projection is persisted at ingest, so sessions recorded before a fix keep no card unless re-projected. The Codex-parent tool-name shape was not walked.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in e7e9b276a. Re-walked on the stock build at 980d51fbe: Real Claude delegations project `data-compozy-subagent` and render cards on the stock build. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

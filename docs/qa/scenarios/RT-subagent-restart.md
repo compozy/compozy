@@ -6,13 +6,13 @@ persona: Dora
 journey: J-automatic-runtime-recovery
 expected: A clean daemon stop is never a cancel: a running subagent is not settled canceled or disposed by shutdown, its child session is resumed after restart like any other session, and the row finalizes and wakes its parent exactly once when the child settles (a child that cannot be resumed settles interrupted with its wake kept for the parent); a subagent that settles while the daemon is down is finalized at boot and wakes its parent exactly once; a wake already queued before shutdown is not duplicated; a daemon killed mid child turn (kill -9) settles the running row failed with its wake kept for a resumable parent, while a parent recovered from SIGKILL stays read-only under the existing attachment contract; boot recovery fails delegations stuck in queued for more than 2 minutes with "delegation interrupted", re-admits a missing first prompt once, re-offers open wakes whose input is missing, claims pending rows of idle parents, and stops subagent sessions that have no record, logging each action as subagent.recovered with its reason; results stay readable through the native tool, CLI, and HTTP/UDS after restart.
 entry_points: compozy daemon stop/start (or kill -9 of the daemon process); compozy session subagents <session-id>; compozy session subagents show <subagent-id> --json; compozy__subagent_status; daemon log (subagent.recovered)
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20261009-subagent-daemon-stop-cancels; BUG-20261009-subagent-crash-no-wake
-fix_status: pending
-retest_status:
-fix_commits:
+fix_status: fixed
+retest_status: pass
+fix_commits: 5b33ec550
 evidence: .compozy/tasks/subagents/orchestration/screens/pr/
-last_report: docs/qa/reports/2026-10-09-subagents.md
+last_report: docs/qa/reports/2026-10-09-subagents-r2.md
 overlaps: RT-subagent-delegate; RT-session-spawn-wake
 ---
 
@@ -62,3 +62,5 @@ QA walk 2026-10-09: reads survive restart; a clean daemon stop cancels the runni
 
 2026-10-09 fix round 1 (docs): steps 1 and 3 now state the controller decision for D-06/D-07 (clean
 stop is not a cancel; crash settles `failed` with the wake kept). Verdict stays `fail` until the re-walk.
+
+Re-walk 2026-10-09 (stock 980d51fbe): a clean stop kept the row `running`, resumed the child, and delivered one wake after the parent was resumed (a wake turn cut by shutdown was re-offered once). kill -9 settled the row `failed` with its wake kept and the parent read-only. Reads survived restarts. Steps 4 and 5 need acpmock seeding and stay with IT-031. Verdict: pass. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

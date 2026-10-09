@@ -12,7 +12,7 @@ fix_status: pending
 retest_status:
 fix_commits:
 evidence: .compozy/tasks/subagents/orchestration/screens/pr/
-last_report: docs/qa/reports/2026-10-09-subagents.md
+last_report: docs/qa/reports/2026-10-09-subagents-r2.md
 overlaps: RT-subagent-delegate; ET-web-native-subagent; ET-web-session-sidebar-threads; ET-web-session-transcript-calm-grammar
 ---
 
@@ -65,3 +65,5 @@ so the delegate result and subagent card marker come from the persisted ACP tran
 lane still owns the card rendering and navigation assertions above.
 
 QA walk 2026-10-09: no card renders for real Claude delegations on the stock build; on a QA-local patched build the card, group, hover, drill-in divider, and waiting banner with Stop worked. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents.md`.
+
+Re-walk 2026-10-09 (stock 980d51fbe): cards, group, hover (pointer and keyboard focus, Escape), drill-in divider, ⌘-click second window, waiting banner, plain-text previews, and the running count pass. The card still lags behind a delegate tool row in a composer-submitted live turn. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

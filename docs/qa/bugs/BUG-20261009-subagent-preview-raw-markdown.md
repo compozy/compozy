@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-preview-raw-markdown: Subagent previews show raw markdown symbols
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Cosmetic
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -25,3 +25,7 @@ Card line 2, group rows, and progress show `**Yes—only for…**`, `# API Versi
 
 - Evidence: `/Users/pedronauck/Dev/compozy/_worktrees/subagents/.compozy/tasks/subagents/orchestration/screens/pr/02-card-completed.png`, `03b-group-expanded.png`.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in 7573fab3a. Re-walked on the stock build at 980d51fbe: Card line 2 reads plain text (`Yes—retry automatically, but only for transient failures.`). Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

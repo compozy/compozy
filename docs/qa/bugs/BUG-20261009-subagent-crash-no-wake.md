@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-crash-no-wake: After a daemon crash the subagent fails silently and the parent is never told
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Dora
@@ -26,3 +26,7 @@ After `kill -9` mid child turn, boot reconciles the row to `failed` (`daemon cra
 
 - Needs a decision: either the scenario/spec assumes a recovery behavior this product does not have, or crash recovery should keep the row `pending` delivery so the parent is woken when it is resumed. Filed as blocked-decision input.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in 5b33ec550 (controller decision). Re-walked on the stock build at 980d51fbe: kill -9: row `failed` (`daemon crashed while session active`), delivery `claimed` (not disposed); the crashed parent is read-only (`session not attachable … dead runtime`), as decided. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

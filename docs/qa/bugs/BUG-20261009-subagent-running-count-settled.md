@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-running-count-settled: “N agents running” counts subagents that already finished
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno
@@ -26,3 +26,7 @@ After all three subagents completed, the status line and inspector Activity stil
 
 - `session.supervision.work_signals` keeps one `active_child` per settled subagent child session (children stay `active`/`idle`), and `runningAgentCount` (`web/src/systems/session/lib/session-working-status.ts:128`) unions them with live roster rows. Evidence: `/Users/pedronauck/Dev/compozy/_worktrees/subagents/.compozy/tasks/subagents/orchestration/screens/pr/04-hover-card.png`, `08-inspector-roster.png`.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in 1ca1f1a38. Re-walked on the stock build at 980d51fbe: The status line dropped to `Working for …` with no count once both children settled mid-turn; the inspector Activity matched. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
