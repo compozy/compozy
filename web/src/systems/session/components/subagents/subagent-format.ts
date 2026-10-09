@@ -4,6 +4,7 @@
 
 import type { StateGlyphState, StatusDotTone } from "@compozy/ui";
 
+import { markdownLineToPlainText } from "../../lib/markdown-plain-text";
 import type { SubagentLocationView, SubagentStatus, SubagentView } from "./types";
 
 export const SUBAGENT_BANNER_STOP_FAILED = "Could not stop subagents.";
@@ -69,11 +70,11 @@ export function collapseWhitespace(text: string | null | undefined): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
 }
 
-/** First non-empty line, whitespace collapsed. */
+/** First non-empty line as plain text (agent output is markdown, D-09), whitespace collapsed. */
 export function firstLine(text: string | null | undefined): string {
   for (const line of (text ?? "").split(/\r?\n/)) {
-    const collapsed = collapseWhitespace(line);
-    if (collapsed !== "") return collapsed;
+    const plain = collapseWhitespace(markdownLineToPlainText(line));
+    if (plain !== "") return plain;
   }
   return "";
 }
@@ -224,14 +225,16 @@ export function subagentGroupSummary(subagents: readonly SubagentView[]): Subage
 
 const HOVER_PREVIEW_MAX = 280;
 
-/** Hover preview text (UT-W08): whitespace collapsed, capped at 280 chars + `…`. */
+/** Hover preview text (UT-W08): plain text, whitespace collapsed, capped at 280 chars + `…`. */
 export function subagentHoverPreview(subagent: SubagentView): string {
   const source = isSubagentLive(subagent.status)
     ? subagent.progress
     : subagent.status === "failed"
       ? subagent.error || subagent.result_preview
       : subagent.result_preview;
-  const text = collapseWhitespace(source);
+  const text = collapseWhitespace(
+    (source ?? "").split(/\r?\n/).map(markdownLineToPlainText).join(" ")
+  );
   return text.length > HOVER_PREVIEW_MAX ? `${text.slice(0, HOVER_PREVIEW_MAX).trimEnd()}…` : text;
 }
 
