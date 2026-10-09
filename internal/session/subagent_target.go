@@ -117,6 +117,15 @@ func (r managerSubagentRuntime) Capabilities(
 		if err != nil {
 			return nil, nil, err
 		}
+		provider, err := workspace.Config.ResolveProvider(name)
+		if err != nil {
+			return nil, nil, err
+		}
+		current := ""
+		if inherited := subagentInherited(parent); inherited.Provider == name {
+			current = inherited.Model
+		}
+		option = subagentCapabilityModels(option, current, provider.Models.Default)
 		options = append(options, option)
 		byName[name] = option
 	}
@@ -225,4 +234,35 @@ func validateSubagentModel(model, provider string, options []SubagentModelOption
 		),
 		Err: ErrSubagentTargetUnavailable,
 	}
+}
+
+// Capabilities previews must not restrict the full catalog used by Resolve.
+func subagentCapabilityModels(option SubagentProviderOption, current, fallback string) SubagentProviderOption {
+	const limit = 40
+	option.ModelsTotal = len(option.Models)
+	models := make([]SubagentModelOption, 0, min(limit, option.ModelsTotal))
+	if option.CanDelegate {
+		for _, preferred := range []string{current, fallback} {
+			if preferred == "" || (len(models) > 0 && models[0].ID == preferred) {
+				continue
+			}
+			for _, model := range option.Models {
+				if model.ID == preferred {
+					models = append(models, model)
+					break
+				}
+			}
+		}
+		for _, model := range option.Models {
+			if len(models) == limit {
+				break
+			}
+			if model.ID != current && model.ID != fallback {
+				models = append(models, model)
+			}
+		}
+	}
+	option.Models = models
+	option.ModelsTruncated = len(models) < option.ModelsTotal
+	return option
 }

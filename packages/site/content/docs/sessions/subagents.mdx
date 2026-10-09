@@ -222,6 +222,12 @@ calling session.
 | `compozy__subagent_status`       | Reads a subagent's status and answer; reading a finished answer marks it as delivered.           |
 | `compozy__subagent_cancel`       | Cancels a running subagent.                                                                      |
 
+Capabilities include model lists only for providers with `can_delegate: true`, capped at 40 entries
+per provider. The caller's current model comes first, followed by the provider default.
+`models_total` reports the full catalog count; `models_truncated` indicates that entries were omitted,
+including models hidden for unavailable providers. Any model ID advertised by the provider is accepted
+even if it is not listed in this preview; delegation validates the full catalog.
+
 The intended loop is: check capabilities, delegate with `mode: "async"`, end the turn, get woken, call
 `compozy__subagent_status`, answer. The wake message is a pointer, not the answer:
 

@@ -114,3 +114,9 @@ Owning evidence: `TestSubagentCancelLifetime`, `TestSubagentPendingSteerInterrup
 settled-restart and clean-restart journeys. The real-provider QA verdict above is unchanged.
 
 Re-walk 2026-10-09 (stock 980d51fbe): the five filed bugs are verified fixed. Golden path, steer routing (`prompt_steered`, delivery `delivered`), error codes, idempotency mismatch, escalation denial, `result_max_chars = 1000` truncation with hint, `999` rejected, depth 2, hook deny → `capability_denied`, cancel, and CLI/HTTP reads pass. New: the capabilities answer (99 KB) overflows Claude's MCP limit, `subagent.settled` hooks are canceled before they run, and the deny message carries an internal prefix. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
+
+Capabilities regression check (BUG-20261009-subagent-capabilities-oversized): inspect each provider
+option from the active-turn call. Unavailable providers have `models: []`; delegable providers list
+at most 40 models, with current/default first. Verify `models_total` counts the full catalog and
+`models_truncated` signals omission. Delegate using a valid advertised model beyond the preview and
+confirm it is accepted. Automated UT-017 covers the 611-model catalog; real-provider re-walk pending.

@@ -142,7 +142,11 @@ by another agent, provider, or model while you keep working:
 
 1. `compozy__subagent_capabilities {}` returns the caller's inherited runtime, permission mode, depth,
    live subagent count, and per-agent and per-provider `can_delegate` with `constraints` and advertised
-   models. Pick a target whose `can_delegate` is true.
+   models. Pick a target whose `can_delegate` is true. Only delegable providers include models,
+   capped at 40 per provider with the caller's current model first, then the provider default.
+   `models_total` counts the full catalog; `models_truncated` indicates omitted entries (including
+   those hidden for unavailable providers). Any model id advertised by the provider is accepted
+   even if absent from this preview; delegation validates against the full catalog.
 2. `compozy__subagent_delegate` takes a required, self-contained `task` (≤ 120,000 characters). The
    subagent sees only `task`: no conversation history and no attachments, so include every fact it
    needs. Optional `title` (≤ 512), `role` (`general`, `implementation`, `research`, `review`, `design`,

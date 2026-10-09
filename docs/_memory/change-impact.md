@@ -107,6 +107,13 @@ Owning automated journeys and verification limits: sa-fix-core-fix2.md; real-pro
 with the QA owner. Native-event ingestion must stay inline before turn-settled reconciliation.
 
 
+Tools fix round 3 (sa-tools): `compozy__subagent_capabilities` previews at most 40 models per
+delegable provider, current/default first, and omits model entries for unavailable providers.
+Provider options add `models_total` and `models_truncated`; delegate validation still uses the full
+catalog. Native descriptor/output schema and generated catalog co-ship with skill/site guidance.
+No HTTP DTO, Web, hooks/config, persistence or workspace isolation changes. UT-017 and the native
+binding suite own automation; RT-subagent-delegate retains its verdict pending the real-provider re-walk.
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

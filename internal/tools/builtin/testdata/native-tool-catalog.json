@@ -2199,7 +2199,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
-    "output_schema_digest": "ced6393e83b7792d15520db8e56e6ab8d9a215deb2acc9d4239fd8798371e9d2"
+    "output_schema_digest": "0b83781b09b90839e1889af4cc5a7f629b175856b9df1940e615a4519b4fb8fa"
   },
   {
     "tool_id": "compozy__subagent_delegate",

@@ -55,6 +55,8 @@ func subagentCapabilitiesPayload(c session.SubagentCapabilities) map[string]any 
 				"can_delegate":                p.CanDelegate,
 				"constraints":                 nonNilSubagentStrings(p.Constraints),
 				"models":                      models,
+				"models_total":                p.ModelsTotal,
+				"models_truncated":            p.ModelsTruncated,
 			},
 		)
 	}

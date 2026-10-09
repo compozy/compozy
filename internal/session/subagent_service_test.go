@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -980,6 +981,65 @@ func TestSubagentDatabaseRecovery(t *testing.T) {
 // UT-003/UT-005/UT-017: provider availability reports exact constraints, separate from model advisories.
 // Owner: session target resolution; the service suite owns these caller-visible errors.
 func TestSubagentProviderAvailability(t *testing.T) {
+	t.Run("Should bound capability models without restricting delegate targets UT-017", func(t *testing.T) {
+		t.Parallel()
+		models := make([]modelcatalog.Model, 0, 1222)
+		for _, provider := range []string{"available", "absent"} {
+			for i := range 611 {
+				models = append(models, modelcatalog.Model{ProviderID: provider, ModelID: fmt.Sprintf("model-%03d", i)})
+			}
+		}
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: models}))
+		h.cfg.Providers["available"] = compozyconfig.ProviderConfig{
+			Command: "go", AuthMode: compozyconfig.ProviderAuthModeNone,
+			Models: compozyconfig.ProviderModelsConfig{Default: "model-610"},
+		}
+		h.cfg.Providers["absent"] = compozyconfig.ProviderConfig{
+			Command: "compozy-test-nonexistent-provider", AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+		}
+		runtime := managerSubagentRuntime{h.manager}
+		parent := &Info{WorkspaceID: h.workspaceID, AgentName: "coder", Provider: "available", Model: "model-609"}
+		_, options, err := runtime.Capabilities(t.Context(), parent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := 0
+		for _, option := range options {
+			if option.Provider != "available" && option.Provider != "absent" {
+				continue
+			}
+			found++
+			if option.ModelsTotal != 611 || !option.ModelsTruncated {
+				t.Fatal(option)
+			}
+			if option.Provider == "absent" {
+				if option.CanDelegate || len(option.Models) != 0 {
+					t.Fatal(option)
+				}
+			} else if !option.CanDelegate || len(option.Models) != 40 || option.Models[0].ID != "model-609" || option.Models[1].ID != "model-610" || option.Models[2].ID != "model-000" {
+				t.Fatal(option)
+			}
+		}
+		if found != 2 {
+			t.Fatalf("found %d providers", found)
+		}
+		target, err := runtime.Resolve(t.Context(), parent, SubagentTarget{Model: "model-600"})
+		if err != nil || target.Model != "model-600" {
+			t.Fatal(target, err)
+		}
+		for _, total := range []int{0, 1, 40, 41} {
+			full := SubagentProviderOption{CanDelegate: true}
+			for i := range total {
+				full.Models = append(full.Models, SubagentModelOption{ID: fmt.Sprint(i)})
+			}
+			preview := subagentCapabilityModels(full, "0", "0")
+			if len(preview.Models) != min(total, 40) || preview.ModelsTotal != total ||
+				preview.ModelsTruncated != (total > 40) {
+				t.Fatal(preview)
+			}
+		}
+	})
+
 	t.Parallel()
 	h := newHarness(t)
 	runtime := managerSubagentRuntime{h.manager}
