@@ -1,5 +1,16 @@
 # Compozy Change Impact
 
+## Explicit release asset verification — 2026-10-09
+
+Owner: branch `fix/explicit-release-web-assets`. Manual release planning builds
+the Web output before comparing it with the pinned asset module. Run
+`37984738188` failed on a fresh checkout because `webAssetsCheck` requires
+`web/dist/index.html`, which the workflow had never generated. The existing
+WebBuild target owns generation; stale-pin and main-branch mutation guards remain.
+Native tools, hooks/config, workspace isolation, persisted user data, public Web
+behavior, and official `skills/compozy/` are unaffected. Validation uses the
+existing release workflow contract suite and a real Web build/pin comparison.
+
 ## Release smoke teardown verdict — 2026-10-09
 
 Owner: branch `fix/release-smoke-teardown`. The QA teardown helper classifies
