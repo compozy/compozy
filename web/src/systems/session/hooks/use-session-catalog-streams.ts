@@ -230,6 +230,11 @@ function openSessionCatalogStream(
     void refreshSessionDetail(queryClient, payload);
     // Same session, whichever lens is holding it open.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
+    // Every subagent transition upserts its parent: a mounted roster or chip
+    // preview re-reads the list route (`_spec.md` §Catalog liveness).
+    void queryClient.invalidateQueries({
+      queryKey: sessionKeys.subagents(payload.workspace_id, payload.session_id),
+    });
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [

@@ -239,6 +239,10 @@ describe("useSessionCatalogStreams", () => {
       queryKey: sessionKeys.detail("", "sess_global"),
       exact: true,
     });
+    // A subagent transition upserts its parent: a mounted roster re-reads the list route.
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: sessionKeys.subagents("", "sess_global"),
+    });
 
     act(() => sources[0]?.emit("open"));
     expect(invalidate).toHaveBeenCalledWith(

@@ -11,6 +11,8 @@ export interface SessionSidebarProps {
   disconnected: boolean;
   collapsedThreadIds: readonly string[];
   currentSessionId?: string;
+  /** The session on screen; a subagent session is revealed under its parent row. */
+  revealedSession?: SessionPayload | null;
   view: SessionListViewModel;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
@@ -29,6 +31,7 @@ export function SessionSidebar({
   disconnected,
   collapsedThreadIds,
   currentSessionId,
+  revealedSession,
   view,
   onToggleThread,
   onSelectSession,
@@ -53,6 +56,7 @@ export function SessionSidebar({
           disconnected={disconnected}
           collapsedThreadIds={collapsedThreadIds}
           currentSessionId={currentSessionId}
+          revealedSession={revealedSession}
           onToggleThread={onToggleThread}
           onSelectSession={onSelectSession}
           onNewSession={onNewSession}

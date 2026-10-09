@@ -85,6 +85,9 @@ export const sessionKeys = {
   /** What a continue/fork would carry; `""` is the whole-session cut. */
   derivePreview: (workspace: string, id: string, messageId = "") =>
     [...sessionKeys.detail(workspace, id), "derive-preview", messageId.trim()] as const,
+  /** A parent's direct subagents, every page of the list route (S10, chip preview). */
+  subagents: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "subagents"] as const,
   contextReset: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "context-reset"] as const,
   toolArtifact: (workspace: string, artifactURI: string) =>

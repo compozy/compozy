@@ -56,6 +56,7 @@ describe("useWorkspaceSessionGroups", () => {
       workspace_id: "ws-alpha",
       limit: 100,
       profile: "default",
+      subagents: "exclude",
     });
     expect(fetchSessionCatalogPage).not.toHaveBeenCalled();
     expect(fetchSessions).not.toHaveBeenCalled();
@@ -81,5 +82,28 @@ describe("useWorkspaceSessionGroups", () => {
       expect.objectContaining({ archive: "only", profile: "default", all_workspaces: true }),
       expect.any(AbortSignal)
     );
+  });
+
+  // UT-W18: the sidebar page excludes subagent sessions unless a search is active.
+  it("Should exclude subagent sessions from group pages until a search widens them", () => {
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: { terminal_approvals: 0, all: 0, needs_you: 0, working: 0, finished: 0, idle: 0 },
+      by_workspace: [],
+    });
+    const input = {
+      workspaces: [{ id: "ws-alpha", name: "Alpha" }],
+      sort: "attention" as const,
+      archived: false,
+      enabled: true,
+    };
+    const { result, rerender } = renderHook(
+      ({ search }: { search?: string }) => useWorkspaceSessionGroups({ ...input, search }),
+      { wrapper, initialProps: {} }
+    );
+    expect(result.current[0]?.catalogFilters?.subagents).toBe("exclude");
+    rerender({ search: "  " });
+    expect(result.current[0]?.catalogFilters?.subagents).toBe("exclude");
+    rerender({ search: "review" });
+    expect(result.current[0]?.catalogFilters?.subagents).toBe("include");
   });
 });
