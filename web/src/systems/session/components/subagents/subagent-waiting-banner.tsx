@@ -62,7 +62,11 @@ export function SubagentWaitingBanner({
   className,
 }: SubagentWaitingBannerProps) {
   const reduced = useReducedMotionConfig();
-  const { pending, stop } = useSubagentStop(onStop, SUBAGENT_BANNER_STOP_FAILED);
+  const { pending, stop } = useSubagentStop(
+    onStop,
+    SUBAGENT_BANNER_STOP_FAILED,
+    subagents.map(subagent => `${subagent.id}:${subagent.status}`).join(",")
+  );
   if (subagents.length === 0) return null;
 
   const busy = stopping || pending;
