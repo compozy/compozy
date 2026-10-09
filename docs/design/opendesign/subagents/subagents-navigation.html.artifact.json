@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "subagents/subagents-navigation.html",
+  "entry": "subagents/subagents-navigation.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-09T06:17:00.685Z",
+  "updatedAt": "2026-10-09T06:17:00.685Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}
