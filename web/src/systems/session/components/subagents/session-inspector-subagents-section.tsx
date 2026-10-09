@@ -53,7 +53,7 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
   const { pending, stop } = useSubagentStop(
     stoppable ? () => onStop(subagent) : undefined,
     SUBAGENT_ROW_STOP_FAILED,
-    subagent.status
+    [subagent]
   );
   const drillable = subagent.child_session_id !== null && onOpen !== undefined;
   const word = SUBAGENT_STATUS_WORD[subagent.status];

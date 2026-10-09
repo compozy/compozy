@@ -236,9 +236,17 @@ describe("SubagentWaitingBanner (UT-W13)", () => {
     await act(async () => undefined);
     // The daemon accepted the stop but has not settled the rows: no second Stop yet.
     expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
+    // A subagent that starts mid-Stop does not end the pending state of the ones stopped.
+    const late = subagent({ id: "sub-late", title: "late subagent", status: "running" });
     rerender(
       <UIProvider>
-        <SubagentWaitingBanner subagents={live.slice(1)} onStop={onStop} />
+        <SubagentWaitingBanner subagents={[...live, late]} onStop={onStop} />
+      </UIProvider>
+    );
+    expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
+    rerender(
+      <UIProvider>
+        <SubagentWaitingBanner subagents={[late]} onStop={onStop} />
       </UIProvider>
     );
     expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
