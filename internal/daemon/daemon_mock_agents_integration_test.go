@@ -2760,6 +2760,54 @@ func TestDaemonE2EAgentDelegatesThroughHostedMCP(t *testing.T) {
 			t.Fatal("delegate result was not executed by the parent fixture process")
 		},
 	)
+	// D-04 composer path: a turn submitted through the streaming prompt route (the web
+	// composer) renders from that stream until the transcript reconciles, so the stream
+	// itself must carry the card for the delegate result, not only the persisted ledger.
+	t.Run("Should stream the subagent card on the composer prompt stream", func(t *testing.T) {
+		t.Parallel()
+		fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{
+				{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+				{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+			},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		parent, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+			AgentName: "subagent-delegator", WorkspacePath: harness.WorkspaceRoot,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		records, err := harness.PromptSessionHTTP(ctx, parent.ID, "delegate child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var frames []string
+		for _, record := range records {
+			var frame struct {
+				Type string `json:"type"`
+				Data struct {
+					SubagentID string `json:"subagent_id"`
+					ToolCallID string `json:"tool_call_id"`
+					Origin     string `json:"origin"`
+				} `json:"data"`
+			}
+			if jsonv2.Unmarshal(record.Data, &frame) != nil {
+				continue
+			}
+			frames = append(frames, frame.Type)
+			if frame.Type == "data-compozy-subagent" {
+				if frame.Data.SubagentID == "" || frame.Data.ToolCallID != "delegate-child" ||
+					frame.Data.Origin != "delegated" {
+					t.Fatalf("streamed card = %s", record.Data)
+				}
+				return
+			}
+		}
+		t.Fatalf("prompt stream carried no subagent card; frames = %v", frames)
+	})
 }
 
 // E2E-007: the real CLI presents and cancels subagents created by the parent's hosted MCP calls.
