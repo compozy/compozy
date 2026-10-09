@@ -283,6 +283,40 @@ describe("provider-native attribution through the transcript adapters (UT-W11)",
     expect(rows[1]).toMatchObject({ part: { text: "The reviewer found no issues." } });
   });
 
+  it("Should nest live prompt-stream parts by their provider metadata attribution", () => {
+    const attributed = { compozy: { parentToolCallId: "toolu_agent" } };
+    // The shape assistant-ui gives a streaming turn: data parts normalized, metadata kept.
+    const parts = toTimelineParts({
+      id: "turn-live",
+      content: [
+        {
+          type: "data",
+          name: "compozy-subagent",
+          data: {
+            subagent_id: "sub-native",
+            tool_call_id: "toolu_agent",
+            origin: "provider_native",
+            turn_id: "turn-live",
+          },
+        },
+        { type: "text", text: "Inspecting the diff.", providerMetadata: attributed },
+        {
+          type: "tool-call",
+          toolCallId: "toolu_read",
+          toolName: "Read",
+          args: { file_path: "/workspace/README.md" },
+          providerMetadata: attributed,
+        },
+        { type: "text", text: "Still working." },
+      ],
+    });
+    const rows = deriveSessionRows(parts);
+    expect(rows.map(row => row.kind)).toEqual(["subagents", "text"]);
+    const card = rows[0];
+    if (card?.kind !== "subagents") throw new Error("expected the native card");
+    expect(card.nested.get("sub-native")?.map(part => part.kind)).toEqual(["text", "tool"]);
+  });
+
   it("Should place a card in its own turn_id and never in the message's turn", () => {
     const card = (data: Record<string, unknown>) =>
       toTimelineParts({

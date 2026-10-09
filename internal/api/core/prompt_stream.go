@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 const (
@@ -75,8 +76,27 @@ type promptStartPayload struct {
 }
 
 type promptBlockPayload struct {
-	Type string `json:"type"`
-	ID   string `json:"id"`
+	Type             string                  `json:"type"`
+	ID               string                  `json:"id"`
+	ProviderMetadata *promptProviderMetadata `json:"providerMetadata,omitempty"`
+}
+
+// promptProviderMetadata carries Compozy's part attribution through the AI SDK
+// stream: a text or tool part produced inside a provider-native subagent names
+// that subagent's tool call, as the transcript projection's parentToolCallId does.
+type promptProviderMetadata struct {
+	Compozy promptCompozyPartMetadata `json:"compozy"`
+}
+
+type promptCompozyPartMetadata struct {
+	ParentToolCallID string `json:"parentToolCallId"`
+}
+
+func promptAttribution(parentToolCallID string) *promptProviderMetadata {
+	if parentToolCallID == "" {
+		return nil
+	}
+	return &promptProviderMetadata{Compozy: promptCompozyPartMetadata{ParentToolCallID: parentToolCallID}}
 }
 
 type promptDeltaPayload struct {
@@ -86,9 +106,10 @@ type promptDeltaPayload struct {
 }
 
 type promptToolInputStartPayload struct {
-	Type       string `json:"type"`
-	ToolCallID string `json:"toolCallId"`
-	ToolName   string `json:"toolName"`
+	Type             string                  `json:"type"`
+	ToolCallID       string                  `json:"toolCallId"`
+	ToolName         string                  `json:"toolName"`
+	ProviderMetadata *promptProviderMetadata `json:"providerMetadata,omitempty"`
 }
 
 type promptToolInputAvailablePayload struct {
@@ -102,6 +123,14 @@ type promptDataEventEnvelope struct {
 	Type string                  `json:"type"`
 	ID   string                  `json:"id,omitempty"`
 	Data promptAgentEventPayload `json:"data"`
+}
+
+// promptSubagentDataPayload is the subagent card the transcript projection
+// persists for the same event (`data-compozy-subagent`), upserted by id.
+type promptSubagentDataPayload struct {
+	Type string                       `json:"type"`
+	ID   string                       `json:"id"`
+	Data transcript.UISubagentPayload `json:"data"`
 }
 
 type promptToolOutputAvailablePayload struct {
@@ -120,7 +149,9 @@ type promptErrorPayload struct {
 // prompt stream envelope used by HTTP, UDS, and CLI streaming surfaces.
 type PromptStreamEncoder struct {
 	now               func() string
+	sessionID         string
 	messageID         string
+	textParent        string
 	textBlockID       string
 	reasoningBlockID  string
 	textBlockSeq      int
@@ -156,6 +187,12 @@ func NewPromptStreamEncoder(now func() time.Time) *PromptStreamEncoder {
 		toolInputPending: make(map[string]struct{}),
 		toolNames:        make(map[string]string),
 	}
+}
+
+// SetSessionID names the durable session the stream belongs to, so subagent
+// cards derive the same ids the transcript projection does.
+func (e *PromptStreamEncoder) SetSessionID(sessionID string) {
+	e.sessionID = sessionID
 }
 
 // Emit writes one public prompt-stream frame for the supplied raw agent event.
