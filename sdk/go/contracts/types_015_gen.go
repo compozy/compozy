@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type ResourceSource struct {
+	Kind ResourceSourceKind `json:"kind"`
+	ID   string             `json:"id"`
+}
+
 type ResourceSourceKind string
 
 type ResourcesListParams struct {
@@ -175,14 +180,3 @@ type SessionAttentionChangedPayload struct {
 }
 
 type SessionAttentionObservationPatch struct{}
-
-type SessionConfigOptionPayload struct {
-	ID             string                            `json:"id"`
-	Label          string                            `json:"label,omitempty"`
-	Description    string                            `json:"description,omitempty"`
-	Category       string                            `json:"category,omitempty"`
-	Kind           string                            `json:"kind"`
-	CurrentValueID string                            `json:"current_value_id,omitempty"`
-	CurrentBool    *bool                             `json:"current_bool,omitempty"`
-	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
-}

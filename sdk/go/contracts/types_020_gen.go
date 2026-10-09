@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type TaskCatalogOwnerFacetPayload struct {
+	Owner Ownership `json:"owner"`
+	Count int       `json:"count"`
+}
+
 type TaskCatalogRunPayload struct {
 	ID                   string               `json:"id"`
 	TaskID               string               `json:"task_id"`
@@ -248,15 +253,4 @@ type TaskDetail struct {
 	Runs                 []TaskRun                        `json:"runs,omitempty"`
 	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
 	Events               []TaskEventPayload               `json:"events,omitempty"`
-}
-
-type TaskEventPayload struct {
-	ID        string          `json:"id"`
-	TaskID    string          `json:"task_id"`
-	RunID     string          `json:"run_id,omitempty"`
-	EventType string          `json:"event_type"`
-	Actor     ActorIdentity   `json:"actor"`
-	Origin    Origin          `json:"origin"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Timestamp time.Time       `json:"timestamp"`
 }

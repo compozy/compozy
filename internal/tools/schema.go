@@ -26,7 +26,7 @@ func normalizeCallInput(input json.RawMessage) json.RawMessage {
 }
 
 func validateCallInput(d Descriptor, input json.RawMessage) (err error) {
-	defer func() { err = subagentInputError(d.ID, input, err) }()
+	defer func() { err = descriptorInputError(d, input, err) }()
 	normalized := normalizeCallInput(input)
 	if !json.Valid(normalized) {
 		return NewToolError(
@@ -124,6 +124,13 @@ func validateSchemaStringNode(path string, schema map[string]json.RawMessage, va
 	if ok && stringLength < minLength {
 		return fmt.Errorf("%s: string length %d is less than minLength %d", path, stringLength, minLength)
 	}
+	maxLength, ok, err := schemaNonNegativeInteger(schema["maxLength"])
+	if err != nil {
+		return fmt.Errorf("%s.maxLength: %w", path, err)
+	}
+	if ok && stringLength > maxLength {
+		return fmt.Errorf("%s: string length %d exceeds maxLength %d", path, stringLength, maxLength)
+	}
 	return nil
 }
 
@@ -209,6 +216,9 @@ func validateJSONSchemaDocument(path string, schema map[string]json.RawMessage) 
 	}
 	if _, _, err := schemaNonNegativeInteger(schema["minLength"]); err != nil {
 		return fmt.Errorf("%s.minLength: %w", path, err)
+	}
+	if _, _, err := schemaNonNegativeInteger(schema["maxLength"]); err != nil {
+		return fmt.Errorf("%s.maxLength: %w", path, err)
 	}
 	if _, _, err := schemaNonNegativeInteger(schema["minItems"]); err != nil {
 		return fmt.Errorf("%s.minItems: %w", path, err)

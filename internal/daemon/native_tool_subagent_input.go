@@ -93,13 +93,13 @@ func (in nativeSubagentDelegateInput) validate() error {
 		return invalid("task is required.")
 	}
 	if utf8.RuneCountInString(in.Task) > 120000 {
-		return invalid("task must be at most 120000 characters.")
+		return invalid("task exceeds 120000 characters.")
 	}
 	if utf8.RuneCountInString(in.Title) > 512 {
-		return invalid("title must be at most 512 characters.")
+		return invalid("title exceeds 512 characters.")
 	}
 	if utf8.RuneCountInString(in.IdempotencyKey) > 256 {
-		return invalid("idempotency_key must be at most 256 characters.")
+		return invalid("idempotency_key exceeds 256 characters.")
 	}
 	if !slices.Contains([]string{"", "general", "implementation", "research", "review", "design", "test"}, in.Role) {
 		return invalid("role must be general, implementation, research, review, design, or test.")

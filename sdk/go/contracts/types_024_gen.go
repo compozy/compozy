@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type TerminalObservationPatch struct{}
+
 type TerminalOpenedPayload struct {
 	Event       HookEvent `json:"event"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -93,6 +95,8 @@ type Tool struct {
 	Source              SourceRef       `json:"source"`
 	Visibility          Visibility      `json:"visibility"`
 	Risk                RiskClass       `json:"risk"`
+	Idempotent          bool            `json:"idempotent,omitempty"`
+	InputErrorCode      ErrorCode       `json:"input_error_code,omitempty"`
 	ReadOnly            bool            `json:"read_only"`
 	Destructive         bool            `json:"destructive"`
 	OpenWorld           bool            `json:"open_world"`
@@ -305,10 +309,4 @@ type TurnEndPayload struct {
 	TurnID         string    `json:"turn_id,omitempty"`
 	InputClass     string    `json:"input_class,omitempty"`
 	UserMessage    string    `json:"user_message,omitempty"`
-}
-
-type TurnPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
 }

@@ -12636,6 +12636,23 @@ func requireNativeDerivePartial(t *testing.T, err error, want string) {
 
 // The native binding suite owns caller resolution, request translation, and public error mapping.
 func TestNativeSubagentBindings(t *testing.T) {
+	t.Run("Should report exact oversized field errors", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			input nativeSubagentDelegateInput
+			want  string
+		}{
+			{nativeSubagentDelegateInput{Task: strings.Repeat("界", 120001)}, "task exceeds 120000 characters."},
+			{nativeSubagentDelegateInput{Task: "work", Title: strings.Repeat("界", 513)}, "title exceeds 512 characters."},
+			{nativeSubagentDelegateInput{Task: "work", IdempotencyKey: strings.Repeat("界", 257)}, "idempotency_key exceeds 256 characters."},
+		} {
+			_, err := tc.input.request(session.SubagentCaller{ToolCallID: "call"})
+			detail, ok := errors.AsType[*session.SubagentError](err)
+			if !ok || detail.Message != tc.want {
+				t.Fatalf("error = %v, want %s", err, tc.want)
+			}
+		}
+	})
 	t.Run(
 		"Should resolve caller and preserve omitted versus empty budgets through registry dispatch",
 		func(t *testing.T) {
@@ -12913,6 +12930,19 @@ func (s *nativeSubagentServiceStub) Cancel(
 }
 
 func TestNativeSubagentPermissionBoundary(t *testing.T) {
+	t.Run("Should fail closed for an unknown parent permission mode", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{deps: &daemonNativeToolsDeps{Sessions: apitest.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{EffectivePermissions: "unknown"}, nil
+			},
+		}}}
+		err := n.validateSubagentPermissions(t.Context(), session.SubagentRequest{PermissionMode: compozyconfig.PermissionModeDenyAll})
+		detail, ok := errors.AsType[*session.SubagentError](err)
+		if !ok || detail.Code != "permission_escalation_denied" {
+			t.Fatalf("error = %v", err)
+		}
+	})
 	t.Run("Should reject wider permissions before calling the service", func(t *testing.T) {
 		t.Parallel()
 		n := &daemonNativeTools{

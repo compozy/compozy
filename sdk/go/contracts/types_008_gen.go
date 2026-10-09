@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type ExtensionToolCallResponse struct {
+	Result ToolResult `json:"result"`
+}
+
 type ExtensionToolRuntimeDescriptor struct {
 	Profile             string                `json:"profile,omitempty"`
 	ID                  ToolID                `json:"id"`
@@ -201,8 +205,4 @@ type HeartbeatConfigSubsetPayload struct {
 	WakeEventRetention           string `json:"wake_event_retention"`
 	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
 	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
-}
-
-type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitempty"`
 }

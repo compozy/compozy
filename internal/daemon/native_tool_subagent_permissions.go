@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -28,7 +29,7 @@ func (n *daemonNativeTools) validateSubagentPermissions(ctx context.Context, req
 		}
 	}
 	if req.PermissionMode != "" &&
-		subagentPermissionRank(string(req.PermissionMode)) > subagentPermissionRank(parent.EffectivePermissions) {
+		req.PermissionMode.Rank() > config.PermissionMode(parent.EffectivePermissions).Rank() {
 		return denied("permission_mode is broader than the caller's mode.")
 	}
 	if req.Narrowing == nil {
@@ -54,15 +55,4 @@ func (n *daemonNativeTools) validateSubagentPermissions(ctx context.Context, req
 		}
 	}
 	return nil
-}
-
-func subagentPermissionRank(mode string) int {
-	switch mode {
-	case "approve-all":
-		return 2
-	case "approve-reads":
-		return 1
-	default:
-		return 0
-	}
 }

@@ -3135,6 +3135,16 @@ func requireDescriptorRisk(
 
 // UT-045: the native descriptor boundary enforces the public delegation input contract.
 func TestSubagentDescriptorSchemas(t *testing.T) {
+	t.Run("Should retain public validation and idempotency metadata through descriptor conversion", func(t *testing.T) {
+		t.Parallel()
+		for _, descriptor := range subagentDescriptors() {
+			want := descriptor.ID == toolspkg.ToolIDSubagentCapabilities || descriptor.ID == toolspkg.ToolIDSubagentStatus
+			got := descriptor.Tool().Descriptor()
+			if got.InputErrorCode != toolspkg.ErrorCodeInvalidRequest || got.Idempotent != want {
+				t.Fatalf("descriptor=%#v", got)
+			}
+		}
+	})
 	t.Run("Should enforce required task and closed enums", func(t *testing.T) {
 		t.Parallel()
 		d := descriptorMap(NativeDescriptors())[toolspkg.ToolIDSubagentDelegate]

@@ -5787,6 +5787,8 @@ export interface SourceRef {
 
 export type Visibility = string;
 
+export type ErrorCode = string;
+
 export type ToolsetID = string;
 
 export interface Tool {
@@ -5803,6 +5805,8 @@ export interface Tool {
   source: SourceRef;
   visibility: Visibility;
   risk: RiskClass;
+  idempotent?: boolean;
+  input_error_code?: ErrorCode;
   read_only: boolean;
   destructive: boolean;
   open_world: boolean;

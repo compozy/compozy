@@ -41,6 +41,8 @@ func validateToolSpec(_ context.Context, scope resources.ResourceScope, spec Too
 		Source:              normalizeSourceRef(spec.Source),
 		Visibility:          spec.Visibility,
 		Risk:                spec.Risk,
+		Idempotent:          spec.Idempotent,
+		InputErrorCode:      spec.InputErrorCode,
 		ReadOnly:            spec.ReadOnly,
 		Destructive:         spec.Destructive,
 		OpenWorld:           spec.OpenWorld,

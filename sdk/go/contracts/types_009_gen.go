@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type HeartbeatContextProjectionPayload struct {
+	Include []string `json:"include,omitempty"`
+}
+
 type HeartbeatDeleteRequest struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
 	AgentName      string `json:"agent_name"`
@@ -198,5 +202,3 @@ type HeartbeatWakeResponse struct {
 }
 
 type HeartbeatWakeResult string
-
-type HeartbeatWakeSource string

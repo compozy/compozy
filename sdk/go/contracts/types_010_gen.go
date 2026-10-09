@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type HeartbeatWakeSource string
+
 type HeartbeatWakeStatePayload struct {
 	WorkspaceID      string              `json:"workspace_id,omitempty"`
 	AgentName        string              `json:"agent_name,omitempty"`
@@ -199,5 +201,3 @@ type Job struct {
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
-
-type JobSource string

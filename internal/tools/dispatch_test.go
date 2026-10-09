@@ -158,6 +158,19 @@ func (b *recordingApprovalBridge) RequestToolApproval(
 
 func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 	t.Parallel()
+	t.Run("Should derive public input failures from descriptor metadata", func(t *testing.T) {
+		t.Parallel()
+		d := validDispatchDescriptor()
+		d.InputErrorCode = ErrorCodeInvalidRequest
+		d.InputSchema = json.RawMessage(`{"type":"object","required":["subject"],"properties":{"subject":{"type":"string","minLength":1,"maxLength":3}}}`)
+		for _, tc := range []struct{ input, want string }{{`{}`, "subject is required."}, {`{"subject":""}`, "subject is required."}, {`{"subject":"four"}`, "subject exceeds 3 characters."}} {
+			err := validateCallInput(d, json.RawMessage(tc.input))
+			detail, ok := errors.AsType[*ToolError](err)
+			if !ok || detail.Code != ErrorCodeInvalidRequest || detail.Message != tc.want {
+				t.Fatalf("error=%#v", err)
+			}
+		}
+	})
 
 	t.Run("Should reject invalid input before provider invocation", func(t *testing.T) {
 		t.Parallel()

@@ -505,6 +505,16 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 }
 
 func TestToolErrorResponses(t *testing.T) {
+	t.Run("Should preserve native request field errors without masking them", func(t *testing.T) {
+		t.Parallel()
+		err := toolspkg.NewToolError(toolspkg.ErrorCodeInvalidRequest, toolspkg.ToolIDSubagentStatus,
+			"subagent_id is required.", toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+		if status != http.StatusBadRequest || payload.Error.Code != toolspkg.ErrorCodeInvalidRequest || payload.Error.Message != "subagent_id is required." {
+			t.Fatalf("status=%d payload=%#v", status, payload)
+		}
+	})
 	t.Parallel()
 
 	t.Run("Should preserve typed terminal details without parsing the message", func(t *testing.T) {

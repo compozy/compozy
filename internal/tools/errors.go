@@ -50,6 +50,8 @@ const (
 	ErrorCodeApprovalRequired ErrorCode = "tool_approval_required"
 	// ErrorCodeInvalidInput maps to ErrToolInvalidInput.
 	ErrorCodeInvalidInput ErrorCode = "tool_invalid_input"
+	// ErrorCodeInvalidRequest reports a native tool request validation failure.
+	ErrorCodeInvalidRequest ErrorCode = "invalid_request"
 	// ErrorCodeResultTooLarge maps to ErrToolResultTooLarge.
 	ErrorCodeResultTooLarge ErrorCode = "tool_result_too_large"
 	// ErrorCodeResultPersistenceFailed maps to ErrToolResultPersistence.

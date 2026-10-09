@@ -20,6 +20,8 @@ type Tool struct {
 	Source              SourceRef       `json:"source"`
 	Visibility          Visibility      `json:"visibility"`
 	Risk                RiskClass       `json:"risk"`
+	Idempotent          bool            `json:"idempotent,omitempty"`
+	InputErrorCode      ErrorCode       `json:"input_error_code,omitempty"`
 	ReadOnly            bool            `json:"read_only"`
 	Destructive         bool            `json:"destructive"`
 	OpenWorld           bool            `json:"open_world"`
@@ -44,6 +46,8 @@ type Descriptor struct {
 	Source              SourceRef       `json:"source"`
 	Visibility          Visibility      `json:"visibility"`
 	Risk                RiskClass       `json:"risk"`
+	Idempotent          bool            `json:"idempotent,omitempty"`
+	InputErrorCode      ErrorCode       `json:"input_error_code,omitempty"`
 	ReadOnly            bool            `json:"read_only"`
 	Destructive         bool            `json:"destructive"`
 	OpenWorld           bool            `json:"open_world"`
@@ -69,6 +73,8 @@ func (t Tool) Descriptor() Descriptor {
 		Source:              t.Source,
 		Visibility:          t.Visibility,
 		Risk:                t.Risk,
+		Idempotent:          t.Idempotent,
+		InputErrorCode:      t.InputErrorCode,
 		ReadOnly:            t.ReadOnly,
 		Destructive:         t.Destructive,
 		OpenWorld:           t.OpenWorld,
@@ -95,6 +101,8 @@ func (d Descriptor) Tool() Tool {
 		Source:              d.Source,
 		Visibility:          d.Visibility,
 		Risk:                d.Risk,
+		Idempotent:          d.Idempotent,
+		InputErrorCode:      d.InputErrorCode,
 		ReadOnly:            d.ReadOnly,
 		Destructive:         d.Destructive,
 		OpenWorld:           d.OpenWorld,
@@ -109,6 +117,9 @@ func (d Descriptor) Tool() Tool {
 
 // Validate ensures the descriptor is dispatchable metadata.
 func (d Descriptor) Validate() error {
+	if d.InputErrorCode != "" && d.InputErrorCode != ErrorCodeInvalidRequest {
+		return NewValidationError("input_error_code", ReasonSchemaInvalid, "must be invalid_request or omitted")
+	}
 	if err := d.ID.Validate(); err != nil {
 		return err
 	}

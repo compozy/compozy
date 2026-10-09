@@ -54,7 +54,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		return status
 	}
 	switch code {
-	case toolspkg.ErrorCodeInvalidInput:
+	case toolspkg.ErrorCodeInvalidInput, toolspkg.ErrorCodeInvalidRequest:
 		return http.StatusBadRequest
 	case toolspkg.ErrorCodeNotFound:
 		return http.StatusNotFound
@@ -118,6 +118,9 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
 		payload.Message = safeToolErrorMessage(status, toolErr.Code, payload.ReasonCodes)
+		if toolErr.Code == toolspkg.ErrorCodeInvalidRequest {
+			payload.Message = toolErr.Message
+		}
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
 		payload.Details = contract.ToolOperatorFailureDetails(toolErr.Operator)
 		if terminalErr, terminal := errors.AsType[*terminalpkg.Error](err); terminal &&
@@ -173,7 +176,7 @@ func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspk
 		return "tool invocation denied"
 	case toolspkg.ErrorCodeApprovalRequired:
 		return "tool approval required"
-	case toolspkg.ErrorCodeInvalidInput:
+	case toolspkg.ErrorCodeInvalidInput, toolspkg.ErrorCodeInvalidRequest:
 		if slices.Contains(reasons, toolspkg.ReasonSkillDefinitionInvalid) {
 			return "skill definition is invalid"
 		}

@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type OriginKind string
+
 type OwnerKind string
 
 type Ownership struct {
@@ -219,5 +221,3 @@ type ProfileLens struct {
 type ProfileLensID string
 
 type PromptDelivery string
-
-type PromptMode string

@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type TaskRunTotal struct {
+	Status     TaskRunStatus `json:"status"`
+	OriginKind OriginKind    `json:"origin_kind"`
+	Count      int           `json:"count"`
+}
+
 type TaskRunsParams struct {
 	ID        string        `json:"id"`
 	Status    TaskRunStatus `json:"status,omitempty"`
@@ -314,5 +320,3 @@ type TerminalLimitRejectedPayload struct {
 	Current     int       `json:"current"`
 	Max         int       `json:"max"`
 }
-
-type TerminalObservationPatch struct{}

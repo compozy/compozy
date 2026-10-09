@@ -839,15 +839,25 @@ func (c *hostedProxyClientStub) releaseCount() int {
 }
 
 func TestHostedSubagentAnnotations(t *testing.T) {
+	t.Run("Should retain actionable invalid request errors through the hosted transport", func(t *testing.T) {
+		t.Parallel()
+		failure := tools.NewToolError(tools.ErrorCodeInvalidRequest, tools.ToolIDSubagentStatus, "subagent_id is required.", tools.ErrToolInvalidInput, tools.ReasonSchemaInvalid)
+		response := contract.ToolErrorResponse{Error: contract.ToolErrorPayload{Code: tools.ErrorCodeInvalidRequest, Message: failure.Message, ReasonCodes: failure.ReasonCodes}}
+		for _, err := range []error{failure, hostedToolResponseError{response: response}} {
+			if got := hostedToolErrorMessage(err); got != "invalid_request: subagent_id is required." {
+				t.Fatal(got)
+			}
+		}
+	})
 	t.Run("Should preserve read and acknowledgement semantics over hosted MCP", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
 			id                   tools.ToolID
 			readOnly, idempotent bool
 		}{
-			{tools.ToolIDSubagentCapabilities, true, true}, {tools.ToolIDSubagentStatus, false, true}, {tools.ToolIDSubagentDelegate, false, false}, {tools.ToolIDSubagentCancel, false, false},
+			{tools.ToolIDSubagentCapabilities, true, true}, {tools.ToolIDSubagentStatus, false, true}, {tools.ToolIDSubagentDelegate, false, false}, {tools.ToolIDSubagentCancel, false, false}, {"compozy__other", false, true},
 		} {
-			projected := hostedMCPTool(tools.Descriptor{ID: tc.id, ReadOnly: tc.readOnly})
+			projected := hostedMCPTool(tools.Descriptor{ID: tc.id, ReadOnly: tc.readOnly, Idempotent: tc.idempotent})
 			if projected.Annotations.ReadOnlyHint != tc.readOnly ||
 				projected.Annotations.IdempotentHint != tc.idempotent {
 				t.Fatalf("annotations = %#v", projected.Annotations)
