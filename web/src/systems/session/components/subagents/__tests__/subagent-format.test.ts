@@ -50,6 +50,7 @@ function subagent(overrides: Partial<SubagentView> = {}): SubagentView {
     settled_at: null,
     created_at: T0,
     updated_at: T0,
+    delivery: "none",
     ...overrides,
   };
 }

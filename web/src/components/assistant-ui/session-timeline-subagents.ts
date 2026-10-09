@@ -173,6 +173,7 @@ export function subagentCardModel(
       settled_at: null,
       created_at: part.timestamp ?? "",
       updated_at: part.timestamp ?? "",
+      delivery: "none",
     },
   };
 }

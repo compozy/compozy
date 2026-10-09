@@ -34,6 +34,7 @@ export type SubagentView = Pick<
   | "started_at"
   | "settled_at"
   | "updated_at"
+  | "delivery"
 > &
   Partial<Pick<SubagentPayload, "role" | "depth">> & {
     id: string;

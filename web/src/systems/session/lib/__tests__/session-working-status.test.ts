@@ -132,6 +132,7 @@ describe("working status", () => {
         settled_at: null,
         created_at: "2026-09-06T12:01:00Z",
         updated_at: "2026-09-06T12:01:00Z",
+        delivery: "none",
       }) satisfies SubagentView;
     const children = session({
       supervision: {

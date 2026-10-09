@@ -60,5 +60,6 @@ export function subagentViewFromPayload(payload: SubagentPayload): SubagentView 
     settled_at: payload.settled_at,
     created_at: payload.started_at ?? payload.updated_at,
     updated_at: payload.updated_at,
+    delivery: payload.delivery,
   };
 }

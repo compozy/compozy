@@ -347,6 +347,16 @@ export function subagentWaitingBannerRows(
   return subagents.filter(isSubagentStoppable);
 }
 
+const WAKE_PENDING_DELIVERIES: ReadonlySet<string> = new Set(["pending", "claimed"]);
+
+/**
+ * A settled result is queued to wake the parent (`delivery` pending or
+ * claimed): the waiting banner's delegated glyph breathes (composer VC-01).
+ */
+export function subagentWakePending(subagents: readonly SubagentView[]): boolean {
+  return subagents.some(subagent => WAKE_PENDING_DELIVERIES.has(subagent.delivery));
+}
+
 /** Per-parent counts, shaped after the session list's `subagent_summary`. */
 export interface SubagentCounts {
   live: number;
