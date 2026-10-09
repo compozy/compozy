@@ -1144,3 +1144,67 @@ func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
 		}
 	})
 }
+
+func TestNativeSubagentEventFromStored(t *testing.T) {
+	// UT-036: the persisted event supplies native identity, model, settlement, and result.
+	t.Run("Should convert native calls and results without creating lifecycle side effects", func(t *testing.T) {
+		t.Parallel()
+		for _, tool := range []string{"Agent", "Task"} {
+			event := acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				ToolCallID: "toolu_agent",
+				Title:      "Review the diff (high effort)",
+			}.WithProviderToolMetadata("", tool, "pending").
+				WithTool(tool, json.RawMessage(`{"model":"sonnet-5.5"}`), false)
+			payload, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+			row := store.SessionEvent{SessionID: "parent", TurnID: "turn", Timestamp: at, Content: payload}
+			got, ok, err := NativeSubagentEventFromStored("workspace", row)
+			if err != nil || !ok {
+				t.Fatalf("convert = %#v, %v, %v", got, ok, err)
+			}
+			if got.WorkspaceID != "workspace" || got.ParentTurnID != "turn" || got.ToolName != tool ||
+				got.ProviderToolCallID != "toolu_agent" ||
+				got.Title != event.Title ||
+				got.Model != "sonnet-5.5" ||
+				got.Status != "pending" ||
+				!got.At.Equal(at) {
+				t.Fatalf("call = %#v", got)
+			}
+			event.Type = acp.EventTypeToolResult
+			event = event.WithProviderToolMetadata("", tool, "completed")
+			event.Raw = json.RawMessage(`{"status":"completed","rawOutput":"Review complete"}`)
+			row.Content, err = transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err = NativeSubagentEventFromStored("workspace", row)
+			if err != nil || !ok || got.Status != "completed" || got.Result != "Review complete" {
+				t.Fatalf("result = %#v, %v, %v", got, ok, err)
+			}
+		}
+	})
+	// UT-037: inner events with an unknown parent cannot be mistaken for Agent calls.
+	t.Run("Should ignore inner and legacy tool calls without native tool metadata", func(t *testing.T) {
+		t.Parallel()
+		for _, event := range []acp.AgentEvent{
+			acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "inner"}.WithProviderToolMetadata("missing", "Read", "pending"),
+			{Type: acp.EventTypeToolCall, ToolCallID: "legacy", Title: "Agent"},
+		} {
+			content, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, ok, err := NativeSubagentEventFromStored(
+				"workspace",
+				store.SessionEvent{Content: content},
+			); err != nil ||
+				ok {
+				t.Fatalf("unexpected native event = %#v, %v, %v", got, ok, err)
+			}
+		}
+	})
+}

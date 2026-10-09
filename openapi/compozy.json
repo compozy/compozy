@@ -117807,6 +117807,9 @@
                                           "type": "string"
                                         },
                                         "output": {},
+                                        "parentToolCallId": {
+                                          "type": "string"
+                                        },
                                         "preliminary": {
                                           "type": "boolean"
                                         },
@@ -117935,6 +117938,9 @@
                                           "type": "string"
                                         },
                                         "output": {},
+                                        "parentToolCallId": {
+                                          "type": "string"
+                                        },
                                         "preliminary": {
                                           "type": "boolean"
                                         },
@@ -118446,6 +118452,9 @@
                                       "type": "string"
                                     },
                                     "output": {},
+                                    "parentToolCallId": {
+                                      "type": "string"
+                                    },
                                     "preliminary": {
                                       "type": "boolean"
                                     },
@@ -284203,6 +284212,9 @@
                                       "type": "string"
                                     },
                                     "output": {},
+                                    "parentToolCallId": {
+                                      "type": "string"
+                                    },
                                     "preliminary": {
                                       "type": "boolean"
                                     },
@@ -293582,6 +293594,9 @@
                                           "type": "string"
                                         },
                                         "output": {},
+                                        "parentToolCallId": {
+                                          "type": "string"
+                                        },
                                         "preliminary": {
                                           "type": "boolean"
                                         },
@@ -293710,6 +293725,9 @@
                                           "type": "string"
                                         },
                                         "output": {},
+                                        "parentToolCallId": {
+                                          "type": "string"
+                                        },
                                         "preliminary": {
                                           "type": "boolean"
                                         },
@@ -296469,6 +296487,9 @@
                                       "type": "string"
                                     },
                                     "output": {},
+                                    "parentToolCallId": {
+                                      "type": "string"
+                                    },
                                     "preliminary": {
                                       "type": "boolean"
                                     },

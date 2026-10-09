@@ -465,6 +465,7 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 	})
 }
 
+// UT-039: existing legacy fixture projections retain their ordered parts unchanged.
 func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 	t.Run("Should retain legacy compaction calls as ordinary tool rows", func(t *testing.T) {
 		t.Parallel()
@@ -752,6 +753,112 @@ func TestCompactionProjection(t *testing.T) {
 			item.EndedAt == nil ||
 			!item.EndedAt.Equal(at.Add(time.Second)) {
 			t.Fatalf("item = %#v", item)
+		}
+	})
+}
+
+func TestSubagentUIProjection(t *testing.T) {
+	// UT-038: tool/text attribution does not merge child chunks into parent chunks.
+	t.Run("Should project native and delegated cards at their transcript positions", func(t *testing.T) {
+		t.Parallel()
+		events := []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, Text: "Before"},
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				ToolCallID: "native",
+				Title:      "Review",
+			}.WithProviderToolMetadata(
+				"",
+				"Agent",
+				"pending",
+			),
+			acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Inner"}.WithProviderToolMetadata("native", "", ""),
+			{Type: acp.EventTypeAgentMessage, Text: "After"},
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				ToolCallID: "inner-read",
+				Title:      "Read",
+			}.WithProviderToolMetadata(
+				"native",
+				"Read",
+				"pending",
+			),
+			{
+				Type:       acp.EventTypeToolResult,
+				ToolCallID: "delegate",
+				Raw:        json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated"}}`),
+			},
+			{
+				Type:       acp.EventTypeToolResult,
+				ToolCallID: "failed",
+				Raw:        json.RawMessage(`{"rawOutput":{"subagent_id":"sub-failed"}}`),
+			},
+		}
+		events[5] = events[5].WithTool("compozy__subagent_delegate", nil, false)
+		events[6] = events[6].WithTool("compozy__subagent_delegate", nil, true)
+		var stored []store.SessionEvent
+		for i, event := range events {
+			event.SessionID, event.TurnID = "parent", "turn"
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored = append(
+				stored,
+				store.SessionEvent{
+					ID:        fmt.Sprintf("event-%d", i),
+					SessionID: "parent",
+					TurnID:    "turn",
+					Sequence:  int64(i + 1),
+					Content:   content,
+					Type:      event.Type,
+				},
+			)
+		}
+		messages, err := ToUIMessages(stored)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var texts, parents, cards, positions []string
+		foundInnerTool, foundFailure := false, false
+		for _, message := range messages {
+			for _, part := range message.Parts {
+				if part.Type == "text" {
+					texts = append(texts, part.Text)
+					positions = append(positions, part.Text)
+					parents = append(parents, part.ParentToolCallID)
+				}
+				if part.ToolCallID == "inner-read" {
+					foundInnerTool = part.ParentToolCallID == "native"
+				}
+				if part.ToolCallID == "failed" {
+					foundFailure = part.State == "output-error"
+				}
+				if part.Type == "data-compozy-subagent" {
+					var payload UISubagentPayload
+					if err := json.Unmarshal(part.Data, &payload); err != nil {
+						t.Fatal(err)
+					}
+					if payload.SubagentID != part.ID || payload.ToolCallID == "" {
+						t.Fatalf("invalid card: %#v", part)
+					}
+					if payload.Origin == "provider_native" && payload.SubagentID != "sub-b5de770448cb8f99" {
+						t.Fatalf("native id = %s", payload.SubagentID)
+					}
+					cards = append(cards, payload.Origin)
+					positions = append(positions, payload.Origin)
+				}
+			}
+		}
+		if !slices.Equal(texts, []string{"Before", "Inner", "After"}) ||
+			!slices.Equal(parents, []string{"", "native", ""}) {
+			t.Fatalf("texts/parents = %v / %v", texts, parents)
+		}
+		if !slices.Equal(cards, []string{"provider_native", "delegated"}) || !foundInnerTool || !foundFailure {
+			t.Fatalf("cards=%v inner=%v failed=%v", cards, foundInnerTool, foundFailure)
+		}
+		if !slices.Equal(positions, []string{"Before", "provider_native", "Inner", "After", "delegated"}) {
+			t.Fatalf("part positions = %v", positions)
 		}
 	})
 }

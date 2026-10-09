@@ -48020,6 +48020,7 @@ export interface operations {
                     input?: unknown;
                     mediaType?: string;
                     output?: unknown;
+                    parentToolCallId?: string;
                     preliminary?: boolean;
                     rawInput?: unknown;
                     state?: string;
@@ -48061,6 +48062,7 @@ export interface operations {
                     input?: unknown;
                     mediaType?: string;
                     output?: unknown;
+                    parentToolCallId?: string;
                     preliminary?: boolean;
                     rawInput?: unknown;
                     state?: string;
@@ -48258,6 +48260,7 @@ export interface operations {
                   input?: unknown;
                   mediaType?: string;
                   output?: unknown;
+                  parentToolCallId?: string;
                   preliminary?: boolean;
                   rawInput?: unknown;
                   state?: string;
@@ -113066,6 +113069,7 @@ export interface operations {
                   input?: unknown;
                   mediaType?: string;
                   output?: unknown;
+                  parentToolCallId?: string;
                   preliminary?: boolean;
                   rawInput?: unknown;
                   state?: string;
@@ -116321,6 +116325,7 @@ export interface operations {
                     input?: unknown;
                     mediaType?: string;
                     output?: unknown;
+                    parentToolCallId?: string;
                     preliminary?: boolean;
                     rawInput?: unknown;
                     state?: string;
@@ -116362,6 +116367,7 @@ export interface operations {
                     input?: unknown;
                     mediaType?: string;
                     output?: unknown;
+                    parentToolCallId?: string;
                     preliminary?: boolean;
                     rawInput?: unknown;
                     state?: string;
@@ -117935,6 +117941,7 @@ export interface operations {
                   input?: unknown;
                   mediaType?: string;
                   output?: unknown;
+                  parentToolCallId?: string;
                   preliminary?: boolean;
                   rawInput?: unknown;
                   state?: string;

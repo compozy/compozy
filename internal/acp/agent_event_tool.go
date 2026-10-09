@@ -9,6 +9,9 @@ import (
 )
 
 type agentEventPayload struct {
+	parentToolCallID  string
+	providerToolName  string
+	toolStatus        string
 	goal              *GoalPromptMeta
 	delivery          *DeliveryManifest
 	eventID           string
@@ -59,7 +62,8 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
-		payload.resolvedBy == "" &&
+		payload.resolvedBy == "" && payload.parentToolCallID == "" &&
+		payload.providerToolName == "" && payload.toolStatus == "" &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
 		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil &&
 		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
