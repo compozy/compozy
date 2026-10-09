@@ -295,6 +295,18 @@ describe("SessionList subagents", () => {
     expect(within(thread).getByTestId("session-sidebar-session-plain")).toBeInTheDocument();
     expect(within(thread).getByTestId("session-sidebar-session-viewed-sub")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^session-sidebar-session-/)).toHaveLength(3);
+    // Only the plain child counts toward the thread toggle; the revealed subagent never folds.
+    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAccessibleName(
+      "Toggle 1 child session"
+    );
+  });
+
+  it("UT-W18: a parent whose only child is the viewed subagent gets no thread toggle", () => {
+    const viewed = row("viewed-sub", { lineage: lineage("parent", "subagent") });
+    renderList({ sessions: [row("parent", summary(1, 3))], revealedSession: viewed });
+
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
   });
 
   it("UT-W18: never promotes a viewed subagent whose parent is off the page", () => {
