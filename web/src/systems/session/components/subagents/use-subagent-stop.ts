@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import type { SubagentView } from "./types";
+
+type StoppedRows = ReadonlyMap<string, SubagentView["status"]>;
+
 /**
- * Pending state for one Stop control. The daemon answers a stop with 202 and
- * settles the subagent later, so the control stays `Stopping…` until the
- * caller's `settleKey` (the stopped rows' state) changes, never just because
- * the request returned. Failure raises `failureCopy` as a toast and brings the
- * control back. Nothing is set after the control unmounts.
+ * Pending state for one Stop control over `rows`. The daemon answers a stop
+ * with 202 and settles later, so the control stays `Stopping…` while any row it
+ * stopped is still in the state it had at the click; rows that appear after
+ * the click (a new subagent starting) do not end it. Failure raises
+ * `failureCopy` as a toast and brings the control back. Nothing is set after
+ * the control unmounts.
  */
 export function useSubagentStop(
   onStop: (() => Promise<unknown>) | undefined,
   failureCopy: string,
-  settleKey: string
+  rows: readonly SubagentView[]
 ): { pending: boolean; stop: () => void } {
-  const [stoppedAt, setStoppedAt] = useState<string | null>(null);
+  const [stopped, setStopped] = useState<StoppedRows | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -21,15 +26,15 @@ export function useSubagentStop(
       mounted.current = false;
     };
   }, []);
-  const pending = stoppedAt !== null && stoppedAt === settleKey;
+  const pending = stopped !== null && rows.some(row => stopped.get(row.id) === row.status);
 
   const stop = () => {
     if (!onStop || pending) return;
-    setStoppedAt(settleKey);
+    setStopped(new Map(rows.map(row => [row.id, row.status])));
     onStop().catch(error => {
       console.error(failureCopy, error);
       toast.error(failureCopy);
-      if (mounted.current) setStoppedAt(null);
+      if (mounted.current) setStopped(null);
     });
   };
 

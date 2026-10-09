@@ -280,6 +280,18 @@ describe("subagentWaitingBannerRows (UT-W13)", () => {
   });
 });
 
+describe("roster order tolerates a row without created_at (N1)", () => {
+  it("Should order newest first by creation, falling back to the last update", () => {
+    const missing = {
+      ...withStatus("running", "no-created", 5),
+      created_at: undefined as unknown as string,
+      updated_at: at(50),
+    };
+    const ordered = subagentRosterGroups([withStatus("running", "older", 1), missing]).live;
+    expect(ordered.map(row => row.id)).toEqual(["no-created", "older"]);
+  });
+});
+
 describe("subagentChipState (UT-W17)", () => {
   it("Should read live/total with the glyph by urgency", () => {
     expect(subagentChipState({ live: 3, total: 10, failed: 1, attention: 0 }, true)).toEqual({

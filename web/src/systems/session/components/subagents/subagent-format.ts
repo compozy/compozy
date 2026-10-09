@@ -289,7 +289,11 @@ const URGENCY: Record<SubagentStatus, number> = {
   interrupted: 4,
 };
 
-const byNewest = (a: SubagentView, b: SubagentView) => b.created_at.localeCompare(a.created_at);
+// Newest first by creation; a row without a creation instant (an older daemon,
+// a partial fixture) falls back to its last update instead of breaking the sort.
+const orderKey = (subagent: SubagentView): string =>
+  subagent.created_at || subagent.updated_at || "";
+const byNewest = (a: SubagentView, b: SubagentView) => orderKey(b).localeCompare(orderKey(a));
 
 /** Most urgent first (waiting > failed > running > queued > settled), then newest. */
 export function sortSubagentsByUrgency(subagents: readonly SubagentView[]): SubagentView[] {
