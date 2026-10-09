@@ -43,6 +43,21 @@ parent transcript after a real delegate call, enabling the Web subagent-card E2E
 operator-side delegation or synthetic tool results.
 
 
+Store remediation 2026-10-09 (fix-store): scoped roster reads reject an empty workspace and
+parent, cap pages at 200, and use direct ID lookup for internal cancellation/wait paths.
+Wake lookup uses a read snapshot and parent/state index; progress and pending transitions
+use the existing immediate transaction boundary. Recovery excludes stopped orphans and
+provider-native reservations. The unreleased 00131 migration gains a parent/state wake
+index and drops the redundant child index. M2 retry persistence and policy belong to fix-core. Parent catalog upserts follow summary changes while
+progress remains on the roster stream. Native tool IDs, hooks, config, HTTP/UDS shapes,
+workspace isolation, official skill and site contracts are unchanged. Existing owners:
+UT-056, UT-060, IT-021, IT-031, IT-032; QA scenarios RT-subagent-restart and
+ET-web-session-sidebar-threads retain their current fail verdict pending the controller's
+integrated re-walk. Search ancestry (m19/S9) remains unresolved because the catalog service
+combines active/durable rows and recuts pages after the store query; adding contextual
+ancestors requires an explicit pagination contract beyond a store-only change.
+
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

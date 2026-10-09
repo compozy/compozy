@@ -47,6 +47,7 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 			return err
 		}
 		s.publish(ctx, row)
+		s.runtime.PublishParent(ctx, row.ParentSessionID)
 	}
 	if row.Origin != store.SubagentOriginProviderNative {
 		return store.ErrSubagentIdempotencyConflict

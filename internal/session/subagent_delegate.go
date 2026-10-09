@@ -71,6 +71,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	s.flights[id] = done
 	s.mu.Unlock()
 	s.publish(ctx, row)
+	s.runtime.PublishParent(ctx, row.ParentSessionID)
 	unlock()
 	finishFlight := sync.OnceFunc(func() { s.mu.Lock(); delete(s.flights, id); close(done); s.mu.Unlock() })
 	defer finishFlight()
