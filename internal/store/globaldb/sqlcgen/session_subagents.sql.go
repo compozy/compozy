@@ -452,7 +452,7 @@ func (q *Queries) ListOpenSubagentWakes(ctx context.Context) ([]SessionSubagentW
 }
 
 const listOrphanSubagentSessions = `-- name: ListOrphanSubagentSessions :many
-SELECT id FROM sessions WHERE spawn_role = 'subagent' AND NOT EXISTS (SELECT 1 FROM session_subagents WHERE child_session_id = sessions.id) ORDER BY id
+SELECT id FROM sessions WHERE spawn_role = 'subagent' AND state <> 'stopped' AND NOT EXISTS (SELECT 1 FROM session_subagents WHERE child_session_id = sessions.id) ORDER BY id
 `
 
 func (q *Queries) ListOrphanSubagentSessions(ctx context.Context) ([]string, error) {
@@ -541,7 +541,7 @@ func (q *Queries) ListPendingSubagents(ctx context.Context) ([]SessionSubagent, 
 }
 
 const listStaleReservedSubagents = `-- name: ListStaleReservedSubagents :many
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE status = 'queued' AND created_at < ? ORDER BY created_at,id
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE origin = 'delegated' AND status = 'queued' AND created_at < ? ORDER BY created_at,id
 `
 
 func (q *Queries) ListStaleReservedSubagents(ctx context.Context, createdAt string) ([]SessionSubagent, error) {
@@ -691,6 +691,51 @@ func (q *Queries) ListSubagentWakeRows(ctx context.Context, wakeMessageID sql.Nu
 			&i.AcknowledgedTurnID,
 			&i.StartedAt,
 			&i.SettledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSubagentWakesByParent = `-- name: ListSubagentWakesByParent :many
+SELECT wake_message_id, workspace_id, parent_session_id, state, route, input_entry_id, steer_requeued, created_at, updated_at FROM session_subagent_wakes
+WHERE parent_session_id = ?1
+ AND (?2 = '[]' OR state IN (SELECT value FROM json_each(?2)))
+ORDER BY created_at,wake_message_id
+`
+
+type ListSubagentWakesByParentParams struct {
+	ParentID string `json:"parent_id"`
+	States   any    `json:"states"`
+}
+
+func (q *Queries) ListSubagentWakesByParent(ctx context.Context, arg ListSubagentWakesByParentParams) ([]SessionSubagentWake, error) {
+	rows, err := q.db.QueryContext(ctx, listSubagentWakesByParent, arg.ParentID, arg.States)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionSubagentWake{}
+	for rows.Next() {
+		var i SessionSubagentWake
+		if err := rows.Scan(
+			&i.WakeMessageID,
+			&i.WorkspaceID,
+			&i.ParentSessionID,
+			&i.State,
+			&i.Route,
+			&i.InputEntryID,
+			&i.SteerRequeued,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

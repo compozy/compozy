@@ -86,7 +86,7 @@ UPDATE session_subagent_wakes SET state = 'canceled',updated_at = ? WHERE sessio
 UPDATE session_subagents SET wake_policy = 'always',updated_at = ? WHERE id = ? AND wake_policy = 'settled_only';
 
 -- name: ListStaleReservedSubagents :many
-SELECT * FROM session_subagents WHERE status = 'queued' AND created_at < ? ORDER BY created_at,id;
+SELECT * FROM session_subagents WHERE origin = 'delegated' AND status = 'queued' AND created_at < ? ORDER BY created_at,id;
 
 -- name: ListUnfinalizedDelegatedSubagents :many
 SELECT * FROM session_subagents WHERE origin = 'delegated' AND status IN ('queued','running','waiting') ORDER BY created_at,id;
@@ -98,7 +98,7 @@ SELECT * FROM session_subagent_wakes WHERE state = 'open' ORDER BY created_at,wa
 SELECT * FROM session_subagents WHERE delivery = 'pending' ORDER BY created_at,id;
 
 -- name: ListOrphanSubagentSessions :many
-SELECT id FROM sessions WHERE spawn_role = 'subagent' AND NOT EXISTS (SELECT 1 FROM session_subagents WHERE child_session_id = sessions.id) ORDER BY id;
+SELECT id FROM sessions WHERE spawn_role = 'subagent' AND state <> 'stopped' AND NOT EXISTS (SELECT 1 FROM session_subagents WHERE child_session_id = sessions.id) ORDER BY id;
 
 
 -- name: MarkSubagentFirstPromptAdmitted :execrows
@@ -134,3 +134,9 @@ SET text = sqlc.arg(text),
 WHERE id = sqlc.arg(input_id) AND session_id = sqlc.arg(parent_id)
  AND status = 'queued' AND owner_kind = 'synthetic'
  AND json_type(synthetic_prompt_json) = 'object';
+
+-- name: ListSubagentWakesByParent :many
+SELECT * FROM session_subagent_wakes
+WHERE parent_session_id = sqlc.arg(parent_id)
+ AND (sqlc.arg(states) = '[]' OR state IN (SELECT value FROM json_each(sqlc.arg(states))))
+ORDER BY created_at,wake_message_id;

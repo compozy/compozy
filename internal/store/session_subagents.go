@@ -179,6 +179,7 @@ type SubagentStore interface {
 	// no session and no row, IT-022). It returns ErrSubagentNotFound for any other row.
 	DeleteReserved(ctx context.Context, id string) error
 	GetSubagent(ctx context.Context, workspaceID, id string) (SessionSubagent, error)
+	GetSubagentByID(ctx context.Context, id string) (SessionSubagent, error)
 	GetSubagentByChild(ctx context.Context, childSessionID string) (SessionSubagent, error)
 	ListSubagents(ctx context.Context, q SubagentListQuery) (SubagentPage, error)
 	Summaries(ctx context.Context, parentIDs []string) (map[string]SubagentSummary, error)
@@ -188,6 +189,7 @@ type SubagentStore interface {
 
 	OpenOrJoinWake(ctx context.Context, parentID string, ids []string, newWakeID string) (SessionSubagentWake, error)
 	GetWake(ctx context.Context, wakeID string) (SessionSubagentWake, []SessionSubagent, error)
+	ListWakesByParent(ctx context.Context, parentID string, states []string) ([]SessionSubagentWake, error)
 	SetWakeInput(ctx context.Context, wakeID, route, inputEntryID string) error
 	RewriteSubagentWakeInput(ctx context.Context, wakeID, text string, metadata json.RawMessage) error
 	MarkWakeSteerRequeued(ctx context.Context, wakeID string) error

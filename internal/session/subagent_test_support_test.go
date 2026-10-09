@@ -92,6 +92,9 @@ func (d *memorySubagents) GetSubagentByChild(_ context.Context, child string) (s
 	return store.SessionSubagent{}, store.ErrSubagentNotFound
 }
 func (d *memorySubagents) ListSubagents(_ context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
+	if q.WorkspaceID == "" && q.ParentSessionID == "" {
+		return store.SubagentPage{}, errors.New("subagent workspace or parent required")
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	var page store.SubagentPage
@@ -595,3 +598,23 @@ func settleTestChild(t *testing.T, s *subagentService, r *subagentTestRuntime, r
 	}
 }
 func testSubagentError() error { return errors.New("provider failed") }
+
+func (d *memorySubagents) GetSubagentByID(ctx context.Context, id string) (store.SessionSubagent, error) {
+	return d.GetSubagent(ctx, "", id)
+}
+
+func (d *memorySubagents) ListWakesByParent(
+	_ context.Context,
+	parent string,
+	states []string,
+) ([]store.SessionSubagentWake, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var out []store.SessionSubagentWake
+	for _, wake := range d.wakes {
+		if wake.ParentSessionID == parent && (len(states) == 0 || slices.Contains(states, wake.State)) {
+			out = append(out, wake)
+		}
+	}
+	return out, nil
+}

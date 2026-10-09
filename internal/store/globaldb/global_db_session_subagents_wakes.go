@@ -44,6 +44,9 @@ func (g *SessionRepo) OpenOrJoinWake(
 				return e
 			}
 			row, e = q.GetSubagentWake(ctx, newWakeID)
+			if errors.Is(e, sql.ErrNoRows) {
+				return store.ErrSessionNotFound
+			}
 		}
 		if e != nil {
 			return e
@@ -69,22 +72,58 @@ func (g *SessionRepo) GetWake(
 	ctx context.Context,
 	id string,
 ) (out store.SessionSubagentWake, items []store.SessionSubagent, err error) {
-	err = g.withImmediateTransaction(ctx, "get subagent wake", func(exec globalSQLExecutor) error {
-		q := sqlcgen.New(exec)
-		var e error
-		out, e = readSubagentWake(ctx, q, id)
-		if e != nil {
-			return e
-		}
-		rows, e := q.ListSubagentWakeRows(ctx, sql.NullString{String: id, Valid: true})
-		if e != nil {
-			return e
-		}
-		items, e = subagentsFromSQL(rows)
-		return e
-	})
+	if err := g.checkReady(ctx, "get subagent wake"); err != nil {
+		return out, nil, err
+	}
+	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return out, nil, err
+	}
+	defer func() { joinCleanupError(&err, rollbackTx(tx, "get subagent wake")) }()
+	q := sqlcgen.New(tx)
+	out, err = readSubagentWake(ctx, q, id)
+	if err != nil {
+		return out, nil, err
+	}
+	rows, err := q.ListSubagentWakeRows(ctx, sql.NullString{String: id, Valid: true})
+	if err != nil {
+		return out, nil, err
+	}
+	items, err = subagentsFromSQL(rows)
+	if err != nil {
+		return out, nil, err
+	}
+	err = tx.Commit()
 	return out, items, err
 }
+
+func (g *SessionRepo) ListWakesByParent(
+	ctx context.Context, parentID string, states []string,
+) ([]store.SessionSubagentWake, error) {
+	if err := g.checkReady(ctx, "list parent subagent wakes"); err != nil {
+		return nil, err
+	}
+	encoded, err := subagentIDsJSON(states)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := g.queries.ListSubagentWakesByParent(
+		ctx, sqlcgen.ListSubagentWakesByParentParams{ParentID: parentID, States: encoded},
+	)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]store.SessionSubagentWake, 0, len(rows))
+	for _, row := range rows {
+		wake, err := subagentWakeFromSQL(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, wake)
+	}
+	return out, nil
+}
+
 func (g *SessionRepo) SetWakeInput(ctx context.Context, id, route, inputID string) error {
 	return g.withImmediateTransaction(ctx, "set subagent wake input", func(exec globalSQLExecutor) error {
 		q := sqlcgen.New(exec)
