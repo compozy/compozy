@@ -222,8 +222,10 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 		InputSchema:  cloneRaw(descriptor.InputSchema),
 		OutputSchema: hostedOptionalSchema(descriptor.OutputSchema),
 		Annotations: &sdkmcp.ToolAnnotations{
-			Title:           descriptor.Presentation().DisplayTitle,
-			ReadOnlyHint:    readOnly,
+			Title:        descriptor.Presentation().DisplayTitle,
+			ReadOnlyHint: readOnly,
+			IdempotentHint: descriptor.ID == tools.ToolIDSubagentCapabilities ||
+				descriptor.ID == tools.ToolIDSubagentStatus,
 			DestructiveHint: &destructive,
 			OpenWorldHint:   &openWorld,
 		},

@@ -51,3 +51,8 @@ The final canary also covers directory membership/type changes and in-place
 invalid-to-valid and valid-to-invalid definition edits with preserved metadata.
 The original local gate and strict QA audit passed; final delivery gates run
 exclusively in CI at the user's request. The owning report records both lab runs.
+
+QA impact 2026-10-09 (Subagents tools slice): verify the four `compozy__subagent_*` tools in the
+`sessions` toolset, active-turn rejection, narrowing-only budgets, and status acknowledgement.
+Scoped evidence: `TestNativeSubagentBindings`, `TestNativeSubagentPermissionBoundary`, and
+`TestHostedSubagentAnnotations`. The integrated provider-backed walk remains owned by the spec QA slice.

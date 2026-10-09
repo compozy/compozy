@@ -70,7 +70,8 @@ type SoulSnapshotStore interface {
 // evaluated at render time so daemon boot can install the provider before late
 // runtime services are available.
 type Deps struct {
-	Now func() time.Time
+	Subagents func() SubagentProvider
+	Now       func() time.Time
 
 	SectionLimit int
 
@@ -91,6 +92,7 @@ type Deps struct {
 
 // Service assembles contract.AgentContextPayload and renders prompt sections.
 type Service struct {
+	subagents    func() SubagentProvider
 	now          func() time.Time
 	sectionLimit int
 
@@ -122,6 +124,7 @@ func NewService(deps Deps) *Service {
 	}
 
 	return &Service{
+		subagents:             deps.Subagents,
 		now:                   now,
 		sectionLimit:          limit,
 		workspaceResolver:     deps.WorkspaceResolver,

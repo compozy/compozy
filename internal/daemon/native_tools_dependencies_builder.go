@@ -3,6 +3,7 @@ package daemon
 import (
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -13,6 +14,7 @@ func (d *Daemon) nativeToolsDeps(
 ) daemonNativeToolsDeps {
 	agentCatalog := nativeAgentCatalogDependency(state)
 	deps := daemonNativeToolsDeps{
+		Subagents:           func() session.SubagentService { return state.subagents },
 		Logger:              state.logger,
 		Registry:            registryRef,
 		CmdPalette:          func() cmdpalette.Registry { return state.cmdPalette },

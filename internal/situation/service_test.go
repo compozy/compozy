@@ -1678,3 +1678,54 @@ func testSituationSoulSnapshot(t *testing.T, body string) soul.Snapshot {
 	}
 	return snapshot
 }
+
+// UT-044: the situation layer renders current depth/live counts only when relevant.
+func TestSubagentSituation(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		depth, live int
+		want        string
+	}{
+		{"Should render depth and live children", 1, 2, "Subagents: depth 1 · live 2"},
+		{"Should render parent live children", 0, 2, "Subagents: depth 0 · live 2"},
+		{"Should omit unrelated sessions", 0, 0, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			provider := subagentSituationStub{depth: tc.depth, live: tc.live}
+			service := NewService(Deps{Subagents: func() SubagentProvider { return provider }})
+			rendered, err := service.Augment(
+				t.Context(),
+				&session.Session{
+					ID:          "sess",
+					WorkspaceID: "ws",
+					AgentName:   "coder",
+					Provider:    "codex",
+					State:       session.StateActive,
+				},
+				"work",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.want == "" && strings.Contains(rendered, "Subagents:") ||
+				tc.want != "" && !strings.Contains(rendered, tc.want) {
+				t.Fatalf("rendered = %q", rendered)
+			}
+		})
+	}
+}
+
+type subagentSituationStub struct{ depth, live int }
+
+var _ SubagentProvider = subagentSituationStub{}
+
+func (p subagentSituationStub) GetSubagentByChild(context.Context, string) (store.SessionSubagent, error) {
+	if p.depth == 0 {
+		return store.SessionSubagent{}, store.ErrSubagentNotFound
+	}
+	return store.SessionSubagent{WorkspaceID: "ws", Depth: p.depth}, nil
+}
+func (p subagentSituationStub) Summaries(_ context.Context, ids []string) (map[string]store.SubagentSummary, error) {
+	return map[string]store.SubagentSummary{ids[0]: {Live: p.live}}, nil
+}

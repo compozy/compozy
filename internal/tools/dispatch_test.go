@@ -1608,3 +1608,18 @@ func mustDispatchRegistry(t *testing.T, provider registryTestProvider, opts ...R
 	}
 	return registry
 }
+
+func TestSubagentDelegateObservation(t *testing.T) {
+	t.Run("Should correlate the delegate outcome with its subagent", func(t *testing.T) {
+		t.Parallel()
+		event := buildToolCallEvent(
+			&dispatchTarget{descriptor: Descriptor{ID: ToolIDSubagentDelegate}},
+			CallRequest{SessionID: "parent", TurnID: "turn"},
+			ToolCallCompleted,
+			ToolEventData{Result: ToolResult{Structured: json.RawMessage(`{"subagent_id":"sub-1"}`)}},
+		)
+		if event.SubagentID != "sub-1" || event.SessionID != "parent" || event.TurnID != "turn" {
+			t.Fatalf("event = %#v", event)
+		}
+	})
+}
