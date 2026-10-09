@@ -2761,3 +2761,122 @@ func TestDaemonE2EAgentDelegatesThroughHostedMCP(t *testing.T) {
 		},
 	)
 }
+
+// E2E-007: the real CLI presents and cancels subagents created by the parent's hosted MCP calls.
+func TestDaemonE2ESubagentCLIJourney(t *testing.T) {
+	t.Run("Should execute the documented list show and cancel CLI journey", func(t *testing.T) {
+		t.Parallel()
+		harness := startSubagentCLIHarness(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		parent := createFixtureBackedSession(t, ctx, harness, "subagent-cli-parent", "CLI parent")
+		if _, err := harness.PromptSession(ctx, parent.ID, "exercise subagent CLI"); err != nil {
+			t.Fatal(err)
+		}
+		var page compozycontract.SubagentListPayload
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &page,
+			"session", "subagents", parent.ID, "--json"); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Subagents) != 2 || page.NextCursor != nil {
+			t.Fatalf("list JSON = %#v, want two subagents and null next_cursor", page)
+		}
+		var running, completed compozycontract.SubagentPayload
+		for _, row := range page.Subagents {
+			switch row.Status {
+			case "running":
+				running = row
+			case "completed":
+				completed = row
+			}
+		}
+		if running.SubagentID == "" || completed.SubagentID == "" || completed.Result == nil ||
+			completed.ChildSessionID == nil {
+			t.Fatalf("list = %#v, want one running and one completed with a result", page.Subagents)
+		}
+		if running.Title != "Sol: diff panel default and base diff design" ||
+			completed.Title != "Edge cases: main checkout base" {
+			t.Fatalf("fixture titles = %q / %q", running.Title, completed.Title)
+		}
+		table, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, "session", "subagents", parent.ID)
+		if err != nil {
+			t.Fatalf("list: %v; stderr=%s", err, stderr)
+		}
+		lines := strings.Split(strings.TrimSpace(table), "\n")
+		if len(lines) != 3 || strings.Join(strings.Fields(lines[0]), " ") != "ID TITLE RUNTIME STATUS ELAPSED" {
+			t.Fatalf("list table = %q", table)
+		}
+		for _, row := range page.Subagents {
+			found := false
+			for _, line := range lines[1:] {
+				if strings.HasPrefix(line, row.SubagentID+" ") {
+					prefix := row.SubagentID + " " + row.Title + " " + row.Runtime.Provider + "/" + row.Runtime.Model + " " + row.Status + " "
+					if !strings.HasPrefix(strings.Join(strings.Fields(line), " "), prefix) {
+						t.Fatalf("list row = %q, want prefix %q", line, prefix)
+					}
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("missing %s in table %q", row.SubagentID, table)
+			}
+		}
+		details, stderr, err := harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"session",
+			"subagents",
+			"show",
+			completed.SubagentID,
+		)
+		if err != nil {
+			t.Fatalf("show: %v; stderr=%s", err, stderr)
+		}
+		for _, want := range []string{
+			"Subagent      " + completed.SubagentID, "Title         " + completed.Title,
+			"Parent        " + parent.ID + " (turn " + completed.ParentTurnID + ")",
+			"Child         " + *completed.ChildSessionID,
+			"Runtime       " + completed.Runtime.Provider + " · " + completed.Runtime.Model,
+			"Status        completed (result available) · ", "Started       ", " · settled ",
+			"\nResult\n" + *completed.Result + "\n",
+		} {
+			if !strings.Contains(details, want) {
+				t.Errorf("show missing %q: %s", want, details)
+			}
+		}
+		output, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot,
+			"session", "subagents", "cancel", running.SubagentID, "--reason", "Direction abandoned.")
+		if err != nil {
+			t.Fatalf("cancel: %v; stderr=%s", err, stderr)
+		}
+		want := fmt.Sprintf("Cancel requested for %s (%s).\n", running.SubagentID, running.Title)
+		if output != want {
+			t.Fatalf("cancel = %q, want %q", output, want)
+		}
+		var canceled compozycontract.SubagentPayload
+		if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &canceled,
+			"session", "subagents", "show", running.SubagentID, "--json"); err != nil {
+			t.Fatal(err)
+		}
+		if canceled.Status != "canceled" {
+			t.Fatalf("canceled row = %#v", canceled)
+		}
+		_, stderr, err = harness.CLI.RunInDir(ctx, harness.WorkspaceRoot,
+			"session", "subagents", "show", "sub-missing")
+		if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 ||
+			!strings.Contains(stderr, "subagent_not_found: subagent sub-missing not found") {
+			t.Fatalf("unknown subagent: error=%v stderr=%q", err, stderr)
+		}
+	})
+}
+
+func startSubagentCLIHarness(t *testing.T) *e2etest.RuntimeHarness {
+	t.Helper()
+	fixture := mockFixturePath(t, "subagent_cli_fixture.json")
+	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{
+			{FixturePath: fixture, FixtureAgent: "subagent-cli-parent", AgentName: "subagent-cli-parent"},
+			{FixturePath: fixture, FixtureAgent: "subagent-cli-worker", AgentName: "subagent-cli-worker"},
+		},
+	})
+}
