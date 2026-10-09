@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-14-read-a-finished-transcript
 expected: When Claude (claude-agent-acp) runs its own Agent or Task tool, CompozyOS records a provider-native subagent (origin provider_native, no child session, provider_tool_call_id set, model from the tool input when reported) and the parent transcript shows the same subagent card titled with the tool's description, with no chevron, expandable inline to show the subagent's own tool rows and text; those inner parts (parentToolCallId equal to the Agent call) no longer interleave with the parent's work rows or reply text, while an unknown parent tool call id falls back to the parent flow; the status line counts it in "N agents running" while live; it settles with its tool result, never wakes the parent, never shows the waiting banner, cannot be canceled (409 subagent_not_cancelable, no Stop in the roster), and counts toward the parent's sidebar chip; the rendering survives reload from the persisted transcript.
 entry_points: web session window transcript (SubagentCard provider-native state, inline expansion); compozy session subagents <session-id> --origin provider_native --json; POST /api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel; session inspector Subagents section; docs/design/opendesign/subagents/subagents-transcript.html#tr-native (VC-05)
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261009-native-subagent-title-task; BUG-20261009-subagent-preview-raw-markdown
+fix_status: pending
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: .compozy/tasks/subagents/orchestration/screens/pr/
+last_report: docs/qa/reports/2026-10-09-subagents.md
 overlaps: ET-web-subagent-card; RT-subagent-delegate; ET-web-session-transcript-calm-grammar
 ---
 
@@ -44,3 +44,5 @@ shape (Known Risk: shape drift).
    subagent sessions are not adopted (ADR-004).
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
+
+QA walk 2026-10-09: a real Claude Agent call produced a provider_native record and an inline-expandable card (patched build for the roster); the title stays `Task`. Steps 5 and 7 not walked. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents.md`.

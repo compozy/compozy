@@ -6,13 +6,13 @@ persona: Dora
 journey: J-automatic-runtime-recovery
 expected: A subagent that settles while the daemon is down is finalized at boot and wakes its parent exactly once; a wake already queued before shutdown is not duplicated; a daemon killed mid child turn recovers the child through ordinary session recovery and the row finalizes and retains one wake when the child settles; a parent classified as a dead process runtime remains read-only under the existing attachment contract; boot recovery fails delegations stuck in queued for more than 2 minutes with "delegation interrupted", re-admits a missing first prompt once, re-offers open wakes whose input is missing, claims pending rows of idle parents, and stops subagent sessions that have no record, logging each action as subagent.recovered with its reason; results stay readable through the native tool, CLI, and HTTP/UDS after restart.
 entry_points: compozy daemon stop/start (or kill -9 of the daemon process); compozy session subagents <session-id>; compozy session subagents show <subagent-id> --json; compozy__subagent_status; daemon log (subagent.recovered)
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261009-subagent-daemon-stop-cancels; BUG-20261009-subagent-crash-no-wake
+fix_status: pending
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: .compozy/tasks/subagents/orchestration/screens/pr/
+last_report: docs/qa/reports/2026-10-09-subagents.md
 overlaps: RT-subagent-delegate; RT-session-spawn-wake
 ---
 
@@ -52,3 +52,5 @@ kills the daemon-hosting process mid child turn and verifies ordinary crash repa
 `TestSubagentFirstAdmissionRestartDaemonIntegration` reopens a linked child with `pending_task`
 and no admission, verifies one readmission/result, and proves the reaper respects a shutdown parent.
 These tests cover daemon/storage/ACP boundaries; public CLI/HTTP/Web journey validation remains with tail QA.
+
+QA walk 2026-10-09: reads survive restart; a clean daemon stop cancels the running child (no wake); kill -9 fails the row and disposes it with no wake. Steps 2, 4, 5 not walked. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents.md`.

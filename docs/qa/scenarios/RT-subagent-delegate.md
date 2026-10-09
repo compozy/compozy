@@ -6,13 +6,13 @@ persona: Ada
 journey: J-15-operate-session-via-cli-api
 expected: From an active turn, compozy__subagent_capabilities reports the caller's inherited runtime, depth, live count, and per-agent/provider can_delegate with the exact constraint strings; compozy__subagent_delegate in async mode returns status running with subagent_id and child_session_id within 3 s on a warm provider, the child's first prompt is exactly the task (role prefix when role is not general, no parent history, no attachments), the parent turn completes independently, and when the child settles the parent receives exactly one pointer wake per batch (steered into a running turn only when the agent declares steer_ext or concurrent_prompt and no user steer is queued, otherwise queued ahead of user prompts) whose text matches the fixed wake lines; compozy__subagent_status returns the result capped at [subagents].result_max_chars and moves delivery to acknowledged; wait mode returns the result or wait_timed_out without canceling the child; cancel, stop cascade, interrupt disposal, narrowing-only permissions, idempotency, and every documented error code behave as in the spec; CLI compozy session subagents list/show/cancel and the HTTP/UDS routes return the documented shapes and exit codes.
 entry_points: native tools compozy__subagent_capabilities, compozy__subagent_delegate, compozy__subagent_status, compozy__subagent_cancel (toolset sessions); compozy session subagents <session-id> [--json]; compozy session subagents show|cancel <subagent-id>; compozy session list --subagents include|exclude|only; GET /api/workspaces/{workspace_id}/sessions/{session_id}/subagents and GET|POST /api/workspaces/{workspace_id}/subagents/{subagent_id}[/cancel] over HTTP and UDS; [subagents] result_max_chars; hooks spawn.pre_create (spawn_role subagent) and subagent.settled
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-idempotency-default; BUG-20261009-subagent-status-empty-input; BUG-20261009-subagent-show-needs-workspace; BUG-20261009-subagent-runtime-speed-empty
+fix_status: pending
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: .compozy/tasks/subagents/orchestration/screens/pr/
+last_report: docs/qa/reports/2026-10-09-subagents.md
 overlaps: RT-session-spawn-wake; RT-subagent-restart; ET-web-subagent-card; ET-web-native-subagent
 ---
 
@@ -81,3 +81,5 @@ E2E-008, which use acpmock.
     per call (spawn runs under the global spawn lock) in the QA report.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
+
+QA walk 2026-10-09 (real Claude parent, Codex children): golden path, child context, wake text, wait mode (92 s inline; 124.3 s timeout hold, no provider abort), CLI/HTTP reads and cancel verified on a QA-local patched build; the stock build returns 503 on every subagent route and needs an explicit idempotency_key. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents.md`.
