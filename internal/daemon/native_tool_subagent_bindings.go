@@ -33,7 +33,7 @@ func (n *daemonNativeTools) subagentCaller(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (session.SubagentCaller, error) {
-	if scope.Operator || strings.TrimSpace(scope.SessionID) == "" || strings.TrimSpace(req.TurnID) == "" {
+	if scope.Operator || strings.TrimSpace(scope.SessionID) == "" {
 		return session.SubagentCaller{}, session.ErrSubagentParentNotActive
 	}
 	id, parent, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, scope.SessionID, false)
@@ -46,20 +46,32 @@ func (n *daemonNativeTools) subagentCaller(
 	if parent.State == session.StateStopping || parent.State == session.StateStopped {
 		return session.SubagentCaller{}, session.ErrSubagentParentNotActive
 	}
-	if _, err := n.deps.Sessions.ActivePromptRun(ctx, id); err != nil {
+	active, err := n.deps.Sessions.ActivePromptRun(ctx, id)
+	if err != nil {
 		if errors.Is(err, session.ErrPromptNotActive) {
 			return session.SubagentCaller{}, session.ErrSubagentParentNotActive
 		}
 		return session.SubagentCaller{}, err
 	}
+	turnID := strings.TrimSpace(req.TurnID)
+	if turnID == "" {
+		if scope.RunID == "" || scope.Generation <= 0 ||
+			scope.RunID != active.RunID || scope.Generation != active.Generation ||
+			parent.Liveness == nil ||
+			parent.Liveness.Activity == nil {
+			return session.SubagentCaller{}, session.ErrSubagentParentNotActive
+		}
+		turnID = parent.Liveness.Activity.TurnID
+	}
+	if turnID == "" {
+		return session.SubagentCaller{}, session.ErrSubagentParentNotActive
+	}
 	return session.SubagentCaller{
 		WorkspaceID: parent.WorkspaceID,
 		SessionID:   id,
-		TurnID: strings.TrimSpace(
-			req.TurnID,
-		),
-		ToolCallID: strings.TrimSpace(req.ToolCallID),
-		AgentName:  parent.AgentName,
+		TurnID:      turnID,
+		ToolCallID:  strings.TrimSpace(req.ToolCallID),
+		AgentName:   parent.AgentName,
 	}, nil
 }
 
