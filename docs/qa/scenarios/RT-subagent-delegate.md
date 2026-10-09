@@ -90,3 +90,14 @@ Fix round 1 automated scope (sa-fix-core): `TestSubagentConcurrentDenial` and
 `TestSubagentObserveHook` own concurrent denial and nonblocking observer regressions.
 `TestSubagentHookDaemonIntegration` exercises the real hook/ACP/store denial boundary.
 These focused checks do not replace the real-provider scenario re-walk or change its fail verdict.
+
+Additional fix-round automated coverage: `TestSubagentPendingInjectionDaemonIntegration` verifies
+accepted pending steering and a distinct successor batch; `TestSubagentSuccessorDaemonIntegration`
+verifies capability-none queueing and the fourth result after dispatch. `TestSubagentRootHostedMCPDaemonIntegration`
+verifies a ROOT child's status/delegate calls with omitted keys, catalog SSE, and operator HTTP
+cancellation of a live child/grandchild tree. `TestSubagentDaemonIntegration` checks IT-030's single
+unseen finished root. SQLite tests reopen between failed wakes and prove abandonment on attempt 3;
+service tests prove no immediate failed-wake retry and the `subagent.wake_abandoned` log.
+`TestSubagentCleanRestartDaemonIntegration` resumes delegated work after clean shutdown;
+`TestSubagentRecoveryDaemonIntegration` reconciles native work from a lost turn as interrupted.
+These automated journeys preserve the real-provider fail verdict above until the QA owner re-walks.

@@ -43,12 +43,20 @@ parent transcript after a real delegate call, enabling the Web subagent-card E2E
 operator-side delegation or synthetic tool results.
 
 
-Fix round 1 (sa-fix-core, partial): `subagent.settled` observers execute asynchronously on the
-manager-owned task lifetime, so a slow hook cannot block parent status or delivery. Concurrent
-replays of a denied `compozy__subagent_delegate` receive the same `capability_denied` error. Parent
-serialization locks are released when their last holder or waiter leaves. No wire/schema/config,
-workspace-isolation, Web, or official-skill changes. The existing RT-subagent-delegate hooks and
-idempotency checks gain these cases; its real-provider verdict remains fail pending the QA re-walk.
+Fix round 1 (sa-fix-core): wake steering freezes its batch on acceptance, channel-less pending
+injection settles with its original turn, and failed wake attempts persist across successor batches
+and restart (three failures dispose delivery and log `subagent.wake_abandoned`). The controller
+authorized adding `attempts` to unreleased migration 00131 in place; Atlas and sqlc are regenerated.
+Native work finalizes interrupted at turn/stop/recovery boundaries without a delivery wake. Recovery
+isolates row failures, preserves sent input identity, and resumes delegated work after clean shutdown.
+`subagent.settled` observers use the manager-owned asynchronous lifetime; denied concurrent replays
+retain `capability_denied`; parent locks retire after their last waiter. Hosted MCP derives omitted
+delegation keys from parent turn plus transport request identity when no provider call ID exists.
+Public DTOs, tool IDs, configuration and workspace authorization stay unchanged. ROOT descendants
+retain hosted native-tool access, verified over real MCP. Web consumers receive accurate native
+terminal state, catalog stream and one root attention completion. Official skill/site wording and
+real-provider scenario verdicts remain under sa-qa; automated evidence is in sa-fix-core-fix1.md.
+The existing RT-subagent-delegate, RT-subagent-native and RT-subagent-restart scenarios own re-walks.
 
 
 ## Memory removal — 2026-10-07
