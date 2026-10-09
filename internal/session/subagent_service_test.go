@@ -955,10 +955,10 @@ func TestSubagentProviderAvailability(t *testing.T) {
 	}
 }
 
-// IT-031: repaired stopped parents cannot receive a stale open wake on restart.
+// IT-031: explicitly stopped parents cannot receive a stale open wake on restart.
 // Owner: service recovery, with the runtime boundary supplied by this suite's fixture.
 func TestSubagentRecoveryStoppedParent(t *testing.T) {
-	t.Run("Should dispose wakes after parent recovery stops", func(t *testing.T) {
+	t.Run("Should dispose wakes after an explicit parent stop", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)
 		row := requireSubagent(t, s, subagentTestRequest())
@@ -966,6 +966,7 @@ func TestSubagentRecoveryStoppedParent(t *testing.T) {
 		wake := *db.rows[row.ID].WakeMessageID
 		snap := runtime.snapshots["parent"]
 		snap.Info.State = StateStopped
+		snap.Info.StopReason = store.StopUserCanceled
 		snap.Active = false
 		runtime.snapshots["parent"] = snap
 		if err := s.Recover(t.Context()); err != nil {

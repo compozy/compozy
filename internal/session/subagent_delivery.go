@@ -20,16 +20,26 @@ func planSubagentDelivery(row store.SessionSubagent, parent subagentSnapshot, di
 	if store.IsSubagentDeliveryFinal(row.Delivery) {
 		return subagentPlanNone
 	}
-	if parent.Info == nil || parent.Info.State != StateActive {
+	if parent.Info != nil && parent.Info.State == StateStopping {
+		return store.SubagentDeliveryPending
+	}
+	if !subagentParentAcceptsWake(parent.Info) {
 		return "dispose"
 	}
 	if row.WakePolicy == store.SubagentWakePolicySettledOnly && parent.Active && parent.TurnID == row.ParentTurnID {
 		return subagentPlanNone
 	}
 	if dispatched {
-		return "pending"
+		return store.SubagentDeliveryPending
 	}
 	return "claim"
+}
+
+// A daemon interruption suspends delivery until the user resumes the parent.
+// Explicit stops still dispose results through the ordinary stop cascade.
+func subagentParentAcceptsWake(info *Info) bool {
+	return info != nil && (info.State == StateActive ||
+		(info.State == StateStopped && (info.StopReason == store.StopShutdown || info.StopReason == store.StopAgentCrashed)))
 }
 
 func (s *subagentService) planDelivery(ctx context.Context, row store.SessionSubagent) error {
@@ -52,7 +62,7 @@ func (s *subagentService) planDelivery(ctx context.Context, row store.SessionSub
 		return nil
 	case "dispose":
 		return s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: row.ParentSessionID, IDs: []string{row.ID}})
-	case "pending":
+	case store.SubagentDeliveryPending:
 		if err := s.store.SetPending(ctx, []string{row.ID}); err != nil {
 			return err
 		}

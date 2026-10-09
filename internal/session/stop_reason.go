@@ -76,7 +76,7 @@ func classifyUserRequestedStopReason(detail string) store.StopReason {
 // RequestStopWithCause persists stopping and starts the shared escalation operation.
 func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
 	_, err := m.requestSessionStop(ctx, id, cause, detail)
-	if err == nil {
+	if err == nil && cause != CauseShutdown && cause != CauseProcessExited {
 		if service := m.subagentService(); service != nil {
 			err = service.OnParentStopped(ctx, id)
 		}
@@ -91,7 +91,7 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 	if err != nil || run == nil {
 		return err
 	}
-	if service := m.subagentService(); service != nil {
+	if service := m.subagentService(); service != nil && cause != CauseShutdown && cause != CauseProcessExited {
 		if cascadeErr := service.OnParentStopped(ctx, id); cascadeErr != nil {
 			m.logger.ErrorContext(ctx, "subagent.stop_cascade", "session_id", id, "error", cascadeErr)
 		}
