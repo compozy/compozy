@@ -1,9 +1,9 @@
-version: 0.3.0-beta.31
-releaseDate: 2026-10-07T05:24:01.663Z
+version: 0.3.0-beta.32
+releaseDate: 2026-10-09T21:12:48.963Z
 files:
-  - url: https://github.com/compozy/compozy/releases/download/v0.3.0-beta.31/CompozyOS-0.3.0-beta.31-mac-arm64.zip
-    sha512: bx6U53nVxGPVXw6sM8CPONsCwg6M3e/Hh2tGMAvLLA0uZsq0WyiOWI01wTOR8VR/mE7l7AX4LdEiz2MRGUae0Q==
-    size: 214994761
-  - url: https://github.com/compozy/compozy/releases/download/v0.3.0-beta.31/CompozyOS-0.3.0-beta.31-mac-x64.zip
-    sha512: TFhifxQlnjdr7XUfOHz0aZH11iBKfzhXasxkwhe/wGT8og1hEaiWkeD1OHQeYvPh33UhAUmip4vYg4hnOgMr+w==
-    size: 226868302
+  - url: https://github.com/compozy/compozy/releases/download/v0.3.0-beta.32/CompozyOS-0.3.0-beta.32-mac-arm64.zip
+    sha512: XReyMTydKsaIR/eryhTJhlYIkw84v1AV8WgB4Uy5zn8LwLLRDIIO3lwD2+f2ZkAqNAkyeOrzUMHFrG3hNdawLQ==
+    size: 214652966
+  - url: https://github.com/compozy/compozy/releases/download/v0.3.0-beta.32/CompozyOS-0.3.0-beta.32-mac-x64.zip
+    sha512: Yywbr1ilbd/BW5qT1BmCDy04MtSCeVxc8Y7txK0fRj67/FO+mJEiK2x/EksSzWfviXKr7RLuWMgKKZ1xZiG2eQ==
+    size: 226537357

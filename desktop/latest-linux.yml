@@ -1,6 +1,6 @@
-version: 0.3.0-beta.31
-releaseDate: 2026-10-07T05:14:32.621Z
+version: 0.3.0-beta.32
+releaseDate: 2026-10-09T20:59:51.270Z
 files:
-  - url: https://github.com/compozy/compozy/releases/download/v0.3.0-beta.31/CompozyOS-0.3.0-beta.31-linux-x64.AppImage
-    sha512: 4yAnFsCaK8uZLY0yZEzZumRA9MGcla0wxueYlgVjUHZAScdtHiEW1SOXyzYI8+Y3BNGrXkMsIPDljQTZovmxYw==
-    size: 202639239
+  - url: https://github.com/compozy/compozy/releases/download/v0.3.0-beta.32/CompozyOS-0.3.0-beta.32-linux-x64.AppImage
+    sha512: /cm3QxHGtBTykc6fm2hY/BEec3Lgxqa6H0ZFAS4YENgXBYJVCg5YCZ/iEfq/kXVeSgGq0YOUhVnhdEejPN+gfg==
+    size: 202266171
