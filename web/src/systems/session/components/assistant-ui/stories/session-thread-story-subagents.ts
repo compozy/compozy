@@ -245,6 +245,8 @@ export const subagentGroupRoster: SubagentPayload[] = [
   subagentRow("sub-story-3", "Draft release notes for v2", {
     elapsed: 52,
     status: "completed",
+    // Its result waits to wake the parent: the banner glyph breathes (composer VC-01).
+    delivery: "pending",
     result_preview: "Drafted notes: 6 user-facing changes, 2 fixes, 1 migration step.",
   }),
 ];

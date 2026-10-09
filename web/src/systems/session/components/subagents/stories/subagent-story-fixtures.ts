@@ -41,6 +41,7 @@ export function subagentFixture({ elapsed = 7, ...overrides }: FixtureOptions = 
     settled_at: live ? null : secondsAgo(30),
     created_at: secondsAgo(elapsed + 31),
     updated_at: secondsAgo(live ? 0 : 30),
+    delivery: "none",
     ...overrides,
   };
 }

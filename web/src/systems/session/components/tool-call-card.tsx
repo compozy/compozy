@@ -11,6 +11,7 @@ import {
   getToolCompactSummary,
   getToolIcon,
   getToolLabel,
+  getToolSettledLabel,
   resolveRegisteredToolName,
   toolHeadingName,
 } from "../lib/tool-labels";
@@ -75,12 +76,13 @@ function formatToolPayload(message: UIMessage): string {
 }
 
 // The verb keeps its tense on failure — "Ran", never "Failed to run"; the
-// danger × glyph plus the error-first-line preview carry the failure.
+// danger × glyph plus the error-first-line preview carry the failure. Only a
+// family whose copy names the attempt ("Tried to …", subagent tools) differs.
 function progressLabelFor(toolName: string, status: ToolCallStatus): string {
   if (status === "pending" || status === "running") {
     return getToolLabel(toolName, "active");
   }
-  return getToolLabel(toolName, "past");
+  return getToolSettledLabel(toolName, status === "failed" || status === "absorbed");
 }
 
 function firstLine(text: string): string | undefined {

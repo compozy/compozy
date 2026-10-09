@@ -61,6 +61,7 @@ function view(id: string, overrides: Partial<SubagentView> = {}): SubagentView {
     settled_at: null,
     created_at: T0,
     updated_at: T0,
+    delivery: "none",
     ...overrides,
   };
 }
@@ -163,6 +164,22 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
       [WORKSPACE_ID, "sub-a"],
       [WORKSPACE_ID, "sub-b"],
     ]);
+  });
+
+  it("Should breathe the delegated glyph only while a settled result waits to wake the parent", () => {
+    const glyph = (container: HTMLElement) =>
+      container.querySelector("[data-slot=subagent-waiting-banner] > :first-child");
+    const { container: quiet } = render(<SessionSubagentBanner parentTurnRunning={false} />, {
+      wrapper: harness([view("sub-a"), view("sub-done", { status: "completed", settled_at: T0 })]),
+    });
+    expect(glyph(quiet)?.getAttribute("class")).not.toContain("animate-pulse");
+    const { container: waking } = render(<SessionSubagentBanner parentTurnRunning={false} />, {
+      wrapper: harness([
+        view("sub-a"),
+        view("sub-done", { status: "completed", settled_at: T0, delivery: "pending" }),
+      ]),
+    });
+    expect(glyph(waking)?.getAttribute("class")).toContain("animate-pulse");
   });
 
   it("Should stay hidden while the parent turn runs or when only provider-native rows are live", () => {
