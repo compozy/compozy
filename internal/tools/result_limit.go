@@ -78,7 +78,7 @@ func resultLimiterRejection(id ToolID, err error) *ToolError {
 }
 
 func (l *DefaultResultProcessor) maxBytes(d Descriptor) int64 {
-	return EffectiveResultLimit(d.MaxResultBytes, l.defaultMaxBytes)
+	return EffectiveResultLimit(d.ExecutionMetadata().MaxResultBytes, l.defaultMaxBytes)
 }
 
 // EffectiveResultLimit returns the lower positive descriptor and configured result limit.

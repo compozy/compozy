@@ -40,7 +40,7 @@ func validateCallInput(d Descriptor, input json.RawMessage) (err error) {
 			ReasonSchemaInvalid,
 		)
 	}
-	v := schemaValidator{enforceMaxLength: d.InputErrorCode != ""}
+	v := schemaValidator{enforceMaxLength: d.ExecutionMetadata().InputErrorCode != ""}
 	if err := v.validateJSONSchemaValue(d.ID, d.InputSchema, normalized); err != nil {
 		return err
 	}

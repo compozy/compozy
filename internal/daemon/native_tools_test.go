@@ -12944,7 +12944,10 @@ func TestNativeSubagentPermissionBoundary(t *testing.T) {
 				return &session.Info{EffectivePermissions: "unknown"}, nil
 			},
 		}}}
-		err := n.validateSubagentPermissions(t.Context(), session.SubagentRequest{PermissionMode: compozyconfig.PermissionModeDenyAll})
+		err := n.validateSubagentPermissions(
+			t.Context(),
+			session.SubagentRequest{PermissionMode: compozyconfig.PermissionModeDenyAll},
+		)
 		detail, ok := errors.AsType[*session.SubagentError](err)
 		if !ok || detail.Code != "permission_escalation_denied" {
 			t.Fatalf("error = %v", err)

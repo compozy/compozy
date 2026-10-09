@@ -306,7 +306,7 @@ func TestHostedProjectionResponse(t *testing.T) {
 			v.Descriptor.OpenWorld = true
 			v.Descriptor.RequiresInteraction = true
 			v.Descriptor.ConcurrencySafe = true
-			v.Descriptor.MaxResultBytes = 2048
+			v.Descriptor.SetMaxResultBytes(2048)
 		}},
 		{name: "Should detect live availability changes", change: func(v *tools.ToolView) {
 			v.Availability.Executable = false

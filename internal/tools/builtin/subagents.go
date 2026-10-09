@@ -89,8 +89,11 @@ func subagentDescriptor(
 		[]string{"sessions", "subagent"},
 		[]string{"delegate", "subagent"},
 	)
-	descriptor.InputErrorCode = toolspkg.ErrorCodeInvalidRequest
-	descriptor.Idempotent = id == toolspkg.ToolIDSubagentCapabilities || id == toolspkg.ToolIDSubagentStatus
+	descriptor.ToolExecutionMetadata = toolspkg.NewToolExecutionMetadata(
+		id == toolspkg.ToolIDSubagentCapabilities || id == toolspkg.ToolIDSubagentStatus,
+		toolspkg.ErrorCodeInvalidRequest,
+		0,
+	)
 	descriptor.OutputSchema = json.RawMessage(output)
 	return descriptor
 }

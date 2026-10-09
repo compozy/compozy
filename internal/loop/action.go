@@ -224,7 +224,7 @@ func (r *ActionRegistry) resolve(
 		eventReader:           r.events,
 		workspaceRootResolver: r.toolWorkspace,
 		maxResultBytes: tools.EffectiveResultLimit(
-			view.Descriptor.MaxResultBytes,
+			view.Descriptor.ExecutionMetadata().MaxResultBytes,
 			r.maxResultBytes,
 		),
 	}, nil

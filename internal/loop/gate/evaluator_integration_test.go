@@ -154,10 +154,10 @@ func validExtensionDescriptor() tools.Descriptor {
 			Kind:  tools.SourceExtension,
 			Owner: "quality",
 		},
-		Visibility:      tools.VisibilityModel,
-		Risk:            tools.RiskRead,
-		ReadOnly:        true,
-		ConcurrencySafe: true,
-		MaxResultBytes:  1024,
+		Visibility:            tools.VisibilityModel,
+		Risk:                  tools.RiskRead,
+		ReadOnly:              true,
+		ConcurrencySafe:       true,
+		ToolExecutionMetadata: tools.NewToolExecutionMetadata(false, "", 1024),
 	}
 }

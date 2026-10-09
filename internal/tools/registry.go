@@ -432,6 +432,7 @@ func cloneDescriptor(src Descriptor) Descriptor {
 	cloned := src
 	cloned.Backend.RequiresCapabilities = slices.Clone(src.Backend.RequiresCapabilities)
 	cloned.ToolPresentation = CloneToolPresentation(src.ToolPresentation)
+	cloned.ToolExecutionMetadata = CloneToolExecutionMetadata(src.ToolExecutionMetadata)
 	cloned.InputSchema = cloneRawMessage(src.InputSchema)
 	cloned.OutputSchema = cloneRawMessage(src.OutputSchema)
 	cloned.Toolsets = append([]ToolsetID(nil), src.Toolsets...)

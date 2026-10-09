@@ -224,7 +224,7 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 		Annotations: &sdkmcp.ToolAnnotations{
 			Title:           descriptor.Presentation().DisplayTitle,
 			ReadOnlyHint:    readOnly,
-			IdempotentHint:  descriptor.Idempotent,
+			IdempotentHint:  descriptor.ExecutionMetadata().Idempotent,
 			DestructiveHint: &destructive,
 			OpenWorldHint:   &openWorld,
 		},

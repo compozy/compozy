@@ -13,7 +13,7 @@ func descriptorInputError(descriptor Descriptor, input json.RawMessage, err erro
 	if err == nil {
 		return nil
 	}
-	if descriptor.InputErrorCode == "" {
+	if descriptor.ExecutionMetadata().InputErrorCode == "" {
 		return err
 	}
 	original, ok := errors.AsType[*ToolError](err)
@@ -21,7 +21,7 @@ func descriptorInputError(descriptor Descriptor, input json.RawMessage, err erro
 		return err
 	}
 	cloned := *original
-	cloned.Code = descriptor.InputErrorCode
+	cloned.Code = descriptor.ExecutionMetadata().InputErrorCode
 	if original.Err != nil {
 		cloned.Message = strings.TrimPrefix(original.Err.Error(), ErrToolInvalidInput.Error()+": ")
 	}
@@ -46,7 +46,8 @@ func descriptorInputError(descriptor Descriptor, input json.RawMessage, err erro
 		}
 		for key, property := range schema.Properties {
 			var value string
-			if property.MaxLength > 0 && jsonv2.Unmarshal(fields[key], &value) == nil && utf8.RuneCountInString(value) > property.MaxLength {
+			if property.MaxLength > 0 && jsonv2.Unmarshal(fields[key], &value) == nil &&
+				utf8.RuneCountInString(value) > property.MaxLength {
 				cloned.Message = fmt.Sprintf("%s exceeds %d characters.", key, property.MaxLength)
 				break
 			}

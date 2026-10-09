@@ -608,7 +608,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			}
 		}
 
-		if got, want := descriptors[toolspkg.ToolIDToolArtifactRead].MaxResultBytes,
+		if got, want := descriptors[toolspkg.ToolIDToolArtifactRead].ExecutionMetadata().MaxResultBytes,
 			toolArtifactReadMaxResultBytes; got != want {
 			t.Fatalf("tool artifact read max result bytes = %d, want %d", got, want)
 		}
@@ -3138,9 +3138,11 @@ func TestSubagentDescriptorSchemas(t *testing.T) {
 	t.Run("Should retain public validation and idempotency metadata through descriptor conversion", func(t *testing.T) {
 		t.Parallel()
 		for _, descriptor := range subagentDescriptors() {
-			want := descriptor.ID == toolspkg.ToolIDSubagentCapabilities || descriptor.ID == toolspkg.ToolIDSubagentStatus
+			want := descriptor.ID == toolspkg.ToolIDSubagentCapabilities ||
+				descriptor.ID == toolspkg.ToolIDSubagentStatus
 			got := descriptor.Tool().Descriptor()
-			if got.InputErrorCode != toolspkg.ErrorCodeInvalidRequest || got.Idempotent != want {
+			metadata := got.ExecutionMetadata()
+			if metadata.InputErrorCode != toolspkg.ErrorCodeInvalidRequest || metadata.Idempotent != want {
 				t.Fatalf("descriptor=%#v", got)
 			}
 		}

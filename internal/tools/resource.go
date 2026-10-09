@@ -28,8 +28,9 @@ func validateToolSpec(_ context.Context, scope resources.ResourceScope, spec Too
 	presentation := spec.Presentation()
 
 	normalized := Tool{
-		ID:      ToolID(strings.TrimSpace(spec.ID.String())),
-		Backend: normalizeBackendRef(spec.Backend),
+		ToolExecutionMetadata: CloneToolExecutionMetadata(spec.ToolExecutionMetadata),
+		ID:                    ToolID(strings.TrimSpace(spec.ID.String())),
+		Backend:               normalizeBackendRef(spec.Backend),
 		ToolPresentation: NewToolPresentation(
 			strings.TrimSpace(presentation.DisplayTitle),
 			strings.TrimSpace(presentation.FriendlyVerb),
@@ -41,14 +42,11 @@ func validateToolSpec(_ context.Context, scope resources.ResourceScope, spec Too
 		Source:              normalizeSourceRef(spec.Source),
 		Visibility:          spec.Visibility,
 		Risk:                spec.Risk,
-		Idempotent:          spec.Idempotent,
-		InputErrorCode:      spec.InputErrorCode,
 		ReadOnly:            spec.ReadOnly,
 		Destructive:         spec.Destructive,
 		OpenWorld:           spec.OpenWorld,
 		RequiresInteraction: spec.RequiresInteraction,
 		ConcurrencySafe:     spec.ConcurrencySafe,
-		MaxResultBytes:      spec.MaxResultBytes,
 		Toolsets:            normalizeToolsets(spec.Toolsets),
 		Tags:                normalizeStrings(spec.Tags),
 		SearchHints:         normalizeStrings(spec.SearchHints),

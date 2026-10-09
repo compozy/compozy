@@ -94,7 +94,7 @@ func nativeToolListPayloads(views []toolspkg.ToolView) []nativeToolListView {
 				OpenWorld:           view.Descriptor.OpenWorld,
 				RequiresInteraction: view.Descriptor.RequiresInteraction,
 				ConcurrencySafe:     view.Descriptor.ConcurrencySafe,
-				MaxResultBytes:      view.Descriptor.MaxResultBytes,
+				MaxResultBytes:      view.Descriptor.ExecutionMetadata().MaxResultBytes,
 				Toolsets:            append([]toolspkg.ToolsetID(nil), view.Descriptor.Toolsets...),
 			},
 			Availability: view.Availability,

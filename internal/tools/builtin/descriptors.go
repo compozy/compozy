@@ -117,6 +117,7 @@ func nativeDescriptor(
 func cloneDescriptor(src toolspkg.Descriptor) toolspkg.Descriptor {
 	cloned := src
 	cloned.ToolPresentation = toolspkg.CloneToolPresentation(src.ToolPresentation)
+	cloned.ToolExecutionMetadata = toolspkg.CloneToolExecutionMetadata(src.ToolExecutionMetadata)
 	cloned.InputSchema = cloneRawMessage(src.InputSchema)
 	cloned.OutputSchema = cloneRawMessage(src.OutputSchema)
 	cloned.Toolsets = cloneToolsets(src.Toolsets)

@@ -163,7 +163,7 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		for _, code := range []ErrorCode{"", ErrorCodeInvalidRequest} {
 			for _, limit := range []string{`3`, `1.5`} {
 				d := validDispatchDescriptor()
-				d.InputErrorCode = code
+				d.ToolExecutionMetadata = NewToolExecutionMetadata(false, code, 0)
 				d.InputSchema = json.RawMessage(
 					`{"type":"object","properties":{"items":{"type":"array","items":{"allOf":[{"type":"string","maxLength":` + limit + `}]}}}}`,
 				)
@@ -201,7 +201,7 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 	t.Run("Should derive public input failures from descriptor metadata", func(t *testing.T) {
 		t.Parallel()
 		d := validDispatchDescriptor()
-		d.InputErrorCode = ErrorCodeInvalidRequest
+		d.ToolExecutionMetadata = NewToolExecutionMetadata(false, ErrorCodeInvalidRequest, 0)
 		d.InputSchema = json.RawMessage(
 			`{"type":"object","required":["subject"],"properties":{"subject":{"type":"string","minLength":1,"maxLength":3}}}`,
 		)
@@ -1033,7 +1033,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = 4096
+		descriptor.SetMaxResultBytes(4096)
 		events := &recordingToolEventSink{}
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
@@ -1202,7 +1202,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			t.Fatalf("refreshResultEnvelopeBytes() error = %v", err)
 		}
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = resultAtCap.Bytes
+		descriptor.SetMaxResultBytes(resultAtCap.Bytes)
 		artifactStore := &recordingToolArtifactStore{}
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
@@ -1223,7 +1223,8 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RuntimeRegistry.Call() error = %v, want nil", err)
 		}
-		if result.Truncated || len(result.Artifacts) != 0 || result.Bytes != descriptor.MaxResultBytes {
+		if result.Truncated || len(result.Artifacts) != 0 ||
+			result.Bytes != descriptor.ExecutionMetadata().MaxResultBytes {
 			t.Fatalf("result = %#v, want unchanged exact-cap envelope", result)
 		}
 		if got := artifactStore.putCount(); got != 0 {
@@ -1236,7 +1237,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 
 		const defaultMaxBytes int64 = 768
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = 4096
+		descriptor.SetMaxResultBytes(4096)
 		artifactStore := &recordingToolArtifactStore{}
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
@@ -1271,7 +1272,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = 768
+		descriptor.SetMaxResultBytes(768)
 		events := &recordingToolEventSink{}
 		filesystemStore := openTestToolArtifactStore(
 			t,
@@ -1370,7 +1371,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			t.Parallel()
 
 			descriptor := validDispatchDescriptor()
-			descriptor.MaxResultBytes = 768
+			descriptor.SetMaxResultBytes(768)
 			events := &recordingToolEventSink{}
 			artifactStore := &recordingToolArtifactStore{putErr: errors.New("injected disk full")}
 			provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{

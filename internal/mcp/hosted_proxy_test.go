@@ -870,7 +870,10 @@ func TestHostedSubagentAnnotations(t *testing.T) {
 		}{
 			{tools.ToolIDSubagentCapabilities, true, true}, {tools.ToolIDSubagentStatus, false, true}, {tools.ToolIDSubagentDelegate, false, false}, {tools.ToolIDSubagentCancel, false, false}, {"compozy__other", false, true},
 		} {
-			projected := hostedMCPTool(tools.Descriptor{ID: tc.id, ReadOnly: tc.readOnly, Idempotent: tc.idempotent})
+			projected := hostedMCPTool(tools.Descriptor{
+				ID: tc.id, ReadOnly: tc.readOnly,
+				ToolExecutionMetadata: tools.NewToolExecutionMetadata(tc.idempotent, "", 0),
+			})
 			if projected.Annotations.ReadOnlyHint != tc.readOnly ||
 				projected.Annotations.IdempotentHint != tc.idempotent {
 				t.Fatalf("annotations = %#v", projected.Annotations)
