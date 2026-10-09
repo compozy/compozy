@@ -798,6 +798,7 @@ jobs:
         run: |
           set -euo pipefail
           mage_module="github.com/magefile/mage@v1.17.2"
+          go run "${mage_module}" webBuild
           if go run "${mage_module}" webAssetsCheck; then
             echo "Pinned web assets already match the deterministic Web build"
             exit 0
