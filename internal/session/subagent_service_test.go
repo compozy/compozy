@@ -642,6 +642,23 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should fail a subagent whose settling turn ended in a provider error UT-021", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		// The provider error ended the turn but left the child session alive.
+		runtime.snapshots[*row.ChildSessionID] = subagentSnapshot{Info: &Info{State: StateActive}}
+		runtime.results[*row.ChildSessionID] = "partial answer"
+		runtime.turnErrors[*row.ChildSessionID] = "provider rate limited"
+		if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
+			t.Fatal(err)
+		}
+		got := db.rows[row.ID]
+		if got.Status != "failed" || got.Error == nil || *got.Error != "provider rate limited" ||
+			got.Result == nil || *got.Result != "partial answer" {
+			t.Fatal(got)
+		}
+	})
 	t.Run("Should leave canceled queued wake pending until parent settles UT-031", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)

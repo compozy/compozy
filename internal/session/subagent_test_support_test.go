@@ -398,6 +398,7 @@ type subagentTestRuntime struct {
 	admitted                        map[string]string
 	stopped                         []string
 	results                         map[string]string
+	turnErrors                      map[string]string
 	queues                          map[string]string
 	publishes                       []string
 	settles                         int
@@ -478,10 +479,10 @@ func (r *subagentTestRuntime) Stop(_ context.Context, id string) error {
 	}
 	return nil
 }
-func (r *subagentTestRuntime) Result(_ context.Context, id string) (string, error) {
+func (r *subagentTestRuntime) Result(_ context.Context, id string) (subagentTurnResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.results[id], nil
+	return subagentTurnResult{Text: r.results[id], Error: r.turnErrors[id]}, nil
 }
 
 func (r *subagentTestRuntime) QueueWake(
@@ -537,9 +538,10 @@ func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *
 				Active: true,
 			},
 		},
-		admitted: make(map[string]string),
-		results:  make(map[string]string),
-		queues:   make(map[string]string),
+		admitted:   make(map[string]string),
+		results:    make(map[string]string),
+		turnErrors: make(map[string]string),
+		queues:     make(map[string]string),
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
