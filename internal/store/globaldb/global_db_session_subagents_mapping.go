@@ -106,6 +106,7 @@ func subagentWakeFromSQL(row sqlcgen.SessionSubagentWake) (store.SessionSubagent
 		Route:           row.Route,
 		InputEntryID:    row.InputEntryID,
 		SteerRequeued:   row.SteerRequeued != 0,
+		Attempts:        int(row.Attempts),
 	}
 	var err error
 	out.CreatedAt, err = store.ParseTimestamp(row.CreatedAt)

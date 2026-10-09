@@ -58,7 +58,8 @@ E2E-008, which use acpmock.
    subagent delegating its own subagent reports `depth: 2`; a `spawn.pre_create` hook patch that sets a
    TTL for the subagent role → `capability_denied`.
 8. **Idempotency.** Re-sending the same delegate with the same `idempotency_key` returns the same row;
-   the same key with a different task → `invalid_request`.
+   the same key with a different task → `invalid_request`. If a `spawn.pre_create` hook denies a
+   delegation while the same-key replay waits, both calls return `capability_denied` and no row remains.
 9. **Errors.** Outside an active turn → `parent_not_active`
    (`Subagents require an active turn in the calling session.`); unauthenticated provider →
    `provider_unavailable`; unknown model → `model_unavailable` listing available models; unknown
@@ -77,10 +78,27 @@ E2E-008, which use acpmock.
     `subagents.result_max_chars must be between 1000 and 1000000: 999`.
 12. **Hooks.** A config hook on `subagent.settled` receives the documented payload once per settled
     subagent (delegated and provider-native); a `spawn.pre_create` hook sees `spawn_role: "subagent"`
-    and the `subagent` object, and a deny blocks the delegation with `capability_denied`.
+    and the `subagent` object, and a deny blocks the delegation with `capability_denied`. A slow
+    observe-only settled hook must not block parent status reads, acknowledgement, or wake delivery.
 13. **Scale.** From one turn, delegate 10 and then 20 subagents concurrently; record delegate latency
     per call (spawn runs under the global spawn lock) in the QA report.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
 
 QA walk 2026-10-09 (real Claude parent, Codex children): golden path, child context, wake text, wait mode (92 s inline; 124.3 s timeout hold, no provider abort), CLI/HTTP reads and cancel verified on a QA-local patched build; the stock build returns 503 on every subagent route and needs an explicit idempotency_key. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents.md`.
+
+Fix round 1 automated scope (sa-fix-core): `TestSubagentConcurrentDenial` and
+`TestSubagentObserveHook` own concurrent denial and nonblocking observer regressions.
+`TestSubagentHookDaemonIntegration` exercises the real hook/ACP/store denial boundary.
+These focused checks do not replace the real-provider scenario re-walk or change its fail verdict.
+
+Additional fix-round automated coverage: `TestSubagentPendingInjectionDaemonIntegration` verifies
+accepted pending steering and a distinct successor batch; `TestSubagentSuccessorDaemonIntegration`
+verifies capability-none queueing and the fourth result after dispatch. `TestSubagentRootHostedMCPDaemonIntegration`
+verifies a ROOT child's status/delegate calls with omitted keys, catalog SSE, and operator HTTP
+cancellation of a live child/grandchild tree. `TestSubagentDaemonIntegration` checks IT-030's single
+unseen finished root. SQLite tests reopen between failed wakes and prove abandonment on attempt 3;
+service tests prove no immediate failed-wake retry and the `subagent.wake_abandoned` log.
+`TestSubagentCleanRestartDaemonIntegration` resumes delegated work after clean shutdown;
+`TestSubagentRecoveryDaemonIntegration` reconciles native work from a lost turn as interrupted.
+These automated journeys preserve the real-provider fail verdict above until the QA owner re-walks.

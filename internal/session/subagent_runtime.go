@@ -268,14 +268,17 @@ func (r managerSubagentRuntime) Steer(ctx context.Context, parent, turn, id, tex
 	steerCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
 	defer cancel()
 	result, err := driver.Steer(steerCtx, child.processHandle(), turn, text)
-	r.m.emitTranscriptMarker(
-		ctx,
-		child,
-		turn,
-		transcript.MarkerPromptSteered,
-		text,
-		map[string]any{"message_id": id, "kind": subagentWakeKind},
-	)
+	if err == nil &&
+		(result.Attempt == acp.SteerAttemptInjected || result.Attempt == acp.SteerAttemptPendingInjection) {
+		r.m.emitTranscriptMarker(
+			ctx,
+			child,
+			turn,
+			transcript.MarkerPromptSteered,
+			text,
+			map[string]any{"message_id": id, "kind": subagentWakeKind},
+		)
+	}
 	return result, err
 }
 func (r managerSubagentRuntime) PublishParent(ctx context.Context, parent string) {
@@ -291,5 +294,44 @@ func (r managerSubagentRuntime) SettleParent(ctx context.Context, parent string)
 		return err
 	}
 	r.PublishParent(ctx, parent)
+	return nil
+}
+
+func (r managerSubagentRuntime) WakeInputStatus(ctx context.Context, wake store.SessionSubagentWake) (string, error) {
+	if wake.InputEntryID == "" {
+		return "", nil
+	}
+	entry, err := r.m.inputQueue.Get(ctx, wake.ParentSessionID, wake.InputEntryID)
+	if errors.Is(err, store.ErrSessionInputQueueEntryNotFound) {
+		return "", nil
+	}
+	return entry.Status, err
+}
+
+func (r managerSubagentRuntime) ResumeChild(ctx context.Context, row store.SessionSubagent) error {
+	info, err := r.m.Status(ctx, *row.ChildSessionID)
+	if err != nil {
+		return err
+	}
+	identity := row.ID + ":resume:" + info.UpdatedAt.UTC().Format("20060102T150405.000000000")
+	if _, err := r.m.Resume(ctx, *row.ChildSessionID); err != nil {
+		return err
+	}
+	result, err := r.m.SendPrompt(ctx, *row.ChildSessionID, SendPromptOpts{
+		Message:        "Continue the interrupted delegated task.",
+		MessageID:      identity,
+		IdempotencyKey: identity,
+		Mode:           BusyInputModeQueue,
+	})
+	if err != nil {
+		return err
+	}
+	if result.Events != nil {
+		r.m.startTrackedPromptTask(func() {
+			for range result.Events {
+				continue
+			}
+		})
+	}
 	return nil
 }

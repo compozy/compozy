@@ -58,6 +58,22 @@ combines active/durable rows and recuts pages after the store query; adding cont
 ancestors requires an explicit pagination contract beyond a store-only change.
 
 
+Fix round 1 (sa-fix-core): wake steering freezes its batch on acceptance, channel-less pending
+injection settles with its original turn, and failed wake attempts persist across successor batches
+and restart (three failures dispose delivery and log `subagent.wake_abandoned`). The controller
+authorized adding `attempts` to unreleased migration 00131 in place; Atlas and sqlc are regenerated.
+Native work finalizes interrupted at turn/stop/recovery boundaries without a delivery wake. Recovery
+isolates row failures, preserves sent input identity, and resumes delegated work after clean shutdown.
+`subagent.settled` observers use the manager-owned asynchronous lifetime; denied concurrent replays
+retain `capability_denied`; parent locks retire after their last waiter. Hosted MCP derives omitted
+delegation keys from parent turn plus transport request identity when no provider call ID exists.
+Public DTOs, tool IDs, configuration and workspace authorization stay unchanged. ROOT descendants
+retain hosted native-tool access, verified over real MCP. Web consumers receive accurate native
+terminal state, catalog stream and one root attention completion. Official skill/site wording and
+real-provider scenario verdicts remain under sa-qa; automated evidence is in sa-fix-core-fix1.md.
+The existing RT-subagent-delegate, RT-subagent-native and RT-subagent-restart scenarios own re-walks.
+
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

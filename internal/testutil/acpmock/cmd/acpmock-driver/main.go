@@ -29,6 +29,7 @@ type cliArgs struct {
 }
 
 type sessionState struct {
+	steerAccepted        chan struct{}
 	nativeTools          *sdkmcp.ClientSession
 	PromptCount          int
 	ConfigOptions        []acpsdk.SessionConfigOption

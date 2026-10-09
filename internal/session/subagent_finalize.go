@@ -44,7 +44,8 @@ func (s *subagentService) finalize(ctx context.Context, row store.SessionSubagen
 	if err != nil {
 		return err
 	}
-	if child.Info.State == StateStopping || child.Info.State == StateStarting {
+	if child.Info.State == StateStopping || child.Info.State == StateStarting ||
+		(child.Info.State == StateStopped && child.Info.StopReason == store.StopShutdown) {
 		return nil
 	}
 	if row.PendingTask != nil && child.Info.State != StateStopped {
