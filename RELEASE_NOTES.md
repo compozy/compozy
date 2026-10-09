@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-10-07
+## 0.3.0 - 2026-10-09
 
 ### ♻️ Refactoring
 
@@ -11,6 +11,7 @@
 - Unify PRD and TechSpec into a single spec pipeline (#397)
 - Quiet the Context rail and sessions row for everyday use (#649)
 - Retire Network, managed Sandbox, and Bridges (#681)
+- Complete Modern Go adoption across module boundaries (#706)
 
 ### ⚡ Performance Improvements
 
@@ -83,6 +84,10 @@
 - Calmer, plain-language web UI for everyday users (#683)
 - Continue and fork sessions across agents, with fallback account routes (#684)
 - Shell rail v2 with light and dark themes (#687)
+- Show nested child runs and a distinct awaiting-child state (#708)
+- Merge Jobs and Triggers into one Automations area (#709)
+- Remove the memory feature family and adopt agent-native session compaction (#710)
+- Delegate tasks to subagents with live cards, durable wakes, and operator surfaces (#711)
 
 ### 🐛 Bug Fixes
 
@@ -314,6 +319,7 @@
 - Wait for terminal command output before detaching
 - Refresh credential assertions context after migration
 - Cover inactive loop routes with automatic approval (#703)
+- Cut duplicated and misplaced tests across the pyramid (#707)
 
 ### Release Notes
 
@@ -371,6 +377,52 @@ auto_commit = false
 - `compozy spawn` now accepts provider, model, reasoning-effort, and speed overrides, so orchestrated workers preserve the complete runtime choice.
 - Goal output contracts now require the runtime's `complete|blocked` vocabulary, and Goal prompts receive the authored output schema.
 - The standalone `orchestrate-tasks` Loop and its docs/catalog entry are removed. Operator-side `[loops.inputs.orchestrate-tasks]` config blocks are now inert and should be deleted; move any desired values under `[loops.inputs.implement-tasks]` and set `mode = "orchestrated"`.
+
+##### Remove memory, Dream, and Knowledge; sessions use native agent compaction
+
+CompozyOS now centers on local agent sessions, Tasks, Loops, Goals, and explicit Gateway access.
+Agent memory, Dream consolidation, the Knowledge app, and the workspace `knowledge/` prompt injector
+are removed from all product surfaces with no compatibility aliases. CompozyOS also stops compacting
+sessions itself: the agent owns its context window, every rebuild of a session into a new agent
+session is bounded, and the agent's native compaction is observed and can be requested.
+
+### Migration
+
+Back up `compozy.db` and the daemon state before upgrading, and export any memory database state you
+need (index, decisions, Dream history) with the previous release first. Nothing needs editing by hand
+after the upgrade; the daemon starts normally:
+
+- Migration `00130_retire_memory.sql` permanently drops the memory tables and
+  `goose_db_version_memory`, deletes `memory.consolidated` automation triggers (run history stays),
+  and deletes legacy `dream`, `memory-extractor`, and `checkpoint-summary` sessions. Migration
+  `00009_unarchive_compaction_spans.sql` restores history that the removed CompozyOS compaction had
+  archived (including its transcript entries), so old compacted sessions show their full history again.
+- `config.toml` is archived on load: `[memory]`, `[roles.dream]`, `[roles.checkpoint_summary]`,
+  `[roles.memory_extractor]`, `[roles.memory_controller]`, `[session.compaction]`, `memory.consolidated`
+  trigger entries, and the hook-matcher keys `compaction_reason` / `compaction_strategy` move, commented
+  and lossless, to the end of the same file under `# Archived retired memory and compaction settings; these values are inactive.`
+  The daemon logs `config.retired_keys_archived` once. If the file cannot be rewritten (it changed
+  concurrently, or it is read-only), the daemon logs `config.retired_keys_archive_failed`, loads with
+  the retired values inactive, and retries on the next load; the start is never blocked.
+- `memory_policy` in `SOUL.md`, retired `compozy__memory*` tool and toolset IDs in tool policies, and
+  extension manifest entries `memory.backend`, `memory/*`, and `memory.read|write`, extension
+  automation resources triggered by `memory.consolidated`, and the hook-matcher keys
+  `compaction_reason` / `compaction_strategy` in `AGENT.md` and `SKILL.md` hooks are ignored with a
+  warning. Saved desktop layouts drop the Knowledge window.
+- Markdown memory files, `knowledge/` directories, and `ledger.jsonl` files stay on disk and are no
+  longer read. No file is deleted, and the session directories of the deleted legacy sessions are never
+  recataloged. The ignore and archive rules are removed in v0.6.0.
+
+Port scripts and extensions off `compozy memory`, `/api/memory*`, `compozy__memory_*`, the Host API
+`memory/*`, and the `memory.backend` capability; no replacement memory feature is provided. New and
+changed surfaces, all experimental: `compozy session compact`, `POST .../sessions/{session_id}/compact`,
+`compozy__session_compact`, the Compact now action, the `compaction` transcript item, the reshaped
+`session.compaction_fired` payload and usage markers, and observation-only `context.pre_compact` /
+`context.post_compact` hooks with a `compaction_trigger` matcher.
+
+There is no in-place downgrade. Restore a complete pre-upgrade backup before running an older binary.
+See the [migration guide](https://compozy.com/docs/migration#memory-removal) for the state disposition
+and integration changes.
 
 ##### Remove Network, Bridges, and managed Sandbox products
 
@@ -740,6 +792,29 @@ Queued follow-ups survive interruption of the active turn, including agent- and 
 Send identities make retries idempotent: retrying the same message returns its recorded outcome, while reusing the identity with different content is rejected. When an acknowledgment is lost, the client shows Not confirmed and retries the original identity. Daemon-generated follow-ups now use the same durable queue.
 
 PR: [#557](https://github.com/compozy/compozy/pull/557).
+
+##### One Automations window for schedules, events, and links
+
+The Web UI's separate Jobs and Triggers windows are now one **Automations** window. Every automation reads as one sentence — how it starts, optional conditions, what it does — with its last-run result and an On/Off switch on the row, so a failed run is visible without opening anything. One detail page and one "New automation" dialog serve schedules, events, and links; the start you pick decides whether CompozyOS stores a job or a trigger.
+
+- `last_run` (`id`, `status`, `started_at`, `ended_at`, `skip_reason`) is on every job and trigger from `compozy automation jobs|triggers`, `GET /api/automation/{jobs,triggers}` (HTTP and UDS), and `compozy__automation_{jobs,triggers}_{list,get}`. The CLI tables gain a **Last Run** column; `-o toon` adds `last_run_status` and `last_run_started_at`.
+- The list commands, routes, and tools accept `target=agent|loop|task` (`--target` on the CLI).
+- The dock has one Automations launcher; the command palette gains "New scheduled automation" and "New automation on an event"; Loop pages replace "Add trigger" and "Add schedule" with **Automate ▾**; Settings → Automation uses plainer labels and writes the same `config.toml` keys.
+- CLI verbs, HTTP/UDS routes, tool ids, and `[[automation.jobs]]` / `[[automation.triggers]]` are unchanged.
+
+```bash
+compozy automation jobs --workspace checkout-api -o json | jq '.jobs[] | {name, last_run}'
+compozy automation triggers --workspace checkout-api --target loop
+```
+
+Migration notes:
+
+- Saved desktops migrate permanently (window-manager snapshot v5): every Jobs or Triggers window, tab, and recently closed entry reopens as an Automations window on the matching `/automations/…` path, in the same place. No window is closed.
+- Exported layout documents and `window_layout` resources at version 4 keep loading: the daemon upgrades them to version 5 and rewrites their Jobs and Triggers windows the same way. Snapshots and layout documents are version 5 from now on.
+- Command palette pins, recents, and usage for the Jobs and Triggers commands merge into "Open Automations" and the Automations view; usage counts add up and no pin is dropped.
+- Old web links `/jobs`, `/jobs/<id>`, `/triggers`, and `/triggers/<id>` redirect to `/automations`, `/automations/jobs/<id>`, and `/automations/triggers/<id>`, carrying their filters. The redirects are removed in v0.5.0.
+- The app ids `jobs` and `triggers` (`compozy window open --app`, window commands, `window_layout` resources) and the palette ids `app.open.jobs`, `app.open.triggers`, `palette.view.jobs`, and `palette.view.triggers` are accepted as `automations` with a deprecation warning (CLI stderr; WARN logs `windowmanager.app_id_deprecated` and `cmdpalette.command_id_deprecated`). They are removed in v0.5.0 and then fail like any unknown id. Use `automations`, `app.open.automations`, and `palette.view.automations`.
+- Site docs: the Automation section is now **Automations**, with two tutorials. `/docs/automation/jobs` and `/docs/automation/triggers` moved to `/docs/automation/schedules` and `/docs/automation/events` and redirect permanently.
 
 ##### Pin, rename, and bind any command
 
