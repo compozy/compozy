@@ -157,3 +157,16 @@ type SubagentService interface {
 	OnNativeToolEvent(ctx context.Context, parentID string, ev NativeSubagentEvent) error
 	Recover(ctx context.Context) error
 }
+
+// SubagentUpdate is published after every committed change to a subagent row.
+// The session stream forwards it as `subagent_updated` on the parent's stream.
+type SubagentUpdate struct {
+	ParentSessionID string
+	Subagent        Subagent
+}
+
+// SubagentUpdateSubscriber streams committed subagent row changes for one parent session.
+// The returned cancel func releases the subscription; the channel closes after cancel.
+type SubagentUpdateSubscriber interface {
+	SubscribeSubagentUpdates(ctx context.Context, parentSessionID string) (<-chan SubagentUpdate, func(), error)
+}
