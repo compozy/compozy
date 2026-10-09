@@ -752,6 +752,26 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			}
 		})
 	})
+	t.Run("Should let an owning agent cancel without an active turn", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			snap := runtime.snapshots["parent"]
+			snap.Active, snap.TurnID = false, ""
+			runtime.snapshots["parent"] = snap
+			foreign := SubagentActor{Kind: "agent", ID: "other", Caller: &SubagentCaller{WorkspaceID: "ws", SessionID: "other"}}
+			if _, err := s.Cancel(t.Context(), foreign, row.ID, ""); err == nil {
+				t.Fatal("foreign caller canceled the row")
+			}
+			owner := SubagentActor{Kind: "agent", ID: "parent", Caller: &SubagentCaller{WorkspaceID: "ws", SessionID: "parent"}}
+			got, err := s.Cancel(t.Context(), owner, row.ID, "")
+			synctest.Wait()
+			if err != nil || got.Status != "cancel_requested" || db.rows[row.ID].Status != store.SubagentStatusCanceled {
+				t.Fatal(got, err, db.rows[row.ID])
+			}
+		})
+	})
 	t.Run("Should mark injected steer delivered without queue UT-057", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)

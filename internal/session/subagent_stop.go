@@ -17,7 +17,9 @@ func (s *subagentService) Cancel(
 		if actor.Caller == nil {
 			return SubagentCancelOutcome{}, ErrSubagentNotFound
 		}
-		if _, err := s.caller(ctx, *actor.Caller); err != nil {
+		// Canceling owned work needs ownership, not a live turn: an agent may
+		// cancel over HTTP/UDS between turns, where no turn id exists.
+		if err := s.callerSession(ctx, *actor.Caller); err != nil {
 			return SubagentCancelOutcome{}, err
 		}
 		workspace = actor.Caller.WorkspaceID

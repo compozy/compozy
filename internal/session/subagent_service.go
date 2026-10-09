@@ -161,6 +161,18 @@ func (s *subagentService) caller(ctx context.Context, caller SubagentCaller) (su
 	return snap, nil
 }
 
+// callerSession checks that an agent caller's session exists in its workspace.
+func (s *subagentService) callerSession(ctx context.Context, caller SubagentCaller) error {
+	snap, err := s.runtime.Snapshot(ctx, caller.SessionID)
+	if err != nil {
+		return err
+	}
+	if snap.Info == nil || snap.Info.WorkspaceID != caller.WorkspaceID {
+		return ErrSubagentNotFound
+	}
+	return nil
+}
+
 func (s *subagentService) Capabilities(ctx context.Context, caller SubagentCaller) (SubagentCapabilities, error) {
 	snap, err := s.caller(ctx, caller)
 	if err != nil {
