@@ -420,6 +420,7 @@ type subagentTestRuntime struct {
 	steer                           acp.SteerResult
 	steerErr                        error
 	spawnBlock                      chan struct{}
+	queueFull                       int
 }
 
 var _ subagentRuntime = (*subagentTestRuntime)(nil)
@@ -512,6 +513,10 @@ func (r *subagentTestRuntime) QueueWake(
 ) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.queueFull > 0 {
+		r.queueFull--
+		return "", store.ErrSessionInputQueueFull
+	}
 	r.queues[wake.WakeMessageID] = subagentWakeText(rows)
 	return "input-" + wake.WakeMessageID, nil
 }

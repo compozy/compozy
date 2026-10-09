@@ -1278,6 +1278,33 @@ func TestSubagentPendingSteerBatch(t *testing.T) {
 // Invariant: provider errors are bounded across batches; cancellation waits for the next settled turn.
 // Owner: session wake state machine.
 func TestSubagentWakeFailureLimit(t *testing.T) {
+	t.Run("Should keep a wake retryable while the parent's input queue is full", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, r := newSubagentTestService(t)
+			r.queueFull = 1
+			row := requireSubagent(t, s, subagentTestRequest())
+			snap := r.snapshots["parent"]
+			snap.Active, snap.TurnID = false, ""
+			r.snapshots["parent"] = snap
+			settleTestChild(t, s, r, &row)
+			unlock := s.lock("parent")
+			deferred, queued := db.rows[row.ID], len(r.queues)
+			unlock()
+			if deferred.Delivery != store.SubagentDeliveryPending || queued != 0 {
+				t.Fatal(deferred, queued)
+			}
+			time.Sleep(subagentWakeRetryDelay * subagentQueueFullRetrySteps)
+			synctest.Wait()
+			unlock = s.lock("parent")
+			current, queued := db.rows[row.ID], len(r.queues)
+			attempts := db.wakes[*current.WakeMessageID].Attempts
+			unlock()
+			if current.Delivery != store.SubagentDeliveryClaimed || queued != 1 || attempts != 0 {
+				t.Fatal(current, queued, attempts)
+			}
+		})
+	})
 	t.Run("Should abandon after three failures without immediately retrying", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

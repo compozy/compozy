@@ -212,10 +212,42 @@ func (s *subagentService) deliver(
 		)
 	}
 	entry, err := s.runtime.QueueWake(ctx, wake, rows)
+	if errors.Is(err, store.ErrSessionInputQueueFull) {
+		return s.deferFullWake(ctx, wake)
+	}
 	if err != nil {
 		return err
 	}
 	return s.store.SetWakeInput(ctx, wake.WakeMessageID, store.SubagentWakeRouteQueue, entry)
+}
+
+// subagentQueueFullRetrySteps scales the wake retry delay while the parent's
+// input queue has no room (5 × 200 ms).
+const subagentQueueFullRetrySteps = 5
+
+// deferFullWake returns a wake that found the parent's input queue full to
+// pending and retries it later. A full queue is not a failed turn, so it does
+// not consume the wake's attempts.
+func (s *subagentService) deferFullWake(ctx context.Context, wake store.SessionSubagentWake) error {
+	rows, err := s.settleWakeRows(ctx, wake.WakeMessageID, true)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		s.publish(ctx, row)
+	}
+	s.logger.InfoContext(
+		ctx,
+		"subagent.wake_deferred",
+		"reason",
+		"input_queue_full",
+		"parent_session_id",
+		wake.ParentSessionID,
+		"wake_message_id",
+		wake.WakeMessageID,
+	)
+	s.retryWake(wake.ParentSessionID, subagentQueueFullRetrySteps)
+	return nil
 }
 func (s *subagentService) publishID(ctx context.Context, workspace, id string) error {
 	row, err := s.store.GetSubagent(ctx, workspace, id)
