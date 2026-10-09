@@ -282,4 +282,18 @@ describe("provider-native attribution through the transcript adapters (UT-W11)",
     expect(card.nested.get("sub-native")?.map(part => part.kind)).toEqual(["text", "tool"]);
     expect(rows[1]).toMatchObject({ part: { text: "The reviewer found no issues." } });
   });
+
+  it("Should place a card in its own turn_id and never in the message's turn", () => {
+    const card = (data: Record<string, unknown>) =>
+      toTimelineParts({
+        id: "msg-turn",
+        content: [{ type: "data", name: "compozy-subagent", data }],
+      })[0];
+    expect(card({ subagent_id: "sub-1", tool_call_id: "c1", turn_id: "turn-spawn" })?.turnId).toBe(
+      "turn-spawn"
+    );
+    expect(card({ subagent_id: "sub-1", tool_call_id: "c1" })?.turnId).toBeUndefined();
+    const text = toTimelineParts({ id: "msg-turn", content: [{ type: "text", text: "hi" }] })[0];
+    expect(text?.turnId).toBe("msg-turn");
+  });
 });
