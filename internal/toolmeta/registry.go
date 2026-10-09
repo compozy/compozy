@@ -12,8 +12,8 @@ func NativeEntry(toolID string) (Entry, bool) {
 func NormalizeHostedToolName(name string) string {
 	name = strings.TrimSpace(name)
 	for _, prefix := range []string{"mcp__compozy-hosted-tools__", "mcp.compozy-hosted-tools.", "compozy-hosted-tools."} {
-		if strings.HasPrefix(name, prefix) {
-			return strings.TrimPrefix(name, prefix)
+		if trimmed, ok := strings.CutPrefix(name, prefix); ok {
+			return trimmed
 		}
 	}
 	return name

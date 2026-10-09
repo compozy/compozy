@@ -51,9 +51,11 @@ func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 // IsZero reports whether the synthetic metadata carries any fields.
 func (m PromptSyntheticMeta) IsZero() bool {
 	normalized := m.Normalize()
-	return normalized.Kind == "" && len(normalized.SubagentIDs) == 0 && normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
+	return normalized.Kind == "" && len(normalized.SubagentIDs) == 0 &&
+		normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
 		normalized.ClaimTokenHash == "" && normalized.CoordinatorSessionID == "" &&
-		normalized.ChildSessionID == "" && normalized.ChildAgentName == "" &&
+		normalized.ChildSessionID == "" &&
+		normalized.ChildAgentName == "" &&
 		normalized.Badge == "" &&
 		normalized.Reason == "" &&
 		normalized.Summary == "" &&

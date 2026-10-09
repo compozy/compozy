@@ -61,7 +61,8 @@ func subagentPartPayload(decoded *decodedStoredEvent) (UISubagentPayload, bool) 
 			payload.RuntimeModel = input.Model
 		}
 	case decoded.parsed.Type == acp.EventTypeToolResult && !decoded.parsed.ToolError &&
-		(toolmeta.NormalizeHostedToolName(decoded.parsed.ToolName) == "compozy__subagent_delegate" || toolmeta.NormalizeHostedToolName(event.ProviderToolName()) == "compozy__subagent_delegate"):
+		(toolmeta.NormalizeHostedToolName(decoded.parsed.ToolName) == "compozy__subagent_delegate" ||
+			toolmeta.NormalizeHostedToolName(event.ProviderToolName()) == "compozy__subagent_delegate"):
 		result := decoded.parsed.ToolResult
 		if result == nil {
 			return UISubagentPayload{}, false
