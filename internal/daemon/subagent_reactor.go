@@ -34,6 +34,9 @@ func (d *Daemon) bootSubagents(ctx context.Context, state *bootState) error {
 	}
 	manager.SetSubagentService(service)
 	state.subagents = service
+	// The runtime deps were built before this step; the HTTP/UDS transports read
+	// the service from them, so publish it there too.
+	state.deps.Subagents = service
 	if err := service.Recover(ctx); err != nil {
 		return fmt.Errorf("daemon: recover subagents: %w", err)
 	}
