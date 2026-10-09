@@ -152,6 +152,11 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (subagent
 	// Canonical assembly preserves chunk boundaries and complete assistant messages.
 	// The UI projection merges a turn's assistant segments and has no turn metadata.
 	var result subagentTurnResult
+	completed, err := subagentTurnCompleted(events)
+	result.Completed = completed
+	if err != nil {
+		return subagentTurnResult{}, err
+	}
 	for _, event := range events {
 		if event.Type != acp.EventTypeError {
 			continue
@@ -174,6 +179,21 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (subagent
 		}
 	}
 	return result, nil
+}
+
+func subagentTurnCompleted(events []store.SessionEvent) (bool, error) {
+	for _, event := range events {
+		if event.Type != acp.EventTypeDone {
+			continue
+		}
+		decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+		if err != nil {
+			return false, err
+		}
+		return decoded.PromptStopReason != acp.PromptStopReasonCancelled &&
+			decoded.StopReason != string(acp.PromptStopReasonCancelled), nil
+	}
+	return false, nil
 }
 
 func (r managerSubagentRuntime) walkTranscript(

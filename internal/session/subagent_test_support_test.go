@@ -403,6 +403,7 @@ func (d *memorySubagents) ListOrphanSubagentSessions(context.Context) ([]string,
 }
 
 type subagentTestRuntime struct {
+	stopDescendants                 func(context.Context, string) error
 	inputStatuses                   map[string]string
 	errorResume                     error
 	mu                              sync.Mutex
@@ -475,7 +476,13 @@ func (r *subagentTestRuntime) HasAdmission(_ context.Context, row store.SessionS
 	_, ok := r.admitted[row.ID]
 	return ok, nil
 }
-func (r *subagentTestRuntime) Stop(_ context.Context, id string) error {
+func (r *subagentTestRuntime) Stop(ctx context.Context, id string) error {
+	// The runtime boundary owns cascading just as Manager.Stop does in production.
+	if r.stopDescendants != nil {
+		if err := r.stopDescendants(ctx, id); err != nil && r.errorStop == nil {
+			return err
+		}
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.stopped = append(r.stopped, id)
@@ -578,6 +585,7 @@ func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *
 		next++
 		return fmt.Sprintf("wake-%d", next), nil
 	}
+	runtime.stopDescendants = s.OnParentStopped
 	s.launch = func(f func()) { wg.Go(f) }
 	t.Cleanup(func() { cancel(); wg.Wait() })
 	return s, db, runtime

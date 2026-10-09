@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -1216,11 +1217,13 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 // Owner: daemon restart integration; one retained wake, dispatched only on resume.
 func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		missed bool
+		name     string
+		missed   bool
+		shutdown bool
 	}{
-		{"Should recover an unobserved result and retain its wake until resume", true},
-		{"Should retain an already queued wake across shutdown and restart", false},
+		{"Should recover an unobserved result and retain its wake until resume", true, false},
+		{"Should retain an already queued wake across shutdown and restart", false, false},
+		{"Should preserve an unobserved completed answer across clean shutdown", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d, manager, workspace := newSubagentDaemonIntegration(t)
@@ -1241,10 +1244,14 @@ func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
 			waitForRuntimeCondition(t, "persisted child completion", 10*time.Second, func() bool {
 				return !child.IsPrompting() && child.CurrentTurnID() == ""
 			})
+			cause := session.CauseCompleted
+			if tc.shutdown {
+				cause = session.CauseShutdown
+			}
 			if err := manager.StopWithCause(
 				t.Context(),
 				child.ID,
-				session.CauseCompleted,
+				cause,
 				"fixture task completed",
 			); err != nil {
 				t.Fatal(err)
@@ -1783,6 +1790,17 @@ func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
 			{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
 			{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
 		}})
+		t.Cleanup(func() {
+			if t.Failed() {
+				data, err := os.ReadFile(h.HomePaths.LogFile)
+				if err != nil {
+					t.Log("daemon log unavailable", err)
+				} else {
+					t.Log(string(data))
+				}
+			}
+		})
+
 		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 		defer cancel()
 		parent := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "Live native tree")
@@ -1819,11 +1837,21 @@ func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
 			t.Fatal(response.StatusCode, string(body), readErr, closeErr)
 		}
 		for _, row := range []compozycontract.SubagentPayload{children.Subagents[0], grandchildren.Subagents[0]} {
+			last := ""
+
 			waitForRuntimeCondition(t, "canceled tree member", 15*time.Second, func() bool {
 				list := readSubagentsHTTP(t, ctx, h, row.ParentSessionID)
 				for _, current := range list.Subagents {
 					if current.SubagentID == row.SubagentID {
-						return current.Status == store.SubagentStatusCanceled &&
+						info, err := h.GetSession(ctx, *row.ChildSessionID)
+						state := fmt.Sprintf("%s %s %s %s %v", current.SubagentID, current.Status, current.Delivery, info.State, err)
+						if state != last {
+							t.Log(state)
+							last = state
+						}
+
+						return err == nil && info.State == session.StateStopped &&
+							current.Status == store.SubagentStatusCanceled &&
 							current.Delivery == store.SubagentDeliveryDisposed
 					}
 				}

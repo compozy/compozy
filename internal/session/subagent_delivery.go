@@ -225,12 +225,29 @@ func (s *subagentService) publishID(ctx context.Context, workspace, id string) e
 	return err
 }
 func (s *subagentService) dispose(ctx context.Context, filter store.SubagentDisposeFilter) error {
+	wakes, err := s.parentWakes(ctx, filter.ParentSessionID)
+	if err != nil {
+		return err
+	}
 	rows, err := s.store.Dispose(ctx, filter)
 	if err != nil {
 		return err
 	}
 	for _, row := range rows {
 		s.publish(ctx, row)
+	}
+	for _, wake := range wakes {
+		_, members, err := s.store.GetWake(ctx, wake.WakeMessageID)
+		if err != nil {
+			return err
+		}
+		claimed := slices.ContainsFunc(
+			members,
+			func(row store.SessionSubagent) bool { return row.Delivery == store.SubagentDeliveryClaimed },
+		)
+		if !claimed {
+			s.forgetSteer(wake.WakeMessageID)
+		}
 	}
 	return nil
 }

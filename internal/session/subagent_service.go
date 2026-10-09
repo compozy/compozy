@@ -41,8 +41,9 @@ type subagentRuntime interface {
 // subagentTurnResult is what the child's settling turn left behind: its last
 // assistant answer and, when the turn ended in an error, that error's text.
 type subagentTurnResult struct {
-	Text  string
-	Error string
+	Completed bool
+	Text      string
+	Error     string
 }
 
 // SubagentSettledDispatcher observes the one successful terminal transition.
@@ -92,6 +93,7 @@ type subagentService struct {
 	nativeMisses map[string]bool
 	nativeKnown  map[string]map[string]bool
 	steerTurns   map[string]string
+	wakeRetries  map[string]bool
 }
 
 var _ SubagentService = (*subagentService)(nil)

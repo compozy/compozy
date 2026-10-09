@@ -4317,3 +4317,29 @@ func TestSubagentSteerMarkers(t *testing.T) {
 		})
 	}
 }
+
+// N7: explicit cancellation has precedence over a concurrent provider error (rule 5).
+// Owner: session synthetic input outcome, canonical busy-input suite.
+func TestSubagentCanceledErrorPrecedence(t *testing.T) {
+	for _, reversed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve cancellation with reversed events %t", reversed), func(t *testing.T) {
+			t.Parallel()
+			pair := []acp.AgentEvent{
+				{Type: acp.EventTypeError, Error: "transport closed"},
+				{Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonCancelled},
+			}
+			if reversed {
+				pair[0], pair[1] = pair[1], pair[0]
+			}
+			events := make(chan acp.AgentEvent, len(pair))
+			for _, event := range pair {
+				events <- event
+			}
+			close(events)
+			canceled, failed := (&Manager{}).drainSubagentInputEvents(events)
+			if !canceled || failed {
+				t.Fatal(canceled, failed)
+			}
+		})
+	}
+}

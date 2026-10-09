@@ -95,6 +95,18 @@ bindings retain their prior behavior. No tool IDs, hook/config contracts, worksp
 persisted data, Web or official skill/site changes. Owning automated evidence: hosted proxy
 transport and tools dispatcher suites; existing scenario verdicts remain unchanged.
 
+Fix round 2 (sa-fix-core): cancellation commits canceled/disposed before returning acceptance;
+the manager-owned lifecycle task stops the descendant tree independently of client cancellation.
+Interrupted pending steering remains deliverable and terminal wakes release transient tracking.
+Failed wakes explicitly retry after 200 ms, preserving the existing three-attempt durable cap;
+explicit turn cancellation takes precedence over a simultaneous error. Clean restart preserves an
+already completed admitted answer instead of adding a continuation turn. Public tool/HTTP shapes,
+workspace isolation, hooks/configuration and official skill contracts are unchanged. Web observes
+the persisted terminal row before physical stop finishes, consistent with 202/cancel_requested.
+Owning automated journeys and verification limits: sa-fix-core-fix2.md; real-provider verdicts remain
+with the QA owner. Native-event ingestion must stay inline before turn-settled reconciliation.
+
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

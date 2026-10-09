@@ -67,6 +67,18 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 		return err
 	}
 	if snap.Info.State == StateStopped && snap.Info.StopReason == store.StopShutdown && row.PendingTask == nil {
+		result, err := s.runtime.Result(ctx, *row.ChildSessionID)
+		if err != nil {
+			return err
+		}
+		if result.Completed {
+			info := *snap.Info
+			info.StopReason = store.StopCompleted
+			snap.Info = &info
+			unlock := s.lock(row.ParentSessionID)
+			defer unlock()
+			return s.finalizeAvailable(ctx, row, snap, BadgeIdle)
+		}
 		if err := s.runtime.ResumeChild(ctx, row); err != nil {
 			s.recoveryResult(ctx, row.ID, "child_resume", err)
 			unlock := s.lock(row.ParentSessionID)

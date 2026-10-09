@@ -48,28 +48,24 @@ func (s *subagentService) Cancel(
 	}
 	unlock := s.lock(row.ParentSessionID)
 	err = s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: row.ParentSessionID, IDs: []string{id}})
-	if err == nil && row.ChildSessionID == nil {
-		settled, changed, settleErr := s.store.FinalizeSubagent(
-			ctx,
-			store.SubagentFinalize{
-				ID:        id,
-				Status:    store.SubagentStatusCanceled,
-				WorkState: store.SubagentWorkStateResultAvailable,
-				SettledAt: s.now().UTC(),
-			},
-		)
-		err = settleErr
-		if err == nil && changed {
-			s.publishTerminal(ctx, settled)
-		}
+	if err == nil {
+		err = s.finalizeCanceled(ctx, row)
 	}
+
 	unlock()
 	if err != nil {
 		return SubagentCancelOutcome{}, err
 	}
 	if row.ChildSessionID != nil {
-		s.logError(ctx, "cancel_descendants", s.OnParentStopped(ctx, *row.ChildSessionID))
-		s.logError(ctx, "cancel_child", s.runtime.Stop(ctx, *row.ChildSessionID))
+		// Freeze every live descendant before any stop signal can turn an
+		// in-flight delegation admission into a provider failure.
+		cascadeErr := s.cancelDescendants(ctx, *row.ChildSessionID)
+		s.launch(func() {
+			s.logError(s.ctx, "cancel_child", s.runtime.Stop(s.ctx, *row.ChildSessionID))
+		})
+		if cascadeErr != nil {
+			return SubagentCancelOutcome{}, cascadeErr
+		}
 	}
 	return SubagentCancelOutcome{ID: id, Status: "cancel_requested"}, nil
 }
@@ -90,22 +86,38 @@ func (s *subagentService) OnParentStopped(ctx context.Context, parent string) er
 		return err
 	}
 	err = s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: parent})
+	if err == nil {
+		for _, row := range rows {
+			if row.Origin == store.SubagentOriginDelegated && !store.IsSubagentStatusTerminal(row.Status) {
+				err = errors.Join(err, s.finalizeCanceled(ctx, row))
+			}
+		}
+	}
 	for _, wake := range wakes {
 		err = errors.Join(err, s.runtime.CancelWake(ctx, wake))
-		_, settleErr := s.store.SettleWake(ctx, wake.WakeMessageID, true)
+		_, settleErr := s.settleWakeRows(ctx, wake.WakeMessageID, true)
 		err = errors.Join(err, settleErr)
 	}
 	unlock()
 	for _, row := range rows {
-		if row.Origin != store.SubagentOriginDelegated || store.IsSubagentStatusTerminal(row.Status) ||
-			row.ChildSessionID == nil {
+		if row.Origin != store.SubagentOriginDelegated || row.ChildSessionID == nil {
 			continue
 		}
-		descendantErr := s.OnParentStopped(ctx, *row.ChildSessionID)
-		s.logError(ctx, "stop_descendants", descendantErr)
+		if store.IsSubagentStatusTerminal(row.Status) && row.Status != store.SubagentStatusCanceled {
+			continue
+		}
+		if snap, err := s.runtime.Snapshot(
+			ctx,
+			*row.ChildSessionID,
+		); err == nil && snap.Info != nil &&
+			snap.Info.State == StateStopped {
+			continue
+		}
+		// Manager.Stop starts this child's stop before cascading to its descendants.
+		// A separate pre-pass would serialize their escalation grace periods.
 		stopErr := s.runtime.Stop(ctx, *row.ChildSessionID)
 		s.logError(ctx, "stop_child", stopErr)
-		err = errors.Join(err, descendantErr, stopErr)
+		err = errors.Join(err, stopErr)
 	}
 	return err
 }
@@ -119,8 +131,24 @@ func (s *subagentService) OnParentTurnInterrupted(ctx context.Context, parent, t
 	if err != nil {
 		return err
 	}
-	if err := s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: parent, ParentTurnID: turn}); err != nil {
+	protected, err := s.interruptSteerBatches(ctx, turn, wakes)
+	if err != nil {
 		return err
+	}
+	rows, err := s.parentRows(ctx, parent)
+	if err != nil {
+		return err
+	}
+	var disposeIDs []string
+	for _, row := range rows {
+		if row.ParentTurnID == turn && !protected[row.ID] {
+			disposeIDs = append(disposeIDs, row.ID)
+		}
+	}
+	if len(disposeIDs) > 0 {
+		if err := s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: parent, IDs: disposeIDs}); err != nil {
+			return err
+		}
 	}
 	for _, wake := range wakes {
 		current, rows, err := s.store.GetWake(ctx, wake.WakeMessageID)
@@ -134,10 +162,81 @@ func (s *subagentService) OnParentTurnInterrupted(ctx context.Context, parent, t
 			if err := s.runtime.CancelWake(ctx, current); err != nil {
 				return err
 			}
-			if _, err := s.store.SettleWake(ctx, current.WakeMessageID, true); err != nil {
+			if _, err := s.settleWakeRows(ctx, current.WakeMessageID, true); err != nil {
 				return err
 			}
 		} else if err := s.rewriteWake(ctx, current, rows); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *subagentService) interruptSteerBatches(
+	ctx context.Context,
+	turn string,
+	wakes []store.SessionSubagentWake,
+) (map[string]bool, error) {
+	// Accepted but unconfirmed steer batches must survive interruption, even if
+	// their results were created in this turn. Other turn-owned work is disposed.
+	protected := make(map[string]bool)
+	for _, wake := range wakes {
+		s.mu.Lock()
+		target, tracked := s.steerTurns[wake.WakeMessageID]
+		s.mu.Unlock()
+		if !tracked || target != turn || wake.State != store.SubagentWakeStateDispatched {
+			continue
+		}
+		rows, err := s.settleWakeRows(ctx, wake.WakeMessageID, true)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			protected[row.ID] = true
+			s.publish(ctx, row)
+		}
+	}
+	return protected, nil
+}
+
+func (s *subagentService) finalizeCanceled(ctx context.Context, row store.SessionSubagent) error {
+	settled, changed, err := s.store.FinalizeSubagent(ctx, store.SubagentFinalize{
+		ID: row.ID, Status: store.SubagentStatusCanceled,
+		WorkState: store.SubagentWorkStateResultAvailable, SettledAt: s.now().UTC(),
+	})
+	if err == nil && changed {
+		s.publishTerminal(ctx, settled)
+		s.logError(ctx, "cancel_parent_settle", s.settleParent(ctx, row.ParentSessionID))
+	}
+	return err
+}
+
+func (s *subagentService) cancelDescendants(ctx context.Context, parent string) error {
+	unlock := s.lock(parent)
+	rows, err := s.parentRows(ctx, parent)
+	if err == nil {
+		err = s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: parent})
+	}
+	var children []string
+	if err == nil {
+		for _, row := range rows {
+			if row.Origin != store.SubagentOriginDelegated || store.IsSubagentStatusTerminal(row.Status) {
+				continue
+			}
+			if err = s.finalizeCanceled(ctx, row); err != nil {
+				break
+			}
+			if row.ChildSessionID != nil {
+				children = append(children, *row.ChildSessionID)
+			}
+		}
+	}
+	unlock()
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		if err := s.cancelDescendants(ctx, child); err != nil {
 			return err
 		}
 	}
