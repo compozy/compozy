@@ -29,6 +29,10 @@ TTL, caps, and permission policy.
 
 The daemon rejects invalid spawn requests. It does not silently narrow a child request and continue.
 
+[Subagents](/docs/sessions/subagents) reuse the permission-subset rules but not the TTL, depth, or
+child caps: a delegated subagent has no TTL and no depth or count limit, and it inherits the caller's
+permission budget when the narrowing lists are omitted.
+
 ## Spawning a worker
 
 ```bash
@@ -63,9 +67,9 @@ or claim task work by itself.
 
 ## Wake the creator
 
-CompozyOS queues a sanitized synthetic turn on the parent when a child stops, fails, or enters a
-needs-you state. This `notify_creator` behavior defaults to on and never interrupts an active parent
-prompt. It is suppressed when the parent is no longer live or the delivery would wake the same
+CompozyOS queues a sanitized synthetic turn on the parent when a child completes a turn, stops,
+fails, or enters a needs-you state; a canceled child turn sends no completed wake. This
+`notify_creator` behavior defaults to on and never interrupts an active parent prompt. It is suppressed when the parent is no longer live or the delivery would wake the same
 session.
 
 Opt out for one child when a parent wake is unnecessary:

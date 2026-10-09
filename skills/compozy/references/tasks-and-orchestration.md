@@ -4,6 +4,7 @@
 
 - Authority model, catalog, inbox, and inspection
 - Bounded worker tools
+- Subagents versus spawned workers
 - Pause, resume, recovery, blocks, and escalation
 - Scheduler controls
 - Coordinator, worker, and reviewer loops
@@ -27,6 +28,23 @@ permission budget and grant only required concrete IDs; bootstrap commonly needs
 `compozy__tool_info`, `compozy__tool_artifact_read`, `compozy__skill_search`, and `compozy__skill_view`.
 The CLI equivalent repeats `compozy spawn --tool <id>`. Agent policy and parent-subset validation
 still apply. A missing required grant blocks the task rather than authorizing a filesystem/CLI bypass.
+
+## Subagents Versus Spawned Workers
+
+Use `compozy__subagent_delegate` when your current turn needs one self-contained answer or change
+from another agent, provider, or model: a second opinion, parallel research, a review round, or a
+bounded implementation slice. The subagent inherits your permission budget unless you narrow it, has
+no TTL, appears as a live card in your transcript, and wakes you with a pointer when it settles. Follow
+the protocol in `references/native-tools.md`: capabilities → delegate async → end turn → woken →
+`compozy__subagent_status` → answer.
+
+Use `compozy__session_spawn` for a long-lived governed worker that outlives your turn, needs an
+explicit TTL and an explicit tool subset, or is driven by repeated `session_prompt` calls. Use tasks
+when the work needs daemon-owned state, leases, review verdicts, or a scheduler.
+
+Subagents are not task authority. A subagent's result is evidence for your turn; it does not complete,
+claim, or review a task run. Subagents share your workspace and worktree, so concurrent subagents
+must not edit the same files. Give each one disjoint paths or a read-only task.
 
 ## Catalog And Inbox Reads
 
@@ -113,7 +131,8 @@ When an agent session creates a task, CompozyOS wakes that creator session on th
 
 Governed child sessions have the parallel session-level feedback path. `compozy spawn` and
 `compozy__session_spawn` default `notify_creator` to true, then queue one sanitized synthetic turn on
-the parent when the child stops, fails, or enters a needs-you state. Use CLI
+the parent when the child completes a turn, stops, fails, or enters a needs-you state. A canceled
+child turn sends no completed wake. Use CLI
 `--no-notify-creator` or explicit `notify_creator: false` on the API/tool request for a child that
 must not wake its parent. The default is fixed in v1 and has no `config.toml` key. Delivery never
 interrupts the parent's active prompt, is suppressed when the parent is not live or the child would

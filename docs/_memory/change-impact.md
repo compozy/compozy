@@ -1,5 +1,39 @@
 # Compozy Change Impact
 
+## Subagents — 2026-10-08
+
+Owner: spec `.compozy/tasks/subagents/` (ADR-001..005, §Compozy Cross-Surface Impact Audit); one PR
+from branch `subagents`. Additive across every public surface (SD-013); no delete targets. Native
+tools: four new IDs in the `sessions` toolset — `compozy__subagent_capabilities`,
+`compozy__subagent_delegate`, `compozy__subagent_status` (idempotent, not read-only: reading a terminal
+result acknowledges delivery), `compozy__subagent_cancel`; all require an active caller turn
+(`parent_not_active`). `compozy__session_spawn` and the creator wake keep their contracts; delegated
+children set `notify_creator=false`. Extensibility/hooks/config: new observe-only `subagent.settled`
+hook (family `subagent`); `spawn.pre_create` payloads gain `spawn_role: "subagent"` and a `subagent`
+object, and a TTL patch for the subagent role is `capability_denied`; new `[subagents]
+result_max_chars` (default 60000, 1000–1000000, global → workspace overlay); no new extension RPC; MCP
+sidecars and marketplace unaffected. Public wire: CLI `compozy session subagents [show|cancel]` and
+`compozy session list --subagents`; HTTP/UDS list/show/cancel routes, session-list `subagents` filter
+(default `include`) and `subagent_summary`; SSE `subagents_snapshot`/`subagent_updated`; transcript
+`data-compozy-subagent` part and optional `parentToolCallId`; synthetic `kind`/`subagent_ids`. User
+state: new `session_subagents` and `session_subagent_wakes` tables and `session_input_queue.priority`
+through one Goose migration. Workspace data isolation: records are workspace-scoped like sessions;
+children run in the parent's workspace and worktree (no cross-workspace delegation); CLI/HTTP reads
+use session read access and inaccessible sessions return `session_not_found`. Official skill:
+`SKILL.md` routing row, `references/native-tools.md` (protocol), `references/tasks-and-orchestration.md`
+(subagents vs spawned workers, shared worktree), `references/runtime-operations.md` (operator
+surfaces, lifecycle, restart); the creator-wake text now includes the `completed` reason and the
+canceled-turn suppression that `internal/session/spawn_wake.go` already implements (same drift fixed in
+site `sessions/orchestration.mdx` and `autonomy/safe-spawn.mdx`). Web/Docs: `_uiux.md` S1–S10 (card,
+group, hover, divider, waiting banner, tool phrases, status line, native nesting, sidebar chip,
+inspector roster) with the `HoverCard` primitive in `@compozy/ui`; site tutorial
+`sessions/subagents` ("Delegate to subagents"), `[subagents]` in `configuration/config-toml`,
+`subagent.settled` in `hooks/event-catalog`; generated CLI and API references regenerate from Cobra and
+OpenAPI. Glossary **Subagent** (delegated, provider-native, subagent wake) and COPY.md §6 "Subagent
+Terms". QA: new `RT-subagent-delegate`, `RT-subagent-restart`, `ET-web-subagent-card`,
+`ET-web-native-subagent`; `ET-web-session-sidebar-threads` reset to `untested` for the sidebar filter
+and chip (ADR-005).
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

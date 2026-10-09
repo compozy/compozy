@@ -187,6 +187,31 @@ The raw bearer lease token never appears in these hook payloads.
 `spawn_role`, `ttl_seconds`, or `child_permissions`. The runtime still rejects permission widening,
 coordinator-role spawn, unauthorized cross-workspace spawn, and invalid TTL/depth/child caps.
 
+`spawn.pre_create` also runs before every [subagent](/docs/sessions/subagents) delegation. Those
+payloads carry `spawn_role: "subagent"` and a `subagent` object with `title`, `role`, and
+`task_chars` (the task length, never the task text). The same deny and narrowing rules apply; a patch
+that sets a TTL for the subagent role is rejected with `capability_denied`, because subagents have no
+TTL.
+
+### Subagent
+
+| Event              | Sync | Payload                  | Patch                  | Fires when                                                                |
+| ------------------ | ---- | ------------------------ | ---------------------- | ------------------------------------------------------------------------- |
+| `subagent.settled` | yes  | `SubagentSettledPayload` | `SubagentSettledPatch` | When a subagent reaches a terminal status, after its record is committed. |
+
+`subagent.settled` is observe-only: a hook cannot change the status, the result, or the parent's
+wake. It fires once per subagent for both delegated and provider-native subagents.
+
+| Field                                   | Meaning                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `event`, `workspace_id`                 | The event name and the subagent's workspace.                                                                       |
+| `subagent_id`                           | The subagent record id (`sub-…`).                                                                                  |
+| `parent_session_id`, `child_session_id` | The delegating session and the subagent's own session; `child_session_id` is `null` for provider-native subagents. |
+| `origin`                                | `delegated` or `provider_native`.                                                                                  |
+| `status`                                | `completed`, `failed`, `canceled`, or `interrupted`.                                                               |
+| `runtime`                               | `provider` and `model` the subagent ran on.                                                                        |
+| `duration_ms`                           | Time from delegation to settle.                                                                                    |
+
 ## Agent Process Events
 
 | Event             | Sync | Payload                | Patch               | Fires when                                     |
