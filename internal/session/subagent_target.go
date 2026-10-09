@@ -14,6 +14,8 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+const subagentProviderUnavailable = "provider_unavailable"
+
 func (r managerSubagentRuntime) Resolve(
 	ctx context.Context,
 	parent *Info,
@@ -51,7 +53,7 @@ func (r managerSubagentRuntime) Resolve(
 			}
 		}
 		return SubagentTarget{}, &SubagentError{
-			Code:    "provider_unavailable",
+			Code:    subagentProviderUnavailable,
 			Message: err.Error(),
 			Err:     ErrSubagentTargetUnavailable,
 		}
@@ -62,7 +64,7 @@ func (r managerSubagentRuntime) Resolve(
 	}
 	if !option.CanDelegate {
 		return SubagentTarget{}, &SubagentError{
-			Code:    "provider_unavailable",
+			Code:    subagentProviderUnavailable,
 			Message: fmt.Sprintf("Provider %s is unavailable: %s", provider, strings.Join(option.Constraints, " ")),
 			Err:     ErrSubagentTargetUnavailable,
 		}
@@ -149,7 +151,7 @@ func (r managerSubagentRuntime) providerOption(
 	provider, err := cfg.ResolveProvider(name)
 	if err != nil {
 		return option, &SubagentError{
-			Code:    "provider_unavailable",
+			Code:    subagentProviderUnavailable,
 			Message: err.Error(),
 			Err:     ErrSubagentTargetUnavailable,
 		}
@@ -194,7 +196,7 @@ func (r managerSubagentRuntime) providerOption(
 			option.Models = append(option.Models, item)
 		}
 	}
-	if len(option.Models) == 0 {
+	if option.CanDelegate && len(option.Models) == 0 {
 		option.Constraints = append(
 			option.Constraints,
 			"Model catalog unavailable; the agent default model will be used.",

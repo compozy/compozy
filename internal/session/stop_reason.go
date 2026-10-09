@@ -98,7 +98,12 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 	}
 	outcome, err := waitSessionStopRun(ctx, run)
 	if previousRun == run && outcome.Verified && outcome.FinalState == StateStopped {
-		return nil
+		err = nil
+	}
+	if err == nil {
+		if service := m.subagentService(); service != nil {
+			err = service.OnChildSettled(ctx, id)
+		}
 	}
 	return err
 }

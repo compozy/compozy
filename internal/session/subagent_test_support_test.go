@@ -3,7 +3,7 @@ package session
 import (
 	"cmp"
 	"context"
- "encoding/json"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -232,6 +232,9 @@ func (d *memorySubagents) SetWakeInput(_ context.Context, id, route, input strin
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	wake := d.wakes[id]
+	if wake.State != store.SubagentWakeStateOpen {
+		return nil
+	}
 	wake.Route = route
 	wake.InputEntryID = input
 	d.wakes[id] = wake
@@ -241,6 +244,9 @@ func (d *memorySubagents) MarkWakeSteerRequeued(_ context.Context, id string) er
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	wake := d.wakes[id]
+	if wake.State != store.SubagentWakeStateOpen {
+		return nil
+	}
 	wake.SteerRequeued = true
 	d.wakes[id] = wake
 	return nil

@@ -80,8 +80,13 @@ acknowledgement removing a queued result, canceled queued wakes returning to pen
 interrupt disposing delivery without stopping children. Steer delivery must never cancel the parent
 turn; unsupported or failed injection requeues once. Owning automated checks are
 `TestSubagentLifecycle`, `TestSubagentLifecycleBoundaries`, and `TestSubagentPromptCancel` in
-`internal/session`. The controller's integrated daemon/ACP walkthrough remains the public-surface
-verification owner; this slice's fake-runtime checks do not replace it.
+`internal/session`. Real SQLite and ACP subprocess coverage is in
+`internal/daemon/subagent_integration_test.go`: cross-provider delegation and replay, queue priority
+and acknowledgement pruning, steering/refusal fallback, bounded wait, permission waiting, recursive
+completion, synchronous stop, interrupt disposal, provider launch failure, executed pre-create hook
+denial, native Agent/Task rows, and boot-reactor reconciliation of missing inputs and orphan sessions.
+The controller's final public-surface walkthrough remains the CLI/HTTP/Web verification owner. The
+boot-reactor test models an observation gap in a running daemon; it is not a killed-daemon restart test.
 
 QA impact 2026-10-09 (Subagents tools slice): delegated subagents use separate wake delivery,
 `subagent.settled` observation, and a depth/live situation summary; existing spawn contracts remain.

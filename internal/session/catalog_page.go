@@ -219,13 +219,11 @@ func (m *Manager) activeSessionCatalogRows(
 }
 
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
-	switch query.Subagents {
-	case "", "include":
-		query.Subagents = ""
-	case "exclude", "only":
-	default:
-		return ListQuery{}, fmt.Errorf("%w: unsupported subagents %q", ErrListQueryInvalid, query.Subagents)
+	filter, err := normalizeSubagentListFilter(query.Subagents)
+	if err != nil {
+		return ListQuery{}, err
 	}
+	query.Subagents = filter
 	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
 	if err := query.ReadScope.Validate(); err != nil {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
@@ -472,5 +470,16 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		ArchivedAt:               cloneTimePointer(info.ArchivedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
+	}
+}
+
+func normalizeSubagentListFilter(value string) (string, error) {
+	switch value {
+	case "", "include":
+		return "", nil
+	case "exclude", "only":
+		return value, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported subagents %q", ErrListQueryInvalid, value)
 	}
 }

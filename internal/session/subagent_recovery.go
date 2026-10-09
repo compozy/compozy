@@ -96,6 +96,17 @@ func (s *subagentService) recoverWakes(ctx context.Context) error {
 		return err
 	}
 	for _, wake := range wakes {
+		snap, err := s.runtime.Snapshot(ctx, wake.ParentSessionID)
+		if err != nil && !errors.Is(err, ErrSessionNotFound) {
+			return err
+		}
+		if snap.Info == nil || snap.Info.State != StateActive {
+			if err := s.OnParentStopped(ctx, wake.ParentSessionID); err != nil {
+				return err
+			}
+			s.recovered(ctx, wake.WakeMessageID, "stopped_parent_disposed")
+			continue
+		}
 		unlock := s.lock(wake.ParentSessionID)
 		current, rows, readErr := s.store.GetWake(ctx, wake.WakeMessageID)
 		if readErr == nil {

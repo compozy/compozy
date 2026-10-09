@@ -155,9 +155,6 @@ func (s *subagentService) deliver(
 		if err := s.store.SetWakeInput(ctx, wake.WakeMessageID, store.SubagentWakeRouteSteer, ""); err != nil {
 			return err
 		}
-		if err := s.store.MarkWakeDispatched(ctx, wake.WakeMessageID); err != nil {
-			return err
-		}
 		attempt, steerErr := s.runtime.Steer(
 			ctx,
 			wake.ParentSessionID,

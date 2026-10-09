@@ -55,6 +55,8 @@ func (b subagentSettledBridge) DispatchSubagentSettled(ctx context.Context, row 
 		return errors.New("daemon: hook runtime lacks subagent dispatch")
 	}
 	payload := hooks.SubagentSettledPayload{
+		Event:           hooks.HookSubagentSettled,
+		Timestamp:       row.UpdatedAt,
 		WorkspaceID:     row.WorkspaceID,
 		SubagentID:      row.ID,
 		ParentSessionID: row.ParentSessionID,
@@ -63,8 +65,6 @@ func (b subagentSettledBridge) DispatchSubagentSettled(ctx context.Context, row 
 		Status:          row.Status,
 		Runtime:         hooks.SubagentRuntimePayload{Provider: row.RuntimeProvider, Model: row.RuntimeModel},
 	}
-	payload.Event = hooks.HookSubagentSettled
-	payload.Timestamp = row.UpdatedAt
 	if row.SettledAt != nil {
 		payload.Timestamp = *row.SettledAt
 	}

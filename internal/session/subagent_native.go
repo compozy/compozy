@@ -36,7 +36,7 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if err != nil && !errors.Is(err, store.ErrSubagentNotFound) {
 		return err
 	}
-	terminal := ev.Status == "completed" || ev.Status == "failed"
+	terminal := ev.Status == store.SubagentStatusCompleted || ev.Status == store.SubagentStatusFailed
 	if errors.Is(err, store.ErrSubagentNotFound) {
 		if terminal {
 			s.nativeStitchMiss(ctx, parent, ev.ProviderToolCallID)
@@ -65,7 +65,7 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	}
 	status := store.SubagentStatusCompleted
 	var failure *string
-	if ev.Status == "failed" {
+	if ev.Status == store.SubagentStatusFailed {
 		status = store.SubagentStatusFailed
 		failure = new(ev.Error)
 	}

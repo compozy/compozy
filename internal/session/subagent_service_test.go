@@ -729,54 +729,56 @@ func TestSubagentModelValidation(t *testing.T) {
 
 // UT-036/UT-037 lifecycle half: native tool identity owns one row and never owns a wake.
 func TestSubagentNativeLifecycle(t *testing.T) {
-	t.Parallel()
-	s, db, runtime := newSubagentTestService(t)
-	hook := &subagentTestHook{}
-	s.settled = hook
-	ev := NativeSubagentEvent{
-		WorkspaceID:        "ws",
-		ParentTurnID:       "turn",
-		ProviderToolCallID: "native-tool",
-		ToolName:           "Agent",
-		Title:              "Review the diff (high effort)",
-		Model:              "sonnet-5.5",
-		Status:             "in_progress",
-	}
-	for range 2 {
-		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
-			t.Fatal(err)
+	t.Run("Should settle native work once without a wake", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		hook := &subagentTestHook{}
+		s.settled = hook
+		ev := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "native-tool",
+			ToolName:           "Agent",
+			Title:              "Review the diff (high effort)",
+			Model:              "sonnet-5.5",
+			Status:             "in_progress",
 		}
-	}
-	id := subagentID("parent", ev.ProviderToolCallID)
-	row := db.rows[id]
-	if len(db.rows) != 1 || row.Origin != "provider_native" || row.ChildSessionID != nil || row.Title != ev.Title ||
-		row.RuntimeModel != ev.Model ||
-		row.ProviderToolCallID != ev.ProviderToolCallID {
-		t.Fatal(row)
-	}
-	ev.Status = "completed"
-	ev.Result = "native answer"
-	for range 2 {
-		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
-			t.Fatal(err)
+		for range 2 {
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
 		}
-	}
-	row = db.rows[id]
-	if row.Status != "completed" || row.Result == nil || *row.Result != ev.Result || row.Delivery != "none" ||
-		len(runtime.queues) != 0 ||
-		hook.calls != 1 {
-		t.Fatal(row, hook.calls)
-	}
-	ev.ProviderToolCallID = "missing"
-	ev.ToolName = ""
-	for range 2 {
-		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
-			t.Fatal(err)
+		id := subagentID("parent", ev.ProviderToolCallID)
+		row := db.rows[id]
+		if len(db.rows) != 1 || row.Origin != "provider_native" || row.ChildSessionID != nil || row.Title != ev.Title ||
+			row.RuntimeModel != ev.Model ||
+			row.ProviderToolCallID != ev.ProviderToolCallID {
+			t.Fatal(row)
 		}
-	}
-	if len(db.rows) != 1 || len(s.nativeMisses) != 1 {
-		t.Fatal(db.rows, s.nativeMisses)
-	}
+		ev.Status = "completed"
+		ev.Result = "native answer"
+		for range 2 {
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		row = db.rows[id]
+		if row.Status != "completed" || row.Result == nil || *row.Result != ev.Result || row.Delivery != "none" ||
+			len(runtime.queues) != 0 ||
+			hook.calls != 1 {
+			t.Fatal(row, hook.calls)
+		}
+		ev.ProviderToolCallID = "missing"
+		ev.ToolName = ""
+		for range 2 {
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if len(db.rows) != 1 || len(s.nativeMisses) != 1 {
+			t.Fatal(db.rows, s.nativeMisses)
+		}
+	})
 }
 
 // UT-032/UT-057 and IT-025 service half: asynchronous injection completion owns the single fallback.
@@ -830,72 +832,147 @@ func TestSubagentSteerCompletion(t *testing.T) {
 // IT-031 database boundary: recovery consumes persisted tasks and stale reservations against real SQLite.
 // The runtime fixture is the I/O boundary; the port, constraints and transactions are production code.
 func TestSubagentDatabaseRecovery(t *testing.T) {
+	t.Run("Should reconcile durable admissions and stale reservations", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		parent := createSession(t, h.harness)
+		child := createSession(t, h.harness)
+		s, _, runtime := newSubagentTestService(t)
+		s.store = h.db
+		runtime.snapshots[parent.ID] = runtime.snapshots["parent"]
+		snapshot := runtime.snapshots[parent.ID]
+		info := *snapshot.Info
+		info.ID = parent.ID
+		info.WorkspaceID = h.workspaceID
+		snapshot.Info = &info
+		runtime.snapshots[parent.ID] = snapshot
+		runtime.snapshots[child.ID] = subagentSnapshot{
+			Info:   &Info{ID: child.ID, WorkspaceID: h.workspaceID, State: StateActive},
+			Active: true,
+		}
+		stale := store.SessionSubagent{
+			ID:                 "sub-stale",
+			WorkspaceID:        h.workspaceID,
+			ParentSessionID:    parent.ID,
+			ParentTurnID:       "turn",
+			Origin:             "delegated",
+			IdempotencyKey:     "stale",
+			RequestFingerprint: "stale",
+			Title:              "Stale",
+			Role:               "general",
+			Depth:              1,
+			Status:             "queued",
+			WorkState:          "working",
+			WakePolicy:         "always",
+			Delivery:           "none",
+			PendingTask:        new("task"),
+			CreatedAt:          s.now().Add(-5 * time.Minute),
+		}
+		if _, _, err := h.db.ReserveSubagent(t.Context(), stale); err != nil {
+			t.Fatal(err)
+		}
+		running := stale
+		running.ID = "sub-running"
+		running.IdempotencyKey = "running"
+		running.RequestFingerprint = "running"
+		running.CreatedAt = s.now()
+		running.PendingTask = new("recover task")
+		if _, _, err := h.db.ReserveSubagent(t.Context(), running); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.db.LinkChild(t.Context(), running.ID, child.ID, s.now()); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		got, err := h.db.GetSubagent(t.Context(), h.workspaceID, stale.ID)
+		if err != nil || got.Status != "failed" || got.Error == nil || *got.Error != "delegation interrupted" {
+			t.Fatal(got, err)
+		}
+		got, err = h.db.GetSubagent(t.Context(), h.workspaceID, running.ID)
+		if err != nil || got.PendingTask != nil || runtime.admitted[running.ID] != "recover task" ||
+			got.Status != "running" {
+			t.Fatal(got, err)
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(runtime.admitted) != 1 {
+			t.Fatal(runtime.admitted)
+		}
+	})
+}
+
+// UT-003/UT-005/UT-017: provider availability reports exact constraints, separate from model advisories.
+// Owner: session target resolution; the service suite owns these caller-visible errors.
+func TestSubagentProviderAvailability(t *testing.T) {
 	t.Parallel()
-	h := newDeriveHarness(t)
-	parent := createSession(t, h.harness)
-	child := createSession(t, h.harness)
-	s, _, runtime := newSubagentTestService(t)
-	s.store = h.db
-	runtime.snapshots[parent.ID] = runtime.snapshots["parent"]
-	snapshot := runtime.snapshots[parent.ID]
-	info := *snapshot.Info
-	info.ID = parent.ID
-	info.WorkspaceID = h.workspaceID
-	snapshot.Info = &info
-	runtime.snapshots[parent.ID] = snapshot
-	runtime.snapshots[child.ID] = subagentSnapshot{
-		Info:   &Info{ID: child.ID, WorkspaceID: h.workspaceID, State: StateActive},
-		Active: true,
+	h := newHarness(t)
+	runtime := managerSubagentRuntime{h.manager}
+	cfg := compozyconfig.DefaultWithHome(h.homePaths)
+	cfg.Providers["absent"] = compozyconfig.ProviderConfig{
+		Command:  "compozy-test-nonexistent-provider",
+		AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 	}
-	stale := store.SessionSubagent{
-		ID:                 "sub-stale",
-		WorkspaceID:        h.workspaceID,
-		ParentSessionID:    parent.ID,
-		ParentTurnID:       "turn",
-		Origin:             "delegated",
-		IdempotencyKey:     "stale",
-		RequestFingerprint: "stale",
-		Title:              "Stale",
-		Role:               "general",
-		Depth:              1,
-		Status:             "queued",
-		WorkState:          "working",
-		WakePolicy:         "always",
-		Delivery:           "none",
-		PendingTask:        new("task"),
-		CreatedAt:          s.now().Add(-5 * time.Minute),
+	cfg.Providers["unauthenticated"] = compozyconfig.ProviderConfig{
+		Command:  "go",
+		AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+		CredentialSlots: []compozyconfig.ProviderCredentialSlot{
+			{
+				Name:      "api_key",
+				TargetEnv: "TEST_API_KEY",
+				SecretRef: "env:COMPOZY_SUBAGENT_TEST_MISSING_CREDENTIAL",
+				Required:  true,
+			},
+		},
 	}
-	if _, _, err := h.db.ReserveSubagent(t.Context(), stale); err != nil {
+	cfg.Providers["available"] = compozyconfig.ProviderConfig{
+		Command:  "go",
+		AuthMode: compozyconfig.ProviderAuthModeNone,
+	}
+	for _, tc := range []struct {
+		name       string
+		available  bool
+		constraint string
+	}{
+		{"absent", false, "Provider is not installed."},
+		{"unauthenticated", false, "Provider is not authenticated."},
+		{"available", true, "Model catalog unavailable; the agent default model will be used."},
+	} {
+		t.Run("Should report "+tc.name, func(t *testing.T) {
+			option, err := runtime.providerOption(t.Context(), &cfg, tc.name)
+			if err != nil || option.CanDelegate != tc.available || len(option.Constraints) != 1 ||
+				option.Constraints[0] != tc.constraint {
+				t.Fatal(option, err)
+			}
+		})
+	}
+	_, err := runtime.providerOption(t.Context(), &cfg, "nope")
+	typed, ok := errors.AsType[*SubagentError](err)
+	if !ok || typed.Code != "provider_unavailable" {
 		t.Fatal(err)
 	}
-	running := stale
-	running.ID = "sub-running"
-	running.IdempotencyKey = "running"
-	running.RequestFingerprint = "running"
-	running.CreatedAt = s.now()
-	running.PendingTask = new("recover task")
-	if _, _, err := h.db.ReserveSubagent(t.Context(), running); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := h.db.LinkChild(t.Context(), running.ID, child.ID, s.now()); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Recover(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	got, err := h.db.GetSubagent(t.Context(), h.workspaceID, stale.ID)
-	if err != nil || got.Status != "failed" || got.Error == nil || *got.Error != "delegation interrupted" {
-		t.Fatal(got, err)
-	}
-	got, err = h.db.GetSubagent(t.Context(), h.workspaceID, running.ID)
-	if err != nil || got.PendingTask != nil || runtime.admitted[running.ID] != "recover task" ||
-		got.Status != "running" {
-		t.Fatal(got, err)
-	}
-	if err := s.Recover(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if len(runtime.admitted) != 1 {
-		t.Fatal(runtime.admitted)
-	}
+}
+
+// IT-031: repaired stopped parents cannot receive a stale open wake on restart.
+// Owner: service recovery, with the runtime boundary supplied by this suite's fixture.
+func TestSubagentRecoveryStoppedParent(t *testing.T) {
+	t.Run("Should dispose wakes after parent recovery stops", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		settleTestChild(t, s, runtime, &row)
+		wake := *db.rows[row.ID].WakeMessageID
+		snap := runtime.snapshots["parent"]
+		snap.Info.State = StateStopped
+		snap.Active = false
+		runtime.snapshots["parent"] = snap
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if db.rows[row.ID].Delivery != "disposed" || db.wakes[wake].State != "canceled" {
+			t.Fatal(db.rows[row.ID], db.wakes[wake])
+		}
+	})
 }

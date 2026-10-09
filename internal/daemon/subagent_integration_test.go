@@ -12,133 +12,229 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // Invariant: real daemon wiring reserves, launches ACP, persists a result and delivers one wake.
 // Owner: daemon orchestration; canonical suite for the new subagent journey (IT-001/IT-013 queue and replay halves).
 func TestSubagentDaemonIntegration(t *testing.T) {
-	d, manager, workspace := newSubagentDaemonIntegration(t)
-	ctx := t.Context()
-	parent, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
-	if err != nil {
-		t.Fatal(err)
-	}
-	prompt, err := manager.SendPrompt(ctx, parent.ID, session.SendPromptOpts{Message: "hold parent"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	drained := make(chan struct{})
-	go func() {
-		for range prompt.Events {
-		}
-		close(drained)
-	}()
-	waitForRuntimeCondition(
-		t,
-		"parent ACP turn",
-		10*time.Second,
-		func() bool { return parent.IsPrompting() && parent.CurrentTurnID() != "" },
-	)
-	caller := session.SubagentCaller{
-		WorkspaceID: parent.Info().WorkspaceID,
-		SessionID:   parent.ID,
-		TurnID:      parent.CurrentTurnID(),
-		ToolCallID:  "delegate-one",
-	}
-	req := session.SubagentRequest{Caller: caller, Task: "child work", Title: "Child work"}
-	row, err := d.SubagentService().Delegate(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	again, err := d.SubagentService().Delegate(ctx, req)
-	if err != nil || again.ID != row.ID || again.ChildSessionID == nil || *again.ChildSessionID != *row.ChildSessionID {
-		t.Fatal(again, err)
-	}
-	waitForRuntimeCondition(t, "durable child result", 15*time.Second, func() bool {
-		current, err := d.SubagentService().Get(ctx, caller.WorkspaceID, row.ID)
-		return err == nil && current.Status == "completed" && current.Result != nil && *current.Result == "child answer"
-	})
-	db := d.registry.(store.SubagentStore)
-	durable, err := db.GetSubagent(ctx, caller.WorkspaceID, row.ID)
-	if err != nil || durable.PendingTask != nil || durable.Delivery != "claimed" || durable.WakeMessageID == nil {
-		t.Fatal(durable, err)
-	}
-	child, err := manager.Status(ctx, *row.ChildSessionID)
-	if err != nil || child.Lineage == nil || child.Lineage.TTLExpiresAt != nil || child.Lineage.NotifyCreator ||
-		child.LastSettledRevision > child.LastSeenRevision {
-		t.Fatal(child, err)
-	}
-	// IT-005/IT-006: joins retain one wake; status prunes only acknowledged members.
-	rows := []session.Subagent{row}
-	for _, key := range []string{"delegate-two", "delegate-three"} {
-		next := req
-		next.IdempotencyKey = key
-		added, err := d.SubagentService().Delegate(ctx, next)
+	t.Run("Should deliver one prioritized wake across providers", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		ctx := t.Context()
+		parent, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows = append(rows, added)
-		waitForRuntimeCondition(t, "joined child settled", 15*time.Second, func() bool {
-			current, err := db.GetSubagent(ctx, workspace, added.ID)
-			return err == nil && current.Delivery == "claimed"
+		// IT-027: inactive callers are rejected before capability discovery.
+		if _, err := d.SubagentService().
+			Capabilities(ctx, session.SubagentCaller{WorkspaceID: workspace, SessionID: parent.ID}); !errors.Is(
+			err,
+			session.ErrSubagentParentNotActive,
+		) {
+			t.Fatal(err)
+		}
+		prompt, err := manager.SendPrompt(ctx, parent.ID, session.SendPromptOpts{Message: "hold parent"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		drained := make(chan struct{})
+		go func() {
+			for range prompt.Events {
+				continue
+			}
+			close(drained)
+		}()
+		waitForRuntimeCondition(
+			t,
+			"parent ACP turn",
+			10*time.Second,
+			func() bool { return parent.IsPrompting() && parent.CurrentTurnID() != "" },
+		)
+		caller := session.SubagentCaller{
+			WorkspaceID: parent.Info().WorkspaceID,
+			SessionID:   parent.ID,
+			TurnID:      parent.CurrentTurnID(),
+			ToolCallID:  "delegate-one",
+		}
+		capabilities, err := d.SubagentService().Capabilities(ctx, caller)
+		if err != nil || capabilities.ParentSessionID != parent.ID ||
+			capabilities.Inherited.Provider != acpmock.ProviderName ||
+			capabilities.Depth != 0 {
+			t.Fatal(capabilities, err)
+		}
+		available := false
+		for _, provider := range capabilities.Providers {
+			if provider.Provider == acpmock.ProviderName {
+				available = provider.CanDelegate
+			}
+		}
+		if !available {
+			t.Fatal("fixture provider is not available for delegation")
+		}
+		// IT-007: older user inputs retain FIFO but a subsequent wake dispatches first.
+		for _, text := range []string{"user one", "user two"} {
+			queued, err := manager.SendPrompt(
+				ctx,
+				parent.ID,
+				session.SendPromptOpts{Message: text, Mode: session.BusyInputModeQueue},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if queued.Events != nil {
+				go func() {
+					for range queued.Events {
+						continue
+					}
+				}()
+			}
+		}
+		req := session.SubagentRequest{
+			Caller: caller,
+			Task:   "child work",
+			Title:  "Child work",
+			Target: session.SubagentTarget{Provider: "acpmock-other"},
+		}
+		row, err := d.SubagentService().Delegate(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := d.SubagentService().Delegate(ctx, req)
+		if err != nil || again.ID != row.ID || again.ChildSessionID == nil ||
+			*again.ChildSessionID != *row.ChildSessionID {
+			t.Fatal(again, err)
+		}
+		waitForRuntimeCondition(t, "durable child result", 15*time.Second, func() bool {
+			current, err := d.SubagentService().Get(ctx, caller.WorkspaceID, row.ID)
+			return err == nil && current.Status == "completed" && current.Result != nil &&
+				*current.Result == "child answer" &&
+				current.Delivery == "claimed"
 		})
-	}
-	for _, member := range rows[:2] {
-		acknowledged, err := d.SubagentService().Status(ctx, caller, member.ID)
-		if err != nil || acknowledged.Delivery != "acknowledged" {
-			t.Fatal(acknowledged, err)
+		db := d.registry.(store.SubagentStore)
+		durable, err := db.GetSubagent(ctx, caller.WorkspaceID, row.ID)
+		if err != nil || durable.RuntimeProvider != "acpmock-other" || durable.PendingTask != nil ||
+			durable.Delivery != "claimed" ||
+			durable.WakeMessageID == nil {
+			t.Fatal(durable, err)
 		}
-	}
-	wake, members, err := db.GetWake(ctx, *durable.WakeMessageID)
-	if err != nil || len(members) != 1 || members[0].ID != rows[2].ID {
-		t.Fatal(wake, members, err)
-	}
-	queue, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(ctx, parent.ID)
-	if err != nil || len(queue) != 1 || queue[0].Priority != 1 || strings.Contains(queue[0].Text, rows[0].ID) ||
-		!strings.Contains(queue[0].Text, rows[2].ID) {
-		t.Fatal(queue, err)
-	}
-	row = rows[2]
-	if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-drained:
-	case <-time.After(10 * time.Second):
-		t.Fatal("parent prompt did not finish")
-	}
-	waitForRuntimeCondition(t, "wake delivered", 15*time.Second, func() bool {
-		current, err := db.GetSubagent(ctx, caller.WorkspaceID, row.ID)
-		return err == nil && current.Delivery == "delivered"
+		child, err := manager.Status(ctx, *row.ChildSessionID)
+		if err != nil || child.Lineage == nil || child.Lineage.TTLExpiresAt != nil || child.Lineage.NotifyCreator ||
+			child.LastSettledRevision > child.LastSeenRevision {
+			t.Fatal(child, err)
+		}
+		// IT-016: sweep real sessions with a clock beyond any ordinary spawn TTL.
+		reaper := &spawnReaper{
+			sessions: manager,
+			logger:   discardLogger(),
+			now:      func() time.Time { return time.Now().Add(365 * 24 * time.Hour) },
+		}
+		report, err := reaper.Sweep(ctx)
+		if err != nil || report.Reaped != 0 {
+			t.Fatal(report, err)
+		}
+		// IT-005/IT-006: joins retain one wake; status prunes only acknowledged members.
+		rows := []session.Subagent{row}
+		for _, key := range []string{"delegate-two", "delegate-three"} {
+			next := req
+			next.IdempotencyKey = key
+			added, err := d.SubagentService().Delegate(ctx, next)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows = append(rows, added)
+			waitForRuntimeCondition(t, "joined child settled", 15*time.Second, func() bool {
+				current, err := db.GetSubagent(ctx, workspace, added.ID)
+				return err == nil && current.Delivery == "claimed"
+			})
+		}
+		for _, member := range rows[:2] {
+			acknowledged, err := d.SubagentService().Status(ctx, caller, member.ID)
+			if err != nil || acknowledged.Delivery != "acknowledged" {
+				t.Fatal(acknowledged, err)
+			}
+		}
+		wake, members, err := db.GetWake(ctx, *durable.WakeMessageID)
+		if err != nil || len(members) != 1 || members[0].ID != rows[2].ID {
+			t.Fatal(wake, members, err)
+		}
+		queue, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(ctx, parent.ID)
+		if err != nil || len(queue) != 3 || queue[0].Priority != 1 || strings.Contains(queue[0].Text, rows[0].ID) ||
+			!strings.Contains(queue[0].Text, rows[2].ID) {
+			t.Fatal(queue, err)
+		}
+		row = rows[2]
+		if _, err := manager.CancelPromptWithCause(ctx, parent.ID, session.PromptCancelSyntheticAdmission); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-drained:
+		case <-time.After(10 * time.Second):
+			t.Fatal("parent prompt did not finish")
+		}
+		waitForRuntimeCondition(t, "wake delivered", 15*time.Second, func() bool {
+			current, err := db.GetSubagent(ctx, caller.WorkspaceID, row.ID)
+			return err == nil && current.Delivery == "delivered"
+		})
+		waitForRuntimeCondition(t, "user queue drained", 15*time.Second, func() bool {
+			inputs, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(ctx, parent.ID)
+			return err == nil && len(inputs) == 0 && !parent.IsPrompting()
+		})
+		events, err := manager.Events(ctx, parent.ID, store.EventQuery{Limit: 200})
+		if err != nil {
+			t.Fatal(err)
+		}
+		wakeCount := 0
+		var dispatchOrder []string
+		for _, event := range events {
+			if event.Type == acp.EventTypeSyntheticReentry {
+				wakeCount++
+				dispatchOrder = append(dispatchOrder, "wake")
+			}
+			if event.Type == acp.EventTypeUserMessage {
+				decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if decoded.Text == "user one" || decoded.Text == "user two" {
+					dispatchOrder = append(dispatchOrder, decoded.Text)
+				}
+			}
+		}
+		if strings.Join(dispatchOrder, ",") != "wake,user one,user two" {
+			t.Fatal(dispatchOrder)
+		}
+		if wakeCount != 1 {
+			t.Fatalf("synthetic wake count=%d", wakeCount)
+		}
+		page, err := d.SubagentService().
+			List(ctx, store.SubagentListQuery{WorkspaceID: caller.WorkspaceID, ParentSessionID: parent.ID, Limit: 20})
+		if err != nil || len(page.Items) != 3 {
+			t.Fatal(page, err)
+		}
 	})
-	events, err := manager.Events(ctx, parent.ID, store.EventQuery{Limit: 200})
-	if err != nil {
-		t.Fatal(err)
-	}
-	wakeCount := 0
-	for _, event := range events {
-		if event.Type == acp.EventTypeSyntheticReentry {
-			wakeCount++
-		}
-	}
-	if wakeCount != 1 {
-		t.Fatalf("synthetic wake count=%d", wakeCount)
-	}
-	page, err := d.SubagentService().
-		List(ctx, store.SubagentListQuery{WorkspaceID: caller.WorkspaceID, ParentSessionID: parent.ID, Limit: 20})
-	if err != nil || len(page.Items) != 3 {
-		t.Fatal(page, err)
-	}
 }
 
 func newSubagentDaemonIntegration(t *testing.T, steer ...string) (*Daemon, *session.Manager, string) {
+	t.Helper()
+	return newSubagentDaemonConfigured(t, nil, steer...)
+}
+
+func newSubagentDaemonConfigured(
+	t *testing.T,
+	mutate func(*compozyconfig.Config),
+	steer ...string,
+) (*Daemon, *session.Manager, string) {
 	t.Helper()
 	home := testHomePaths(t)
 	fixture := acpmock.Fixture{
@@ -186,7 +282,32 @@ func newSubagentDaemonIntegration(t *testing.T, steer ...string) (*Daemon, *sess
 			},
 			{Kind: acpmock.StepKindAssistant, Text: "slow answer"},
 		}},
+		acpmock.TurnFixture{
+			Name:  "approval-child",
+			Match: acpmock.TurnMatch{UserText: "approval child"},
+			Steps: []acpmock.Step{
+				{
+					Kind:           acpmock.StepKindPermission,
+					ToolCallID:     "approval",
+					Title:          "Edit fixture",
+					ToolKind:       "edit",
+					Path:           "review.txt",
+					ExpectDecision: "allow-once",
+				},
+				{Kind: acpmock.StepKindAssistant, Text: "approved answer"},
+			},
+		},
 	)
+	for _, text := range []string{"user one", "user two"} {
+		fixture.Agents[0].Turns = append(
+			fixture.Agents[0].Turns,
+			acpmock.TurnFixture{
+				Name:  text,
+				Match: acpmock.TurnMatch{UserText: text},
+				Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "processed " + text}},
+			},
+		)
+	}
 	if len(steer) > 0 {
 		fixture.Agents[0].SteerOutcome = steer[0]
 	}
@@ -195,7 +316,7 @@ func newSubagentDaemonIntegration(t *testing.T, steer ...string) (*Daemon, *sess
 		t.Fatal(err)
 	}
 	nativeSteps := []acpmock.Step{}
-	for _, frame := range strings.Split(strings.TrimSpace(string(nativeData)), "\n") {
+	for frame := range strings.SplitSeq(strings.TrimSpace(string(nativeData)), "\n") {
 		nativeSteps = append(
 			nativeSteps,
 			acpmock.Step{
@@ -239,15 +360,46 @@ func newSubagentDaemonIntegration(t *testing.T, steer ...string) (*Daemon, *sess
 			DefaultProvider: acpmock.ProviderName,
 			Providers: map[string]compozyconfig.ProviderConfig{
 				acpmock.ProviderName: acpmock.ProviderConfig(registration.Command),
+				"acpmock-other":      acpmock.ProviderConfig(registration.Command),
 			},
 			PermissionMode: compozyconfig.PermissionModeApproveAll,
 			Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Automation.Enabled = false
 				cfg.Roles.AutoTitle.Enabled = false
 				cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
+				if mutate != nil {
+					mutate(cfg)
+				}
 			},
 		},
 	)
+	// SeedConfig intentionally persists a small overlay; this journey also owns hook declarations.
+	if len(cfg.Hooks.Declarations) > 0 {
+		declarations := make([]map[string]any, 0, len(cfg.Hooks.Declarations))
+		for _, hook := range cfg.Hooks.Declarations {
+			declarations = append(
+				declarations,
+				map[string]any{
+					"name":    hook.Name,
+					"event":   hook.Event,
+					"mode":    hook.Mode,
+					"command": hook.Command,
+					"args":    hook.Args,
+				},
+			)
+		}
+		data, err := toml.Marshal(map[string]any{"hooks": map[string]any{"declarations": declarations}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		existing, err := os.ReadFile(home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(home.ConfigFile, append(append(existing, '\n'), data...), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	d := newTestDaemon(t, home, &cfg)
 	if err := d.boot(t.Context()); err != nil {
 		t.Fatal(err)
@@ -270,42 +422,45 @@ func newSubagentDaemonIntegration(t *testing.T, steer ...string) (*Daemon, *sess
 
 // IT-020: committed ACP Agent/Task traffic creates readable native rows without creating child sessions or wakes.
 func TestSubagentNativeDaemonIntegration(t *testing.T) {
-	d, manager, workspace := newSubagentDaemonIntegration(t)
-	parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
-	if err != nil {
-		t.Fatal(err)
-	}
-	response, err := manager.SendPrompt(t.Context(), parent.ID, session.SendPromptOpts{Message: "native work"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for range response.Events {
-	}
-	var row store.SessionSubagent
-	waitForRuntimeCondition(t, "native terminal row", 10*time.Second, func() bool {
-		page, err := d.SubagentService().
-			List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 20})
-		if err != nil || len(page.Items) != 1 {
-			return false
+	t.Run("Should persist native work without child sessions", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
 		}
-		row = page.Items[0]
-		return row.Status == "completed"
+		response, err := manager.SendPrompt(t.Context(), parent.ID, session.SendPromptOpts{Message: "native work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range response.Events {
+			continue
+		}
+		var row store.SessionSubagent
+		waitForRuntimeCondition(t, "native terminal row", 10*time.Second, func() bool {
+			page, err := d.SubagentService().
+				List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 20})
+			if err != nil || len(page.Items) != 1 {
+				return false
+			}
+			row = page.Items[0]
+			return row.Status == "completed"
+		})
+		if row.Origin != "provider_native" || row.ChildSessionID != nil || row.ProviderToolCallID != "toolu_agent" ||
+			row.RuntimeModel != "sonnet-5.5" ||
+			row.WakeMessageID != nil ||
+			row.Delivery != "none" ||
+			row.Result == nil ||
+			*row.Result == "" {
+			t.Fatal(row)
+		}
+		if _, err := d.SubagentService().
+			Cancel(t.Context(), session.SubagentActor{Kind: "operator"}, row.ID, ""); !errors.Is(
+			err,
+			session.ErrSubagentNotCancelable,
+		) {
+			t.Fatal(err)
+		}
 	})
-	if row.Origin != "provider_native" || row.ChildSessionID != nil || row.ProviderToolCallID != "toolu_agent" ||
-		row.RuntimeModel != "sonnet-5.5" ||
-		row.WakeMessageID != nil ||
-		row.Delivery != "none" ||
-		row.Result == nil ||
-		*row.Result == "" {
-		t.Fatal(row)
-	}
-	if _, err := d.SubagentService().
-		Cancel(t.Context(), session.SubagentActor{Kind: "operator"}, row.ID, ""); !errors.Is(
-		err,
-		session.ErrSubagentNotCancelable,
-	) {
-		t.Fatal(err)
-	}
 }
 
 // IT-004: real ACP steering injects without canceling; a refusal queues once with the same wake ID.
@@ -326,6 +481,7 @@ func TestSubagentSteerDaemonIntegration(t *testing.T) {
 			}
 			go func() {
 				for range response.Events {
+					continue
 				}
 			}()
 			waitForRuntimeCondition(
@@ -420,49 +576,51 @@ func TestSubagentWaitDaemonIntegration(t *testing.T) {
 
 // IT-008/IT-014: a real recursive ACP tree stops synchronously depth first and disposes its deliveries.
 func TestSubagentStopDaemonIntegration(t *testing.T) {
-	d, manager, workspace := newSubagentDaemonIntegration(t)
-	parent, caller := startSubagentIntegrationParent(t, manager, workspace)
-	child, err := d.SubagentService().
-		Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent", Title: "Child"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	childSession, ok := manager.Get(*child.ChildSessionID)
-	if !ok {
-		t.Fatal("child session missing")
-	}
-	waitForRuntimeCondition(
-		t,
-		"child active",
-		10*time.Second,
-		func() bool { return childSession.IsPrompting() && childSession.CurrentTurnID() != "" },
-	)
-	grandchild, err := d.SubagentService().
-		Delegate(t.Context(), session.SubagentRequest{Caller: session.SubagentCaller{WorkspaceID: workspace, SessionID: childSession.ID, TurnID: childSession.CurrentTurnID(), ToolCallID: "grandchild"}, Task: "hold parent", Title: "Grandchild"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := manager.Stop(t.Context(), parent.ID); err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range []session.Subagent{child, grandchild} {
-		info, err := manager.Status(t.Context(), *row.ChildSessionID)
-		if err != nil || info.State != session.StateStopped {
-			t.Fatal(info, err)
+	t.Run("Should synchronously stop the delegated tree", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+		child, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent", Title: "Child"})
+		if err != nil {
+			t.Fatal(err)
 		}
-		current, err := d.SubagentService().Get(t.Context(), workspace, row.ID)
-		if err != nil || current.Status != "canceled" || current.Delivery != "disposed" ||
-			current.WakeMessageID != nil {
-			t.Fatal(current, err)
+		childSession, ok := manager.Get(*child.ChildSessionID)
+		if !ok {
+			t.Fatal("child session missing")
 		}
-	}
-	if _, err := d.SubagentService().
-		Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", Title: "Late"}); !errors.Is(
-		err,
-		session.ErrSubagentParentNotActive,
-	) {
-		t.Fatal(err)
-	} // IT-010
+		waitForRuntimeCondition(
+			t,
+			"child active",
+			10*time.Second,
+			func() bool { return childSession.IsPrompting() && childSession.CurrentTurnID() != "" },
+		)
+		grandchild, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: session.SubagentCaller{WorkspaceID: workspace, SessionID: childSession.ID, TurnID: childSession.CurrentTurnID(), ToolCallID: "grandchild"}, Task: "hold parent", Title: "Grandchild"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Stop(t.Context(), parent.ID); err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range []session.Subagent{child, grandchild} {
+			info, err := manager.Status(t.Context(), *row.ChildSessionID)
+			if err != nil || info.State != session.StateStopped {
+				t.Fatal(info, err)
+			}
+			current, err := d.SubagentService().Get(t.Context(), workspace, row.ID)
+			if err != nil || current.Status != "canceled" || current.Delivery != "disposed" ||
+				current.WakeMessageID != nil {
+				t.Fatal(current, err)
+			}
+		}
+		if _, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", Title: "Late"}); !errors.Is(
+			err,
+			session.ErrSubagentParentNotActive,
+		) {
+			t.Fatal(err)
+		} // IT-010
+	})
 }
 
 func startSubagentIntegrationParent(
@@ -481,6 +639,7 @@ func startSubagentIntegrationParent(
 	}
 	go func() {
 		for range response.Events {
+			continue
 		}
 	}()
 	waitForRuntimeCondition(
@@ -495,4 +654,374 @@ func startSubagentIntegrationParent(
 		TurnID:      parent.CurrentTurnID(),
 		ToolCallID:  "child",
 	}
+}
+
+// IT-023: permission waiting belongs to the child and does not return prematurely from wait mode.
+func TestSubagentPermissionDaemonIntegration(t *testing.T) {
+	t.Run("Should wait through child approval", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		_, caller := startSubagentIntegrationParent(t, manager, workspace)
+		type result struct {
+			row session.Subagent
+			err error
+		}
+		done := make(chan result, 1)
+		go func() {
+			row, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "approval child", Title: "Approval", Mode: "wait", Timeout: 30 * time.Second, PermissionMode: compozyconfig.PermissionModeApproveReads})
+			done <- result{row, err}
+		}()
+		var row store.SessionSubagent
+		waitForRuntimeCondition(t, "child waiting for approval", 15*time.Second, func() bool {
+			page, err := d.SubagentService().
+				List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: caller.SessionID, Limit: 10})
+			if err != nil || len(page.Items) != 1 {
+				return false
+			}
+			row = page.Items[0]
+			return row.Status == "waiting"
+		})
+		select {
+		case got := <-done:
+			t.Fatalf("wait returned before approval: %+v", got)
+		default:
+		}
+		interactions, err := manager.PendingInteractions(
+			t.Context(),
+			*row.ChildSessionID,
+			[]string{store.PendingInteractionStatusPending},
+		)
+		if err != nil || len(interactions) != 1 {
+			t.Fatal(interactions, err)
+		}
+		if _, err := manager.ApprovePermission(
+			t.Context(),
+			*row.ChildSessionID,
+			acp.ApproveRequest{TurnID: interactions[0].TurnID, Decision: "allow-once"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case got := <-done:
+			if got.err != nil || got.row.Status != "completed" || got.row.Result == nil ||
+				*got.row.Result != "approved answer" ||
+				got.row.WakeMessageID != nil {
+				t.Fatal(got)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("wait did not finish after approval")
+		}
+	})
+}
+
+// IT-009/IT-026: interrupt disposes delivery and releases wait without stopping the child.
+// Owner: daemon orchestration; the existing ACP journey suite owns this lifecycle boundary.
+func TestSubagentInterruptDaemonIntegration(t *testing.T) {
+	t.Run("Should dispose delivery without stopping the child", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+		type result struct {
+			row session.Subagent
+			err error
+		}
+		done := make(chan result, 1)
+		go func() {
+			row, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "slow child", Title: "Slow", Mode: "wait", Timeout: 30 * time.Second})
+			done <- result{row, err}
+		}()
+		var row store.SessionSubagent
+		waitForRuntimeCondition(t, "running child", 10*time.Second, func() bool {
+			page, err := d.SubagentService().
+				List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 10})
+			if err != nil || len(page.Items) != 1 {
+				return false
+			}
+			row = page.Items[0]
+			if row.ChildSessionID == nil {
+				return false
+			}
+			child, ok := manager.Get(*row.ChildSessionID)
+			return ok && child.IsPrompting()
+		})
+		if _, err := manager.CancelPromptWithCause(t.Context(), parent.ID, session.PromptCancelUser); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case got := <-done:
+			if got.err != nil || got.row.Delivery != "disposed" {
+				t.Fatal(got)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("interrupt did not release waiter")
+		}
+		waitForRuntimeCondition(t, "child finishes independently", 10*time.Second, func() bool {
+			current, err := d.SubagentService().Get(t.Context(), workspace, row.ID)
+			return err == nil && current.Status == "completed" && current.Result != nil &&
+				*current.Result == "slow answer" &&
+				current.Delivery == "disposed" &&
+				current.WakeMessageID == nil
+		})
+		waitForRuntimeCondition(
+			t,
+			"parent cancellation completed",
+			5*time.Second,
+			func() bool { return !parent.IsPrompting() },
+		)
+		response, err := manager.SendPrompt(t.Context(), parent.ID, session.SendPromptOpts{Message: "hold parent"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			for range response.Events {
+				continue
+			}
+		}()
+		caller.TurnID = parent.CurrentTurnID()
+		got, err := d.SubagentService().Status(t.Context(), caller, row.ID)
+		if err != nil || got.Result == nil || *got.Result != "slow answer" {
+			t.Fatal(got, err)
+		}
+	})
+}
+
+// IT-011/IT-031: the boot reactor reconciles durable rows, admissions and missing wake inputs idempotently.
+// The daemon and ACP I/O stay real; detaching callbacks models the event gap before boot reconciliation.
+func TestSubagentRecoveryDaemonIntegration(t *testing.T) {
+	t.Run("Should reconcile durable work through the boot reactor", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+		service := d.SubagentService()
+		manager.SetSubagentService(nil)
+		t.Cleanup(func() { manager.SetSubagentService(service) })
+		row, err := service.Delegate(
+			t.Context(),
+			session.SubagentRequest{Caller: caller, Task: "slow child", Title: "Recovered"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, ok := manager.Get(*row.ChildSessionID)
+		if !ok {
+			t.Fatal("missing child")
+		}
+		waitForRuntimeCondition(
+			t,
+			"unobserved child completion",
+			10*time.Second,
+			func() bool { return !child.IsPrompting() && child.CurrentTurnID() == "" },
+		)
+		current, err := service.Get(t.Context(), workspace, row.ID)
+		if err != nil || current.Status != "running" {
+			t.Fatal(current, err)
+		}
+		state := &bootState{
+			sessions:          manager,
+			registry:          d.registry,
+			workspaceResolver: d.workspaceResolver.(*workspacepkg.Resolver),
+			hooks:             d.hooks,
+		}
+		if err := d.bootSubagents(t.Context(), state); err != nil {
+			t.Fatal(err)
+		}
+		service = state.subagents
+		current, err = service.Get(t.Context(), workspace, row.ID)
+		if err != nil || current.Status != "completed" || current.WakeMessageID == nil {
+			t.Fatal(current, err)
+		}
+		if err := service.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		inputs, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(t.Context(), parent.ID)
+		if err != nil || len(inputs) != 1 || inputs[0].MessageID != *current.WakeMessageID {
+			t.Fatal(inputs, err)
+		}
+		if _, err := service.Status(t.Context(), caller, row.ID); err != nil {
+			t.Fatal(err)
+		}
+		db := d.registry.(store.SubagentStore)
+		missing := row.SessionSubagent
+		missing.ID = "sub-recovery-missing"
+		missing.IdempotencyKey = "recovery-missing"
+		missing.RequestFingerprint = "recovery-missing"
+		missing.ChildSessionID = nil
+		missing.Status = "queued"
+		missing.WorkState = "working"
+		missing.Delivery = "none"
+		missing.WakeMessageID = nil
+		missing.PendingTask = nil
+		if _, _, err := db.ReserveSubagent(t.Context(), missing); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := db.FinalizeSubagent(
+			t.Context(),
+			store.SubagentFinalize{
+				ID:        missing.ID,
+				Status:    "completed",
+				WorkState: "result_available",
+				Result:    new("recovered"),
+				SettledAt: time.Now(),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.OpenOrJoinWake(
+			t.Context(),
+			parent.ID,
+			[]string{missing.ID},
+			"wake-recovery-missing",
+		); err != nil {
+			t.Fatal(err)
+		}
+		orphan, err := manager.Spawn(
+			t.Context(),
+			session.SpawnOpts{
+				ParentSessionID:  parent.ID,
+				ParentTurnID:     caller.TurnID,
+				AgentName:        "subagent-test",
+				SpawnRole:        "subagent",
+				AutoStopOnParent: true,
+				NotifyCreatorSet: true,
+				Subagent:         &hookspkg.SubagentSpawnPayload{Title: "Orphan", Role: "general", TaskChars: 1},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if err := service.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		info, err := manager.Status(t.Context(), orphan.ID)
+		if err != nil || info.State != session.StateStopped {
+			t.Fatal(info, err)
+		}
+		inputs, err = d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(t.Context(), parent.ID)
+		if err != nil || len(inputs) != 1 || inputs[0].MessageID != "wake-recovery-missing" {
+			t.Fatal(inputs, err)
+		}
+	})
+}
+
+// IT-022: an executed pre-create hook denies before a session exists and removes the reservation.
+// Owner: daemon integration; verifies the real hook executor, service and database boundary together.
+func TestSubagentHookDaemonIntegration(t *testing.T) {
+	t.Run("Should remove the reservation on hook denial", func(t *testing.T) {
+		capture := filepath.Join(t.TempDir(), "spawn.json")
+		script := writeDaemonHookScript(
+			t,
+			t.TempDir(),
+			"deny.sh",
+			"#!/bin/sh\ncat > \"$1\"\nprintf '%s\\n' '{\"deny\":true,\"deny_reason\":\"fixture policy\"}'\n",
+		)
+		d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+			cfg.Hooks.Declarations = append(
+				cfg.Hooks.Declarations,
+				hookspkg.HookDecl{
+					Name:    "deny-subagent",
+					Event:   hookspkg.HookSpawnPreCreate,
+					Mode:    hookspkg.HookModeSync,
+					Command: script,
+					Args:    []string{capture},
+				},
+			)
+		})
+		_, caller := startSubagentIntegrationParent(t, manager, workspace)
+		_, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", Title: "Denied"})
+		if !errors.Is(err, session.ErrSubagentCapabilityDenied) || !strings.Contains(err.Error(), "fixture policy") {
+			t.Fatal(err)
+		}
+		page, err := d.SubagentService().
+			List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: caller.SessionID, Limit: 10})
+		if err != nil || len(page.Items) != 0 {
+			t.Fatal(page, err)
+		}
+		data, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload hookspkg.SpawnPreCreatePayload
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Subagent == nil || payload.Subagent.Title != "Denied" || payload.Subagent.TaskChars != 10 {
+			t.Fatal(payload)
+		}
+	})
+}
+
+// IT-015: descendants wake only their immediate parent; an idle child waits for its own live work.
+func TestSubagentRecursiveDaemonIntegration(t *testing.T) {
+	t.Run("Should wake each immediate parent in order", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		_, caller := startSubagentIntegrationParent(t, manager, workspace)
+		child, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent", Title: "Child"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		childSession, ok := manager.Get(*child.ChildSessionID)
+		if !ok {
+			t.Fatal("missing child")
+		}
+		grandchild, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: session.SubagentCaller{WorkspaceID: workspace, SessionID: childSession.ID, TurnID: childSession.CurrentTurnID(), ToolCallID: "grandchild"}, Task: "slow child", Title: "Grandchild"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.CancelPromptWithCause(
+			t.Context(),
+			childSession.ID,
+			session.PromptCancelSyntheticAdmission,
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "waiting for grandchild", 5*time.Second, func() bool {
+			row, err := d.SubagentService().Get(t.Context(), workspace, child.ID)
+			return err == nil && row.WorkState == "waiting_for_children" && row.Status == "running" &&
+				row.WakeMessageID == nil
+		})
+		waitForRuntimeCondition(t, "recursive completion", 10*time.Second, func() bool {
+			row, err := d.SubagentService().Get(t.Context(), workspace, child.ID)
+			return err == nil && row.Status == "completed" && row.Delivery == "claimed"
+		})
+		db := d.registry.(store.SubagentStore)
+		waitForRuntimeCondition(t, "grandchild wake delivery receipt", 5*time.Second, func() bool {
+			row, err := db.GetSubagent(t.Context(), workspace, grandchild.ID)
+			return err == nil && row.Delivery == "delivered"
+		})
+		grand, err := db.GetSubagent(t.Context(), workspace, grandchild.ID)
+		if err != nil || grand.WakeMessageID == nil || grand.Delivery != "delivered" {
+			t.Fatal(grand, err)
+		}
+		wake, _, err := db.GetWake(t.Context(), *grand.WakeMessageID)
+		if err != nil || wake.ParentSessionID != childSession.ID {
+			t.Fatal(wake, err)
+		}
+	})
+}
+
+// IT-017: a launch failure after target resolution persists one failed row and no wake input.
+func TestSubagentBootFailureDaemonIntegration(t *testing.T) {
+	t.Run("Should persist a launch failure without a wake", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+			cfg.Providers["broken"] = compozyconfig.ProviderConfig{
+				Command:  "compozy-test-provider-does-not-exist",
+				AuthMode: compozyconfig.ProviderAuthModeNone,
+			}
+		})
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+		row, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", Title: "Broken", Target: session.SubagentTarget{Provider: "broken"}})
+		if err != nil || row.Status != "failed" || row.Error == nil ||
+			!strings.Contains(*row.Error, "compozy-test-provider-does-not-exist") {
+			t.Fatal(row, err)
+		}
+		inputs, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(t.Context(), parent.ID)
+		if err != nil || len(inputs) != 0 {
+			t.Fatal(inputs, err)
+		}
+	})
 }

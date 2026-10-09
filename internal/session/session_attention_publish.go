@@ -37,6 +37,7 @@ func (m *Manager) publishAttentionCommit(
 	if from == to {
 		return
 	}
+	m.publishSubagentLifecycleEdge(ctx, &before, &after)
 	at := m.now().UTC()
 	if commit.After.AttentionChangedAt != nil {
 		at = commit.After.AttentionChangedAt.UTC()

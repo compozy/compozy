@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 	"strings"
@@ -27,6 +28,9 @@ func (m *Manager) dispatchSpawnPreCreate(
 	}
 	result, err := m.hooks.spawn().DispatchSpawnPreCreate(ctx, payload)
 	if err != nil {
+		if _, denied := errors.AsType[*hookspkg.DeniedError](err); denied && opts.SpawnRole == store.SubagentSpawnRole {
+			return SpawnOpts{}, nil, fmt.Errorf("%w: %w", ErrSubagentCapabilityDenied, err)
+		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %w", ErrSpawnPermissionDenied, err)
 	}
 	if result.Denied {
