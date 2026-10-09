@@ -2,6 +2,8 @@ package spec
 
 const (
 	specIncludeKey   = "include"
+	specOnlyKey      = "only"
+	specExcludeKey   = "exclude"
 	specAllKey       = "all"
 	specActiveKey    = "active"
 	specArchivedKey  = "archived"

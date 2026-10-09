@@ -267,7 +267,7 @@ func ToolPayloadsFromViews(views []toolspkg.ToolView) []contract.ToolPayload {
 // ToolPayloadFromView converts one registry view into a public DTO.
 func ToolPayloadFromView(view *toolspkg.ToolView) contract.ToolPayload {
 	return contract.ToolPayload{
-		Descriptor:   toolDescriptorPayload(view.Descriptor),
+		Descriptor:   toolDescriptorPayload(&view.Descriptor),
 		Availability: toolAvailabilityPayload(view.Availability),
 		Decision:     toolDecisionPayload(view.Decision),
 	}
@@ -299,7 +299,7 @@ func ToolsetPayloadFromView(view toolspkg.ToolsetView) contract.ToolsetPayload {
 }
 
 // toolDescriptorPayload detaches registry-owned descriptor data from transport DTOs.
-func toolDescriptorPayload(d toolspkg.Descriptor) contract.ToolDescriptorPayload {
+func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayload {
 	presentation := d.Presentation()
 	return contract.ToolDescriptorPayload{
 		ToolID:              d.ID,

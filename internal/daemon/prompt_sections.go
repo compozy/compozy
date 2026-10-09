@@ -32,8 +32,8 @@ const (
 	startupSkillsSectionBudget    = 16_000
 	// Keep the router intact; reference manuals are loaded on demand.
 	startupToolsSectionBudget = 16_000
-	// Preserve complete operational guidance when the skill registry is disabled.
-	startupToolsReferenceSectionBudget = 64_000
+	// Track both complete bundled manuals; skills-disabled sessions cannot fetch omitted guidance.
+	startupToolsReferenceSectionBudget = 72_000
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or

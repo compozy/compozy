@@ -21,7 +21,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	payload := contract.ErrorPayload{Error: message}
 	switch {
 	case errors.Is(err, session.ErrListQueryInvalid):
-		payload.Code = "invalid_request"
+		payload.Code = cmdPaletteInvalidRequestError
 	case errors.Is(err, session.ErrSubagentArchiveFollows):
 		payload.Code = "subagent_archive_follows_parent"
 	case errors.Is(err, session.ErrCompactionUnsupported):
@@ -58,6 +58,17 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if code := WorktreeErrorCode(err); code != "" {
 		payload.Code = code
 	}
+	enrichWorktreeError(&payload, err)
+	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
+		payload.Code = string(reason.Code)
+		payload.Details = lifecycleReasonDetails(reason.Meta)
+	}
+	payload.Diagnostic = errorDiagnosticItem(message, err)
+	enrichSessionInputError(&payload, err)
+	return payload
+}
+
+func enrichWorktreeError(payload *contract.ErrorPayload, err error) {
 	if refusal, ok := errors.AsType[*worktree.RefusalError](err); ok && refusal.Detail != "" {
 		detail := diagnosticspkg.Redact(taskpkg.RedactClaimTokens(refusal.Detail))
 		payload.Details = map[string]string{"detail": detail}
@@ -68,13 +79,6 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if cause := worktree.ForgeFailureCause(err); cause != "" {
 		payload.Details = map[string]string{"cause": cause}
 	}
-	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
-		payload.Code = string(reason.Code)
-		payload.Details = lifecycleReasonDetails(reason.Meta)
-	}
-	payload.Diagnostic = errorDiagnosticItem(message, err)
-	enrichSessionInputError(&payload, err)
-	return payload
 }
 
 // errorDiagnosticItem returns the structured diagnostic an error carries, if any.

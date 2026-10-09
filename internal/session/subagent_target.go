@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/providers"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -191,7 +192,7 @@ func (r managerSubagentRuntime) providerOption(
 				ID:               model.ModelID,
 				Label:            model.DisplayName,
 				ReasoningEfforts: []string{},
-				Speeds:           []string{"normal"},
+				Speeds:           []string{string(speedpkg.SpeedNormal)},
 			}
 			for _, effort := range model.ReasoningEfforts {
 				item.ReasoningEfforts = append(item.ReasoningEfforts, string(effort))

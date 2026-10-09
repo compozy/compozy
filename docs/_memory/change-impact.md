@@ -122,6 +122,11 @@ catalog. Native descriptor/output schema and generated catalog co-ship with skil
 No HTTP DTO, Web, hooks/config, persistence or workspace isolation changes. UT-017 and the native
 binding suite own automation; RT-subagent-delegate retains its verdict pending the real-provider re-walk.
 
+Subagents CI follow-up: the skills-disabled startup allowance tracks the two complete bundled
+manuals (72,000 characters); the existing complete-manual assertion remains unchanged. No skill
+content, public tool/schema, hook/config, isolation or Web contract changes. The memory-retirement
+preservation test now isolates migration 00130, keeping its full data/schema/FK checks.
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

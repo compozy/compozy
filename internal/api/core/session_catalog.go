@@ -113,7 +113,11 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	switch subagents {
 	case "", "include", "exclude", "only":
 	default:
-		return session.ListQuery{}, false, fmt.Errorf("%w: unsupported subagents %q", session.ErrListQueryInvalid, subagents)
+		return session.ListQuery{}, false, fmt.Errorf(
+			"%w: unsupported subagents %q",
+			session.ErrListQueryInvalid,
+			subagents,
+		)
 	}
 	query := session.ListQuery{
 		Subagents:       subagents,

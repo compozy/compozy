@@ -81,21 +81,22 @@ type SubagentUpdatedEvent struct {
 	Subagent  SubagentPayload `json:"subagent"`
 }
 
-func SubagentFromDomain(row session.Subagent) SubagentPayload {
+func SubagentFromDomain(row *session.Subagent) SubagentPayload {
+	runtimeSpeed, resultPreview, hint := row.RuntimeSpeed, row.ResultPreview, row.Hint
 	if row.Origin == store.SubagentOriginDelegated && row.RuntimeSpeed == "" {
-		row.RuntimeSpeed = "normal"
+		runtimeSpeed = "normal"
 	}
 	if row.ResultPreview == "" && row.Result != nil {
 		line, _, _ := strings.Cut(*row.Result, "\n")
 		preview := []rune(line)
-		row.ResultPreview = string(preview[:min(len(preview), 280)])
+		resultPreview = string(preview[:min(len(preview), 280)])
 	}
 	if row.ResultTruncated && row.Hint == "" {
-		row.Hint = "Read the full answer with compozy__session_history on child_session_id."
+		hint = "Read the full answer with compozy__session_history on child_session_id."
 	}
 	var toolCallID *string
 	if row.ProviderToolCallID != "" {
-		toolCallID = &row.ProviderToolCallID
+		toolCallID = new(row.ProviderToolCallID)
 	}
 	return SubagentPayload{
 		SubagentID: row.ID, WorkspaceID: row.WorkspaceID,
@@ -103,10 +104,10 @@ func SubagentFromDomain(row session.Subagent) SubagentPayload {
 		ChildSessionID: row.ChildSessionID, Origin: row.Origin, ProviderToolCallID: toolCallID,
 		Title: row.Title, Role: row.Role, Status: row.Status, WorkState: row.WorkState,
 		Runtime: SubagentRuntimePayload{Agent: row.RuntimeAgent, Provider: row.RuntimeProvider,
-			Model: row.RuntimeModel, ReasoningEffort: row.RuntimeEffort, Speed: row.RuntimeSpeed},
-		Depth: row.Depth, Progress: row.Progress, Result: row.Result, ResultPreview: row.ResultPreview,
+			Model: row.RuntimeModel, ReasoningEffort: row.RuntimeEffort, Speed: runtimeSpeed},
+		Depth: row.Depth, Progress: row.Progress, Result: row.Result, ResultPreview: resultPreview,
 		ResultTruncated: row.ResultTruncated, Error: row.Error, WaitTimedOut: row.WaitTimedOut,
-		Hint: row.Hint, Delivery: row.Delivery, StartedAt: row.StartedAt,
+		Hint: hint, Delivery: row.Delivery, StartedAt: row.StartedAt,
 		SettledAt: row.SettledAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }

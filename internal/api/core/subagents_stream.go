@@ -8,7 +8,10 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (h *BaseHandlers) subscribeSubagents(ctx context.Context, sessionID string) (<-chan session.SubagentUpdate, func(), error) {
+func (h *BaseHandlers) subscribeSubagents(
+	ctx context.Context,
+	sessionID string,
+) (<-chan session.SubagentUpdate, func(), error) {
 	subscriber, ok := h.Subagents.(session.SubagentUpdateSubscriber)
 	if !ok {
 		return nil, func() {}, nil
@@ -16,7 +19,12 @@ func (h *BaseHandlers) subscribeSubagents(ctx context.Context, sessionID string)
 	return subscriber.SubscribeSubagentUpdates(ctx, sessionID)
 }
 
-func (h *BaseHandlers) writeSubagentsSnapshot(ctx context.Context, writer FlushWriter, sessionID string, info *session.Info) error {
+func (h *BaseHandlers) writeSubagentsSnapshot(
+	ctx context.Context,
+	writer FlushWriter,
+	sessionID string,
+	info *session.Info,
+) error {
 	if h.Subagents == nil {
 		return nil
 	}
@@ -24,7 +32,10 @@ func (h *BaseHandlers) writeSubagentsSnapshot(ctx context.Context, writer FlushW
 	if info != nil {
 		workspaceID = info.WorkspaceID
 	}
-	page, err := h.Subagents.List(ctx, store.SubagentListQuery{WorkspaceID: workspaceID, ParentSessionID: sessionID, Limit: 200})
+	page, err := h.Subagents.List(
+		ctx,
+		store.SubagentListQuery{WorkspaceID: workspaceID, ParentSessionID: sessionID, Limit: 200},
+	)
 	if err != nil {
 		return err
 	}
@@ -32,10 +43,28 @@ func (h *BaseHandlers) writeSubagentsSnapshot(ctx context.Context, writer FlushW
 		Data: contract.SubagentsSnapshotEvent{SessionID: sessionID, Subagents: subagentPagePayloads(page)}})
 }
 
-func writeSubagentUpdate(writer FlushWriter, sessionID string, update session.SubagentUpdate) error {
+func writeSubagentUpdate(writer FlushWriter, sessionID string, update *session.SubagentUpdate) error {
 	if update.ParentSessionID != sessionID {
 		return nil
 	}
-	return WriteSSE(writer, SSEMessage{Name: contract.SessionStreamEventSubagentUpdated,
-		Data: contract.SubagentUpdatedEvent{SessionID: sessionID, Subagent: contract.SubagentFromDomain(update.Subagent)}})
+	return WriteSSE(writer, SSEMessage{
+		Name: contract.SessionStreamEventSubagentUpdated,
+		Data: contract.SubagentUpdatedEvent{
+			SessionID: sessionID,
+			Subagent:  contract.SubagentFromDomain(&update.Subagent),
+		},
+	})
+}
+
+func (h *BaseHandlers) streamSubagentUpdate(
+	writer FlushWriter, sessionID string, update *session.SubagentUpdate, open bool,
+) bool {
+	if !open {
+		return false
+	}
+	if err := writeSubagentUpdate(writer, sessionID, update); err != nil {
+		h.writeTranscriptStreamError(writer, err)
+		return false
+	}
+	return true
 }

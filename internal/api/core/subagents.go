@@ -26,7 +26,7 @@ func (h *BaseHandlers) ListSessionSubagents(c *gin.Context) {
 	}
 	query, err := parseSubagentListQuery(c)
 	if err != nil {
-		subagentError(c, 400, "invalid_request", err.Error())
+		subagentError(c, 400, cmdPaletteInvalidRequestError, err.Error())
 		return
 	}
 	query.WorkspaceID, query.ParentSessionID = workspaceID, id
@@ -47,7 +47,7 @@ func (h *BaseHandlers) GetSubagent(c *gin.Context) {
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, contract.SubagentFromDomain(row))
+	c.JSON(http.StatusOK, contract.SubagentFromDomain(&row))
 }
 
 func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
@@ -57,7 +57,7 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 	}
 	var request contract.SubagentCancelRequest
 	if err := c.ShouldBindJSON(&request); err != nil && !errors.Is(err, io.EOF) {
-		subagentError(c, 400, "invalid_request", "Invalid cancellation request.")
+		subagentError(c, 400, cmdPaletteInvalidRequestError, "Invalid cancellation request.")
 		return
 	}
 	if row.Origin == store.SubagentOriginProviderNative {
@@ -67,7 +67,12 @@ func (h *BaseHandlers) CancelSubagent(c *gin.Context) {
 	actor := session.SubagentActor{Kind: "operator"}
 	credentials := agentCallerCredentialsFromRequest(c)
 	if hasAgentCallerIdentityCredentials(credentials) {
-		caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, "subagent.cancel", row.WorkspaceID)
+		caller, err := h.resolveAgentCallerForWorkspace(
+			c.Request.Context(),
+			credentials,
+			"subagent.cancel",
+			row.WorkspaceID,
+		)
 		if err != nil {
 			h.respondError(c, StatusForAgentIdentityError(err), err)
 			return
@@ -111,7 +116,8 @@ func (h *BaseHandlers) authorizedSubagent(c *gin.Context, write bool) (session.S
 		}
 		return session.Subagent{}, false
 	}
-	if row.WorkspaceID != workspaceID || !h.authorizeSubagentParent(c, workspaceID, row.ParentSessionID, write, "subagent_not_found", message) {
+	if row.WorkspaceID != workspaceID ||
+		!h.authorizeSubagentParent(c, workspaceID, row.ParentSessionID, write, "subagent_not_found", message) {
 		if row.WorkspaceID != workspaceID {
 			subagentError(c, 404, "subagent_not_found", message)
 		}
@@ -133,7 +139,12 @@ func (h *BaseHandlers) subagentWorkspace(c *gin.Context, code, message string) (
 	return resolved.ID, true
 }
 
-func (h *BaseHandlers) authorizeSubagentParent(c *gin.Context, workspaceID, parentID string, write bool, code, message string) bool {
+func (h *BaseHandlers) authorizeSubagentParent(
+	c *gin.Context,
+	workspaceID, parentID string,
+	write bool,
+	code, message string,
+) bool {
 	info, err := h.requireSessionInWorkspace(c.Request.Context(), workspaceID, parentID)
 	if err != nil {
 		subagentError(c, 404, code, message)
@@ -157,13 +168,19 @@ func parseSubagentListQuery(c *gin.Context) (store.SubagentListQuery, error) {
 	if raw := c.Query("limit"); c.Request.URL.Query().Has("limit") {
 		limit, err := ParseOptionalInt(raw)
 		if err != nil || limit < 1 || limit > 200 {
-			return query, errors.New("limit must be between 1 and 200.")
+			return query, &session.SubagentError{
+				Code:    cmdPaletteInvalidRequestError,
+				Message: "limit must be between 1 and 200.",
+			}
 		}
 		query.Limit = limit
 	}
 	if origin := c.Query("origin"); origin != "" {
 		if origin != store.SubagentOriginDelegated && origin != store.SubagentOriginProviderNative {
-			return query, errors.New("origin must be delegated or provider_native.")
+			return query, &session.SubagentError{
+				Code:    cmdPaletteInvalidRequestError,
+				Message: "origin must be delegated or provider_native.",
+			}
 		}
 		query.Origins = []string{origin}
 	}
@@ -172,10 +189,14 @@ func parseSubagentListQuery(c *gin.Context) (store.SubagentListQuery, error) {
 			value = strings.TrimSpace(value)
 			switch value {
 			case store.SubagentStatusQueued, store.SubagentStatusRunning, store.SubagentStatusWaiting,
-				store.SubagentStatusCompleted, store.SubagentStatusFailed, store.SubagentStatusCanceled, store.SubagentStatusInterrupted:
+				store.SubagentStatusCompleted, store.SubagentStatusFailed, store.SubagentStatusCanceled,
+				store.SubagentStatusInterrupted:
 				query.Statuses = append(query.Statuses, value)
 			default:
-				return query, fmt.Errorf("invalid subagent status %q.", value)
+				return query, &session.SubagentError{
+					Code:    cmdPaletteInvalidRequestError,
+					Message: fmt.Sprintf("invalid subagent status %q.", value),
+				}
 			}
 		}
 		slices.Sort(query.Statuses)
@@ -187,7 +208,7 @@ func parseSubagentListQuery(c *gin.Context) (store.SubagentListQuery, error) {
 func subagentPagePayloads(page store.SubagentPage) []contract.SubagentPayload {
 	payloads := make([]contract.SubagentPayload, 0, len(page.Items))
 	for _, row := range page.Items {
-		payloads = append(payloads, contract.SubagentFromDomain(session.Subagent{SessionSubagent: row}))
+		payloads = append(payloads, contract.SubagentFromDomain(&session.Subagent{SessionSubagent: row}))
 	}
 	return payloads
 }
@@ -201,11 +222,16 @@ func (h *BaseHandlers) respondSubagentError(c *gin.Context, err error) {
 	case errors.Is(err, session.ErrSubagentNotFound), errors.Is(err, store.ErrSubagentNotFound):
 		subagentError(c, 404, "subagent_not_found", "Subagent "+c.Param("subagent_id")+" not found.")
 	case errors.Is(err, session.ErrSubagentNotCancelable):
-		subagentError(c, 409, "subagent_not_cancelable", "Provider-native subagents cannot be canceled; stop the parent turn instead.")
+		subagentError(
+			c,
+			409,
+			"subagent_not_cancelable",
+			"Provider-native subagents cannot be canceled; stop the parent turn instead.",
+		)
 	case errors.Is(err, session.ErrSubagentCapabilityDenied):
 		subagentError(c, http.StatusForbidden, "capability_denied", err.Error())
 	case errors.Is(err, session.ErrSubagentInvalidRequest), errors.Is(err, listcursor.ErrInvalid):
-		subagentError(c, 400, "invalid_request", err.Error())
+		subagentError(c, 400, cmdPaletteInvalidRequestError, err.Error())
 	default:
 		h.respondError(c, 500, err)
 	}

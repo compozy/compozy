@@ -2,10 +2,11 @@ package httpapi
 
 import (
 	"fmt"
-	"github.com/compozy/compozy/internal/session"
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/ginutil"

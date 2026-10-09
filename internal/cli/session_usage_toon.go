@@ -107,7 +107,7 @@ func sessionUsageTurnsToon(value contract.SessionUsageTurnsResponse) (string, er
 		renderToonArray(
 			"compactions",
 			[]string{sessionTurnIDKey, sessionSequenceKey, "at", "compaction_id", "trigger",
-				"status", sessionContextUsedKey, sessionContextSizeKey,
+				automationStatusKey, sessionContextUsedKey, sessionContextSizeKey,
 				"context_after_used", "context_after_size", "context_after_sequence"},
 			compactions,
 		),
