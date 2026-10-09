@@ -1,0 +1,55 @@
+---
+title: "compozy session subagents"
+description: "List a session's subagents"
+---
+
+## compozy session subagents
+
+List a session's subagents
+
+```
+compozy session subagents <session-id> [flags]
+```
+
+### Options
+
+```
+      --cursor string      Continue from an opaque next_cursor
+  -h, --help               help for subagents
+      --limit int          Subagents per page (1-200) (default 50)
+      --origin string      Filter by delegated or provider_native origin
+      --status string      Filter by comma-separated statuses
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session subagents <session-id> -o json
+```
+
+## Subcommands
+
+| Command                                                                | Description                    |
+| ---------------------------------------------------------------------- | ------------------------------ |
+| [compozy session subagents cancel](/docs/cli/session/subagents/cancel) | Cancel a delegated subagent    |
+| [compozy session subagents show](/docs/cli/session/subagents/show)     | Show a subagent and its result |

@@ -80,6 +80,14 @@ func buildToolCallEvent(
 		CorrelationID: req.CorrelationID,
 		InputDigest:   digestRaw(redactInputForEvents(req.Input, req.SensitiveInputFields)),
 	}
+	if descriptor.ID == ToolIDSubagentDelegate && len(data.Result.Structured) > 0 {
+		var result struct {
+			SubagentID string `json:"subagent_id"`
+		}
+		if err := json.Unmarshal(data.Result.Structured, &result); err == nil {
+			event.SubagentID = result.SubagentID
+		}
+	}
 	if !data.StartedAt.IsZero() {
 		event.DurationMS = time.Since(data.StartedAt).Milliseconds()
 	}

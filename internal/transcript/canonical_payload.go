@@ -10,12 +10,14 @@ import (
 )
 
 type canonicalEventPayload struct {
-	Schema    string `json:"schema,omitempty"`
-	Type      string `json:"type,omitempty"`
-	SessionID string `json:"session_id,omitempty"`
-	TurnID    string `json:"turn_id,omitempty"`
-	MessageID string `json:"message_id,omitempty"`
-	RequestID string `json:"request_id,omitempty"`
+	ParentToolCallID string `json:"parent_tool_call_id,omitempty"`
+	ProviderToolName string `json:"provider_tool_name,omitempty"`
+	Schema           string `json:"schema,omitempty"`
+	Type             string `json:"type,omitempty"`
+	SessionID        string `json:"session_id,omitempty"`
+	TurnID           string `json:"turn_id,omitempty"`
+	MessageID        string `json:"message_id,omitempty"`
+	RequestID        string `json:"request_id,omitempty"`
 	store.EventCorrelation
 	CompactionTerminal bool                             `json:"terminal,omitzero"`
 	CompactionID       string                           `json:"compaction_id,omitempty"`

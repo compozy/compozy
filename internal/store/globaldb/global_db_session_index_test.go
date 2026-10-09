@@ -1895,3 +1895,200 @@ func sessionIDsForWorkspaceStateIndexTest(sessions []store.SessionInfo) []string
 	}
 	return ids
 }
+
+// UT-053, IT-029: subagent visibility is filtered before pagination and summaries are batched.
+func TestGlobalDBSubagentCatalog(t *testing.T) {
+	t.Run("Should filter subagents before the limit and summarize parents", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		for i := range 119 {
+			id := fmt.Sprintf("catalog-%03d", i)
+			role, parentID := "", ""
+			if i < 30 {
+				role, parentID = store.SubagentSpawnRole, parent
+			}
+			registerSubagentSession(t, db, workspace, id, parentID, role, now.Add(time.Duration(i+1)*time.Second))
+			if i < 30 {
+				r := reserveSubagent(t, db.SessionRepo, workspace, parent, "sub-"+id, now)
+				if _, err := db.LinkChild(ctx, r.ID, id, now); err != nil {
+					t.Fatal(err)
+				}
+				if i >= 3 {
+					status := store.SubagentStatusCompleted
+					if i == 3 {
+						status = store.SubagentStatusFailed
+					}
+					if _, _, err := db.FinalizeSubagent(
+						ctx,
+						store.SubagentFinalize{ID: r.ID, Status: status, SettledAt: now},
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+		}
+		for _, filter := range []string{"", "include", "exclude", "only"} {
+			expected := 100
+			if filter == "exclude" {
+				expected = 90
+			}
+			if filter == "only" {
+				expected = 30
+			}
+			listed, err := db.ListSessions(
+				ctx,
+				store.SessionListQuery{
+					ReadScope:   store.ReadScope{AllProfiles: true},
+					WorkspaceID: workspace,
+					Limit:       100,
+					Subagents:   filter,
+					Sort:        "recent",
+				},
+			)
+			if err != nil || len(listed) != expected {
+				t.Fatalf("list %s = %d %v", filter, len(listed), err)
+			}
+			page, err := db.PageSessions(
+				ctx,
+				store.SessionCatalogPageQuery{
+					ReadScope:   store.ReadScope{AllProfiles: true},
+					WorkspaceID: workspace,
+					Limit:       100,
+					Subagents:   filter,
+					Sort:        "recent",
+				},
+			)
+			if err != nil || len(page.Sessions) != expected {
+				t.Fatalf("page %s = %#v %v", filter, page, err)
+			}
+			total := 120
+			if filter == "exclude" {
+				total = 90
+			}
+			if filter == "only" {
+				total = 30
+			}
+			if page.Total != total {
+				t.Fatalf("total %s = %d", filter, page.Total)
+			}
+			foundParent := false
+			for _, r := range page.Sessions {
+				isSub := r.Lineage != nil && r.Lineage.SpawnRole == store.SubagentSpawnRole
+				if filter == "exclude" && isSub || filter == "only" && !isSub {
+					t.Fatalf("filter %s returned %s", filter, r.ID)
+				}
+				foundParent = foundParent || r.ID == parent
+			}
+			if filter == "exclude" && !foundParent {
+				t.Fatal("parent lost to child pagination")
+			}
+		}
+		if _, err := db.ListSessions(
+			ctx,
+			store.SessionListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Limit: 100, Subagents: "bogus"},
+		); err == nil {
+			t.Fatal("accepted invalid filter")
+		}
+		if _, err := db.PageSessions(
+			ctx,
+			store.SessionCatalogPageQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+				Limit:     100,
+				Subagents: "bogus",
+			},
+		); err == nil {
+			t.Fatal("accepted invalid page filter")
+		}
+		sums, err := db.Summaries(ctx, []string{parent, "empty"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := store.SubagentSummary{Total: 30, Live: 3, Failed: 1, MostUrgent: "failed"}
+		if sums[parent] != want {
+			t.Fatalf("summary=%#v want=%#v", sums[parent], want)
+		}
+		if _, ok := sums["empty"]; ok {
+			t.Fatal("empty summary should be omitted")
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE session_subagents SET status='waiting' WHERE id='sub-catalog-000'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		sums, err = db.Summaries(ctx, []string{parent})
+		if err != nil || sums[parent].Attention != 1 || sums[parent].Live != 3 ||
+			sums[parent].MostUrgent != "attention" {
+			t.Fatalf("attention=%v %v", sums, err)
+		}
+	})
+}
+
+// UT-054, IT-030: archive changes are atomic across subagent descendants only.
+func TestGlobalDBSubagentArchive(t *testing.T) {
+	t.Run(
+		"Should cascade archive and restore while rejecting live children and standalone changes",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db, workspace, parent, now := subagentFixture(t)
+			registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
+			registerSubagentSession(t, db, workspace, "grandchild", "child", store.SubagentSpawnRole, now)
+			registerSubagentSession(t, db, workspace, "plain", parent, "worker", now)
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET state='stopping' WHERE id='grandchild'`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.SetSessionArchived(
+				ctx,
+				workspace,
+				parent,
+				true,
+			); !errors.Is(err, store.ErrSessionArchiveRequiresStopped) ||
+				!strings.Contains(err.Error(), "grandchild") {
+				t.Fatalf("live descendant=%v", err)
+			}
+			for _, id := range []string{parent, "child", "grandchild", "plain"} {
+				at, err := db.SessionArchivedAt(ctx, workspace, id)
+				if err != nil || at != nil {
+					t.Fatalf("partial archive %s = %v %v", id, at, err)
+				}
+			}
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET state='stopped' WHERE id='grandchild'`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			for _, archived := range []bool{true, false} {
+				if _, err := db.SetSessionArchived(ctx, workspace, parent, archived); err != nil {
+					t.Fatal(err)
+				}
+				for _, id := range []string{parent, "child", "grandchild"} {
+					at, err := db.SessionArchivedAt(ctx, workspace, id)
+					if err != nil || (at != nil) != archived {
+						t.Fatalf("cascade %s = %v %v", id, at, err)
+					}
+				}
+				if _, err := db.SetSessionArchived(
+					ctx,
+					workspace,
+					"child",
+					archived,
+				); !errors.Is(
+					err,
+					store.ErrSubagentArchiveFollowsParent,
+				) {
+					t.Fatalf("standalone=%v", err)
+				}
+				at, err := db.SessionArchivedAt(ctx, workspace, "plain")
+				if err != nil || at != nil {
+					t.Fatalf("plain child=%v %v", at, err)
+				}
+			}
+		},
+	)
+}

@@ -44,6 +44,7 @@ var (
 
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
+	Subagents       string
 	ReadScope       store.ReadScope
 	WorkspaceID     string
 	AllWorkspaces   bool
@@ -75,6 +76,7 @@ type ListPage struct {
 }
 
 type sessionListFingerprint struct {
+	Subagents       string                     `json:"subagents,omitempty"`
 	ProfileID       string                     `json:"profile_id"`
 	AllProfiles     bool                       `json:"all_profiles"`
 	WorkspaceID     string                     `json:"workspace_id"`
@@ -170,6 +172,7 @@ func sessionCatalogPageQuery(
 	activeIDs []string,
 ) store.SessionCatalogPageQuery {
 	return store.SessionCatalogPageQuery{
+		Subagents:         normalized.Subagents,
 		SkipTotal:         normalized.SkipTotal,
 		ReadScope:         normalized.ReadScope,
 		WorkspaceID:       normalized.WorkspaceID,
@@ -216,6 +219,13 @@ func (m *Manager) activeSessionCatalogRows(
 }
 
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
+	switch query.Subagents {
+	case "", "include":
+		query.Subagents = ""
+	case "exclude", "only":
+	default:
+		return ListQuery{}, fmt.Errorf("%w: unsupported subagents %q", ErrListQueryInvalid, query.Subagents)
+	}
 	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
 	if err := query.ReadScope.Validate(); err != nil {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
@@ -342,6 +352,10 @@ func isPublicSessionCatalogInfo(info *Info) bool {
 }
 
 func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
+	isSubagent := info.Lineage != nil && info.Lineage.SpawnRole == store.SubagentSpawnRole
+	if (query.Subagents == "exclude" && isSubagent) || (query.Subagents == "only" && !isSubagent) {
+		return false
+	}
 	if query.ParentSessionID == "" && query.RootSessionID == "" {
 		return true
 	}
@@ -369,6 +383,7 @@ func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) 
 
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
+		Subagents:       query.Subagents,
 		ProfileID:       query.ReadScope.ProfileID,
 		AllProfiles:     query.ReadScope.AllProfiles,
 		WorkspaceID:     query.WorkspaceID,
@@ -391,43 +406,6 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		return "", fmt.Errorf("session: fingerprint list query: %w", err)
 	}
 	return fingerprint, nil
-}
-
-func decodeSessionListCursor(raw string, fingerprint string) (*store.SessionCatalogPosition, error) {
-	if raw == "" {
-		return nil, nil
-	}
-	position, err := listcursor.Decode[store.SessionCatalogPosition](
-		raw,
-		sessionListCursorVersion,
-		sessionListCursorKind,
-		fingerprint,
-		listcursor.DefaultMaxEncodedSize,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrListCursorInvalid, err)
-	}
-	if err := position.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrListCursorInvalid, err)
-	}
-	position.PrimaryAt = position.PrimaryAt.UTC()
-	position.SecondaryAt = position.SecondaryAt.UTC()
-	position.CreatedAt = position.CreatedAt.UTC()
-	position.ID = strings.TrimSpace(position.ID)
-	return &position, nil
-}
-
-func encodeSessionListCursor(fingerprint string, position store.SessionCatalogPosition) (string, error) {
-	encoded, err := listcursor.Encode(
-		sessionListCursorVersion,
-		sessionListCursorKind,
-		fingerprint,
-		position,
-	)
-	if err != nil {
-		return "", fmt.Errorf("session: encode list cursor: %w", err)
-	}
-	return encoded, nil
 }
 
 func projectSessionCatalogPage(

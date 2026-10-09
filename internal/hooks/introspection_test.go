@@ -232,6 +232,7 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		HookTaskRunReleased:    {HookEventFamilyTaskRun, "TaskRunReleasedPayload", "TaskRunObservationPatch", true},
 		HookTaskRunCompleted:   {HookEventFamilyTaskRun, "TaskRunCompletedPayload", "TaskRunObservationPatch", true},
 		HookTaskRunFailed:      {HookEventFamilyTaskRun, "TaskRunFailedPayload", "TaskRunObservationPatch", true},
+		HookSubagentSettled:    {HookEventFamilySubagent, "SubagentSettledPayload", "SubagentObservationPatch", false},
 		HookSpawnPreCreate:     {HookEventFamilySpawn, "SpawnPreCreatePayload", "SpawnCreatePatch", true},
 		HookSpawnCreated:       {HookEventFamilySpawn, "SpawnCreatedPayload", "SpawnObservationPatch", true},
 		HookSpawnParentStopped: {HookEventFamilySpawn, "SpawnParentStoppedPayload", "SpawnObservationPatch", true},

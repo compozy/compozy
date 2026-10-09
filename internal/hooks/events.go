@@ -22,6 +22,7 @@ const (
 	HookEventFamilyTaskRun       HookEventFamily = "task.run"
 	HookEventFamilyLoop          HookEventFamily = "loop"
 	HookEventFamilySpawn         HookEventFamily = "spawn"
+	HookEventFamilySubagent      HookEventFamily = "subagent"
 	HookEventFamilyWindowManager HookEventFamily = "window_manager"
 	HookEventFamilyWorktree      HookEventFamily = "worktree"
 	HookEventFamilyTerminal      HookEventFamily = "terminal"
@@ -30,7 +31,7 @@ const (
 // Validate ensures the event family is part of the supported taxonomy.
 func (f HookEventFamily) Validate() error {
 	switch f {
-	case HookEventFamilySession,
+	case HookEventFamilySubagent, HookEventFamilySession,
 		HookEventFamilyInput,
 		HookEventFamilyPrompt,
 		HookEventFamilyEvent,
@@ -143,6 +144,7 @@ const (
 	HookLoopNodeTerminal   HookEvent = "loop.node.terminal"
 	HookLoopTerminal       HookEvent = "loop.terminal"
 
+	HookSubagentSettled    HookEvent = "subagent.settled"
 	HookSpawnPreCreate     HookEvent = "spawn.pre_create"
 	HookSpawnCreated       HookEvent = "spawn.created"
 	HookSpawnParentStopped HookEvent = "spawn.parent_stopped"
@@ -157,6 +159,7 @@ type hookEventDefinition struct {
 }
 
 var baseHookEventDefinitions = []hookEventDefinition{
+	{event: HookSubagentSettled, family: HookEventFamilySubagent, syncEligible: false},
 	{event: HookSessionPreCreate, family: HookEventFamilySession, syncEligible: true},
 	{event: HookSessionPostCreate, family: HookEventFamilySession, syncEligible: true},
 	{event: HookSessionPreResume, family: HookEventFamilySession, syncEligible: true},

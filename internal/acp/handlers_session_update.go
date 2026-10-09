@@ -73,6 +73,7 @@ func translateSessionUpdate(
 		event.Type = EventTypeSystem
 	}
 
+	liftClaudeCodeMetadata(&event)
 	return event, nil
 }
 
@@ -94,6 +95,9 @@ func attachToolUpdatePayload(
 			return fmt.Errorf("acp: encode tool raw input: %w", err)
 		}
 		input = encoded
+	}
+	if status != nil {
+		*event = event.WithProviderToolMetadata(event.ParentToolCallID(), event.ProviderToolName(), string(*status))
 	}
 	failed := status != nil && *status == acpsdk.ToolCallStatusFailed
 	*event = event.WithTool(strings.TrimSpace(title), input, failed).WithToolKind(toolKind)
@@ -132,4 +136,23 @@ func availableCommandNames(commands []acpsdk.AvailableCommand) []store.SessionAd
 		result = append(result, next)
 	}
 	return result
+}
+
+func liftClaudeCodeMetadata(event *AgentEvent) {
+	var envelope struct {
+		Meta struct {
+			ClaudeCode struct {
+				ParentToolUseID string `json:"parentToolUseId"`
+				ToolName        string `json:"toolName"`
+			} `json:"claudeCode"`
+		} `json:"_meta"`
+	}
+	if err := json.Unmarshal(event.Raw, &envelope); err != nil {
+		return
+	}
+	*event = event.WithProviderToolMetadata(
+		envelope.Meta.ClaudeCode.ParentToolUseID,
+		envelope.Meta.ClaudeCode.ToolName,
+		event.ToolStatus(),
+	)
 }

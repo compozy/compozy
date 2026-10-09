@@ -649,3 +649,52 @@ func assertJSONRoundTrip[T any](t *testing.T, name string, sample T) {
 		}
 	})
 }
+
+// UT-042: the hook boundary preserves delegation metadata on the wire.
+func TestSubagentHookPayloads(t *testing.T) {
+	t.Run("Should serialize delegation and settlement payloads", func(t *testing.T) {
+		t.Parallel()
+		pre := SpawnPreCreatePayload{
+			SpawnRole: "subagent",
+			Subagent:  &SubagentSpawnPayload{Title: "Review", Role: "review", TaskChars: 42},
+		}
+		raw, err := json.Marshal(pre)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		sub, ok := decoded["subagent"].(map[string]any)
+		if !ok || decoded["spawn_role"] != "subagent" || sub["title"] != "Review" || sub["role"] != "review" ||
+			sub["task_chars"] != float64(42) {
+			t.Fatalf("payload = %s", raw)
+		}
+		settled := SubagentSettledPayload{
+			Event:           HookSubagentSettled,
+			WorkspaceID:     "ws",
+			SubagentID:      "sub",
+			ParentSessionID: "parent",
+			ChildSessionID:  new("child"),
+			Origin:          "delegated",
+			Status:          "completed",
+			Runtime:         SubagentRuntimePayload{Provider: "codex", Model: "model"},
+			DurationMS:      123,
+		}
+		raw, err = json.Marshal(settled)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got SubagentSettledPayload
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, settled) {
+			t.Fatalf("round trip = %#v", got)
+		}
+		if HookSubagentSettled.SyncEligible() || HookSubagentSettled.Family() != HookEventFamilySubagent {
+			t.Fatal("settlement must be observe-only in subagent family")
+		}
+	})
+}

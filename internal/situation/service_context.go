@@ -146,7 +146,15 @@ func (s *Service) PromptStartupSection(
 	if err != nil {
 		return "", err
 	}
-	return RenderPrompt(&payload)
+	sections, err := renderSections(&payload)
+	if err != nil {
+		return "", err
+	}
+	sections, err = s.appendSubagentSection(ctx, sections, startup.WorkspaceID, startup.SessionID)
+	if err != nil {
+		return "", err
+	}
+	return renderPromptFromSections(sections)
 }
 
 // Augment prefixes a live prompt with fresh situation context.
@@ -168,6 +176,10 @@ func (s *Service) Augment(
 		return "", err
 	}
 	sections = s.promptSections.compact(info, sections)
+	sections, err = s.appendSubagentSection(ctx, sections, info.WorkspaceID, info.ID)
+	if err != nil {
+		return "", err
+	}
 	rendered, err := renderPromptFromSections(sections)
 	if err != nil {
 		return "", err

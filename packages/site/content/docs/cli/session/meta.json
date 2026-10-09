@@ -35,6 +35,7 @@
         "goal",
         "input",
         "runtime",
-        "soul"
+        "soul",
+        "subagents"
     ]
 }

@@ -2176,6 +2176,58 @@
     "output_schema_digest": "fadf40d7421248945f924e72c73663e92867d40edcc29049ff4e298b51cf006b"
   },
   {
+    "tool_id": "compozy__subagent_cancel",
+    "native_name": "subagent_cancel",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "c5d720327159bfd48ccc2ff2a441fc5154fae2504facde8b78bb0a7f8ad850f6",
+    "output_schema_digest": "eda66d7a7272fb528af2e543d373f69ed7eb913b2acb9e4c31fd3e1a7ed7d401"
+  },
+  {
+    "tool_id": "compozy__subagent_capabilities",
+    "native_name": "subagent_capabilities",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "ced6393e83b7792d15520db8e56e6ab8d9a215deb2acc9d4239fd8798371e9d2"
+  },
+  {
+    "tool_id": "compozy__subagent_delegate",
+    "native_name": "subagent_delegate",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": true,
+    "input_schema_digest": "f8052e2e6194db729899bf0975ceab873b1f2868d70d04148e1450c0cb347a35",
+    "output_schema_digest": "a2c2d0f44f27a8a76f6f26fbccc9c691895d5146715ceeb96891205499ec0ef1"
+  },
+  {
+    "tool_id": "compozy__subagent_status",
+    "native_name": "subagent_status",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "56aea006d4a44b193a1e7c8fb3224d2dcf84a8fbd20abea1e7c000b7f0ee3b98",
+    "output_schema_digest": "a2c2d0f44f27a8a76f6f26fbccc9c691895d5146715ceeb96891205499ec0ef1"
+  },
+  {
     "tool_id": "compozy__task_block",
     "native_name": "task_block",
     "toolsets": [

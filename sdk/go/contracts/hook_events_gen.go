@@ -5,6 +5,7 @@ package contracts
 type HookEvent string
 
 const (
+	HookEventSubagentSettled                 HookEvent = "subagent.settled"
 	HookEventSessionPreCreate                HookEvent = "session.pre_create"
 	HookEventSessionPostCreate               HookEvent = "session.post_create"
 	HookEventSessionPreResume                HookEvent = "session.pre_resume"

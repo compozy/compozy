@@ -54,8 +54,11 @@ exits `0` after a cancel and `66` when there was nothing to cancel.
 
 `compozy spawn` creates a child with a required TTL, lineage, capacity limits, and permissions that
 cannot exceed its parent. By default, CompozyOS queues a sanitized synthetic turn on the parent when
-the child stops, fails, or enters a needs-you state. The wake never interrupts an active parent
-prompt.
+the child completes a turn, stops, fails, or enters a needs-you state. A canceled child turn sends no
+completed wake. The wake never interrupts an active parent prompt.
+
+To hand one task to another agent, provider, or model from inside a turn and get the answer back
+without managing a child yourself, use [subagents](/docs/sessions/subagents) instead.
 
 ```bash
 compozy spawn --agent researcher --ttl-seconds 3600
@@ -91,6 +94,7 @@ returns `queue-full` without consuming the pending interaction.
 ## Related pages
 
 - [Safe Spawn](/docs/autonomy/safe-spawn) covers child constraints and cleanup.
+- [Delegate to subagents](/docs/sessions/subagents) covers one-call delegation with a wake on completion.
 - [Session Lifecycle](/docs/sessions/lifecycle) covers durable session and runtime state.
 - [Session Wait CLI](/docs/cli/session/wait) lists the generated flags.
 - [Prompt Cancel CLI](/docs/cli/session/prompt-cancel) lists the generated command contract.

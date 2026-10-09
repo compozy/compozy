@@ -112,6 +112,9 @@ func (b *uiMessageBuilder) ensureToolPart(decoded *decodedStoredEvent) (*UIMessa
 	}
 	if index, ok := b.toolIndices[key]; ok {
 		part := &b.parts[index]
+		if decoded.agent.ParentToolCallID() != "" {
+			part.ParentToolCallID = decoded.agent.ParentToolCallID()
+		}
 		if part.Type == uiPartDynamicTool && strings.TrimSpace(decoded.parsed.ToolName) != "" {
 			part.Type = toolPartType(decoded.parsed.ToolName)
 			part.ToolName = ""

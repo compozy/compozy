@@ -374,6 +374,7 @@ const (
 
 // ToolCallEvent is the redacted dispatch event envelope emitted by Registry.Call.
 type ToolCallEvent struct {
+	SubagentID           string            `json:"subagent_id,omitempty"`
 	Kind                 ToolCallEventKind `json:"kind"`
 	ToolID               ToolID            `json:"tool_id"`
 	DisplayTitle         string            `json:"display_title,omitempty"`

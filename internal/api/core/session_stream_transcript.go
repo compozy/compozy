@@ -13,6 +13,7 @@ import (
 )
 
 type transcriptStreamState struct {
+	subagentUpdates  <-chan session.SubagentUpdate
 	cursor           int64
 	usageCursor      int64
 	generation       int64
@@ -32,6 +33,12 @@ func (h *BaseHandlers) streamTranscriptSessionEvents(
 	subscription sessionEventStreamSubscription,
 ) {
 	defer subscription.cancelIfActive()
+	updates, cancel, err := h.subscribeSubagents(c.Request.Context(), sessionID)
+	if err != nil {
+		h.writeTranscriptStreamError(writer, err)
+		return
+	}
+	defer cancel()
 
 	state, err := h.initializeTranscriptStream(
 		c.Request.Context(),
@@ -45,6 +52,11 @@ func (h *BaseHandlers) streamTranscriptSessionEvents(
 	)
 	if err != nil {
 		h.writeTranscriptStreamError(writer, fmt.Errorf("initialize transcript stream: %w", err))
+		return
+	}
+	state.subagentUpdates = updates
+	if err := h.writeSubagentsSnapshot(c.Request.Context(), writer, sessionID, info); err != nil {
+		h.writeTranscriptStreamError(writer, err)
 		return
 	}
 	state.commandRevision, err = h.writeSessionCommandsChanged(
@@ -171,6 +183,7 @@ func (h *BaseHandlers) refreshTranscriptStream(
 			limit,
 			contract.TranscriptSnapshotReasonEpochMismatch,
 		)
+		resetState.subagentUpdates = state.subagentUpdates
 		resetState.commandRevision = state.commandRevision
 		resetState.commandCheckedAt = state.commandCheckedAt
 		return resetState, latest, resetErr
@@ -194,6 +207,7 @@ func (h *BaseHandlers) refreshTranscriptStream(
 	}
 	if resetReason != "" {
 		resetState, resetErr := h.resetTranscriptStream(ctx, writer, sessionID, info, limit, resetReason)
+		resetState.subagentUpdates = state.subagentUpdates
 		resetState.commandRevision = state.commandRevision
 		resetState.commandCheckedAt = state.commandCheckedAt
 		return resetState, info, resetErr
@@ -260,6 +274,14 @@ func (h *BaseHandlers) pollAndStreamSessionTranscript(
 			return
 		case <-h.StreamDoneChannel():
 			return
+		case update, ok := <-state.subagentUpdates:
+			if !ok {
+				return
+			}
+			if err := writeSubagentUpdate(writer, sessionID, update); err != nil {
+				h.writeTranscriptStreamError(writer, err)
+				return
+			}
 		case <-keepAlive.C:
 			if !h.writeKeepAlive(writer) {
 				return
@@ -321,6 +343,14 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 			return
 		case <-h.StreamDoneChannel():
 			return
+		case update, ok := <-state.subagentUpdates:
+			if !ok {
+				return
+			}
+			if err := writeSubagentUpdate(writer, sessionID, update); err != nil {
+				h.writeTranscriptStreamError(writer, err)
+				return
+			}
 		case <-keepAlive.C:
 			if !h.writeKeepAlive(writer) {
 				return

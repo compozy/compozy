@@ -39,7 +39,7 @@ var (
 type SpawnOpts struct {
 	ParentTurnID    string
 	Permissions     compozyconfig.PermissionMode
-	Subagent        *hookspkg.SpawnSubagentContext
+	Subagent        *hookspkg.SubagentSpawnPayload
 	ParentSessionID string
 	// InheritedWorktreeID is daemon-owned structural context copied from the parent.
 	// Public callers cannot select or override it.

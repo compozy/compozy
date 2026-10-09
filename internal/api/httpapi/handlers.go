@@ -10,6 +10,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -25,6 +26,7 @@ const (
 type handlerConfig struct {
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
+	subagents             session.SubagentService
 	sessionCatalog        core.SessionCatalog
 	taskDesignations      core.TaskDesignationStore
 	skillExposureStore    store.SkillExposureRepository
@@ -202,6 +204,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Sessions:               cfg.sessions,
 		SessionAcceptance:      sessionAcceptanceManager(cfg.sessions),
 		DrainController:        cfg.drainController,
+		Subagents:              cfg.subagents,
 		SessionCatalog:         cfg.sessionCatalog,
 		TaskDesignations:       cfg.taskDesignations,
 		Tasks:                  cfg.tasks,

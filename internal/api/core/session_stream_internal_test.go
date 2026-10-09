@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -1292,4 +1293,74 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 			t.Fatalf("write error=%v", err)
 		}
 	})
+}
+
+// IT-019: the parent stream seeds subagents before forwarding committed updates.
+func TestSubagentStreamOrdering(t *testing.T) {
+	t.Parallel()
+	for _, push := range []bool{false, true} {
+		name := "Should seed and forward subagents through polling"
+		if push {
+			name = "Should seed and forward subagents through push"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			info := streamTestSessionInfo("parent")
+			service := &subagentStreamStub{t: t, updates: make(chan session.SubagentUpdate, 1)}
+			service.updates <- session.SubagentUpdate{ParentSessionID: "parent", Subagent: session.Subagent{SessionSubagent: store.SessionSubagent{ID: "sub-1", Status: "completed"}}}
+			close(service.updates)
+			manager := sessionManagerStub{
+				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+					return []store.SessionEvent{}, nil
+				},
+				transcriptPage: func(context.Context, string, transcript.PageQuery) (transcript.Page, error) {
+					return transcript.Page{Generation: 1}, nil
+				},
+			}
+			handlers := &BaseHandlers{Sessions: manager, Subagents: service, PollInterval: time.Hour, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
+			writer := &streamTestFlushWriter{}
+			subscription := sessionEventStreamSubscription{}
+			if push {
+				subscription.events = make(chan store.SessionEvent)
+				subscription.cancel = func() {}
+			}
+			handlers.streamTranscriptSessionEvents(ctx, writer, "parent", info, store.EventQuery{Limit: 200}, nil, sessionStreamOptions{frameMode: contract.SessionStreamFrameTranscript}, subscription)
+			body := writer.String()
+			snapshot := strings.Index(body, "event: transcript_snapshot")
+			subagents := strings.Index(body, "event: subagents_snapshot")
+			updated := strings.Index(body, "event: subagent_updated")
+			if snapshot < 0 || subagents <= snapshot || updated <= subagents || !strings.Contains(body, `"status":"completed"`) || !service.canceled {
+				t.Fatalf("invalid ordering or subscription cleanup (canceled=%v): %s", service.canceled, body)
+			}
+		})
+	}
+}
+
+type subagentStreamStub struct {
+	session.SubagentService
+	t          *testing.T
+	updates    chan session.SubagentUpdate
+	subscribed bool
+	canceled   bool
+}
+
+var _ session.SubagentService = (*subagentStreamStub)(nil)
+var _ session.SubagentUpdateSubscriber = (*subagentStreamStub)(nil)
+
+func (s *subagentStreamStub) SubscribeSubagentUpdates(_ context.Context, id string) (<-chan session.SubagentUpdate, func(), error) {
+	s.t.Helper()
+	if id != "parent" {
+		s.t.Fatalf("subscription id = %s", id)
+	}
+	s.subscribed = true
+	return s.updates, func() { s.canceled = true }, nil
+}
+func (s *subagentStreamStub) List(_ context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
+	s.t.Helper()
+	if !s.subscribed || q.ParentSessionID != "parent" || q.Limit != 200 || q.WorkspaceID != "ws-workspace" {
+		s.t.Fatalf("unfenced snapshot: %+v", q)
+	}
+	return store.SubagentPage{Items: []store.SessionSubagent{{ID: "sub-1", Status: "running"}}}, nil
 }

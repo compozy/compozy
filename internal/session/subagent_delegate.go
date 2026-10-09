@@ -90,7 +90,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		IdempotencyKey:   id,
 		Permissions:      mode,
 		PermissionPolicy: policy,
-		Subagent:         &hookspkg.SpawnSubagentContext{Title: row.Title, Role: row.Role, TaskChars: row.TaskChars},
+		Subagent:         &hookspkg.SubagentSpawnPayload{Title: row.Title, Role: row.Role, TaskChars: row.TaskChars},
 	}
 	return s.startDelegation(ctx, req, row, opts, finishFlight)
 }

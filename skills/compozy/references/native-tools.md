@@ -133,6 +133,54 @@ that child. Optional `provider`, `model`, `reasoning_effort`, `speed`, and `acp_
 override the named agent's runtime for the child. The result returns the child session ID, role,
 depth, and TTL expiry.
 
+Subagent tools, also in the `sessions` toolset: `compozy__subagent_capabilities`,
+`compozy__subagent_delegate`, `compozy__subagent_status`, `compozy__subagent_cancel`. A subagent is a
+delegated child session owned by the caller's current turn. Every subagent tool requires the caller to
+have an active turn and otherwise returns `parent_not_active`. Use them instead of chaining
+`session_spawn` → `session_prompt` → `session_wait` → `session_history` when you want one task answered
+by another agent, provider, or model while you keep working:
+
+1. `compozy__subagent_capabilities {}` returns the caller's inherited runtime, permission mode, depth,
+   live subagent count, and per-agent and per-provider `can_delegate` with `constraints` and advertised
+   models. Pick a target whose `can_delegate` is true.
+2. `compozy__subagent_delegate` takes a required, self-contained `task` (≤ 120,000 characters). The
+   subagent sees only `task`: no conversation history and no attachments, so include every fact it
+   needs. Optional `title` (≤ 512), `role` (`general`, `implementation`, `research`, `review`, `design`,
+   `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
+   fields inherit from the caller, and the model is inherited only when the provider is unchanged),
+   `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode`, and
+   `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
+   inherit the caller's full budget, `[]` means none, and every value can only narrow
+   (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
+3. Prefer `mode: "async"` (default): the call returns `status: "running"` with `subagent_id` and
+   `child_session_id`. Keep working, then end your turn. Do not poll or wait in loops.
+4. When the subagent settles, CompozyOS wakes you once per batch with a pointer message:
+   `Subagent "<title>" (<subagent_id>) finished: <status>.` lines followed by
+   `Call compozy__subagent_status to read each result.` The wake is steered into your running turn when
+   your agent supports steering, otherwise queued ahead of user prompts.
+5. `compozy__subagent_status {subagent_id}` returns the status, `work_state`, `result` (the child's last
+   assistant message, capped at `[subagents].result_max_chars`, with `result_truncated` and a hint to read
+   the rest through `compozy__session_history` on `child_session_id`), `error`, and `delivery`. Reading a
+   terminal result acknowledges it and removes it from a queued wake, so the tool is idempotent but not
+   read-only.
+
+`mode: "wait"` blocks until the result or `timeout_ms` (default 600,000, clamped to 1,000–3,600,000).
+A timeout returns `wait_timed_out: true`, never cancels the subagent, and switches it to a normal wake.
+Use wait only for short tasks; some providers abort long tool calls.
+
+Statuses are `queued`, `running`, `waiting` (the child needs approval or input), `completed`, `failed`,
+`canceled`, and `interrupted`. A waiting subagent does not wake you: the operator approves it, or you
+call `compozy__session_approve` or `compozy__session_clarify_answer` on its `child_session_id` after
+status reports `waiting`. `compozy__subagent_cancel {subagent_id, reason?}` returns `cancel_requested`
+for a live subagent, otherwise its terminal status; Claude's own Agent/Task subagents
+(`origin: "provider_native"`) return `subagent_not_cancelable`. For another review round, delegate again
+with the original brief, prior findings, and open objections instead of prompting the old child. A
+subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
+concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live
+subagent depth-first; interrupting a turn keeps its subagents running, but their results no longer wake
+you. CLI and HTTP/UDS fallback for reads and cancel: `compozy session subagents <session-id>`,
+`compozy session subagents show|cancel <subagent-id>`.
+
 `compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another
 session's active prompt and returns `canceled` or `nothing-in-flight` without stopping the session.

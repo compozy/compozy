@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const sessionArchivedConstraintMessage = "session is archived"
@@ -42,53 +43,66 @@ func (g *SessionRepo) SetSessionArchived(
 		return store.SessionInfo{}, errors.New("store: session archive session id is required")
 	}
 
-	current, err := g.sessionForArchive(ctx, workspaceID, sessionID)
-	if err != nil {
-		return store.SessionInfo{}, err
-	}
-	if archived && strings.TrimSpace(current.State) != globalDBSessionStateStopped {
-		return store.SessionInfo{}, fmt.Errorf("%w: %s", store.ErrSessionArchiveRequiresStopped, sessionID)
-	}
-	if archived == (current.ArchivedAt != nil) {
-		return current, nil
-	}
-
-	now := g.now()
-	archivedAt := any(nil)
-	query := `UPDATE sessions SET archived_at = ?, updated_at = ?
-		WHERE workspace_id = ? AND id = ?`
-	if archived {
-		archivedAt = store.FormatTimestamp(now)
-		query += " AND state = 'stopped' AND archived_at IS NULL"
-	} else {
-		query += " AND archived_at IS NOT NULL"
-	}
-	result, err := g.db.ExecContext(
-		ctx,
-		query,
-		archivedAt,
-		store.FormatTimestamp(now),
-		workspaceID,
-		sessionID,
-	)
-	if err != nil {
-		return store.SessionInfo{}, fmt.Errorf("store: update session archive state %q: %w", sessionID, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return store.SessionInfo{}, fmt.Errorf("store: read session archive rows affected %q: %w", sessionID, err)
-	}
-	if affected == 0 {
-		latest, readErr := g.sessionForArchive(ctx, workspaceID, sessionID)
-		if readErr != nil {
-			return store.SessionInfo{}, readErr
+	var result store.SessionInfo
+	err := g.withImmediateTransaction(ctx, "archive session family", func(exec globalSQLExecutor) error {
+		current, e := scanSessionInfo(
+			exec.QueryRowContext(
+				ctx,
+				sessionInfoSelectQuery+" WHERE workspace_id = ? AND id = ?",
+				workspaceID,
+				sessionID,
+			),
+		)
+		if errors.Is(e, sql.ErrNoRows) {
+			return store.ErrSessionNotFound
 		}
-		if archived && strings.TrimSpace(latest.State) != globalDBSessionStateStopped {
-			return store.SessionInfo{}, fmt.Errorf("%w: %s", store.ErrSessionArchiveRequiresStopped, sessionID)
+		if e != nil {
+			return e
 		}
-		return latest, nil
-	}
-	return g.sessionForArchive(ctx, workspaceID, sessionID)
+		if current.Lineage != nil && current.Lineage.SpawnRole == store.SubagentSpawnRole {
+			return store.ErrSubagentArchiveFollowsParent
+		}
+		q := sqlcgen.New(exec)
+		family, e := q.ListSubagentArchiveFamily(
+			ctx,
+			sqlcgen.ListSubagentArchiveFamilyParams{WorkspaceID: workspaceID, SessionID: sessionID},
+		)
+		if e != nil {
+			return e
+		}
+		ids := make([]string, 0, len(family))
+		for _, member := range family {
+			if archived && member.State != globalDBSessionStateStopped {
+				return fmt.Errorf("%w: %s", store.ErrSessionArchiveRequiresStopped, member.ID)
+			}
+			ids = append(ids, member.ID)
+		}
+		encoded, e := subagentIDsJSON(ids)
+		if e != nil {
+			return e
+		}
+		now := store.FormatTimestamp(g.now())
+		at := sql.NullString{}
+		if archived {
+			at = sql.NullString{String: now, Valid: true}
+		}
+		if e = q.SetSubagentFamilyArchived(
+			ctx,
+			sqlcgen.SetSubagentFamilyArchivedParams{WorkspaceID: workspaceID, Ids: encoded, ArchivedAt: at, Now: now},
+		); e != nil {
+			return mapSessionArchivedConstraint(sessionID, e)
+		}
+		result, e = scanSessionInfo(
+			exec.QueryRowContext(
+				ctx,
+				sessionInfoSelectQuery+" WHERE workspace_id = ? AND id = ?",
+				workspaceID,
+				sessionID,
+			),
+		)
+		return e
+	})
+	return result, err
 }
 
 func mapSessionArchivedConstraint(sessionID string, err error) error {

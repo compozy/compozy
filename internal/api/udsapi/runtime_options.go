@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // WithHomePaths overrides the resolved Compozy home layout.
@@ -76,4 +77,8 @@ func WithTaskService(service core.TaskService) Option {
 // WithDaemonDrainController injects daemon-global admission control.
 func WithDaemonDrainController(controller core.DaemonDrainController) Option {
 	return func(server *Server) { server.drainController = controller }
+}
+
+func WithSubagentService(service session.SubagentService) Option {
+	return func(server *Server) { server.subagents = service }
 }

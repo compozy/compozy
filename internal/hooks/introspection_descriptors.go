@@ -3,6 +3,7 @@ package hooks
 import "maps"
 
 var hookEventDescriptors = mergeHookEventDescriptors(
+	subagentHookEventDescriptors(),
 	sessionHookEventDescriptors(),
 	sessionAttentionHookEventDescriptors(),
 	agentHookEventDescriptors(),

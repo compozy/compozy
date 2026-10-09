@@ -82,3 +82,8 @@ turn; unsupported or failed injection requeues once. Owning automated checks are
 `TestSubagentLifecycle`, `TestSubagentLifecycleBoundaries`, and `TestSubagentPromptCancel` in
 `internal/session`. The controller's integrated daemon/ACP walkthrough remains the public-surface
 verification owner; this slice's fake-runtime checks do not replace it.
+
+QA impact 2026-10-09 (Subagents tools slice): delegated subagents use separate wake delivery,
+`subagent.settled` observation, and a depth/live situation summary; existing spawn contracts remain.
+Scoped evidence: `TestSubagentHookPayloads` and `TestSubagentSituation`. The lifecycle/service slice
+and final spec QA own the integrated completion, acknowledgement, and wake-suppression walk.

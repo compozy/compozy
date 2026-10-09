@@ -39,6 +39,22 @@ func (g *SessionRepo) EnqueueSessionInput(
 	}
 
 	err = g.withImmediateTransaction(ctx, "enqueue session input", func(exec globalSQLExecutor) error {
+		if normalized.OwnerKind == store.SessionInputOwnerSynthetic && normalized.MessageID != "" {
+			existing, lookupErr := sqlcgen.New(exec).GetSyntheticSessionInputByMessage(
+				ctx,
+				sqlcgen.GetSyntheticSessionInputByMessageParams{
+					SessionID: normalized.SessionID,
+					MessageID: normalized.MessageID,
+				},
+			)
+			if lookupErr == nil {
+				entry, lookupErr = sessionInputQueueFromGenerated(&existing)
+				return lookupErr
+			}
+			if !errors.Is(lookupErr, sql.ErrNoRows) {
+				return lookupErr
+			}
+		}
 		count, countErr := countPendingSessionInputs(ctx, exec, normalized.SessionID)
 		if countErr != nil {
 			return countErr
@@ -107,8 +123,10 @@ func (g *SessionRepo) StageSessionSteer(
 }
 
 func validateCallerOwnedQueueIdentity(req store.SessionInputQueueInsert) error {
-	if req.PromptAdmissionID != "" || req.MessageID != "" || req.IdempotencyKey != "" ||
-		(req.TurnID != "" && req.OwnerKind != store.SessionInputOwnerSynthetic) || req.EventID != "" {
+	if req.PromptAdmissionID != "" || (req.MessageID != "" && req.OwnerKind != store.SessionInputOwnerSynthetic) ||
+		req.IdempotencyKey != "" ||
+		(req.TurnID != "" && req.OwnerKind != store.SessionInputOwnerSynthetic) ||
+		req.EventID != "" {
 		return errors.New("store: prompt admission identity is reserved for admitted session input")
 	}
 	return nil
@@ -356,6 +374,7 @@ func insertSessionInputQueueEntry(
 		return store.SessionInputQueueEntry{}, err
 	}
 	if err := sqlcgen.New(exec).InsertSessionInputQueueEntry(ctx, sqlcgen.InsertSessionInputQueueEntryParams{
+		Priority:  int64(normalized.Priority),
 		ID:        normalized.ID,
 		SessionID: normalized.SessionID,
 		PromptAdmissionID: sql.NullString{

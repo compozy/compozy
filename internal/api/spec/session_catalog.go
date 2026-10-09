@@ -86,6 +86,7 @@ func sessionCatalogListOperation() OperationSpec {
 			),
 			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
 			queryParam("agent", "Filter by exact agent definition name", false),
+			enumQueryParam("subagents", "Subagent session visibility (default include)", []string{"include", "exclude", "only"}),
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
 			queryParam("worktree", "Filter by exact bound worktree id", false),

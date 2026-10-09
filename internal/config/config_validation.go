@@ -29,6 +29,9 @@ func (c *Config) validateWithEnv(lookup envLookup) error {
 }
 
 func (c *Config) validateCore() error {
+	if err := c.Subagents.Validate(); err != nil {
+		return err
+	}
 	if err := c.Daemon.Validate(); err != nil {
 		return err
 	}

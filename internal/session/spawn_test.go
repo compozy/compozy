@@ -1307,7 +1307,7 @@ func TestSubagentSpawn(t *testing.T) {
 				AgentName:       "coder",
 				SpawnRole:       store.SubagentSpawnRole,
 				IdempotencyKey:  "sub-test",
-				Subagent:        &hookspkg.SpawnSubagentContext{Title: "Review", Role: "review", TaskChars: 7},
+				Subagent:        &hookspkg.SubagentSpawnPayload{Title: "Review", Role: "review", TaskChars: 7},
 			}
 			child, err := h.manager.Spawn(t.Context(), opts)
 			if denyTTL {

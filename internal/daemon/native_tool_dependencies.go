@@ -53,6 +53,7 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
+	Subagents           func() sessionpkg.SubagentService
 	Logger              *slog.Logger
 	Registry            func() toolspkg.Registry
 	CmdPalette          func() cmdpalette.Registry

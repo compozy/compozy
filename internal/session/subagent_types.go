@@ -84,6 +84,7 @@ type SubagentAgentOption struct {
 	Constraints []string
 }
 
+// SubagentModelOption advertises model-specific runtime choices.
 type SubagentModelOption struct {
 	ID               string
 	Label            string
@@ -91,14 +92,14 @@ type SubagentModelOption struct {
 	Speeds           []string
 }
 
-// SubagentError carries the public error classification across transport boundaries.
+// SubagentError preserves a public failure code and message across transport boundaries.
 type SubagentError struct {
 	Code    string
 	Message string
 	Err     error
 }
 
-var _ error = (*SubagentError)(nil) //nolint:errcheck // Compile-time interface assertion, not an unchecked operation.
+var _ error = (*SubagentError)(nil) //nolint:errcheck // Compile-time interface assertion.
 
 func (e *SubagentError) Error() string { return e.Message }
 func (e *SubagentError) Unwrap() error { return e.Err }
