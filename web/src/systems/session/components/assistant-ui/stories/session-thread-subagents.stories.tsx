@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -87,9 +87,16 @@ export const WaitingOnSubagents: Story = {
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByText("3 subagents")).toBeInTheDocument());
-    await expect(canvas.getByText("1 working · 1 needs you · 1 done")).toBeInTheDocument();
+    // The roster snapshot follows the transcript; the summary reads it.
+    await waitFor(() =>
+      expect(canvas.getByText("1 working · 1 needs you · 1 done")).toBeInTheDocument()
+    );
     await expect(canvas.getByText("Waiting on 2 subagents")).toBeInTheDocument();
+    // Transcript VC-01 shows the group open.
+    await userEvent.click(canvas.getByRole("button", { name: /3 subagents/ }));
+    await waitFor(() =>
+      expect(canvas.getByText("Reading internal/payments/webhook.go")).toBeVisible()
+    );
   },
 };
 
@@ -101,6 +108,15 @@ export const ToolPhrases: Story = {
     transcript: subagentToolsTranscript,
     roster: [],
   }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // The settled turn folds its tool rows; open the fold to read them (VC-06).
+    const fold = await canvas.findByRole("button", {
+      name: /Checked subagent capabilities 2 times/,
+    });
+    await userEvent.click(fold);
+    await waitFor(() => expect(canvas.getByText("Read subagent status")).toBeVisible());
+  },
 };
 
 /** Transcript VC-05: a provider-native card; its inner work renders only inside it. */
@@ -111,6 +127,23 @@ export const NativeNesting: Story = {
     transcript: subagentNativeTranscript,
     roster: subagentNativeRoster,
   }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Transcript VC-05: the native card opens inline to its inner work.
+    const card = await waitFor(() => {
+      const element = canvasElement.querySelector<HTMLElement>(
+        '[data-slot="subagent-card"][aria-expanded]'
+      );
+      if (!element) throw new Error("native card not rendered yet");
+      return element;
+    });
+    await userEvent.click(card);
+    await waitFor(() => expect(canvas.getByText("Inspecting the diff.")).toBeVisible());
+    // The click left pointer and focus on the card; release both so the hover card closes.
+    await userEvent.unhover(card);
+    card.blur();
+    await waitFor(() => expect(canvas.queryByText("sonnet-5.5")).toBeNull());
+  },
 };
 
 /** Composer VC-03: during a turn the status line counts live subagents of both origins once. */

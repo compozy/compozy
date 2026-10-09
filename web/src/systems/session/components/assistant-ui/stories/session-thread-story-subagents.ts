@@ -19,6 +19,8 @@ type TranscriptPart = NonNullable<TranscriptMessage["parts"]>[number];
 
 const LOADED_AT = Date.now();
 const secondsAgo = (seconds: number) => new Date(LOADED_AT - seconds * 1_000).toISOString();
+// The assistant message id is its turn id, as the daemon projects it; data parts
+// take their turn from the message once the runtime normalizes them.
 const TURN = "turn-story-subagents";
 
 export const subagentStoryIdleSession: SessionPayload = {
@@ -98,7 +100,7 @@ export const subagentGroupTranscript: TranscriptMessage[] = [
     "Before we cut v2, check the webhook retries, look for N+1 queries in #812, and draft the release notes."
   ),
   {
-    id: "story_sub_assistant",
+    id: TURN,
     role: "assistant",
     parts: [
       text(
@@ -120,7 +122,7 @@ export const subagentGroupTranscript: TranscriptMessage[] = [
 export const subagentToolsTranscript: TranscriptMessage[] = [
   user("story_tools_user", "Check on the reviewers and cancel the profiling run."),
   {
-    id: "story_tools_assistant",
+    id: TURN,
     role: "assistant",
     parts: [
       tool("compozy__subagent_capabilities", "call-cap-1", {}, { providers: [] }),
@@ -156,7 +158,7 @@ export const subagentToolsTranscript: TranscriptMessage[] = [
 export const subagentNativeTranscript: TranscriptMessage[] = [
   user("story_native_user", "Review the diff with a subagent."),
   {
-    id: "story_native_assistant",
+    id: TURN,
     role: "assistant",
     parts: [
       tool(
@@ -247,14 +249,14 @@ export const subagentGroupRoster: SubagentPayload[] = [
   }),
 ];
 
+/** Live, so it stays out of the settled turn's fold and opens inline (VC-05 expanded). */
 export const subagentNativeRoster: SubagentPayload[] = [
   subagentRow("sub-story-native", "Review the diff (high effort)", {
     origin: "provider_native",
     child_session_id: null,
     provider_tool_call_id: "toolu_story_agent",
-    status: "completed",
-    elapsed: 41,
-    result_preview: "No issues found.",
+    elapsed: 34,
+    progress: "Read /workspace/README.md",
     runtime: {
       agent: "",
       provider: "claude",
