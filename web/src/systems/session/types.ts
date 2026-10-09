@@ -71,6 +71,9 @@ export type TranscriptDeltaPayload = NonNullable<SessionStreamResponse["transcri
 export type SessionConsumerDegradedPayload = NonNullable<
   SessionStreamResponse["consumer_degraded"]
 >;
+/** Parent-stream roster frames (`_dx.md` Live updates): the snapshot after subscribe, then row changes. */
+export type SubagentsSnapshotPayload = NonNullable<SessionStreamResponse["subagents_snapshot"]>;
+export type SubagentUpdatedPayload = NonNullable<SessionStreamResponse["subagent_updated"]>;
 export type SessionBadge = SessionPayload["badge"];
 /** Sanitized pending question / permission projection embedded on session payloads. */
 export type SessionPendingInteraction = SessionPayload["pending_interactions"][number];

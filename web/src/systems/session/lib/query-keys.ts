@@ -85,6 +85,9 @@ export const sessionKeys = {
   /** What a continue/fork would carry; `""` is the whole-session cut. */
   derivePreview: (workspace: string, id: string, messageId = "") =>
     [...sessionKeys.detail(workspace, id), "derive-preview", messageId.trim()] as const,
+  /** Client-held roster the session stream writes (`subagents_snapshot` / `subagent_updated`). */
+  subagentRoster: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "subagent-roster"] as const,
   contextReset: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "context-reset"] as const,
   toolArtifact: (workspace: string, artifactURI: string) =>

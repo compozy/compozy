@@ -24,6 +24,7 @@ import type { SubagentStatus, SubagentView } from "../types";
 // Invariant: card lines, elapsed source/format, group copy/span, hover content, banner
 // visibility, chip state and roster order follow `_uiux.md` S1–S3, S5, S9, S10 from the
 // row's own server fields. Owning layer: session subagent view rules. Canonical suite: this file.
+const NO_RUNTIME = { agent: "", provider: "", model: "", reasoning_effort: "", speed: "" };
 const T0 = "2026-10-08T21:00:00.000Z";
 const at = (seconds: number) => new Date(Date.parse(T0) + seconds * 1_000).toISOString();
 
@@ -31,14 +32,20 @@ function subagent(overrides: Partial<SubagentView> = {}): SubagentView {
   return {
     id: "sub-1",
     parent_session_id: "sess-parent",
+    result_preview: "",
+    error: null,
     child_session_id: "sess-child",
     origin: "delegated",
     title: "Audit payment webhooks for retry safety",
     status: "running",
     progress: "",
-    result_preview: null,
-    error: null,
-    runtime: { provider: "claude", model: "opus-5.5", reasoning_effort: "high", speed: "normal" },
+    runtime: {
+      ...NO_RUNTIME,
+      provider: "claude",
+      model: "opus-5.5",
+      reasoning_effort: "high",
+      speed: "normal",
+    },
     started_at: T0,
     settled_at: null,
     created_at: T0,
@@ -197,14 +204,18 @@ describe("subagent group (UT-W07)", () => {
 describe("subagent hover content (UT-W08)", () => {
   it("Should render a missing model as Not reported and drop the effort", () => {
     expect(
-      subagentRuntimeLabel(subagent({ runtime: { provider: "claude", reasoning_effort: "high" } }))
+      subagentRuntimeLabel(
+        subagent({ runtime: { ...NO_RUNTIME, provider: "claude", reasoning_effort: "high" } })
+      )
     ).toEqual({
       model: null,
       effort: null,
       fast: false,
     });
     expect(
-      subagentRuntimeLabel(subagent({ runtime: { model: "gpt-5.6-sol", speed: "fast" } }))
+      subagentRuntimeLabel(
+        subagent({ runtime: { ...NO_RUNTIME, model: "gpt-5.6-sol", speed: "fast" } })
+      )
     ).toEqual({
       model: "gpt-5.6-sol",
       effort: null,

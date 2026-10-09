@@ -9,6 +9,7 @@ import { SubagentCard } from "../subagent-card";
 import { SubagentGroup } from "../subagent-group";
 import { SubagentOriginDivider } from "../subagent-origin-divider";
 import {
+  NO_RUNTIME,
   cardStates,
   nativeRunning,
   nativeSettled,
@@ -122,7 +123,7 @@ const groupRunning = [
   subagentFixture({
     id: "g2",
     title: "Review PR #812 for N+1 queries",
-    runtime: reviewer,
+    runtime: { ...NO_RUNTIME, ...reviewer },
     elapsed: 40,
   }),
   subagentFixture({ id: "g3", title: "Draft release notes for v2", elapsed: 12 }),
@@ -173,7 +174,7 @@ function GroupStates() {
               ...cardStates.completed,
               id: "done-b",
               title: "Review PR #812 for N+1 queries",
-              runtime: reviewer,
+              runtime: { ...NO_RUNTIME, ...reviewer },
             },
           ]}
           onOpen={onOpen}

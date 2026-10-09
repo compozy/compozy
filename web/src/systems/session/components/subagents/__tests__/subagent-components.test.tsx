@@ -20,6 +20,7 @@ import type { SubagentStatus, SubagentView } from "../types";
 // inspector roster follow `_uiux.md` S1–S5, S9, S10; elapsed ticks from server timestamps on a
 // shared ticker without re-rendering React. Owning layer: session subagent components (props in,
 // callbacks out). Canonical suite: this file. Boundary OUT: sonner toast.
+const NO_RUNTIME = { agent: "", provider: "", model: "", reasoning_effort: "", speed: "" };
 const T0 = Date.parse("2026-10-08T21:00:00.000Z");
 const at = (seconds: number) => new Date(T0 + seconds * 1_000).toISOString();
 
@@ -27,12 +28,20 @@ function subagent(overrides: Partial<SubagentView> = {}): SubagentView {
   return {
     id: "sub-1",
     parent_session_id: "sess-parent",
+    result_preview: "",
+    error: null,
     child_session_id: "sess-child",
     origin: "delegated",
     title: "Audit payment webhooks for retry safety",
     status: "running",
     progress: "",
-    runtime: { provider: "claude", model: "opus-5.5", reasoning_effort: "high", speed: "normal" },
+    runtime: {
+      ...NO_RUNTIME,
+      provider: "claude",
+      model: "opus-5.5",
+      reasoning_effort: "high",
+      speed: "normal",
+    },
     started_at: at(0),
     settled_at: null,
     created_at: at(0),
@@ -92,7 +101,7 @@ describe("SubagentCard", () => {
 
   it("Should render the bot glyph for an unknown provider (UT-W05)", () => {
     const { container } = renderUI(
-      <SubagentCard subagent={subagent({ runtime: { provider: "mystery" } })} />
+      <SubagentCard subagent={subagent({ runtime: { ...NO_RUNTIME, provider: "mystery" } })} />
     );
     expect(container.querySelector('[data-kind="mystery"] .lucide-bot')).not.toBeNull();
   });
@@ -139,7 +148,10 @@ describe("SubagentCard", () => {
     const user = userEvent.setup();
     renderUI(
       <SubagentCard
-        subagent={subagent({ runtime: { provider: "claude" }, progress: "Reading tickets" })}
+        subagent={subagent({
+          runtime: { ...NO_RUNTIME, provider: "claude" },
+          progress: "Reading tickets",
+        })}
         onOpen={vi.fn()}
       />
     );

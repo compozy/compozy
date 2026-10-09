@@ -19,11 +19,20 @@ import {
   transcriptStreamCursor,
   type SessionTranscriptData,
 } from "../lib/session-transcript-query";
+import {
+  applySubagentsSnapshot,
+  applySubagentUpdated,
+  EMPTY_SUBAGENT_ROSTER,
+  markSubagentRosterStale,
+  type SubagentRoster,
+} from "../lib/subagent-roster";
 import type {
   NormalizedSessionTranscriptEntry,
   SessionConsumerDegradedPayload,
   SessionEventPayload,
   SessionPayload,
+  SubagentsSnapshotPayload,
+  SubagentUpdatedPayload,
   TranscriptDeltaPayload,
   TranscriptSnapshotPayload,
 } from "../types";
@@ -90,6 +99,12 @@ export function createSessionLiveTailRuntime({
   const transcriptQueryKey = sessionKeys.transcript(workspaceId, sessionId);
   const readTranscript = () => queryClient.getQueryData<SessionTranscriptData>(transcriptQueryKey);
   const readCursor = () => transcriptStreamCursor(readTranscript()).afterSequence ?? 0;
+  const subagentRosterKey = sessionKeys.subagentRoster(workspaceId, sessionId);
+  const updateSubagentRoster = (update: (roster: SubagentRoster) => SubagentRoster) => {
+    queryClient.setQueryData<SubagentRoster>(subagentRosterKey, existing =>
+      update(existing ?? EMPTY_SUBAGENT_ROSTER)
+    );
+  };
 
   const invalidateSessionSurfaces = () => {
     void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId).catch(error =>
@@ -178,6 +193,8 @@ export function createSessionLiveTailRuntime({
   const openStream = (handlers: SessionLiveTailStreamHandlers) => {
     const streamCursor = transcriptStreamCursor(readTranscript());
     const source = eventSourceFactory(buildSessionStreamUrl(workspaceId, sessionId, streamCursor));
+    // Held rows are unconfirmed until this subscription's snapshot arrives.
+    if (queryClient.getQueryData(subagentRosterKey)) updateSubagentRoster(markSubagentRosterStale);
     recordSessionDebugEvent(SESSION_DEBUG_EVENTS.sseOpen, {
       cursor: streamCursor.afterSequence ?? 0,
       session_id: sessionId,
@@ -226,6 +243,17 @@ export function createSessionLiveTailRuntime({
       handlers.degraded(payload.through_sequence);
     };
 
+    const subagentsSnapshotListener: EventListener = event => {
+      const payload = parseSessionStreamPayload<SubagentsSnapshotPayload>(event as MessageEvent);
+      if (!payload) return;
+      updateSubagentRoster(() => applySubagentsSnapshot(payload));
+    };
+    const subagentUpdatedListener: EventListener = event => {
+      const payload = parseSessionStreamPayload<SubagentUpdatedPayload>(event as MessageEvent);
+      if (!payload?.subagent) return;
+      updateSubagentRoster(roster => applySubagentUpdated(roster, payload));
+    };
+
     let usageTimer: ReturnType<typeof setTimeout> | undefined;
     const flushUsageChanges = () => {
       usageTimer = undefined;
@@ -245,6 +273,8 @@ export function createSessionLiveTailRuntime({
         delta: deltaListener,
         goalSnapshot: goalSnapshotListener,
         snapshot: snapshotListener,
+        subagentsSnapshot: subagentsSnapshotListener,
+        subagentUpdated: subagentUpdatedListener,
         terminal: terminalListener,
       });
     } catch (error) {

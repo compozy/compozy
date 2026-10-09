@@ -2,6 +2,8 @@ import type { SubagentStatus, SubagentView } from "../types";
 
 // Board fixtures (DESIGN-NOTES: values are fixtures; runtime truth owns them).
 // Timestamps are relative to story load so live rows tick from a known offset.
+export const NO_RUNTIME = { agent: "", provider: "", model: "", reasoning_effort: "", speed: "" };
+
 const LOADED_AT = Date.now();
 export const secondsAgo = (seconds: number) => new Date(LOADED_AT - seconds * 1_000).toISOString();
 
@@ -18,15 +20,22 @@ export function subagentFixture({ elapsed = 7, ...overrides }: FixtureOptions = 
   return {
     id: overrides.id ?? `sub-${overrides.title ?? "fixture"}`,
     parent_session_id: "sess-7f3a2c11d09e4b58",
+    role: "general",
     child_session_id: "sess-b41d77e05a3c9f12",
     origin: "delegated",
     title: "Audit payment webhooks for retry safety",
     status,
     work_state: live ? "working" : "result_available",
     progress: "",
-    result_preview: null,
+    result_preview: "",
     error: null,
-    runtime: { agent: "claude", provider: "claude", model: "Opus 5.5", reasoning_effort: "high" },
+    runtime: {
+      ...NO_RUNTIME,
+      agent: "claude",
+      provider: "claude",
+      model: "Opus 5.5",
+      reasoning_effort: "high",
+    },
     depth: 1,
     started_at: secondsAgo(live ? elapsed : elapsed + 30),
     settled_at: live ? null : secondsAgo(30),
@@ -60,7 +69,7 @@ export const cardStates = {
     id: "waiting",
     status: "waiting",
     title: "Review PR #812 for N+1 queries",
-    runtime: { ...codex, speed: "fast" },
+    runtime: { ...NO_RUNTIME, ...codex, speed: "fast" },
     elapsed: 98,
   }),
   completed: subagentFixture({
@@ -74,7 +83,7 @@ export const cardStates = {
     id: "failed",
     status: "failed",
     title: "Run the checkout e2e suite",
-    runtime: { provider: "claude", model: "Sonnet 5.5", reasoning_effort: "medium" },
+    runtime: { ...NO_RUNTIME, provider: "claude", model: "Sonnet 5.5", reasoning_effort: "medium" },
     error:
       '3 of 41 specs failed in checkout/refund.spec.ts: "refund shows reason" timed out after 30s waiting for [data-testid=refund-reason].',
     elapsed: 252,
@@ -83,7 +92,7 @@ export const cardStates = {
     id: "canceled",
     status: "canceled",
     title: "Profile the cart endpoint under load",
-    runtime: codex,
+    runtime: { ...NO_RUNTIME, ...codex },
     elapsed: 61,
   }),
   interrupted: subagentFixture({
@@ -96,7 +105,7 @@ export const cardStates = {
   unknownProvider: subagentFixture({
     id: "unknown-provider",
     title: "Summarize open support tickets about refunds",
-    runtime: { provider: "acme-agent" },
+    runtime: { ...NO_RUNTIME, provider: "acme-agent" },
     progress: "Reading tickets/2026-10",
     elapsed: 44,
   }),
@@ -137,7 +146,7 @@ export const settledResultLong = subagentFixture({
   id: "settled-long",
   status: "completed",
   title: "Review PR #812 for N+1 queries",
-  runtime: { ...codex, speed: "fast" },
+  runtime: { ...NO_RUNTIME, ...codex, speed: "fast" },
   elapsed: 305,
   result_preview:
     'Found 2 N+1 queries. OrderSummary.items loads each line\'s product in a loop (orders/summary.go:88), and RefundList renders the customer for every row without a preload. Suggested Preload("Items.Product") and a joined customer query; both are covered by existing tests, and no migration is needed for either change, so the PR can merge after the two preloads land.',

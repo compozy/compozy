@@ -5,7 +5,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@compozy/ui";
 
 import { SubagentCard } from "../subagent-card";
 import { SubagentHoverContent, type SubagentHoverContentProps } from "../subagent-hover-content";
-import { cardStates, settledResultLong } from "./subagent-story-fixtures";
+import { NO_RUNTIME, cardStates, settledResultLong } from "./subagent-story-fixtures";
 
 function OpenHover({ label, ...props }: SubagentHoverContentProps & { label: string }) {
   return (
@@ -34,7 +34,7 @@ function HoverStates() {
       <OpenHover label="failed · error text" subagent={cardStates.failed} />
       <OpenHover
         label="model not reported"
-        subagent={{ ...cardStates.unknownProvider, runtime: { provider: "claude" } }}
+        subagent={{ ...cardStates.unknownProvider, runtime: { ...NO_RUNTIME, provider: "claude" } }}
       />
       <OpenHover
         label="worktree differs"
