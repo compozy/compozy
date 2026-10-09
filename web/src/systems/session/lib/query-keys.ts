@@ -88,6 +88,9 @@ export const sessionKeys = {
   /** Client-held roster the session stream writes (`subagents_snapshot` / `subagent_updated`). */
   subagentRoster: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "subagent-roster"] as const,
+  /** The bounded mid-prompt read that feeds the roster while the session SSE is closed. */
+  subagentRosterPoll: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "subagent-roster-poll"] as const,
   /** A parent's direct subagents, every page of the list route (S10, chip preview). */
   subagents: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "subagents"] as const,
