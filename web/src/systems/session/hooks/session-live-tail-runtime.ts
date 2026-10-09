@@ -193,8 +193,6 @@ export function createSessionLiveTailRuntime({
   const openStream = (handlers: SessionLiveTailStreamHandlers) => {
     const streamCursor = transcriptStreamCursor(readTranscript());
     const source = eventSourceFactory(buildSessionStreamUrl(workspaceId, sessionId, streamCursor));
-    // Held rows are unconfirmed until this subscription's snapshot arrives.
-    if (queryClient.getQueryData(subagentRosterKey)) updateSubagentRoster(markSubagentRosterStale);
     recordSessionDebugEvent(SESSION_DEBUG_EVENTS.sseOpen, {
       cursor: streamCursor.afterSequence ?? 0,
       session_id: sessionId,
@@ -266,7 +264,14 @@ export function createSessionLiveTailRuntime({
     };
     let detach: () => void;
     try {
-      detach = attachSessionStreamSource(source, handlers.error, {
+      // The moment the stream drops, held roster rows are unconfirmed (no tick,
+      // no pulse) until the next subscription's snapshot confirms them.
+      const handleError = (event: Event) => {
+        if (queryClient.getQueryData(subagentRosterKey))
+          updateSubagentRoster(markSubagentRosterStale);
+        handlers.error(event);
+      };
+      detach = attachSessionStreamSource(source, handleError, {
         commandsChanged: commandsChangedListener,
         usageChanged: usageChangedListener,
         degraded: degradedListener,

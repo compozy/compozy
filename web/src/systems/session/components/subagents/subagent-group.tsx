@@ -79,7 +79,7 @@ export function SubagentGroup({
       data-dim={dim ? "true" : undefined}
       className={cn(
         "group/subagent-group max-w-140 rounded-md border border-line-soft bg-canvas-soft transition-opacity duration-base ease-out motion-reduce:transition-none",
-        dim && "opacity-62 focus-within:opacity-100 hover:opacity-100",
+        dim && "opacity-60 focus-within:opacity-100 hover:opacity-100",
         className
       )}
     >

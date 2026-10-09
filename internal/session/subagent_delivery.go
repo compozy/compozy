@@ -165,6 +165,9 @@ func (s *subagentService) deliver(
 		if err := s.store.SetWakeInput(ctx, wake.WakeMessageID, store.SubagentWakeRouteSteer, ""); err != nil {
 			return err
 		}
+		if err := s.store.MarkWakeDispatched(ctx, wake.WakeMessageID); err != nil {
+			return err
+		}
 		attempt, steerErr := s.runtime.Steer(
 			ctx,
 			wake.ParentSessionID,
@@ -172,7 +175,16 @@ func (s *subagentService) deliver(
 			wake.WakeMessageID,
 			subagentWakeText(rows),
 		)
-		if steerErr == nil && attempt.Attempt == acp.SteerAttemptPendingInjection && attempt.Completion != nil {
+		if steerErr == nil && attempt.Attempt == acp.SteerAttemptPendingInjection {
+			if attempt.Completion == nil {
+				s.mu.Lock()
+				if s.steerTurns == nil {
+					s.steerTurns = make(map[string]string)
+				}
+				s.steerTurns[wake.WakeMessageID] = snap.TurnID
+				s.mu.Unlock()
+				return nil
+			}
 			s.launch(func() {
 				select {
 				case <-s.ctx.Done():

@@ -44,7 +44,8 @@ func (s *subagentService) finalize(ctx context.Context, row store.SessionSubagen
 	if err != nil {
 		return err
 	}
-	if child.Info.State == StateStopping || child.Info.State == StateStarting {
+	if child.Info.State == StateStopping || child.Info.State == StateStarting ||
+		(child.Info.State == StateStopped && child.Info.StopReason == store.StopShutdown) {
 		return nil
 	}
 	if row.PendingTask != nil && child.Info.State != StateStopped {
@@ -64,6 +65,9 @@ func (s *subagentService) finalize(ctx context.Context, row store.SessionSubagen
 		updated, changed, err := s.store.UpdateSubagentState(ctx, row.ID, status, work, s.now().UTC())
 		if err == nil && changed {
 			s.publish(ctx, updated)
+			if (row.Status == store.SubagentStatusWaiting) != (updated.Status == store.SubagentStatusWaiting) {
+				s.runtime.PublishParent(ctx, row.ParentSessionID)
+			}
 		}
 		return err
 	}
@@ -92,10 +96,15 @@ func (s *subagentService) finalizeAvailable(
 			status = store.SubagentStatusInterrupted
 		}
 	}
-	result, err := s.runtime.Result(ctx, *row.ChildSessionID)
+	turn, err := s.runtime.Result(ctx, *row.ChildSessionID)
 	if err != nil {
 		return err
 	}
+	if status == store.SubagentStatusCompleted && turn.Error != "" {
+		status = store.SubagentStatusFailed
+		failure = &turn.Error
+	}
+	result := turn.Text
 	runes := []rune(result)
 	limit, err := s.resultLimit(ctx, row.WorkspaceID)
 	if err != nil {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,9 @@ import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
 import { sessionInspectorFocusStore } from "../../hooks/use-session-inspector-focus";
 import { sessionInspectorStore } from "../../hooks/use-session-inspector-state";
+import { useSubagentRoster } from "../../hooks/use-subagent-roster";
+import { sessionKeys } from "../../lib/query-keys";
+import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { SessionSidebar } from "../session-sidebar";
 
 // Invariant: the shared catalog routes selection gestures to bulk controls without navigation.
@@ -53,7 +56,11 @@ const view: SessionListViewModel = {
   ownerOf: () => ({ id: "default", name: "default", archived: false }),
 };
 function renderList(
-  overrides: { sessions?: SessionPayload[]; revealedSession?: SessionPayload | null } = {}
+  overrides: {
+    sessions?: SessionPayload[];
+    revealedSession?: SessionPayload | null;
+    collapsedThreadIds?: string[];
+  } = {}
 ) {
   const onSelect = vi.fn();
   const actions = {
@@ -74,7 +81,7 @@ function renderList(
     sessions: overrides.sessions ?? sessions,
     revealedSession: overrides.revealedSession,
     disconnected: false,
-    collapsedThreadIds: [],
+    collapsedThreadIds: overrides.collapsedThreadIds ?? [],
     view,
     onToggleThread: vi.fn(),
     onSelectSession: onSelect,
@@ -89,6 +96,7 @@ function renderList(
   return {
     onSelect,
     actions,
+    queryClient,
     update: (nextSessions: SessionPayload[], nextView = view) =>
       rendered.rerender(
         tree(<SessionSidebar {...props} sessions={nextSessions} view={nextView} />)
@@ -309,6 +317,24 @@ describe("SessionList subagents", () => {
     expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
   });
 
+  it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
+    const parent = row("parent", summary(1, 3));
+    const plainChild = row("plain", { lineage: lineage("parent") });
+    const viewed = row("viewed-sub", { lineage: lineage("parent", "subagent") });
+    renderList({
+      sessions: [parent, plainChild],
+      revealedSession: viewed,
+      collapsedThreadIds: ["parent"],
+    });
+
+    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.getByTestId("session-sidebar-session-plain").closest("[inert]")).not.toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub").closest("[inert]")).toBeNull();
+  });
+
   it("UT-W18: never promotes a viewed subagent whose parent is off the page", () => {
     const orphan = row("orphan-sub", { lineage: lineage("elsewhere", "subagent") });
     renderList({ sessions: [row("other")], revealedSession: orphan });
@@ -319,16 +345,18 @@ describe("SessionList subagents", () => {
   it("UT-W17: renders the parent chip and loads a five-row preview on hover", async () => {
     const user = userEvent.setup();
     const parent = row("parent", { badge: "running", ...summary(3, 10) });
-    vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          subagents: Array.from({ length: 10 }, (_, index) =>
-            wireSubagent(index, index < 3 ? "running" : "completed")
-          ),
-          next_cursor: null,
-        }),
-        { headers: { "Content-Type": "application/json" } }
-      )
+    // A further page exists; the five-row preview still reads only the first (review n6).
+    vi.mocked(globalThis.fetch).mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            subagents: Array.from({ length: 10 }, (_, index) =>
+              wireSubagent(index, index < 3 ? "running" : "completed")
+            ),
+            next_cursor: "cursor-page-2",
+          }),
+          { headers: { "Content-Type": "application/json" } }
+        )
     );
     renderList({ sessions: [parent] });
 
@@ -343,6 +371,31 @@ describe("SessionList subagents", () => {
       path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?limit=200`,
     });
     expect(screen.getAllByText(/^Subagent \d$/)).toHaveLength(5);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  // M9: an open parent's stream-fed roster feeds the preview; the list route stays cold.
+  it("UT-W17: previews from the parent's live roster while its thread holds the stream", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(1, 1) });
+    const { queryClient } = renderList({ sessions: [parent] });
+    const workspaceId = primarySessionFixture.workspace_id ?? "";
+    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), {
+      rows: [
+        subagentViewFromPayload({ ...wireSubagent(1, "running"), title: "Streamed row" } as never),
+      ],
+      staleIds: new Set<string>(),
+    });
+    renderHook(() => useSubagentRoster(workspaceId, "parent"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await user.hover(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+
+    await waitFor(() => expect(screen.getByText("Streamed row")).toBeInTheDocument());
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("UT-W17: shows the total alone for failures and hides once everything settled cleanly", () => {

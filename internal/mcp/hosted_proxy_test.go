@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -861,6 +862,49 @@ func TestHostedSubagentAnnotations(t *testing.T) {
 			if projected.Annotations.ReadOnlyHint != tc.readOnly ||
 				projected.Annotations.IdempotentHint != tc.idempotent {
 				t.Fatalf("annotations = %#v", projected.Annotations)
+			}
+		}
+	})
+}
+
+// Invariant: the hosted fallback identity comes from the JSON-RPC request, preserving provider tool IDs and retries.
+// Owner: hosted MCP transport; canonical hosted proxy suite.
+func TestHostedRequestIdentity(t *testing.T) {
+	t.Run("Should preserve stable request identity without trusting caller metadata", func(t *testing.T) {
+		t.Parallel()
+		for _, raw := range []string{
+			`{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"compozy__subagent_delegate","arguments":{}}}`,
+			`{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"compozy__subagent_delegate","arguments":{},"_meta":{"toolCallId":"provider-call","compozyHostedRequestId":"spoof"}}}`,
+		} {
+			transport := hostedIdentityTransport{
+				Transport: &sdkmcp.IOTransport{
+					Reader: io.NopCloser(strings.NewReader(raw + "\n")),
+					Writer: nopWriteCloser{Writer: io.Discard},
+				},
+			}
+			conn, err := transport.Connect(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			message, err := conn.Read(t.Context())
+			closeErr := conn.Close()
+			if err != nil || closeErr != nil {
+				t.Fatal(err, closeErr)
+			}
+			request, ok := message.(*jsonrpc.Request)
+			if !ok {
+				t.Fatalf("unexpected message %T", message)
+			}
+			params := new(sdkmcp.CallToolParamsRaw)
+			if err := json.Unmarshal(request.Params, params); err != nil {
+				t.Fatal(err)
+			}
+			req := &sdkmcp.CallToolRequest{Params: params}
+			if hostedRequestIdentity(req) != "42" {
+				t.Fatal(hostedRequestIdentity(req))
+			}
+			if strings.Contains(raw, "provider-call") && hostedToolCallID(req) != "provider-call" {
+				t.Fatal(hostedToolCallID(req))
 			}
 		}
 	})

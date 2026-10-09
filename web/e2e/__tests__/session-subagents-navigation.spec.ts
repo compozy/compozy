@@ -157,6 +157,7 @@ test("E2E-009: ten subagents stay one sidebar row with a chip and an inspector r
   });
 
   const roster = parentWin.getByTestId("session-inspector-subagents");
+  let revealedChildID = "";
   await test.step("clicking the chip opens the inspector roster: 6 rows, then Show 4 more", async () => {
     await sidebar.getByRole("button", { name: "10 of 10 subagents running" }).click();
     await expect(roster).toBeVisible();
@@ -172,7 +173,8 @@ test("E2E-009: ten subagents stay one sidebar row with a chip and an inspector r
     const target = subagents.find(row => row.title === title);
     expect(target?.child_session_id).toBeTruthy();
     await opened.click();
-    const childWin = sessionWindow(appPage, target!.child_session_id!);
+    revealedChildID = target!.child_session_id!;
+    const childWin = sessionWindow(appPage, revealedChildID);
     await expect(childWin).toBeVisible();
     const childSidebar = childWin.getByTestId("session-sidebar");
     await expect(
@@ -186,17 +188,17 @@ test("E2E-009: ten subagents stay one sidebar row with a chip and an inspector r
     await browserArtifacts.captureScreenshot("subagents-revealed-child", appPage);
   });
 
-  await test.step("the chip hides once every subagent settled cleanly", async () => {
-    await expect
-      .poll(async () => (await listSubagents(runtime, parent)).map(row => row.status), {
-        timeout: 90_000,
-      })
-      .toEqual(Array.from({ length: 10 }, () => "completed"));
-    await appPage.goto(runtime.url(`/agents/${parentAgent}/sessions/${parent.id}`), {
-      waitUntil: "domcontentloaded",
+  await test.step("the chip hides live once every subagent settled cleanly", async () => {
+    // No reload: the parent's catalog upserts carry the fresh summary to the open sidebar.
+    const liveSidebar = sessionWindow(appPage, revealedChildID).getByTestId("session-sidebar");
+    const parentRow = liveSidebar.getByTestId(`session-sidebar-session-${parent.id}`);
+    await expect(parentRow).toBeVisible();
+    await expect(liveSidebar.locator('[data-slot="subagent-chip"]')).toHaveCount(0, {
+      timeout: 90_000,
     });
-    const settledSidebar = sessionWindow(appPage, parent.id).getByTestId("session-sidebar");
-    await expect(settledSidebar.getByTestId(`session-sidebar-session-${parent.id}`)).toBeVisible();
-    await expect(settledSidebar.locator('[data-slot="subagent-chip"]')).toHaveCount(0);
+    expect((await listSubagents(runtime, parent)).map(row => row.status)).toEqual(
+      Array.from({ length: 10 }, () => "completed")
+    );
+    await browserArtifacts.captureScreenshot("subagents-chip-hidden-live", appPage);
   });
 });

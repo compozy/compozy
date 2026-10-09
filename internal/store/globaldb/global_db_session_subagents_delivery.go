@@ -15,10 +15,10 @@ func (g *SessionRepo) SetPending(ctx context.Context, ids []string) error {
 	if err != nil {
 		return err
 	}
-	return g.queries.SetSubagentsPending(
-		ctx,
-		sqlcgen.SetSubagentsPendingParams{Ids: encoded, UpdatedAt: store.FormatTimestamp(g.now())},
-	)
+	return g.withImmediateTransaction(ctx, "set subagents pending", func(exec globalSQLExecutor) error {
+		return sqlcgen.New(exec).SetSubagentsPending(ctx,
+			sqlcgen.SetSubagentsPendingParams{Ids: encoded, UpdatedAt: store.FormatTimestamp(g.now())})
+	})
 }
 
 func (g *SessionRepo) Acknowledge(

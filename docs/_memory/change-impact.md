@@ -43,6 +43,37 @@ parent transcript after a real delegate call, enabling the Web subagent-card E2E
 operator-side delegation or synthetic tool results.
 
 
+Store remediation 2026-10-09 (fix-store): scoped roster reads reject an empty workspace and
+parent, cap pages at 200, and use direct ID lookup for internal cancellation/wait paths.
+Wake lookup uses a read snapshot and parent/state index; progress and pending transitions
+use the existing immediate transaction boundary. Recovery excludes stopped orphans and
+provider-native reservations. The unreleased 00131 migration gains a parent/state wake
+index and drops the redundant child index. M2 retry persistence and policy belong to fix-core. Parent catalog upserts follow summary changes while
+progress remains on the roster stream. Native tool IDs, hooks, config, HTTP/UDS shapes,
+workspace isolation, official skill and site contracts are unchanged. Existing owners:
+UT-056, UT-060, IT-021, IT-031, IT-032; QA scenarios RT-subagent-restart and
+ET-web-session-sidebar-threads retain their current fail verdict pending the controller's
+integrated re-walk. Search ancestry (m19/S9) remains unresolved because the catalog service
+combines active/durable rows and recuts pages after the store query; adding contextual
+ancestors requires an explicit pagination contract beyond a store-only change.
+
+
+Fix round 1 (sa-fix-core): wake steering freezes its batch on acceptance, channel-less pending
+injection settles with its original turn, and failed wake attempts persist across successor batches
+and restart (three failures dispose delivery and log `subagent.wake_abandoned`). The controller
+authorized adding `attempts` to unreleased migration 00131 in place; Atlas and sqlc are regenerated.
+Native work finalizes interrupted at turn/stop/recovery boundaries without a delivery wake. Recovery
+isolates row failures, preserves sent input identity, and resumes delegated work after clean shutdown.
+`subagent.settled` observers use the manager-owned asynchronous lifetime; denied concurrent replays
+retain `capability_denied`; parent locks retire after their last waiter. Hosted MCP derives omitted
+delegation keys from parent turn plus transport request identity when no provider call ID exists.
+Public DTOs, tool IDs, configuration and workspace authorization stay unchanged. ROOT descendants
+retain hosted native-tool access, verified over real MCP. Web consumers receive accurate native
+terminal state, catalog stream and one root attention completion. Official skill/site wording and
+real-provider scenario verdicts remain under sa-qa; automated evidence is in sa-fix-core-fix1.md.
+The existing RT-subagent-delegate, RT-subagent-native and RT-subagent-restart scenarios own re-walks.
+
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

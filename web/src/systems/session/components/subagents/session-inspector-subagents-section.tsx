@@ -52,7 +52,8 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
   const stoppable = isSubagentStoppable(subagent) && onStop !== undefined;
   const { pending, stop } = useSubagentStop(
     stoppable ? () => onStop(subagent) : undefined,
-    SUBAGENT_ROW_STOP_FAILED
+    SUBAGENT_ROW_STOP_FAILED,
+    subagent.status
   );
   const drillable = subagent.child_session_id !== null && onOpen !== undefined;
   const word = SUBAGENT_STATUS_WORD[subagent.status];
@@ -82,7 +83,13 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
                 onClick={handleOpen}
               />
             ) : (
-              <div aria-description={word} className={mainClass} />
+              // Not drillable, still reachable: focus opens the hover card (S3).
+              <div
+                role="group"
+                tabIndex={0}
+                aria-label={`${subagent.title}, ${word}`}
+                className={mainClass}
+              />
             )
           }
         >

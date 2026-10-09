@@ -3,7 +3,9 @@ package globaldb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/listcursor"
@@ -26,6 +28,12 @@ func subagentIDsJSON(ids []string) (string, error) {
 func (g *SessionRepo) ListSubagents(ctx context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
 	if err := g.checkReady(ctx, "list subagents"); err != nil {
 		return store.SubagentPage{}, err
+	}
+	if strings.TrimSpace(q.WorkspaceID) == "" && strings.TrimSpace(q.ParentSessionID) == "" {
+		return store.SubagentPage{}, errors.New("store: subagent workspace or parent is required")
+	}
+	if q.Limit > 200 {
+		q.Limit = 200
 	}
 	if q.Limit <= 0 {
 		q.Limit = 50
@@ -153,4 +161,15 @@ func (g *SessionRepo) ListOrphanSubagentSessions(ctx context.Context) ([]string,
 		return nil, err
 	}
 	return g.queries.ListOrphanSubagentSessions(ctx)
+}
+
+func (g *SessionRepo) ListUnfinalizedNative(ctx context.Context) ([]store.SessionSubagent, error) {
+	if err := g.checkReady(ctx, "list unfinalized native subagents"); err != nil {
+		return nil, err
+	}
+	rows, err := g.queries.ListUnfinalizedNativeSubagents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return subagentsFromSQL(rows)
 }

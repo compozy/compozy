@@ -2,7 +2,6 @@ import { createContext } from "react";
 
 import type { SubagentOpenOptions } from "../components/subagents/subagent-card";
 import type { SubagentView } from "../components/subagents/types";
-import { EMPTY_SUBAGENT_ROSTER, type SubagentRoster } from "../lib/subagent-roster";
 
 /**
  * Opens another session from inside a transcript: the subagent card's drill-in
@@ -25,20 +24,20 @@ export interface SubagentNavigation {
 
 export const SubagentNavigationContext = createContext<SubagentNavigation | null>(null);
 
-/** The parent session's live subagent roster, shared by cards, banner and status line. */
+/**
+ * Which session's roster the transcript, banner and status line read, and how
+ * a card drills in. Stable across roster updates: consumers select only the
+ * rows they show from the query cache, so a progress tick re-renders the card
+ * it changed, never every message (m19).
+ */
 export interface SessionSubagentsContextValue {
   workspaceId: string;
   sessionId: string;
-  roster: SubagentRoster;
   /** Drill-in; absent where no window can open the child. */
   onOpen?: (subagent: SubagentView, options: SubagentOpenOptions) => void;
 }
 
-const NO_SUBAGENTS: SessionSubagentsContextValue = {
-  workspaceId: "",
-  sessionId: "",
-  roster: EMPTY_SUBAGENT_ROSTER,
-};
+const NO_SUBAGENTS: SessionSubagentsContextValue = { workspaceId: "", sessionId: "" };
 
 export const SessionSubagentsContext = createContext<SessionSubagentsContextValue>(NO_SUBAGENTS);
 

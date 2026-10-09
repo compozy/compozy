@@ -150,6 +150,18 @@ describe("working status", () => {
       row("sub-done", "completed", "sess_child_9"),
     ];
     expect(runningAgentCount(children, subagents)).toBe(3);
+    // D-05: a settled subagent's child lingers as an idle session with an active_child signal.
+    const lingering = session({
+      supervision: {
+        quiet_warning: null,
+        sources: [],
+        work_signals: [
+          { kind: "active_child", since: "2026-09-06T12:01:00Z", ref: "sess_child_9" },
+          { kind: "active_child", since: "2026-09-06T12:01:00Z", ref: "sess_plain_spawn" },
+        ],
+      },
+    });
+    expect(runningAgentCount(lingering, subagents)).toBe(3);
     expect(
       deriveWorkingStatus({
         session: children,

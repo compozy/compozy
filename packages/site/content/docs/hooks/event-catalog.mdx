@@ -195,9 +195,9 @@ TTL.
 
 ### Subagent
 
-| Event              | Sync | Payload                  | Patch                  | Fires when                                                                |
-| ------------------ | ---- | ------------------------ | ---------------------- | ------------------------------------------------------------------------- |
-| `subagent.settled` | yes  | `SubagentSettledPayload` | `SubagentSettledPatch` | When a subagent reaches a terminal status, after its record is committed. |
+| Event              | Sync | Payload                  | Patch                      | Fires when                                                                |
+| ------------------ | ---- | ------------------------ | -------------------------- | ------------------------------------------------------------------------- |
+| `subagent.settled` | no   | `SubagentSettledPayload` | `SubagentObservationPatch` | When a subagent reaches a terminal status, after its record is committed. |
 
 `subagent.settled` is observe-only: a hook cannot change the status, the result, or the parent's
 wake. It fires once per subagent for both delegated and provider-native subagents.
@@ -486,9 +486,9 @@ Related references:
 
 ## Subagent Events
 
-| Event | Sync | Payload | Patch | When |
-| --- | --- | --- | --- | --- |
-| `subagent.settled` | no | `SubagentSettledPayload` | `SubagentObservationPatch` | A subagent reaches its terminal state. |
+| Event              | Sync | Payload                  | Patch                      | When                                   |
+| ------------------ | ---- | ------------------------ | -------------------------- | -------------------------------------- |
+| `subagent.settled` | no   | `SubagentSettledPayload` | `SubagentObservationPatch` | A subagent reaches its terminal state. |
 
 This family is observe-only. The payload includes `workspace_id`, `subagent_id`,
 `parent_session_id`, nullable `child_session_id`, `origin`, `status`, `runtime.provider`,

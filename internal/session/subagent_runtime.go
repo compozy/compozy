@@ -113,14 +113,14 @@ func (r managerSubagentRuntime) HasAdmission(ctx context.Context, row store.Sess
 	return found, err
 }
 func (r managerSubagentRuntime) Stop(ctx context.Context, id string) error { return r.m.Stop(ctx, id) }
-func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, error) {
+func (r managerSubagentRuntime) Result(ctx context.Context, id string) (subagentTurnResult, error) {
 	query := store.EventQuery{Limit: 200}
 	var turn string
 	var events []store.SessionEvent
 	for {
 		page, err := r.m.Events(ctx, id, query)
 		if err != nil {
-			return "", err
+			return subagentTurnResult{}, err
 		}
 		finished := len(page) < query.Limit
 		for _, event := range slices.Backward(page) {
@@ -129,7 +129,7 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, 
 			}
 			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 			if err != nil {
-				return "", err
+				return subagentTurnResult{}, err
 			}
 			if decoded.ParentToolCallID() != "" {
 				continue
@@ -151,16 +151,29 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, 
 	events = slices.DeleteFunc(events, func(event store.SessionEvent) bool { return event.TurnID != turn })
 	// Canonical assembly preserves chunk boundaries and complete assistant messages.
 	// The UI projection merges a turn's assistant segments and has no turn metadata.
+	var result subagentTurnResult
+	for _, event := range events {
+		if event.Type != acp.EventTypeError {
+			continue
+		}
+		// The settling turn ended in an error (a provider failure that left the
+		// session itself alive): the subagent failed with that error (UT-021).
+		if decoded, err := transcript.UnmarshalAgentEvent(event.Content); err == nil {
+			result.Error = firstTrimmedNonEmpty(decoded.Error, decoded.Text, "turn failed")
+		}
+		break
+	}
 	messages, err := transcript.Assemble(events)
 	if err != nil {
-		return "", err
+		return subagentTurnResult{}, err
 	}
 	for _, message := range slices.Backward(messages) {
 		if message.Role == transcript.RoleAssistant && strings.TrimSpace(message.Content) != "" {
-			return message.Content, nil
+			result.Text = message.Content
+			break
 		}
 	}
-	return "", nil
+	return result, nil
 }
 
 func (r managerSubagentRuntime) walkTranscript(
@@ -268,14 +281,17 @@ func (r managerSubagentRuntime) Steer(ctx context.Context, parent, turn, id, tex
 	steerCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
 	defer cancel()
 	result, err := driver.Steer(steerCtx, child.processHandle(), turn, text)
-	r.m.emitTranscriptMarker(
-		ctx,
-		child,
-		turn,
-		transcript.MarkerPromptSteered,
-		text,
-		map[string]any{"message_id": id, "kind": subagentWakeKind},
-	)
+	if err == nil &&
+		(result.Attempt == acp.SteerAttemptInjected || result.Attempt == acp.SteerAttemptPendingInjection) {
+		r.m.emitTranscriptMarker(
+			ctx,
+			child,
+			turn,
+			transcript.MarkerPromptSteered,
+			text,
+			map[string]any{"message_id": id, "kind": subagentWakeKind},
+		)
+	}
 	return result, err
 }
 func (r managerSubagentRuntime) PublishParent(ctx context.Context, parent string) {
@@ -291,5 +307,44 @@ func (r managerSubagentRuntime) SettleParent(ctx context.Context, parent string)
 		return err
 	}
 	r.PublishParent(ctx, parent)
+	return nil
+}
+
+func (r managerSubagentRuntime) WakeInputStatus(ctx context.Context, wake store.SessionSubagentWake) (string, error) {
+	if wake.InputEntryID == "" {
+		return "", nil
+	}
+	entry, err := r.m.inputQueue.Get(ctx, wake.ParentSessionID, wake.InputEntryID)
+	if errors.Is(err, store.ErrSessionInputQueueEntryNotFound) {
+		return "", nil
+	}
+	return entry.Status, err
+}
+
+func (r managerSubagentRuntime) ResumeChild(ctx context.Context, row store.SessionSubagent) error {
+	info, err := r.m.Status(ctx, *row.ChildSessionID)
+	if err != nil {
+		return err
+	}
+	identity := row.ID + ":resume:" + info.UpdatedAt.UTC().Format("20060102T150405.000000000")
+	if _, err := r.m.Resume(ctx, *row.ChildSessionID); err != nil {
+		return err
+	}
+	result, err := r.m.SendPrompt(ctx, *row.ChildSessionID, SendPromptOpts{
+		Message:        "Continue the interrupted delegated task.",
+		MessageID:      identity,
+		IdempotencyKey: identity,
+		Mode:           BusyInputModeQueue,
+	})
+	if err != nil {
+		return err
+	}
+	if result.Events != nil {
+		r.m.startTrackedPromptTask(func() {
+			for range result.Events {
+				continue
+			}
+		})
+	}
 	return nil
 }

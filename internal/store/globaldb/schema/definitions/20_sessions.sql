@@ -433,10 +433,12 @@ CREATE TABLE session_subagent_wakes (
  route TEXT NOT NULL CHECK (route IN ('queue','steer')),
  input_entry_id TEXT NOT NULL DEFAULT '',
  steer_requeued INTEGER NOT NULL DEFAULT 0,
+ attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL,
  FOREIGN KEY (workspace_id, parent_session_id) REFERENCES sessions(workspace_id,id) ON DELETE CASCADE
 );
+CREATE INDEX idx_session_subagent_wakes_parent_state ON session_subagent_wakes(parent_session_id,state);
 CREATE UNIQUE INDEX uq_session_subagent_wakes_open ON session_subagent_wakes(parent_session_id) WHERE state = 'open';
 
 CREATE TABLE session_subagents (
@@ -480,5 +482,4 @@ CREATE TABLE session_subagents (
 CREATE INDEX idx_session_subagents_parent_created ON session_subagents(parent_session_id,created_at);
 CREATE INDEX idx_session_subagents_workspace_status ON session_subagents(workspace_id,status);
 CREATE INDEX idx_session_subagents_parent_delivery ON session_subagents(parent_session_id,delivery) WHERE delivery IN ('pending','claimed');
-CREATE INDEX idx_session_subagents_child ON session_subagents(child_session_id);
 CREATE INDEX idx_session_subagents_provider_tool ON session_subagents(parent_session_id,provider_tool_call_id) WHERE origin = 'provider_native';

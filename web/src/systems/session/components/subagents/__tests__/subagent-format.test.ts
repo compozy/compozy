@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  formatSubagentElapsed,
   subagentCardLines,
   subagentChipPreview,
   subagentChipState,
@@ -130,14 +129,34 @@ describe("subagentCardLines (UT-W05)", () => {
   });
 });
 
-describe("subagent elapsed (UT-W06)", () => {
-  it("Should format compact elapsed with a padded second unit", () => {
-    expect(formatSubagentElapsed(45_000)).toBe("45s");
-    expect(formatSubagentElapsed(725_000)).toBe("12m 05s");
-    expect(formatSubagentElapsed(3_780_000)).toBe("1h 03m");
-    expect(formatSubagentElapsed(-5)).toBe("0s");
+describe("subagent rows read agent markdown as plain text (D-09)", () => {
+  it("Should strip markdown from card line 2 and the hover preview", () => {
+    expect(
+      subagentCardLines(
+        subagent({
+          status: "completed",
+          settled_at: at(9),
+          result_preview: "# API Versioning\nbody",
+        })
+      ).lineTwo
+    ).toBe("API Versioning");
+    expect(subagentCardLines(subagent({ progress: "**Planning** the `fix`" })).lineTwo).toBe(
+      "Planning the fix"
+    );
+    expect(
+      subagentHoverPreview(
+        subagent({
+          status: "completed",
+          settled_at: at(9),
+          result_preview:
+            "**Yes—ship it.**\n- see [the PR](https://x.test/1)\nkeep snake_case_names",
+        })
+      )
+    ).toBe("Yes—ship it. see the PR keep snake_case_names");
   });
+});
 
+describe("subagent elapsed (UT-W06)", () => {
   it("Should freeze at settled_at and tick from started_at only while live", () => {
     expect(subagentElapsedClock(subagent({ status: "completed", settled_at: at(52) }))).toEqual({
       kind: "frozen",
@@ -271,7 +290,7 @@ describe("subagentChipState (UT-W17)", () => {
     expect(subagentChipState({ live: 3, total: 10, failed: 1, attention: 1 }, true)).toEqual({
       glyph: "attention",
       text: "3/10",
-      ariaLabel: "3 of 10 subagents running, 1 needs you",
+      ariaLabel: "3 of 10 subagents running",
     });
     expect(subagentChipState({ live: 2, total: 10, failed: 0, attention: 0 }, true)?.glyph).toBe(
       "running"

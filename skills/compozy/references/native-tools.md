@@ -156,8 +156,9 @@ by another agent, provider, or model while you keep working:
    `child_session_id`. Keep working, then end your turn. Do not poll or wait in loops.
 4. When the subagent settles, CompozyOS wakes you once per batch with a pointer message:
    `Subagent "<title>" (<subagent_id>) finished: <status>.` lines followed by
-   `Call compozy__subagent_status to read each result.` The wake is steered into your running turn when
-   your agent supports steering, otherwise queued ahead of user prompts.
+   `Call compozy__subagent_status to read its result.` (one subagent) or `… to read each result.`
+   (several). The wake is steered into your running turn when your agent supports steering,
+   otherwise queued ahead of user prompts.
 5. `compozy__subagent_status {subagent_id}` returns the status, `work_state`, `result` (the child's last
    assistant message, capped at `[subagents].result_max_chars`, with `result_truncated` and a hint to read
    the rest through `compozy__session_history` on `child_session_id`), `error`, and `delivery`. Reading a
@@ -169,7 +170,9 @@ A timeout returns `wait_timed_out: true`, never cancels the subagent, and switch
 Use wait only for short tasks; some providers abort long tool calls.
 
 Statuses are `queued`, `running`, `waiting` (the child needs approval or input), `completed`, `failed`,
-`canceled`, and `interrupted`. A waiting subagent does not wake you: the operator approves it, or you
+`canceled`, and `interrupted`. A clean daemon restart is not a cancel: the subagent resumes and wakes you
+when it settles, or settles `interrupted` (still waking you) when it cannot resume. A daemon crash
+settles a running subagent `failed`. A waiting subagent does not wake you: the operator approves it, or you
 call `compozy__session_approve` or `compozy__session_clarify_answer` on its `child_session_id` after
 status reports `waiting`. `compozy__subagent_cancel {subagent_id, reason?}` returns `cancel_requested`
 for a live subagent, otherwise its terminal status; Claude's own Agent/Task subagents

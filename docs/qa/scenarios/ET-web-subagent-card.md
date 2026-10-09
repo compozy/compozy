@@ -21,7 +21,7 @@ Automated owners: E2E-001…E2E-005 (acpmock "claude" + "codex"), UT-W01…UT-W1
 component stories. This scenario is the real-provider walk with visual parity against the boards.
 
 1. **Card (E2E-001, transcript VC-01/VC-02).** In a Claude session, ask for a Codex second opinion.
-   Expect `Checked subagent capabilities 1 time`, then a card with the Codex mark, the title,
+   Expect `Checked subagent capabilities` (a single call shows no count), then a card with the Codex mark, the title,
    `Running`, and a ticking elapsed; no "Used session spawn" or delegate tool row. While Codex works,
    line 2 shows its current step. On settle the card reads `Completed` with the result's first line,
    elapsed freezes, a wake turn renders, and the parent's final reply follows. A failed delegate call

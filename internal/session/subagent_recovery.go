@@ -18,13 +18,18 @@ func (s *subagentService) Recover(ctx context.Context) error {
 		if row.ChildSessionID != nil {
 			child = *row.ChildSessionID
 		}
-		if _, err := s.failDelegation(ctx, row, child, errors.New("delegation interrupted")); err != nil {
-			return err
-		}
-		s.recovered(ctx, row.ID, "stale_reservation")
+		_, err := s.failDelegation(ctx, row, child, errors.New("delegation interrupted"))
+		s.recoveryResult(ctx, row.ID, "stale_reservation", err)
 	}
 	if err := s.recoverRunning(ctx); err != nil {
 		return err
+	}
+	native, err := s.store.ListUnfinalizedNative(ctx)
+	if err != nil {
+		return err
+	}
+	for _, row := range native {
+		s.recoveryResult(ctx, row.ID, "native_interrupted", s.recoverNative(ctx, row))
 	}
 	if err := s.recoverWakes(ctx); err != nil {
 		return err
@@ -37,13 +42,11 @@ func (s *subagentService) Recover(ctx context.Context) error {
 		return err
 	}
 	for _, child := range orphans {
-		if err := s.runtime.Stop(ctx, child); err != nil {
-			return err
-		}
-		s.recovered(ctx, child, "orphan_stopped")
+		s.recoveryResult(ctx, child, "orphan_stopped", s.runtime.Stop(ctx, child))
 	}
 	return nil
 }
+
 func (s *subagentService) recoverRunning(ctx context.Context) error {
 	rows, err := s.store.ListUnfinalizedDelegated(ctx)
 	if err != nil {
@@ -53,76 +56,125 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 		if row.ChildSessionID == nil || row.Status == store.SubagentStatusQueued {
 			continue
 		}
-		admitted, err := s.runtime.HasAdmission(ctx, row)
-		if err != nil {
-			return err
-		}
-		if !admitted {
-			if row.PendingTask == nil {
-				if _, err := s.failDelegation(
-					ctx,
-					row,
-					*row.ChildSessionID,
-					errors.New("delegation interrupted"),
-				); err != nil {
-					return err
-				}
-				s.recovered(ctx, row.ID, "missing_pending_task")
-				continue
-			}
-			if err := s.runtime.Admit(ctx, row, subagentPrompt(row.Role, *row.PendingTask)); err != nil {
-				if _, settleErr := s.failDelegation(ctx, row, *row.ChildSessionID, err); settleErr != nil {
-					return settleErr
-				}
-				continue
-			}
-			s.recovered(ctx, row.ID, "first_prompt_readmitted")
-		}
-		if row.PendingTask != nil {
-			if err := s.store.MarkFirstPromptAdmitted(ctx, row.ID); err != nil {
-				return err
-			}
-		}
-		if err := s.OnChildSettled(ctx, *row.ChildSessionID); err != nil {
-			return err
-		}
-		s.recovered(ctx, row.ID, "child_reconciled")
+		s.recoveryResult(ctx, row.ID, "child_reconciled", s.recoverChild(ctx, row))
 	}
 	return nil
 }
+
+func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSubagent) error {
+	snap, err := s.runtime.Snapshot(ctx, *row.ChildSessionID)
+	if err != nil {
+		return err
+	}
+	if snap.Info.State == StateStopped && snap.Info.StopReason == store.StopShutdown && row.PendingTask == nil {
+		if err := s.runtime.ResumeChild(ctx, row); err != nil {
+			s.recoveryResult(ctx, row.ID, "child_resume", err)
+			unlock := s.lock(row.ParentSessionID)
+			defer unlock()
+			return s.finalizeAvailable(ctx, row, snap, BadgeIdle)
+		}
+		return nil
+	}
+	admitted, err := s.runtime.HasAdmission(ctx, row)
+	if err != nil {
+		return err
+	}
+	if !admitted {
+		if row.PendingTask == nil {
+			_, err := s.failDelegation(ctx, row, *row.ChildSessionID, errors.New("delegation interrupted"))
+			return err
+		}
+		if err := s.runtime.Admit(ctx, row, subagentPrompt(row.Role, *row.PendingTask)); err != nil {
+			_, settleErr := s.failDelegation(ctx, row, *row.ChildSessionID, err)
+			return settleErr
+		}
+	}
+	if row.PendingTask != nil {
+		if err := s.store.MarkFirstPromptAdmitted(ctx, row.ID); err != nil {
+			return err
+		}
+	}
+	return s.OnChildSettled(ctx, *row.ChildSessionID)
+}
+
+func (s *subagentService) recoverNative(ctx context.Context, row store.SessionSubagent) error {
+	unlock := s.lock(row.ParentSessionID)
+	snap, err := s.runtime.Snapshot(ctx, row.ParentSessionID)
+	if err != nil && !errors.Is(err, ErrSessionNotFound) {
+		unlock()
+		return err
+	}
+	if snap.Active && snap.TurnID == row.ParentTurnID {
+		unlock()
+		return nil
+	}
+	err = s.finalizeInterruptedNative(ctx, row)
+	if err == nil {
+		err = s.settleParent(ctx, row.ParentSessionID)
+	}
+	unlock()
+	if err != nil {
+		return err
+	}
+	return s.OnChildSettled(ctx, row.ParentSessionID)
+}
+
 func (s *subagentService) recoverWakes(ctx context.Context) error {
 	wakes, err := s.store.ListOpenWakes(ctx)
 	if err != nil {
 		return err
 	}
 	for _, wake := range wakes {
-		snap, err := s.runtime.Snapshot(ctx, wake.ParentSessionID)
-		if err != nil && !errors.Is(err, ErrSessionNotFound) {
-			return err
-		}
-		if snap.Info != nil && snap.Info.State == StateStopping {
-			continue
-		}
-		if !subagentParentAcceptsWake(snap.Info) {
-			if err := s.OnParentStopped(ctx, wake.ParentSessionID); err != nil {
-				return err
-			}
-			s.recovered(ctx, wake.WakeMessageID, "stopped_parent_disposed")
-			continue
-		}
-		unlock := s.lock(wake.ParentSessionID)
-		current, rows, readErr := s.store.GetWake(ctx, wake.WakeMessageID)
-		if readErr == nil {
-			readErr = s.deliver(ctx, current, rows, true)
-		}
-		unlock()
-		if readErr != nil {
-			return readErr
-		}
-		s.recovered(ctx, wake.WakeMessageID, "wake_reoffered")
+		s.recoveryResult(ctx, wake.WakeMessageID, "wake_reconciled", s.recoverWake(ctx, wake))
 	}
 	return nil
 }
+
+func (s *subagentService) recoverWake(ctx context.Context, wake store.SessionSubagentWake) error {
+	snap, err := s.runtime.Snapshot(ctx, wake.ParentSessionID)
+	if err != nil && !errors.Is(err, ErrSessionNotFound) {
+		return err
+	}
+	if snap.Info != nil && snap.Info.State == StateStopping {
+		return nil
+	}
+	if !subagentParentAcceptsWake(snap.Info) {
+		return s.OnParentStopped(ctx, wake.ParentSessionID)
+	}
+	unlock := s.lock(wake.ParentSessionID)
+	defer unlock()
+	current, rows, err := s.store.GetWake(ctx, wake.WakeMessageID)
+	if err != nil {
+		return err
+	}
+	status, err := s.runtime.WakeInputStatus(ctx, current)
+	if err != nil {
+		return err
+	}
+	switch status {
+	case store.SessionInputQueueStatusFailed:
+		return s.failWake(ctx, wake.ParentSessionID, wake.WakeMessageID)
+	case store.SessionInputQueueStatusCanceled:
+		return s.settleWake(ctx, wake.ParentSessionID, wake.WakeMessageID, true)
+	case store.SessionInputQueueStatusQueued, store.SessionInputQueueStatusDispatching:
+		return nil
+	case store.SessionInputQueueStatusSent:
+		if snap.Active {
+			return s.store.MarkWakeDispatched(ctx, wake.WakeMessageID)
+		}
+		return s.settleWake(ctx, wake.ParentSessionID, wake.WakeMessageID, false)
+	}
+	if current.State == store.SubagentWakeStateDispatched && current.Route == store.SubagentWakeRouteQueue {
+		return s.failWake(ctx, wake.ParentSessionID, wake.WakeMessageID)
+	}
+	if current.State == store.SubagentWakeStateDispatched && current.Route == store.SubagentWakeRouteSteer {
+		if err := s.store.MarkWakeSteerRequeued(ctx, current.WakeMessageID); err != nil {
+			return err
+		}
+	}
+	return s.deliver(ctx, current, rows, true)
+}
+
 func (s *subagentService) recoverPending(ctx context.Context) error {
 	pending, err := s.store.ListPending(ctx)
 	if err != nil {
@@ -136,19 +188,21 @@ func (s *subagentService) recoverPending(ctx context.Context) error {
 		seen[row.ParentSessionID] = true
 		snap, err := s.runtime.Snapshot(ctx, row.ParentSessionID)
 		if err != nil && !errors.Is(err, ErrSessionNotFound) {
-			return err
+			s.recoveryResult(ctx, row.ID, "pending_snapshot", err)
+			continue
 		}
 		if snap.Active {
 			continue
 		}
-		if err := s.OnParentTurnSettled(ctx, row.ParentSessionID, ""); err != nil {
-			return err
-		}
-		s.recovered(ctx, row.ID, "pending_claimed")
+		s.recoveryResult(ctx, row.ID, "pending_claimed", s.OnParentTurnSettled(ctx, row.ParentSessionID, ""))
 	}
 	return nil
 }
 
-func (s *subagentService) recovered(ctx context.Context, id, reason string) {
+func (s *subagentService) recoveryResult(ctx context.Context, id, reason string, err error) {
+	if err != nil {
+		s.logger.ErrorContext(ctx, "subagent.recovery_failed", "id", id, "reason", reason, "error", err)
+		return
+	}
 	s.logger.InfoContext(ctx, "subagent.recovered", "id", id, "reason", reason)
 }

@@ -121,6 +121,7 @@ type SessionSubagentWake struct {
 	Route           string
 	InputEntryID    string
 	SteerRequeued   bool
+	Attempts        int
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -179,6 +180,7 @@ type SubagentStore interface {
 	// no session and no row, IT-022). It returns ErrSubagentNotFound for any other row.
 	DeleteReserved(ctx context.Context, id string) error
 	GetSubagent(ctx context.Context, workspaceID, id string) (SessionSubagent, error)
+	GetSubagentByID(ctx context.Context, id string) (SessionSubagent, error)
 	GetSubagentByChild(ctx context.Context, childSessionID string) (SessionSubagent, error)
 	ListSubagents(ctx context.Context, q SubagentListQuery) (SubagentPage, error)
 	Summaries(ctx context.Context, parentIDs []string) (map[string]SubagentSummary, error)
@@ -189,10 +191,12 @@ type SubagentStore interface {
 
 	OpenOrJoinWake(ctx context.Context, parentID string, ids []string, newWakeID string) (SessionSubagentWake, error)
 	GetWake(ctx context.Context, wakeID string) (SessionSubagentWake, []SessionSubagent, error)
+	ListWakesByParent(ctx context.Context, parentID string, states []string) ([]SessionSubagentWake, error)
 	SetWakeInput(ctx context.Context, wakeID, route, inputEntryID string) error
 	RewriteSubagentWakeInput(ctx context.Context, wakeID, text string, metadata json.RawMessage) error
 	MarkWakeSteerRequeued(ctx context.Context, wakeID string) error
 	MarkWakeDispatched(ctx context.Context, wakeID string) error
+	FailWake(ctx context.Context, wakeID string) (SessionSubagentWake, []SessionSubagent, error)
 	SettleWake(ctx context.Context, wakeID string, canceled bool) ([]SessionSubagent, error)
 	SetPending(ctx context.Context, ids []string) error
 	Acknowledge(ctx context.Context, id, observedTurnID string) (SessionSubagent, *SessionSubagentWake, error)
@@ -201,6 +205,7 @@ type SubagentStore interface {
 
 	ListStaleReserved(ctx context.Context, olderThan time.Time) ([]SessionSubagent, error)
 	ListUnfinalizedDelegated(ctx context.Context) ([]SessionSubagent, error)
+	ListUnfinalizedNative(ctx context.Context) ([]SessionSubagent, error)
 	ListOpenWakes(ctx context.Context) ([]SessionSubagentWake, error)
 	ListPending(ctx context.Context) ([]SessionSubagent, error)
 	ListOrphanSubagentSessions(ctx context.Context) ([]string, error)

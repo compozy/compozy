@@ -96,7 +96,7 @@ func (s *subagentService) settleWake(ctx context.Context, parent, id string, can
 	return s.successor(ctx, parent)
 }
 func (s *subagentService) OnWakeCanceled(ctx context.Context, parent, id string) error {
-	unlock := s.lock(parent)
+	unlock := s.lockWakeDispatch(ctx, parent)
 	defer unlock()
 	wake, _, err := s.store.GetWake(ctx, id)
 	if err != nil {
@@ -146,10 +146,77 @@ func (s *subagentService) steerOutcome(ctx context.Context, id string, injected 
 	s.logger.InfoContext(ctx, "subagent.wake_route_fallback", "reason", "steer_not_injected", "wake_message_id", id)
 	return s.deliver(ctx, wake, rows, true)
 }
-func (s *subagentService) OnParentTurnSettled(ctx context.Context, parent, _ string) error {
+func (s *subagentService) OnParentTurnSettled(ctx context.Context, parent, turn string) error {
 	unlock := s.lock(parent)
+	err := s.interruptNative(ctx, parent, turn)
+	if err == nil {
+		err = s.settleTurnSteers(ctx, parent, turn)
+	}
+	if err == nil {
+		err = s.successor(ctx, parent)
+	}
+	unlock()
+	if err != nil {
+		return err
+	}
+	return s.OnChildSettled(ctx, parent)
+}
+
+func (s *subagentService) settleTurnSteers(ctx context.Context, parent, turn string) error {
+	wakes, err := s.parentWakes(ctx, parent)
+	if err != nil {
+		return err
+	}
+	for _, wake := range wakes {
+		s.mu.Lock()
+		target, accepted := s.steerTurns[wake.WakeMessageID]
+		if accepted && target == turn {
+			delete(s.steerTurns, wake.WakeMessageID)
+		}
+		s.mu.Unlock()
+		if accepted && target == turn {
+			if err := s.settleWake(ctx, parent, wake.WakeMessageID, false); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *subagentService) OnWakeFailed(ctx context.Context, parent, id string) error {
+	unlock := s.lockWakeDispatch(ctx, parent)
 	defer unlock()
-	return s.successor(ctx, parent)
+	wake, _, err := s.store.GetWake(ctx, id)
+	if err != nil {
+		return err
+	}
+	if wake.ParentSessionID != parent {
+		return ErrSubagentNotFound
+	}
+	return s.failWake(ctx, parent, id)
+}
+
+func (s *subagentService) failWake(ctx context.Context, parent, id string) error {
+	wake, rows, err := s.store.FailWake(ctx, id)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		s.publish(ctx, row)
+	}
+	if len(rows) > 0 && wake.Attempts >= 3 {
+		s.logger.WarnContext(
+			ctx,
+			"subagent.wake_abandoned",
+			"parent_session_id",
+			parent,
+			"wake_message_id",
+			id,
+			"attempts",
+			wake.Attempts,
+		)
+	}
+	return nil
 }
 func (s *subagentService) successor(ctx context.Context, parent string) error {
 	pending, err := s.store.ListPending(ctx)
@@ -219,37 +286,13 @@ func (s *subagentService) parentRows(ctx context.Context, parent string) ([]stor
 	}
 }
 func (s *subagentService) parentWakes(ctx context.Context, parent string) ([]store.SessionSubagentWake, error) {
-	rows, err := s.parentRows(ctx, parent)
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[string]bool)
-	var wakes []store.SessionSubagentWake
-	for _, row := range rows {
-		if row.WakeMessageID == nil || seen[*row.WakeMessageID] {
-			continue
-		}
-		seen[*row.WakeMessageID] = true
-		wake, _, err := s.store.GetWake(ctx, *row.WakeMessageID)
-		if err != nil {
-			return nil, err
-		}
-		if wake.State == store.SubagentWakeStateOpen || wake.State == store.SubagentWakeStateDispatched {
-			wakes = append(wakes, wake)
-		}
-	}
-	return wakes, nil
+	return s.store.ListWakesByParent(
+		ctx,
+		parent,
+		[]string{store.SubagentWakeStateOpen, store.SubagentWakeStateDispatched},
+	)
 }
 
 func (s *subagentService) internalRow(ctx context.Context, id string) (store.SessionSubagent, error) {
-	rows, err := s.parentRows(ctx, "")
-	if err != nil {
-		return store.SessionSubagent{}, err
-	}
-	for _, row := range rows {
-		if row.ID == id {
-			return row, nil
-		}
-	}
-	return store.SessionSubagent{}, store.ErrSubagentNotFound
+	return s.store.GetSubagentByID(ctx, id)
 }

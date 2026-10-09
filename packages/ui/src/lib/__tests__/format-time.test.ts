@@ -49,6 +49,15 @@ describe("formatAbsoluteTime", () => {
 });
 
 describe("formatDuration", () => {
+  it("Should keep a zero-padded second unit when padded", () => {
+    expect(formatDuration(45_000, { padded: true })).toBe("45s");
+    expect(formatDuration(725_000, { padded: true })).toBe("12m 05s");
+    expect(formatDuration(3_600_000, { padded: true })).toBe("1h 00m");
+    expect(formatDuration(3_780_000, { padded: true })).toBe("1h 03m");
+    expect(formatDuration(187_200_000, { padded: true })).toBe("2d 04h");
+    expect(formatDuration(-5, { padded: true })).toBe("0s");
+  });
+
   it("Should return 0s for non-positive durations", () => {
     expect(formatDuration(0)).toBe("0s");
     expect(formatDuration(-100)).toBe("0s");

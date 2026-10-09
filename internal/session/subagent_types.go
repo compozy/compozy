@@ -169,6 +169,7 @@ type SubagentService interface {
 	OnWakeDispatched(ctx context.Context, parentID, wakeMessageID string) error
 	OnWakeTurnSettled(ctx context.Context, parentID, wakeMessageID string, canceled bool) error
 	OnWakeCanceled(ctx context.Context, parentID, wakeMessageID string) error
+	OnWakeFailed(ctx context.Context, parentID, wakeMessageID string) error
 	OnSteerOutcome(ctx context.Context, parentID, wakeMessageID string, injected bool) error
 	OnParentTurnSettled(ctx context.Context, parentID, turnID string) error
 	OnParentTurnInterrupted(ctx context.Context, parentID, turnID string) error

@@ -889,7 +889,7 @@ describe("useSessionLiveTail", () => {
 
   // UT-W01 (stream half): both roster events are registered explicitly (L-017) and write the
   // client-held roster; a reconnect holds rows stale until the next snapshot.
-  it("Should feed the subagent roster from the stream and hold it stale across a reconnect", async () => {
+  it("Should feed the subagent roster from the stream and hold it stale from loss to resync", async () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
@@ -936,12 +936,14 @@ describe("useSessionLiveTail", () => {
       staleIds: new Set(),
     });
 
+    // Stale the moment the stream drops, before any reconnect (m19).
     act(() => sources[0]?.onerror?.(new Event("error")));
-    await act(async () => vi.advanceTimersByTimeAsync(250));
-    expect(sources).toHaveLength(2);
+    expect(sources).toHaveLength(1);
     expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.staleIds).toEqual(
       new Set(["sub-1"])
     );
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(sources).toHaveLength(2);
     act(() => {
       sources[1]?.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [subagent] });
     });

@@ -81,7 +81,7 @@ func (s *subagentService) SubscribeSubagentUpdates(
 	return sub.channel, cancel, nil
 }
 
-func (s *subagentService) publish(ctx context.Context, row store.SessionSubagent) {
+func (s *subagentService) publish(_ context.Context, row store.SessionSubagent) {
 	update := SubagentUpdate{ParentSessionID: row.ParentSessionID, Subagent: presentSubagent(row)}
 	s.mu.Lock()
 	for sub := range s.subscribers[row.ParentSessionID] {
@@ -92,12 +92,16 @@ func (s *subagentService) publish(ctx context.Context, row store.SessionSubagent
 		}
 	}
 	s.mu.Unlock()
-	s.runtime.PublishParent(ctx, row.ParentSessionID)
 }
 
 func (s *subagentService) publishTerminal(ctx context.Context, row store.SessionSubagent) {
 	s.publish(ctx, row)
+	s.runtime.PublishParent(ctx, row.ParentSessionID)
 	if s.settled != nil {
-		s.logError(ctx, "settled_hook", s.settled.DispatchSubagentSettled(ctx, row))
+		s.launch(func() {
+			hookCtx, cancel := context.WithTimeout(s.ctx, defaultLifecycleTimeout)
+			defer cancel()
+			s.logError(hookCtx, "settled_hook", s.settled.DispatchSubagentSettled(hookCtx, row))
+		})
 	}
 }

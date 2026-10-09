@@ -123,22 +123,26 @@ function parseInstant(value: string | null | undefined): number | null {
 /**
  * "N agents running" (S7, UT-W10): live roster rows of either origin ∪ the
  * daemon's other `active_child` signals, one per child. A delegated row is its
- * child session; a provider-native row has none and counts by its row id.
+ * child session; a provider-native row has none and counts by its row id. A
+ * subagent child stays an idle session after it settles, so its lingering
+ * `active_child` signal is not a running agent once its row is terminal (D-05).
  */
 export function runningAgentCount(
   session: SessionWorkingStatusInput["session"],
   subagents: readonly SubagentView[] = []
 ): number {
   const children = new Set<string>();
+  const settledChildren = new Set<string>();
   for (const subagent of subagents) {
     if (isSubagentLive(subagent.status)) children.add(subagent.child_session_id ?? subagent.id);
+    else if (subagent.child_session_id) settledChildren.add(subagent.child_session_id);
   }
   let unnamed = 0;
   for (const signal of session.supervision?.work_signals ?? []) {
     if (signal.kind !== "active_child") continue;
     const ref = signal.ref?.trim();
-    if (ref) children.add(ref);
-    else unnamed += 1;
+    if (!ref) unnamed += 1;
+    else if (!settledChildren.has(ref)) children.add(ref);
   }
   return children.size + unnamed;
 }

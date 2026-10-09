@@ -168,6 +168,10 @@ test("E2E-003: hover and keyboard focus open the hover card; Escape closes it", 
 }) => {
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
   const review = card(scene, reviewTitle);
+  // Hover once the parent's turn ended and its message reconciled, while the child still works.
+  await expect(
+    scene.window.getByText("A subagent is reviewing it; I'll pick up its answer when it finishes.")
+  ).toBeVisible();
   await expect(review).toHaveAttribute("data-status", "running");
   const hover = appPage.locator('[data-slot="subagent-hover"]');
 

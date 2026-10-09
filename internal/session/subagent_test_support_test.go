@@ -92,6 +92,9 @@ func (d *memorySubagents) GetSubagentByChild(_ context.Context, child string) (s
 	return store.SessionSubagent{}, store.ErrSubagentNotFound
 }
 func (d *memorySubagents) ListSubagents(_ context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
+	if q.WorkspaceID == "" && q.ParentSessionID == "" {
+		return store.SubagentPage{}, errors.New("subagent workspace or parent required")
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	var page store.SubagentPage
@@ -201,6 +204,9 @@ func (d *memorySubagents) OpenOrJoinWake(
 		if store.IsSubagentDeliveryFinal(row.Delivery) {
 			continue
 		}
+		if row.WakeMessageID != nil {
+			wake.Attempts = max(wake.Attempts, d.wakes[*row.WakeMessageID].Attempts)
+		}
 		row.Delivery = store.SubagentDeliveryClaimed
 		row.WakeMessageID = new(wake.WakeMessageID)
 		d.rows[id] = row
@@ -244,9 +250,11 @@ func (d *memorySubagents) MarkWakeSteerRequeued(_ context.Context, id string) er
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	wake := d.wakes[id]
-	if wake.State != store.SubagentWakeStateOpen {
+	if wake.State != store.SubagentWakeStateOpen && wake.State != store.SubagentWakeStateDispatched {
 		return nil
 	}
+	wake.State = store.SubagentWakeStateOpen
+	wake.Route = store.SubagentWakeRouteQueue
 	wake.SteerRequeued = true
 	d.wakes[id] = wake
 	return nil
@@ -274,7 +282,9 @@ func (d *memorySubagents) SettleWake(_ context.Context, id string, canceled bool
 			row.Delivery = store.SubagentDeliveryDelivered
 			if canceled {
 				row.Delivery = store.SubagentDeliveryPending
-				row.WakeMessageID = nil
+				if wake.Attempts == 0 {
+					row.WakeMessageID = nil
+				}
 			}
 			d.rows[key] = row
 			rows = append(rows, row)
@@ -324,7 +334,8 @@ func (d *memorySubagents) Dispose(_ context.Context, f store.SubagentDisposeFilt
 		for _, want := range f.IDs {
 			selected = selected || want == id
 		}
-		if row.ParentSessionID == f.ParentSessionID && (f.ParentTurnID == "" || row.ParentTurnID == f.ParentTurnID) &&
+		if row.Origin != store.SubagentOriginProviderNative && row.ParentSessionID == f.ParentSessionID &&
+			(f.ParentTurnID == "" || row.ParentTurnID == f.ParentTurnID) &&
 			selected &&
 			!store.IsSubagentDeliveryFinal(row.Delivery) {
 			row.Delivery = store.SubagentDeliveryDisposed
@@ -370,7 +381,7 @@ func (d *memorySubagents) ListOpenWakes(_ context.Context) ([]store.SessionSubag
 	defer d.mu.Unlock()
 	var wakes []store.SessionSubagentWake
 	for _, wake := range d.wakes {
-		if wake.State == store.SubagentWakeStateOpen {
+		if wake.State == store.SubagentWakeStateOpen || wake.State == store.SubagentWakeStateDispatched {
 			wakes = append(wakes, wake)
 		}
 	}
@@ -392,12 +403,15 @@ func (d *memorySubagents) ListOrphanSubagentSessions(context.Context) ([]string,
 }
 
 type subagentTestRuntime struct {
+	inputStatuses                   map[string]string
+	errorResume                     error
 	mu                              sync.Mutex
 	snapshots                       map[string]subagentSnapshot
 	spawned                         []SpawnOpts
 	admitted                        map[string]string
 	stopped                         []string
 	results                         map[string]string
+	turnErrors                      map[string]string
 	queues                          map[string]string
 	publishes                       []string
 	settles                         int
@@ -478,10 +492,10 @@ func (r *subagentTestRuntime) Stop(_ context.Context, id string) error {
 	}
 	return nil
 }
-func (r *subagentTestRuntime) Result(_ context.Context, id string) (string, error) {
+func (r *subagentTestRuntime) Result(_ context.Context, id string) (subagentTurnResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.results[id], nil
+	return subagentTurnResult{Text: r.results[id], Error: r.turnErrors[id]}, nil
 }
 
 func (r *subagentTestRuntime) QueueWake(
@@ -537,9 +551,10 @@ func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *
 				Active: true,
 			},
 		},
-		admitted: make(map[string]string),
-		results:  make(map[string]string),
-		queues:   make(map[string]string),
+		admitted:   make(map[string]string),
+		results:    make(map[string]string),
+		turnErrors: make(map[string]string),
+		queues:     make(map[string]string),
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
@@ -550,8 +565,8 @@ func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *
 		now:         func() time.Time { return time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC) },
 		resultLimit: func(context.Context, string) (int, error) { return 60000, nil },
 		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-		parents:     make(map[string]*sync.Mutex),
-		flights:     make(map[string]chan struct{}),
+		parents:     make(map[string]*subagentParentLock),
+		flights:     make(map[string]*subagentFlight),
 		subscribers: make(map[string]map[*subagentSubscription]struct{}),
 		progress:    make(map[string]*subagentProgress),
 	}
@@ -606,4 +621,84 @@ func (d *memorySubagents) UpdateNativeSubagentTitle(_ context.Context, id, title
 		d.rows[id] = row
 	}
 	return row, changed, nil
+}
+
+func (d *memorySubagents) GetSubagentByID(ctx context.Context, id string) (store.SessionSubagent, error) {
+	return d.GetSubagent(ctx, "", id)
+}
+
+func (d *memorySubagents) ListWakesByParent(
+	_ context.Context,
+	parent string,
+	states []string,
+) ([]store.SessionSubagentWake, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var out []store.SessionSubagentWake
+	for _, wake := range d.wakes {
+		if wake.ParentSessionID == parent && (len(states) == 0 || slices.Contains(states, wake.State)) {
+			out = append(out, wake)
+		}
+	}
+	return out, nil
+}
+
+func (d *memorySubagents) ListUnfinalizedNative(context.Context) ([]store.SessionSubagent, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var rows []store.SessionSubagent
+	for _, row := range d.rows {
+		if row.Origin == store.SubagentOriginProviderNative && !store.IsSubagentStatusTerminal(row.Status) {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
+func (d *memorySubagents) FailWake(
+	_ context.Context,
+	id string,
+) (store.SessionSubagentWake, []store.SessionSubagent, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	wake := d.wakes[id]
+	if wake.State != store.SubagentWakeStateOpen && wake.State != store.SubagentWakeStateDispatched {
+		return wake, nil, nil
+	}
+	wake.Attempts++
+	wake.State = store.SubagentWakeStateCanceled
+	d.wakes[id] = wake
+	var rows []store.SessionSubagent
+	for key, row := range d.rows {
+		if row.WakeMessageID == nil || *row.WakeMessageID != id || row.Delivery != store.SubagentDeliveryClaimed {
+			continue
+		}
+		row.Delivery = store.SubagentDeliveryPending
+		if wake.Attempts >= 3 {
+			row.Delivery = store.SubagentDeliveryDisposed
+		}
+		d.rows[key] = row
+		rows = append(rows, row)
+	}
+	return wake, rows, nil
+}
+func (r *subagentTestRuntime) WakeInputStatus(_ context.Context, wake store.SessionSubagentWake) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.inputStatuses[wake.InputEntryID], nil
+}
+func (r *subagentTestRuntime) ResumeChild(_ context.Context, row store.SessionSubagent) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.errorResume != nil {
+		return r.errorResume
+	}
+	snap := r.snapshots[*row.ChildSessionID]
+	info := *snap.Info
+	info.State = StateActive
+	info.StopReason = ""
+	snap.Info = &info
+	snap.Active = true
+	r.snapshots[*row.ChildSessionID] = snap
+	return nil
 }

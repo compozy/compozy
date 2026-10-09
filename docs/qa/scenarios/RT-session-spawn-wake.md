@@ -86,7 +86,9 @@ and acknowledgement pruning, steering/refusal fallback, bounded wait, permission
 completion, synchronous stop, interrupt disposal, provider launch failure, executed pre-create hook
 denial, native Agent/Task rows, and boot-reactor reconciliation of missing inputs and orphan sessions.
 The controller's final public-surface walkthrough remains the CLI/HTTP/Web verification owner. The
-boot-reactor test models an observation gap in a running daemon; it is not a killed-daemon restart test.
+boot-reactor test models an observation gap in a running daemon; the killed-daemon restart is owned by
+IT-012 in the same file, which kills the daemon-hosting process mid child turn and boots it again over
+the same database.
 
 QA impact 2026-10-09 (Subagents tools slice): delegated subagents use separate wake delivery,
 `subagent.settled` observation, and a depth/live situation summary; existing spawn contracts remain.

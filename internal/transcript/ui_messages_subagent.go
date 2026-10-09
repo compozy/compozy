@@ -23,6 +23,25 @@ type UISubagentPayload struct {
 }
 
 func (b *uiMessageBuilder) appendSubagentPart(decoded *decodedStoredEvent) {
+	payload, ok := subagentPartPayload(decoded)
+	if !ok {
+		return
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	b.appendDataPart("data-compozy-subagent", payload.SubagentID, data)
+}
+
+// SubagentPartForStoredEvent is the card a committed or about-to-be-committed
+// event projects, if any. Live surfaces (the prompt stream) use it so the
+// card they emit is the one the transcript projection persists.
+func SubagentPartForStoredEvent(stored store.SessionEvent) (UISubagentPayload, bool) {
+	return subagentPartPayload(decodeStoredEvent(stored))
+}
+
+func subagentPartPayload(decoded *decodedStoredEvent) (UISubagentPayload, bool) {
 	event := decoded.agent
 	payload := UISubagentPayload{ToolCallID: event.ToolCallID}
 	switch {
@@ -30,7 +49,7 @@ func (b *uiMessageBuilder) appendSubagentPart(decoded *decodedStoredEvent) {
 		(event.ProviderToolName() == "Agent" || event.ProviderToolName() == "Task"):
 		parentID := firstNonEmpty(decoded.stored.SessionID, event.SessionID)
 		if parentID == "" || event.ToolCallID == "" {
-			return
+			return UISubagentPayload{}, false
 		}
 		payload.SubagentID = subagentid.Derive(parentID, event.ToolCallID)
 		payload.Origin = store.SubagentOriginProviderNative
@@ -45,24 +64,20 @@ func (b *uiMessageBuilder) appendSubagentPart(decoded *decodedStoredEvent) {
 		(toolmeta.NormalizeHostedToolName(decoded.parsed.ToolName) == "compozy__subagent_delegate" || toolmeta.NormalizeHostedToolName(event.ProviderToolName()) == "compozy__subagent_delegate"):
 		result := decoded.parsed.ToolResult
 		if result == nil {
-			return
+			return UISubagentPayload{}, false
 		}
 		if json.Unmarshal(result.RawOutput, &payload) != nil || payload.SubagentID == "" {
 			if json.Unmarshal([]byte(result.Content), &payload) != nil || payload.SubagentID == "" {
-				return
+				return UISubagentPayload{}, false
 			}
 		}
 		payload.ToolCallID = event.ToolCallID
 		payload.Origin = store.SubagentOriginDelegated
 	default:
-		return
+		return UISubagentPayload{}, false
 	}
 	payload.TurnID = event.TurnID
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return
-	}
-	b.appendDataPart("data-compozy-subagent", payload.SubagentID, data)
+	return payload, true
 }
 
 // NativeSubagentTitle prefers the task description as streamed tool arguments become available.

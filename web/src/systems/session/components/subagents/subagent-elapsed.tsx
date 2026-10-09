@@ -1,8 +1,8 @@
 import type { ComponentProps } from "react";
 
-import { cn } from "@compozy/ui";
+import { cn, formatDuration } from "@compozy/ui";
 
-import { formatSubagentElapsed, type SubagentElapsedClock } from "./subagent-format";
+import type { SubagentElapsedClock } from "./subagent-format";
 import { useSubagentElapsedTicker } from "./use-subagent-elapsed-ticker";
 
 export interface SubagentElapsedProps extends Omit<ComponentProps<"span">, "children"> {
@@ -43,7 +43,7 @@ export function SubagentElapsed({ clock, className, ...props }: SubagentElapsedP
       className={cn(ELAPSED_CLASS, "text-faint", className)}
       {...props}
     >
-      {formatSubagentElapsed(clock.ms)}
+      {formatDuration(clock.ms, { padded: true })}
     </span>
   );
 }

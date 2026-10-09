@@ -201,7 +201,9 @@ describe("SubagentWaitingBanner (UT-W13)", () => {
         onOpen={onOpen}
       />
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Waiting on subagent Draft release notes");
+    expect(
+      screen.getByRole("region", { name: /Waiting on subagent Draft release notes/ })
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open subagent Draft release notes" }));
     expect(onOpen).toHaveBeenCalledOnce();
   });
@@ -223,6 +225,22 @@ describe("SubagentWaitingBanner (UT-W13)", () => {
     expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
     await act(async () => reject(new Error("boom")));
     expect(toast.error).toHaveBeenCalledWith("Could not stop subagents.");
+    expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+  });
+
+  it("Should stay Stopping… after the 202 until the stopped rows actually change (m19)", async () => {
+    const onStop = vi.fn(() => Promise.resolve({ status: "cancel_requested" }));
+    const live = many(2, "running");
+    const { rerender } = renderUI(<SubagentWaitingBanner subagents={live} onStop={onStop} />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await act(async () => undefined);
+    // The daemon accepted the stop but has not settled the rows: no second Stop yet.
+    expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
+    rerender(
+      <UIProvider>
+        <SubagentWaitingBanner subagents={live.slice(1)} onStop={onStop} />
+      </UIProvider>
+    );
     expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
   });
 
@@ -307,6 +325,18 @@ describe("SessionInspectorSubagentsSection (UT-W19)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
     expect(screen.getAllByRole("button", { name: /^Open / })).toHaveLength(20);
     expect(screen.queryByRole("button", { name: /^Show / })).not.toBeInTheDocument();
+  });
+
+  it("Should open the hover card from keyboard focus on a row that cannot be opened (m19)", async () => {
+    const user = userEvent.setup();
+    const native = subagent({ id: "native", origin: "provider_native", child_session_id: null });
+    renderUI(<SessionInspectorSubagentsSection subagents={[native]} onOpen={vi.fn()} />);
+    const row = screen.getByRole("group", { name: `${native.title}, Running` });
+    await user.tab();
+    expect(row).toHaveFocus();
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="subagent-hover"]')).not.toBeNull()
+    );
   });
 
   it("Should offer Stop on live delegated rows only and toast when it fails", async () => {
