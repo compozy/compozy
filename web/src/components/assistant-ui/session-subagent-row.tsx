@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { useSubagentRosterContext } from "@/systems/session/hooks/use-subagent-roster-context";
+import { useSubagentRosterSelect } from "@/systems/session/hooks/use-subagent-roster";
 import { SubagentCard } from "@/systems/session/components/subagents/subagent-card";
 import { SubagentGroup } from "@/systems/session/components/subagents/subagent-group";
 import type { SubagentView } from "@/systems/session/components/subagents/types";
@@ -24,8 +25,11 @@ export function SessionSubagentRowView({
   renderNested,
   onGroupOpenChange,
 }: SessionSubagentRowViewProps) {
-  const { roster, onOpen } = useSubagentRosterContext();
-  const models = row.parts.map(part => subagentCardModel(part, roster));
+  const { workspaceId, sessionId, onOpen } = useSubagentRosterContext();
+  // This row's members only: another card's progress never re-renders it.
+  const models = useSubagentRosterSelect(workspaceId, sessionId, roster =>
+    row.parts.map(part => subagentCardModel(part, roster))
+  );
   const nested = (subagent: SubagentView) => renderNested(subagent.id);
   if (models.length === 1) {
     const [model] = models;

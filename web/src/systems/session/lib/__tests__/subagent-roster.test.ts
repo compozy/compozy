@@ -59,7 +59,7 @@ describe("subagent roster (UT-W01)", () => {
     roster = applySubagentUpdated(roster, update(row("c", { updated_at: at(6) })));
     expect(roster.rows.map(view => view.id)).toEqual(["c", "a", "b"]);
     expect(roster.rows.find(view => view.id === "b")?.progress).toBe("Reading");
-    expect(settledSubagentIds(roster).size).toBe(0);
+    expect(settledSubagentIds(roster)).toEqual([]);
   });
 
   it("Should ignore an update older than the row it would replace", () => {
@@ -69,7 +69,7 @@ describe("subagent roster (UT-W01)", () => {
     const stale = applySubagentUpdated(roster, update(row("a", { updated_at: at(4) })));
     expect(stale).toBe(roster);
     expect(stale.rows[0]?.status).toBe("completed");
-    expect(settledSubagentIds(stale)).toEqual(new Set(["a"]));
+    expect(settledSubagentIds(stale)).toEqual(["a"]);
   });
 
   it("Should mark held rows stale on reconnect until an update or the next snapshot confirms them", () => {

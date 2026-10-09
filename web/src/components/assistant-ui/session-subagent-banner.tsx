@@ -8,6 +8,7 @@ import {
 } from "@/systems/session/components/subagents/subagent-format";
 import { SubagentNavigationContext } from "@/systems/session/contexts/session-subagents-context-value";
 import { useSubagentRosterContext } from "@/systems/session/hooks/use-subagent-roster-context";
+import { useSubagentRoster } from "@/systems/session/hooks/use-subagent-roster";
 
 /**
  * The composer's waiting banner (S5, UT-W13): while the parent has no running
@@ -16,7 +17,8 @@ import { useSubagentRosterContext } from "@/systems/session/hooks/use-subagent-r
  * while a settled result waits to wake the parent.
  */
 export function SessionSubagentBanner({ parentTurnRunning }: { parentTurnRunning: boolean }) {
-  const { workspaceId, roster, onOpen } = useSubagentRosterContext();
+  const { workspaceId, sessionId, onOpen } = useSubagentRosterContext();
+  const roster = useSubagentRoster(workspaceId, sessionId);
   const navigation = use(SubagentNavigationContext);
   const waiting = subagentWaitingBannerRows(roster.rows, parentTurnRunning);
   if (waiting.length === 0) return null;

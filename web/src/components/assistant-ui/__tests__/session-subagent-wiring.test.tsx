@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { act, createElement, Profiler, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -144,6 +144,57 @@ describe("subagent card drill-in (UT-W16)", () => {
     const card = unknown.querySelector("[data-slot=subagent-card]");
     expect(card).toHaveAttribute("data-stale", "true");
     expect(card).toHaveAttribute("data-status", "running");
+  });
+});
+
+describe("roster updates re-render only the card they change (m19)", () => {
+  it("Should leave another row untouched when one subagent reports progress", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID);
+    queryClient.setQueryData<SubagentRoster>(key, {
+      rows: [view("sub-a"), view("sub-b")],
+      staleIds: new Set(),
+    });
+    const renders = { a: 0, b: 0 };
+    const rowFor = (id: string) => {
+      const [row] = deriveSessionRows([cardPart(id)]);
+      if (row?.kind !== "subagents") throw new Error("expected a subagent row");
+      return row;
+    };
+    const rowA = rowFor("sub-a");
+    const rowB = rowFor("sub-b");
+    render(
+      <QueryClientProvider client={queryClient}>
+        <UIProvider>
+          <SessionSubagentsProvider workspaceId={WORKSPACE_ID} sessionId={SESSION_ID}>
+            <Profiler id="a" onRender={() => (renders.a += 1)}>
+              <SessionSubagentRowView
+                row={rowA}
+                renderNested={() => null}
+                onGroupOpenChange={vi.fn()}
+              />
+            </Profiler>
+            <Profiler id="b" onRender={() => (renders.b += 1)}>
+              <SessionSubagentRowView
+                row={rowB}
+                renderNested={() => null}
+                onGroupOpenChange={vi.fn()}
+              />
+            </Profiler>
+          </SessionSubagentsProvider>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    const before = { ...renders };
+    act(() => {
+      queryClient.setQueryData<SubagentRoster>(key, {
+        rows: [view("sub-a", { progress: "Reading webhook.go" }), view("sub-b")],
+        staleIds: new Set(),
+      });
+    });
+    expect(await screen.findByText("Reading webhook.go")).toBeInTheDocument();
+    expect(renders.a).toBeGreaterThan(before.a);
+    expect(renders.b).toBe(before.b);
   });
 });
 
