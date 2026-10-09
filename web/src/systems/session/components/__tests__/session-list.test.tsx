@@ -284,6 +284,7 @@ describe("SessionList subagents", () => {
     runtime: { agent: "coder", provider: "claude", model: "", reasoning_effort: "", speed: "" },
     started_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
     settled_at: null,
+    created_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
     updated_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
   });
 
