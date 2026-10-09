@@ -244,6 +244,19 @@ The agent compacts its own context window. CompozyOS observes that compaction wh
 - Meter after a compaction: while the daemon reports the context as unknown because a compaction cleared it (`context.cleared_by`), the context meter and its tooltip read "Context usage unknown" with the sentence "Context compacted. Waiting for the agent's next usage report." Before any report, and in every other empty case, the sentence stays "This agent hasn't reported context usage."
 - Never in this feature's copy: "CompozyOS compacts the session", "summarizes older messages", a "{threshold} full" warning, "pressure", or "archived". A rebuild into a new agent session is a bounded replay, not a compaction.
 
+### Subagent Terms
+
+A subagent is a child agent session that another session's turn delegates one task to. The glossary entry **Subagent** is authoritative. Nouns are `subagent`, `session`, and `agent`; never "thread", "worker", or "task" in this feature's copy. The wake prompt agents receive is fixed English for agents, not UI copy.
+
+- Card status words: Queued · Running · Waiting for you · Completed · Failed · Canceled · Interrupted. A model the provider did not report reads "Not reported".
+- Group: "{N} subagents", summary "{n} working · {n} done · {n} failed", plus "{n} needs you" when one is waiting.
+- Child divider: "Subagent of {parent title}" with the action "Open parent"; "Subagent of a deleted session" when the parent is gone.
+- Waiting banner: "Waiting on subagent {title}" or "Waiting on {N} subagents", "and {N} more", the action "Stop" ("Stopping…" while pending), and the toast "Could not stop subagents."
+- Tool rows: Check / Checking / Checked "subagent capabilities"; Delegate / Delegating / Delegated "a subagent"; Read / Reading / Read "subagent status"; Cancel / Canceling / Canceled "a subagent"; repeats add "… {N} times"; a failed call reads "Tried to check subagent capabilities".
+- Sidebar chip aria: "{live} of {total} subagents running" or "{total} subagents, {failed} failed"; the hover preview ends with "+{N} more" and no other helper text.
+- Inspector: section "Subagents", "Subagents · {N} running", "Previous subagents ({N})", "Show {N} more", the action "Stop subagent", and the toast "Could not stop subagent".
+- Never in this feature's copy: "thread", "worker", "child task", "Click to see all", or a "{N} failed" accessory on the previous-subagents group.
+
 ### Surface Aliases
 
 Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**
