@@ -36,8 +36,15 @@ type SpawnContext struct {
 // HookProfileID returns the durable owner used to isolate profile-scoped declarations.
 func (c SpawnContext) HookProfileID() string { return strings.TrimSpace(c.ProfileID) }
 
+type SpawnSubagentContext struct {
+	Title     string `json:"title"`
+	Role      string `json:"role"`
+	TaskChars int    `json:"task_chars"`
+}
+
 // SpawnPreCreatePayload is delivered before a child session is created.
 type SpawnPreCreatePayload struct {
+	Subagent *SpawnSubagentContext `json:"subagent,omitempty"`
 	PayloadBase
 	SpawnContext
 	ParentPermissions *PermissionSet `json:"parent_permissions"`

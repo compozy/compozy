@@ -50,6 +50,7 @@ const (
 )
 
 type bootState struct {
+	subagents           session.SubagentService
 	cfg                 compozyconfig.Config
 	logger              *slog.Logger
 	closeLogger         func() error

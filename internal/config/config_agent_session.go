@@ -101,6 +101,20 @@ const (
 // PermissionMode is the static permission policy applied by the daemon.
 type PermissionMode string
 
+// Rank orders valid modes from least to most permissive; invalid modes rank below all valid modes.
+func (m PermissionMode) Rank() int {
+	switch m {
+	case PermissionModeDenyAll:
+		return 0
+	case PermissionModeApproveReads:
+		return 1
+	case PermissionModeApproveAll:
+		return 2
+	default:
+		return -1
+	}
+}
+
 const (
 	// DefaultAgentName is the bootstrap agent name used across the system.
 	DefaultAgentName                          = "general"

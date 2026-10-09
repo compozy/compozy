@@ -186,6 +186,7 @@ func (m *Manager) deliverPersistedPromptEvent(
 		m.deliverPromptProjectionFailure(ctx, turnID, out)
 		return true, true
 	}
+	m.publishSubagentActivity(ctx, session, event)
 	if event.Usage != nil {
 		event.Usage.Sequence = persisted.Sequence
 	}

@@ -108,7 +108,8 @@ func (m *Manager) normalizeCreateLineage(
 		}
 	}
 
-	requiresTTL := normalizedType == SessionTypeSpawned || normalizedType == SessionTypeCoordinator
+	requiresTTL := (normalizedType == SessionTypeSpawned && normalized.SpawnRole != store.SubagentSpawnRole) ||
+		normalizedType == SessionTypeCoordinator
 	if requiresTTL && normalized.TTLExpiresAt == nil {
 		return nil, errors.New("session: spawned and coordinator sessions require a ttl deadline")
 	}

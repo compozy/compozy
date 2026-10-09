@@ -182,6 +182,8 @@ type SubagentStore interface {
 	ListSubagents(ctx context.Context, q SubagentListQuery) (SubagentPage, error)
 	Summaries(ctx context.Context, parentIDs []string) (map[string]SubagentSummary, error)
 	UpdateProgress(ctx context.Context, id, progress string, at time.Time) error
+	UpdateSubagentState(ctx context.Context, id, status, workState string, at time.Time) (SessionSubagent, bool, error)
+	RewriteSubagentWakeInput(ctx context.Context, wakeID, text string, metadata []byte) error
 	FinalizeSubagent(ctx context.Context, in SubagentFinalize) (SessionSubagent, bool, error)
 
 	OpenOrJoinWake(ctx context.Context, parentID string, ids []string, newWakeID string) (SessionSubagentWake, error)

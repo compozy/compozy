@@ -6,6 +6,8 @@ import (
 
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
 type PromptSyntheticMeta struct {
+	Kind                 string          `json:"kind,omitempty"`
+	SubagentIDs          []string        `json:"subagent_ids,omitempty"`
 	TaskID               string          `json:"task_id,omitempty"`
 	TaskRunID            string          `json:"task_run_id,omitempty"`
 	WorkflowID           string          `json:"workflow_id,omitempty"`
@@ -26,6 +28,8 @@ type PromptSyntheticMeta struct {
 // Normalize returns a trimmed copy of the synthetic metadata.
 func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 	return PromptSyntheticMeta{
+		Kind:                 strings.TrimSpace(m.Kind),
+		SubagentIDs:          append([]string(nil), m.SubagentIDs...),
 		TaskID:               strings.TrimSpace(m.TaskID),
 		TaskRunID:            strings.TrimSpace(m.TaskRunID),
 		WorkflowID:           strings.TrimSpace(m.WorkflowID),
@@ -47,12 +51,16 @@ func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 // IsZero reports whether the synthetic metadata carries any fields.
 func (m PromptSyntheticMeta) IsZero() bool {
 	normalized := m.Normalize()
-	return normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
+	return normalized.Kind == "" && len(normalized.SubagentIDs) == 0 && normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
 		normalized.ClaimTokenHash == "" && normalized.CoordinatorSessionID == "" &&
 		normalized.ChildSessionID == "" && normalized.ChildAgentName == "" && normalized.Badge == "" &&
 		normalized.Reason == "" &&
-		normalized.Summary == "" && normalized.WakeEventID == "" && normalized.PolicySnapshotID == "" &&
-		normalized.PolicyDigest == "" && normalized.ConfigDigest == "" && normalized.Goal == nil
+		normalized.Summary == "" &&
+		normalized.WakeEventID == "" &&
+		normalized.PolicySnapshotID == "" &&
+		normalized.PolicyDigest == "" &&
+		normalized.ConfigDigest == "" &&
+		normalized.Goal == nil
 }
 
 // Validate ensures the synthetic metadata carries the minimum wake-up identity.

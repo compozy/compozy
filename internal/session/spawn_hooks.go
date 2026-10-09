@@ -19,6 +19,7 @@ func (m *Manager) dispatchSpawnPreCreate(
 ) (SpawnOpts, *store.SessionLineage, error) {
 	payload := hookspkg.SpawnPreCreatePayload{
 		Event:             hookspkg.HookSpawnPreCreate,
+		Subagent:          opts.Subagent,
 		Timestamp:         m.now().UTC(),
 		SpawnContext:      spawnHookContext(parent, nil, lineage, opts.AgentName, opts.SpawnRole),
 		ParentPermissions: hookPermissionSetFromPolicy(parent.Lineage.PermissionPolicy),
@@ -33,9 +34,16 @@ func (m *Manager) dispatchSpawnPreCreate(
 		if reason == "" {
 			reason = "spawn denied by hook"
 		}
+		if opts.SpawnRole == store.SubagentSpawnRole {
+			return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSubagentCapabilityDenied, reason)
+		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSpawnPermissionDenied, reason)
 	}
 
+	if opts.SpawnRole == store.SubagentSpawnRole &&
+		(result.TTLSeconds != 0 || result.SpawnRole != store.SubagentSpawnRole) {
+		return SpawnOpts{}, nil, ErrSubagentCapabilityDenied
+	}
 	opts.AgentName = strings.TrimSpace(result.AgentName)
 	opts.SpawnRole = normalizeSpawnRole(result.SpawnRole)
 	opts.TTL = time.Duration(result.TTLSeconds) * time.Second

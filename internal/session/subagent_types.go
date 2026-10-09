@@ -84,11 +84,30 @@ type SubagentAgentOption struct {
 	Constraints []string
 }
 
+type SubagentModelOption struct {
+	ID               string
+	Label            string
+	ReasoningEfforts []string
+	Speeds           []string
+}
+
+// SubagentError carries the public error classification across transport boundaries.
+type SubagentError struct {
+	Code    string
+	Message string
+	Err     error
+}
+
+var _ error = (*SubagentError)(nil) //nolint:errcheck // Compile-time interface assertion, not an unchecked operation.
+
+func (e *SubagentError) Error() string { return e.Message }
+func (e *SubagentError) Unwrap() error { return e.Err }
+
 // SubagentProviderOption is one delegable provider in the capabilities payload.
 type SubagentProviderOption struct {
 	Provider    string
 	DisplayName string
-	Models      []string
+	Models      []SubagentModelOption
 	CanDelegate bool
 	Constraints []string
 }

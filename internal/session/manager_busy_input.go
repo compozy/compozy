@@ -303,6 +303,7 @@ func (m *Manager) CancelQueuedPrompt(ctx context.Context, id string, queueEntryI
 		"Queued input canceled by operator.",
 		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 	)
+	m.publishSubagentWakeCanceled(ctx, &entry)
 	return SendPromptResult{
 		Status:          store.SessionPromptResultStatusCanceled,
 		Mode:            BusyInputMode(entry.Mode),

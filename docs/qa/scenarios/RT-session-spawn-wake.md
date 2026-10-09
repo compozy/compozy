@@ -73,3 +73,12 @@ Routing-slice verification: [2026-09-09 issue #564 report](../reports/2026-09-09
 `TestSpawnProviderRouteDiagnostics` additionally verifies that a startup auth failure is stopped,
 retained for inspection, and correlated with exactly one fingerprint per selected/error JSON log.
 This slice does not replace the unrelated wake-delivery walkthroughs above.
+
+QA impact 2026-10-09 — Subagents service slice: delegated children use `spawn_role=subagent`,
+`notify_creator=false`, and the dedicated subagent wake reactor. Verify batched wakes, status
+acknowledgement removing a queued result, canceled queued wakes returning to pending, and user/agent
+interrupt disposing delivery without stopping children. Steer delivery must never cancel the parent
+turn; unsupported or failed injection requeues once. Owning automated checks are
+`TestSubagentLifecycle`, `TestSubagentLifecycleBoundaries`, and `TestSubagentPromptCancel` in
+`internal/session`. The controller's integrated daemon/ACP walkthrough remains the public-surface
+verification owner; this slice's fake-runtime checks do not replace it.

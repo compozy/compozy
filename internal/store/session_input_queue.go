@@ -142,6 +142,7 @@ type SessionInputQueueSummary struct {
 
 // SessionInputQueueInsert captures the atomic insert request for busy input.
 type SessionInputQueueInsert struct {
+	Priority          int
 	OwnerKind         string
 	SyntheticPrompt   *SessionInputSyntheticPrompt
 	ID                string

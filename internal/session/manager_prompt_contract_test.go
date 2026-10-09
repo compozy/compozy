@@ -3599,3 +3599,47 @@ func TestRequestCompaction(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: only user/agent cancellation disposes delegated-turn delivery; owner: Manager cancellation (UT-061).
+func TestSubagentPromptCancel(t *testing.T) {
+	t.Parallel()
+	for _, cause := range []PromptCancelCause{PromptCancelUser, PromptCancelAgent, PromptCancelSyntheticAdmission, PromptCancelSteerFallback} {
+		t.Run("Should classify cancellation "+string(cause)+" UT-061", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			active := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+			output, err := h.manager.Prompt(t.Context(), active.ID, "active parent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, db, _ := newSubagentTestService(t)
+			db.rows["delegated"] = store.SessionSubagent{
+				ID:              "delegated",
+				ParentSessionID: active.ID,
+				ParentTurnID:    active.CurrentTurnID(),
+				Status:          "running",
+				Delivery:        "none",
+			}
+			h.manager.SetSubagentService(s)
+			result, err := h.manager.CancelPromptWithCause(t.Context(), active.ID, cause)
+			if err != nil || result.Outcome != PromptCancelOutcomeCanceled {
+				t.Fatal(result, err)
+			}
+			close(source)
+			collectEvents(t, output)
+			db.mu.Lock()
+			delivery := db.rows["delegated"].Delivery
+			db.mu.Unlock()
+			want := "none"
+			if cause == PromptCancelUser || cause == PromptCancelAgent {
+				want = "disposed"
+			}
+			if delivery != want {
+				t.Fatalf("delivery=%s want=%s", delivery, want)
+			}
+		})
+	}
+}

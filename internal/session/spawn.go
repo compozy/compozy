@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -35,6 +37,9 @@ var (
 
 // SpawnOpts defines the safe child-session creation request accepted by the manager.
 type SpawnOpts struct {
+	ParentTurnID    string
+	Permissions     compozyconfig.PermissionMode
+	Subagent        *hookspkg.SpawnSubagentContext
 	ParentSessionID string
 	// InheritedWorktreeID is daemon-owned structural context copied from the parent.
 	// Public callers cannot select or override it.
@@ -94,10 +99,19 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		return nil, err
 	}
 	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, normalized)
+	desiredID := ""
+	if normalized.SpawnRole == store.SubagentSpawnRole && normalized.IdempotencyKey != "" {
+		desiredID = "sess-" + strings.TrimPrefix(subagentID(parent.ID, normalized.IdempotencyKey), "sub-")
+		if existing, ok := m.Get(desiredID); ok {
+			return existing, nil
+		}
+	}
 
 	child, err := m.Create(ctx, CreateOpts{
+		DesiredSessionID:    desiredID,
 		ProfileID:           strings.TrimSpace(parent.ProfileID),
 		AgentName:           normalized.AgentName,
+		Permissions:         normalized.Permissions,
 		Provider:            normalized.Provider,
 		Model:               normalized.Model,
 		ReasoningEffort:     normalized.ReasoningEffort,
@@ -135,6 +149,11 @@ func (m *Manager) prepareSpawn(
 	parent, err := m.spawnParent(ctx, normalized.ParentSessionID)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
+	}
+	if normalized.SpawnRole == store.SubagentSpawnRole {
+		if err := m.validateSubagentSpawn(parent, &normalized); err != nil {
+			return SpawnOpts{}, nil, nil, err
+		}
 	}
 	if normalized.Speed == "" {
 		normalized.Speed = parent.Speed
@@ -209,7 +228,9 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 		return SpawnOpts{}, spawnValidation("parent_session_id is required")
 	case normalized.AgentName == "":
 		return SpawnOpts{}, spawnValidation("agent_name is required")
-	case normalized.TTL <= 0:
+	case normalized.SpawnRole == store.SubagentSpawnRole && normalized.TTL != 0:
+		return SpawnOpts{}, ErrSubagentCapabilityDenied
+	case normalized.TTL <= 0 && normalized.SpawnRole != store.SubagentSpawnRole:
 		return SpawnOpts{}, spawnValidation("ttl is required and must be positive")
 	case isCoordinatorSpawnRole(normalized.SpawnRole):
 		return SpawnOpts{}, spawnValidation("coordinator spawn role is not supported in MVP")
@@ -331,6 +352,13 @@ func (m *Manager) spawnLineage(
 	opts SpawnOpts,
 ) (*store.SessionLineage, error) {
 	parentLineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
+	if opts.SpawnRole == store.SubagentSpawnRole {
+		return store.NormalizeSessionLineage("", &store.SessionLineage{
+			ParentSessionID: parent.ID, RootSessionID: parentLineage.RootSessionID,
+			SpawnDepth: parentLineage.SpawnDepth + 1, SpawnRole: opts.SpawnRole,
+			AutoStopOnParent: true, NotifyCreator: false, PermissionPolicy: opts.PermissionPolicy,
+		}), nil
+	}
 	budget := effectiveSpawnBudget(parentLineage.SpawnBudget)
 	governance, err := m.spawnGovernanceForParent(ctx, parent)
 	if err != nil {

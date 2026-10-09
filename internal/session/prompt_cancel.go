@@ -22,8 +22,30 @@ type PromptCancelResult struct {
 	TurnID  string
 }
 
+type PromptCancelCause string
+
+const (
+	PromptCancelUser               PromptCancelCause = "user"
+	PromptCancelAgent              PromptCancelCause = "agent"
+	PromptCancelSyntheticAdmission PromptCancelCause = "synthetic_admission"
+	PromptCancelSteerFallback      PromptCancelCause = "steer_fallback"
+)
+
 // CancelPrompt cancels prompt setup/execution for a known session.
 func (m *Manager) CancelPrompt(ctx context.Context, id string) (PromptCancelResult, error) {
+	return m.CancelPromptWithCause(ctx, id, PromptCancelUser)
+}
+
+func (m *Manager) CancelPromptWithCause(
+	ctx context.Context,
+	id string,
+	cause PromptCancelCause,
+) (PromptCancelResult, error) {
+	switch cause {
+	case PromptCancelUser, PromptCancelAgent, PromptCancelSyntheticAdmission, PromptCancelSteerFallback:
+	default:
+		return PromptCancelResult{}, errors.New("session: invalid prompt cancellation cause")
+	}
 	if m == nil {
 		return PromptCancelResult{}, errors.New("session: manager is required")
 	}
@@ -51,6 +73,13 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) (PromptCancelResu
 	}
 	if err != nil {
 		return PromptCancelResult{}, err
+	}
+	if cause == PromptCancelUser || cause == PromptCancelAgent {
+		if service := m.subagentService(); service != nil {
+			if err := service.OnParentTurnInterrupted(ctx, target, run.turnID); err != nil {
+				return PromptCancelResult{}, err
+			}
+		}
 	}
 	return PromptCancelResult{Outcome: PromptCancelOutcomeCanceled, TurnID: run.turnID}, nil
 }
