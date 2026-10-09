@@ -1006,6 +1006,45 @@ func TestSubagentRecoveryDaemonIntegration(t *testing.T) {
 // IT-022: an executed pre-create hook denies before a session exists and removes the reservation.
 // Owner: daemon integration; verifies the real hook executor, service and database boundary together.
 func TestSubagentHookDaemonIntegration(t *testing.T) {
+	t.Run("Should complete a real async settled hook after dispatch returns", func(t *testing.T) {
+		capture := filepath.Join(t.TempDir(), "settled.json")
+		script := writeDaemonHookScript(t, t.TempDir(), "settled.sh",
+			"#!/bin/sh\nsleep 0.2\ncat > \"$1\"\nprintf '%s\\n' '{}'\n")
+		d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+			cfg.Hooks.Declarations = append(cfg.Hooks.Declarations, hookspkg.HookDecl{
+				Name: "observe-subagent", Event: hookspkg.HookSubagentSettled,
+				Mode: hookspkg.HookModeAsync, Command: script, Args: []string{capture},
+			})
+		})
+		_, caller := startSubagentIntegrationParent(t, manager, workspace)
+		row, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{
+			Caller: caller, Task: "child work", Title: "Observed",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "successful async hook run", 10*time.Second, func() bool {
+			runs, err := d.observer.QueryHookRuns(t.Context(), store.HookRunQuery{
+				SessionID: caller.SessionID, Event: string(hookspkg.HookSubagentSettled), Limit: 10,
+			})
+			if err != nil || len(runs) == 0 {
+				return false
+			}
+			if len(runs) != 1 || runs[0].Outcome != hookspkg.HookRunOutcomeApplied || runs[0].Error != "" {
+				t.Fatal(runs)
+			}
+			return true
+		})
+		var payload hookspkg.SubagentSettledPayload
+		waitForRuntimeCondition(t, "async settled subprocess completion", 10*time.Second, func() bool {
+			data, err := os.ReadFile(capture)
+			return err == nil && json.Unmarshal(data, &payload) == nil
+		})
+		if payload.Event != hookspkg.HookSubagentSettled || payload.SubagentID != row.ID ||
+			payload.Status != store.SubagentStatusCompleted || payload.ParentSessionID != caller.SessionID {
+			t.Fatal(payload)
+		}
+	})
 	t.Run("Should remove the reservation on hook denial", func(t *testing.T) {
 		capture := filepath.Join(t.TempDir(), "spawn.json")
 		script := writeDaemonHookScript(
@@ -1029,7 +1068,9 @@ func TestSubagentHookDaemonIntegration(t *testing.T) {
 		_, caller := startSubagentIntegrationParent(t, manager, workspace)
 		_, err := d.SubagentService().
 			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", Title: "Denied"})
-		if !errors.Is(err, session.ErrSubagentCapabilityDenied) || !strings.Contains(err.Error(), "fixture policy") {
+		denial, typed := errors.AsType[*session.SubagentError](err)
+		if !errors.Is(err, session.ErrSubagentCapabilityDenied) || !typed ||
+			denial.Code != "capability_denied" || denial.Message != "fixture policy" || err.Error() != "fixture policy" {
 			t.Fatal(err)
 		}
 		page, err := d.SubagentService().

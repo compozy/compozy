@@ -219,14 +219,14 @@ func (s *subagentService) failWake(ctx context.Context, parent, id string) error
 		)
 	}
 	if len(rows) > 0 && wake.Attempts < 3 {
-		s.retryWake(parent)
+		s.retryWake(parent, wake.Attempts)
 	}
 	return nil
 }
 
 const subagentWakeRetryDelay = 200 * time.Millisecond
 
-func (s *subagentService) retryWake(parent string) {
+func (s *subagentService) retryWake(parent string, attempts int) {
 	s.mu.Lock()
 	if s.wakeRetries == nil {
 		s.wakeRetries = make(map[string]bool)
@@ -238,7 +238,7 @@ func (s *subagentService) retryWake(parent string) {
 	s.wakeRetries[parent] = true
 	s.mu.Unlock()
 	s.launch(func() {
-		timer := time.NewTimer(subagentWakeRetryDelay)
+		timer := time.NewTimer(subagentWakeRetryDelay * time.Duration(attempts))
 		defer timer.Stop()
 		select {
 		case <-s.ctx.Done():

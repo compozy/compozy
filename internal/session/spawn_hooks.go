@@ -28,8 +28,13 @@ func (m *Manager) dispatchSpawnPreCreate(
 	}
 	result, err := m.hooks.spawn().DispatchSpawnPreCreate(ctx, payload)
 	if err != nil {
-		if _, denied := errors.AsType[*hookspkg.DeniedError](err); denied && opts.SpawnRole == store.SubagentSpawnRole {
-			return SpawnOpts{}, nil, fmt.Errorf("%w: %w", ErrSubagentCapabilityDenied, err)
+		if denial, denied := errors.AsType[*hookspkg.DeniedError](
+			err,
+		); denied &&
+			opts.SpawnRole == store.SubagentSpawnRole {
+			return SpawnOpts{}, nil, &SubagentError{
+				Code: "capability_denied", Message: denial.Reason, Err: errors.Join(ErrSubagentCapabilityDenied, err),
+			}
 		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %w", ErrSpawnPermissionDenied, err)
 	}
@@ -39,7 +44,11 @@ func (m *Manager) dispatchSpawnPreCreate(
 			reason = "spawn denied by hook"
 		}
 		if opts.SpawnRole == store.SubagentSpawnRole {
-			return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSubagentCapabilityDenied, reason)
+			return SpawnOpts{}, nil, &SubagentError{
+				Code:    "capability_denied",
+				Message: reason,
+				Err:     ErrSubagentCapabilityDenied,
+			}
 		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSpawnPermissionDenied, reason)
 	}

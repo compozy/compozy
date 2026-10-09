@@ -1211,8 +1211,20 @@ func TestSubagentWakeFailureLimit(t *testing.T) {
 				if queueCount != attempt {
 					t.Fatal("turn settlement bypassed retry backoff", queueCount)
 				}
-				time.Sleep(subagentWakeRetryDelay)
 				synctest.Wait()
+				time.Sleep(subagentWakeRetryDelay*time.Duration(attempt) - time.Nanosecond)
+				synctest.Wait()
+				unlock = s.lock("parent")
+				queueCount = len(r.queues)
+				unlock()
+				if queueCount != attempt {
+					t.Fatal("retry ran before its attempt-scaled backoff", queueCount, attempt)
+				}
+				time.Sleep(time.Nanosecond)
+				synctest.Wait()
+				if len(r.queues) != min(attempt+1, 3) {
+					t.Fatal("retry did not run at its deadline", len(r.queues), attempt)
+				}
 			}
 			if len(r.queues) != 3 || strings.Count(logs.String(), "subagent.wake_abandoned") != 1 {
 				t.Fatal(r.queues, logs.String())
@@ -1520,6 +1532,29 @@ func TestSubagentCancelLifetime(t *testing.T) {
 // N3/N6: pending steering is retriable after interruption and tracking ends with the wake.
 // Owner: service delivery; extends the canonical steer-batch invariant.
 func TestSubagentPendingSteerInterruption(t *testing.T) {
+	t.Run("Should retain steering until the last batch member is disposed", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		settleTestChild(t, s, runtime, &row)
+		wake := *db.rows[row.ID].WakeMessageID
+		other := db.rows[row.ID]
+		other.ID = "other-member"
+		db.rows[other.ID] = other
+		s.steerTurns = map[string]string{wake: "turn"}
+		for _, id := range []string{row.ID, other.ID} {
+			if err := s.dispose(
+				t.Context(),
+				store.SubagentDisposeFilter{ParentSessionID: "parent", IDs: []string{id}},
+			); err != nil {
+				t.Fatal(err)
+			}
+			_, tracked := s.steerTurns[wake]
+			if tracked != (id == row.ID) {
+				t.Fatal("steering tracking must follow remaining claimed members", id, tracked)
+			}
+		}
+	})
 	for _, edge := range []string{"interrupt", "stop", "cancel-wake", "injected", "fallback"} {
 		t.Run("Should release pending steer tracking on "+edge, func(t *testing.T) {
 			t.Parallel()

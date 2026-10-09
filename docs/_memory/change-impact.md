@@ -107,6 +107,14 @@ Owning automated journeys and verification limits: sa-fix-core-fix2.md; real-pro
 with the QA owner. Native-event ingestion must stay inline before turn-settled reconciliation.
 
 
+Core fix round 3: async `subagent.settled` execution uses the service lifetime and the hook
+executor's timeout, so returning from dispatch cannot cancel its subprocess. Subagent spawn denial
+returns `capability_denied` with the hook reason alone. Wake retry backoff grows by 200 ms per failed
+attempt (three-attempt cap unchanged); disposal derives steer tracking from row wake IDs and retains
+partially claimed batches. Native tool behavior follows the existing contract; config/hook schemas,
+workspace isolation, official skills and Web shapes are unchanged. Owning tests and limits are in
+`sa-fix-core-fix3.md`; RT-subagent-delegate records automated coverage without changing its QA verdict.
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

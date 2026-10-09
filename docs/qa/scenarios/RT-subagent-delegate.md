@@ -89,7 +89,9 @@ QA walk 2026-10-09 (real Claude parent, Codex children): golden path, child cont
 
 Fix round 1 automated scope (sa-fix-core): `TestSubagentConcurrentDenial` and
 `TestSubagentObserveHook` own concurrent denial and nonblocking observer regressions.
-`TestSubagentHookDaemonIntegration` exercises the real hook/ACP/store denial boundary.
+`TestSubagentHookDaemonIntegration` exercises the real hook/ACP/store denial boundary, asserts
+`capability_denied` with the hook reason alone, and waits for a real async settled subprocess
+to complete successfully with its documented payload after dispatch returns.
 These focused checks do not replace the real-provider scenario re-walk or change its fail verdict.
 
 Additional fix-round automated coverage: `TestSubagentPendingInjectionDaemonIntegration` verifies

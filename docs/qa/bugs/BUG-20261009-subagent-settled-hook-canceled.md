@@ -25,3 +25,8 @@ A config hook on `subagent.settled` never executed. Each of 3 settled subagents 
 ## Evidence
 
 - `publishTerminal` (`internal/session/subagent_publish.go:101-104`) dispatches inside `s.launch` with `hookCtx, cancel := context.WithTimeout(s.ctx, …)` and `defer cancel()`. The async dispatch returns at once and the deferred cancel kills the hook run. Introduced with 2bea65ef1 (async settlement observers). Async hooks need a context that outlives the dispatch call.
+
+## Fix round 3
+
+Production fix and regression coverage in `TestSubagentHookDaemonIntegration`. Automated verification
+is recorded in `sa-fix-core-fix3.md`; status remains open pending the QA owner’s real-provider re-walk.

@@ -103,6 +103,7 @@ func (s *subagentService) OnParentStopped(ctx context.Context, parent string) er
 		if row.Origin != store.SubagentOriginDelegated || row.ChildSessionID == nil {
 			continue
 		}
+		// The reaper owns auto_stop_on_parent for terminal non-canceled children.
 		if store.IsSubagentStatusTerminal(row.Status) && row.Status != store.SubagentStatusCanceled {
 			continue
 		}

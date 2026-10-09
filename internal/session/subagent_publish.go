@@ -99,9 +99,8 @@ func (s *subagentService) publishTerminal(ctx context.Context, row store.Session
 	s.runtime.PublishParent(ctx, row.ParentSessionID)
 	if s.settled != nil {
 		s.launch(func() {
-			hookCtx, cancel := context.WithTimeout(s.ctx, defaultLifecycleTimeout)
-			defer cancel()
-			s.logError(hookCtx, "settled_hook", s.settled.DispatchSubagentSettled(hookCtx, row))
+			// The hook pool owns execution timeouts; dispatch return must not cancel queued hooks.
+			s.logError(s.ctx, "settled_hook", s.settled.DispatchSubagentSettled(s.ctx, row))
 		})
 	}
 }

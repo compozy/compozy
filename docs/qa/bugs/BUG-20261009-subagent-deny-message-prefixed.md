@@ -25,3 +25,8 @@ A `spawn.pre_create` deny returns `capability_denied` with `hooks: event "spawn.
 ## Evidence
 
 - Reproduced in the round-2 lab; see the report.
+
+## Fix round 3
+
+Production fix and regression coverage in `TestSubagentHookDaemonIntegration`. Automated verification
+is recorded in `sa-fix-core-fix3.md`; status remains open pending the QA owner’s real-provider re-walk.
