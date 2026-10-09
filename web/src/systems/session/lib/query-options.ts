@@ -27,6 +27,7 @@ import type { FetchSessionEventsParams } from "../adapters/session-api";
 import type { SessionListFilters, SessionState } from "../types";
 import { sessionKeys } from "./query-keys";
 import { EMPTY_SUBAGENT_ROSTER } from "./subagent-roster";
+import { fetchSessionSubagents } from "../adapters/subagent-api";
 import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
 import { normalizeTranscriptSearchQuery } from "./session-navigation";
 import { expiredInteractionsByRequest } from "./session-pending-interactions";
@@ -440,6 +441,15 @@ export function sessionSubagentRosterOptions(workspaceId: string, sessionId: str
     queryKey: sessionKeys.subagentRoster(workspaceId, sessionId),
     queryFn: () => EMPTY_SUBAGENT_ROSTER,
     enabled: false,
+  });
+}
+
+/** One page of the parent's subagents for the mid-prompt control poll (newest first, up to 200). */
+export function sessionSubagentRosterPollOptions(workspaceId: string, sessionId: string) {
+  return queryOptions({
+    queryKey: sessionKeys.subagentRosterPoll(workspaceId, sessionId),
+    queryFn: ({ signal }) => fetchSessionSubagents(workspaceId, sessionId, { limit: 200 }, signal),
+    retry: false,
   });
 }
 
