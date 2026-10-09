@@ -842,8 +842,20 @@ func (c *hostedProxyClientStub) releaseCount() int {
 func TestHostedSubagentAnnotations(t *testing.T) {
 	t.Run("Should retain actionable invalid request errors through the hosted transport", func(t *testing.T) {
 		t.Parallel()
-		failure := tools.NewToolError(tools.ErrorCodeInvalidRequest, tools.ToolIDSubagentStatus, "subagent_id is required.", tools.ErrToolInvalidInput, tools.ReasonSchemaInvalid)
-		response := contract.ToolErrorResponse{Error: contract.ToolErrorPayload{Code: tools.ErrorCodeInvalidRequest, Message: failure.Message, ReasonCodes: failure.ReasonCodes}}
+		failure := tools.NewToolError(
+			tools.ErrorCodeInvalidRequest,
+			tools.ToolIDSubagentStatus,
+			"subagent_id is required.",
+			tools.ErrToolInvalidInput,
+			tools.ReasonSchemaInvalid,
+		)
+		response := contract.ToolErrorResponse{
+			Error: contract.ToolErrorPayload{
+				Code:        tools.ErrorCodeInvalidRequest,
+				Message:     failure.Message,
+				ReasonCodes: failure.ReasonCodes,
+			},
+		}
 		for _, err := range []error{failure, hostedToolResponseError{response: response}} {
 			if got := hostedToolErrorMessage(err); got != "invalid_request: subagent_id is required." {
 				t.Fatal(got)
@@ -870,6 +882,68 @@ func TestHostedSubagentAnnotations(t *testing.T) {
 // Invariant: the hosted fallback identity comes from the JSON-RPC request, preserving provider tool IDs and retries.
 // Owner: hosted MCP transport; canonical hosted proxy suite.
 func TestHostedRequestIdentity(t *testing.T) {
+	t.Run("Should return per-request invalid params and keep the hosted connection usable", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+		server := newHostedProxyTestServer()
+		session, err := server.Connect(ctx, hostedIdentityTransport{Transport: serverTransport}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := session.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		conn, err := clientTransport.Connect(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := conn.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		call := func(raw string) *jsonrpc.Response {
+			t.Helper()
+			message, err := jsonrpc.DecodeMessage([]byte(raw))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := conn.Write(ctx, message); err != nil {
+				t.Fatal(err)
+			}
+			message, err = conn.Read(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response, ok := message.(*jsonrpc.Response)
+			if !ok {
+				t.Fatalf("response = %T", message)
+			}
+			return response
+		}
+		response := call(
+			`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"test"}}}`,
+		)
+		if response.Error != nil {
+			t.Fatal(response.Error)
+		}
+		for _, params := range []string{`[]`, `"invalid"`, `42`, `{"name":"echo","_meta":[]}`, `{"name":"echo","_meta":"invalid"}`} {
+			response = call(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":` + params + `}`)
+			rpcErr, ok := errors.AsType[*jsonrpc.Error](response.Error)
+			if !ok || rpcErr.Code != jsonrpc.CodeInvalidParams || response.ID.Raw() != int64(2) {
+				t.Fatalf("params %s: response = %#v, error = %v", params, response, response.Error)
+			}
+		}
+		response = call(`{"jsonrpc":"2.0","id":3,"method":"ping","params":{}}`)
+		if response.Error != nil || response.ID.Raw() != int64(3) {
+			t.Fatalf("ping after malformed calls = %#v", response)
+		}
+	})
+
 	t.Run("Should preserve stable request identity without trusting caller metadata", func(t *testing.T) {
 		t.Parallel()
 		for _, raw := range []string{

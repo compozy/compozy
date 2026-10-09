@@ -18,6 +18,9 @@ const (
 	schemaTypeNull    = "null"
 )
 
+// schemaValidator keeps maximum length enforcement opt-in for descriptor input contracts.
+type schemaValidator struct{ enforceMaxLength bool }
+
 func normalizeCallInput(input json.RawMessage) json.RawMessage {
 	if len(bytes.TrimSpace(input)) == 0 {
 		return json.RawMessage(`{}`)
@@ -37,13 +40,14 @@ func validateCallInput(d Descriptor, input json.RawMessage) (err error) {
 			ReasonSchemaInvalid,
 		)
 	}
-	if err := validateJSONSchemaValue(d.ID, d.InputSchema, normalized); err != nil {
+	v := schemaValidator{enforceMaxLength: d.InputErrorCode != ""}
+	if err := v.validateJSONSchemaValue(d.ID, d.InputSchema, normalized); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateJSONSchemaValue(id ToolID, schema json.RawMessage, raw json.RawMessage) error {
+func (v schemaValidator) validateJSONSchemaValue(id ToolID, schema json.RawMessage, raw json.RawMessage) error {
 	var schemaValue map[string]json.RawMessage
 	if err := json.Unmarshal(schema, &schemaValue); err != nil {
 		return NewToolError(
@@ -64,7 +68,7 @@ func validateJSONSchemaValue(id ToolID, schema json.RawMessage, raw json.RawMess
 			ReasonSchemaInvalid,
 		)
 	}
-	if err := validateSchemaNode("$", schemaValue, value); err != nil {
+	if err := v.validateSchemaNode("$", schemaValue, value); err != nil {
 		return NewToolError(
 			ErrorCodeInvalidInput,
 			id,
@@ -76,7 +80,7 @@ func validateJSONSchemaValue(id ToolID, schema json.RawMessage, raw json.RawMess
 	return nil
 }
 
-func validateSchemaNode(path string, schema map[string]json.RawMessage, value any) error {
+func (v schemaValidator) validateSchemaNode(path string, schema map[string]json.RawMessage, value any) error {
 	types, err := schemaTypes(schema["type"])
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
@@ -87,31 +91,31 @@ func validateSchemaNode(path string, schema map[string]json.RawMessage, value an
 	if err := validateSchemaEnum(path, schema["enum"], value); err != nil {
 		return err
 	}
-	if err := validateSchemaAllOf(path, schema["allOf"], value); err != nil {
+	if err := v.validateSchemaAllOf(path, schema["allOf"], value); err != nil {
 		return err
 	}
-	if err := validateSchemaAnyOf(path, schema["anyOf"], value); err != nil {
+	if err := v.validateSchemaAnyOf(path, schema["anyOf"], value); err != nil {
 		return err
 	}
-	if err := validateSchemaOneOf(path, schema["oneOf"], value); err != nil {
+	if err := v.validateSchemaOneOf(path, schema["oneOf"], value); err != nil {
 		return err
 	}
-	if err := validateSchemaNot(path, schema["not"], value); err != nil {
+	if err := v.validateSchemaNot(path, schema["not"], value); err != nil {
 		return err
 	}
-	if err := validateSchemaStringNode(path, schema, value); err != nil {
+	if err := v.validateSchemaStringNode(path, schema, value); err != nil {
 		return err
 	}
-	if err := validateSchemaArrayNode(path, schema, value); err != nil {
+	if err := v.validateSchemaArrayNode(path, schema, value); err != nil {
 		return err
 	}
 	if slices.Contains(types, schemaTypeObject) || jsonValueType(value) == schemaTypeObject {
-		return validateSchemaObjectNode(path, schema, value)
+		return v.validateSchemaObjectNode(path, schema, value)
 	}
 	return nil
 }
 
-func validateSchemaStringNode(path string, schema map[string]json.RawMessage, value any) error {
+func (v schemaValidator) validateSchemaStringNode(path string, schema map[string]json.RawMessage, value any) error {
 	stringValue, ok := value.(string)
 	if !ok {
 		return nil
@@ -124,6 +128,9 @@ func validateSchemaStringNode(path string, schema map[string]json.RawMessage, va
 	if ok && stringLength < minLength {
 		return fmt.Errorf("%s: string length %d is less than minLength %d", path, stringLength, minLength)
 	}
+	if !v.enforceMaxLength {
+		return nil
+	}
 	maxLength, ok, err := schemaNonNegativeInteger(schema["maxLength"])
 	if err != nil {
 		return fmt.Errorf("%s.maxLength: %w", path, err)
@@ -134,7 +141,7 @@ func validateSchemaStringNode(path string, schema map[string]json.RawMessage, va
 	return nil
 }
 
-func validateSchemaArrayNode(path string, schema map[string]json.RawMessage, value any) error {
+func (v schemaValidator) validateSchemaArrayNode(path string, schema map[string]json.RawMessage, value any) error {
 	arrayValue, ok := value.([]any)
 	if !ok {
 		return nil
@@ -154,14 +161,14 @@ func validateSchemaArrayNode(path string, schema map[string]json.RawMessage, val
 		return nil
 	}
 	for idx, item := range arrayValue {
-		if err := validateSchemaNode(fmt.Sprintf("%s[%d]", path, idx), items, item); err != nil {
+		if err := v.validateSchemaNode(fmt.Sprintf("%s[%d]", path, idx), items, item); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateSchemaObjectNode(path string, schema map[string]json.RawMessage, value any) error {
+func (v schemaValidator) validateSchemaObjectNode(path string, schema map[string]json.RawMessage, value any) error {
 	objectValue, ok := value.(map[string]any)
 	if !ok {
 		return nil
@@ -185,7 +192,7 @@ func validateSchemaObjectNode(path string, schema map[string]json.RawMessage, va
 			if !ok {
 				continue
 			}
-			if err := validateSchemaNode(path+"."+key, childSchema, childValue); err != nil {
+			if err := v.validateSchemaNode(path+"."+key, childSchema, childValue); err != nil {
 				return err
 			}
 		}
@@ -200,7 +207,7 @@ func validateSchemaObjectNode(path string, schema map[string]json.RawMessage, va
 	return nil
 }
 
-func validateJSONSchemaDocument(path string, schema map[string]json.RawMessage) error {
+func (v schemaValidator) validateJSONSchemaDocument(path string, schema map[string]json.RawMessage) error {
 	if _, err := schemaTypes(schema["type"]); err != nil {
 		return fmt.Errorf("%s.type: %w", path, err)
 	}
@@ -210,15 +217,17 @@ func validateJSONSchemaDocument(path string, schema map[string]json.RawMessage) 
 		return fmt.Errorf("%s.properties: %w", path, err)
 	}
 	for key, childSchema := range properties {
-		if err := validateJSONSchemaDocument(path+".properties."+key, childSchema); err != nil {
+		if err := v.validateJSONSchemaDocument(path+".properties."+key, childSchema); err != nil {
 			return err
 		}
 	}
 	if _, _, err := schemaNonNegativeInteger(schema["minLength"]); err != nil {
 		return fmt.Errorf("%s.minLength: %w", path, err)
 	}
-	if _, _, err := schemaNonNegativeInteger(schema["maxLength"]); err != nil {
-		return fmt.Errorf("%s.maxLength: %w", path, err)
+	if v.enforceMaxLength {
+		if _, _, err := schemaNonNegativeInteger(schema["maxLength"]); err != nil {
+			return fmt.Errorf("%s.maxLength: %w", path, err)
+		}
 	}
 	if _, _, err := schemaNonNegativeInteger(schema["minItems"]); err != nil {
 		return fmt.Errorf("%s.minItems: %w", path, err)
@@ -228,18 +237,18 @@ func validateJSONSchemaDocument(path string, schema map[string]json.RawMessage) 
 		return fmt.Errorf("%s.items: %w", path, err)
 	}
 	if ok {
-		if err := validateJSONSchemaDocument(path+".items", items); err != nil {
+		if err := v.validateJSONSchemaDocument(path+".items", items); err != nil {
 			return err
 		}
 	}
 
-	if err := validateJSONSchemaDocumentArray(path+".allOf", schema["allOf"]); err != nil {
+	if err := v.validateJSONSchemaDocumentArray(path+".allOf", schema["allOf"]); err != nil {
 		return err
 	}
-	if err := validateJSONSchemaDocumentArray(path+".anyOf", schema["anyOf"]); err != nil {
+	if err := v.validateJSONSchemaDocumentArray(path+".anyOf", schema["anyOf"]); err != nil {
 		return err
 	}
-	if err := validateJSONSchemaDocumentArray(path+".oneOf", schema["oneOf"]); err != nil {
+	if err := v.validateJSONSchemaDocumentArray(path+".oneOf", schema["oneOf"]); err != nil {
 		return err
 	}
 
@@ -248,20 +257,20 @@ func validateJSONSchemaDocument(path string, schema map[string]json.RawMessage) 
 		return fmt.Errorf("%s.not: %w", path, err)
 	}
 	if ok {
-		if err := validateJSONSchemaDocument(path+".not", node); err != nil {
+		if err := v.validateJSONSchemaDocument(path+".not", node); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateJSONSchemaDocumentArray(path string, raw json.RawMessage) error {
+func (v schemaValidator) validateJSONSchemaDocumentArray(path string, raw json.RawMessage) error {
 	nodes, err := schemaNodeArray(raw)
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	for idx, node := range nodes {
-		if err := validateJSONSchemaDocument(fmt.Sprintf("%s[%d]", path, idx), node); err != nil {
+		if err := v.validateJSONSchemaDocument(fmt.Sprintf("%s[%d]", path, idx), node); err != nil {
 			return err
 		}
 	}

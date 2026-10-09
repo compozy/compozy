@@ -158,11 +158,53 @@ func (b *recordingApprovalBridge) RequestToolApproval(
 
 func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 	t.Parallel()
+	t.Run("Should enforce maximum lengths only for opted-in descriptor inputs", func(t *testing.T) {
+		t.Parallel()
+		for _, code := range []ErrorCode{"", ErrorCodeInvalidRequest} {
+			for _, limit := range []string{`3`, `1.5`} {
+				d := validDispatchDescriptor()
+				d.InputErrorCode = code
+				d.InputSchema = json.RawMessage(
+					`{"type":"object","properties":{"items":{"type":"array","items":{"allOf":[{"type":"string","maxLength":` + limit + `}]}}}}`,
+				)
+				validationErr := d.Validate()
+				if wantErr := code != "" && limit == "1.5"; (validationErr != nil) != wantErr {
+					t.Fatalf("code %q limit %s: Validate = %v", code, limit, validationErr)
+				}
+				if validationErr != nil {
+					continue
+				}
+				called := false
+				provider := dispatchProviderWithHandle(d, &registryTestHandle{
+					descriptor:   d,
+					availability: availableDispatchHandle(),
+					call: func(context.Context, CallRequest) (ToolResult, error) {
+						called = true
+						return ToolResult{}, nil
+					},
+				})
+				registry := mustDispatchRegistry(t, provider)
+				_, err := registry.Call(t.Context(), Scope{ProfileID: "profile-a"}, CallRequest{
+					ToolID: d.ID, Input: json.RawMessage(`{"items":["four"]}`),
+				})
+				if code == "" {
+					if err != nil || !called {
+						t.Fatalf("legacy descriptor: called=%v err=%v", called, err)
+					}
+				} else if !errors.Is(err, ErrToolInvalidInput) || called {
+					t.Fatalf("opted-in descriptor: called=%v err=%v", called, err)
+				}
+			}
+		}
+	})
+
 	t.Run("Should derive public input failures from descriptor metadata", func(t *testing.T) {
 		t.Parallel()
 		d := validDispatchDescriptor()
 		d.InputErrorCode = ErrorCodeInvalidRequest
-		d.InputSchema = json.RawMessage(`{"type":"object","required":["subject"],"properties":{"subject":{"type":"string","minLength":1,"maxLength":3}}}`)
+		d.InputSchema = json.RawMessage(
+			`{"type":"object","required":["subject"],"properties":{"subject":{"type":"string","minLength":1,"maxLength":3}}}`,
+		)
 		for _, tc := range []struct{ input, want string }{{`{}`, "subject is required."}, {`{"subject":""}`, "subject is required."}, {`{"subject":"four"}`, "subject exceeds 3 characters."}} {
 			err := validateCallInput(d, json.RawMessage(tc.input))
 			detail, ok := errors.AsType[*ToolError](err)

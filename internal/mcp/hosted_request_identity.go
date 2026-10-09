@@ -37,13 +37,13 @@ func (c hostedIdentityConnection) Read(ctx context.Context) (jsonrpc.Message, er
 		return message, nil
 	}
 	var params map[string]jsontext.Value
-	if err := json.Unmarshal(request.Params, &params); err != nil {
-		return nil, err
+	if err := json.Unmarshal(request.Params, &params); err != nil || params == nil {
+		return message, nil
 	}
 	meta := make(map[string]any)
 	if raw := params["_meta"]; len(raw) > 0 {
 		if err := json.Unmarshal(raw, &meta); err != nil {
-			return nil, err
+			return message, nil
 		}
 	}
 	if meta == nil {

@@ -139,7 +139,8 @@ func (d Descriptor) Validate() error {
 	if err := toolmeta.ValidateDescriptorMetadata(presentation.FriendlyVerb, presentation.Preview); err != nil {
 		return NewValidationError("presentation", ReasonSchemaInvalid, err.Error())
 	}
-	if err := ValidateJSONObject("input_schema", d.InputSchema, true); err != nil {
+	v := schemaValidator{enforceMaxLength: d.InputErrorCode != ""}
+	if err := v.validateJSONObject("input_schema", d.InputSchema, true); err != nil {
 		return err
 	}
 	if err := ValidateJSONObject("output_schema", d.OutputSchema, false); err != nil {
