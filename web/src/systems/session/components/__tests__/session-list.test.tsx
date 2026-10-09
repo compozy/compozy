@@ -286,7 +286,6 @@ describe("SessionList subagents", () => {
     settled_at: null,
     created_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
     updated_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
-    created_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
   });
 
   beforeEach(() => {
