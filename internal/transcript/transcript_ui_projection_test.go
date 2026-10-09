@@ -839,7 +839,7 @@ func TestSubagentUIProjection(t *testing.T) {
 					if err := json.Unmarshal(part.Data, &payload); err != nil {
 						t.Fatal(err)
 					}
-					if payload.SubagentID != part.ID || payload.ToolCallID == "" {
+					if payload.SubagentID != part.ID || payload.ToolCallID == "" || payload.TurnID != "turn" {
 						t.Fatalf("invalid card: %#v", part)
 					}
 					if payload.Origin == "provider_native" && payload.SubagentID != "sub-b5de770448cb8f99" {
@@ -861,4 +861,50 @@ func TestSubagentUIProjection(t *testing.T) {
 			t.Fatalf("part positions = %v", positions)
 		}
 	})
+	// UT-038: card data carries the originating parent turn independently of message IDs.
+	for _, tc := range []struct {
+		name  string
+		event acp.AgentEvent
+	}{
+		{name: "Agent call", event: acp.AgentEvent{Type: acp.EventTypeToolCall}.WithProviderToolMetadata("", "Agent", "pending")},
+		{name: "Task call", event: acp.AgentEvent{Type: acp.EventTypeToolCall}.WithProviderToolMetadata("", "Task", "pending")},
+		{name: "delegated result", event: acp.AgentEvent{Type: acp.EventTypeToolResult,
+			Raw: json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated","turn_id":"untrusted-output-turn"}}`),
+		}.WithTool("compozy__subagent_delegate", nil, false)},
+	} {
+		t.Run("Should preserve the parent turn for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.event.SessionID, tc.event.TurnID, tc.event.ToolCallID = "parent", "parent-turn", "call"
+			content, err := MarshalAgentEvent(tc.event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			messages, err := ToUIMessages([]store.SessionEvent{{
+				ID: "unrelated-event-id", SessionID: "parent", TurnID: "parent-turn",
+				Sequence: 1, Content: content, Type: tc.event.Type,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cards := 0
+			for _, message := range messages {
+				for _, part := range message.Parts {
+					if part.Type != "data-compozy-subagent" {
+						continue
+					}
+					cards++
+					var data map[string]any
+					if err := json.Unmarshal(part.Data, &data); err != nil {
+						t.Fatal(err)
+					}
+					if data["turn_id"] != "parent-turn" {
+						t.Fatalf("card data = %s", part.Data)
+					}
+				}
+			}
+			if cards != 1 {
+				t.Fatalf("cards = %d, want 1", cards)
+			}
+		})
+	}
 }

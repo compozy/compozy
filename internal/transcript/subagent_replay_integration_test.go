@@ -141,6 +141,13 @@ func TestNativeSubagentFixtureReplay(t *testing.T) {
 			for _, part := range message.Parts {
 				if part.Type == "data-compozy-subagent" {
 					cards++
+					var payload transcript.UISubagentPayload
+					if err := json.Unmarshal(part.Data, &payload); err != nil {
+						t.Fatal(err)
+					}
+					if payload.TurnID != "turn" {
+						t.Fatalf("native card turn = %q, want turn", payload.TurnID)
+					}
 				}
 				if part.Type == "text" && part.Text == "Inspecting the diff." &&
 					part.ParentToolCallID == "toolu_agent" {

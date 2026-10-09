@@ -646,12 +646,12 @@ func TestSubagentCodecContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		if decoded.ParentToolCallID() != original.ParentToolCallID() || decoded.ProviderToolName() != "Read" ||
-			decoded.ToolStatus() != "pending" {
+			decoded.ToolStatus() != "pending" || decoded.TurnID != original.TurnID {
 			t.Fatalf("decoded = %#v", decoded)
 		}
 		live, replay := UIAgentEventPayloadFromEvent(original), UIAgentEventPayloadFromEvent(decoded)
 		if live.ParentToolCallID != replay.ParentToolCallID || live.ProviderToolName != replay.ProviderToolName ||
-			live.Status != replay.Status {
+			live.Status != replay.Status || live.TurnID != original.TurnID || replay.TurnID != original.TurnID {
 			t.Fatalf("stream attribution changed: %#v / %#v", live, replay)
 		}
 	})

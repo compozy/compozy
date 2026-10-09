@@ -12,6 +12,7 @@ import (
 type UISubagentPayload struct {
 	SubagentID      string `json:"subagent_id"`
 	ToolCallID      string `json:"tool_call_id"`
+	TurnID          string `json:"turn_id"`
 	Origin          string `json:"origin,omitempty"`
 	Title           string `json:"title,omitempty"`
 	RuntimeProvider string `json:"runtime_provider,omitempty"`
@@ -55,6 +56,7 @@ func (b *uiMessageBuilder) appendSubagentPart(decoded *decodedStoredEvent) {
 	default:
 		return
 	}
+	payload.TurnID = event.TurnID
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return
