@@ -41,6 +41,9 @@ func cloneAutomationTriggerPreFirePayload(payload AutomationTriggerPreFirePayloa
 }
 
 func cloneSpawnPreCreatePayload(payload SpawnPreCreatePayload) SpawnPreCreatePayload {
+	if payload.Subagent != nil {
+		payload.Subagent = new(*payload.Subagent)
+	}
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
 	return payload

@@ -55,6 +55,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Redact:        RedactConfig{Enabled: true},
 		Shell:         DefaultShellConfig(),
 		Attention:     DefaultAttentionConfig(),
+		Subagents:     DefaultSubagentsConfig(),
 		Roles:         DefaultRolesConfig(),
 		RoleSources:   defaultRoleFieldSources(),
 		Skills: SkillsConfig{

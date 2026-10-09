@@ -1,6 +1,7 @@
 package config
 
 type configOverlay struct {
+	Subagents     subagentsOverlay           `toml:"subagents"`
 	Daemon        daemonOverlay              `toml:"daemon"`
 	HTTP          httpOverlay                `toml:"http"`
 	App           appOverlay                 `toml:"app"`
@@ -37,6 +38,7 @@ type configOverlay struct {
 }
 
 func (o *configOverlay) Apply(dst *Config) error {
+	o.Subagents.Apply(&dst.Subagents)
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
 	o.App.Apply(&dst.App)

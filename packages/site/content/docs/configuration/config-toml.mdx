@@ -1074,6 +1074,20 @@ authored agent remains visible as `role_agent_not_found`; an unknown role return
 | ----------------------- | ------- | ------- | ----------------- | ------------------------------------------------------------ |
 | `max_concurrent_agents` | integer | `20`    | Positive integer. | Daemon-wide cap for concurrently running agent subprocesses. |
 
+## `[subagents]`
+
+```toml
+[subagents]
+result_max_chars = 60000
+```
+
+`result_max_chars` limits the result returned by the subagent tools to 1,000–1,000,000
+characters (default 60,000). The complete answer stays in the child session transcript.
+A truncated result includes a hint to use `compozy__session_history` on `child_session_id`.
+Workspace overlays override the global value only for that workspace. The service reads the
+current value when the subagent settles; changes apply to subsequent results without a restart.
+Subagents have no depth, count, or TTL caps.
+
 ## `[session.limits]`
 
 | Field     | Type     | Default | Valid values                  | Description                                                                    |

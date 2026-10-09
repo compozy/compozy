@@ -458,3 +458,17 @@ Related references:
 - [Runtime Autonomy](/docs/autonomy)
 - [Hooks CLI Reference](/docs/cli/hooks)
 - [Automations on events (triggers)](/docs/automation/events)
+
+## Subagent Events
+
+| Event | Sync | Payload | Patch | When |
+| --- | --- | --- | --- | --- |
+| `subagent.settled` | no | `SubagentSettledPayload` | `SubagentObservationPatch` | A subagent reaches its terminal state. |
+
+This family is observe-only. The payload includes `workspace_id`, `subagent_id`,
+`parent_session_id`, nullable `child_session_id`, `origin`, `status`, `runtime.provider`,
+`runtime.model`, and `duration_ms`, in addition to the common event metadata.
+
+Delegation also uses `spawn.pre_create` with `spawn_role: "subagent"` and a typed
+`subagent` object containing `title`, `role`, and `task_chars`. Denying that hook or
+rewriting a TTL for this role rejects delegation with `capability_denied`.

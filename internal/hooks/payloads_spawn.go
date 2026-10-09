@@ -38,6 +38,7 @@ func (c SpawnContext) HookProfileID() string { return strings.TrimSpace(c.Profil
 
 // SpawnPreCreatePayload is delivered before a child session is created.
 type SpawnPreCreatePayload struct {
+	Subagent *SubagentSpawnPayload `json:"subagent,omitempty"`
 	PayloadBase
 	SpawnContext
 	ParentPermissions *PermissionSet `json:"parent_permissions"`
