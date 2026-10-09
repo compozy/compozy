@@ -53,7 +53,11 @@ const view: SessionListViewModel = {
   ownerOf: () => ({ id: "default", name: "default", archived: false }),
 };
 function renderList(
-  overrides: { sessions?: SessionPayload[]; revealedSession?: SessionPayload | null } = {}
+  overrides: {
+    sessions?: SessionPayload[];
+    revealedSession?: SessionPayload | null;
+    collapsedThreadIds?: string[];
+  } = {}
 ) {
   const onSelect = vi.fn();
   const actions = {
@@ -74,7 +78,7 @@ function renderList(
     sessions: overrides.sessions ?? sessions,
     revealedSession: overrides.revealedSession,
     disconnected: false,
-    collapsedThreadIds: [],
+    collapsedThreadIds: overrides.collapsedThreadIds ?? [],
     view,
     onToggleThread: vi.fn(),
     onSelectSession: onSelect,
@@ -307,6 +311,24 @@ describe("SessionList subagents", () => {
 
     expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
     expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+  });
+
+  it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
+    const parent = row("parent", summary(1, 3));
+    const plainChild = row("plain", { lineage: lineage("parent") });
+    const viewed = row("viewed-sub", { lineage: lineage("parent", "subagent") });
+    renderList({
+      sessions: [parent, plainChild],
+      revealedSession: viewed,
+      collapsedThreadIds: ["parent"],
+    });
+
+    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.getByTestId("session-sidebar-session-plain").closest("[inert]")).not.toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub").closest("[inert]")).toBeNull();
   });
 
   it("UT-W18: never promotes a viewed subagent whose parent is off the page", () => {
